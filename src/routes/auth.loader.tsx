@@ -1,11 +1,6 @@
 import { refreshAccessToken } from "@/endpoints/auth.endpoints"
 
-import {
-  clearAuth,
-  setAuthPending,
-  setAuthToken,
-  setAuthUser,
-} from "@/redux/features/auth/auth.slice"
+import { clearAuth, setAuthPending, setAuthToken, setAuthUser } from "@/redux/slices/auth.slice"
 import store, { RootState } from "@/redux/store"
 
 let isRefreshing = false

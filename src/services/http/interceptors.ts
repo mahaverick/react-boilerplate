@@ -4,12 +4,7 @@ import { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios"
 
 import { http } from "@/services/http/client"
 
-import {
-  clearAuth,
-  setAuthPending,
-  setAuthToken,
-  setAuthUser,
-} from "@/redux/features/auth/auth.slice"
+import { clearAuth, setAuthPending, setAuthToken, setAuthUser } from "@/redux/slices/auth.slice"
 
 // import { removeAuthStorage, saveAuthStorage } from "@/utils/storage.utils"
 

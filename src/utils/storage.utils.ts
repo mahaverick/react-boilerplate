@@ -1,4 +1,4 @@
-import { rehydrateAuth } from "@/redux/features/auth/auth.slice"
+import { rehydrateAuth } from "@/redux/slices/auth.slice"
 import { RootState } from "@/redux/store"
 import { decryptData, encryptData } from "@/utils/crypto.utils"
 

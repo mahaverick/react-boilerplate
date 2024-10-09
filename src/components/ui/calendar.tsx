@@ -1,4 +1,4 @@
-import * as React from "react"
+import React from "react"
 import { DayPicker } from "react-day-picker"
 
 import { cn } from "@/utils/global.utils"
@@ -6,7 +6,12 @@ import { buttonVariants } from "@/components/ui/button"
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
 
-function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
+const Calendar: React.FC<CalendarProps> = ({
+  className,
+  classNames,
+  showOutsideDays = true,
+  ...props
+}) => {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}

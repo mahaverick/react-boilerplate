@@ -8,7 +8,7 @@ import { useDispatch } from "react-redux"
 import { Link, useNavigate } from "react-router-dom"
 import { z } from "zod"
 
-import { setAuthToken, setAuthUser } from "@/redux/features/auth/auth.slice"
+import { setAuthToken, setAuthUser } from "@/redux/slices/auth.slice"
 import { handleFormErrors } from "@/utils/form.utils"
 import { cn } from "@/utils/global.utils"
 // import { saveAuthStorage } from "@/utils/storage.utils"

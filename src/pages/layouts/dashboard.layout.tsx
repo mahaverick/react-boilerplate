@@ -1,44 +1,49 @@
-import { logout } from "@/endpoints/auth.endpoints"
-import { useDispatch } from "react-redux"
-import { Link, Outlet } from "react-router-dom"
+import { ErrorInfo, useCallback } from "react"
+import { useSelector } from "react-redux"
+import { Outlet } from "react-router-dom"
 
-import { clearAuth } from "@/redux/features/auth/auth.slice"
-import { Button } from "@/components/ui/button"
+import { RootState } from "@/redux/store"
+import { cn } from "@/utils/global.utils"
+import { useLogout } from "@/hooks/use-logout"
+// import { Input } from "@/components/ui/input"
 import ErrorBoundary from "@/components/errors/error-boundary"
+import Sidebar from "@/components/features/sidebar"
 
 function DashboardLayout() {
-  const dispatch = useDispatch()
+  const { handleLogout } = useLogout()
+  const { isExpanded } = useSelector((state: RootState) => state.sidebar)
+  const { user } = useSelector((state: RootState) => state.auth)
+  const handleError = useCallback((error: Error, errorInfo: ErrorInfo) => {
+    // Log the error to an error reporting service
+    // logErrorToService(error, errorInfo)
 
-  const handleLogout = async () => {
-    await logout()
-    dispatch(clearAuth())
-  }
+    // eslint-disable-next-line no-console
+    console.error("ErrorBoundary caught an error:", error, errorInfo)
+  }, [])
 
   return (
     <ErrorBoundary
       fallback={() => <div>Oops! Something went wrong in dashboard</div>}
-      onError={(error, errorInfo) => {
-        // Log the error to an error reporting service
-        // logErrorToService(error, errorInfo)
-
-        // eslint-disable-next-line no-console
-        console.error("ErrorBoundary caught an error:", error, errorInfo)
-      }}>
+      onError={handleError}>
       <section className="flex min-h-screen">
-        <aside className="w-64 bg-background p-4">
-          <div className="flex flex-col gap-4">
-            <Button variant="ghost">Dashboard</Button>
-            <Link to="/organizations">
-              <Button variant="ghost">Organizations</Button>
-            </Link>
-            <Button variant="ghost">Users</Button>
-            <Button variant="ghost">Settings</Button>
-            <Button variant="ghost" onClick={handleLogout}>
-              Logout
-            </Button>
-          </div>
-        </aside>
-        <Outlet />
+        <Sidebar onLogout={handleLogout} />
+        <header
+          className={cn(
+            "fixed left-0 right-0 top-0 z-20 flex h-16 items-center justify-end bg-background px-6 py-3 transition-all duration-300",
+            isExpanded ? "ml-64" : "ml-16"
+          )}>
+          {/* <div className="flex items-center space-x-4">
+            <Input type="search" placeholder="Search..." className="w-64" />
+          </div> */}
+          <span className="text-lg">{`Welcome, ${user?.firstName} ${user?.lastName}`}</span>
+        </header>
+        <main
+          className={cn(
+            "mt-16 flex-1 bg-background px-6 py-3 transition-all duration-300",
+            isExpanded ? "ml-64" : "ml-16"
+          )}>
+          <Outlet />
+        </main>
       </section>
     </ErrorBoundary>
   )
