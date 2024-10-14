@@ -12,7 +12,14 @@ import httpInterceptors from "@/services/http/interceptors"
 
 // import { setupAuthPersistence } from "@/utils/storage.utils"
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
+    },
+  },
+})
 
 // setupAuthPersistence(store)
 httpInterceptors.attach(store)

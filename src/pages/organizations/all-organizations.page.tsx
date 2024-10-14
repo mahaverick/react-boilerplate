@@ -21,7 +21,7 @@ const AllOrganizations = () => {
   }
 
   return (
-    <div>
+    <div className="flex h-full flex-col">
       <h1>All Organizations</h1>
       <ul>
         {organizations?.map((organization: Organization) => (

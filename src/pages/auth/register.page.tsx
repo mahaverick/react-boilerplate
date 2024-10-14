@@ -5,7 +5,7 @@ import { AxiosError, AxiosResponse } from "axios"
 import { format } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import * as z from "zod"
 
 import { handleFormErrors } from "@/utils/form.utils"
@@ -247,6 +247,10 @@ const Register = () => {
                         />
                       </PopoverContent>
                     </Popover>
+                    <FormDescription>
+                      Your date of birth is used to calculate your age.
+                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -292,6 +296,23 @@ const Register = () => {
               </Button>
             </form>
           </Form>
+          <div className="mt-4 text-center text-sm">
+            Already have an account?{" "}
+            <Link to="/login" className="text-primary hover:underline">
+              Log in here
+            </Link>
+          </div>
+          <div className="mt-2 text-center text-xs text-muted-foreground">
+            By registering, you agree to our{" "}
+            <Link to="/terms" className="text-primary hover:underline">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link to="/privacy" className="text-primary hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -20,4 +20,4 @@ export const fetchOrganization = (identifier: string) =>
  * @returns {Promise} - Axios promise object
  */
 export const createOrganization = (data: CreateOrganizationData) =>
-  http.post(`/organizations`, { data }, { requireAuthHeader: true })
+  http.post(`/organizations`, data, { requireAuthHeader: true })
