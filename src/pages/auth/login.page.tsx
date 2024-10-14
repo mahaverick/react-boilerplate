@@ -1,4 +1,5 @@
-import { login } from "@/endpoints/auth.endpoints"
+import { useState } from "react"
+import { login, resendVerificationEmail } from "@/endpoints/auth.endpoints"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation } from "@tanstack/react-query"
 import { AxiosError, AxiosResponse } from "axios"
@@ -44,6 +45,9 @@ const Login = () => {
   const navigate = useNavigate()
   const dispatch = useDispatch()
 
+  const [isEmailNotVerified, setIsEmailNotVerified] = useState(false)
+  const [emailForVerification, setEmailForVerification] = useState("")
+
   const form = useForm<LoginData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -70,8 +74,34 @@ const Login = () => {
       }
     },
     onError: (error: AxiosError<ErrorResponse>) => {
-      handleFormErrors<LoginData>(error, form.setError)
+      if (error.response?.data?.errors?.email?._errors.includes("Email not verified")) {
+        setIsEmailNotVerified(true)
+        setEmailForVerification(form.getValues().email)
+        form.setError("email", {
+          type: "manual",
+          message: "Email not verified. Please check your inbox or resend verification email.",
+        })
+      } else {
+        handleFormErrors<LoginData>(error, form.setError)
+      }
       form.reset({ password: "" }, { keepErrors: true })
+    },
+  })
+
+  const resendVerificationMutation = useMutation({
+    mutationFn: (email: string) => resendVerificationEmail(email),
+    onSuccess: () => {
+      form.reset({ password: "" }, { keepErrors: false })
+      form.setError("root", {
+        type: "manual",
+        message: "Verification email sent. Please check your inbox.",
+      })
+    },
+    onError: (error: AxiosError<ErrorResponse>) => {
+      form.setError("root", {
+        type: "manual",
+        message: error.message,
+      })
     },
   })
 
@@ -190,6 +220,19 @@ const Login = () => {
                   Sign up
                 </Link>
               </p>
+
+              {isEmailNotVerified && (
+                <Button
+                  type="button"
+                  variant="link"
+                  className="mt-2"
+                  onClick={() => resendVerificationMutation.mutate(emailForVerification)}
+                  disabled={resendVerificationMutation.isPending}>
+                  {resendVerificationMutation.isPending
+                    ? "Sending..."
+                    : "Resend Verification Email"}
+                </Button>
+              )}
             </CardFooter>
           </form>
         </Form>

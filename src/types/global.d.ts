@@ -5,11 +5,9 @@ interface ErrorResponse {
   statusCode: number
   errors?: {
     _errors: string[]
-    [key: string]:
-      | {
-          _errors: string[]
-        }
-      | string[]
+    [key: string]: {
+      _errors: string[]
+    }
   }
   meta: {
     timestamp?: string
