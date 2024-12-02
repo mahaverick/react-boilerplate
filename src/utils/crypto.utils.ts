@@ -1,4 +1,4 @@
-import CryptoJS from "crypto-js"
+import CryptoJS from 'crypto-js'
 
 const ENCRYPTION_KEY = process.env.VITE_AUTH_ENCRYPTION_KEY as string
 

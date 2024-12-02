@@ -1,7 +1,7 @@
-import axios from "axios"
+import axios from 'axios'
 
-const BASE_URL = process.env.VITE_API_BASE_URL || "http://localhost:4545/api/"
-const TIMEOUT_MESSAGE = "Request timed out. Please try again."
+const BASE_URL = process.env.VITE_API_BASE_URL || 'http://localhost:4545/api/'
+const TIMEOUT_MESSAGE = 'Request timed out. Please try again.'
 
 const config = {
   baseURL: BASE_URL,

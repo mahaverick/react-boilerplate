@@ -1,17 +1,17 @@
-import { Suspense } from "react"
+import { Suspense } from 'react'
 
-import { ForgotPassword, Login, Register, ResetPassword } from "@/routes/lazy.routes"
-import SuspenseLoader from "@/components/features/suspense-loader"
-import EmailVerification from "@/pages/auth/email-verification.page"
-import AuthLayout from "@/pages/layouts/auth.layout"
+import { ForgotPassword, Login, Register, ResetPassword } from '@/routes/lazy.routes'
+import SuspenseLoader from '@/components/features/suspense-loader'
+import EmailVerification from '@/pages/auth/email-verification.page'
+import AuthLayout from '@/pages/layouts/auth.layout'
 
 export const authRoutes = [
   {
-    path: "",
+    path: '',
     element: <AuthLayout />,
     children: [
       {
-        path: "login",
+        path: 'login',
         element: (
           <Suspense fallback={<SuspenseLoader size="large" text="Loading content..." />}>
             <Login />
@@ -19,7 +19,7 @@ export const authRoutes = [
         ),
       },
       {
-        path: "register",
+        path: 'register',
         element: (
           <Suspense fallback={<SuspenseLoader size="large" text="Loading content..." />}>
             <Register />
@@ -27,7 +27,7 @@ export const authRoutes = [
         ),
       },
       {
-        path: "email/verify",
+        path: 'email/verify',
         element: (
           <Suspense fallback={<SuspenseLoader size="large" text="Verifying email..." />}>
             <EmailVerification />
@@ -35,7 +35,7 @@ export const authRoutes = [
         ),
       },
       {
-        path: "password/forgot",
+        path: 'password/forgot',
         element: (
           <Suspense fallback={<SuspenseLoader size="large" text="Loading content..." />}>
             <ForgotPassword />
@@ -43,7 +43,7 @@ export const authRoutes = [
         ),
       },
       {
-        path: "password/reset",
+        path: 'password/reset',
         element: (
           <Suspense fallback={<SuspenseLoader size="large" text="Loading content..." />}>
             <ResetPassword />

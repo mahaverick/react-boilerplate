@@ -1,5 +1,5 @@
-import { AxiosError } from "axios"
-import { FieldValues, Path, UseFormSetError } from "react-hook-form"
+import { AxiosError } from 'axios'
+import { FieldValues, Path, UseFormSetError } from 'react-hook-form'
 
 export function handleFormErrors<T extends FieldValues>(
   error: AxiosError<ErrorResponse>,
@@ -9,18 +9,18 @@ export function handleFormErrors<T extends FieldValues>(
 
   if (errorData && errorData.errors) {
     Object.entries(errorData.errors).forEach(([field, fieldErrors]) => {
-      if (field !== "_errors") {
+      if (field !== '_errors') {
         if (Array.isArray(fieldErrors)) {
           fieldErrors.forEach((errorMessage) => {
             setError(field as Path<T>, {
-              type: "manual",
+              type: 'manual',
               message: errorMessage,
             })
           })
         } else if (fieldErrors._errors) {
           fieldErrors._errors.forEach((errorMessage) => {
             setError(field as Path<T>, {
-              type: "manual",
+              type: 'manual',
               message: errorMessage,
             })
           })
@@ -29,8 +29,8 @@ export function handleFormErrors<T extends FieldValues>(
     })
   }
   if (errorData && errorData.message) {
-    setError("root" as Path<T>, {
-      type: "manual",
+    setError('root' as Path<T>, {
+      type: 'manual',
       message: errorData.message,
     })
   }

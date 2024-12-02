@@ -1,8 +1,8 @@
-import { useCallback } from "react"
-import { logout } from "@/endpoints/auth.endpoints"
-import { useDispatch } from "react-redux"
+import { useCallback } from 'react'
+import { logout } from '@/endpoints/auth.endpoints'
+import { useDispatch } from 'react-redux'
 
-import { clearAuth } from "@/redux/slices/auth.slice"
+import { clearAuth } from '@/redux/slices/auth.slice'
 
 export const useLogout = () => {
   const dispatch = useDispatch()
@@ -14,7 +14,7 @@ export const useLogout = () => {
     } catch (error) {
       // Handle error (e.g., show a notification to the user)
       // eslint-disable-next-line no-console
-      console.error("Logout failed:", error)
+      console.error('Logout failed:', error)
     }
   }, [dispatch])
 

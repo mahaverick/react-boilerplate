@@ -1,4 +1,4 @@
-import React, { useCallback } from "react"
+import React, { useCallback } from 'react'
 import {
   BarChart3,
   ChevronLeft,
@@ -9,14 +9,14 @@ import {
   Power,
   Settings,
   Users,
-} from "lucide-react"
-import { useDispatch, useSelector } from "react-redux"
-import { Link, useLocation } from "react-router-dom"
+} from 'lucide-react'
+import { useDispatch, useSelector } from 'react-redux'
+import { Link, useLocation } from 'react-router-dom'
 
-import { toggleSidebar } from "@/redux/slices/sidebar.slice"
-import { RootState } from "@/redux/store"
-import { cn } from "@/utils/global.utils"
-import { Button, ButtonProps } from "@/components/ui/button"
+import { toggleSidebar } from '@/redux/slices/sidebar.slice'
+import { RootState } from '@/redux/store'
+import { cn } from '@/utils/global.utils'
+import { Button, ButtonProps } from '@/components/ui/button'
 
 type Props = {
   onLogout: () => void
@@ -35,29 +35,31 @@ type NavItemType = {
 }
 
 const navItems: NavItemType[] = [
-  { to: "/dashboard", icon: Home, label: "Home" },
-  { to: "/organizations", icon: LayoutDashboard, label: "Organizations" },
-  { to: "/users", icon: Users, label: "Users" },
-  { to: "/analytics", icon: BarChart3, label: "Analytics" },
+  { to: '/dashboard', icon: Home, label: 'Home' },
+  { to: '/organizations', icon: LayoutDashboard, label: 'Organizations' },
+  { to: '/users', icon: Users, label: 'Users' },
+  { to: '/analytics', icon: BarChart3, label: 'Analytics' },
 ]
 
-const bottomNavItems: NavItemType[] = [{ to: "/settings", icon: Settings, label: "Settings" }]
+const bottomNavItems: NavItemType[] = [{ to: '/settings', icon: Settings, label: 'Settings' }]
 
 const NavButton: React.FC<NavButtonProps> = ({ children, to, isActive, ...props }) =>
   to ? (
     <Link to={to} className="w-full">
       <Button
-        variant={isActive ? "secondary" : "ghost"}
-        className={cn("w-full justify-start px-2.5")}
-        {...props}>
+        variant={isActive ? 'secondary' : 'ghost'}
+        className={cn('w-full justify-start px-2.5')}
+        {...props}
+      >
         {children}
       </Button>
     </Link>
   ) : (
     <Button
-      variant={isActive ? "secondary" : "ghost"}
+      variant={isActive ? 'secondary' : 'ghost'}
       className="w-full justify-start px-2.5"
-      {...props}>
+      {...props}
+    >
       {children}
     </Button>
   )
@@ -75,16 +77,18 @@ function Sidebar({ onLogout }: Props) {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen flex-col overflow-hidden bg-background transition-all duration-300 ease-in-out",
-        isExpanded ? "w-64" : "w-16"
-      )}>
+        'fixed left-0 top-0 z-40 flex h-screen flex-col overflow-hidden bg-background transition-all duration-300 ease-in-out',
+        isExpanded ? 'w-64' : 'w-16'
+      )}
+    >
       <div className="flex h-16 items-center justify-between px-4">
         {isExpanded && <span className="px-3 text-xl font-bold">Boilerplate</span>}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => dispatch(toggleSidebar())}
-          className={cn("ml-auto", !isExpanded && "mx-auto")}>
+          className={cn('ml-auto', !isExpanded && 'mx-auto')}
+        >
           {isExpanded ? <ChevronLeft className="size-5" /> : <ChevronRight className="size-5" />}
         </Button>
       </div>

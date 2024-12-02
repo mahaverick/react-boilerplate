@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react"
-import { resetPassword, verifyResetToken } from "@/endpoints/auth.endpoints"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation } from "@tanstack/react-query"
-import { useForm } from "react-hook-form"
-import { Link, useSearchParams } from "react-router-dom"
-import { z } from "zod"
+import { useEffect, useRef, useState } from 'react'
+import { resetPassword, verifyResetToken } from '@/endpoints/auth.endpoints'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { Link, useSearchParams } from 'react-router-dom'
+import { z } from 'zod'
 
-import { Button } from "@/components/ui/button"
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -14,7 +14,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -22,17 +22,17 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 
 const formSchema = z
   .object({
-    password: z.string().min(8, "Password must be at least 8 characters"),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
-    path: ["confirmPassword"],
+    path: ['confirmPassword'],
   })
 
 type ResetPasswordData = z.infer<typeof formSchema>
@@ -45,7 +45,7 @@ const ResetPassword = () => {
 
   const tokenVerified = useRef(false)
 
-  const token = searchParams.get("token")
+  const token = searchParams.get('token')
 
   const form = useForm<ResetPasswordData>({
     resolver: zodResolver(formSchema),
@@ -58,7 +58,7 @@ const ResetPassword = () => {
     },
     onError: () => {
       setIsTokenValid(false)
-      setError("Invalid or expired reset token. Please request a new password reset.")
+      setError('Invalid or expired reset token. Please request a new password reset.')
     },
   })
 
@@ -68,7 +68,7 @@ const ResetPassword = () => {
       tokenVerified.current = true
     } else if (!token) {
       setIsTokenValid(false)
-      setError("No reset token provided. Please request a new password reset.")
+      setError('No reset token provided. Please request a new password reset.')
     }
   }, [token, verifyTokenMutation])
 
@@ -78,16 +78,16 @@ const ResetPassword = () => {
       setIsResetSuccessful(true)
     },
     onError: (error) => {
-      setError("Failed to reset password. Please try again.")
+      setError('Failed to reset password. Please try again.')
       // eslint-disable-next-line no-console
-      console.error("Reset password error:", error)
+      console.error('Reset password error:', error)
     },
   })
 
   const onSubmit = (values: ResetPasswordData) => {
-    const token = searchParams.get("token")
+    const token = searchParams.get('token')
     if (!token) {
-      setError("Invalid reset token. Please try resetting your password again.")
+      setError('Invalid reset token. Please try resetting your password again.')
       return
     }
     resetPasswordMutation.mutate({ token, newPassword: values.password })
@@ -179,7 +179,7 @@ const ResetPassword = () => {
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
               <Button type="submit" className="w-full" disabled={resetPasswordMutation.isPending}>
-                {resetPasswordMutation.isPending ? "Resetting..." : "Reset Password"}
+                {resetPasswordMutation.isPending ? 'Resetting...' : 'Reset Password'}
               </Button>
               <Link to="/login" className="text-sm text-primary hover:underline">
                 Back to Login

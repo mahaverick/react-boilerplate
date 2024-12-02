@@ -1,6 +1,6 @@
-import { Outlet, useNavigation } from "react-router-dom"
+import { Outlet, useNavigation } from 'react-router-dom'
 
-import ErrorBoundary from "@/components/errors/error-boundary"
+import ErrorBoundary from '@/components/errors/error-boundary'
 
 function AuthLayout() {
   const navigation = useNavigation()
@@ -12,9 +12,10 @@ function AuthLayout() {
         // logErrorToService(error, errorInfo)
 
         // eslint-disable-next-line no-console
-        console.error("ErrorBoundary caught an error:", error, errorInfo)
-      }}>
-      {navigation.state === "loading" ? <div>Loading...</div> : <Outlet />}
+        console.error('ErrorBoundary caught an error:', error, errorInfo)
+      }}
+    >
+      {navigation.state === 'loading' ? <div>Loading...</div> : <Outlet />}
     </ErrorBoundary>
   )
 }

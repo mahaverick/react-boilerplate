@@ -1,17 +1,17 @@
-import { createOrganization } from "@/endpoints/organization.endpoints"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation } from "@tanstack/react-query"
-import { AxiosError, AxiosResponse } from "axios"
-import { format } from "date-fns"
-import { CalendarIcon } from "lucide-react"
-import { useForm } from "react-hook-form"
-import { useNavigate } from "react-router-dom"
-import { z } from "zod"
+import { createOrganization } from '@/endpoints/organization.endpoints'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation } from '@tanstack/react-query'
+import { AxiosError, AxiosResponse } from 'axios'
+import { format } from 'date-fns'
+import { CalendarIcon } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
+import { z } from 'zod'
 
-import { handleFormErrors } from "@/utils/form.utils"
-import { cn } from "@/utils/global.utils"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
+import { handleFormErrors } from '@/utils/form.utils'
+import { cn } from '@/utils/global.utils'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
 // import { Checkbox } from "@/components/ui/checkbox"
 import {
   Form,
@@ -21,17 +21,17 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Textarea } from "@/components/ui/textarea" // Add this import
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Textarea } from '@/components/ui/textarea' // Add this import
 
 const formSchema = z.object({
-  name: z.string().min(1, "Organization name is required"),
+  name: z.string().min(1, 'Organization name is required'),
   description: z.string().optional(),
   logo: z.string().optional(),
-  website: z.string().url().optional().or(z.literal("")),
-  email: z.string().email().optional().or(z.literal("")),
+  website: z.string().url().optional().or(z.literal('')),
+  email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
   fax: z.string().optional(),
   address: z.string().optional(),
@@ -67,7 +67,7 @@ const CreateOrganization = () => {
     onSuccess: (response: AxiosResponse) => {
       // eslint-disable-next-line no-console
       console.log(response)
-      navigate("/dashboard")
+      navigate('/dashboard')
     },
     onError: (error: AxiosError<ErrorResponse>) => {
       handleFormErrors<CreateOrganizationData>(error, form.setError)
@@ -333,12 +333,13 @@ const CreateOrganization = () => {
                   <PopoverTrigger asChild>
                     <FormControl>
                       <Button
-                        variant={"outline"}
+                        variant={'outline'}
                         className={cn(
-                          "w-full pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
-                        )}>
-                        {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                          'w-full pl-3 text-left font-normal',
+                          !field.value && 'text-muted-foreground'
+                        )}
+                      >
+                        {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
                         <CalendarIcon className="ml-auto size-4 opacity-50" />
                       </Button>
                     </FormControl>
@@ -348,7 +349,7 @@ const CreateOrganization = () => {
                       mode="single"
                       selected={field.value}
                       onSelect={field.onChange}
-                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                      disabled={(date) => date > new Date() || date < new Date('1900-01-01')}
                       // initialFocus
                     />
                   </PopoverContent>
@@ -360,7 +361,7 @@ const CreateOrganization = () => {
           />
 
           <Button type="submit" disabled={createOrganizationMutation.isPending}>
-            {createOrganizationMutation.isPending ? "Creating..." : "Create Organization"}
+            {createOrganizationMutation.isPending ? 'Creating...' : 'Create Organization'}
           </Button>
         </form>
       </Form>

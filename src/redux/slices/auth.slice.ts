@@ -1,6 +1,6 @@
-import { createSlice } from "@reduxjs/toolkit"
+import { createSlice } from '@reduxjs/toolkit'
 
-import { http } from "@/services/http/client"
+import { http } from '@/services/http/client'
 
 interface AuthState {
   user: User | null
@@ -15,7 +15,7 @@ const initialState: AuthState = {
 }
 
 const authSlice = createSlice({
-  name: "auth",
+  name: 'auth',
   initialState,
   reducers: {
     setAuthToken(state, action) {
@@ -47,7 +47,7 @@ const authSlice = createSlice({
     },
     clearAuth() {
       // Remove the token from the http client headers
-      delete http.defaults.headers.common["Authorization"]
+      delete http.defaults.headers.common['Authorization']
 
       // Remove the token from the localStorage
       // removeAuthStorage()

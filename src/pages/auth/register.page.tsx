@@ -1,18 +1,18 @@
-import { register } from "@/endpoints/auth.endpoints"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation } from "@tanstack/react-query"
-import { AxiosError, AxiosResponse } from "axios"
-import { format } from "date-fns"
-import { CalendarIcon } from "lucide-react"
-import { useForm } from "react-hook-form"
-import { Link, useNavigate } from "react-router-dom"
-import * as z from "zod"
+import { register } from '@/endpoints/auth.endpoints'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation } from '@tanstack/react-query'
+import { AxiosError, AxiosResponse } from 'axios'
+import { format } from 'date-fns'
+import { CalendarIcon } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { Link, useNavigate } from 'react-router-dom'
+import * as z from 'zod'
 
-import { handleFormErrors } from "@/utils/form.utils"
-import { cn } from "@/utils/global.utils"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { handleFormErrors } from '@/utils/form.utils'
+import { cn } from '@/utils/global.utils'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -21,16 +21,16 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from '@/components/ui/select'
 
 const formSchema = z.object({
   username: z.string().min(3).max(255),
@@ -39,11 +39,11 @@ const formSchema = z.object({
   lastName: z.string().max(255).optional(),
   email: z.string().email().max(255),
   password: z.string().min(8).max(255),
-  role: z.enum(["user", "admin"]).default("user"),
+  role: z.enum(['user', 'admin']).default('user'),
   phone: z.string().max(32).optional(),
   avatar: z.string().url().max(255).optional(),
   dateOfBirth: z.date().optional(),
-  gender: z.enum(["male", "female", "other"]).optional(),
+  gender: z.enum(['male', 'female', 'other']).optional(),
 })
 
 export type RegisterData = z.infer<typeof formSchema>
@@ -54,7 +54,7 @@ const Register = () => {
   const form = useForm<RegisterData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      role: "user",
+      role: 'user',
     },
   })
 
@@ -63,7 +63,7 @@ const Register = () => {
     onSuccess: (response: AxiosResponse) => {
       // eslint-disable-next-line no-console
       console.log(response)
-      navigate("/login")
+      navigate('/login')
     },
     onError: (error: AxiosError<ErrorResponse>) => {
       handleFormErrors<RegisterData>(error, form.setError)
@@ -102,7 +102,7 @@ const Register = () => {
                       <Input
                         placeholder="john-doe"
                         {...field}
-                        className={cn(form.formState.errors.username && "border-destructive")}
+                        className={cn(form.formState.errors.username && 'border-destructive')}
                       />
                     </FormControl>
                     <FormDescription>
@@ -123,7 +123,7 @@ const Register = () => {
                         <Input
                           placeholder="John"
                           {...field}
-                          className={cn(form.formState.errors.firstName && "border-destructive")}
+                          className={cn(form.formState.errors.firstName && 'border-destructive')}
                         />
                       </FormControl>
                       <FormMessage />
@@ -140,7 +140,7 @@ const Register = () => {
                         <Input
                           placeholder="Michael"
                           {...field}
-                          className={cn(form.formState.errors.middleName && "border-destructive")}
+                          className={cn(form.formState.errors.middleName && 'border-destructive')}
                         />
                       </FormControl>
                       <FormMessage />
@@ -157,7 +157,7 @@ const Register = () => {
                         <Input
                           placeholder="Doe"
                           {...field}
-                          className={cn(form.formState.errors.lastName && "border-destructive")}
+                          className={cn(form.formState.errors.lastName && 'border-destructive')}
                         />
                       </FormControl>
                       <FormMessage />
@@ -176,7 +176,7 @@ const Register = () => {
                         type="email"
                         placeholder="john.doe@example.com"
                         {...field}
-                        className={cn(form.formState.errors.email && "border-destructive")}
+                        className={cn(form.formState.errors.email && 'border-destructive')}
                       />
                     </FormControl>
                     <FormMessage />
@@ -194,7 +194,7 @@ const Register = () => {
                         type="password"
                         placeholder="********"
                         {...field}
-                        className={cn(form.formState.errors.password && "border-destructive")}
+                        className={cn(form.formState.errors.password && 'border-destructive')}
                       />
                     </FormControl>
                     <FormDescription>Must be at least 8 characters long.</FormDescription>
@@ -213,7 +213,7 @@ const Register = () => {
                         type="tel"
                         placeholder="+1234567890"
                         {...field}
-                        className={cn(form.formState.errors.phone && "border-destructive")}
+                        className={cn(form.formState.errors.phone && 'border-destructive')}
                       />
                     </FormControl>
                     <FormMessage />
@@ -230,9 +230,10 @@ const Register = () => {
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
-                            variant={"outline"}
-                            className={`w-full pl-3 text-left font-normal ${!field.value && "text-muted-foreground"}`}>
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            variant={'outline'}
+                            className={`w-full pl-3 text-left font-normal ${!field.value && 'text-muted-foreground'}`}
+                          >
+                            {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
                             <CalendarIcon className="ml-auto size-4 opacity-50" />
                           </Button>
                         </FormControl>
@@ -242,7 +243,7 @@ const Register = () => {
                           mode="single"
                           selected={field.value}
                           onSelect={field.onChange}
-                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                          disabled={(date) => date > new Date() || date < new Date('1900-01-01')}
                           // initialFocus
                         />
                       </PopoverContent>
@@ -292,22 +293,22 @@ const Register = () => {
                 )}
               />
               <Button type="submit" className="w-full" disabled={registerMutation.isPending}>
-                {registerMutation.isPending ? "Registering..." : "Register"}
+                {registerMutation.isPending ? 'Registering...' : 'Register'}
               </Button>
             </form>
           </Form>
           <div className="mt-4 text-center text-sm">
-            Already have an account?{" "}
+            Already have an account?{' '}
             <Link to="/login" className="text-primary hover:underline">
               Log in here
             </Link>
           </div>
           <div className="mt-2 text-center text-xs text-muted-foreground">
-            By registering, you agree to our{" "}
+            By registering, you agree to our{' '}
             <Link to="/terms" className="text-primary hover:underline">
               Terms of Service
-            </Link>{" "}
-            and{" "}
+            </Link>{' '}
+            and{' '}
             <Link to="/privacy" className="text-primary hover:underline">
               Privacy Policy
             </Link>

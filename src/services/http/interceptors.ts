@@ -1,10 +1,10 @@
-import { refreshAccessToken } from "@/endpoints/auth.endpoints"
-import { EnhancedStore } from "@reduxjs/toolkit"
-import { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios"
+import { refreshAccessToken } from '@/endpoints/auth.endpoints'
+import { EnhancedStore } from '@reduxjs/toolkit'
+import { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 
-import { http } from "@/services/http/client"
+import { http } from '@/services/http/client'
 
-import { clearAuth, setAuthPending, setAuthToken, setAuthUser } from "@/redux/slices/auth.slice"
+import { clearAuth, setAuthPending, setAuthToken, setAuthUser } from '@/redux/slices/auth.slice'
 
 // import { removeAuthStorage, saveAuthStorage } from "@/utils/storage.utils"
 
@@ -20,10 +20,10 @@ interface CustomInternalAxiosRequestConfig extends InternalAxiosRequestConfig {
 }
 
 const REFRESH_TOKEN_ERRORS = [
-  "REFRESH_TOKEN_MISSING",
-  "REFRESH_TOKEN_INVALID",
-  "REFRESH_TOKEN_EXPIRED",
-  "REFRESH_TOKEN_ERROR",
+  'REFRESH_TOKEN_MISSING',
+  'REFRESH_TOKEN_INVALID',
+  'REFRESH_TOKEN_EXPIRED',
+  'REFRESH_TOKEN_ERROR',
 ]
 
 function runInterceptors(store: EnhancedStore) {
@@ -56,7 +56,7 @@ function runInterceptors(store: EnhancedStore) {
       }
 
       if (config.withFiles) {
-        config.headers["Content-Type"] = "multipart/form-data"
+        config.headers['Content-Type'] = 'multipart/form-data'
         delete config.withFiles
       }
 
@@ -75,8 +75,8 @@ function runInterceptors(store: EnhancedStore) {
 
       const isTokenInvalid =
         error.response?.status === 498 ||
-        error.response?.headers["X-Access-Token-Expired"] === "true" ||
-        error.response?.headers["X-Access-Token-Invalid"] === "true"
+        error.response?.headers['X-Access-Token-Expired'] === 'true' ||
+        error.response?.headers['X-Access-Token-Invalid'] === 'true'
 
       if (
         isTokenInvalid &&
@@ -88,7 +88,7 @@ function runInterceptors(store: EnhancedStore) {
           })
             .then((token) => {
               originalRequest.headers.Authorization = `Bearer ${token}`
-              http.defaults.headers.common["Authorization"] = `Bearer ${token}`
+              http.defaults.headers.common['Authorization'] = `Bearer ${token}`
 
               return http(originalRequest)
             })
@@ -113,7 +113,7 @@ function runInterceptors(store: EnhancedStore) {
 
           // Update the Authorization header
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
-          http.defaults.headers.common["Authorization"] = `Bearer ${newAccessToken}`
+          http.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`
 
           processQueue(null, newAccessToken)
 
@@ -132,12 +132,12 @@ function runInterceptors(store: EnhancedStore) {
       }
 
       // Extract error code or message from the response
-      const errorCode = (error.response?.data as { code?: string })?.code || "REFRESH_TOKEN_ERROR"
+      const errorCode = (error.response?.data as { code?: string })?.code || 'REFRESH_TOKEN_ERROR'
 
       // Check if the error indicates an issue with the refresh token
       if (REFRESH_TOKEN_ERRORS.includes(errorCode)) {
         // Remove the token from Axios defaults to prevent it from being sent in future requests.
-        delete http.defaults.headers.common["Authorization"]
+        delete http.defaults.headers.common['Authorization']
         // Clear localStorage
         // removeAuthStorage()
         // Dispatch logout action

@@ -1,26 +1,26 @@
-import { createBrowserRouter } from "react-router-dom"
+import { createBrowserRouter } from 'react-router-dom'
 
-import NotFound from "@/components/errors/not-found"
-import AuthGuard from "@/components/guards/auth-guard"
-import ProtectedGuard from "@/components/guards/protected-guard"
-import Home from "@/pages/home.page"
-import RootLayout from "@/pages/layouts/root.layout"
+import NotFound from '@/components/errors/not-found'
+import AuthGuard from '@/components/guards/auth-guard'
+import ProtectedGuard from '@/components/guards/protected-guard'
+import Home from '@/pages/home.page'
+import RootLayout from '@/pages/layouts/root.layout'
 
-import { checkAuthStatusLoader } from "./auth.loader"
-import { authRoutes } from "./auth.routes"
-import { dashboardRoutes } from "./dashboard.routes"
+import { checkAuthStatusLoader } from './auth.loader'
+import { authRoutes } from './auth.routes'
+import { dashboardRoutes } from './dashboard.routes'
 
 const routes = createBrowserRouter([
   {
-    path: "/",
+    path: '/',
     element: <RootLayout />,
     children: [
       {
-        path: "",
+        path: '',
         element: <Home />,
       },
       {
-        path: "",
+        path: '',
         loader: checkAuthStatusLoader,
         children: [
           {
@@ -36,7 +36,7 @@ const routes = createBrowserRouter([
     ],
   },
   {
-    path: "*",
+    path: '*',
     element: <NotFound />,
   },
 ])

@@ -1,5 +1,5 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { clsx, type ClassValue } from 'clsx'
+import { twMerge } from 'tailwind-merge'
 
 /**
  * This function is a wrapper around clsx and tailwind-merge. which merges classnames according specificity rules.
@@ -19,10 +19,10 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatDate(input: string | number): string {
   const date = new Date(input)
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
   })
 }
 

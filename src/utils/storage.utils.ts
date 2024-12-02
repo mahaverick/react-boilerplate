@@ -1,6 +1,6 @@
-import { rehydrateAuth } from "@/redux/slices/auth.slice"
-import { RootState } from "@/redux/store"
-import { decryptData, encryptData } from "@/utils/crypto.utils"
+import { rehydrateAuth } from '@/redux/slices/auth.slice'
+import { RootState } from '@/redux/store'
+import { decryptData, encryptData } from '@/utils/crypto.utils'
 
 /**
  * The key used to store the auth state in the local storage.
@@ -18,7 +18,7 @@ export const saveAuthStorage = (state: RootState) => {
     localStorage.setItem(STORAGE_KEY, encryptedState)
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error("Could not save auth state", error)
+    console.error('Could not save auth state', error)
   }
 }
 
@@ -36,7 +36,7 @@ export const loadAuthStorage = () => {
     return JSON.parse(decryptedState)
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error("Could not load auth state", error)
+    console.error('Could not load auth state', error)
     return undefined
   }
 }

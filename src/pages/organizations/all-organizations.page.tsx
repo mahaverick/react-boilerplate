@@ -1,5 +1,5 @@
-import { fetchAllOrganizations } from "@/endpoints/organization.endpoints"
-import { useQuery } from "@tanstack/react-query"
+import { fetchAllOrganizations } from '@/endpoints/organization.endpoints'
+import { useQuery } from '@tanstack/react-query'
 
 export interface Organization {
   id: string
@@ -11,7 +11,7 @@ const AllOrganizations = () => {
   // Fetch all organizations from the API
 
   const { data: organizations, isLoading } = useQuery({
-    queryKey: ["organizations"],
+    queryKey: ['organizations'],
     queryFn: fetchAllOrganizations,
     select: (response) => response.data.data.organizations as Organization[],
   })

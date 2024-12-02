@@ -1,8 +1,8 @@
-import React from "react"
-import { useSelector } from "react-redux"
-import { Navigate, Outlet, useLocation } from "react-router-dom"
+import React from 'react'
+import { useSelector } from 'react-redux'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
-import { RootState } from "@/redux/store"
+import { RootState } from '@/redux/store'
 
 const ProtectedGuard: React.FC = () => {
   const { token } = useSelector((state: RootState) => state.auth)

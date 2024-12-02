@@ -1,12 +1,12 @@
-import { http } from "@/services/http/client"
+import { http } from '@/services/http/client'
 
-import { CreateOrganizationData } from "@/pages/organizations/create-organizations.page"
+import { CreateOrganizationData } from '@/pages/organizations/create-organizations.page'
 
 /**
  * Fetch all organizations API endpoint
  * @returns {Promise} - Axios promise object
  */
-export const fetchAllOrganizations = () => http.get("/organizations", { requireAuthHeader: true })
+export const fetchAllOrganizations = () => http.get('/organizations', { requireAuthHeader: true })
 
 /**
  * Fetch single organization API endpoint

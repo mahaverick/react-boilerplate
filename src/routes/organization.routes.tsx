@@ -1,13 +1,13 @@
-import AllOrganizations from "@/pages/organizations/all-organizations.page"
-import CreateOrganization from "@/pages/organizations/create-organizations.page"
+import AllOrganizations from '@/pages/organizations/all-organizations.page'
+import CreateOrganization from '@/pages/organizations/create-organizations.page'
 
 export const organizationRoutes = [
   {
-    path: "organizations",
+    path: 'organizations',
     element: <AllOrganizations />,
   },
   {
-    path: "organizations/create",
+    path: 'organizations/create',
     element: <CreateOrganization />,
   },
 ]

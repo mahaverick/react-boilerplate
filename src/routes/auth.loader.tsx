@@ -1,7 +1,7 @@
-import { refreshAccessToken } from "@/endpoints/auth.endpoints"
+import { refreshAccessToken } from '@/endpoints/auth.endpoints'
 
-import { clearAuth, setAuthPending, setAuthToken, setAuthUser } from "@/redux/slices/auth.slice"
-import store, { RootState } from "@/redux/store"
+import { clearAuth, setAuthPending, setAuthToken, setAuthUser } from '@/redux/slices/auth.slice'
+import store, { RootState } from '@/redux/store'
 
 let isRefreshing = false
 let refreshPromise: Promise<null> | null = null

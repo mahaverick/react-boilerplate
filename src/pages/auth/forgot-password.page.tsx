@@ -1,12 +1,12 @@
-import { useState } from "react"
-import { forgotPassword } from "@/endpoints/auth.endpoints"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation } from "@tanstack/react-query"
-import { useForm } from "react-hook-form"
-import { Link } from "react-router-dom"
-import { z } from "zod"
+import { useState } from 'react'
+import { forgotPassword } from '@/endpoints/auth.endpoints'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { Link } from 'react-router-dom'
+import { z } from 'zod'
 
-import { Button } from "@/components/ui/button"
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -14,7 +14,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -22,11 +22,11 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 
 const formSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().email('Invalid email address'),
 })
 
 type ForgotPasswordData = z.infer<typeof formSchema>
@@ -95,7 +95,7 @@ const ForgotPassword = () => {
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
               <Button type="submit" className="w-full" disabled={forgotPasswordMutation.isPending}>
-                {forgotPasswordMutation.isPending ? "Sending..." : "Send Reset Link"}
+                {forgotPasswordMutation.isPending ? 'Sending...' : 'Send Reset Link'}
               </Button>
               <Link to="/login" className="text-sm text-primary hover:underline">
                 Back to Login
