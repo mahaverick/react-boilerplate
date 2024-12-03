@@ -1,4 +1,7 @@
 import React, { useCallback } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { Link, useLocation } from 'react-router-dom'
+
 import {
   BarChart3,
   ChevronLeft,
@@ -10,12 +13,11 @@ import {
   Settings,
   Users,
 } from 'lucide-react'
-import { useDispatch, useSelector } from 'react-redux'
-import { Link, useLocation } from 'react-router-dom'
 
 import { toggleSidebar } from '@/redux/slices/sidebar.slice'
 import { RootState } from '@/redux/store'
 import { cn } from '@/utils/global.utils'
+
 import { Button, ButtonProps } from '@/components/ui/button'
 
 type Props = {

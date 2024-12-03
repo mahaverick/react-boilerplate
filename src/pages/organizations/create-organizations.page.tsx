@@ -1,15 +1,16 @@
-import { createOrganization } from '@/endpoints/organization.endpoints'
+import { useNavigate } from 'react-router-dom'
+
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { AxiosError, AxiosResponse } from 'axios'
 import { format } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { handleFormErrors } from '@/utils/form.utils'
 import { cn } from '@/utils/global.utils'
+
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 // import { Checkbox } from "@/components/ui/checkbox"
@@ -25,6 +26,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea' // Add this import
+import { createOrganization } from '@/endpoints/organization.endpoints'
 
 const formSchema = z.object({
   name: z.string().min(1, 'Organization name is required'),

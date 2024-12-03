@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 
 import { ForgotPassword, Login, Register, ResetPassword } from '@/routes/lazy.routes'
+
 import SuspenseLoader from '@/components/features/suspense-loader'
 import EmailVerification from '@/pages/auth/email-verification.page'
 import AuthLayout from '@/pages/layouts/auth.layout'

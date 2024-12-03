@@ -1,8 +1,9 @@
 import { useCallback } from 'react'
-import { logout } from '@/endpoints/auth.endpoints'
 import { useDispatch } from 'react-redux'
 
 import { clearAuth } from '@/redux/slices/auth.slice'
+
+import { logout } from '@/endpoints/auth.endpoints'
 
 export const useLogout = () => {
   const dispatch = useDispatch()

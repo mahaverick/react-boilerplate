@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { forgotPassword } from '@/endpoints/auth.endpoints'
+import { Link } from 'react-router-dom'
+
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { Link } from 'react-router-dom'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { forgotPassword } from '@/endpoints/auth.endpoints'
 
 const formSchema = z.object({
   email: z.string().email('Invalid email address'),

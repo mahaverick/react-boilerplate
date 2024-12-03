@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { resetPassword, verifyResetToken } from '@/endpoints/auth.endpoints'
+import { Link, useSearchParams } from 'react-router-dom'
+
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { Link, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { resetPassword, verifyResetToken } from '@/endpoints/auth.endpoints'
 
 const formSchema = z
   .object({

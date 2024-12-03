@@ -5,6 +5,7 @@ import { Outlet } from 'react-router-dom'
 import { RootState } from '@/redux/store'
 import { cn } from '@/utils/global.utils'
 import { useLogout } from '@/hooks/use-logout'
+
 import ErrorBoundary from '@/components/errors/error-boundary'
 import Header from '@/components/features/header'
 import Sidebar from '@/components/features/sidebar'

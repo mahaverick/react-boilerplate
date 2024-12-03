@@ -1,15 +1,16 @@
-import { register } from '@/endpoints/auth.endpoints'
+import { Link, useNavigate } from 'react-router-dom'
+
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { AxiosError, AxiosResponse } from 'axios'
 import { format } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { Link, useNavigate } from 'react-router-dom'
 import * as z from 'zod'
 
 import { handleFormErrors } from '@/utils/form.utils'
 import { cn } from '@/utils/global.utils'
+
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { register } from '@/endpoints/auth.endpoints'
 
 const formSchema = z.object({
   username: z.string().min(3).max(255),

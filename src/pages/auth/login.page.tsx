@@ -1,17 +1,18 @@
 import { useState } from 'react'
-import { login, resendVerificationEmail } from '@/endpoints/auth.endpoints'
+import { useDispatch } from 'react-redux'
+import { Link, useNavigate } from 'react-router-dom'
+
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { AxiosError, AxiosResponse } from 'axios'
 import { LockIcon, MailIcon } from 'lucide-react'
 import { SubmitHandler, useForm } from 'react-hook-form'
-import { useDispatch } from 'react-redux'
-import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { setAuthToken, setAuthUser } from '@/redux/slices/auth.slice'
 import { handleFormErrors } from '@/utils/form.utils'
 import { cn } from '@/utils/global.utils'
+
 // import { saveAuthStorage } from "@/utils/storage.utils"
 import { Button } from '@/components/ui/button'
 import {
@@ -32,6 +33,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { login, resendVerificationEmail } from '@/endpoints/auth.endpoints'
 
 const formSchema = z.object({
   email: z.string().min(1, { message: 'Email is Required' }).email(),

@@ -1,5 +1,6 @@
-import { fetchAllOrganizations } from '@/endpoints/organization.endpoints'
 import { useQuery } from '@tanstack/react-query'
+
+import { fetchAllOrganizations } from '@/endpoints/organization.endpoints'
 
 export interface Organization {
   id: string

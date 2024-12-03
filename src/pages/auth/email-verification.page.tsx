@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { resendVerificationEmail, verifyEmail } from '@/endpoints/auth.endpoints'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+
 import { useMutation } from '@tanstack/react-query'
 import { AxiosError } from 'axios'
-import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { resendVerificationEmail, verifyEmail } from '@/endpoints/auth.endpoints'
 
 const EmailVerification = () => {
   const [searchParams] = useSearchParams()
