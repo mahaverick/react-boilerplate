@@ -19,7 +19,7 @@ export const checkAuthStatusLoader = async () => {
   }
 
   isRefreshing = true
-  store.dispatch(setAuthPending(true))
+  store.dispatch(setAuthPending({ isPending: true }))
 
   refreshPromise = new Promise<null>((resolve) => {
     refreshAccessToken()
@@ -36,7 +36,7 @@ export const checkAuthStatusLoader = async () => {
         console.error(error)
       })
       .finally(() => {
-        store.dispatch(setAuthPending(false))
+        store.dispatch(setAuthPending({ isPending: false }))
         isRefreshing = false
         refreshPromise = null
         resolve(null)

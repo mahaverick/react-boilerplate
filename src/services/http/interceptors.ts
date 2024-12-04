@@ -100,7 +100,7 @@ function runInterceptors(store: EnhancedStore) {
 
         originalRequest._retries = (originalRequest._retries || 0) + 1
         isRefreshing = true
-        store.dispatch(setAuthPending(true))
+        store.dispatch(setAuthPending({ isPending: true }))
 
         try {
           const { data: response } = await refreshAccessToken()
@@ -128,7 +128,7 @@ function runInterceptors(store: EnhancedStore) {
           return Promise.reject(refreshError)
         } finally {
           isRefreshing = false
-          store.dispatch(setAuthPending(false))
+          store.dispatch(setAuthPending({ isPending: false }))
         }
       }
 
