@@ -986,17 +986,17 @@
   resolved "https://registry.yarnpkg.com/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.28.0.tgz#cb313feef9ac6e3737067fdf34f42804ac65a6f2"
   integrity sha512-Bvno2/aZT6usSa7lRDL2+hMjVAGjuqaymF1ApZm31JXzniR/hvr14jpU+/z4X6Gt5BPlzosscyJZGUvguXIqeQ==
 
-"@tanstack/query-core@5.62.0":
-  version "5.62.0"
-  resolved "https://registry.yarnpkg.com/@tanstack/query-core/-/query-core-5.62.0.tgz#94022c9fde3b8c60e69828b726bd0df535dcacf9"
-  integrity sha512-sx38bGrqF9bop92AXOvzDr0L9fWDas5zXdPglxa9cuqeVSWS7lY6OnVyl/oodfXjgOGRk79IfCpgVmxrbHuFHg==
+"@tanstack/query-core@5.62.2":
+  version "5.62.2"
+  resolved "https://registry.yarnpkg.com/@tanstack/query-core/-/query-core-5.62.2.tgz#4eef3201422f246788fb41d01662c2dea3136d9a"
+  integrity sha512-LcwVcC5qpsDpHcqlXUUL5o9SaOBwhNkGeV+B06s0GBoyBr8FqXPuXT29XzYXR36lchhnerp6XO+CWc84/vh7Zg==
 
-"@tanstack/react-query@^5.62.0":
-  version "5.62.0"
-  resolved "https://registry.yarnpkg.com/@tanstack/react-query/-/react-query-5.62.0.tgz#db7d4ec58a0db69b105e2d8bd249acfb20653825"
-  integrity sha512-tj2ltjAn2a3fs+Dqonlvs6GyLQ/LKVJE2DVSYW+8pJ3P6/VCVGrfqv5UEchmlP7tLOvvtZcOuSyI2ooVlR5Yqw==
+"@tanstack/react-query@^5.62.2":
+  version "5.62.2"
+  resolved "https://registry.yarnpkg.com/@tanstack/react-query/-/react-query-5.62.2.tgz#fbcb8f991ddcf484ce7968fb58bb4790d6c98cd3"
+  integrity sha512-fkTpKKfwTJtVPKVR+ag7YqFgG/7TRVVPzduPAUF9zRCiiA8Wu305u+KJl8rCrh98Qce77vzIakvtUyzWLtaPGA==
   dependencies:
-    "@tanstack/query-core" "5.62.0"
+    "@tanstack/query-core" "5.62.2"
 
 "@types/babel__core@^7.20.5":
   version "7.20.5"
@@ -1070,10 +1070,18 @@
   dependencies:
     "@types/react" "*"
 
-"@types/react@*", "@types/react@^18.3.12":
+"@types/react@*":
   version "18.3.12"
   resolved "https://registry.yarnpkg.com/@types/react/-/react-18.3.12.tgz#99419f182ccd69151813b7ee24b792fe08774f60"
   integrity sha512-D2wOSq/d6Agt28q7rSI3jhU7G6aiuzljDGZ2hTZHIkrTLUI+AF3WMeKkEZ9nN2fkBAlcktT6vcZjDFiIhMYEQw==
+  dependencies:
+    "@types/prop-types" "*"
+    csstype "^3.0.2"
+
+"@types/react@^18.3.13":
+  version "18.3.13"
+  resolved "https://registry.yarnpkg.com/@types/react/-/react-18.3.13.tgz#84c9690d9a271f548659760754ea8745701bfd82"
+  integrity sha512-ii/gswMmOievxAJed4PAHT949bpYjPKXvXo1v6cRB/kqc2ZR4n+SgyCyvyc5Fec5ez8VnUumI1Vk7j6fRyRogg==
   dependencies:
     "@types/prop-types" "*"
     csstype "^3.0.2"
@@ -1328,10 +1336,10 @@ autoprefixer@^10.4.20:
     picocolors "^1.0.1"
     postcss-value-parser "^4.2.0"
 
-axios@^1.7.8:
-  version "1.7.8"
-  resolved "https://registry.yarnpkg.com/axios/-/axios-1.7.8.tgz#1997b1496b394c21953e68c14aaa51b7b5de3d6e"
-  integrity sha512-Uu0wb7KNqK2t5K+YQyVCLM76prD5sRFjKHbJYCP1J7JFGEQ6nN7HWn9+04LAeiJ3ji54lgS/gZCH1oxyrf1SPw==
+axios@^1.7.9:
+  version "1.7.9"
+  resolved "https://registry.yarnpkg.com/axios/-/axios-1.7.9.tgz#d7d071380c132a24accda1b2cfc1535b79ec650a"
+  integrity sha512-LhLcE7Hbiryz8oMDdDptSrWowmB4Bl6RCt6sIJKpRB4XtVf0iEgewX3au/pJqm+Py1kCASkb/FFKjxQaLtxJvw==
   dependencies:
     follow-redirects "^1.15.6"
     form-data "^4.0.0"
@@ -2095,15 +2103,15 @@ levn@^0.4.1:
     prelude-ls "^1.2.1"
     type-check "~0.4.0"
 
-lilconfig@^2.1.0:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/lilconfig/-/lilconfig-2.1.0.tgz#78e23ac89ebb7e1bfbf25b18043de756548e7f52"
-  integrity sha512-utWOt/GHzuUxnLKxB6dk81RoOeoNeHgbrXiuGk4yyF5qlRz+iIVWu56E2fqGHFrXz0QNUhLB/8nKqvRH66JKGQ==
-
 lilconfig@^3.0.0:
   version "3.1.2"
   resolved "https://registry.yarnpkg.com/lilconfig/-/lilconfig-3.1.2.tgz#e4a7c3cb549e3a606c8dcc32e5ae1005e62c05cb"
   integrity sha512-eop+wDAvpItUys0FWkHIKeC9ybYrTGbU41U5K7+bttZZeohvnY7M9dZ5kB21GNWiFT2q1OoPTvncPCgSOVO5ow==
+
+lilconfig@^3.1.3:
+  version "3.1.3"
+  resolved "https://registry.yarnpkg.com/lilconfig/-/lilconfig-3.1.3.tgz#a1bcfd6257f9585bf5ae14ceeebb7b559025e4c4"
+  integrity sha512-/vlFKAoH5Cgt3Ie+JLhRbwOsCQePABiU3tJ1egGvyQ+33R/vcwM2Zl2QR/LzjsBeItPt3oSVXapn+m4nQDvpzw==
 
 lines-and-columns@^1.1.6:
   version "1.2.4"
@@ -2146,10 +2154,10 @@ lru-cache@^5.1.1:
   dependencies:
     yallist "^3.0.2"
 
-lucide-react@^0.462.0:
-  version "0.462.0"
-  resolved "https://registry.yarnpkg.com/lucide-react/-/lucide-react-0.462.0.tgz#cb95b1dde558be51b7ae247290f7bb5f197880bf"
-  integrity sha512-NTL7EbAao9IFtuSivSZgrAh4fZd09Lr+6MTkqIxuHaH2nnYiYIzXPo06cOxHg9wKLdj6LL8TByG4qpePqwgx/g==
+lucide-react@^0.468.0:
+  version "0.468.0"
+  resolved "https://registry.yarnpkg.com/lucide-react/-/lucide-react-0.468.0.tgz#830c1bfd905575ddd23b832baa420c87db166910"
+  integrity sha512-6koYRhnM2N0GGZIdXzSeiNwguv1gt/FAjZOiPl76roBi3xKEXa4WmfpxgQwTTL4KipXjefrnf3oV4IsYhi4JFA==
 
 magic-string@^0.30.12:
   version "0.30.14"
@@ -2405,10 +2413,10 @@ prettier-plugin-tailwindcss@^0.6.9:
   resolved "https://registry.yarnpkg.com/prettier-plugin-tailwindcss/-/prettier-plugin-tailwindcss-0.6.9.tgz#db84c32918eae9b44e5a5f0aa4d1249cc39fa739"
   integrity sha512-r0i3uhaZAXYP0At5xGfJH876W3HHGHDp+LCRUJrs57PBeQ6mYHMwr25KH8NPX44F2yGTvdnH7OqCshlQx183Eg==
 
-prettier@^3.4.1:
-  version "3.4.1"
-  resolved "https://registry.yarnpkg.com/prettier/-/prettier-3.4.1.tgz#e211d451d6452db0a291672ca9154bc8c2579f7b"
-  integrity sha512-G+YdqtITVZmOJje6QkXQWzl3fSfMxFwm1tjTyo9exhkmWSqC4Yhd1+lug++IlR2mvRVAxEDDWYkQdeSztajqgg==
+prettier@^3.4.2:
+  version "3.4.2"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-3.4.2.tgz#a5ce1fb522a588bf2b78ca44c6e6fe5aa5a2b13f"
+  integrity sha512-e9MewbtFo+Fevyuxn/4rrcDAaq0IYxPGLvObpQjiZBMAzB9IGmzlnG9RZy3FFas+eBMu2vA0CszMeduow5dIuQ==
 
 proxy-from-env@^1.1.0:
   version "1.1.0"
@@ -2478,17 +2486,17 @@ react-remove-scroll@2.6.0:
     use-callback-ref "^1.3.0"
     use-sidecar "^1.1.2"
 
-react-router-dom@^7.0.1:
-  version "7.0.1"
-  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-7.0.1.tgz#b1438100800313e1b4c48da0c5fdb498f81c7f96"
-  integrity sha512-duBzwAAiIabhFPZfDjcYpJ+f08TMbPMETgq254GWne2NW1ZwRHhZLj7tpSp8KGb7JvZzlLcjGUnqLxpZQVEPng==
+react-router-dom@^7.0.2:
+  version "7.0.2"
+  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-7.0.2.tgz#cbd7ce2db7112f1bc3e9eee3657ad32d7515a913"
+  integrity sha512-VJOQ+CDWFDGaWdrG12Nl+d7yHtLaurNgAQZVgaIy7/Xd+DojgmYLosFfZdGz1wpxmjJIAkAMVTKWcvkx1oggAw==
   dependencies:
-    react-router "7.0.1"
+    react-router "7.0.2"
 
-react-router@7.0.1:
-  version "7.0.1"
-  resolved "https://registry.yarnpkg.com/react-router/-/react-router-7.0.1.tgz#a171e35a5c6463f76b23353c4ce57b53c8b7b1b9"
-  integrity sha512-WVAhv9oWCNsja5AkK6KLpXJDSJCQizOIyOd4vvB/+eHGbYx5vkhcmcmwWjQ9yqkRClogi+xjEg9fNEOd5EX/tw==
+react-router@7.0.2:
+  version "7.0.2"
+  resolved "https://registry.yarnpkg.com/react-router/-/react-router-7.0.2.tgz#2820e107cb8cec8acc5db15a17470c056ea86022"
+  integrity sha512-m5AcPfTRUcjwmhBzOJGEl6Y7+Crqyju0+TgTQxoS4SO+BkWbhOrcfZNq6wSWdl2BBbJbsAoBUb8ZacOFT+/JlA==
   dependencies:
     "@types/cookie" "^0.6.0"
     cookie "^1.0.1"
@@ -2740,10 +2748,10 @@ tailwindcss-animate@^1.0.7:
   resolved "https://registry.yarnpkg.com/tailwindcss-animate/-/tailwindcss-animate-1.0.7.tgz#318b692c4c42676cc9e67b19b78775742388bef4"
   integrity sha512-bl6mpH3T7I3UFxuvDEXLxy/VuFxBk5bbzplh7tXI68mwMokNYd1t9qPBHlnyTwfa4JGC4zP516I1hYYtQ/vspA==
 
-tailwindcss@^3.4.15:
-  version "3.4.15"
-  resolved "https://registry.yarnpkg.com/tailwindcss/-/tailwindcss-3.4.15.tgz#04808bf4bf1424b105047d19e7d4bfab368044a9"
-  integrity sha512-r4MeXnfBmSOuKUWmXe6h2CcyfzJCEk4F0pptO5jlnYSIViUkVmsawj80N5h2lO3gwcmSb4n3PuN+e+GC1Guylw==
+tailwindcss@^3.4.16:
+  version "3.4.16"
+  resolved "https://registry.yarnpkg.com/tailwindcss/-/tailwindcss-3.4.16.tgz#35a7c3030844d6000fc271878db4096b6a8d2ec9"
+  integrity sha512-TI4Cyx7gDiZ6r44ewaJmt0o6BrMCT5aK5e0rmJ/G9Xq3w7CX/5VXl/zIPEJZFUK5VEqwByyhqNPycPlvcK4ZNw==
   dependencies:
     "@alloc/quick-lru" "^5.2.0"
     arg "^5.0.2"
@@ -2754,7 +2762,7 @@ tailwindcss@^3.4.15:
     glob-parent "^6.0.2"
     is-glob "^4.0.3"
     jiti "^1.21.6"
-    lilconfig "^2.1.0"
+    lilconfig "^3.1.3"
     micromatch "^4.0.8"
     normalize-path "^3.0.0"
     object-hash "^3.0.0"
