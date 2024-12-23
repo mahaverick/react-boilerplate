@@ -69,7 +69,7 @@ const NavButton: React.FC<NavButtonProps> = ({ children, to, isActive, ...props 
 function Sidebar({ onLogout }: Props) {
   const dispatch = useDispatch()
   const location = useLocation()
-  const isExpanded = useSelector((state: RootState) => state.sidebar.isExpanded)
+  const isExpanded = useSelector((state: RootState) => state.sidebarState.isExpanded)
 
   const isActive = useCallback(
     (path: string) => location.pathname.startsWith(path),

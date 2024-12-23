@@ -57,6 +57,6 @@ export const setupAuthPersistence = (store: RootState) => {
 
   store.subscribe(() => {
     const state = store.getState()
-    saveAuthStorage(state.auth)
+    saveAuthStorage(state.authState)
   })
 }

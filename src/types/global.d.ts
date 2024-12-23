@@ -24,3 +24,12 @@ interface User {
   role: string
   organizations: string[]
 }
+
+interface BreadcrumbItem {
+  href: string
+  label: string
+}
+
+interface Breadcrumbs {
+  items: BreadcrumbItem[]
+}

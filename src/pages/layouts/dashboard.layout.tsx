@@ -12,7 +12,7 @@ import Sidebar from '@/components/features/sidebar'
 
 function DashboardLayout() {
   const { handleLogout } = useLogout()
-  const { isExpanded } = useSelector((state: RootState) => state.sidebar)
+  const { isExpanded } = useSelector((state: RootState) => state.sidebarState)
   const handleError = useCallback((error: Error, errorInfo: ErrorInfo) => {
     // eslint-disable-next-line no-console
     console.error('ErrorBoundary caught an error:', error, errorInfo)

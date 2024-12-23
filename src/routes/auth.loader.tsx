@@ -8,7 +8,7 @@ let refreshPromise: Promise<null> | null = null
 
 export const checkAuthStatusLoader = async () => {
   const state = store.getState() as RootState
-  const token = state.auth.token
+  const token = state.authState.token
 
   if (token) {
     return null // Return early if token exists

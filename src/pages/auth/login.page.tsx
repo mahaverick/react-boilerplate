@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { AxiosError, AxiosResponse } from 'axios'
-import { LockIcon, MailIcon } from 'lucide-react'
+import { MailIcon } from 'lucide-react'
 import { SubmitHandler, useForm } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -33,6 +33,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import PasswordInput from '@/components/ui/password-input'
 import { login, resendVerificationEmail } from '@/endpoints/auth.endpoints'
 
 const formSchema = z.object({
@@ -140,24 +141,16 @@ const Login = () => {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <MailIcon
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-                          size={18}
-                        />
-                        <Input
-                          placeholder="Enter your email"
-                          className={cn(
-                            'pl-10',
-                            form.formState.errors.email && 'border-destructive'
-                          )}
-                          {...field}
-                          onChange={(e) => {
-                            field.onChange(e)
-                            clearFieldError('email')
-                          }}
-                        />
-                      </div>
+                      <Input
+                        icon={MailIcon}
+                        placeholder="Enter your email"
+                        className={cn('pl-10', form.formState.errors.email && 'border-destructive')}
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e)
+                          clearFieldError('email')
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -170,25 +163,19 @@ const Login = () => {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <LockIcon
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-                          size={18}
-                        />
-                        <Input
-                          type="password"
-                          placeholder="Enter your password"
-                          className={cn(
-                            'pl-10',
-                            form.formState.errors.password && 'border-destructive'
-                          )}
-                          {...field}
-                          onChange={(e) => {
-                            field.onChange(e)
-                            clearFieldError('password')
-                          }}
-                        />
-                      </div>
+                      <PasswordInput
+                        showIcon={true}
+                        placeholder="Enter your password"
+                        className={cn(
+                          'pl-10',
+                          form.formState.errors.password && 'border-destructive'
+                        )}
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e)
+                          clearFieldError('password')
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

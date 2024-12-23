@@ -4,8 +4,8 @@ import { RootState } from '@/redux/store'
 import { cn } from '@/utils/global.utils'
 
 function Header() {
-  const { isExpanded } = useSelector((state: RootState) => state.sidebar)
-  const { user } = useSelector((state: RootState) => state.auth)
+  const { isExpanded } = useSelector((state: RootState) => state.sidebarState)
+  const { user } = useSelector((state: RootState) => state.authState)
   return (
     <header
       className={cn(

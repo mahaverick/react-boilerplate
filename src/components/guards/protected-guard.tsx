@@ -5,7 +5,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { RootState } from '@/redux/store'
 
 const ProtectedGuard: React.FC = () => {
-  const { token } = useSelector((state: RootState) => state.auth)
+  const { token } = useSelector((state: RootState) => state.authState)
   const location = useLocation()
 
   if (!token) {
