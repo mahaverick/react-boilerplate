@@ -27,6 +27,22 @@ in `~/Consequential`:
 Shipping both Redux and React Query is the clearest symptom: the boilerplate
 records a migration that was still in progress two years ago.
 
+### 1.1 Measured before-state
+
+Recorded on 2026-09-14, Node v24.17.0, `npm install`:
+
+| Step | Result |
+|---|---|
+| `npm install` | passes |
+| `npm run build` | passes |
+| `npm test` | passes — 1 test file, 1 trivial test |
+
+The frontend is green, but green over almost nothing: `src/tests/example.test.ts`
+is the whole suite. Across both boilerplates there are **two passing tests**,
+and one of the two backend suites cannot even be imported. That is the gap
+section 7 exists to close, and it is why coverage thresholds are a gate here
+rather than a report.
+
 ## 2. Decisions
 
 Settled before this document: derive from `pulse` and strip; full parity minus
@@ -214,15 +230,48 @@ matching `pulse`.
 ## 7. Testing
 
 Vitest 5 + jsdom 30, tests colocated next to source (`pulse`'s convention, not
-a `tests/` tree). Coverage target: the http layer, every state store, every
-hook, the auth/onboarding/team/billing route guards, and each UI component with
-non-trivial behaviour. Testing Library + user-event for interaction tests.
+a `tests/` tree).
+
+### 7.1 Two departures from `pulse`, both deliberate
+
+`pulse` has **no** `@testing-library/react` in its dependencies. Its component
+and hook tests import `createRoot` from `react-dom/client` directly — 382
+occurrences, with no shared render helper — and hand-roll mounting, act
+wrapping and cleanup in every file. The boilerplate does not port that. It adds
+`@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7 and
+`@testing-library/jest-dom` 7.0.1, and tests behaviour through the DOM the way
+a user reaches it.
+
+Five `pulse` test files assert against **source text** — reading the component
+file with `fs.readFileSync` and running regexes over it. `card.test.tsx`
+matches Tailwind class names out of `card.tsx` to check spacing. That is a test
+of a string, not of a component: it passes when the class is present and the
+component is broken, and fails on a harmless refactor. Not ported.
+
+The pattern is kept in exactly one place, where it is legitimate:
+`global.styles.test.ts` asserting on the CSS token file. Design tokens have no
+runtime surface to assert against, so a contract test over the stylesheet text
+is the only way to pin them — and it is a genuine contract, not a proxy for
+behaviour.
+
+### 7.2 Coverage
+
+`pulse` has no coverage configuration at all. The boilerplate ships the v8
+provider with the same 80% thresholds as the backend (lines, functions,
+branches, statements) and CI runs `vitest run --coverage`, so they gate.
+
+### 7.3 What gets tested
+
+The http layer (client, interceptors, refresh race, SSE), every state store,
+every hook, the auth/onboarding/team/billing route guards, and each UI
+component with behaviour beyond rendering its children.
 
 ## 8. Repo hygiene
 
 `.github/workflows/ci.yml` (install, lint, test, build with route generation),
 multi-stage `Dockerfile` serving the built assets from nginx with the `/api`
-proxy, `.dockerignore`, `.nvmrc`, `.npmrc`, `dependabot.yml`, `CODEOWNERS`,
+proxy, `.dockerignore`, `.nvmrc` (24 — Active LTS, verified 2026-09-14),
+`.npmrc`, `dependabot.yml`, `CODEOWNERS`,
 `.devcontainer/`, `.gitleaks.toml`, `SECURITY.md`, `.editorconfig`, husky
 pre-commit/pre-push, commitlint.
 
@@ -252,3 +301,75 @@ The backend contract (backend spec section 11) is specified first; this repo's
 toolchain and config -> env validation -> http layer -> states -> UI kit ->
 route groups -> pages -> observability -> docs and hygiene. Each stage leaves
 `pnpm build` and `pnpm test` green.
+
+
+## 11. Standards
+
+### 11.1 Documentation — JSDoc
+
+`pulse` carries JSDoc in 426 of 586 source files (73%). As on the backend, the
+convention exists and the enforcement does not — `eslint-plugin-jsdoc` is used
+in no repo in the fleet. It ships here at 64.4.0 with the same configuration as
+the backend spec section 12.1: `require-jsdoc` with `publicOnly: true`,
+descriptions required, **types not required** (TypeScript already carries them),
+and a file-header comment on every module explaining what it is for and, where
+not obvious, why it exists.
+
+Components additionally document their props interface and carry an `@example`
+showing the common usage — this is what makes the UI kit usable without reading
+its internals.
+
+### 11.2 Accessibility
+
+`eslint-plugin-jsx-a11y` 6.10.2, which appears in no repo in the fleet today.
+Base UI's primitives are accessible by construction, but the application code
+composing them is where labels, roles and focus management get dropped. Axe
+assertions on the UI kit's interaction tests.
+
+### 11.3 Supply chain and secrets
+
+`pnpm audit --prod` in CI, `dependabot.yml`, gitleaks at both the pre-commit
+and CI layers, `.gitleaks.toml` and `SECURITY.md` — matching the backend.
+
+One frontend-specific gate: **no secret-shaped `VITE_*` variable may exist.**
+Everything prefixed `VITE_` is compiled into the bundle and is public. The
+current boilerplate gets this wrong today — `src/utils/crypto.utils.ts`
+performs AES encryption with `VITE_AUTH_ENCRYPTION_KEY`, a key shipped to every
+browser, which makes the encryption decorative. Removing `crypto-js` is
+therefore a security fix, not a dependency cleanup. The bootstrap script and a
+CI step both assert that no `VITE_*` key matches
+`SECRET|KEY|TOKEN|PASSWORD|CREDENTIAL`.
+
+### 11.4 Content Security Policy
+
+The nginx image serving the built assets sets an explicit CSP, plus
+`X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy`. `pulse`'s
+Dockerfile does not, and a static-asset image is exactly where these belong.
+
+## 12. Agent and editor tooling
+
+The fleet's agent tooling is part of "everything done so far" and the generic
+half of it ships:
+
+- `.mcp.json` with the shadcn MCP server — `pulse` ships exactly this and it is
+  entirely generic.
+- `.claude/settings.json` (permissions and hooks skeleton), `CLAUDE.md` and
+  `AGENTS.md`.
+- `.claude/skills/README.md` explaining the skill pattern and pointing at the
+  `skills` repo's `TEMPLATE.md`. The `ss-*` styleseed skills themselves are
+  **not** ported — they encode a specific design system.
+
+## 13. Added this round — new, not in `pulse`
+
+- Testing Library and the coverage gate (11.1, 7.1, 7.2).
+- `eslint-plugin-jsx-a11y` and `eslint-plugin-jsdoc`.
+- The `VITE_*` secret gate and the CSP headers.
+- `.devcontainer/`, `dependabot.yml`, `CODEOWNERS`, `.nvmrc` (24).
+
+## 14. Out of scope — and why
+
+i18n, PWA/service worker and a third-party error tracker (Sentry) are **not**
+included. None is present in `pulse` or `apex`, and none is a gap in
+engineering practice — each is a product decision that a new project should
+make deliberately. They ship as recipes in `docs/recipes/`, not as defaults.
+OpenTelemetry web plus PostHog already cover error and performance telemetry.
