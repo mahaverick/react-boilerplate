@@ -85,4 +85,45 @@ describe('ensureSession', () => {
     await expect(ensureSession()).resolves.toBe('fresh-token')
     expect(useAuthStore.getState().user).toEqual(testUser)
   })
+  // The single-flight promise must clear itself on REJECTION too, not only on
+  // success. `.then()` in place of `.finally()` passes every other test in
+  // this file — they each call resetSessionForTests() first — while leaking
+  // the rejected promise and wedging the session permanently. Deliberately no
+  // resetSessionForTests() between the two halves: that is the whole point.
+  it('allows a new refresh after the previous one REJECTED', async () => {
+    let refreshCount = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => {
+        refreshCount += 1
+        return refreshCount === 1
+          ? fail('Unauthorized', 401)
+          : ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      })
+    )
+
+    await expect(ensureSession()).rejects.toThrow()
+    await expect(ensureSession()).resolves.toBe('fresh-token')
+
+    expect(refreshCount).toBe(2)
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+  })
+
+  // /profile is behind requireAuth and the backend's auth middleware emits
+  // ACCESS_TOKEN_EXPIRED, so a fresh token judged expired — clock skew, a
+  // near-zero TTL, a key-rotation race — lands here. Without `skipAuthRetry`
+  // the response interceptor calls ensureSession() and awaits the promise
+  // awaiting this very request: no rejection, no logout, no redirect, just a
+  // wedged session. The short timeout makes a regression fail red in 2s
+  // instead of hanging the run.
+  it('rejects rather than hanging when its own profile call 401s as expired', async () => {
+    useAuthStore.getState().login('stale', testUser)
+    server.use(
+      http.get('/api/v1/profile', () => fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED))
+    )
+
+    await expect(ensureSession()).rejects.toThrow()
+    const s = useAuthStore.getState()
+    expect(s.accessToken).toBeNull()
+    expect(s.isAuthenticated).toBe(false)
+  }, 2000)
 })

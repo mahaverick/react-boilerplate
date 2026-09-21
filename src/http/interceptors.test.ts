@@ -9,6 +9,14 @@ import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import { ACCESS_TOKEN_EXPIRED, type ApiSuccess } from '@/types/api.types'
 
+/**
+ * Handlers below that 401 unconditionally stop after this many attempts. If
+ * `_retried` ever regresses, the retry loop is unbounded: the reviewer's run
+ * hit 400+ attempts and had to be killed. Capping the HANDLER turns that into
+ * a fast assertion failure instead of a wedged CI worker.
+ */
+const RETRY_CAP = 5
+
 function makeClient() {
   const client = axios.create({ baseURL: '/api/v1', withCredentials: true })
   installInterceptors(client)
@@ -122,7 +130,9 @@ describe('auth interceptors', () => {
     server.use(
       http.get('/api/v1/widgets', () => {
         attempts += 1
-        return fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+        return attempts > RETRY_CAP
+          ? ok(['widget'])
+          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
       })
     )
 
@@ -132,9 +142,15 @@ describe('auth interceptors', () => {
   it('redirects to the login page when the refresh itself fails', async () => {
     useAuthStore.getState().login('stale', testUser)
     const assign = stubLocation()
+    let attempts = 0
     server.use(
       http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)),
-      http.get('/api/v1/widgets', () => fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED))
+      http.get('/api/v1/widgets', () => {
+        attempts += 1
+        return attempts > RETRY_CAP
+          ? ok(['widget'])
+          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+      })
     )
 
     await expect(makeClient().get('/widgets')).rejects.toThrow()
@@ -147,11 +163,18 @@ describe('auth interceptors', () => {
   it('does not redirect when the refresh worked but the replay failed', async () => {
     useAuthStore.getState().login('stale', testUser)
     const assign = stubLocation()
+    let attempts = 0
     server.use(
-      http.get('/api/v1/widgets', () => fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED))
+      http.get('/api/v1/widgets', () => {
+        attempts += 1
+        return attempts > RETRY_CAP
+          ? ok(['widget'])
+          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+      })
     )
 
     await expect(makeClient().get('/widgets')).rejects.toThrow()
+    expect(attempts).toBe(2)
     expect(assign).not.toHaveBeenCalled()
     expect(useAuthStore.getState().accessToken).toBe('fresh-token')
   })

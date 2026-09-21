@@ -7,7 +7,11 @@ import type { ApiSuccess } from '@/types/api.types'
 // here would be blocked by the browser AND would bypass the proxy. Spec
 // section 1. `import.meta.env` is typed with an `any` index signature, so the
 // assertion is what keeps `any` from leaking into the client's config.
-const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api/v1'
+//
+// `||`, not `??`: an env file with VITE_API_URL= (empty) is a real deployment
+// mistake, and `??` would honour it, giving every request a bare path with no
+// /api/v1 prefix and a 404 from the SPA's own index.html.
+const baseURL = (import.meta.env.VITE_API_URL as string | undefined) || '/api/v1'
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL,

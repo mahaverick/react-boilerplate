@@ -14,14 +14,21 @@ let inFlight: Promise<string> | null = null
 
 async function refreshSession(): Promise<string> {
   try {
-    const refreshResponse =
-      await apiClient.post<ApiSuccess<{ accessToken: string }>>('/auth/refresh')
+    // `skipAuthRetry` on both calls below: a 401 on a request made from
+    // inside this function must reject, never re-enter ensureSession() — that
+    // would await the promise this function is settling. See interceptors.ts.
+    const refreshResponse = await apiClient.post<ApiSuccess<{ accessToken: string }>>(
+      '/auth/refresh',
+      undefined,
+      { skipAuthRetry: true }
+    )
     const { accessToken } = unwrap(refreshResponse)
 
     // /auth/refresh returns ONLY an access token — no user. The profile
     // call is therefore not optional if the store is to be usable.
     const profileResponse = await apiClient.get<ApiSuccess<User>>('/profile', {
       headers: { Authorization: `Bearer ${accessToken}` },
+      skipAuthRetry: true,
     })
 
     useAuthStore.getState().login(accessToken, unwrap(profileResponse))
