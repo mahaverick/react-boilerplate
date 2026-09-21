@@ -276,8 +276,17 @@ Every response uses one of two envelopes (`src/utilities/response.utilities.ts`)
 ```ts
 type ApiSuccess<T> = { success: true;  message: string; statusCode: number; data: T }
 type ApiError      = { success: false; message: string; statusCode: number
-                       code?: string; errors?: unknown; requestId: string }
+                       code?: string; errors?: Record<string, string[]>
+                       requestId: string }
 ```
+
+`errors` is `Record<string, string[]>`, not `unknown`. `parseBody`
+(`auth.validators.ts:175`) builds it as `{ ...fieldErrors, ...(formErrors.length > 0 &&
+{ formErrors }) }` from `z.flattenError`, so every key is a field name mapping to an
+array of messages — **except** the reserved key `formErrors`, which carries schema-level
+issues that name no single field (a `.strict()` rejection is the motivating case). A form
+must render `formErrors` as a form-level message, not attach it to a field called
+"formErrors".
 
 `code` is the stable, machine-readable discriminator a client branches on —
 `ACCESS_TOKEN_EXPIRED` is the one this frontend depends on. `errors` carries field-level
