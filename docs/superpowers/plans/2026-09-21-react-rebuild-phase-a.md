@@ -505,7 +505,7 @@ Tailwind 4 replaces with the Vite plugin and @theme."
 - Consumes: nothing.
 - Produces:
   - `type ApiSuccess<T> = { success: true; message: string; statusCode: number; data: T }`
-  - `type ApiErrorBody = { success: false; message: string; statusCode: number; code?: string; errors?: unknown; requestId: string }`
+  - `type ApiErrorBody = { success: false; message: string; statusCode: number; code?: string; errors?: Record<string, string[]>; requestId: string }`
   - `interface User { id: string; email: string; firstName: string | null; lastName: string | null; createdAt: string }`
   - `useAuthStore` with `{ accessToken, user, isAuthenticated, isBootstrapped, login(token, user), logout(), setToken(token), setBootstrapped() }`
   - `useThemeStore` with `{ theme: Theme, setTheme(t: Theme) }` where `type Theme = 'light' | 'dark' | 'system'`
@@ -1673,7 +1673,7 @@ one reading this project's Zustand theme store."
   - `FormItem`, `FormLabel`, `FormControl`, `FormDescription`, `FormMessage`, `FormField`, `useFormField` from `@/components/ui/form`
   - `loginSchema`, `registerSchema`, `forgotPasswordSchema`, `resetPasswordSchema`, `verifyEmailSchema`, `resendVerificationSchema` from `@/schemas/auth.schemas`
   - `useLogin`, `useRegister`, `useForgotPassword`, `useResetPassword`, `useVerifyEmail`, `useResendVerification`, `useLogout` from `@/queries/auth.queries`
-  - `fieldErrorsFrom(error: unknown): Record<string, string[]>` and `messageFrom(error: unknown): string` from `@/lib/api-error`
+  - `fieldErrorsFrom(error: unknown): Record<string, string[]>`, `formErrorsFrom(error: unknown): string[]` and `messageFrom(error: unknown): string` from `@/lib/api-error`
 
 - [ ] **Step 1: Write the failing schema test**
 
@@ -1796,8 +1796,28 @@ export function messageFrom(error: unknown): string {
   return 'Something went wrong. Please try again.'
 }
 
-/** Field-level validator detail, for mapping onto form inputs. */
+/**
+ * Field-level validator detail, for mapping onto form inputs.
+ *
+ * The backend builds this from `z.flattenError` as `{...fieldErrors,
+ * ...(formErrors.length > 0 && {formErrors})}`, so every key is a field
+ * name EXCEPT the reserved `formErrors` — schema-level issues that name no
+ * single field. Those are split out by `formErrorsFrom` below; attaching
+ * them to an input called "formErrors" would render an error against a
+ * field that does not exist.
+ */
 export function fieldErrorsFrom(error: unknown): Record<string, string[]> {
+  const all = allErrorsFrom(error)
+  const { formErrors: _formErrors, ...fields } = all
+  return fields
+}
+
+/** Schema-level issues that name no field. Render these at form level. */
+export function formErrorsFrom(error: unknown): string[] {
+  return allErrorsFrom(error).formErrors ?? []
+}
+
+function allErrorsFrom(error: unknown): Record<string, string[]> {
   if (error instanceof AxiosError) {
     const body = error.response?.data as ApiErrorBody | undefined
     if (body?.errors && typeof body.errors === 'object') return body.errors
@@ -1805,6 +1825,9 @@ export function fieldErrorsFrom(error: unknown): Record<string, string[]> {
   return {}
 }
 ```
+
+`fieldErrorsFrom` destructures `formErrors` out with a discarded binding; tsconfig has
+`noUnusedLocals`, so prefix it with `_` or ESLint's unused-vars rule will reject it.
 
 - [ ] **Step 6: Write `src/components/ui/form.tsx`**
 
