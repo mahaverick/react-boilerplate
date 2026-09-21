@@ -2330,6 +2330,35 @@ export function ThemeToggle() {
 }
 ```
 
+- [ ] **Step 3b: Follow the OS preference while it is set to `system`**
+
+Task 2's theme store reads `prefers-color-scheme` once, at import. With `theme` set to
+`'system'`, an OS light→dark switch while the app is open therefore does nothing until
+the next reload. Add a listener so `'system'` actually means "follow the OS".
+
+Put it in `ThemeToggle` — it is the one component guaranteed mounted for the whole
+authenticated session, and the store is not a React component so it cannot own an effect:
+
+```tsx
+  const theme = useThemeStore((s) => s.theme)
+  const setTheme = useThemeStore((s) => s.setTheme)
+
+  useEffect(() => {
+    if (theme !== 'system') return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    // Re-apply through setTheme('system') rather than toggling the class
+    // directly, so the store stays the single owner of that decision.
+    const onChange = () => setTheme('system')
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [theme, setTheme])
+```
+
+Add a test: with `theme === 'system'`, fire a `change` on the stubbed `matchMedia` and
+assert the `dark` class flips. jsdom does not implement `matchMedia`, so the stub needs
+working `addEventListener`/`removeEventListener` — Task 2's `theme.store.test.ts` has a
+stub to copy, but note its listener methods are no-ops and yours must actually dispatch.
+
 - [ ] **Step 4: Write `src/components/layouts/app-layout.tsx`**
 
 Use the shadcn `sidebar` primitives (`SidebarProvider`, `Sidebar`, `SidebarContent`, `SidebarMenu`, `SidebarMenuItem`, `SidebarMenuButton`, `SidebarFooter`, `SidebarInset`, `SidebarTrigger`). Structure:
