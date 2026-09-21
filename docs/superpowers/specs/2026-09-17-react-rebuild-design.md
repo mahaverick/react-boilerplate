@@ -459,6 +459,24 @@ is awaiting `/profile`. That self-wait hangs indefinitely rather than erroring.
 Step 1 is `ensureSession()`, so N requests 401-ing concurrently produce exactly one
 refresh. A request that has already been retried once is never retried again.
 
+**`refreshSession()`'s own requests are marked non-retriable** — a `skipAuthRetry` flag
+(declared by module augmentation on axios's config) set on both its `/auth/refresh` POST
+and its `/profile` GET, which the error interceptor checks before anything else and bails
+to a plain rejection on.
+
+Without it the self-wait is reachable. `/profile` sits behind `requireAuth`
+(`profile.routes.ts:17`) and `auth.middleware.ts:140` throws `ACCESS_TOKEN_EXPIRED`, so
+if the *freshly minted* token is ever rejected as expired — clock skew, a near-zero TTL,
+a key-rotation race — that `/profile` call 401s, the interceptor calls `ensureSession()`,
+and it awaits the promise it is itself settling. That hangs forever: no rejection, no
+logout, no redirect, nothing in a log. Marking the requests instead surfaces the failure
+as a rejected `ensureSession()`, which logs out.
+
+`/auth/refresh` carries the flag too. It cannot currently emit that code — the auth
+router has no `requireAuth` — but it is rate-limited (`auth.routes.ts:78`), so recursing
+into it is wrong regardless, and the flag stops this design depending on a backend
+property neither side tests.
+
 ### Logout
 
 `POST /auth/logout` (the cookie rides along — its `Path=/api/v1/auth` covers this route),
