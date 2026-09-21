@@ -1267,6 +1267,28 @@ export function installInterceptors(client: AxiosInstance): void {
 
 `ensureSession()` is what makes N concurrent 401s produce one refresh — the interceptor holds no promise of its own.
 
+`refreshSession()` must set `skipAuthRetry: true` on BOTH its `/auth/refresh` and
+`/profile` calls, and the error interceptor must check that flag FIRST and bail to a
+plain rejection. `/profile` sits behind `requireAuth` and the backend throws
+`ACCESS_TOKEN_EXPIRED`, so without the flag a rejected fresh token makes that call 401,
+re-enter `ensureSession()`, and await the promise it is itself settling — a hang with no
+rejection, no logout and nothing in a log. Declare the flag by augmenting axios's
+`AxiosRequestConfig`.
+
+Four tests beyond the list above, each pinning one trap in this code:
+
+1. `does not deadlock when a stale token is still in the store` — fails with a 5s test
+   timeout, not an error, if the header-precedence guard is dropped.
+2. `rejects rather than hanging when its own profile call 401s as expired` — give it an
+   explicit 2000ms timeout so a regression fails red instead of wedging the run.
+3. `allows a new refresh after the previous one REJECTED` — fail a refresh, assert it
+   rejects, succeed a second, assert the handler was hit exactly twice. **No
+   `resetSessionForTests()` between the halves**, or the test cannot see a leaked promise.
+4. `does not redirect when the refresh worked but the replay failed`.
+
+Cap any test handler that 401s unconditionally (`if (attempts > RETRY_CAP) return ok(...)`),
+or a regression in the retry guard loops until the worker is killed rather than failing.
+
 - [ ] **Step 10: Run the test to verify it passes**
 
 Run: `pnpm vitest run src/http/interceptors.test.ts`
