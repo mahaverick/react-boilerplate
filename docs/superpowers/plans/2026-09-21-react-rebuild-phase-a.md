@@ -131,7 +131,8 @@ Versions are pinned exactly, without `^`, matching express-boilerplate. Do not s
 import path from 'node:path'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
@@ -141,7 +142,10 @@ export default defineConfig({
       routesDirectory: './src/pages',
       generatedRouteTree: './src/routeTree.gen.ts',
     }),
-    react({ compiler: true }),
+    react(),
+    // The Babel compiler path. `react({ compiler: true })` is the oxc path
+    // and needs a third peer, oxc-transform-react, which is not pinned here.
+    babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
   ],
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
@@ -153,6 +157,10 @@ export default defineConfig({
 ```
 
 The import is `tanstackRouter`, not `TanStackRouterVite` — the latter is a deprecated alias.
+
+`tsconfig.app.json` must **omit** `baseUrl`: TypeScript 6 errors on it, and `paths` resolves
+relative to the config file without it. `types` needs `"vite/client"` alongside
+`"vitest/globals"`, or the CSS side-effect import in `main.tsx` raises TS2882.
 
 - [ ] **Step 5: Write `vitest.config.ts`**
 
@@ -449,7 +457,16 @@ A relative path, deliberately. There is no `VITE_GOOGLE_OAUTH_URL` — the Googl
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
-Expected: lint clean, typecheck clean, `vitest` exits 0 reporting "No test files found" (acceptable at this stage), build emits `dist/`.
+```bash
+pnpm lint && pnpm typecheck && pnpm test --passWithNoTests && pnpm build
+```
+
+Note the flag form: `pnpm test -- --passWithNoTests` does **not** work on pnpm 12 — the
+explicit `--` is forwarded as a literal token and Vitest reads the flag as a positional
+filter, still exiting 1. Do not add the flag to `package.json`'s `test` script; every
+later task has real tests.
+
+Expected: lint clean, typecheck clean, `vitest` exits 0 reporting "No test files found", build emits `dist/`.
 
 Then `pnpm dev` and load `http://localhost:5173` — expect "Scaffold OK" with no console errors.
 

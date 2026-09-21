@@ -198,10 +198,25 @@ installed by name. **`eslint-plugin-react-compiler` must not be installed** — 
 
 ### React Compiler
 
-Enabled: `react({ compiler: true })`. `@vitejs/plugin-react@6` is oxc-based and exposes
-`compiler?: boolean | ReactCompilerOptions` directly — it is **not** configured through a
-`babel.plugins` array as in v5 and earlier. It requires the two optional peers listed
-above to be installed explicitly.
+`@vitejs/plugin-react@6` offers **two** compiler paths, and this project takes the Babel
+one:
+
+```ts
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
+// ...
+react(),
+babel({ presets: [reactCompilerPreset()] }),
+```
+
+`react({ compiler: true })` is the *oxc* path. It requires a third optional peer,
+`oxc-transform-react`, and errors without it — the plugin says so explicitly
+(`dist/index.js:206`: "React Compiler requires the optional `oxc-transform-react`
+package"). Revision 2026-09-21 of this spec pinned `babel-plugin-react-compiler` and
+`@rolldown/plugin-babel` — the *Babel* path's dependencies — while showing the *oxc*
+path's invocation. The dependency table was right and the code sample was wrong; the
+sample above is the corrected wiring, and it needs no dependency beyond the two already
+pinned.
 
 ### Vite config (exact)
 
@@ -209,7 +224,8 @@ above to be installed explicitly.
 import path from 'node:path'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
@@ -219,7 +235,8 @@ export default defineConfig({
       routesDirectory: './src/pages',
       generatedRouteTree: './src/routeTree.gen.ts',
     }),
-    react({ compiler: true }),
+    react(),
+    babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
   ],
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
