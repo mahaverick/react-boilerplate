@@ -440,14 +440,21 @@ await the same promise.
 
 ### Axios interceptors
 
-**Request:** attach `Authorization: Bearer <accessToken>` from the store when present.
+**Request:** attach `Authorization: Bearer <accessToken>` from the store when present —
+**unless the config already carries an `Authorization` header**, which always wins. The
+bootstrap's `GET /profile` sets one explicitly with the freshly-minted token while the
+store still holds the stale one; overwriting it makes that call 401 with
+`ACCESS_TOKEN_EXPIRED`, which re-enters the interceptor and awaits the very promise that
+is awaiting `/profile`. That self-wait hangs indefinitely rather than erroring.
 
 **Response:** on `401` whose body carries `code === 'ACCESS_TOKEN_EXPIRED'`:
 
 1. Call `POST /auth/refresh`.
 2. Store the new access token.
 3. Replay the original request once.
-4. If the refresh itself fails: `logout()` and redirect to `/login`.
+4. If **the refresh itself** fails: `logout()` and redirect to `/login`. The replay sits
+   outside that error path — a 404, 500 or second 401 from the retried request rejects
+   with its own error and must not bounce a still-valid session to the login page.
 
 Step 1 is `ensureSession()`, so N requests 401-ing concurrently produce exactly one
 refresh. A request that has already been retried once is never retried again.

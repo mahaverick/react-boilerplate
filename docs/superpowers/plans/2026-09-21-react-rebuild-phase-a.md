@@ -1214,7 +1214,13 @@ interface RetriableConfig extends InternalAxiosRequestConfig {
 export function installInterceptors(client: AxiosInstance): void {
   client.interceptors.request.use((config) => {
     const { accessToken } = useAuthStore.getState()
-    if (accessToken) {
+    // An Authorization header already on the config WINS. refreshSession()
+    // sets one explicitly on its /profile call because the store still holds
+    // the STALE token at that point; overwriting it here makes /profile 401
+    // with ACCESS_TOKEN_EXPIRED, which sends this interceptor back into
+    // ensureSession() to await the promise that is awaiting /profile — a
+    // permanent self-wait that HANGS rather than erroring.
+    if (accessToken && !config.headers.has('Authorization')) {
       config.headers.set('Authorization', `Bearer ${accessToken}`)
     }
     return config
@@ -1236,17 +1242,24 @@ export function installInterceptors(client: AxiosInstance): void {
 
       config._retried = true
 
+      let accessToken: string
       try {
-        const accessToken = await ensureSession()
-        config.headers.set('Authorization', `Bearer ${accessToken}`)
-        return await client.request(config)
+        accessToken = await ensureSession()
       } catch (refreshError) {
-        // ensureSession has already cleared the store.
+        // Only a failed REFRESH reaches here. The replay is deliberately
+        // OUTSIDE this catch: with it inside, an ordinary failure of the
+        // retried request (404, 500, a second 401) would bounce a
+        // still-valid session to the login page.
         if (typeof window !== 'undefined') {
           window.location.assign(ROUTES.login)
         }
-        return Promise.reject(refreshError)
+        // `throw`, not Promise.reject: refreshError is `unknown`, which
+        // prefer-promise-reject-errors refuses to let through reject().
+        throw refreshError
       }
+
+      config.headers.set('Authorization', `Bearer ${accessToken}`)
+      return client.request(config)
     }
   )
 }
