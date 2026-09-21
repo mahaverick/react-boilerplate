@@ -423,6 +423,13 @@ Three things here are verified against a live fixture, not the plugin's README, 
 
 `eslint-config-prettier` must stay last.
 
+**Known incomplete at this point:** the `ignores: ['src/components/ui/**']` above scopes
+only this block's `settings` and `classnames-order` override — it does NOT exclude
+`ui/**` from `tailwindcss.configs.recommended`'s own rules, which carry their own `files`
+glob. That has no effect until `src/components/ui/` exists, so Task 4 completes the
+exclusion when it creates that directory. Do not try to fix it here; there is nothing to
+exclude yet.
+
 - [ ] **Step 13: Write `prettier.config.js`**
 
 ```js
@@ -1316,7 +1323,40 @@ pnpm dlx shadcn@4.21.0 add button card input label separator skeleton avatar bad
 
 **Do not add `form`** — its registry entry declares `react-hook-form` and `@hookform/resolvers`. **Do not add `toast`** — Sonner is the toast system.
 
-- [ ] **Step 2: Strip `next-themes` out of the generated Sonner component**
+- [ ] **Step 2: Complete the `ui/**` lint exclusion**
+
+`src/components/ui/` now exists and holds vendored shadcn output. Task 1 could only
+half-exclude it: its `ignores` scoped one config block, but
+`tailwindcss.configs.recommended` brings its own `files` glob and still applies. Append a
+final override to `eslint.config.js`, before `prettier`:
+
+```js
+  {
+    // Vendored shadcn output. Linting it churns the diff on every upstream
+    // re-add, and its class strings are upstream's to own, not ours.
+    files: ['src/components/ui/**'],
+    rules: {
+      'tailwindcss/classnames-order': 'off',
+      'tailwindcss/enforces-canonical-classname': 'off',
+      'tailwindcss/enforces-negative-arbitrary-values': 'off',
+      'tailwindcss/enforces-shorthand': 'off',
+      'tailwindcss/important-modifier-suffix': 'off',
+      'tailwindcss/no-arbitrary-value': 'off',
+      'tailwindcss/no-contradicting-classname': 'off',
+      'tailwindcss/no-custom-classname': 'off',
+      'tailwindcss/no-unnecessary-arbitrary-value': 'off',
+    },
+  },
+```
+
+Note `src/components/ui/form.tsx` is **ours**, not vendored — it is hand-written in
+Task 5. It sits under this exclusion anyway, which is acceptable: it carries almost no
+literal class strings, and splitting the glob to carve out one file costs more than it
+buys.
+
+Verify with `pnpm lint` after the shadcn components land.
+
+- [ ] **Step 3: Strip `next-themes` out of the generated Sonner component**
 
 `shadcn add sonner` generates a component importing `next-themes`, which is a Next.js library. Replace `src/components/ui/sonner.tsx` entirely:
 
@@ -1349,7 +1389,7 @@ pnpm remove next-themes 2>/dev/null || true
 grep -r "next-themes" src/ && echo "STILL PRESENT — fix before continuing" || echo "clean"
 ```
 
-- [ ] **Step 3: Write `src/router.tsx`**
+- [ ] **Step 4: Write `src/router.tsx`**
 
 ```tsx
 import { QueryClient } from '@tanstack/react-query'
@@ -1398,7 +1438,7 @@ declare module '@tanstack/react-router' {
 
 The `catch` is intentionally empty and documented: a missing or expired refresh cookie is the normal state for a signed-out visitor, not an error to surface.
 
-- [ ] **Step 4: Write `src/pages/__root.tsx`**
+- [ ] **Step 5: Write `src/pages/__root.tsx`**
 
 ```tsx
 import type { QueryClient } from '@tanstack/react-query'
@@ -1431,7 +1471,7 @@ function RootComponent() {
 
 Devtools are deliberately omitted here; add them behind `import.meta.env.VITE_ENABLE_DEVTOOLS` only if wanted, and never in the production bundle.
 
-- [ ] **Step 5: Write the guards**
+- [ ] **Step 6: Write the guards**
 
 `src/pages/_auth.tsx`:
 ```tsx
@@ -1474,7 +1514,7 @@ export const Route = createFileRoute('/_app')({
 
 Task 6 replaces `_app`'s component with `AppLayout`. It is a bare `Outlet` now so this task's guard test can run without the sidebar existing.
 
-- [ ] **Step 6: Write `src/pages/index.tsx` and `src/components/layouts/auth-layout.tsx`**
+- [ ] **Step 7: Write `src/pages/index.tsx` and `src/components/layouts/auth-layout.tsx`**
 
 `src/pages/index.tsx`:
 ```tsx
@@ -1506,7 +1546,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
 
 `<main>` is a landmark element, not decoration — the axe checks in Task 9 assert every page has one.
 
-- [ ] **Step 7: Rewrite `src/main.tsx`**
+- [ ] **Step 8: Rewrite `src/main.tsx`**
 
 ```tsx
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -1525,7 +1565,7 @@ createRoot(document.getElementById('root')!).render(
 )
 ```
 
-- [ ] **Step 8: Write the failing guard test**
+- [ ] **Step 9: Write the failing guard test**
 
 `src/pages/guards.test.tsx`:
 ```tsx
@@ -1591,12 +1631,12 @@ function HttpResponseOk() {
 }
 ```
 
-- [ ] **Step 9: Run the test**
+- [ ] **Step 10: Run the test**
 
 Run: `pnpm vitest run src/pages/guards.test.tsx`
 Expected: PASS, 3 tests.
 
-- [ ] **Step 10: Verify the app boots and commit**
+- [ ] **Step 11: Verify the app boots and commit**
 
 ```bash
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
