@@ -58,6 +58,14 @@ export default defineConfig({
       testMatch: 'live/**/*.test.ts',
       use: { ...devices['Desktop Chrome'] },
     },
+    // Colour contrast, which jsdom cannot compute at all — it has no layout and
+    // no cascade, so the unit a11y gate disables every colour rule. Opt-in:
+    // contrast is a property of the palette and moves rarely.
+    {
+      name: 'contrast',
+      testMatch: 'contrast/**/*.test.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
     // Against the production image, not the dev server. The SSE reconnect is
     // only observable here: the Vite proxy does not propagate an upstream
     // close, so the browser never learns the stream died. nginx does.

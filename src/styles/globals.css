@@ -20,7 +20,11 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* 0.556 measured 4.35:1 against --muted (#737373 on #f5f5f5) — below the
+     4.5:1 WCAG AA floor wherever muted text sits on a muted surface. 0.53 is
+     4.82 there and 5.25 on white, with enough margin that antialiasing cannot
+     flip it. Verified by `pnpm test:contrast`, not by eye. */
+  --muted-foreground: oklch(0.53 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
