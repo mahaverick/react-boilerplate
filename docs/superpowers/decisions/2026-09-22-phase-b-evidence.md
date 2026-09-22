@@ -74,8 +74,8 @@ approved set — but its test renders it directly, because nothing else would.
 ## Three corrections to the spec, found by running the contract
 
 1. **`requiredRenders` cannot be empty.** The spec said `[]`; `normalizeArtifact` rejects it.
-   `members` declares `desktop-loaded` (1440×900) and `mobile-loaded` (390×844). **Neither has
-   been rendered** — see "Not done" below.
+   `members` declares `desktop-loaded` (1440×900) and `mobile-loaded` (390×844). Both have
+   since been rendered — see "Visual tier" below.
 2. **An artifact only sees what it declares.** `SS004` fired until `src/styles` joined
    `sourceRoots`, because the app's only `prefers-reduced-motion` block is `globals.css:140`.
    Listing a file in `tokenFiles` does not put it in the scanned inventory. An under-declared
@@ -120,14 +120,129 @@ open-items §3, the blind spot that once hid a page-crashing `DropdownMenuLabel`
 
 `pnpm lint`, `pnpm typecheck`, `pnpm test --run` and `pnpm build` all pass.
 
+## Visual tier — `ss-verify`
+
+**Run 2026-09-22, after this document was first written.** Playwright 1.63.0 was added as a
+devDependency and the visual gate was run, reversing spec §9's original out-of-scope call.
+Five renders, exact viewports, `deviceScaleFactor: 2`, headless Chromium.
+
+Renders are in `2026-09-22-phase-b-renders/`.
+
+| Render | Viewport | Verdict |
+| --- | --- | --- |
+| `desktop-loaded` | 1440×900 | Pass, with layout findings below |
+| `mobile-loaded` | 390×844 | Pass — genuinely responsive |
+| `desktop-empty` | 1440×900 | **Fail** — no empty state |
+| `mobile-empty` | 390×844 | **Fail** — same |
+| `desktop-error` | 1440×900 | Pass — the best-designed state on the page |
+
+### What the gate confirmed that code review only inferred
+
+**The empty state is a bare table header.** With no members, the page renders
+`Name / Email / Role / Actions` floating over nothing. The −4 taken on "States & a11y" in the
+code score was read from source; this is it seen. It is the skill's canonical "blank void for
+no data" failure.
+
+The contrast with the error state is what makes it a real finding rather than a nitpick. The
+error state renders a bordered panel reading *"We could not load this tenant's members, so none
+are listed here. This is not a sign that it has none."* plus a **Try again** button — it goes out
+of its way to disambiguate error from empty. The empty case, which that sentence explicitly
+refers to, was never designed.
+
+**`min-w-2xl` is now verified rather than reasoned.** Open-items §4 recorded the member table's
+horizontal scroll as "reasoned CSS; jsdom cannot demonstrate it." Measured at 390×844:
+
+```
+tableScrollWidth: 672   tableClientWidth: 326   tableScrolls: true
+docScrollWidth:   390   docClientWidth:   390   pageOverflows: false
+```
+
+The table scrolls inside its container and the page itself does not overflow — exactly the
+intent. **That open item can be closed.**
+
+**Fonts load.** `document.fonts.check('16px "Geist Variable"')` returned true in every render,
+with `font-family` resolving to `"Geist Variable", sans-serif`. The skill's canonical silent
+failure — a webfont falling back to Times — is not happening.
+
+### New findings, visible only in pixels
+
+1. **Desktop is under-filled.** At 1440×900 the content occupies roughly the upper-left: the
+   lower third and the right ~30% are empty. The page reads sparse on a wide canvas.
+2. **Type scale is small for the desktop canvas.** The `h1` is undersized at 1440px — the
+   surface-scale tell. At 390px the same scale reads well, so this is specifically a desktop
+   problem.
+3. **Mobile clips the owner helper text.** "A tenant must always have an owner. Add another
+   owner first." is cut mid-sentence at the scroll container's edge, reading "A tenant must
+   always have". It is recoverable by scrolling, but it looks broken at rest.
+4. **Mobile hides the Actions column.** Leave/Remove sit off-screen behind the horizontal
+   scroll. That is the deliberate consequence of `min-w-2xl`, but it means the primary per-row
+   action is invisible on a phone until the user scrolls.
+
+### Visual score
+
+**Design Score (seen): 85 / 100** — against the same rubric, scoring pixels rather than source.
+
+| Category | Score | Change from the code score |
+| --- | --- | --- |
+| Color discipline | 16/16 | — one accent confirmed by eye |
+| Distinctiveness | 8/10 | — |
+| Hierarchy & typography | 13/16 | **−2**: the `h1` is visibly undersized at 1440px |
+| Layout & rhythm | 8/12 | **−4**: dead lower third and right third |
+| Cards & elevation | 10/10 | — |
+| States & a11y | 12/18 | **−2**: empty state confirmed, plus the clipped mobile helper text |
+| Motion & interaction | 6/6 | — no mid-transition frame captured; nothing observed as wrong |
+| Coherence | 12/12 | — |
+
+85 is above the floor of 80 and **eight points below the code score of 93**. That gap is the
+whole argument for the visual gate: every point of it came from something source cannot show.
+
+### Dark theme
+
+Rendered and inspected separately via the browser. Surfaces layer correctly (page darker than
+cards), text stays readable, no flash of light on load — the pre-paint script in `index.html`
+does its job. Not part of the required renders, since `paletteMode` is `light`.
+
+### How to reproduce
+
+Playwright is installed but **no committed file uses it** — the harness is deliberately not in
+the repo, because a root-level `.mjs` and a `src/harness.tsx` would both need changes to the
+type-aware lint config to pass `eslint --max-warnings 0`, and that config is carefully tuned.
+The harness is reproduced here instead.
+
+`harness.html` is `index.html` with its script src pointed at `/src/harness.tsx`. That file
+registers an MSW browser worker with the same fixtures as `src/tests/a11y.test.tsx`
+(`TENANT`, `MEMBERS`, `SETTINGS`, `NOTIFICATIONS`, `PREFERENCES`), sets the signed-in store
+state, and then — importantly — calls
+`history.replaceState(null, '', '/tenants/acme/members')` **before** mounting. Using
+`router.navigate` instead does a real navigation, and the dev server answers that path with the
+SPA fallback, so the harness never runs. `?state=empty|error|loading` swaps the members handler.
+`npx msw init public/` provides the worker; the generated file is not committed.
+
+Then `pnpm dev` and a Playwright script looping the surfaces at `deviceScaleFactor: 2`,
+waiting on `document.fonts.ready` and a `tbody tr`, with the error state waiting up to 45s for
+**Try again** to outlast TanStack Query's retry backoff.
+
+### Formal evidence attach
+
+Not performed. `evidence-gate.mjs` expects
+`.styleseed/evidence/<artifactId>/<runId>/gate-run.json` plus a `verification.json` binding a
+deterministic, code, visual and temporal report under one run id. The renders satisfy the
+artifact's `requiredRenders` contract by id, state and viewport, but no `gate-run.json` was
+written, so **no machine-verified attach exists** — this document is the record.
+
 ## Not done, deliberately
 
-- **`ss-verify` did not run. No screenshot exists. Nothing was rendered in a browser.**
-  Playwright is out of scope per spec §9, so the score above stands on code review alone. The
-  two `requiredRenders` entries record intent, not evidence.
-- **Colour contrast is unchecked.** jest-axe disables every `cat.color` rule under jsdom. A
-  green a11y run says nothing about contrast.
+- **Colour contrast is still unmeasured.** jest-axe disables every `cat.color` rule under
+  jsdom, and looking at a screenshot is not measuring contrast. The renders make it *visible*;
+  they do not make it *checked*.
+- **No mid-transition frame.** Motion was not captured, so the "cheap fade on everything" tell
+  is unassessed.
+- **No formal evidence attach** — see above.
 - **No CI enforcement.** The deterministic tier runs on demand. `eslint`, `tsc`, Vitest and
-  jest-axe remain the CI gates.
-- **Open-items §1 is untouched** — the three never-executed behaviours still need a live
-  express-boilerplate and a browser.
+  jest-axe remain the CI gates. Playwright is **not** wired into CI.
+- **Open-items §1 is untouched** — reload keeps you signed in, SSE reconnects after a real
+  backend restart, and `X-Forwarded-Proto` reaches Express still need a live
+  express-boilerplate. The harness mocks the API, so it cannot speak to any of them. Playwright
+  being installed now makes that task cheaper.
+- **The four findings above are recorded, not fixed.** Fixing them is a separate, authorized
+  change; `ss-verify`'s default scope is inspection.

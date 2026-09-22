@@ -82,8 +82,9 @@ Rounding any of the SS002 values to the nearest scale step changes how the contr
   does **not** put it in the scanned inventory — it must also sit under a `sourceRoot`. An
   under-declared artifact produces confident, wrong findings.
 - **`requiredRenders` must not be empty.** The contract rejects `[]`, so `members` declares a
-  desktop and a mobile loaded state. **Neither has been rendered** — Playwright is out of scope
-  per spec §9, and `ss-verify` has not run. The declaration records intent, not evidence.
+  desktop and a mobile loaded state. Both were rendered on 2026-09-22 with Playwright; see
+  `docs/superpowers/decisions/2026-09-22-phase-b-evidence.md`. Colour contrast is still
+  unmeasured — seeing a render is not measuring it.
 
 ## Generated files that are not our tokens
 
@@ -129,6 +130,18 @@ a component or this file does not invalidate it.
 Re-run `resolve-context.mjs` only when one of these changes: an artifact's `selection`, its
 `implementation` paths, `project.json`, or StyleSeed's pinned version. Re-running it rewrites
 the bundle, the manifest and the palette, so commit those together.
+
+## Visual verification
+
+`ss-verify` was run on 2026-09-22 with Playwright 1.63.0 at 1440×900 and 390×844,
+`deviceScaleFactor: 2`. **Visual score 85/100, against a code score of 93** — the eight-point
+gap is what source cannot show. Renders and findings:
+`docs/superpowers/decisions/2026-09-22-phase-b-evidence.md`.
+
+Playwright is installed but **no committed file uses it**. The harness is reproduced in that
+document rather than committed: a root `.mjs` and a `src/harness.tsx` would both need changes
+to the type-aware lint config to pass `eslint --max-warnings 0`, and that config is tuned
+deliberately. Re-running the gate means recreating the harness from the doc.
 
 ## Accessibility
 

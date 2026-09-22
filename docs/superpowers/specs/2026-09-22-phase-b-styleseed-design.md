@@ -64,7 +64,8 @@ The gate fires when invoked, by a human or an agent doing UI work. `jest-axe`, `
 
 ## 3. Files this adds to the repo
 
-Text only. `package.json` is not modified; no dependency is added.
+Text only. The StyleSeed adoption itself adds no dependency. (`package.json` was later
+modified once, when §9 was reversed and Playwright was added for the visual gate.)
 
 | Path | Contents | Authored by | Committed |
 | --- | --- | --- | --- |
@@ -139,7 +140,15 @@ One artifact per route, `validation.scoreFloor: 80`. `src/components/ui` appears
     ],
     "tokenFiles": ["src/styles/globals.css"]
   },
-  "validation": { "scoreFloor": 80, "requiredRenders": [] }
+  "validation": {
+    "scoreFloor": 80,
+    "requiredRenders": [
+      { "id": "desktop-loaded", "state": "loaded", "viewport": { "width": 1440, "height": 900 } },
+      { "id": "mobile-loaded", "state": "loaded", "viewport": { "width": 390, "height": 844 } }
+    ],
+    "temporal": { "required": false, "scenarios": [] },
+    "humanAcceptance": false
+  }
 }
 ```
 
@@ -148,7 +157,9 @@ One artifact per route, `validation.scoreFloor: 80`. `src/components/ui` appears
 matches none of them. It produced zero `SS001` findings only because base-nova is written in
 `oklch()` rather than hex. A future hex value there would be reported unless it is registered.
 
-`requiredRenders` is empty because Playwright is out of scope (§9).
+`requiredRenders` **cannot** be empty — `normalizeArtifact` rejects `[]`, and `validation` also
+requires `temporal` and `humanAcceptance`. Both renders above were captured on 2026-09-22; see
+§9 and `../decisions/2026-09-22-phase-b-evidence.md`.
 
 ## 6. Token bridge — alias, add nothing
 
@@ -255,12 +266,16 @@ notification bell, the tenant switcher, the user menu, the theme toggle.
 
 ## 9. Scope boundary
 
-**Out of scope: Playwright.** `ss-verify` states its own fallback — "no way to render at all (no
-browser, no Playwright, headless blocked) → say so" — and degrades gracefully. Installing it
-pulls in open-items §1, the three behaviours that have never been executed (session survives
-reload, SSE reconnects after a real backend restart, `X-Forwarded-Proto` reaches Express). That
-is its own task, with its own approval, and roughly thirty minutes against a live
-express-boilerplate. `requiredRenders` stays empty until then.
+**Playwright was out of scope, and that was reversed on 2026-09-22.** The original reasoning
+was that `ss-verify` degrades gracefully — "no way to render at all (no browser, no Playwright,
+headless blocked) → say so" — and that installing it pulls in open-items §1. The first half was
+sound; the second was a conflation. Rendering the members route needs a browser and fixtures,
+not a live backend, so the visual gate and open-items §1 are separable after all.
+
+Playwright 1.63.0 is now a devDependency and the gate has been run. It is **not** wired into
+CI. Open-items §1 remains untouched — the harness mocks the API and cannot speak to session
+persistence, SSE reconnection or `X-Forwarded-Proto`. Findings and renders:
+`../decisions/2026-09-22-phase-b-evidence.md`.
 
 **Out of scope:** CI enforcement (§2), new design tokens (§6), any change to
 `src/components/ui/`'s ownership (§0), and the ten excluded skills (§4).
