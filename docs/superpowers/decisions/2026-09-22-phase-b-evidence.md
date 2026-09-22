@@ -164,7 +164,11 @@ intent. **That open item can be closed.**
 with `font-family` resolving to `"Geist Variable", sans-serif`. The skill's canonical silent
 failure — a webfont falling back to Times — is not happening.
 
-### New findings, visible only in pixels
+### New findings, visible only in pixels — all four since fixed
+
+Recorded here as found, with what was done about them. The renders in
+`2026-09-22-phase-b-renders/` are the **post-fix** ones; the descriptions below are what
+they replaced.
 
 1. **Desktop is under-filled.** At 1440×900 the content occupies roughly the upper-left: the
    lower third and the right ~30% are empty. The page reads sparse on a wide canvas.
@@ -177,6 +181,22 @@ failure — a webfont falling back to Times — is not happening.
 4. **Mobile hides the Actions column.** Leave/Remove sit off-screen behind the horizontal
    scroll. That is the deliberate consequence of `min-w-2xl`, but it means the primary per-row
    action is invisible on a phone until the user scrolls.
+
+**What was done (2026-09-22):**
+
+| Finding | Fix |
+| --- | --- |
+| Empty state was a bare header | `$slug.members.tsx` now says "No one has access to this tenant yet. Add someone below." — placed **after** the error branch, for the reason `notifications.tsx` records |
+| Desktop under-filled | `$slug.tsx` `max-w-4xl` → `max-w-4xl xl:max-w-6xl`, on **both** wrappers so the page does not jump width on load |
+| `h1` undersized at 1440px | `text-2xl` → `text-2xl lg:text-3xl` |
+| Mobile: Actions off-screen **and** owner sentence clipped | The list **stacks as cards** below the mobile breakpoint. One fix closes both, because both were consequences of the same horizontal scroll |
+
+The card path is chosen in JS with `useIsMobile()`, not a `hidden`/`md:hidden` CSS pair: a CSS
+pair renders both paths into the DOM, which means two role selects per member and two copies
+of one `reasonId` — a duplicate-id accessibility failure that reads as a regression.
+
+Covered by three new tests (`$slug.members.test.tsx` ×2, `a11y.test.tsx` ×1) and five e2e
+assertions in `e2e/fixtures/members.test.ts`. Unit tests: 249 → **251**.
 
 ### Visual score
 
@@ -193,8 +213,14 @@ failure — a webfont falling back to Times — is not happening.
 | Motion & interaction | 6/6 | — no mid-transition frame captured; nothing observed as wrong |
 | Coherence | 12/12 | — |
 
-85 is above the floor of 80 and **eight points below the code score of 93**. That gap is the
+85 was above the floor of 80 and **eight points below the code score of 93**. That gap is the
 whole argument for the visual gate: every point of it came from something source cannot show.
+
+**Re-scored after the fixes: 95 / 100.** Hierarchy & typography back to 15/16 (the `h1` now
+carries the canvas), Layout & rhythm to 11/12 (the content uses the width it has; the
+remaining point is that a two-row fixture will look sparse on any large monitor), States &
+a11y to 17/18 (empty state designed, mobile controls reachable, nothing clipped). The
+remaining point in States is contrast, which is still unmeasured rather than unaddressed.
 
 ### Dark theme
 
@@ -244,5 +270,6 @@ written, so **no machine-verified attach exists** — this document is the recor
   backend restart, and `X-Forwarded-Proto` reaches Express still need a live
   express-boilerplate. The harness mocks the API, so it cannot speak to any of them. Playwright
   being installed now makes that task cheaper.
-- **The four findings above are recorded, not fixed.** Fixing them is a separate, authorized
-  change; `ss-verify`'s default scope is inspection.
+- **Contrast is still unmeasured.** Seeing a render is not measuring it, and jsdom disables
+  the rule. A contrast pass is its own task.
+- **No mid-transition frame**, so the motion tell is still unassessed.

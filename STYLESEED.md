@@ -138,10 +138,13 @@ the bundle, the manifest and the palette, so commit those together.
 gap is what source cannot show. Renders and findings:
 `docs/superpowers/decisions/2026-09-22-phase-b-evidence.md`.
 
-Playwright is installed but **no committed file uses it**. The harness is reproduced in that
-document rather than committed: a root `.mjs` and a `src/harness.tsx` would both need changes
-to the type-aware lint config to pass `eslint --max-warnings 0`, and that config is tuned
-deliberately. Re-running the gate means recreating the harness from the doc.
+Playwright now has a committed consumer: the e2e suite in `e2e/`, run with `pnpm test:e2e`.
+Its `fixtures` project turns the visual gate's findings into standing assertions — webfont
+loaded, nothing overflowing at 390px, the empty and error states rendering as more than a bare
+header — so a regression fails a test rather than waiting for the next screenshot. See
+CLAUDE.md's end-to-end section for the conventions.
+
+All four findings the visual gate produced have since been fixed; re-scored **95/100**.
 
 ## Accessibility
 

@@ -137,6 +137,44 @@ is fine — just regenerate the lockfile in the same commit.
   nothing enforces it, and the cross-cutting suites under `src/tests/`
   (`a11y.test.tsx`) sit beside nothing by design.
 
+## End-to-end tests
+
+`pnpm test:e2e` (fixtures) and `pnpm test:e2e:live` (needs a backend). Playwright, two
+projects, and three conventions that are load-bearing rather than taste:
+
+- **Tests are `*.test.ts`, never Playwright's default `*.spec.ts`** —
+  `check-file/filename-blocklist` rejects `.spec.` repo-wide, so the default fails lint on
+  the first file. `playwright.config.ts` sets `testMatch` accordingly.
+- **`vitest.config.ts` carries an explicit `exclude` for `e2e/**`.** Vitest's default
+  `include` is `**/*.{test,spec}.*`, so without it Vitest collects the Playwright specs and
+  runs them under jsdom.
+- **`e2e/` is typed-linted via its own `tsconfig.json`** and `projectService`, not exempted
+  with `disableTypeChecked` the way the root configs are. `playwright.config.ts` itself is a
+  root config and is linted with those.
+
+**`fixtures`** drives `e2e/harness/` — the real router and real CSS with MSW answering the
+same fixtures `src/tests/a11y.test.tsx` uses, so it needs no backend. It exists for the
+checks jsdom cannot make, because jsdom has no layout: whether the webfont actually resolved,
+whether anything overflows the viewport at 390px, whether a state renders as more than a bare
+header. `?state=loaded|empty|error|loading|soleowner` picks the members response.
+
+Two harness traps, both of which made tests measure the wrong thing once already: answering
+the SSE stream with `204` looks to the hook exactly like a dropped connection and sends the
+page into a refresh-then-redirect that a test will race; and **any endpoint left unmocked
+falls through to the real backend** (`onUnhandledRequest: 'bypass'`) and 401s. If a fixtures
+test starts landing on `/login`, that is why.
+
+**`live`** needs a real express-boilerplate on `:4040` and its docker services, and is skipped
+unless `E2E_LIVE=1`. Accounts are registered and verified through mailpit — login stays 401
+until the address is verified, and the link only exists in the email. Each run uses a **fresh
+address**, because the login limiter is keyed `ip:email` at five attempts per fifteen minutes
+and a fixed address would rate-limit every rerun.
+
+`restartApi()` kills by port with `-sTCP:LISTEN` and escalates SIGTERM→SIGKILL. Both details
+are load-bearing: `pnpm dev` is `tsx watch`, whose CHILD holds the port and survives a
+group SIGTERM, and without `-sTCP:LISTEN` lsof also lists the Vite proxy as a client of that
+port and the kill takes the dev server down too.
+
 ## Accessibility
 
 `src/tests/a11y.test.tsx` is a gate, not a smoke test: every routed page, plus
