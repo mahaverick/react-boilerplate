@@ -133,7 +133,7 @@ function TenantLayout() {
 
   if (tenant.isPending) {
     return (
-      <div className="grid max-w-4xl gap-4">
+      <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-40 w-full" />
@@ -146,10 +146,10 @@ function TenantLayout() {
   if (!tenant.data) return <TenantNotFound slug={slug} />
 
   return (
-    <div className="grid max-w-4xl gap-4">
+    <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
       <header className="grid gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">{tenant.data.name}</h1>
+          <h1 className="text-2xl font-semibold lg:text-3xl">{tenant.data.name}</h1>
           {role && <Badge variant="secondary">{ROLE_LABELS[role]}</Badge>}
         </div>
         <p className="text-sm text-muted-foreground">/{tenant.data.slug}</p>
