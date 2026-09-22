@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http } from 'msw'
+import { delay, http } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
@@ -77,6 +77,22 @@ describe('TenantSwitcher', () => {
     await openSwitcher()
 
     expect(await screen.findByText('No tenants yet')).toBeInTheDocument()
+    expect(screen.queryByText('Tenants could not be loaded')).not.toBeInTheDocument()
+  })
+
+  // The THIRD state this menu needs and had only two of. `tenants.data` is
+  // undefined mid-flight exactly as it is after a failure and for an empty
+  // account, and with no pending branch the chain fell through to the empty
+  // one — so a menu opened while the list was still in the air answered "No
+  // tenants yet", on strictly less evidence than the error case it sits
+  // beside.
+  it('says the list is still loading when the menu opens mid-flight', async () => {
+    server.use(http.get('/api/v1/tenants', async () => delay('infinite')))
+    renderShell()
+    await openSwitcher()
+
+    expect(await screen.findByText('Loading tenants…')).toBeInTheDocument()
+    expect(screen.queryByText('No tenants yet')).not.toBeInTheDocument()
     expect(screen.queryByText('Tenants could not be loaded')).not.toBeInTheDocument()
   })
 

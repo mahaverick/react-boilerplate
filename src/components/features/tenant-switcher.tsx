@@ -57,6 +57,16 @@ export function TenantSwitcher() {
                   <span className="truncate">{entry.tenant.name}</span>
                 </DropdownMenuItem>
               ))
+            ) : tenants.isPending ? (
+              // THREE states, not two. A menu opened while the list was still
+              // in flight fell through to "No tenants yet" — the same claim
+              // about the account that the error branch below exists to stop,
+              // made a moment earlier and on even less evidence.
+              //
+              // Below the `data` branch, deliberately: a cached list still
+              // renders while a background refetch is in flight, because a
+              // switcher whose rows are usable should stay usable.
+              <DropdownMenuItem disabled>Loading tenants…</DropdownMenuItem>
             ) : tenants.isError ? (
               // A FAILED load is not an empty account, and this menu used to
               // say it was: `tenants.data` is undefined in both cases, so a
