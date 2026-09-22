@@ -272,6 +272,34 @@ async function expectNoViolations() {
 }
 
 /**
+ * The same rule set, run against ONE OPEN OVERLAY instead of the document.
+ *
+ * Why this exists rather than reusing `expectNoViolations` for menus: Base UI
+ * portals a menu popup to `document.body`, so at document scope axe's `region`
+ * rule reports "Some page content is not contained by landmarks" for every open
+ * menu. That is a PAGE-STRUCTURE rule - landmarks are how a screen-reader user
+ * navigates the standing regions of a page - and it does not describe a barrier
+ * in a transient popup that focus has just been moved into. The dialog and
+ * sheet tests above do not hit it only because axe exempts `role="dialog"`.
+ *
+ * No rule is disabled here. The rule set is identical; the CONTEXT is narrowed,
+ * so page-structure rules simply have no page to judge and the menu's own
+ * markup - `menuitem` roles, accessible names, aria-* wiring - is what gets
+ * graded. The page itself is still graded at document scope by the tests above.
+ *
+ * The crash class this block exists for is caught before axe runs at all: a
+ * `DropdownMenuLabel` outside a `Menu.Group` throws on open, so `findByRole`
+ * never resolves and the test fails there.
+ */
+async function expectNoViolationsIn(element: HTMLElement) {
+  const results = await axeCore.run(element, AXE_OPTIONS)
+  expect(results).toHaveNoViolations()
+
+  const unexpected = results.incomplete.map((r) => r.id).filter((id) => !KNOWN_INCOMPLETE.has(id))
+  expect(unexpected).toEqual([])
+}
+
+/**
  * Picks the viewport `useIsMobile` reports.
  *
  * It reads `window.innerWidth` for the VALUE and only uses `matchMedia` for the
@@ -438,6 +466,51 @@ describe('open overlays', () => {
     const sheet = await screen.findByRole('dialog')
     expect(sheet).toHaveAccessibleName('Sidebar')
     await expectNoViolations()
+  })
+
+  /**
+   * OPENED MENUS. Before these, the overlay block covered a dialog and a sheet
+   * and no open menu at all - and a page-crashing bug lived in exactly that
+   * blind spot through 234 passing tests: `DropdownMenuLabel` is Base UI's
+   * `Menu.GroupLabel` and throws outside a `Menu.Group`, so opening the bell
+   * replaced the whole app with the root error boundary on every authenticated
+   * route. Every menu that exists is opened here.
+   */
+  it.each([
+    ['the notification bell', /^Notifications,/],
+    ['the tenant switcher', /^Switch tenant/],
+    ['the user menu', /^Account menu for/],
+  ])('has no violations with %s menu open', async (_label, name) => {
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name }))
+
+    // Finding the menu is what makes this a real check: a trigger that fails to
+    // open asserts nothing, and axe over a closed menu is axe over no menu.
+    const menu = await screen.findByRole('menu')
+    // Not vacuous: a menu that opened empty would pass axe while asserting
+    // nothing about the items this block exists to grade.
+    expect(within(menu).getAllByRole('menuitem').length).toBeGreaterThan(0)
+    await expectNoViolationsIn(menu)
+  })
+
+  it('has no violations with the theme menu open inside the mobile sheet', async () => {
+    // ThemeToggle is not in the desktop shell - the mobile sheet is where it
+    // renders, so that is where it has to be opened.
+    setViewportWidth(500)
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Toggle sidebar' }))
+    await screen.findByRole('dialog')
+    await user.click(await screen.findByRole('button', { name: /Change theme/ }))
+
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).getAllByRole('menuitem').length).toBeGreaterThan(0)
+    await expectNoViolationsIn(menu)
   })
 })
 
