@@ -26,11 +26,12 @@ that a new project starts here rather than at `create-vite`.
 
 ```bash
 pnpm install
-cp .env.example .env
 pnpm dev
 ```
 
-The dev server listens on <http://localhost:5173>.
+The dev server listens on <http://localhost:5173>. There is no `.env` step:
+nothing in the app reads a `VITE_*` variable today, and `.env.example` holds
+only the comments explaining why — see [Environment](#environment).
 
 ### The API must be running on :4040
 

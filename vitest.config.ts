@@ -7,9 +7,11 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/tests/setup.ts'],
-    // Vitest's own default is 5s, and this suite spawns ONE WORKER PER FILE
-    // (26 of them) at roughly 870ms of spawn + jsdom environment each — the
-    // runner prints that figure on every run. On a cold CI machine, where
+    // Vitest's own default is 5s, and this suite spawns ONE WORKER PER TEST
+    // FILE — dozens of them — at roughly 870ms of spawn + jsdom environment
+    // each; the runner prints both figures on every run, so read them there
+    // rather than from a number written here that rots the next time a test
+    // file is added. On a cold CI machine, where
     // nothing is warm and the workers contend, a file that renders the whole
     // route tree can spend most of a 5s budget before its first assertion.
     // 20s is not a licence for a slow test; it is headroom so a test fails

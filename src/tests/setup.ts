@@ -12,8 +12,8 @@ expect.extend(toHaveNoViolations)
  * govern it, so raising that alone would have changed nothing here.
  *
  * One second is not honest for this suite. It spawns a worker per test file —
- * 26 of them, at ~870ms of spawn plus jsdom environment each, a figure the
- * runner prints on every run — and a `findBy*` that starts while the machine
+ * dozens of them, at ~870ms of spawn plus jsdom environment each, both figures
+ * the runner prints on every run — and a `findBy*` that starts while the machine
  * is still standing those up is racing the runner rather than the code. That
  * is measured, not supposed: three tests across `$slug.members` and
  * `tenants/index` failed on one full run in four, passed alone, and passed on
@@ -77,9 +77,11 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 // exactly what a test that is not about the stream wants.
 //
 // Assigned to `globalThis` rather than stubbed with `vi.stubGlobal`, because
-// use-notifications.test.tsx installs a richer mock with `vi.stubGlobal` and
-// calls `vi.unstubAllGlobals()` afterwards — which restores whatever was here
-// BEFORE, and that has to be this no-op rather than `undefined`.
+// tests that DO care about the stream install a richer mock with
+// `vi.stubGlobal` and call `vi.unstubAllGlobals()` afterwards — which restores
+// whatever was here BEFORE, and that has to be this no-op rather than
+// `undefined`. (Which tests those are is not listed: the list was wrong within
+// one commit of being written. Grep for `vi.stubGlobal('EventSource'`.)
 class IdleEventSource implements Pick<EventSource, 'close' | 'addEventListener'> {
   constructor(public url: string) {}
   addEventListener(): void {}
