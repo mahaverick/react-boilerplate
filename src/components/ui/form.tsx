@@ -39,11 +39,32 @@ const FormErrorSlotContext = React.createContext<FormErrorSlot | null>(null)
 /**
  * The form element itself. TanStack Form has no provider component.
  *
- * `onChange` is where a server verdict expires. It fires for every control in
- * the form (React's change event bubbles), and `FormControl` puts the field's
- * `name` on each control, so one handler here clears exactly the field the
- * user is fixing — not its siblings, whose verdicts are still true, and not on
- * blur, which is not the user changing anything.
+ * `onChange` is where a server verdict expires. It fires for every NATIVE
+ * control in the form — `input`, `textarea`, `select` — because their change
+ * event bubbles, and `FormControl` puts the field's `name` on each control, so
+ * one handler here clears exactly the field the user is fixing: not its
+ * siblings, whose verdicts are still true, and not on blur, which is not the
+ * user changing anything.
+ *
+ * THE RULE DOES NOT COVER A BASE UI SELECT, and that is measured, not
+ * suspected. Base UI's Select sets its hidden input programmatically, so
+ * choosing an option emits NO change event that reaches this handler — a probe
+ * watching `clearField` saw a plain `<input>` in the same form call it
+ * immediately and the Select never call it at all, while the selection itself
+ * plainly worked (the hidden input's value and the trigger's text both
+ * changed). A server error on such a field would therefore sit there,
+ * unchallenged, while the user changes the very control it is about.
+ *
+ * **Any non-native control must call `serverErrors.clearField('<its name>')`
+ * itself, in its own change handler.** `src/pages/_app/tenants/$slug.members.tsx`
+ * is the worked example: the add-member role Select calls it inside
+ * `onValueChange`, and a test fails if that line is removed.
+ *
+ * Base UI's CHECKBOX IS UNVERIFIED. Nothing in this project wires one into a
+ * form yet, so it was never probed, and it is NOT safe to assume it behaves
+ * like the Select or like a native input — measure it before relying on either
+ * answer. (What IS known about the Checkbox is a separate problem, recorded on
+ * `FormControl` below: its `id` lands on the hidden input.)
  *
  * A caller's own `onChange`/`onSubmit` is pulled out of `props` and called
  * AFTER ours rather than spread over them: `{...props}` last would let a page
@@ -200,6 +221,24 @@ export function FormLabel({ className, ...props }: React.ComponentProps<typeof L
  *
  * Base UI has no `Slot` component — `useRender` is its equivalent, and this
  * is the same call shape the vendored primitives (breadcrumb, badge) use.
+ *
+ * WHERE THE `id` ACTUALLY LANDS depends on the control, and the answer decides
+ * whether `<FormLabel htmlFor>` points at something a pointer can reach:
+ *
+ * - Native `input`/`textarea`: on the control. Fine.
+ * - Base UI **Select**: wrap this around `SelectTrigger` (inside `Select.Root`,
+ *   which carries the `name`) and the id lands on the VISIBLE
+ *   `button[role="combobox"]`. Measured, and asserted in
+ *   `src/pages/_app/tenants/$slug.members.tsx`'s test.
+ * - Base UI **Checkbox**: reported to land on the HIDDEN input rather than the
+ *   visible `role="checkbox"` element, which would leave the label pointing at
+ *   a control nobody can click. Carried from an earlier review and NOT
+ *   re-measured here — nothing in this project wires a Checkbox into a form.
+ *   Measure it before trusting it in either direction.
+ *
+ * Separately, see `<Form>` above for which controls the server-error CLEARING
+ * rule reaches: a Base UI Select's change does not bubble, so such a control
+ * must clear its own field.
  */
 export function FormControl({ children }: { children: React.ReactElement<{ name?: string }> }) {
   const { name, errors, formItemId, formMessageId } = useFormField()
