@@ -1874,6 +1874,15 @@ function allErrorsFrom(error: unknown): Record<string, string[]> {
 
 - [ ] **Step 6: Write `src/components/ui/form.tsx`**
 
+**`useFormField` must live in `src/hooks/use-form-field.ts`, not in `form.tsx`.**
+Task 4 pre-emptively carved `form.tsx` out of the vendored `src/components/ui/**` lint
+exclusion, so `react-refresh/only-export-components` is live on it — and exporting a hook
+alongside components trips it, breaking the 0-warnings gate the moment the file lands.
+`form.tsx` imports the hook and does NOT re-export it (a re-export trips the same rule).
+The filename satisfies the `src/hooks/**` → `use-<kebab>.ts` rule from Task 3b.
+
+The `FormFieldContext` moves with it; `form.tsx` imports both.
+
 This replaces the shadcn `form` component, which is built on react-hook-form. Same export surface, TanStack Form underneath, so call sites read the same.
 
 ```tsx
