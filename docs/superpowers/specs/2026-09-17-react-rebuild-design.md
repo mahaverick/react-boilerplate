@@ -109,13 +109,19 @@ TypeScript). Resolved from the npm registry on 2026-09-21.
 | axios | 1.20.0 | |
 | sonner | 2.0.8 | Toasts |
 | lucide-react | 1.47.0 | Icons |
-| radix-ui | 1.6.7 | The **unified** package — see below |
+| @base-ui/react | 1.8.0 | Base UI primitives — see below |
 | clsx | 2.1.1 | |
 | tailwind-merge | 3.7.0 | |
 | class-variance-authority | 0.7.1 | |
 
-**Radix arrives as the unified `radix-ui` package**, and the shadcn **style** is
-`radix-nova`.
+**The primitive library is Base UI**, and the shadcn **style** is `base-nova`.
+`base-nova/dialog.json` emits `import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"`.
+`@base-ui/react@1.8.0` is stable, supports React 19, and its `date-fns` peers are
+optional so nothing extra is installed.
+
+An earlier revision specified Radix. The user chose Base UI on 2026-09-22; that decision
+supersedes it. The Radix history is kept below because the reasoning explains why the
+*legacy* shadcn style must not be used either.
 
 Revision 2026-09-21 said the opposite, and was wrong. It generalised from
 `ui.shadcn.com/r/styles/new-york/…`, which is the **legacy** Tailwind v3 generation:
@@ -129,9 +135,22 @@ React 19. Banning it would mean rewriting every `from "radix-ui"` import across 
 vendored files — a patch that every future `shadcn add` silently reintroduces, which
 destroys the "vendored and freely re-addable" property the lint exclusion depends on.
 
-The style prefix is deliberate: `radix-*` uses Radix primitives, `base-*` uses Base UI and
-`aria-*` uses React Aria. Phase B's StyleSeed primitives are Radix + CVA, so `radix-*`
-keeps both phases on one primitive library.
+The style prefix selects the primitive library: `radix-*` uses Radix, `base-*` uses Base
+UI, `aria-*` uses React Aria. We use `base-*`.
+
+**This creates a Phase B conflict that must be resolved before Phase B is planned.**
+StyleSeed's bundled scaffold declares 19 `@radix-ui/react-*` packages, so its 32
+primitives are Radix-based. A Base UI Phase A and a Radix Phase B cannot both own
+`src/components/ui/`. The options, for decision at Phase B planning time and not before:
+
+1. **Take StyleSeed's method, not its primitives** (recommended) — adopt `ss-setup`,
+   `ss-tokens`, the compiled grammar and the `ss-lint`/`ss-a11y`/`ss-audit`/`ss-score`/
+   `ss-verify` gate chain, and keep Base UI components. Loses the 32 tuned primitives;
+   keeps one primitive library.
+2. Swap to StyleSeed's Radix primitives in Phase B, discarding Phase A's Base UI work.
+3. Run both libraries — rejected; two accessibility models and two bundles.
+
+Phase A proceeds on Base UI regardless; nothing in Phase A depends on this choice.
 
 **`@tanstack/zod-form-adapter` must not be installed.** It is stranded at 0.42.1 against
 `@tanstack/react-form@1.33.5`, and `@tanstack/form-core@1.33.5` declares no schema
