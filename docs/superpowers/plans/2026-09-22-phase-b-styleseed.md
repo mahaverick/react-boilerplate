@@ -804,3 +804,25 @@ No new types, functions or exported signatures are introduced. `TabsContent` in 
 **Cross-task hazard**
 
 `sidebar.tsx:290` is edited in both Task 2 (step 10) and Task 3 (step 2). Task 3 step 1 notes this. If the tasks run out of order or in parallel worktrees, that line conflicts — run them in sequence.
+
+---
+
+## Deviations — what execution actually did
+
+The plan above is kept as written. These are the places reality differed, recorded so the
+document is not a false account of the work. Evidence for all of them is in
+`../decisions/2026-09-22-phase-b-evidence.md`.
+
+| Task | Plan said | Executed as | Why |
+| --- | --- | --- | --- |
+| 1 | `sourceRoots` starts at `src/pages/$slug.members.tsx` | `src/pages/_app/tenants` | The route is at `src/pages/_app/tenants/$slug.members.tsx`; the plan's step 3 said to look it up |
+| 1 | `validation: { scoreFloor, requiredRenders: [] }` | Added `temporal` and `humanAcceptance`; `requiredRenders` has two entries | `normalizeArtifact` requires both keys and **rejects an empty `requiredRenders`**. Neither render was performed |
+| 1 | `project.json` with `name`/`lock`/`grammar` keys | The contract's exact shape — `projectId`, `defaults`, `brand` | `exactObject` rejects unknown keys. Brand values were read from `globals.css`, including `keyColor: #171717` converted from `oklch(0.205 0 0)` |
+| 1 | `index.json` entries use `path` | `config` | The contract's key name |
+| 1 | Three `sourceRoots` | Four — added `src/styles` | `SS004` fired otherwise: the only `prefers-reduced-motion` block is `globals.css:140`, and `tokenFiles` does not put a file in the scanned inventory |
+| 1 | — | Added `.prettierignore` entries | The manifest hashes the bundle and both palette files; prettier reformatting them would turn a clean scan into `SS000` |
+| 3 | Four `SS002` fixes expected | Two | Only `w-[2px]`→`w-0.5` and `min-w-[96px]`→`min-w-24` land on exact scale steps. `p-[3px]` and `bottom-[-5px]` became exceptions, as the spec's rule allowed |
+| 4 | Test at `src/components/ui/tabs.test.tsx` | `src/tests/a11y.test.tsx` | `src/components/ui/*` is eslint- and prettier-excluded as upstream's to own. The test renders the primitive directly because **no route mounts `Tabs`** — `$slug.tsx` uses a nav of real links |
+| 5 | Four tests via `expectNoViolations` | Via a new `expectNoViolationsIn` | At document scope every open menu trips axe's `region` rule: Base UI portals the popup to `document.body`. The new helper narrows the context without disabling any rule, and pins `aria-required-children` so it cannot pass vacuously |
+| 5 | Theme toggle opened on `/dashboard` | Opened inside the mobile sheet at width 500 | `ThemeToggle` is not in the desktop shell |
+| 6 | — | Added a per-test `menuitem` count assertion | A menu that opened empty would otherwise pass axe while grading nothing |

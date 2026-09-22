@@ -121,6 +121,15 @@ node "<styleseed>/skills/ss-score/scripts/styleseed-check.mjs" \
   scan --project-root . --artifact members --format json
 ```
 
+**The committed tree scans clean on its own** — no resolver step is needed first. The
+manifest's nine `sources` are all StyleSeed catalog entries (`catalog:core`,
+`built-in:operations-console`, and so on), **not** project files, so editing `globals.css`,
+a component or this file does not invalidate it.
+
+Re-run `resolve-context.mjs` only when one of these changes: an artifact's `selection`, its
+`implementation` paths, `project.json`, or StyleSeed's pinned version. Re-running it rewrites
+the bundle, the manifest and the palette, so commit those together.
+
 ## Accessibility
 
 `jest-axe` asserts and stays in CI — it is authoritative. `ss-a11y` discovers, per artifact,

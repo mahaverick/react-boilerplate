@@ -295,6 +295,14 @@ async function expectNoViolationsIn(element: HTMLElement) {
   const results = await axeCore.run(element, AXE_OPTIONS)
   expect(results).toHaveNoViolations()
 
+  // THE CONTEXT ITSELF, PINNED, the same way `expectNoViolations` pins the
+  // document. `aria-required-children` is the rule that asks whether a
+  // `role="menu"` actually contains menu items, so it only produces a result
+  // when axe really evaluated a menu. Asserting it RAN is what stops this
+  // helper from passing vacuously if someone narrows the context further or
+  // hands it an element that is not the popup.
+  expect(results.passes.map((result) => result.id)).toContain('aria-required-children')
+
   const unexpected = results.incomplete.map((r) => r.id).filter((id) => !KNOWN_INCOMPLETE.has(id))
   expect(unexpected).toEqual([])
 }
