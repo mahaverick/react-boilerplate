@@ -53,6 +53,38 @@ describe('notifications page', () => {
     )
   })
 
+  // Both cards state the FAILURE rather than the absence. `rows` is `[]` and
+  // `preferences.data` is undefined for a failed load exactly as they are for
+  // an empty one, so the page used to answer a 500 with "You have no
+  // notifications." and "This account has no notification types yet." — two
+  // claims about the account, neither of which the request established.
+  it('shows a retry, not an empty inbox, when the list fails to load', async () => {
+    server.use(http.get('/api/v1/notifications', () => fail('Something went wrong', 500)))
+    renderNotifications()
+
+    const alerts = await screen.findAllByRole('alert')
+    const inbox = alerts.find((alert) =>
+      /could not load your notifications/i.test(alert.textContent ?? '')
+    )
+    expect(inbox).toBeDefined()
+    expect(within(inbox!).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(screen.queryByText('You have no notifications.')).not.toBeInTheDocument()
+  })
+
+  it('shows a retry, not an empty matrix, when the preferences fail to load', async () => {
+    server.use(
+      http.get('/api/v1/notifications/preferences', () => fail('Something went wrong', 500))
+    )
+    renderNotifications()
+
+    expect(
+      await screen.findByText(/could not load your notification preferences/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('This account has no notification types yet.')
+    ).not.toBeInTheDocument()
+  })
+
   it('lists the inbox under a level-one heading', async () => {
     renderNotifications()
 

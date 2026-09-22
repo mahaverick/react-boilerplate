@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { LoadError } from '@/components/features/load-error'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,6 +30,16 @@ export const Route = createFileRoute('/_app/tenants/')({
   staticData: { crumb: 'Tenants' },
   component: TenantsPage,
 })
+
+/**
+ * What the list says when it could not be loaded.
+ *
+ * It states the failure rather than the absence, because those two are the
+ * same rendered shape and only one of them is true. "You belong to none" is a
+ * claim about the account; this is a claim about the request.
+ */
+const TENANTS_ERROR =
+  'We could not load your tenants, so none are listed here. This is not a sign that you have none.'
 
 function TenantRow({ entry }: { entry: TenantWithRole }) {
   return (
@@ -185,6 +196,16 @@ function TenantsPage() {
               <Skeleton className="h-14 w-full" />
               <Skeleton className="h-14 w-full" />
             </div>
+          ) : tenants.isError ? (
+            // BEFORE the empty state, and that order is the whole point. A
+            // failed load leaves `data` undefined, which is indistinguishable
+            // from an account that genuinely belongs to nothing — so without
+            // this branch a 500, or a 401 after the session ended underneath
+            // this tab, rendered "You do not belong to any tenants yet.
+            // Create one below." to someone who belongs to several, and
+            // invited them to create a duplicate. See LoadError's own doc
+            // comment: a screen must say what failed and offer a way back.
+            <LoadError message={TENANTS_ERROR} onRetry={() => void tenants.refetch()} />
           ) : tenants.data && tenants.data.length > 0 ? (
             <ul className="grid gap-2">
               {tenants.data.map((entry) => (

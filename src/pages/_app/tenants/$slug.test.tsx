@@ -73,6 +73,44 @@ describe('tenant detail', () => {
     })
   })
 
+  // `tenantQueryOptions` says a 404 becomes `null` and that "every OTHER
+  // failure still rejects and still reaches the boundary". No boundary was
+  // configured, so a 500 reached TanStack's bare default instead: the raw
+  // error text, no retry, none of the app's chrome.
+  it('renders the route error boundary, with a retry, for a non-404 failure', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+      http.get('/api/v1/tenants/acme', () => fail('Something went wrong', 500))
+    )
+    renderAppAt('/tenants/acme')
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/could not load this tenant/i)
+    expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    // Not the 404 panel: the tenant may be perfectly fine and unreachable.
+    expect(screen.queryByText(/Tenant not available/i)).not.toBeInTheDocument()
+  })
+
+  it('re-runs the loader from that retry, and renders the tenant when it returns', async () => {
+    let failNext = true
+    server.use(
+      http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants.')),
+      http.get('/api/v1/tenants/acme', () =>
+        failNext ? fail('Something went wrong', 500) : ok(TENANT, 'Tenant retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.')),
+      http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.'))
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const alert = await screen.findByRole('alert')
+    failNext = false
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Acme Corp' })).toBeInTheDocument()
+  })
+
   it('renders a not-found state for a 404, not an error boundary', async () => {
     server.use(
       http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),

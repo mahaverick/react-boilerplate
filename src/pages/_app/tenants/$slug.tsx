@@ -1,4 +1,5 @@
-import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useRouter } from '@tanstack/react-router'
+import { LoadError } from '@/components/features/load-error'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -26,7 +27,37 @@ export const Route = createFileRoute('/_app/tenants/$slug')({
   // header under the reader.
   staticData: { crumb: (params) => params.slug ?? 'Tenant' },
   component: TenantLayout,
+  // The other half of `tenantQueryOptions`' contract. That query resolves a
+  // 404 to `null` precisely so a missing tenant does NOT come here — but it
+  // says in the same breath that "every OTHER failure still rejects and still
+  // reaches the boundary", and until now there was no boundary to reach. A
+  // 500 or a dropped connection hit TanStack's bare built-in fallback: the
+  // raw error text, no retry, and none of the app's chrome. Configuring this
+  // is what makes that sentence true.
+  errorComponent: TenantLoadFailed,
 })
+
+/**
+ * Said of the request, not of the tenant. `TenantNotFound` below is the
+ * 404 — "it does not exist, or it is not yours" — and this must not be
+ * confused with it: the tenant may be perfectly fine and simply unreachable.
+ */
+const TENANT_LOAD_ERROR =
+  'We could not load this tenant. The request failed, which is not the same as the tenant being gone.'
+
+/**
+ * The route's error boundary.
+ *
+ * Retry is `router.invalidate()`, which re-runs the loader; the loader's
+ * `ensureQueryData` finds the detail query holding no data (it rejected) and
+ * fetches again, so one control both clears this boundary and re-issues the
+ * request. Not exported — `react-refresh/only-export-components` is a warning
+ * and `--max-warnings 0` makes every warning fatal.
+ */
+function TenantLoadFailed() {
+  const router = useRouter()
+  return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void router.invalidate()} />
+}
 
 const TABS = [
   { to: '/tenants/$slug', label: 'Overview', exact: true },

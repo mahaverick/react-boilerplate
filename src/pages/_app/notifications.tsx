@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Check, Trash2 } from 'lucide-react'
+import { LoadError } from '@/components/features/load-error'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,6 +21,22 @@ export const Route = createFileRoute('/_app/notifications')({
   staticData: { crumb: 'Notifications' },
   component: NotificationsPage,
 })
+
+/**
+ * What each card says when its query FAILED, as opposed to came back empty.
+ *
+ * Two messages, not one: the inbox and the preference matrix are separate
+ * requests and either can fail on its own, so a single shared string would
+ * make the page claim both were unavailable when only one was.
+ *
+ * They exist because "failed" and "empty" render identically otherwise —
+ * `data` is undefined in both cases — and an inbox that says "You have no
+ * notifications." after a 500 is a screen that lies rather than one that
+ * failed.
+ */
+const NOTIFICATIONS_ERROR =
+  'We could not load your notifications, so none are listed here. This is not a sign that you have none.'
+const PREFERENCES_ERROR = 'We could not load your notification preferences, so none are shown here.'
 
 /** The notification's own timestamp, in the reader's locale. */
 function receivedAt(createdAt: string): string {
@@ -126,6 +143,8 @@ function PreferencesCard() {
       <CardContent>
         {preferences.isPending ? (
           <Skeleton className="h-14 w-full" />
+        ) : preferences.isError ? (
+          <LoadError message={PREFERENCES_ERROR} onRetry={() => void preferences.refetch()} />
         ) : preferences.data && preferences.data.length > 0 ? (
           <ul className="grid gap-2">
             {preferences.data.map((preference) => (
@@ -178,6 +197,12 @@ function NotificationsPage() {
               <Skeleton className="h-16 w-full" />
               <Skeleton className="h-16 w-full" />
             </div>
+          ) : notifications.isError ? (
+            // Ahead of the empty state: `rows` is `[]` for a failed load and
+            // for an empty inbox alike, so without this a 500 rendered "You
+            // have no notifications." — a statement about the account, made
+            // on the strength of a request that never answered.
+            <LoadError message={NOTIFICATIONS_ERROR} onRetry={() => void notifications.refetch()} />
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">You have no notifications.</p>
           ) : (
