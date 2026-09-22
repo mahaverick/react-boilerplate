@@ -128,6 +128,15 @@ describe('tenantSettingsFormSchema', () => {
     ).toEqual({ timezone: 'UTC', locale: 'en', metadata: { a: 1 } })
   })
 
+  it('refuses a blank timezone or locale instead of dropping the key', () => {
+    // Both columns are NOT NULL with a default and the form always shows the
+    // current value, so an emptied box cannot mean "clear it" — and dropping
+    // it from the payload would report success while the old value came back.
+    const base = { timezone: 'UTC', locale: 'en', metadata: '' }
+    expect(tenantSettingsFormSchema.safeParse({ ...base, timezone: '  ' }).success).toBe(false)
+    expect(tenantSettingsFormSchema.safeParse({ ...base, locale: '' }).success).toBe(false)
+  })
+
   it('caps locale at 10 characters and timezone at 64', () => {
     const base = { timezone: 'UTC', locale: 'en', metadata: '' }
     expect(tenantSettingsFormSchema.safeParse({ ...base, locale: 'a'.repeat(11) }).success).toBe(

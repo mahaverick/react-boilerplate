@@ -237,9 +237,31 @@ export const metadataTextSchema = z.string().transform((text, ctx) => {
  * What the settings FORM validates: the same three fields, with `metadata`
  * arriving as text. Its output is exactly `UpdateTenantSettingsInput`, so
  * the page parses once and posts the result.
+ *
+ * `timezone` and `locale` are REQUIRED here, where the PATCH body above has
+ * them optional. Both columns are NOT NULL with a default, and the form is
+ * always populated with their current values — so an emptied box cannot
+ * mean "clear it" and must not quietly mean "leave it alone" either. As
+ * `optionalText`, a blank timezone would drop out of the payload, the server
+ * would keep the old value, and the user would be told "Settings updated."
+ * while watching the value they deleted come straight back.
  */
 export const tenantSettingsFormSchema = z.object({
-  timezone: optionalText(MAX_TENANT_TIMEZONE_LENGTH, 'Timezone'),
-  locale: optionalText(MAX_TENANT_LOCALE_LENGTH, 'Locale'),
+  timezone: z
+    .string()
+    .trim()
+    .min(1, 'Timezone is required.')
+    .max(
+      MAX_TENANT_TIMEZONE_LENGTH,
+      `Timezone must be at most ${MAX_TENANT_TIMEZONE_LENGTH} characters.`
+    ),
+  locale: z
+    .string()
+    .trim()
+    .min(1, 'Locale is required.')
+    .max(
+      MAX_TENANT_LOCALE_LENGTH,
+      `Locale must be at most ${MAX_TENANT_LOCALE_LENGTH} characters.`
+    ),
   metadata: metadataTextSchema,
 })

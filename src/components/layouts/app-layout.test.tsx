@@ -19,6 +19,20 @@ import { useThemeStore } from '@/states/theme.store'
 import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
+/** One tenant row, for the dynamic-route breadcrumb case below. */
+const ACME = {
+  id: 't1',
+  name: 'Acme Corp',
+  slug: 'acme',
+  description: null,
+  logo: null,
+  website: null,
+  lifecycleState: 'active',
+  deletedAt: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
 /**
  * Driven through a real RouterProvider: the layout reads `useMatches()` for
  * its breadcrumbs and renders `<Link>` nav items, neither of which exists
@@ -99,28 +113,9 @@ describe('AppLayout', () => {
   it('shows a breadcrumb trail on a DYNAMIC route', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok(
-          [
-            {
-              tenant: {
-                id: 't1',
-                name: 'Acme Corp',
-                slug: 'acme',
-                description: null,
-                logo: null,
-                website: null,
-                lifecycleState: 'active',
-                deletedAt: null,
-                createdAt: '2026-01-01T00:00:00.000Z',
-                updatedAt: '2026-01-01T00:00:00.000Z',
-              },
-              role: 'viewer',
-            },
-          ],
-          'Tenants retrieved.'
-        )
+        ok([{ tenant: ACME, role: 'viewer' }], 'Tenants retrieved.')
       ),
-      http.get('/api/v1/tenants/acme', () => ok(null, 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme', () => ok(ACME, 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
     )
     renderAppAt('/tenants/acme/members')
