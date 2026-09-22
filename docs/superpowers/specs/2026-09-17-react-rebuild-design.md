@@ -109,17 +109,29 @@ TypeScript). Resolved from the npm registry on 2026-09-21.
 | axios | 1.20.0 | |
 | sonner | 2.0.8 | Toasts |
 | lucide-react | 1.47.0 | Icons |
-| @radix-ui/react-* | per component | **Individual packages, not unified `radix-ui`** — see below |
+| radix-ui | 1.6.7 | The **unified** package — see below |
 | clsx | 2.1.1 | |
 | tailwind-merge | 3.7.0 | |
 | class-variance-authority | 0.7.1 | |
 
-**Radix arrives per-component, not as the unified `radix-ui` package.** Verified against
-the shadcn registry: `button.json` and `breadcrumb.json` declare `@radix-ui/react-slot`,
-`sidebar.json` declares `@radix-ui/react-slot` plus six registry dependencies. StyleSeed's
-primitives do the same. Both sources add the individual packages they need, so the
-unified `radix-ui` package is not a dependency of this project and must not be installed
-alongside them.
+**Radix arrives as the unified `radix-ui` package**, and the shadcn **style** is
+`radix-nova`.
+
+Revision 2026-09-21 said the opposite, and was wrong. It generalised from
+`ui.shadcn.com/r/styles/new-york/…`, which is the **legacy** Tailwind v3 generation:
+there `dialog.json` emits `import * as DialogPrimitive from "@radix-ui/react-dialog"`.
+The modern v4 styles emit `import { Dialog as DialogPrimitive } from "radix-ui"`. Since
+this project is Tailwind 4 with `@theme inline` tokens, the legacy style is the wrong
+generation and the unified package is the supported shape.
+
+`radix-ui@1.6.7` is a thin re-export wrapper that tree-shakes, and its peers accept
+React 19. Banning it would mean rewriting every `from "radix-ui"` import across ~20
+vendored files — a patch that every future `shadcn add` silently reintroduces, which
+destroys the "vendored and freely re-addable" property the lint exclusion depends on.
+
+The style prefix is deliberate: `radix-*` uses Radix primitives, `base-*` uses Base UI and
+`aria-*` uses React Aria. Phase B's StyleSeed primitives are Radix + CVA, so `radix-*`
+keeps both phases on one primitive library.
 
 **`@tanstack/zod-form-adapter` must not be installed.** It is stranded at 0.42.1 against
 `@tanstack/react-form@1.33.5`, and `@tanstack/form-core@1.33.5` declares no schema
