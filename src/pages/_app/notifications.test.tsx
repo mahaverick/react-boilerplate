@@ -101,6 +101,32 @@ describe('notifications page', () => {
     expect(screen.getByText('Unread')).toBeInTheDocument()
   })
 
+  it('renders preferences read-only, with no control that would always fail', async () => {
+    server.use(
+      http.get('/api/v1/notifications/preferences', () =>
+        ok(
+          {
+            preferences: [
+              { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: false },
+            ],
+          },
+          'Notification preferences retrieved.'
+        )
+      )
+    )
+    renderNotifications()
+
+    const main = await screen.findByRole('main')
+    expect(await within(main).findByText('Verify email')).toBeInTheDocument()
+    expect(within(main).getByText('Email: On')).toBeInTheDocument()
+    expect(within(main).getByText('In-app: Off')).toBeInTheDocument()
+    expect(within(main).getByText(/not configurable yet/i)).toBeInTheDocument()
+
+    // Every configurable type is currently rejected by the server, so a switch
+    // here could only ever produce a 400 toast.
+    expect(within(main).queryAllByRole('switch')).toHaveLength(0)
+  })
+
   it('says so when the inbox is empty', async () => {
     server.use(http.get('/api/v1/notifications', () => ok({ notifications: [] }, 'Retrieved.')))
     renderNotifications()

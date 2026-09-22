@@ -212,15 +212,19 @@ export function usePreferences() {
  *
  * The body is `{ preferences: [entry] }` — an ARRAY of whole entries, with
  * `min(1)` — not a flat `Record<string, boolean>`, and both channel booleans
- * travel together because `updatePreferencesSchema` requires both. Flipping
- * one switch therefore sends the other channel's current value alongside it.
+ * travel together because `updatePreferencesSchema` requires both.
  *
- * Every type is currently non-configurable server-side
- * (`CONFIGURABLE_NOTIFICATION_TYPES` filters both known types out), so this
- * call answers 400 with a per-field message today. That message is surfaced
- * verbatim rather than the client second-guessing it from a hardcoded copy of
- * the server's non-disableable list — which would be a second source of truth
- * that silently rots the day a configurable type ships.
+ * DELIBERATELY UNUSED BY THE UI, and kept anyway. Every notification type is
+ * currently non-configurable server-side, so this call answers 400 for all of
+ * them today and the preferences card renders read-only rather than shipping
+ * a switch that always fails. The thing to watch is
+ * `CONFIGURABLE_NOTIFICATION_TYPES` in the API's
+ * `src/validators/notification.validators.ts`: it is `NOTIFICATION_TYPES`
+ * minus the types whose email channel may never be disabled, and it is empty
+ * only because those two sets happen to be identical right now. The day a
+ * genuinely disableable type ships, that list becomes non-empty and a derived
+ * project turns the control back on in `pages/_app/notifications.tsx` alone —
+ * this mutation, its wire shape and its test are already correct.
  */
 export function useUpdatePreferences() {
   const queryClient = useQueryClient()

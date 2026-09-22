@@ -1,12 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Check, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
-import { messageFrom } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
 import {
   flattenPages,
@@ -15,7 +12,6 @@ import {
   useMarkRead,
   useNotifications,
   usePreferences,
-  useUpdatePreferences,
   type Notification,
   type NotificationPreference,
 } from '@/queries/notification.queries'
@@ -83,44 +79,28 @@ function NotificationRow({ notification }: { notification: Notification }) {
   )
 }
 
+/**
+ * One notification type's resolved channel state — READ-ONLY, deliberately.
+ *
+ * There are no switches here because there is nothing the server would
+ * accept: `CONFIGURABLE_NOTIFICATION_TYPES` (notification.validators.ts) is
+ * `NOTIFICATION_TYPES` minus the types whose email channel may never be
+ * disabled, and today those two sets are identical — so the configurable list
+ * is empty and every `PUT /notifications/preferences` answers 400. A control
+ * that always fails reads as broken and teaches the wrong pattern, and the
+ * client cannot infer which types ARE configurable because that list is
+ * module-private on the server.
+ *
+ * `useUpdatePreferences` stays exported and tested for the day that changes;
+ * turning this back into a control is then a change to this component alone.
+ */
 function PreferenceRow({ preference }: { preference: NotificationPreference }) {
-  const update = useUpdatePreferences()
-  const label = humanize(preference.notificationType)
-
-  // Both channel booleans travel on every write: the server's schema requires
-  // a whole entry, so flipping one switch sends the other's current value too.
-  const toggle = (channel: 'emailEnabled' | 'inAppEnabled', checked: boolean) => {
-    update.mutate(
-      { ...preference, [channel]: checked },
-      { onError: (error) => toast.error(messageFrom(error)) }
-    )
-  }
-
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-      <span className="font-medium">{label}</span>
-      <div className="flex items-center gap-6">
-        {/* The visible text sits in a wrapping label, but the matrix renders
-            one of these rows PER TYPE — so without an aria-label a screen
-            reader hears several switches all called "Email". */}
-        <label className="flex items-center gap-2 text-sm">
-          <span>Email</span>
-          <Switch
-            checked={preference.emailEnabled}
-            disabled={update.isPending}
-            aria-label={`${label}: email`}
-            onCheckedChange={(checked) => toggle('emailEnabled', checked)}
-          />
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <span>In-app</span>
-          <Switch
-            checked={preference.inAppEnabled}
-            disabled={update.isPending}
-            aria-label={`${label}: in-app`}
-            onCheckedChange={(checked) => toggle('inAppEnabled', checked)}
-          />
-        </label>
+      <span className="font-medium">{humanize(preference.notificationType)}</span>
+      <div className="flex items-center gap-6 text-sm text-muted-foreground">
+        <span>Email: {preference.emailEnabled ? 'On' : 'Off'}</span>
+        <span>In-app: {preference.inAppEnabled ? 'On' : 'Off'}</span>
       </div>
     </li>
   )
@@ -136,8 +116,8 @@ function PreferencesCard() {
           <h2>Preferences</h2>
         </CardTitle>
         <CardDescription>
-          Choose how each kind of notification reaches you. Some types cannot be turned off — the
-          server says which, and will explain if a change is refused.
+          How each kind of notification currently reaches you. Notification preferences are not
+          configurable yet — every type this account can receive is one that cannot be turned off.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -151,7 +131,7 @@ function PreferencesCard() {
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground">
-            There is nothing to configure for this account yet.
+            This account has no notification types yet.
           </p>
         )}
       </CardContent>
