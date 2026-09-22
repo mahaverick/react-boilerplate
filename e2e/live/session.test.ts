@@ -5,7 +5,7 @@ import {
   createVerifiedUser,
   freshEmail,
   PASSWORD,
-  restartApi,
+  signIn,
   waitForApi,
 } from './helpers'
 
@@ -30,16 +30,6 @@ test.beforeAll(async () => {
   }
 })
 
-/** Signs in through the real UI, leaving the browser with a real session. */
-async function signIn(page: import('@playwright/test').Page, email: string) {
-  await createVerifiedUser(email)
-  await page.goto('/login')
-  await page.getByLabel(/email/i).fill(email)
-  await page.getByLabel(/password/i).fill(PASSWORD)
-  await page.getByRole('button', { name: /sign in|log in/i }).click()
-  await expect(page).not.toHaveURL(/login/, { timeout: 15_000 })
-}
-
 test('a reload keeps you signed in, and refreshes exactly once', async ({ page }) => {
   await signIn(page, freshEmail())
 
@@ -61,51 +51,9 @@ test('a reload keeps you signed in, and refreshes exactly once', async ({ page }
   expect(refreshes).toHaveLength(1)
 })
 
-test.fixme('the notification stream reconnects after the backend really restarts', async ({
-  page,
-}) => {
-  // NOT verifiable through the Vite dev proxy, and that was measured rather
-  // than assumed.
-  //
-  // With the API killed, a `curl -N` against
-  // http://localhost:5173/api/v1/notifications/stream stayed open — no EOF,
-  // no error — while the same kill was plainly fatal upstream. The dev proxy
-  // does not propagate the upstream close to the client. So the browser's
-  // EventSource never fires `error`, `source.onerror` never runs,
-  // `scheduleReconnect` is never called, and the whole reconnect path this
-  // test exists to exercise is unreachable. Confirmed from the page side
-  // too: after a real restart there was no stream request, no /auth/refresh
-  // and no console error — the tab simply never learned it had been
-  // disconnected.
-  //
-  // This is a property of the PROXY, not of the hook. The hook's logic reads
-  // correctly and is unit-tested against a mock EventSource. Proving it end
-  // to end needs the path production actually uses — the nginx container,
-  // where the close does propagate — which is the same reason open-items
-  // §1.3 could not be settled here either.
-  //
-  // Left in place as `fixme` rather than deleted: the behaviour is still
-  // unverified, and a deleted test records nothing.
-  test.setTimeout(240_000)
-  await signIn(page, freshEmail())
-
-  const streamOpens: number[] = []
-  page.on('request', (request) => {
-    if (request.url().includes('/notifications/stream')) streamOpens.push(Date.now())
-  })
-
-  await page.goto('/dashboard')
-  await expect.poll(() => streamOpens.length, { timeout: 20_000 }).toBeGreaterThanOrEqual(1)
-  const before = streamOpens.length
-
-  await restartApi()
-
-  await expect
-    .poll(() => streamOpens.length, { timeout: 90_000, intervals: [1000] })
-    .toBeGreaterThan(before)
-
-  await expect(page).not.toHaveURL(/login/)
-})
+// The SSE reconnect used to sit here as `fixme`. It now lives in
+// `e2e/nginx/sse.test.ts` and PASSES: it needed the production nginx, whose
+// proxy propagates the upstream close that the Vite dev proxy swallows.
 
 test('the refresh cookie is scoped and flagged as the SPA assumes', async ({ request }) => {
   const email = freshEmail()

@@ -266,10 +266,10 @@ written, so **no machine-verified attach exists** — this document is the recor
 - **No formal evidence attach** — see above.
 - **No CI enforcement.** The deterministic tier runs on demand. `eslint`, `tsc`, Vitest and
   jest-axe remain the CI gates. Playwright is **not** wired into CI.
-- **Open-items §1 is untouched** — reload keeps you signed in, SSE reconnects after a real
-  backend restart, and `X-Forwarded-Proto` reaches Express still need a live
-  express-boilerplate. The harness mocks the API, so it cannot speak to any of them. Playwright
-  being installed now makes that task cheaper.
+- **Open-items §1 is now closed** — two behaviours verified against a live backend, one
+  corrected (`X-Forwarded-Proto` does not drive the `secure` flag; `NODE_ENV` does), and the
+  SSE reconnect verified against the production nginx image, which propagates the upstream
+  close that the dev proxy swallows.
 - **Contrast is still unmeasured.** Seeing a render is not measuring it, and jsdom disables
   the rule. A contrast pass is its own task.
 - **No mid-transition frame**, so the motion tell is still unassessed.

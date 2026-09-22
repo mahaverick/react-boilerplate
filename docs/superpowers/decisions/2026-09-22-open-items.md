@@ -14,23 +14,25 @@ Ordered by what would cost most if forgotten.
 
 ---
 
-## 1. Three behaviours have never actually been executed
+## 1. ~~Three behaviours have never actually been executed~~ — CLOSED 2026-09-22
 
-Each is unit-tested and inferred end to end. All three need a live API and a real browser,
-which the test harness does not have. **This is the largest gap in Phase A.**
+Each was unit-tested and inferred end to end. All three needed a live API and a real browser,
+which the test harness did not have. It was the largest gap in Phase A; it is now covered by
+the e2e suite, and one of the three turned out to be describing something the code does not do.
 
 - **A reload keeps you signed in.** ✅ **VERIFIED 2026-09-22** against a live
   express-boilerplate — `e2e/live/session.test.ts`. The same test also pins **exactly one**
   `/auth/refresh` per reload, which is the first assertion anywhere that `ensureSession()`'s
   single-flight wrapper actually holds.
-- **The SSE stream reconnects after a real backend restart.** ⚠️ **NOT PROVABLE HERE.**
-  Measured: a `curl -N` through the Vite dev proxy stays open after the API is killed — the
-  proxy does not propagate the upstream close. So `EventSource` never fires `error`,
-  `source.onerror` never runs, and the reconnect path is unreachable from a dev-server
-  browser. Confirmed page-side too: after a real restart there was no stream request, no
-  `/auth/refresh` and no console error. **This is a property of the proxy, not the hook.**
-  Proving it needs the nginx container. Kept as `test.fixme` in `e2e/live/session.test.ts`
-  with the evidence.
+- **The SSE stream reconnects after a real backend restart.** ✅ **VERIFIED 2026-09-22**
+  against the production image — `e2e/nginx/sse.test.ts`, `pnpm test:e2e:nginx`.
+  It could not be shown against the dev server, and the reason is the finding: a `curl -N`
+  at the Vite proxy stays open after the API is killed, so `EventSource` never fires `error`
+  and the reconnect path is unreachable. The same curl against nginx exited on **the exact
+  second** the API died. The test therefore runs against the real bundle and the real
+  `nginx.conf`, which is the path this behaviour ships on. It asserts a stream opened
+  strictly **after** the new server was ready, not merely that the count grew — a
+  connection from before the restart would otherwise satisfy it.
 - **~~`X-Forwarded-Proto` … drives the `secure` cookie flag~~ — THIS WAS WRONG.**
   `isSecureCookieEnvironment()` (`auth.controller.ts`) returns
   `getEnv().NODE_ENV === 'production'` and never reads `req.secure`, so **no request header
@@ -43,8 +45,9 @@ Also inferred: SSE actually streaming unbuffered (`proxy_buffering off` being pr
 not the same as watching chunks arrive), and the refresh cookie's `Path=/api/v1/auth`
 surviving the proxy, which needs a real `Set-Cookie` round trip.
 
-**How to close what remains:** only the SSE reconnect is left, and it needs the nginx
-container rather than the dev proxy. `pnpm test:e2e:live` runs the rest.
+**All three are now settled** — two verified, one corrected. `pnpm test:e2e:live` covers the
+session and cookie behaviour; `pnpm test:e2e:nginx` covers the stream. **This section is
+closed.**
 
 ## 2. The first cold CI run is the real test of the flake fix
 

@@ -170,6 +170,14 @@ until the address is verified, and the link only exists in the email. Each run u
 address**, because the login limiter is keyed `ip:email` at five attempts per fifteen minutes
 and a fixed address would rate-limit every rerun.
 
+**`nginx`** runs against the PRODUCTION image — `pnpm test:e2e:nginx` builds it, runs it on
+:8088 with `--add-host=api:host-gateway`, tests, and tears it down. It exists for one test,
+and for a reason worth keeping: **the Vite dev proxy does not propagate an upstream close.**
+A `curl -N` at it stays open after the API is killed, so `EventSource` never fires `error`
+and the SSE reconnect path is unreachable from a dev-server browser. The same curl against
+nginx exits on the second the API dies. Anything that depends on noticing a dropped upstream
+has to be tested here, not against `pnpm dev`.
+
 `restartApi()` kills by port with `-sTCP:LISTEN` and escalates SIGTERM→SIGKILL. Both details
 are load-bearing: `pnpm dev` is `tsx watch`, whose CHILD holds the port and survives a
 group SIGTERM, and without `-sTCP:LISTEN` lsof also lists the Vite proxy as a client of that
