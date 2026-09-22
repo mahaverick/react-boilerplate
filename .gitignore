@@ -42,3 +42,6 @@ dist-ssr
 
 # typescript
 *.tsbuildinfo
+
+# StyleSeed local evidence (screenshots, run records)
+.styleseed/evidence/
