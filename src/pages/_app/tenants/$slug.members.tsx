@@ -79,6 +79,22 @@ export const Route = createFileRoute('/_app/tenants/$slug/members')({
 const LAST_OWNER_REASON = 'A tenant must always have an owner. Add another owner first.'
 
 /**
+ * What this tab says when the MEMBER LIST itself failed, as opposed to the
+ * role lookup.
+ *
+ * Its own message and, below, its own `refetch`, because the two are separate
+ * requests. Folding them into `ROLE_ERROR` + `useMyRole`'s retry — which this
+ * tab did until it was measured — produced the worst of both: a members 500
+ * was reported as "we could not load your role in this tenant", about a query
+ * that had SUCCEEDED, under a Try again that refetched the tenant LIST and
+ * issued no further members request at all. A retry that cannot retry is
+ * worse than no retry, because `LoadError` promises the reader their next
+ * move is in front of them.
+ */
+const MEMBERS_ERROR =
+  'We could not load this tenant’s members, so none are listed here. This is not a sign that it has none.'
+
+/**
  * Add an existing user by email.
  *
  * Reachable for owner and admin (`canManageTenant`), but the roles OFFERED
@@ -431,11 +447,25 @@ function TenantMembersTab() {
           <CardDescription>Everyone with access to this tenant.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isRoleError || members.isError || (!isRolePending && !myRole) ? (
-            // NOT a skeleton. The role lookup has already failed, so nothing
-            // is on its way — a skeleton here would spin for ever with no
-            // error and no retry.
-            <LoadError message={ROLE_ERROR} onRetry={retry} />
+          {members.isError || isRoleError || (!isRolePending && !myRole) ? (
+            // NOT a skeleton. The request has already failed, so nothing is on
+            // its way — a skeleton here would spin for ever with no error and
+            // no retry.
+            //
+            // STACKED, not chained: these are two independent queries and
+            // either can fail alone. Picking one branch would mean picking a
+            // winner whose retry cannot fix the loser, which is precisely the
+            // defect this replaces. When both fail the reader gets both
+            // sentences and both controls; in the ordinary case only one of
+            // these renders.
+            <div className="grid gap-3">
+              {members.isError && (
+                <LoadError message={MEMBERS_ERROR} onRetry={() => void members.refetch()} />
+              )}
+              {(isRoleError || (!isRolePending && !myRole)) && (
+                <LoadError message={ROLE_ERROR} onRetry={retry} />
+              )}
+            </div>
           ) : members.isPending || isRolePending || !myRole ? (
             <div className="grid gap-2">
               <Skeleton className="h-10 w-full" />

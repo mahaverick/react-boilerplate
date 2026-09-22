@@ -223,4 +223,53 @@ describe('tenant detail', () => {
 
     expect(await screen.findByText('Metadata must be valid JSON.')).toBeInTheDocument()
   })
+
+  /**
+   * The settings twin of the members-tab retry test — same defect, same proof.
+   *
+   * `useMyRole`'s retry is `useTenants().refetch`, so folding a settings
+   * failure into the role branch gave the reader a Try again that refetched
+   * the TENANT LIST and issued no further settings request at all. Measured on
+   * the members tab before the fix: the failing query's count stayed at 2
+   * across the click while the tenant list's went from 1 to 2 — the retry
+   * reached a query, just never the broken one.
+   */
+  it('retries the SETTINGS, not the tenant list, when the settings are what failed', async () => {
+    let settingsCalls = 0
+    let tenantCalls = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        tenantCalls += 1
+        return ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+      }),
+      http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/settings', () => {
+        settingsCalls += 1
+        return fail('Something went wrong.', 500)
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/settings')
+
+    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    expect(alert).toHaveTextContent(/could not load this tenant’s settings/i)
+    // NOT the role message: that query succeeded.
+    expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
+
+    // Two: the queryClient is `retry: 1`, so the second attempt is already in
+    // before the error state renders.
+    await waitFor(() => {
+      expect(settingsCalls).toBe(2)
+    })
+    const settingsBefore = settingsCalls
+    const tenantsBefore = tenantCalls
+
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+
+    // The pair: a NEW settings request, and the tenant list left alone.
+    await waitFor(() => {
+      expect(settingsCalls).toBeGreaterThan(settingsBefore)
+    })
+    expect(tenantCalls).toBe(tenantsBefore)
+  })
 })

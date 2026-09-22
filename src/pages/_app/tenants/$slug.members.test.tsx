@@ -262,6 +262,80 @@ describe('members tab permissions', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  /**
+   * The retry has to reach THE QUERY THAT FAILED, and the only proof of that
+   * is a new request on the wire.
+   *
+   * What this replaces: a members failure was folded into the role branch, so
+   * the tab said "We could not load your role in this tenant" — about a query
+   * that had SUCCEEDED — under a Try again wired to `useMyRole`'s retry, which
+   * is `useTenants().refetch`. Measured before the fix: the members call count
+   * was 2 before the click and 2 after it, and the panel never left. Asserting
+   * that a handler fired would not have caught that; asserting the COUNT does.
+   */
+  it('retries the MEMBER LIST, not the tenant list, when the members are what failed', async () => {
+    let memberCalls = 0
+    let tenantCalls = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        tenantCalls += 1
+        return ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+      }),
+      http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/members', () => {
+        memberCalls += 1
+        return fail('Something went wrong.', 500)
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    // The message names the query that actually failed — and NOT the role,
+    // which loaded perfectly well and whose controls the tab could still gate
+    // on if the list arrived.
+    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    expect(alert).toHaveTextContent(/could not load this tenant’s members/i)
+    expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
+
+    // Two, not one: the queryClient is `retry: 1`, so react-query has already
+    // made the second attempt by the time the error state renders.
+    await waitFor(() => {
+      expect(memberCalls).toBe(2)
+    })
+    const membersBefore = memberCalls
+    const tenantsBefore = tenantCalls
+
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+
+    // THE PAIR is what proves it: a new members request went out, and the
+    // tenant list — the query the broken retry used to refetch instead — was
+    // not touched.
+    await waitFor(() => {
+      expect(memberCalls).toBeGreaterThan(membersBefore)
+    })
+    expect(tenantCalls).toBe(tenantsBefore)
+  })
+
+  it('shows BOTH failures when both queries fail, each with its own retry', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () => fail('Something went wrong.', 500)),
+      http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/members', () => fail('Something went wrong.', 500))
+    )
+    renderAppAt('/tenants/acme/members')
+
+    // Stacked rather than chained: picking one branch would mean picking a
+    // winner whose retry cannot fix the loser.
+    const alerts = await screen.findAllByRole('alert', {}, { timeout: 5000 })
+    expect(alerts).toHaveLength(2)
+    expect(alerts.map((alert) => alert.textContent).join(' ')).toMatch(
+      /could not load this tenant’s members/i
+    )
+    expect(alerts.map((alert) => alert.textContent).join(' ')).toMatch(
+      /could not load your role in this tenant/i
+    )
+  })
+
   it('changes a role through the API and reports it', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member('u3', 'viewer', 'Vic')])
     let patched: unknown = null

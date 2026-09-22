@@ -35,6 +35,19 @@ export const Route = createFileRoute('/_app/tenants/$slug/settings')({
   component: TenantSettingsTab,
 })
 
+/**
+ * What this tab says when the SETTINGS row itself failed, as opposed to the
+ * role lookup.
+ *
+ * Its own message and its own `refetch`, for the reason spelled out on
+ * `MEMBERS_ERROR` in the members tab: `useMyRole`'s retry refetches the tenant
+ * LIST, so handing it to a settings failure produced a Try again that issued
+ * no further settings request, under a sentence about a query that had
+ * succeeded.
+ */
+const SETTINGS_ERROR =
+  'We could not load this tenant’s settings, so none are shown here. This is not a sign that it has none.'
+
 /** `metadata` as a textarea holds it: pretty JSON, or empty for none. */
 function metadataText(metadata: Record<string, unknown> | null): string {
   return metadata === null ? '' : JSON.stringify(metadata, null, 2)
@@ -186,8 +199,18 @@ function TenantSettingsTab() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isRoleError || settings.isError || (!isRolePending && !role) ? (
-          <LoadError message={ROLE_ERROR} onRetry={retry} />
+        {settings.isError || isRoleError || (!isRolePending && !role) ? (
+          // STACKED, not chained — see the members tab: two independent
+          // queries, either of which can fail alone, and a single branch would
+          // offer a retry that cannot reach the query that actually failed.
+          <div className="grid gap-3">
+            {settings.isError && (
+              <LoadError message={SETTINGS_ERROR} onRetry={() => void settings.refetch()} />
+            )}
+            {(isRoleError || (!isRolePending && !role)) && (
+              <LoadError message={ROLE_ERROR} onRetry={retry} />
+            )}
+          </div>
         ) : settings.isPending || isRolePending || !role || !settings.data ? (
           <div className="grid gap-4">
             <Skeleton className="h-9 w-full" />
