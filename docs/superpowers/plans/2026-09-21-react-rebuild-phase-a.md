@@ -1267,6 +1267,14 @@ export function installInterceptors(client: AxiosInstance): void {
 
 `ensureSession()` is what makes N concurrent 401s produce one refresh — the interceptor holds no promise of its own.
 
+**Preserve the caller's location on the forced logout redirect.** Both production
+frontends do this (`Consequential/pulse/src/http/auth-refresh.http.ts` builds
+`/login?redirect=<path+search>`; `Ofluence/pulse` navigates with
+`search: { redirect: window.location.pathname }`). A bare `assign('/login')` drops a
+user who was deep in `/tenants/acme/members` back to the dashboard after signing in.
+Skip the param when already on `/login`, or a bounce loop writes `/login` into its own
+redirect target.
+
 `refreshSession()` must set `skipAuthRetry: true` on BOTH its `/auth/refresh` and
 `/profile` calls, and the error interceptor must check that flag FIRST and bail to a
 plain rejection. `/profile` sits behind `requireAuth` and the backend throws
@@ -3195,6 +3203,7 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      # `pnpm lint` runs eslint AND prettier --check; formatting drift fails CI.
       - run: pnpm lint
       - run: pnpm typecheck
 
