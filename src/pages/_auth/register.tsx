@@ -61,7 +61,10 @@ function RegisterPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Check your email</CardTitle>
+          {/* CardTitle renders a div, so the page's h1 goes inside it. */}
+          <CardTitle>
+            <h1>Check your email</h1>
+          </CardTitle>
           <CardDescription>
             We sent a verification link to {registeredEmail}. Open it to finish setting up your
             account.
@@ -99,7 +102,10 @@ function RegisterPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create an account</CardTitle>
+        {/* CardTitle renders a div, so the page's h1 goes inside it. */}
+        <CardTitle>
+          <h1>Create an account</h1>
+        </CardTitle>
         <CardDescription>It takes less than a minute.</CardDescription>
       </CardHeader>
       <CardContent>

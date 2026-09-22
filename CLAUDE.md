@@ -121,8 +121,22 @@ is fine — just regenerate the lockfile in the same commit.
 ## Accessibility
 
 `src/tests/a11y.test.tsx` is a gate, not a smoke test: every routed page, plus
-an open dialog and an open sheet, must pass jest-axe with **no rule disabled**.
-If something trips a rule, fix the markup. Two things it does not prove:
-colour contrast (jest-axe switches those rules off under jsdom, which has no
-layout) and anything about real focus rings or scroll behaviour. Those are
-browser checks.
+an open dialog and an open sheet, must come back clean. If something trips a
+rule, **fix the markup** — no rule is disabled to make it pass.
+
+Three details that took measuring, and that a "tidy-up" would quietly undo:
+
+- It runs **axe-core over `document`**, not jest-axe's `axe()` over a fragment.
+  Axe reports its page-level rules (`page-has-heading-one`, `landmark-one-main`,
+  `bypass`, `html-has-lang`, `document-title`) as _inapplicable_ for anything
+  smaller than the document, so a fragment run grades far less than it looks
+  like it does.
+- **Every page needs exactly one `<main>` and exactly one `<h1>`**, and the test
+  asserts both by hand. It has to: axe's own rules for them query
+  `[aria-level=1]`, a selector jsdom rejects outright, so axe files them under
+  `incomplete` — which `toHaveNoViolations` does not read. `CardTitle` renders a
+  `div`, so a page's `h1` goes _inside_ it.
+- Colour contrast is **not** checked. jest-axe's default — reproduced explicitly
+  in that file — switches every `cat.color` rule off under jsdom, which has no
+  layout. Contrast, focus rings and the member table's horizontal scroll are
+  browser checks.

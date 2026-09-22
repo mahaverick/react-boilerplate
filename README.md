@@ -101,13 +101,16 @@ pnpm test
 
 `src/tests/a11y.test.tsx` is an **accessibility gate**: every routed page — plus
 an open dialog and an open sheet, which a default-state sweep never sees — must
-pass jest-axe with no rule disabled. A violation is fixed in the markup, never
-suppressed.
+come back clean, with no rule disabled to get there. A violation is fixed in the
+markup, never suppressed. It runs axe-core over the whole `document`, because
+axe treats its page-level rules as inapplicable to anything smaller, and it
+asserts the one-`<main>`/one-`<h1>` invariants by hand, because jsdom's selector
+engine stops axe evaluating those two rules at all.
 
-It does **not** check colour contrast. jest-axe disables those rules under
-jsdom, which has no layout and no cascade, so a green run says nothing about
-them. Contrast, focus rings and the member table's horizontal scroll are
-browser checks; automating them is Phase B's Playwright gate.
+It does **not** check colour contrast. Those rules are switched off under jsdom,
+which has no layout and no cascade, so a green run says nothing about them.
+Contrast, focus rings and the member table's horizontal scroll are browser
+checks; automating them is Phase B's Playwright gate.
 
 ## Docker
 

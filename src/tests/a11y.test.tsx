@@ -2,9 +2,9 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { axe } from 'jest-axe'
+import axeCore from 'axe-core'
 import { http } from 'msw'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { ThemeToggle } from '@/components/features/theme-toggle'
 import { GOOGLE_OAUTH_PATH } from '@/constants/routes'
 import { resetSessionForTests } from '@/http/session'
@@ -19,27 +19,49 @@ import { server } from '@/tests/mocks/server'
 /**
  * THE ACCESSIBILITY GATE. Spec section 9's criteria, made enforceable.
  *
- * Three things about this file are deliberate and easy to undo by accident:
+ * Five things about this file are deliberate and easy to undo by accident:
  *
- * 1. WHAT COLOUR CONTRAST IS NOT CHECKED HERE. jest-axe disables every
- *    `cat.color` rule by default because contrast cannot be computed in jsdom,
- *    which has no layout and no cascade — see `AXE_RULES_COLOR` in
- *    node_modules/jest-axe/index.js ("Color contrast checking doesnt work in a
- *    jsdom environment"). A green run on this file therefore says NOTHING about
- *    contrast. That criterion is verified in a browser, and the automated
- *    version of it belongs to the Phase B Playwright gate.
+ * 1. IT RUNS OVER `document`, NOT over a fragment. Not `axe(container)` and not
+ *    even `axe(document.body)`: axe's PAGE-LEVEL rules — `page-has-heading-one`,
+ *    `landmark-one-main`, `bypass`, `html-has-lang`, `document-title` — select on
+ *    `html`, and axe reports them as `inapplicable` whenever the context is
+ *    anything smaller than the document. Measured: with `document.body` as the
+ *    context every one of them came back inapplicable, so the gate was silently
+ *    grading a fragment. jest-axe's own `axe()` CANNOT take `document` (its
+ *    `mount()` re-serialises anything not inside `body`, which destroys the
+ *    DOM), so axe-core is called directly and jest-axe's default rule set is
+ *    reproduced explicitly below. `toHaveNoViolations` is still jest-axe's.
  *
- * 2. NO RULE IS TURNED OFF. jest-axe's defaults are used as they come,
- *    `region` included. An earlier round claimed `region` would flag the
+ * 2. WHAT COLOUR CONTRAST IS NOT CHECKED HERE. Every `cat.color` rule is
+ *    disabled — by us here, exactly as jest-axe does it by default, because
+ *    contrast cannot be computed in jsdom, which has no layout and no cascade
+ *    (`node_modules/jest-axe/index.js`: "Color contrast checking doesnt work in
+ *    a jsdom environment"). A green run on this file therefore says NOTHING
+ *    about contrast. That is a browser check, and automating it belongs to the
+ *    Phase B Playwright gate.
+ *
+ * 3. TWO PAGE-LEVEL RULES CANNOT RUN UNDER JSDOM, SO THEY ARE ASSERTED BY HAND.
+ *    `page-has-heading-one` and `landmark-one-main` both query
+ *    `[role=heading][aria-level=1]`, and jsdom's selector engine REJECTS an
+ *    unquoted attribute value that starts with a digit — `document.querySelectorAll`
+ *    throws "Invalid selector" on it. axe catches that and files the rule under
+ *    `incomplete`, which `toHaveNoViolations` does not read, so both rules pass
+ *    vacuously. `expectNoViolations` therefore asserts exactly one `<main>` and
+ *    exactly one `<h1>` itself. That is what caught the five auth pages having
+ *    no level-one heading at all.
+ *
+ * 4. NO RULE IS TURNED OFF beyond contrast. jest-axe's defaults are used as they
+ *    come, `region` included. An earlier round claimed `region` would flag the
  *    sidebar's header and footer; measured, it does not — everything in there
- *    sits inside a `button` or an `a`, which the rule excludes — and the rule
- *    genuinely runs (a stray `<p>` appended to `document.body` IS flagged).
- *    If something starts tripping a rule, fix the markup.
+ *    sits inside a `button` or an `a` — and the rule genuinely runs (a stray
+ *    `<p>` appended to `document.body` IS flagged, which the first test below
+ *    asserts). If something starts tripping a rule, fix the markup.
  *
- * 3. `axe(document.body)`, NOT the render container. Base UI portals every
- *    popup — dialog, sheet, menu, select — to `document.body`, OUTSIDE the
- *    container Testing Library renders into. Axing the container would silently
- *    skip the exact markup the two open-overlay tests below exist to check.
+ * 5. THE DOCUMENT SHELL IS MIRRORED FROM `index.html`. jsdom's blank document
+ *    has no `lang` and no `<title>`, so `html-has-lang` and `document-title`
+ *    failed on every page for a reason belonging to the test harness rather than
+ *    to the app — index.html really does ship both. Supplying them is providing
+ *    the real shell, not suppressing a finding.
  *
  * Driven through a real `RouterProvider` on a memory history, not by rendering
  * each page component standalone as the brief sketched: the pages call
@@ -47,7 +69,6 @@ import { server } from '@/tests/mocks/server'
  * where the landmarks, the breadcrumb trail and the nav actually live. Rendering
  * a page without it would gate a fragment nobody ever sees.
  */
-
 const TENANT = {
   id: 't1',
   name: 'Acme Corp',
@@ -182,15 +203,59 @@ function signOut() {
 }
 
 /**
- * Asserts the WHOLE document is clean, portals included.
+ * jest-axe's default rule set, reproduced explicitly because axe-core is being
+ * driven directly. This is exactly what `configureAxe` does on import: take
+ * every rule tagged `cat.color` and switch it off, since jsdom cannot compute
+ * contrast.
+ */
+const AXE_OPTIONS: axeCore.RunOptions = {
+  rules: Object.fromEntries(
+    axeCore.getRules(['cat.color']).map(({ ruleId }) => [ruleId, { enabled: false }])
+  ),
+}
+
+/**
+ * The rules axe files under `incomplete` here for reasons that belong to jsdom,
+ * not to the markup. Pinned as a set so a NEW one cannot appear unnoticed —
+ * `toHaveNoViolations` reads only `violations`, so anything that quietly stops
+ * being evaluable would otherwise look like a pass.
  *
- * That this verdict means anything is itself asserted, by the first test
+ * - `page-has-heading-one`, `landmark-one-main`: axe's selector contains
+ *   `[aria-level=1]`, which jsdom rejects as an invalid selector. Asserted by
+ *   hand below instead.
+ * - `heading-order`: "Unable to determine previous heading" for the first
+ *   heading in the tree. Nothing to fix.
+ * - `aria-hidden-focus`: "Check that focusable elements are not tabbable in the
+ *   current state". Base UI marks the background `aria-hidden` and inert while a
+ *   modal is open; whether its contents are still tabbable is a layout question
+ *   jsdom cannot answer.
+ */
+const KNOWN_INCOMPLETE = new Set([
+  'page-has-heading-one',
+  'landmark-one-main',
+  'heading-order',
+  'aria-hidden-focus',
+])
+
+/**
+ * Asserts the WHOLE document is clean — portals, landmarks and page-level rules
+ * included — and then asserts by hand the two page-level invariants jsdom stops
+ * axe from checking (see note 3 in the file header).
+ *
+ * That the axe verdict means anything is itself asserted, by the first test
  * below: a rule set that silently stopped running would make every page here
- * "pass". The probe there is `region` specifically, since that is the rule an
- * earlier round wanted disabled.
+ * "pass".
  */
 async function expectNoViolations() {
-  expect(await axe(document.body)).toHaveNoViolations()
+  const results = await axeCore.run(document, AXE_OPTIONS)
+  expect(results).toHaveNoViolations()
+
+  const unexpected = results.incomplete.map((r) => r.id).filter((id) => !KNOWN_INCOMPLETE.has(id))
+  expect(unexpected).toEqual([])
+
+  // `page-has-heading-one` and `landmark-one-main`, by hand.
+  expect(document.querySelectorAll('main')).toHaveLength(1)
+  expect(document.querySelectorAll('h1')).toHaveLength(1)
 }
 
 /**
@@ -206,6 +271,18 @@ function setViewportWidth(width: number) {
 }
 
 const realInnerWidth = window.innerWidth
+
+/**
+ * The bits of `index.html` that jsdom's blank document does not have. Without
+ * them `html-has-lang` and `document-title` fail on every page for a reason
+ * that belongs to the harness, not the app — index.html really does ship
+ * `<html lang="en">` and `<title>React Boilerplate</title>`. Keep these two in
+ * step with that file.
+ */
+beforeAll(() => {
+  document.documentElement.lang = 'en'
+  document.title = 'React Boilerplate'
+})
 
 beforeEach(() => {
   resetSessionForTests()
@@ -230,7 +307,11 @@ describe('the axe gate itself', () => {
     stray.textContent = 'Not in any landmark.'
     document.body.append(stray)
     try {
-      expect(await axe(document.body)).not.toHaveNoViolations()
+      const results = await axeCore.run(document, AXE_OPTIONS)
+      // The RULE, not merely "something failed": a planted violation only
+      // proves the gate if the rule it was planted for is the one that fired.
+      expect(results.violations.map((violation) => violation.id)).toContain('region')
+      expect(results).not.toHaveNoViolations()
     } finally {
       stray.remove()
     }

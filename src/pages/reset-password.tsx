@@ -72,7 +72,10 @@ function ResetPasswordPage() {
       <AuthLayout>
         <Card>
           <CardHeader>
-            <CardTitle>This link is incomplete</CardTitle>
+            {/* CardTitle renders a div, so the page's h1 goes inside it. */}
+            <CardTitle>
+              <h1>This link is incomplete</h1>
+            </CardTitle>
             <CardDescription>
               The reset link is missing its token. Request a new one and use the most recent email.
             </CardDescription>
@@ -95,7 +98,10 @@ function ResetPasswordPage() {
     <AuthLayout>
       <Card>
         <CardHeader>
-          <CardTitle>Choose a new password</CardTitle>
+          {/* CardTitle renders a div, so the page's h1 goes inside it. */}
+          <CardTitle>
+            <h1>Choose a new password</h1>
+          </CardTitle>
           <CardDescription>It must be at least 8 characters long.</CardDescription>
         </CardHeader>
         <CardContent>

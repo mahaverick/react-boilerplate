@@ -57,7 +57,10 @@ function ForgotPasswordPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Forgot your password?</CardTitle>
+        {/* CardTitle renders a div, so the page's h1 goes inside it. */}
+        <CardTitle>
+          <h1>Forgot your password?</h1>
+        </CardTitle>
         <CardDescription>We will email you a link to set a new one.</CardDescription>
       </CardHeader>
       <CardContent>

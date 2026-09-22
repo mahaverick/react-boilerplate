@@ -90,7 +90,10 @@ function VerifyEmailPage() {
     <AuthLayout>
       <Card>
         <CardHeader>
-          <CardTitle>Verify your email</CardTitle>
+          {/* CardTitle renders a div, so the page's h1 goes inside it. */}
+          <CardTitle>
+            <h1>Verify your email</h1>
+          </CardTitle>
           <CardDescription>
             Confirm the link from your inbox with the password you chose when registering.
           </CardDescription>

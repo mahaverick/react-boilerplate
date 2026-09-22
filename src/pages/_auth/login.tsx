@@ -119,7 +119,10 @@ function LoginPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sign in</CardTitle>
+        {/* CardTitle renders a div, so the page's h1 goes inside it. */}
+        <CardTitle>
+          <h1>Sign in</h1>
+        </CardTitle>
         <CardDescription>Enter your email and password to continue.</CardDescription>
       </CardHeader>
       <CardContent>
