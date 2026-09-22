@@ -62,9 +62,22 @@ with the API; no CORS is added to the backend.
 |---|---|---|
 | SPA | Vite dev server, port 5173 | nginx, serving `dist/` |
 | API | Vite proxy `/api` → `http://localhost:4040` | nginx `location /api/` → upstream |
-| `VITE_API_URL` | `/api/v1` | `/api/v1` |
+| API prefix | `/api/v1` | `/api/v1` |
 
-`VITE_API_URL` is a **relative path**. v1 specified an absolute
+The API prefix is a **relative path**, and it is **fixed** — there is no environment
+variable for it. It is written once, as `API_PREFIX` in `src/constants/routes.ts`, and
+the axios base, the `EventSource` URL for the notification stream and the Google OAuth
+anchor all derive from it; `nginx.conf` and the Vite proxy hardcode it outside
+JavaScript, which is why it cannot be one.
+
+A `VITE_API_URL` variable was specified here and shipped, and it was a trap: it moved the
+axios base and nothing else, so a build that changed it left the stream, the OAuth anchor
+and nginx's SSE `location` pointing at the old path — Google sign-in and every
+notification broken, silently, in a build that otherwise looked healthy. It has been
+removed. Moving the prefix means changing `API_PREFIX`, `nginx.conf` and
+`vite.config.ts`'s proxy together, in one change.
+
+v1's own version of this was wrong in a different way: it specified an absolute
 `http://localhost:4040/api/v1` *and* a Vite `/api` proxy; axios given an absolute URL
 bypasses the proxy entirely, so v1's two halves contradicted each other and neither
 worked alone.
@@ -877,8 +890,8 @@ README and this file. It was removed rather than wired in the 2026-09-21 Phase A
 `VITE_API_URL` is gone from this block for a different reason: the API prefix is FIXED at
 `/api/v1` and lives in `src/constants/routes.ts` as `API_PREFIX`. A variable moved the
 axios base alone while the `EventSource` URL, the Google OAuth anchor and nginx's SSE
-`location` kept the old prefix, so it could only ever break a build silently. §2's table
-and §14 still describe it and have not been revised.
+`location` kept the old prefix, so it could only ever break a build silently. §2 and
+Appendix A are revised to match.
 
 `VITE_GOOGLE_OAUTH_URL` is removed — the Google control is a same-origin anchor (§1.1).
 Only `VITE_`-prefixed variables reach client code.
@@ -1001,6 +1014,7 @@ Every item was verified against express-boilerplate @ `d5979b2` or the npm regis
 | v1 said | Actually | Evidence |
 |---|---|---|
 | `VITE_API_URL` absolute, *and* a Vite `/api` proxy | No CORS middleware, no `cors` dep; the two halves contradict | `src/app.ts` |
+| `VITE_API_URL` configurable at all (this revision) | It moves only the axios base; the SSE URL, the OAuth anchor and nginx keep `/api/v1` — so it can only break a build silently. Removed; the prefix is fixed as `API_PREFIX` (§2) | `src/constants/routes.ts` |
 | TenantSwitcher sets `X-Tenant-Id` | Header reserved, unread; scope is the `:slug` param | `tenant.middleware.ts:68,87` |
 | Profile has a change-password form | No endpoint; `updateProfileSchema` is `{firstName?,lastName?}` | `auth.routes.ts`, `profile.validators.ts:69` |
 | OAuth callback: refresh → store → redirect | `/auth/refresh` returns `{accessToken}` only, no user | `auth.controller.ts:525` |

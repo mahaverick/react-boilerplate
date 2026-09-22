@@ -57,6 +57,19 @@ export function TenantSwitcher() {
                   <span className="truncate">{entry.tenant.name}</span>
                 </DropdownMenuItem>
               ))
+            ) : tenants.isError ? (
+              // A FAILED load is not an empty account, and this menu used to
+              // say it was: `tenants.data` is undefined in both cases, so a
+              // 500 rendered "No tenants yet" as a statement of fact about
+              // something the app did not know. The same defect the three
+              // list surfaces carried (see LoadError's doc comment); a closed
+              // dropdown changes its blast radius, not its correctness.
+              //
+              // Not `LoadError` — a menu is no place for an alert region and
+              // a nested retry button. Stating the failure is the whole
+              // requirement, and "All tenants" below already leads to the
+              // page that DOES offer a retry.
+              <DropdownMenuItem disabled>Tenants could not be loaded</DropdownMenuItem>
             ) : (
               <DropdownMenuItem disabled>No tenants yet</DropdownMenuItem>
             )}
