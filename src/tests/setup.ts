@@ -24,6 +24,26 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
   })
 }
 
+// jsdom ships no `EventSource` either, and `AppLayout` opens one through
+// `useNotificationStream()` on every authenticated render — so without this
+// every test that mounts the app shell dies with a ReferenceError before it
+// renders anything. A no-op that merely satisfies the surface the hook uses
+// is the whole fix: the hook only ever constructs, listens and closes, and a
+// stub that never dispatches leaves the connection permanently idle, which is
+// exactly what a test that is not about the stream wants.
+//
+// Assigned to `globalThis` rather than stubbed with `vi.stubGlobal`, because
+// use-notifications.test.tsx installs a richer mock with `vi.stubGlobal` and
+// calls `vi.unstubAllGlobals()` afterwards — which restores whatever was here
+// BEFORE, and that has to be this no-op rather than `undefined`.
+class IdleEventSource implements Pick<EventSource, 'close' | 'addEventListener'> {
+  constructor(public url: string) {}
+  addEventListener(): void {}
+  removeEventListener(): void {}
+  close(): void {}
+}
+globalThis.EventSource = IdleEventSource as unknown as typeof EventSource
+
 // `onUnhandledRequest: 'error'` is deliberate: a test that hits an unmocked
 // URL should fail loudly, not silently pass against a real network.
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))

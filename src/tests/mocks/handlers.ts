@@ -23,4 +23,15 @@ export function fail(message: string, statusCode: number, code?: string) {
 export const handlers = [
   http.post('/api/v1/auth/refresh', () => ok({ accessToken: 'fresh-token' }, 'Token refreshed.')),
   http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.')),
+  // The notification bell lives in the app shell's header, so EVERY test that
+  // mounts an authenticated route hits these two — and `onUnhandledRequest:
+  // 'error'` would fail each one otherwise. Empty defaults: a test that cares
+  // about notification content overrides them with `server.use(...)`.
+  //
+  // `notifications`, not `items`, and `nextCursor` absent rather than null —
+  // the same shape NotificationRepository.list actually returns.
+  http.get('/api/v1/notifications', () => ok({ notifications: [] }, 'Notifications retrieved.')),
+  http.get('/api/v1/notifications/preferences', () =>
+    ok({ preferences: [] }, 'Notification preferences retrieved.')
+  ),
 ]

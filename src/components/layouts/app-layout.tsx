@@ -1,6 +1,7 @@
 import { Link, Outlet, useMatches } from '@tanstack/react-router'
-import { LayoutDashboard } from 'lucide-react'
+import { Bell, LayoutDashboard } from 'lucide-react'
 import { Fragment, useEffect } from 'react'
+import { NotificationBell } from '@/components/features/notification-bell'
 import { ThemeToggle } from '@/components/features/theme-toggle'
 import { UserMenu } from '@/components/features/user-menu'
 import {
@@ -25,6 +26,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { ROUTES } from '@/constants/routes'
+import { useNotificationStream } from '@/hooks/use-notifications'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
@@ -36,21 +38,24 @@ import { useThemeStore } from '@/states/theme.store'
  * generated route tree, so listing `/notifications` or `/tenants` before their
  * route files land is a type error, not a dead link.
  *
- * Task 7 adds `{ to: ROUTES.notifications, label: 'Notifications', Icon: Bell }`.
  * Task 8 adds `{ to: ROUTES.tenants, label: 'Tenants', Icon: Building2 }`.
  */
-const NAV_ITEMS = [{ to: ROUTES.dashboard, label: 'Dashboard', Icon: LayoutDashboard }] as const
+const NAV_ITEMS = [
+  { to: ROUTES.dashboard, label: 'Dashboard', Icon: LayoutDashboard },
+  { to: ROUTES.notifications, label: 'Notifications', Icon: Bell },
+] as const
 
 /**
  * Breadcrumb labels, keyed by the pathname the router reports for a match.
  *
  * Kept as literal `to` values rather than a `Record<string, string>` so an
  * ancestor crumb can be rendered as a typed `<Link>` when nesting arrives.
- * Task 7 and Task 8 append their own entries here.
+ * Task 8 appends its own entries here.
  */
 const CRUMBS = [
   { to: ROUTES.dashboard, label: 'Dashboard' },
   { to: ROUTES.profile, label: 'Profile' },
+  { to: ROUTES.notifications, label: 'Notifications' },
 ] as const
 
 type Crumb = (typeof CRUMBS)[number]
@@ -77,6 +82,14 @@ export function AppLayout() {
   const crumbs = useBreadcrumbs()
   const activePath = crumbs.at(-1)?.to
 
+  // The ONE mount of the notification stream, and it belongs here for the
+  // same reason the theme listener below does — see that comment. A single
+  // EventSource per session: mounting this in NotificationBell or on the
+  // notifications page instead would open a second connection, and mounting
+  // it anywhere inside `Sidebar` would leave it live on desktop and silently
+  // dead on every phone, with nothing in any log to say so.
+  useNotificationStream()
+
   // `theme: 'system'` has to mean "follow the OS", not "whatever the OS was
   // when this tab loaded": the theme store samples `prefers-color-scheme` once,
   // at import, and it is not a React component so it cannot own an effect.
@@ -91,8 +104,8 @@ export function AppLayout() {
   // header on both viewports, so it is the lowest component that is genuinely
   // mounted for the whole authenticated session.
   //
-  // (Same rule, different subject: Task 7's SSE hook belongs in the header
-  // slot for exactly this reason. In the sidebar footer it would be live on
+  // (Same rule, different subject: `useNotificationStream()` above is mounted
+  // here for exactly this reason. In the sidebar footer it would be live on
   // desktop and silently dead on mobile.)
   useEffect(() => {
     if (theme !== 'system') return
@@ -174,8 +187,7 @@ export function AppLayout() {
             </BreadcrumbList>
           </Breadcrumb>
           <div className="ml-auto flex items-center gap-2">
-            {/* NotificationBell slot — Task 7 fills this and mounts the SSE
-                hook. Left empty for the same reason as the header slot. */}
+            <NotificationBell />
           </div>
         </header>
         <div className="flex-1 overflow-auto p-4 md:p-6">
