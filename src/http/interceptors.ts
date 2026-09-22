@@ -1,6 +1,6 @@
 import { AxiosError, type AxiosInstance, type AxiosResponse } from 'axios'
 import { ROUTES } from '@/constants/routes'
-import { ensureSession, isServerVerdict } from '@/http/session'
+import { ensureSession, isAuthVerdict } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
 import { ACCESS_TOKEN_EXPIRED, type ApiErrorBody } from '@/types/api.types'
 
@@ -120,13 +120,15 @@ export function installInterceptors(client: AxiosInstance): void {
         // retried request (404, 500, a second 401) rejects with its own error
         // instead of bouncing a still-valid session to the login page.
         //
-        // `isServerVerdict` is the SAME gate session.ts uses to decide whether
+        // `isAuthVerdict` is the SAME gate session.ts uses to decide whether
         // to log out, and it has to be applied here too: ensureSession leaves
-        // the session intact when it merely could not reach the API, and
-        // navigating to /login anyway would undo that fix by throwing the user
-        // out of a session that is still perfectly valid. Redirect only when
-        // the store was actually cleared.
-        if (isServerVerdict(refreshError) && typeof window !== 'undefined') {
+        // the session intact whenever the refresh failed for any reason other
+        // than a 401 — a deploy's 502, the refresh rate limiter's 429, a
+        // poisoned 200, an unreachable API — and navigating to /login anyway
+        // would undo that from the other side, throwing the user out of a
+        // session that is still perfectly valid. Redirect only when the store
+        // was actually cleared.
+        if (isAuthVerdict(refreshError) && typeof window !== 'undefined') {
           window.location.assign(ROUTES.login)
         }
         // `throw` rather than Promise.reject: identical in an async function,

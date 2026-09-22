@@ -23,6 +23,33 @@ function makeClient() {
   return client
 }
 
+/**
+ * Every way `/auth/refresh` can fail WITHOUT judging the caller's
+ * credentials. None of these may end a session.
+ *
+ * - 503: nginx through a rolling restart. The SSE stream errors, the hook
+ *   reconnects through ensureSession(), and a logout here would sign out
+ *   every user with a tab open on every deploy.
+ * - 429: /auth/refresh is rate limited, and the hook calls ensureSession()
+ *   on a schedule across every open tab — so a flapping network can
+ *   manufacture the 429 that would then end the session.
+ * - A 200 carrying HTML: rejectMalformedJsonResponse throws an AxiosError
+ *   that CARRIES a response, so a poisoned cache entry looked exactly like
+ *   an auth verdict under the old `response !== undefined` test.
+ */
+const NON_VERDICT_FAILURES: [string, () => Response][] = [
+  ['a 503 from a restarting upstream', () => fail('Service Unavailable', 503)],
+  ['a 429 from the refresh rate limiter', () => fail('Too Many Requests', 429)],
+  [
+    'a malformed 200 carrying HTML',
+    () =>
+      new HttpResponse('<!doctype html><title>nope</title>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      }),
+  ],
+]
+
 describe('auth interceptors', () => {
   beforeEach(() => {
     resetSessionForTests()
@@ -169,6 +196,29 @@ describe('auth interceptors', () => {
     let attempts = 0
     server.use(
       http.post('/api/v1/auth/refresh', () => HttpResponse.error()),
+      http.get('/api/v1/widgets', () => {
+        attempts += 1
+        return attempts > RETRY_CAP
+          ? ok(['widget'])
+          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+      })
+    )
+
+    await expect(makeClient().get('/widgets')).rejects.toThrow()
+    expect(assign).not.toHaveBeenCalled()
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(useAuthStore.getState().accessToken).toBe('live-token')
+  })
+
+  // The redirect follows the same rule as the logout, and has to: a session
+  // left intact by session.ts but bounced to /login from here is signed out
+  // just the same, only through a different door.
+  it.each(NON_VERDICT_FAILURES)('does not redirect on %s', async (_label, respond) => {
+    useAuthStore.getState().login('live-token', testUser)
+    const assign = stubLocation()
+    let attempts = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => respond()),
       http.get('/api/v1/widgets', () => {
         attempts += 1
         return attempts > RETRY_CAP

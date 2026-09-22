@@ -77,14 +77,15 @@ export function useNotificationStream(): void {
           })
           .catch(() => {
             // ensureSession rejected, and WHY decides whether to carry on.
-            // A verdict from the server (a dead refresh cookie) has already
-            // cleared the store, and the route guard is about to send the
-            // user to /login — stop. A transport failure leaves the session
-            // untouched (see isServerVerdict in http/session.ts), and giving
-            // up there would let a few seconds of downtime kill notifications
-            // until the next full page load, which is precisely the silent
-            // failure this hook exists to avoid. Keep retrying, under the
-            // same doubling backoff so a long outage costs little.
+            // A 401 — a dead refresh cookie — has already cleared the store,
+            // and the route guard is about to send the user to /login: stop.
+            // EVERY other failure leaves the session untouched (see
+            // isAuthVerdict in http/session.ts): a deploy's 502, the refresh
+            // rate limiter's 429, an unreachable API. Giving up on those
+            // would let a few seconds of downtime kill notifications until
+            // the next full page load, which is precisely the silent failure
+            // this hook exists to avoid. Keep retrying, under the same
+            // doubling backoff so a long outage costs little.
             if (!cancelled && useAuthStore.getState().isAuthenticated) {
               scheduleReconnect(token)
             }

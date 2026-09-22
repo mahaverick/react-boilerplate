@@ -6,6 +6,33 @@ import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import { ACCESS_TOKEN_EXPIRED } from '@/types/api.types'
 
+/**
+ * Every way `/auth/refresh` can fail WITHOUT judging the caller's
+ * credentials. None of these may end a session.
+ *
+ * - 503: nginx through a rolling restart. The SSE stream errors, the hook
+ *   reconnects through ensureSession(), and a logout here would sign out
+ *   every user with a tab open on every deploy.
+ * - 429: /auth/refresh is rate limited, and the hook calls ensureSession()
+ *   on a schedule across every open tab — so a flapping network can
+ *   manufacture the 429 that would then end the session.
+ * - A 200 carrying HTML: rejectMalformedJsonResponse throws an AxiosError
+ *   that CARRIES a response, so a poisoned cache entry looked exactly like
+ *   an auth verdict under the old `response !== undefined` test.
+ */
+const NON_VERDICT_FAILURES: [string, () => Response][] = [
+  ['a 503 from a restarting upstream', () => fail('Service Unavailable', 503)],
+  ['a 429 from the refresh rate limiter', () => fail('Too Many Requests', 429)],
+  [
+    'a malformed 200 carrying HTML',
+    () =>
+      new HttpResponse('<!doctype html><title>nope</title>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      }),
+  ],
+]
+
 describe('ensureSession', () => {
   beforeEach(() => {
     resetSessionForTests()
@@ -62,6 +89,20 @@ describe('ensureSession', () => {
   it('rejects WITHOUT logging out when the API cannot be reached', async () => {
     useAuthStore.getState().login('live-token', testUser)
     server.use(http.post('/api/v1/auth/refresh', () => HttpResponse.error()))
+
+    await expect(ensureSession()).rejects.toThrow()
+
+    const s = useAuthStore.getState()
+    expect(s.isAuthenticated).toBe(true)
+    expect(s.accessToken).toBe('live-token')
+    expect(s.user).toEqual(testUser)
+  })
+
+  // The predicate is "the server JUDGED the credentials", not "the server
+  // answered". These three all answer, and none of them is a judgment.
+  it.each(NON_VERDICT_FAILURES)('rejects WITHOUT logging out on %s', async (_label, respond) => {
+    useAuthStore.getState().login('live-token', testUser)
+    server.use(http.post('/api/v1/auth/refresh', () => respond()))
 
     await expect(ensureSession()).rejects.toThrow()
 

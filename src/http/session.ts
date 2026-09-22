@@ -4,27 +4,41 @@ import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 
 /**
- * Whether the server actually ANSWERED — as opposed to never having been
- * reached at all.
+ * Whether the server JUDGED the credentials — the one and only condition that
+ * may end a session.
  *
- * This is the line between "your session is dead" and "I could not ask". A
- * 401 from /auth/refresh is a verdict: the refresh cookie is gone, expired or
- * already rotated, and the only correct response is to clear the session. A
- * network error, a DNS failure, an axios timeout or an aborted request is not
- * a verdict about anything — the session may be perfectly good, and the
- * caller simply could not find out.
+ * **A 401, and nothing else.** Not "the server answered": that is a strictly
+ * wider set, and every extra member of it is a way to sign out a user whose
+ * session is perfectly good.
  *
- * Treating those the same is not hypothetical: `useNotificationStream` routes
- * every EventSource error through `ensureSession()`, so under the old
- * unconditional `logout()` roughly two seconds of API downtime signed the
- * user out of a working session. That is a worse failure than the one the
- * logout exists to handle.
+ * Verified against the API rather than assumed. `auth.controller.ts`'s refresh
+ * handler throws `HttpError(..., 401)` exactly twice — 'Missing refresh token'
+ * and 'Account no longer exists or is inactive' — and otherwise answers 200.
+ * Every other status on that path comes from something that is not judging
+ * anybody:
  *
- * A non-Axios throw (a bug in this module, say) is deliberately NOT a verdict
- * either: nothing about it says the credentials are bad.
+ * - **5xx.** nginx answers 502/503 through any rolling restart. The SSE
+ *   stream errors, as it must, `useNotificationStream` reconnects through
+ *   `ensureSession()`, and under an "answered" test that logs out and
+ *   redirects — signing out every user with a tab open, on every deploy.
+ * - **429.** `/auth/refresh` is rate limited (`auth.routes.ts`), and this hook
+ *   calls `ensureSession()` on a schedule across every open tab, so a flapping
+ *   network can manufacture the very 429 that would then end the session.
+ * - **A malformed 200.** `rejectMalformedJsonResponse` (interceptors.ts)
+ *   throws an `AxiosError` that CARRIES a response — a poisoned cache entry or
+ *   a misrouted proxy response would otherwise count as an auth verdict.
+ * - **No response at all**: a network error, DNS failure, axios timeout or
+ *   abort. Nobody said anything about the credentials; the caller simply could
+ *   not ask.
+ * - **A non-Axios throw** (a bug in this module, say) — same reasoning.
+ *
+ * Getting this wrong is not hypothetical, and it is not hypothetical in one
+ * direction only: this predicate has been too wide twice. Widen it again only
+ * with a status the API's own refresh handler actually produces as a judgment
+ * on the caller's credentials.
  */
-export function isServerVerdict(error: unknown): boolean {
-  return isAxiosError(error) && error.response !== undefined
+export function isAuthVerdict(error: unknown): boolean {
+  return isAxiosError(error) && error.response?.status === 401
 }
 
 /**
@@ -59,12 +73,13 @@ async function refreshSession(): Promise<string> {
     useAuthStore.getState().login(accessToken, unwrap(profileResponse))
     return accessToken
   } catch (error) {
-    // ONLY a verdict from the server ends the session. A transport failure
-    // rejects — every caller still learns the refresh did not happen — while
-    // leaving the store untouched, so the next attempt can simply succeed.
-    // `inFlight` is cleared by ensureSession's `.finally` either way, so a
-    // rejected attempt never wedges the next one. See isServerVerdict.
-    if (isServerVerdict(error)) {
+    // ONLY a 401 ends the session. Everything else — 5xx, 429, a malformed
+    // 200, no response at all — rejects, so every caller still learns the
+    // refresh did not happen, while leaving the store untouched so the next
+    // attempt can simply succeed. `inFlight` is cleared by ensureSession's
+    // `.finally` either way, so a rejected attempt never wedges the next one.
+    // See isAuthVerdict for why this is 401 and not "the server answered".
+    if (isAuthVerdict(error)) {
       useAuthStore.getState().logout()
     }
     throw error
