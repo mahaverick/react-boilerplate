@@ -953,6 +953,17 @@ respected, accessible contrast — is already binding here as §9.
 - File upload / media management
 - **A change-password endpoint** — that is a change to express-boilerplate (§3)
 - **An auth-providers endpoint** — the table exists server-side but nothing exposes it (§3)
+- **A single-use SSE stream ticket.** `/notifications/stream` authenticates from a
+  `?token=` query parameter carrying the live access token, because `requireAuth` reads
+  only a Bearer header and `EventSource` cannot set one — the backend's own routing
+  comment says so. An access token in a URL is a real exposure: it reaches proxy and
+  server access logs, browser history and devtools. The correct fix is a distinct,
+  single-use, short-TTL stream credential issued by POST and exchanged for the
+  connection, which is a change to express-boilerplate and therefore out of Phase A the
+  same way CORS and change-password are. What Phase A DOES do about it: the token is
+  same-origin so it never reaches a third party via `Referer`; its TTL is 15 minutes
+  (`ACCESS_TOKEN_TTL`); and nginx is configured to log that location without its query
+  string (§12), which removes the largest and most persistent copy.
 - **CORS support in express-boilerplate** — the same-origin decision in §1 removes the need
 
 ---

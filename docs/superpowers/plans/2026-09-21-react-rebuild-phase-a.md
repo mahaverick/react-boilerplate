@@ -3121,6 +3121,12 @@ Do not suppress a violation to make this pass.
 - [ ] **Step 3: Write `nginx.conf`**
 
 ```nginx
+# Strips the query string from the logged request line. Applied to the SSE
+# location only, where the query carries an access token.
+log_format stream_nolog '$remote_addr - $remote_user [$time_local] '
+                        '"$request_method $uri $server_protocol" $status '
+                        '$body_bytes_sent "$http_referer" "$http_user_agent"';
+
 server {
   listen 80;
   server_name _;
@@ -3133,6 +3139,15 @@ server {
   # SSE. Must come BEFORE the general /api/ block. nginx buffers
   # responses by default, which stalls an event stream indefinitely.
   location /api/v1/notifications/stream {
+    # The access token rides in the QUERY STRING here, because the backend
+    # requires it: requireAuth reads only a Bearer header and EventSource
+    # cannot set one, so this route authenticates from `?token=` itself
+    # (notification.routes.ts' header comment). That is not ours to change in
+    # Phase A — but logging it IS. The default access-log format records the
+    # full request line, which would write a live 15-minute access token into
+    # access.log on every connect and every reconnect. Log this location
+    # without its query string.
+    access_log /var/log/nginx/access.log stream_nolog;
     proxy_pass http://api:4040;
     proxy_http_version 1.1;
     proxy_set_header Connection '';
