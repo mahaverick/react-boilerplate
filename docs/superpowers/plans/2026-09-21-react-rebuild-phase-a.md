@@ -3136,6 +3136,24 @@ server {
   gzip_types text/css application/javascript application/json image/svg+xml;
   gzip_min_length 1024;
 
+  # Security headers. `always` so they are set on error responses too, not
+  # only on 2xx/3xx.
+  #
+  # NGINX FOOTGUN: add_header does NOT inherit into a location block that
+  # declares any add_header of its own. The /assets/ and = /index.html blocks
+  # below both set Cache-Control, so they would silently DROP every header
+  # here. They repeat them via the `security_headers` include rather than
+  # relying on inheritance — check that with `curl -I` on an asset, not by
+  # reading the config.
+  add_header Referrer-Policy "no-referrer" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header Cross-Origin-Opener-Policy "same-origin" always;
+  # HSTS is deliberately NOT set here: this server listens on :80 behind a
+  # TLS terminator, and a max-age sent over plain HTTP is ignored by browsers
+  # while being actively wrong if this ever runs without TLS in front. Set it
+  # at the edge that terminates TLS.
+
   # SSE. Must come BEFORE the general /api/ block. nginx buffers
   # responses by default, which stalls an event stream indefinitely.
   location /api/v1/notifications/stream {
