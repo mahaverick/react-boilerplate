@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -198,12 +199,15 @@ function RoleCell({
   myRole,
   isSelf,
   isLastOwner,
+  reasonId,
 }: {
   slug: string
   member: TenantMember
   myRole: MembershipRole
   isSelf: boolean
   isLastOwner: boolean
+  /** The row's one last-owner explanation, which this cell renders. */
+  reasonId: string
 }) {
   const updateRole = useUpdateMemberRole(slug)
   const targetRole = member.membership.role
@@ -217,8 +221,6 @@ function RoleCell({
   if (!canChangeRoles(myRole) || !canActorModifyTarget(myRole, targetRole, isSelf)) {
     return <span>{ROLE_LABELS[targetRole]}</span>
   }
-
-  const reasonId = `last-owner-${member.membership.id}`
 
   return (
     <div className="grid gap-1">
@@ -256,9 +258,16 @@ function RoleCell({
           ))}
         </SelectContent>
       </Select>
-      {/* Visible text, not a tooltip: a disabled control receives no pointer
+      {/* The row's ONE copy of the explanation, rendered here because the
+          role select is the first control it applies to; the Leave button
+          points at this same id rather than repeating the sentence.
+          Visible text, not a tooltip: a disabled control receives no pointer
           events, so a tooltip on it never opens — and Base UI's Tooltip emits
-          no role="tooltip" for a screen reader either. */}
+          no role="tooltip" for a screen reader either.
+
+          Always rendered when `isLastOwner`, because that implies an owner
+          acting on their own membership, which is exactly the case where the
+          matrix above leaves this select in place. */}
       {isLastOwner && (
         <p id={reasonId} className="text-xs text-muted-foreground">
           {LAST_OWNER_REASON}
@@ -273,30 +282,30 @@ function RemoveMemberButton({
   member,
   isSelf,
   isLastOwner,
+  reasonId,
 }: {
   slug: string
   member: TenantMember
   isSelf: boolean
   isLastOwner: boolean
+  /** The row's one last-owner explanation, rendered by `RoleCell`. */
+  reasonId: string
 }) {
   const removeMember = useRemoveMember(slug)
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
   const name = memberName(member)
-  const reasonId = `last-owner-remove-${member.membership.id}`
 
   if (isLastOwner) {
+    // Described BY the row's existing explanation, not by a second copy of
+    // it: an `id` reference reaches across cells, and the reader does not
+    // need the same sentence told to them twice in one row.
     return (
-      <div className="grid gap-1">
+      <Button variant="outline" size="sm" disabled aria-describedby={reasonId}>
         {/* `isLastOwner` is only ever true when `isSelf` is, so this reads
             "Leave" — the same word the enabled control uses. */}
-        <Button variant="outline" size="sm" disabled aria-describedby={reasonId}>
-          {isSelf ? 'Leave' : 'Remove'}
-        </Button>
-        <p id={reasonId} className="text-xs text-muted-foreground">
-          {LAST_OWNER_REASON}
-        </p>
-      </div>
+        {isSelf ? 'Leave' : 'Remove'}
+      </Button>
     )
   }
 
@@ -369,6 +378,9 @@ function MemberRow({
   // Removal is owner+admin (`canManageTenant`) narrowed by the matrix — a
   // different pair from the role-change gate in RoleCell.
   const canRemove = canManageTenant(myRole) && canActorModifyTarget(myRole, targetRole, isSelf)
+  // One id per ROW: the explanation is rendered once, by the role cell, and
+  // every control the guard disables points at it.
+  const reasonId = `last-owner-${member.membership.id}`
 
   return (
     <TableRow>
@@ -384,6 +396,7 @@ function MemberRow({
           myRole={myRole}
           isSelf={isSelf}
           isLastOwner={isLastOwner}
+          reasonId={reasonId}
         />
       </TableCell>
       <TableCell className="text-right">
@@ -393,6 +406,7 @@ function MemberRow({
             member={member}
             isSelf={isSelf}
             isLastOwner={isLastOwner}
+            reasonId={reasonId}
           />
         ) : null}
       </TableCell>
@@ -403,7 +417,7 @@ function MemberRow({
 function TenantMembersTab() {
   const { slug } = Route.useParams()
   const members = useMembers(slug)
-  const { role: myRole, isPending: isRolePending } = useMyRole(slug)
+  const { role: myRole, isPending: isRolePending, isError: isRoleError, retry } = useMyRole(slug)
   const myUserId = useAuthStore((state) => state.user?.id)
   const owners = ownerCount(members.data)
 
@@ -417,7 +431,12 @@ function TenantMembersTab() {
           <CardDescription>Everyone with access to this tenant.</CardDescription>
         </CardHeader>
         <CardContent>
-          {members.isPending || isRolePending || !myRole ? (
+          {isRoleError || members.isError || (!isRolePending && !myRole) ? (
+            // NOT a skeleton. The role lookup has already failed, so nothing
+            // is on its way — a skeleton here would spin for ever with no
+            // error and no retry.
+            <LoadError message={ROLE_ERROR} onRetry={retry} />
+          ) : members.isPending || isRolePending || !myRole ? (
             <div className="grid gap-2">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />

@@ -14,7 +14,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { ok, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 const TENANT = {
@@ -184,9 +184,18 @@ describe('members tab permissions', () => {
     // The backend answers 409 here. The UI must not invite that error.
     expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeDisabled()
     expect(me.getByRole('button', { name: 'Leave' })).toBeDisabled()
+    // ONCE per row, not once per disabled control: the Leave button points at
+    // the role cell's copy through aria-describedby rather than repeating the
+    // same sentence underneath itself.
     expect(
-      me.getAllByText('A tenant must always have an owner. Add another owner first.').length
-    ).toBeGreaterThan(0)
+      me.getAllByText('A tenant must always have an owner. Add another owner first.')
+    ).toHaveLength(1)
+    const reason = me.getByText('A tenant must always have an owner. Add another owner first.')
+    expect(me.getByRole('button', { name: 'Leave' })).toHaveAttribute('aria-describedby', reason.id)
+    expect(me.getByRole('combobox', { name: 'Role for Me X' })).toHaveAttribute(
+      'aria-describedby',
+      reason.id
+    )
   })
 
   it('re-enables them once a second owner exists', async () => {
@@ -196,6 +205,61 @@ describe('members tab permissions', () => {
     const me = await rowFor('Me')
     expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeEnabled()
     expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
+  })
+
+  it('renders an error, not an endless skeleton, when the role lookup fails', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () => fail('Something went wrong.', 500)),
+      http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+    )
+    renderAppAt('/tenants/acme/members')
+
+    // The failure mode this guards: `useMyRole` used to report a failed list
+    // as `{ role: undefined, isPending: false }`, and every tab read `!role`
+    // as "still loading" — so an API failure spun a skeleton for ever, with
+    // no error, no retry and no way out.
+    // Generous, deliberately: the router's queryClient is configured
+    // `retry: 1`, so a failed list is attempted a second time (after
+    // react-query's ~1s backoff) before the error state is reached at all.
+    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    expect(alert).toHaveTextContent(/could not load your role/i)
+    expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="skeleton"]')).toBeNull()
+  })
+
+  it('recovers when the retry succeeds', async () => {
+    let attempt = 0
+    server.use(
+      // The first TWO attempts fail, not just one: the queryClient is
+      // `retry: 1`, so react-query itself makes the second attempt and the
+      // query would otherwise recover on its own without ever showing the
+      // error this test is about.
+      http.get('/api/v1/tenants', () => {
+        attempt += 1
+        return attempt <= 2
+          ? fail('Something went wrong.', 500)
+          : ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+      }),
+      http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/members', () =>
+        ok([member(ME, 'owner', 'Me'), member('u4', 'owner', 'Otto')], 'Members retrieved.')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+
+    // The retry control is not decoration: the table arrives after it.
+    // The retry control is not decoration: the table arrives after it, with
+    // the role-gated controls this owner is entitled to. (Otto's row
+    // deliberately has no select — an owner may not act on another owner.)
+    expect(
+      await screen.findByRole('combobox', { name: 'Role for Me X' }, { timeout: 5000 })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('changes a role through the API and reports it', async () => {

@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { createFileRoute } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -178,7 +179,7 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
 function TenantOverviewTab() {
   const { slug } = Route.useParams()
   const tenant = useTenant(slug)
-  const { role, isPending: isRolePending } = useMyRole(slug)
+  const { role, isPending: isRolePending, isError: isRoleError, retry } = useMyRole(slug)
 
   // The layout route above has already rendered the not-found panel in this
   // case; this tab simply has nothing to show.
@@ -198,8 +199,12 @@ function TenantOverviewTab() {
       </CardHeader>
       <CardContent>
         {/* Role unknown is LOADING, not "read-only": rendering the read-only
-            view first would flash an owner's own form away from them. */}
-        {isRolePending || !role ? (
+            view first would flash an owner's own form away from them. A
+            FAILED role lookup is neither — it gets an error with a retry,
+            because a skeleton there would spin for ever. */}
+        {isRoleError || (!isRolePending && !role) ? (
+          <LoadError message={ROLE_ERROR} onRetry={retry} />
+        ) : isRolePending || !role ? (
           <div className="grid gap-4">
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-9 w-full" />

@@ -125,14 +125,33 @@ export function useTenant(slug: string) {
  *
  * Read off the LIST, because `GET /tenants/:slug` returns the tenant row
  * and nothing about the caller — `listForUser` is the only endpoint that
- * joins the membership. `undefined` therefore means "not known yet", which
- * every gated screen must render as loading rather than as read-only, or
- * an owner watches their own controls appear a moment late.
+ * joins the membership.
+ *
+ * THREE states, not two, and keeping them apart is the point. `isPending`
+ * is "not known YET" and a screen renders a skeleton for it. `isError` is
+ * "not knowable right now" and a screen must say so and offer a retry:
+ * treating it as pending too — which this hook did until the failure was
+ * spotted — leaves a skeleton spinning forever on a failed request, with
+ * no error, no retry and no way out. A role of `undefined` after a
+ * SUCCESSFUL load is the third: the list simply does not list this tenant,
+ * which no gated screen can act on either.
  */
-export function useMyRole(slug: string): { role: MembershipRole | undefined; isPending: boolean } {
+export function useMyRole(slug: string): {
+  role: MembershipRole | undefined
+  isPending: boolean
+  isError: boolean
+  /** Refetch the list. Hand this to the error state's retry control. */
+  retry: () => void
+} {
   const tenants = useTenants()
   const role = tenants.data?.find((entry) => entry.tenant.slug === slug)?.role
-  return { role, isPending: tenants.isPending }
+  const { refetch } = tenants
+  return {
+    role,
+    isPending: tenants.isPending,
+    isError: tenants.isError,
+    retry: () => void refetch(),
+  }
 }
 
 export function useCreateTenant() {

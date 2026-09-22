@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { createFileRoute } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -170,7 +171,7 @@ function SettingsDetails({ settings }: { settings: TenantSettings }) {
 function TenantSettingsTab() {
   const { slug } = Route.useParams()
   const settings = useTenantSettings(slug)
-  const { role, isPending: isRolePending } = useMyRole(slug)
+  const { role, isPending: isRolePending, isError: isRoleError, retry } = useMyRole(slug)
 
   return (
     <Card>
@@ -185,7 +186,9 @@ function TenantSettingsTab() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {settings.isPending || isRolePending || !role || !settings.data ? (
+        {isRoleError || settings.isError || (!isRolePending && !role) ? (
+          <LoadError message={ROLE_ERROR} onRetry={retry} />
+        ) : settings.isPending || isRolePending || !role || !settings.data ? (
           <div className="grid gap-4">
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-9 w-full" />
