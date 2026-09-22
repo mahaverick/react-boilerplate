@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A second push to the same branch cancels the run still in flight.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Two parallel jobs, matching express-boilerplate's split. Action majors are
+  # the ones current at the time of writing (checked against each action's
+  # latest release, not copied from the brief): actions/checkout v7,
+  # pnpm/action-setup v6, actions/setup-node v7.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # BEFORE setup-node, not after: `cache: pnpm` needs the pnpm binary on
+      # PATH to resolve the store directory, and fails the job without it.
+      # The version is explicit because this repo has no `packageManager`
+      # field (see the Dockerfile for why) and action-setup errors without one
+      # or the other. Keep it in step with the Dockerfile's `corepack prepare`.
+      - uses: pnpm/action-setup@v6
+        with: { version: 12.4.1 }
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      # `pnpm lint` runs eslint AND `prettier --check`; formatting drift fails
+      # CI as loudly as a lint error does. `--max-warnings 0` is the gate the
+      # eslint half is held to.
+      - run: pnpm exec eslint . --max-warnings 0
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with: { version: 12.4.1 }
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      # This runs src/tests/a11y.test.tsx with the rest, which is what makes
+      # the accessibility criteria a gate rather than an aspiration.
+      - run: pnpm test
+      - run: pnpm build
+
+  # A third job the brief did not ask for. The image and its nginx config are
+  # half of this task's deliverable and neither is exercised by lint, typecheck
+  # or the test suite — a broken proxy_pass or a typo'd directive would
+  # otherwise surface at deploy time. Built, never pushed: publishing is a
+  # release concern.
+  #
+  # Plain `docker` rather than docker/build-push-action, so this adds no action
+  # pins to keep current. The runner ships with docker already.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t react-boilerplate:ci .
+      # `nginx -t` inside the built image. nginx resolves `api` when it LOADS
+      # the config, so the hostname has to exist for the parse to succeed —
+      # the same reason running this image standalone needs `--add-host`.
+      - run: docker run --rm --add-host=api:127.0.0.1 react-boilerplate:ci nginx -t

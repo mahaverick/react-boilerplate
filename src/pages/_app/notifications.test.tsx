@@ -1,0 +1,190 @@
+import { QueryClientProvider } from '@tanstack/react-query'
+import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { delay, http } from 'msw'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { resetSessionForTests } from '@/http/session'
+import type { Notification } from '@/queries/notification.queries'
+import { queryClient } from '@/router'
+import { routeTree } from '@/routeTree.gen'
+import { useAuthStore } from '@/states/auth.store'
+import { fail, ok, testUser } from '@/tests/mocks/handlers'
+import { server } from '@/tests/mocks/server'
+
+const unreadRow: Notification = {
+  id: 'n1',
+  userId: testUser.id,
+  type: 'verify_email',
+  title: 'Verify your email',
+  body: 'Follow the link we sent you.',
+  metadata: null,
+  readAt: null,
+  createdAt: '2026-09-21T10:00:00.000Z',
+}
+
+function renderNotifications() {
+  const router = createRouter({
+    routeTree,
+    context: { queryClient },
+    history: createMemoryHistory({ initialEntries: ['/notifications'] }),
+  })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router as never} />
+    </QueryClientProvider>
+  )
+}
+
+describe('notifications page', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+    server.use(
+      http.get('/api/v1/notifications', () =>
+        ok({ notifications: [unreadRow] }, 'Notifications retrieved.')
+      )
+    )
+  })
+
+  // Both cards state the FAILURE rather than the absence. `rows` is `[]` and
+  // `preferences.data` is undefined for a failed load exactly as they are for
+  // an empty one, so the page used to answer a 500 with "You have no
+  // notifications." and "This account has no notification types yet." — two
+  // claims about the account, neither of which the request established.
+  it('shows a retry, not an empty inbox, when the list fails to load', async () => {
+    server.use(http.get('/api/v1/notifications', () => fail('Something went wrong', 500)))
+    renderNotifications()
+
+    const alerts = await screen.findAllByRole('alert')
+    const inbox = alerts.find((alert) =>
+      /could not load your notifications/i.test(alert.textContent ?? '')
+    )
+    expect(inbox).toBeDefined()
+    expect(within(inbox!).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(screen.queryByText('You have no notifications.')).not.toBeInTheDocument()
+  })
+
+  it('shows a retry, not an empty matrix, when the preferences fail to load', async () => {
+    server.use(
+      http.get('/api/v1/notifications/preferences', () => fail('Something went wrong', 500))
+    )
+    renderNotifications()
+
+    expect(
+      await screen.findByText(/could not load your notification preferences/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('This account has no notification types yet.')
+    ).not.toBeInTheDocument()
+  })
+
+  it('lists the inbox under a level-one heading', async () => {
+    renderNotifications()
+
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Notifications')
+    expect(await screen.findByText(unreadRow.title)).toBeInTheDocument()
+  })
+
+  it('names the bell with its unread count, since a badge is not a name', async () => {
+    renderNotifications()
+
+    // Base UI's Tooltip emits no role="tooltip" and no aria-describedby, so
+    // this label is the only accessible name Task 9's axe run can read.
+    expect(await screen.findByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible()
+  })
+
+  it('marks a row read optimistically, before the server answers', async () => {
+    const user = userEvent.setup()
+    renderNotifications()
+    await screen.findByText(unreadRow.title)
+
+    // Never resolves: anything the UI shows after the click is therefore the
+    // optimistic cache write, not a server round trip.
+    server.use(http.patch('/api/v1/notifications/:id/read', () => delay('infinite')))
+
+    await user.click(screen.getByRole('button', { name: `Mark "${unreadRow.title}" as read` }))
+
+    await waitFor(() => expect(screen.queryByText('Unread')).not.toBeInTheDocument())
+  })
+
+  it('restores the snapshot when a mark-read fails', async () => {
+    const user = userEvent.setup()
+    renderNotifications()
+    await screen.findByText(unreadRow.title)
+
+    server.use(
+      http.patch('/api/v1/notifications/:id/read', () => fail('Notification not found', 404)),
+      // The rollback is what has to put the Unread badge back: onSettled's
+      // invalidation fires too, and a refetch that answered would hide
+      // whether onError restored anything.
+      http.get('/api/v1/notifications', () => delay('infinite'))
+    )
+
+    await user.click(screen.getByRole('button', { name: `Mark "${unreadRow.title}" as read` }))
+
+    await waitFor(() => expect(screen.getByText('Unread')).toBeInTheDocument())
+    expect(
+      screen.getByRole('button', { name: `Mark "${unreadRow.title}" as read` })
+    ).toBeInTheDocument()
+  })
+
+  it('restores the snapshot when a delete fails', async () => {
+    const user = userEvent.setup()
+    renderNotifications()
+    await screen.findByText(unreadRow.title)
+
+    server.use(
+      http.delete('/api/v1/notifications/:id', () => fail('Notification not found', 404)),
+      // The rollback is what has to put this row back: onSettled's
+      // invalidation fires too, and a refetch that answered would hide
+      // whether onError restored anything.
+      http.get('/api/v1/notifications', () => delay('infinite'))
+    )
+
+    await user.click(screen.getByRole('button', { name: `Delete "${unreadRow.title}"` }))
+
+    await waitFor(() => expect(screen.getByText(unreadRow.title)).toBeInTheDocument())
+    expect(screen.getByText('Unread')).toBeInTheDocument()
+  })
+
+  it('renders preferences read-only, with no control that would always fail', async () => {
+    server.use(
+      http.get('/api/v1/notifications/preferences', () =>
+        ok(
+          {
+            preferences: [
+              { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: false },
+            ],
+          },
+          'Notification preferences retrieved.'
+        )
+      )
+    )
+    renderNotifications()
+
+    const main = await screen.findByRole('main')
+    expect(await within(main).findByText('Verify email')).toBeInTheDocument()
+    expect(within(main).getByText('Email: On')).toBeInTheDocument()
+    expect(within(main).getByText('In-app: Off')).toBeInTheDocument()
+    expect(within(main).getByText(/not configurable yet/i)).toBeInTheDocument()
+
+    // Every configurable type is currently rejected by the server, so a switch
+    // here could only ever produce a 400 toast.
+    expect(within(main).queryAllByRole('switch')).toHaveLength(0)
+  })
+
+  it('says so when the inbox is empty', async () => {
+    server.use(http.get('/api/v1/notifications', () => ok({ notifications: [] }, 'Retrieved.')))
+    renderNotifications()
+
+    const main = await screen.findByRole('main')
+    expect(await within(main).findByText('You have no notifications.')).toBeInTheDocument()
+  })
+})

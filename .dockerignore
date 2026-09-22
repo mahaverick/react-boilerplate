@@ -1,0 +1,25 @@
+# Installed inside the image against the Linux platform, never copied in.
+node_modules
+# Built inside the image. A host build copied in would be served instead.
+dist
+dist-ssr
+build
+.git
+coverage
+# Never bake a developer's environment into an image. The build stage takes no
+# build ARGs: the API prefix is fixed (see API_PREFIX in
+# src/constants/routes.ts), not configured per build.
+.env
+.env.*
+!.env.example
+*.local
+# A stale incremental-build cache makes `tsc -b` skip work it should redo.
+*.tsbuildinfo
+.tanstack
+# Docs, specs and CI config: none of them change the bundle.
+docs
+.superpowers
+.github
+.husky
+Dockerfile
+.dockerignore
