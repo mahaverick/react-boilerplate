@@ -123,7 +123,20 @@ export default tseslint.config(
     // above (a second, more specific `filename-naming-convention` block, per
     // the naming-conventions table). No `ignoreMiddleExtensions` here: only
     // the outer `.ts`/`.tsx` extension is stripped, so `auth.store.ts` is
-    // checked as `auth.store` against `+([a-z0-9-]).store`.
+    // checked as `auth.store` against the pattern below.
+    //
+    // The prefix is the plugin's own KEBAB_CASE body
+    // (`+([a-z])*([a-z0-9])*(-+([a-z0-9]))`, from
+    // node_modules/eslint-plugin-check-file/dist/index.cjs), not a bare
+    // `+([a-z0-9-])` charset class. A charset class allows a leading digit,
+    // a leading/trailing hyphen and doubled hyphens — `123`, `-auth`,
+    // `auth-` and `au--th` are all valid `+([a-z0-9-])` but none is
+    // KEBAB_CASE. Fix-round-1 finding: `pnpm exec eslint src/states` exited
+    // 0 on `123.store.ts`, `-auth.store.ts`, `auth-.store.ts` and
+    // `au--th.store.ts` before this change, because block 2 REPLACES block
+    // 1's filename-naming-convention entry for these directories rather
+    // than merging with it (same rule key, last matching config object
+    // wins), so block 1's real KEBAB_CASE check never ran on them either.
     files: [
       'src/states/**/*.ts',
       'src/queries/**/*.ts',
@@ -136,19 +149,24 @@ export default tseslint.config(
       'check-file/filename-naming-convention': [
         'error',
         {
-          'src/states/**/*.ts': '+([a-z0-9-]).store',
-          'src/queries/**/*.ts': '+([a-z0-9-]).queries',
-          'src/schemas/**/*.ts': '+([a-z0-9-]).schemas',
-          'src/types/**/*.ts': '+([a-z0-9-]).types',
-          'src/hooks/**/*.{ts,tsx}': 'use-+([a-z0-9-])',
+          'src/states/**/*.ts': '+([a-z])*([a-z0-9])*(-+([a-z0-9])).store',
+          'src/queries/**/*.ts': '+([a-z])*([a-z0-9])*(-+([a-z0-9])).queries',
+          'src/schemas/**/*.ts': '+([a-z])*([a-z0-9])*(-+([a-z0-9])).schemas',
+          'src/types/**/*.ts': '+([a-z])*([a-z0-9])*(-+([a-z0-9])).types',
+          'src/hooks/**/*.{ts,tsx}': 'use-+([a-z])*([a-z0-9])*(-+([a-z0-9]))',
         },
       ],
     },
   },
   {
-    // Exempt from the suffix rule above: `auth.store.test.ts` sits beside
-    // `auth.store.ts` and does not itself end in `.store`.
-    files: ['**/*.test.{ts,tsx}'],
+    // Exempt from the suffix rule above, and scoped ONLY to the suffix
+    // directories: `auth.store.test.ts` sits beside `auth.store.ts` and
+    // does not itself end in `.store`, so it needs an exemption — but a
+    // test file anywhere else (e.g. src/http, which has no suffix rule)
+    // must keep the plain KEBAB_CASE check from block 1. A blanket
+    // `**/*.test.{ts,tsx}` exemption (fix-round-1 finding) let
+    // `src/lib/BadName.test.ts` pass with zero errors.
+    files: ['src/{states,queries,schemas,types,hooks}/**/*.test.{ts,tsx}'],
     plugins: { 'check-file': checkFile },
     rules: { 'check-file/filename-naming-convention': 'off' },
   },
