@@ -82,6 +82,30 @@ describe('tenants list', () => {
     expect(await screen.findByText(/must be lowercase letters/i)).toBeInTheDocument()
   })
 
+  it('does not blame a field the user has not reached', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/tenants')
+
+    await user.type(await screen.findByLabelText('Slug'), 'a')
+    // Live validation is scoped to the field being edited. Running the whole
+    // schema on change put "Name is required." under an untouched Name as
+    // soon as the first character of the slug was typed.
+    expect(screen.queryByText('Name is required.')).not.toBeInTheDocument()
+    // And the slug's own live feedback still works: 'a' is too short.
+    expect(await screen.findByText(/at least 3 characters/i)).toBeInTheDocument()
+  })
+
+  it('still refuses to submit without a name', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/tenants')
+
+    await user.type(await screen.findByLabelText('Slug'), 'acme')
+    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
+    // The whole schema still has the last word on submit — nothing escapes
+    // by being untouched.
+    expect(await screen.findByText('Name is required.')).toBeInTheDocument()
+  })
+
   it('rejects a reserved slug while typing', async () => {
     const user = userEvent.setup()
     renderAppAt('/tenants')

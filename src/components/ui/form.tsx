@@ -145,26 +145,53 @@ export function Form({
  */
 type FieldComponent = React.ComponentType<{
   name: string
+  validators?: FieldValidators
   children: (field: AnyFieldApi) => React.ReactNode
 }>
+
+/**
+ * Validators for ONE field, passed straight through to TanStack's `Field`.
+ *
+ * Each value is a Standard Schema (a Zod schema, in this project) or a
+ * validator function. Typed as `unknown` for the same reason `FieldComponent`
+ * above is hand-rolled: naming the real generic types would thread ten
+ * parameters through every page, and this bridge's whole job is to keep them
+ * out of the call sites.
+ */
+interface FieldValidators {
+  onChange?: unknown
+  onBlur?: unknown
+  onSubmit?: unknown
+}
 
 /**
  * Bridges one TanStack field into the context the presentational parts read.
  * The provider is its own component because it calls useId, and hooks
  * cannot be called inside a render-prop callback.
+ *
+ * `validators` is this field's OWN. It is what live feedback should be
+ * written with: a form-level `onChange` schema validates every field on every
+ * keystroke, so typing the first character of one field renders "required"
+ * under another the reader has not reached yet. Per-field, the message
+ * appears against the field being edited and nowhere else. The form-level
+ * `onSubmit` schema still has the last word, so nothing escapes by being
+ * untouched.
  */
 export function FormField({
   form,
   name,
+  validators,
   children,
 }: {
   form: AnyFormApi
   name: string
+  validators?: FieldValidators
   children: (field: AnyFieldApi) => React.ReactNode
 }) {
   const Field = (form as unknown as { Field: FieldComponent }).Field
   return React.createElement(Field, {
     name,
+    validators,
     children: (field: AnyFieldApi) => (
       <FieldProvider name={name} field={field}>
         {children(field)}

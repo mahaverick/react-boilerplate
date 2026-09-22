@@ -23,7 +23,7 @@ import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { messageFrom } from '@/lib/api-error'
 import { useCreateTenant, useTenants, type TenantWithRole } from '@/queries/tenant.queries'
-import { newTenantSchema } from '@/schemas/tenant.schemas'
+import { newTenantSchema, slugSchema } from '@/schemas/tenant.schemas'
 
 export const Route = createFileRoute('/_app/tenants/')({
   staticData: { crumb: 'Tenants' },
@@ -64,10 +64,11 @@ function CreateTenantCard() {
 
   const form = useForm({
     defaultValues,
-    // Live, on every keystroke. The slug is the field this matters for — its
-    // shape (lowercase, hyphenated, not reserved, 3-100) is not one a user can
-    // guess, and finding out at submit time is finding out too late.
-    validators: { onChange: newTenantSchema, onSubmit: newTenantSchema },
+    // Whole-schema validation on SUBMIT only. Live feedback is per-field (see
+    // the slug field below): a form-level `onChange` schema validates every
+    // field on every keystroke, so typing one character into Slug rendered
+    // "Name is required." under a Name the reader had not reached yet.
+    validators: { onSubmit: newTenantSchema },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
@@ -110,7 +111,11 @@ function CreateTenantCard() {
             )}
           </FormField>
 
-          <FormField form={form} name="slug">
+          {/* The one field that earns live validation: its shape — lowercase,
+              hyphenated, 3-100, not reserved — is not one a reader can guess,
+              and finding out at submit time is finding out too late. Scoped
+              to this field, so it blames nothing else. */}
+          <FormField form={form} name="slug" validators={{ onChange: slugSchema }}>
             {(field) => (
               <FormItem>
                 <FormLabel>Slug</FormLabel>
