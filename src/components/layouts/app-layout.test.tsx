@@ -126,8 +126,33 @@ describe('AppLayout', () => {
     // `/tenants/acme` — matched nothing, and `/tenants` is a SIBLING of it
     // rather than an ancestor, so nothing covered for it. Every tenant page
     // rendered an empty breadcrumb bar.
-    expect(within(breadcrumb).getByText('acme')).toBeInTheDocument()
-    expect(within(breadcrumb).getByText('Members')).toBeInTheDocument()
+    //
+    // All THREE parts, in order: `Tenants` is synthesised by the builder
+    // (no match produces it, because the list route is a sibling of the
+    // detail route), `acme` comes from the dynamic route's own crumb
+    // function, `Members` from the leaf.
+    const trail = within(breadcrumb)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent?.trim())
+      .filter((text) => text !== '')
+    expect(trail).toEqual(['Tenants', 'acme', 'Members'])
+
+    // And the ancestor is a real link back to the list, not decoration.
+    expect(within(breadcrumb).getByRole('link', { name: 'Tenants' })).toHaveAttribute(
+      'href',
+      '/tenants'
+    )
+  })
+
+  it('does not put a Tenants crumb in front of the tenants list itself', async () => {
+    renderAppAt('/tenants')
+    const breadcrumb = await screen.findByRole('navigation', { name: 'breadcrumb' })
+
+    const trail = within(breadcrumb)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent?.trim())
+      .filter((text) => text !== '')
+    expect(trail).toEqual(['Tenants'])
   })
 
   it('keeps every piece of sidebar-header content inside a widget', async () => {

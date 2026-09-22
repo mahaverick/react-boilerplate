@@ -68,7 +68,7 @@ interface Crumb {
  */
 function useBreadcrumbs(): Crumb[] {
   const matches = useMatches()
-  return matches.flatMap((match) => {
+  const matched = matches.flatMap((match) => {
     const crumb = match.staticData.crumb
     if (crumb === undefined) return []
     const params = match.params as Record<string, string>
@@ -86,6 +86,41 @@ function useBreadcrumbs(): Crumb[] {
       },
     ]
   })
+  return withAncestors(matched)
+}
+
+/**
+ * List pages that a detail page sits UNDER in the reader's mind but not in the
+ * route tree.
+ *
+ * `/tenants` and `/tenants/$slug` are siblings — the detail route is not
+ * nested inside the list route — so no match ever produces a "Tenants" crumb
+ * on a tenant page, and the trail would jump straight to `acme / Members`.
+ * Synthesised here rather than fixed by restructuring the route files, which
+ * would churn files three other tasks have already touched for the sake of a
+ * cosmetic trail.
+ */
+const ANCESTOR_CRUMBS = [{ to: ROUTES.tenants, label: 'Tenants' }] as const
+
+/**
+ * Insert each missing ancestor immediately before the first crumb that lives
+ * underneath it.
+ *
+ * Path-prefixed on `${ancestor}/`, so the list page itself — whose own crumb
+ * IS `/tenants` — never gets a duplicate of itself in front of it.
+ */
+function withAncestors(crumbs: Crumb[]): Crumb[] {
+  const trail: Crumb[] = []
+  for (const crumb of crumbs) {
+    for (const ancestor of ANCESTOR_CRUMBS) {
+      const isDescendant = typeof crumb.to === 'string' && crumb.to.startsWith(`${ancestor.to}/`)
+      if (isDescendant && !trail.some((existing) => existing.to === ancestor.to)) {
+        trail.push({ key: ancestor.to, label: ancestor.label, to: ancestor.to })
+      }
+    }
+    trail.push(crumb)
+  }
+  return trail
 }
 
 /** Whether a nav item's route contains the current location. */
