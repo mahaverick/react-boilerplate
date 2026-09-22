@@ -10,3 +10,8 @@ src/routeTree.gen.ts
 docs/
 # Same reason as docs/: SDD briefs, progress and reports are hand-wrapped prose.
 .superpowers/
+
+# Vendored shadcn output. eslint already excludes it as upstream's to own;
+# prettier must match, or every `shadcn add` re-add churns the diff on files
+# we do not edit. shadcn emits semicolons and double quotes.
+src/components/ui/

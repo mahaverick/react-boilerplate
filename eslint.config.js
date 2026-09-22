@@ -171,5 +171,49 @@ export default tseslint.config(
     rules: { 'check-file/filename-naming-convention': 'off' },
   },
   ...tanstackRouter.configs['flat/recommended'],
+  {
+    // Vendored shadcn output. Linting it churns the diff on every upstream
+    // re-add, and its class strings are upstream's to own, not ours.
+    // This block must come AFTER tailwindcss.configs.recommended: that config
+    // carries its own `files` glob, so the earlier `ignores` on the settings
+    // block below it does not stop its rules applying here.
+    files: ['src/components/ui/**', 'src/hooks/use-mobile.ts'],
+    rules: {
+      'tailwindcss/classnames-order': 'off',
+      'tailwindcss/enforces-canonical-classname': 'off',
+      'tailwindcss/enforces-negative-arbitrary-values': 'off',
+      'tailwindcss/enforces-shorthand': 'off',
+      'tailwindcss/important-modifier-suffix': 'off',
+      'tailwindcss/no-arbitrary-value': 'off',
+      'tailwindcss/no-contradicting-classname': 'off',
+      'tailwindcss/no-custom-classname': 'off',
+      'tailwindcss/no-unnecessary-arbitrary-value': 'off',
+    },
+  },
+  {
+    // `src/hooks/use-mobile.ts` is vendored too — `shadcn add sidebar` emits it,
+    // and it lands outside `src/components/ui/` only because components.json's
+    // `hooks` alias points elsewhere. It trips `react-hooks/set-state-in-effect`
+    // (it seeds its state with a setState in the effect body). Upstream's call,
+    // not ours: patching it churns on every re-add, which is the same reason the
+    // directory above is excluded. Re-review if we ever adopt the file as ours.
+    files: ['src/hooks/use-mobile.ts'],
+    rules: { 'react-hooks/set-state-in-effect': 'off' },
+  },
+  {
+    // TanStack Router's `redirect()` returns `Response & { options }` — a value
+    // the router is designed to have THROWN out of a `beforeLoad`, which is how
+    // every guard in src/pages works. `only-throw-error` sees a non-Error and
+    // objects. Allowing the lib `Response` type keeps the rule's real job (a
+    // thrown string or plain object still errors) while permitting the one
+    // framework idiom the guards are built on.
+    files: ['src/pages/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/only-throw-error': [
+        'error',
+        { allow: [{ from: 'lib', name: 'Response' }] },
+      ],
+    },
+  },
   prettier
 )

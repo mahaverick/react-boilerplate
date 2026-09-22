@@ -1,4 +1,14 @@
 {
   "files": [],
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
+  // `files: []` means this solution-style config compiles nothing, so these
+  // paths affect no build. They are here because the shadcn CLI reads the ROOT
+  // tsconfig.json to resolve the `@/*` alias from components.json; without them
+  // it cannot, and `shadcn add` writes to a literal `@/components/ui/`
+  // directory instead of `src/components/ui/`. The real mapping for the build
+  // lives in tsconfig.app.json and must stay in sync with this one.
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] }
+  }
 }
