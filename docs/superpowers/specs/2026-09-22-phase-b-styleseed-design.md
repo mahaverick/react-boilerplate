@@ -194,21 +194,23 @@ animatable property, including ones that change for unrelated reasons.
 
 ### SS002 arbitrary pixel values (8) — fix or record
 
-| Location | Value | Expected disposition |
-| --- | --- | --- |
-| `tabs.tsx:24` | `p-[3px]` | Fix — map to the spacing scale |
-| `tabs.tsx:61` | `bottom-[-5px]` | Fix — map to the spacing scale |
-| `sidebar.tsx:290` | `w-[2px]` | Fix — map to the spacing scale |
-| `dropdown-menu.tsx:137` | `min-w-[96px]` | Fix — map to the sizing scale |
-| `switch.tsx:16` | `h-[18.4px]`, `w-[32px]`, `h-[14px]`, `w-[24px]` | **Record as exceptions** |
+Tailwind 4's spacing scale is `--spacing: 0.25rem` (the default — `globals.css` does not
+override it), so `N` → `N × 4px`. Each value was checked against it:
 
-`switch.tsx`'s four values are Base UI's measured thumb-and-track geometry; `h-[18.4px]` is
-fractional deliberately. Forcing them onto a spacing scale changes how the control looks. They
-become documented exceptions in `STYLESEED.md`, not edits.
+| Location | Value | Scale equivalent | Disposition |
+| --- | --- | --- | --- |
+| `sidebar.tsx:290` | `w-[2px]` | `w-0.5` = 2px — **exact** | **Fix** |
+| `dropdown-menu.tsx:137` | `min-w-[96px]` | `min-w-24` = 96px — **exact** | **Fix** |
+| `tabs.tsx:24` | `p-[3px]` | `p-0.5` = 2px / `p-1` = 4px — no exact step | **Exception** |
+| `tabs.tsx:61` | `bottom-[-5px]` | `-bottom-1` = −4px / `-bottom-1.5` = −6px — no exact step | **Exception** |
+| `switch.tsx:16` | `h-[18.4px]`, `w-[32px]`, `h-[14px]`, `w-[24px]` | fractional / control geometry | **Exception** |
 
-Each "fix" is contingent on the token existing at the right value. Where the nearest scale step
-changes the rendered result, record the exception instead — appearance wins over rule
-compliance, and the rule exists to prevent *unintentional* drift.
+Only two of the eight have an exact scale equivalent, and only those two are edited. The rule
+exists to prevent *unintentional* drift; `p-[3px]` and `bottom-[-5px]` are deliberate optical
+adjustments, and `switch.tsx`'s four are Base UI's measured thumb-and-track geometry, with
+`h-[18.4px]` fractional on purpose. Rounding any of them to the nearest step changes how the
+control renders. **Appearance wins over rule compliance** — the six become documented
+exceptions in `STYLESEED.md`, not edits.
 
 ### SS005 focus suppression (10 reported, 5 to examine)
 
@@ -216,10 +218,20 @@ compliance, and the rule exists to prevent *unintentional* drift.
 the same class string: `switch.tsx:16`, `button.tsx:6`, `input.tsx:11`, `select.tsx:43`,
 `textarea.tsx:9`.
 
-**To examine (5)** — `tabs.tsx:73`, `alert-dialog.tsx:55`, `dialog.tsx:56`,
-`dropdown-menu.tsx:35`, `dropdown-menu.tsx:43`. Each appears to sit on a wrapper or positioner
-rather than a focusable control. Each is checked individually: if the element can receive focus
-it gets a visible replacement; if it cannot, it is recorded as a non-interactive exception.
+**One genuine defect (1)** — `tabs.tsx:73`. `TabsPrimitive.Panel` renders
+`tabIndex: open ? 0 : -1` (`@base-ui/react@1.8.0`, `tabs/panel/TabsPanel.js:76`), so an open
+tab panel **is** keyboard-focusable and currently has its focus indicator removed with nothing
+put back. This is a real WCAG 2.4.7 failure that the detector found correctly, and it is fixed.
+
+**Non-focusable containers (4)** — `alert-dialog.tsx:55`, `dialog.tsx:56`,
+`dropdown-menu.tsx:35`, `dropdown-menu.tsx:43`. None of `DialogPopup`, `AlertDialogPopup`,
+`MenuPopup` or `MenuPositioner` sets `tabIndex` at all, so none is tab-reachable; they receive
+focus only programmatically, and a visible ring around an entire dialog or menu surface is not
+wanted. Recorded as exceptions.
+
+This is the payoff for reading findings rather than obeying them: of ten reported, five are
+detector false positives, four are correct-but-inapplicable, and one is a real accessibility
+bug that 243 tests and ten reviews had not caught.
 
 ### Test safety
 
@@ -281,7 +293,9 @@ Done when all of the following hold:
    `SS000` contract error, and reports only findings recorded as exceptions in `STYLESEED.md`.
 5. The five `SS003` findings are fixed; the four non-switch `SS002` findings are fixed or
    recorded; the five unpaired `SS005` findings are each resolved or recorded.
-6. `pnpm lint && pnpm typecheck && pnpm test` pass, with 243 tests green.
-7. One artifact has been scored by `ss-score` at ≥ 80 with its evidence attached.
+6. The four opened menus (notification bell, tenant switcher, user menu, theme toggle) are
+   covered by the jest-axe overlay block, closing open-items §3.
+7. `pnpm lint && pnpm typecheck && pnpm test` pass, with no fewer than 243 tests green.
+8. One artifact has been scored by `ss-score` at ≥ 80 with its evidence attached.
 
 Acceptance is not "setup ran".
