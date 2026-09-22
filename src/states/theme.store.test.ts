@@ -27,7 +27,7 @@ describe('theme store', () => {
       media: query,
       addEventListener: () => {},
       removeEventListener: () => {},
-addListener: () => {},
+      addListener: () => {},
       removeListener: () => {},
       onchange: null,
       dispatchEvent: () => false,

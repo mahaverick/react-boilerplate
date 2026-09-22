@@ -12,12 +12,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
+    "lint": "eslint . && prettier --check \"**/*.{ts,tsx,js,jsx,css,json,md,html}\"",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,css,json,md,html}\"",
     "test": "vitest --watch=false",
     "test:watch": "vitest",
-    "prepare": "husky"
+    "prepare": "husky",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,css,json,md,html}\""
   },
   "dependencies": {
     "@tanstack/react-form": "1.33.5",
