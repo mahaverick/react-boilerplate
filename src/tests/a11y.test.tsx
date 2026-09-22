@@ -6,6 +6,7 @@ import axeCore from 'axe-core'
 import { http } from 'msw'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { ThemeToggle } from '@/components/features/theme-toggle'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GOOGLE_OAUTH_PATH } from '@/constants/routes'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
@@ -437,6 +438,37 @@ describe('open overlays', () => {
     const sheet = await screen.findByRole('dialog')
     expect(sheet).toHaveAccessibleName('Sidebar')
     await expectNoViolations()
+  })
+})
+
+/**
+ * What axe cannot see: whether a focusable thing shows that it has focus.
+ * axe has no layout and no cascade, so a removed outline with nothing in its
+ * place is invisible to it. This is a class-level assertion for exactly that.
+ */
+describe('focus indicators', () => {
+  // `Tabs` is not mounted by any route - `$slug.tsx` deliberately uses a nav of
+  // real links instead, because those tabs are routes. The primitive is still
+  // part of the approved set and is rendered directly here, which is the only
+  // way its contract gets checked at all.
+  it('gives the tab panel a visible focus ring, because Base UI makes it tabbable', () => {
+    render(
+      <Tabs defaultValue="one">
+        <TabsList>
+          <TabsTrigger value="one">One</TabsTrigger>
+        </TabsList>
+        <TabsContent value="one">Panel body</TabsContent>
+      </Tabs>
+    )
+
+    const panel = screen.getByRole('tabpanel')
+
+    // Base UI renders Tabs.Panel with `tabIndex: open ? 0 : -1`
+    // (@base-ui/react@1.8.0, tabs/panel/TabsPanel.js:76), so an open panel is
+    // reachable by keyboard. Suppressing its outline with nothing in its place
+    // is a WCAG 2.4.7 failure, and it survived 243 tests and ten reviews.
+    expect(panel).toHaveAttribute('tabindex', '0')
+    expect(panel.className).toMatch(/focus-visible:/)
   })
 })
 
