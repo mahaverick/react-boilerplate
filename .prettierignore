@@ -8,3 +8,5 @@ src/routeTree.gen.ts
 # Specs and plans are hand-wrapped prose; prettier reflows their tables and
 # creates hundreds of lines of cosmetic churn on reviewed documents.
 docs/
+# Same reason as docs/: SDD briefs, progress and reports are hand-wrapped prose.
+.superpowers/
