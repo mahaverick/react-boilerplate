@@ -1,6 +1,6 @@
 import { Link, Outlet, useMatches } from '@tanstack/react-router'
 import { LayoutDashboard } from 'lucide-react'
-import { Fragment } from 'react'
+import { Fragment, useEffect } from 'react'
 import { ThemeToggle } from '@/components/features/theme-toggle'
 import { UserMenu } from '@/components/features/user-menu'
 import {
@@ -27,6 +27,7 @@ import {
 import { ROUTES } from '@/constants/routes'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
+import { useThemeStore } from '@/states/theme.store'
 
 /**
  * The sidebar's primary navigation.
@@ -71,8 +72,37 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user)
   const isCollapsed = useSidebarStore((s) => s.isCollapsed)
   const setCollapsed = useSidebarStore((s) => s.setCollapsed)
+  const theme = useThemeStore((s) => s.theme)
+  const setTheme = useThemeStore((s) => s.setTheme)
   const crumbs = useBreadcrumbs()
   const activePath = crumbs.at(-1)?.to
+
+  // `theme: 'system'` has to mean "follow the OS", not "whatever the OS was
+  // when this tab loaded": the theme store samples `prefers-color-scheme` once,
+  // at import, and it is not a React component so it cannot own an effect.
+  //
+  // This lives HERE, one level up from the ThemeToggle control it serves, and
+  // that is deliberate — do not "tidy" it back down. Below `md` the whole
+  // `Sidebar` renders into a `Sheet`, which is a Base UI `Dialog.Popup` with no
+  // `keepMounted`, so everything in the sidebar — ThemeToggle and UserMenu
+  // included — UNMOUNTS whenever the drawer is closed. An effect in ThemeToggle
+  // therefore stops existing on a phone, and the OS switching to dark does
+  // nothing until the next reload. AppLayout renders `SidebarInset` and the
+  // header on both viewports, so it is the lowest component that is genuinely
+  // mounted for the whole authenticated session.
+  //
+  // (Same rule, different subject: Task 7's SSE hook belongs in the header
+  // slot for exactly this reason. In the sidebar footer it would be live on
+  // desktop and silently dead on mobile.)
+  useEffect(() => {
+    if (theme !== 'system') return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    // Re-applied through setTheme('system') rather than by toggling the class
+    // directly, so the store stays the single owner of that decision.
+    const onChange = () => setTheme('system')
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [theme, setTheme])
 
   return (
     // The store owns the open/closed state rather than the provider's own

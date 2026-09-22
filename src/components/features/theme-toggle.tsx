@@ -1,5 +1,4 @@
 import { Monitor, Moon, Sun } from 'lucide-react'
-import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,19 +18,9 @@ export function ThemeToggle() {
   const theme = useThemeStore((s) => s.theme)
   const setTheme = useThemeStore((s) => s.setTheme)
 
-  // `theme: 'system'` has to mean "follow the OS", not "whatever the OS was
-  // when this tab loaded". The store samples `prefers-color-scheme` once, at
-  // import, and it is not a React component so it cannot own an effect — this
-  // is, and it is mounted for the whole authenticated session.
-  useEffect(() => {
-    if (theme !== 'system') return
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    // Re-applied through setTheme('system') rather than by toggling the class
-    // directly, so the store stays the single owner of that decision.
-    const onChange = () => setTheme('system')
-    media.addEventListener('change', onChange)
-    return () => media.removeEventListener('change', onChange)
-  }, [theme, setTheme])
+  // The listener that keeps `theme: 'system'` following the OS is NOT here.
+  // It lives in AppLayout — see the comment on it there. This component
+  // unmounts below `md`, which would have silently taken the listener with it.
 
   return (
     <DropdownMenu>

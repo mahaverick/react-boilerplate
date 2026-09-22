@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
@@ -53,6 +53,10 @@ describe('dashboard page', () => {
     renderDashboard()
     await screen.findByRole('heading', { level: 1 })
 
-    expect(screen.queryByText(/tenant/i)).not.toBeInTheDocument()
+    // Scoped to the page, not the document. The claim is "the dashboard shows
+    // no tenant" — a document-wide query would also fail the moment Task 8
+    // adds a Tenants nav item to the shell, in a file Task 8 was never told to
+    // touch.
+    expect(within(screen.getByRole('main')).queryByText(/tenant/i)).not.toBeInTheDocument()
   })
 })

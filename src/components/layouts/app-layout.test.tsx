@@ -8,12 +8,14 @@ import {
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
+import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
+import { useThemeStore } from '@/states/theme.store'
 import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -22,18 +24,18 @@ import { server } from '@/tests/mocks/server'
  * its breadcrumbs and renders `<Link>` nav items, neither of which exists
  * outside a router.
  */
-function renderAppAt(path: string): AnyRouter {
+function renderAppAt(path: string): AnyRouter & { unmount: () => void } {
   const router = createRouter({
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: [path] }),
   })
-  render(
+  const { unmount } = render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router as never} />
     </QueryClientProvider>
   )
-  return router as AnyRouter
+  return Object.assign(router as AnyRouter, { unmount })
 }
 
 describe('AppLayout', () => {
@@ -139,5 +141,140 @@ describe('AppLayout', () => {
     // The provider is controlled by the store, so a collapsed store means a
     // collapsed sidebar on first paint rather than after a click.
     expect(document.querySelector('[data-state="collapsed"]')).not.toBeNull()
+  })
+})
+
+/**
+ * `theme: 'system'` following a LIVE OS change.
+ *
+ * The listener sits in AppLayout rather than in ThemeToggle, and the mobile
+ * case below is the whole reason: under `md` the sidebar renders into a Sheet
+ * (a Base UI Dialog.Popup with no `keepMounted`), so ThemeToggle does not
+ * exist while the drawer is closed. An effect inside it would be desktop-only.
+ */
+describe('AppLayout system theme', () => {
+  const DARK_QUERY = '(prefers-color-scheme: dark)'
+  const realInnerWidth = window.innerWidth
+
+  let darkListeners = new Set<(event: MediaQueryListEvent) => void>()
+  let prefersDark = false
+  let originalMatchMedia: typeof window.matchMedia
+
+  /**
+   * A `matchMedia` stub whose listeners actually fire, unlike Task 2's and
+   * unlike `tests/setup.ts`'s. It also answers the `(max-width: …)` query that
+   * `useIsMobile` asks, so setting `innerWidth` is enough to pick a viewport.
+   */
+  function installMatchMedia() {
+    window.matchMedia = ((query: string) => ({
+      get matches() {
+        if (query === DARK_QUERY) return prefersDark
+        const maxWidth = /max-width:\s*(\d+)px/.exec(query)
+        return maxWidth ? window.innerWidth <= Number(maxWidth[1]) : false
+      },
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        if (query === DARK_QUERY) darkListeners.add(listener)
+      },
+      removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        darkListeners.delete(listener)
+      },
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+  }
+
+  /** The OS colour scheme changes while the tab is open. */
+  function osSwitchesTo(dark: boolean) {
+    prefersDark = dark
+    act(() => {
+      for (const listener of darkListeners) listener({ matches: dark } as MediaQueryListEvent)
+    })
+  }
+
+  function setViewportWidth(width: number) {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+  }
+
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useSidebarStore.setState({ isCollapsed: false })
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+    localStorage.clear()
+    document.documentElement.classList.remove('dark')
+    useThemeStore.setState({ theme: 'system' })
+    darkListeners = new Set()
+    prefersDark = false
+    // Bound, because `@typescript-eslint/unbound-method` rightly objects to
+    // lifting a method off its object — and restoring it is all it is for.
+    originalMatchMedia = window.matchMedia.bind(window)
+    installMatchMedia()
+  })
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia
+    setViewportWidth(realInnerWidth)
+    localStorage.clear()
+    document.documentElement.classList.remove('dark')
+    useThemeStore.setState({ theme: 'system' })
+  })
+
+  it('follows a live OS change on a desktop viewport', async () => {
+    setViewportWidth(1280)
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+
+    osSwitchesTo(true)
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+
+    osSwitchesTo(false)
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+  })
+
+  it('follows a live OS change on a phone, where the sidebar is unmounted', async () => {
+    setViewportWidth(500)
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    // The premise, asserted rather than assumed: below `md` the closed drawer
+    // means no ThemeToggle in the document at all. If this ever starts
+    // failing, the listener could go back down into the control.
+    expect(screen.queryByRole('button', { name: /Change theme/ })).not.toBeInTheDocument()
+
+    osSwitchesTo(true)
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+  })
+
+  it('ignores an OS change once the user has chosen a theme explicitly', async () => {
+    useThemeStore.setState({ theme: 'light' })
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    osSwitchesTo(true)
+    // The user asked for light. The OS does not get a vote.
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+  })
+
+  it('stops listening once the layout unmounts', async () => {
+    const { unmount } = renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+    osSwitchesTo(true)
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+
+    unmount()
+    document.documentElement.classList.remove('dark')
+    // Asserted by behaviour rather than by counting listeners: sonner's
+    // <Toaster> registers on the same query, so the count is never just ours.
+    osSwitchesTo(true)
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 })
