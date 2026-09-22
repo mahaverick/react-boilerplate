@@ -25,6 +25,22 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
+    // MSW's worker has to sit in `public/` so the dev server serves it from
+    // the root scope a service worker needs — but `public/` is copied verbatim
+    // into `dist/`, which shipped a request-intercepting service worker to
+    // production. It is inert there (nothing in the built app registers it),
+    // and it still has no business being in the bundle.
+    //
+    // Deleted at the end of the build rather than moved, because moving it
+    // breaks the scope that makes the e2e fixture harness work at all.
+    {
+      name: 'drop-msw-worker-from-build',
+      apply: 'build',
+      async closeBundle() {
+        const { rm } = await import('node:fs/promises')
+        await rm(path.resolve(import.meta.dirname, 'dist/mockServiceWorker.js'), { force: true })
+      },
+    },
   ],
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   server: {
