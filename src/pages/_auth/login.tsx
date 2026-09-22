@@ -1,6 +1,6 @@
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   Form,
   FormControl,
+  FormError,
   FormField,
   FormItem,
   FormLabel,
@@ -16,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { GOOGLE_OAUTH_PATH, ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
+import { useServerErrors } from '@/hooks/use-server-errors'
 import { messageFrom } from '@/lib/api-error'
 import { useLogin } from '@/queries/auth.queries'
 import { loginSchema } from '@/schemas/auth.schemas'
@@ -55,21 +57,31 @@ function LoginPage() {
   const { error, redirect } = Route.useSearch()
   const navigate = useNavigate()
   const login = useLogin()
+  const serverErrors = useServerErrors()
 
   // The backend redirects here with ?error=<code> when OAuth fails.
+  //
+  // The ref is not belt-and-braces: `main.tsx` mounts the app in StrictMode,
+  // which runs every effect twice in dev, and sonner does not dedupe — the
+  // same failure would be announced twice. One toast per distinct code.
+  const toastedError = useRef<string | null>(null)
   useEffect(() => {
-    if (error) toast.error(OAUTH_ERRORS[error] ?? 'Sign-in failed. Please try again.')
+    if (!error || toastedError.current === error) return
+    toastedError.current = error
+    toast.error(OAUTH_ERRORS[error] ?? 'Sign-in failed. Please try again.')
   }, [error])
 
   const form = useForm({
     defaultValues: { email: '', password: '' },
     validators: { onSubmit: loginSchema },
     onSubmit: async ({ value }) => {
+      serverErrors.reset()
       try {
         await login.mutateAsync(value)
         const target = safeRedirect(redirect)
         await (target ? navigate({ href: target }) : navigate({ to: ROUTES.dashboard }))
       } catch (submitError) {
+        serverErrors.capture(submitError)
         toast.error(messageFrom(submitError))
       }
     },
@@ -82,7 +94,7 @@ function LoginPage() {
         <CardDescription>Enter your email and password to continue.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Form form={form}>
+        <Form form={form} serverErrors={serverErrors}>
           <FormField form={form} name="email">
             {(field) => (
               <FormItem>
@@ -118,6 +130,8 @@ function LoginPage() {
               </FormItem>
             )}
           </FormField>
+
+          <FormError />
 
           <Button type="submit" className="w-full" disabled={login.isPending}>
             {login.isPending ? 'Signing in…' : 'Sign in'}

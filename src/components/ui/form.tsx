@@ -3,6 +3,7 @@ import type { AnyFieldApi, AnyFormApi } from '@tanstack/react-form'
 import * as React from 'react'
 import { Label } from '@/components/ui/label'
 import { FormFieldContext, useFormField, type FormFieldContextValue } from '@/hooks/use-form-field'
+import { ServerErrorsContext, type ServerErrors } from '@/hooks/use-server-errors'
 import { cn } from '@/lib/utils'
 
 /**
@@ -15,19 +16,36 @@ import { cn } from '@/lib/utils'
  * `useFormField` and `FormFieldContext` live in `@/hooks/use-form-field`
  * because this file is linted and `react-refresh/only-export-components`
  * rejects a non-component export beside components — a re-export included.
+ *
+ * Server-side validator detail is handled here too, once, rather than in each
+ * page: pass `useServerErrors()` to `<Form>` and every field picks up its own
+ * messages. See `@/hooks/use-server-errors`.
  */
 
-/** The form element itself. TanStack Form has no provider component. */
+/**
+ * The form element itself. TanStack Form has no provider component.
+ *
+ * `onChange` is where a server verdict expires. It fires for every control in
+ * the form (React's change event bubbles), and `FormControl` puts the field's
+ * `name` on each control, so one handler here clears exactly the field the
+ * user is fixing — not its siblings, whose verdicts are still true, and not on
+ * blur, which is not the user changing anything.
+ */
 export function Form({
   form,
+  serverErrors,
   className,
   children,
   ...props
-}: React.ComponentProps<'form'> & { form: AnyFormApi }) {
-  return (
+}: React.ComponentProps<'form'> & { form: AnyFormApi; serverErrors?: ServerErrors }) {
+  const element = (
     <form
       noValidate
       className={cn('space-y-4', className)}
+      onChange={(event) => {
+        const { name } = event.target as Partial<HTMLInputElement>
+        if (name) serverErrors?.clearField(name)
+      }}
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
@@ -38,6 +56,8 @@ export function Form({
       {children}
     </form>
   )
+  if (!serverErrors) return element
+  return <ServerErrorsContext.Provider value={serverErrors}>{element}</ServerErrorsContext.Provider>
 }
 
 /**
@@ -86,15 +106,19 @@ function FieldProvider({
   children: React.ReactNode
 }) {
   const id = React.useId()
+  const serverErrors = React.useContext(ServerErrorsContext)
+  const serverMessages = serverErrors?.fieldErrors[name]
   const errors = field.state.meta.errors as unknown[]
   const value = React.useMemo<FormFieldContextValue>(
     () => ({
       name,
-      errors,
+      // Client issues first: they describe what is in the control right now.
+      // The server's verdict follows it and survives until this field changes.
+      errors: serverMessages ? [...errors, ...serverMessages] : errors,
       formItemId: `${id}-item`,
       formMessageId: `${id}-message`,
     }),
-    [name, errors, id]
+    [name, errors, serverMessages, id]
   )
   return <FormFieldContext.Provider value={value}>{children}</FormFieldContext.Provider>
 }
@@ -122,12 +146,15 @@ export function FormLabel({ className, ...props }: React.ComponentProps<typeof L
  * is the same call shape the vendored primitives (breadcrumb, badge) use.
  */
 export function FormControl({ children }: { children: React.ReactElement }) {
-  const { errors, formItemId, formMessageId } = useFormField()
+  const { name, errors, formItemId, formMessageId } = useFormField()
   const hasError = errors.length > 0
   return useRender({
     render: children,
     props: {
       id: formItemId,
+      // Not decoration: `<Form>`'s change handler reads this to know which
+      // field's server error to drop.
+      name,
       'aria-describedby': hasError ? formMessageId : undefined,
       'aria-invalid': hasError,
     },
@@ -150,6 +177,26 @@ function issueText(issue: unknown): string {
     if (typeof message === 'string') return message
   }
   return ''
+}
+
+/**
+ * The server's schema-level messages — the `errors` map's reserved
+ * `formErrors` key, which names no field.
+ *
+ * Rendered at form level, above the submit button. Attaching these to an
+ * input called "formErrors" would put an error against a field no form has.
+ */
+export function FormError({ className, ...props }: React.ComponentProps<'div'>) {
+  const serverErrors = React.useContext(ServerErrorsContext)
+  const messages = serverErrors?.formErrors ?? []
+  if (messages.length === 0) return null
+  return (
+    <div role="alert" className={cn('text-sm text-destructive', className)} {...props}>
+      {messages.map((message) => (
+        <p key={message}>{message}</p>
+      ))}
+    </div>
+  )
 }
 
 /** Renders the first error, if any. */

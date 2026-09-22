@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   Form,
   FormControl,
+  FormError,
   FormField,
   FormItem,
   FormLabel,
@@ -15,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
+import { useServerErrors } from '@/hooks/use-server-errors'
 import { messageFrom } from '@/lib/api-error'
 import { useRegister, useResendVerification } from '@/queries/auth.queries'
 import { registerSchema } from '@/schemas/auth.schemas'
@@ -29,15 +31,18 @@ function RegisterPage() {
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
   const register = useRegister()
   const resend = useResendVerification()
+  const serverErrors = useServerErrors()
 
   const form = useForm({
     defaultValues: { email: '', password: '', firstName: '', lastName: '' },
     validators: { onSubmit: registerSchema },
     onSubmit: async ({ value }) => {
+      serverErrors.reset()
       try {
         const user = await register.mutateAsync(value)
         setRegisteredEmail(user.email)
       } catch (submitError) {
+        serverErrors.capture(submitError)
         toast.error(messageFrom(submitError))
       }
     },
@@ -89,7 +94,7 @@ function RegisterPage() {
         <CardDescription>It takes less than a minute.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Form form={form}>
+        <Form form={form} serverErrors={serverErrors}>
           <FormField form={form} name="firstName">
             {(field) => (
               <FormItem>
@@ -159,6 +164,8 @@ function RegisterPage() {
               </FormItem>
             )}
           </FormField>
+
+          <FormError />
 
           <Button type="submit" className="w-full" disabled={register.isPending}>
             {register.isPending ? 'Creating account…' : 'Create account'}

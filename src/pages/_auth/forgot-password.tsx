@@ -41,7 +41,10 @@ function ForgotPasswordPage() {
       try {
         await forgotPassword.mutateAsync(value)
       } catch {
-        // Swallowed on purpose — see SENT_MESSAGE.
+        // Swallowed on purpose — see SENT_MESSAGE. This is the one form that
+        // does NOT wire `useServerErrors`: rendering the backend's field-level
+        // detail here would reintroduce exactly the enumeration oracle the
+        // single message exists to close.
       }
       setSubmitted(true)
     },

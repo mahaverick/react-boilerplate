@@ -1,10 +1,11 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import {
   createMemoryHistory,
   createRouter,
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { render, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { delay, http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
@@ -176,5 +177,69 @@ describe('route guards', () => {
       expect(router.state.location.pathname).toBe('/login')
     })
     expectGuardSawSettledStore()
+  })
+})
+
+/**
+ * `/reset-password` and `/verify-email` are TOP-LEVEL file routes, deliberately
+ * outside `_auth`.
+ *
+ * Under `_auth` its guard would send an authenticated visitor to /dashboard —
+ * so a user already signed in on this browser who clicks the link in their
+ * inbox would be bounced and the token never consumed. Moving them under
+ * `/auth/` would have been the tidy fix and the wrong one: the backend builds
+ * these links as `${WEB_URL}/reset-password?token=` and
+ * `${WEB_URL}/verify-email?token=` with no prefix, so the paths must not move.
+ * These tests hold both halves in place — no guard, and the same URLs.
+ */
+describe('token routes outside the auth guard', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    useAuthStore.setState({
+      accessToken: null,
+      user: null,
+      isAuthenticated: false,
+      isBootstrapped: false,
+    })
+    // A valid cookie: this visitor IS signed in, which is the whole point.
+    server.use(
+      http.post('/api/v1/auth/refresh', async () => {
+        await delay(20)
+        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      }),
+      http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.'))
+    )
+  })
+
+  function renderAt(path: string): AnyRouter {
+    const router = createRouter({
+      routeTree,
+      context: { queryClient },
+      history: createMemoryHistory({ initialEntries: [path] }),
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router as never} />
+      </QueryClientProvider>
+    )
+    return router as AnyRouter
+  }
+
+  it('lets a signed-in visitor open a reset link instead of bouncing them', async () => {
+    const router = renderAt('/reset-password?token=reset-token')
+
+    expect(await screen.findByText('Choose a new password')).toBeInTheDocument()
+    // Vacuous unless they really are signed in — that is the case `_auth`
+    // would have redirected.
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(router.state.location.pathname).toBe('/reset-password')
+  })
+
+  it('lets a signed-in visitor open a verification link instead of bouncing them', async () => {
+    const router = renderAt('/verify-email?token=verify-token')
+
+    expect(await screen.findByText('Verify your email')).toBeInTheDocument()
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(router.state.location.pathname).toBe('/verify-email')
   })
 })

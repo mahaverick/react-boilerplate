@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { safeRedirect } from '@/pages/_auth/login'
@@ -49,20 +49,24 @@ async function fillAndSubmit(email: string, password: string) {
   await user.click(screen.getByRole('button', { name: 'Sign in' }))
 }
 
-describe('login page', () => {
-  beforeEach(() => {
-    resetSessionForTests()
-    queryClient.clear()
-    useAuthStore.setState({
-      accessToken: null,
-      user: null,
-      isAuthenticated: false,
-      isBootstrapped: false,
-    })
-    // No refresh cookie: the visitor is signed out, so `_auth`'s guard lets
-    // the login page render instead of bouncing them to /dashboard.
-    server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
+/**
+ * A visitor with no refresh cookie, so `_auth`'s guard lets the login page
+ * render instead of bouncing them to /dashboard.
+ */
+function arriveSignedOut() {
+  resetSessionForTests()
+  queryClient.clear()
+  useAuthStore.setState({
+    accessToken: null,
+    user: null,
+    isAuthenticated: false,
+    isBootstrapped: false,
   })
+  server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
+}
+
+describe('login page', () => {
+  beforeEach(arriveSignedOut)
 
   it('reports both fields when submitted empty', async () => {
     renderLoginAt('/login')
@@ -146,6 +150,111 @@ describe('login page', () => {
       expect(router.state.location.pathname).toBe('/dashboard')
     })
     expect(router.state.location.href).not.toContain('evil.example')
+  })
+})
+
+/**
+ * Spec section 9: inline errors under each field, mapped from the envelope's
+ * `errors`. The clearing rule is the interesting half — a server verdict is
+ * stale the moment the user starts fixing THAT field, and no sooner, and only
+ * for that field.
+ */
+describe('server-side validation errors', () => {
+  /**
+   * The exact envelope the backend emits: `{...fieldErrors,
+   * ...(formErrors.length > 0 && { formErrors })}`. `formErrors` is the one
+   * key that is not a field name.
+   */
+  function validationFailure() {
+    return HttpResponse.json(
+      {
+        success: false,
+        message: 'Validation failed.',
+        statusCode: 400,
+        errors: {
+          email: ['That address is not registered.'],
+          password: ['Password is too short.'],
+          formErrors: ['These credentials are not valid together.'],
+        },
+        requestId: 'test-request-id',
+      },
+      { status: 400 }
+    )
+  }
+
+  beforeEach(() => {
+    arriveSignedOut()
+    server.use(http.post('/api/v1/auth/login', () => validationFailure()))
+  })
+
+  it('renders a field error under its own field and describes the control', async () => {
+    renderLoginAt('/login')
+    await fillAndSubmit('a@b.com', 'secret123')
+
+    expect(await screen.findByText('That address is not registered.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveAccessibleDescription(
+      'That address is not registered.'
+    )
+    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription('Password is too short.')
+  })
+
+  it('clears a field error when that field changes — and leaves its sibling alone', async () => {
+    renderLoginAt('/login')
+    await fillAndSubmit('a@b.com', 'secret123')
+    expect(await screen.findByText('That address is not registered.')).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), 'x')
+
+    await waitFor(() => {
+      expect(screen.queryByText('That address is not registered.')).not.toBeInTheDocument()
+    })
+    // The load-bearing half: the user has not touched the password, so what
+    // the server said about it is still true and must still be on screen.
+    expect(screen.getByText('Password is too short.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription('Password is too short.')
+  })
+
+  it('does not clear on blur alone', async () => {
+    renderLoginAt('/login')
+    await fillAndSubmit('a@b.com', 'secret123')
+    expect(await screen.findByText('That address is not registered.')).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByLabelText('Email'))
+    await user.click(screen.getByLabelText('Password'))
+
+    expect(screen.getByText('That address is not registered.')).toBeInTheDocument()
+  })
+
+  it('renders formErrors at form level, against no input', async () => {
+    renderLoginAt('/login')
+    await fillAndSubmit('a@b.com', 'secret123')
+
+    const message = await screen.findByText('These credentials are not valid together.')
+    expect(message.closest('[role="alert"]')).not.toBeNull()
+    // It names no field, so it must not be wired to one — an input called
+    // "formErrors" does not exist.
+    expect(screen.getByLabelText('Email')).not.toHaveAccessibleDescription(
+      'These credentials are not valid together.'
+    )
+    expect(screen.getByLabelText('Password')).not.toHaveAccessibleDescription(
+      'These credentials are not valid together.'
+    )
+  })
+
+  it('drops the previous verdict when the form is submitted again', async () => {
+    renderLoginAt('/login')
+    await fillAndSubmit('a@b.com', 'secret123')
+    expect(await screen.findByText('Password is too short.')).toBeInTheDocument()
+
+    server.use(http.post('/api/v1/auth/login', () => signedInResponse()))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Password is too short.')).not.toBeInTheDocument()
+    })
   })
 })
 
