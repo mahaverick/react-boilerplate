@@ -59,6 +59,39 @@ export function useNotificationStream(): void {
       refetchList()
     }
 
+    const scheduleReconnect = (token: string) => {
+      if (cancelled) return
+      const delay = backoffRef.current
+      backoffRef.current = Math.min(delay * 2, MAX_BACKOFF_MS)
+      retryTimer = setTimeout(() => {
+        ensureSession()
+          .then((fresh) => {
+            if (cancelled) return
+            // Only reconnect from here when the token did NOT change. This
+            // backend rotates the access token on every refresh, so the usual
+            // outcome is a new token in the store, which re-runs this effect —
+            // and that re-run owns the reconnect. Connecting here as well
+            // would open a second connection in the stale closure, one of
+            // which is then immediately torn down by the cleanup.
+            if (fresh === token) connect(fresh)
+          })
+          .catch(() => {
+            // ensureSession rejected, and WHY decides whether to carry on.
+            // A verdict from the server (a dead refresh cookie) has already
+            // cleared the store, and the route guard is about to send the
+            // user to /login — stop. A transport failure leaves the session
+            // untouched (see isServerVerdict in http/session.ts), and giving
+            // up there would let a few seconds of downtime kill notifications
+            // until the next full page load, which is precisely the silent
+            // failure this hook exists to avoid. Keep retrying, under the
+            // same doubling backoff so a long outage costs little.
+            if (!cancelled && useAuthStore.getState().isAuthenticated) {
+              scheduleReconnect(token)
+            }
+          })
+      }, delay)
+    }
+
     const connect = (token: string) => {
       if (cancelled) return
       // A URL string, absolute from the root rather than built from
@@ -91,26 +124,7 @@ export function useNotificationStream(): void {
       source.onerror = () => {
         source?.close()
         source = null
-        if (cancelled) return
-        const delay = backoffRef.current
-        backoffRef.current = Math.min(delay * 2, MAX_BACKOFF_MS)
-        retryTimer = setTimeout(() => {
-          ensureSession()
-            .then((fresh) => {
-              if (cancelled) return
-              // Only reconnect from here when the token did NOT change. This
-              // backend rotates the access token on every refresh, so the
-              // usual outcome is a new token in the store, which re-runs this
-              // effect — and that re-run owns the reconnect. Connecting here
-              // as well would open a second connection in the stale closure,
-              // one of which is then immediately torn down by the cleanup.
-              if (fresh === token) connect(fresh)
-            })
-            .catch(() => {
-              // ensureSession has already logged out. Stop retrying: the
-              // route guard is about to send the user to /login.
-            })
-        }, delay)
+        scheduleReconnect(token)
       }
     }
 

@@ -1,4 +1,4 @@
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ensureSession, resetSessionForTests } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
@@ -51,6 +51,51 @@ describe('ensureSession', () => {
     const s = useAuthStore.getState()
     expect(s.accessToken).toBeNull()
     expect(s.isAuthenticated).toBe(false)
+  })
+
+  // A 401 is a VERDICT: the refresh cookie is dead, so clearing the session
+  // is the only correct answer. A transport failure is not a verdict about
+  // anything — the session may be perfectly good and this call simply could
+  // not ask. Signing the user out on it means a few seconds of downtime ends
+  // a working session, which useNotificationStream turns into a routine
+  // occurrence because it reconnects through ensureSession().
+  it('rejects WITHOUT logging out when the API cannot be reached', async () => {
+    useAuthStore.getState().login('live-token', testUser)
+    server.use(http.post('/api/v1/auth/refresh', () => HttpResponse.error()))
+
+    await expect(ensureSession()).rejects.toThrow()
+
+    const s = useAuthStore.getState()
+    expect(s.isAuthenticated).toBe(true)
+    expect(s.accessToken).toBe('live-token')
+    expect(s.user).toEqual(testUser)
+  })
+
+  it('leaves the session intact when the PROFILE call cannot be reached', async () => {
+    useAuthStore.getState().login('live-token', testUser)
+    server.use(http.get('/api/v1/profile', () => HttpResponse.error()))
+
+    await expect(ensureSession()).rejects.toThrow()
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+  })
+
+  // The rejected attempt must not wedge the next one: the SSE reconnect path
+  // depends on simply trying again once the API is back.
+  it('succeeds on the next attempt once the API returns', async () => {
+    useAuthStore.getState().login('live-token', testUser)
+    let attempts = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => {
+        attempts += 1
+        return attempts === 1
+          ? HttpResponse.error()
+          : ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      })
+    )
+
+    await expect(ensureSession()).rejects.toThrow()
+    await expect(ensureSession()).resolves.toBe('fresh-token')
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
   it('allows a new refresh after the previous one settled', async () => {

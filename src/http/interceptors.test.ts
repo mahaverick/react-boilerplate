@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ROUTES } from '@/constants/routes'
 import { installInterceptors } from '@/http/interceptors'
@@ -156,6 +156,31 @@ describe('auth interceptors', () => {
     await expect(makeClient().get('/widgets')).rejects.toThrow()
     expect(assign).toHaveBeenCalledWith(ROUTES.login)
     expect(useAuthStore.getState().accessToken).toBeNull()
+  })
+
+  // The mirror of the test above, and the reason session.ts no longer logs
+  // out unconditionally: when the refresh could not REACH the API, the
+  // session was never judged, so the store still holds it — and navigating to
+  // /login here would throw the user out of a session that is still valid,
+  // undoing that fix from the other side.
+  it('does not redirect when the refresh could not reach the API', async () => {
+    useAuthStore.getState().login('live-token', testUser)
+    const assign = stubLocation()
+    let attempts = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => HttpResponse.error()),
+      http.get('/api/v1/widgets', () => {
+        attempts += 1
+        return attempts > RETRY_CAP
+          ? ok(['widget'])
+          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+      })
+    )
+
+    await expect(makeClient().get('/widgets')).rejects.toThrow()
+    expect(assign).not.toHaveBeenCalled()
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(useAuthStore.getState().accessToken).toBe('live-token')
   })
 
   // The replay is outside the refresh try/catch on purpose: a retried request

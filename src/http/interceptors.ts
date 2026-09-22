@@ -1,6 +1,6 @@
 import { AxiosError, type AxiosInstance, type AxiosResponse } from 'axios'
 import { ROUTES } from '@/constants/routes'
-import { ensureSession } from '@/http/session'
+import { ensureSession, isServerVerdict } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
 import { ACCESS_TOKEN_EXPIRED, type ApiErrorBody } from '@/types/api.types'
 
@@ -92,8 +92,9 @@ export function installInterceptors(client: AxiosInstance): void {
       const config = error.config
 
       // Checked before anything else: a request refreshSession() made itself
-      // must fail as a plain rejection, so ensureSession() rejects (and logs
-      // out) instead of awaiting itself forever.
+      // must fail as a plain rejection, so ensureSession() rejects — and
+      // decides for itself whether that warrants a logout — instead of
+      // awaiting itself forever.
       if (config?.skipAuthRetry) {
         return Promise.reject(error)
       }
@@ -114,12 +115,18 @@ export function installInterceptors(client: AxiosInstance): void {
       try {
         accessToken = await ensureSession()
       } catch (refreshError) {
-        // ensureSession has already cleared the store. Only a failed REFRESH
-        // reaches here — the replay below is deliberately outside this catch,
-        // so an ordinary failure of the retried request (404, 500, a second
-        // 401) rejects with its own error instead of bouncing a still-valid
-        // session to the login page.
-        if (typeof window !== 'undefined') {
+        // Only a failed REFRESH reaches here — the replay below is
+        // deliberately outside this catch, so an ordinary failure of the
+        // retried request (404, 500, a second 401) rejects with its own error
+        // instead of bouncing a still-valid session to the login page.
+        //
+        // `isServerVerdict` is the SAME gate session.ts uses to decide whether
+        // to log out, and it has to be applied here too: ensureSession leaves
+        // the session intact when it merely could not reach the API, and
+        // navigating to /login anyway would undo that fix by throwing the user
+        // out of a session that is still perfectly valid. Redirect only when
+        // the store was actually cleared.
+        if (isServerVerdict(refreshError) && typeof window !== 'undefined') {
           window.location.assign(ROUTES.login)
         }
         // `throw` rather than Promise.reject: identical in an async function,

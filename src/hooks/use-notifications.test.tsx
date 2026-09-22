@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useNotificationStream } from '@/hooks/use-notifications'
@@ -236,6 +236,44 @@ describe('useNotificationStream', () => {
     // re-run owns the reconnect. A second connect from inside the retry's
     // own `.then` would open a third, immediately-torn-down connection.
     expect(MockEventSource.instances).toHaveLength(2)
+  })
+
+  it('survives a transient outage and reconnects, without ending the session', async () => {
+    // The whole point of routing errors through ensureSession(): the API
+    // being briefly unreachable is not a verdict on the session. The first
+    // retry cannot reach the server, the session must survive that, and the
+    // second retry — one doubled interval later — must still happen.
+    let attempts = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => {
+        attempts += 1
+        return attempts === 1
+          ? HttpResponse.error()
+          : ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      })
+    )
+    renderHook(() => useNotificationStream(), { wrapper })
+
+    act(() => latest().onerror?.(new Event('error')))
+
+    // Retry 1, at 1s: the API is down.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(attempts).toBe(1)
+    expect(MockEventSource.instances).toHaveLength(1)
+    // The session was never judged, so it is still here.
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(useAuthStore.getState().accessToken).toBe('tok-a')
+
+    // Retry 2, one doubled interval later: the API is back.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2))
+    expect(latest().url).toContain('token=fresh-token')
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
   it('stops retrying once the session is genuinely dead', async () => {
