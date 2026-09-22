@@ -11,6 +11,11 @@ export default defineConfig({
       target: 'react',
       routesDirectory: './src/pages',
       generatedRouteTree: './src/routeTree.gen.ts',
+      // Tests are co-located beside their subject, so `src/pages/guards.test.tsx`
+      // and `src/pages/_auth/login.test.tsx` sit inside the routes directory.
+      // Without this the generator treats them as route files and warns on every
+      // build that they export no Route.
+      routeFileIgnorePattern: '\\.test\\.tsx?$',
     }),
     // `react({ compiler: true })` uses the Rust-based oxc-transform-react
     // package, which is not in the pinned dependency set. The pinned deps
