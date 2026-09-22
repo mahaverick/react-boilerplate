@@ -94,8 +94,11 @@ Base UI portals menus to `document.body`, so at document scope every open menu t
 - **`aria-hidden-focus` is INCOMPLETE under jsdom** in both overlay tests — a
   still-tabbable background behind an open dialog is precisely what cannot be caught here.
   Needs a browser.
-- **axe colour-contrast is disabled by jest-axe under jsdom.** A green axe run is not a
-  contrast check.
+- ~~**axe colour-contrast is disabled by jest-axe under jsdom.** A green axe run is not a
+  contrast check.~~ **ADDRESSED 2026-09-22.** Still true of the jsdom gate, but contrast is
+  now measured in a real browser by `pnpm test:contrast`. Its first run found
+  `--muted-foreground` at 4.35:1 on `--muted` in light theme; both the token and the avatar
+  fallback were fixed.
 - ~~**The member table's horizontal scroll** is reasoned CSS; jsdom cannot demonstrate
   it.~~ **CLOSED.** Measured at 390×844: `scrollWidth 672` against `clientWidth 326`, page
   itself not overflowing. It worked — but the scroll put the Actions column and the

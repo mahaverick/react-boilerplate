@@ -178,6 +178,17 @@ and the SSE reconnect path is unreachable from a dev-server browser. The same cu
 nginx exits on the second the API dies. Anything that depends on noticing a dropped upstream
 has to be tested here, not against `pnpm dev`.
 
+**`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom
+cannot compute at all — over every surface reachable without a backend, in **both themes**. It
+injects the axe-core already in devDependencies rather than adding a package. Opt-in and not in
+CI: contrast is a property of the palette, which moves rarely and deliberately.
+
+It earned itself immediately. `--muted-foreground` measured **4.35:1** on `--muted` in light
+theme (`#737373` on `#f5f5f5`) — under the 4.5:1 AA floor wherever muted text sits on a muted
+surface, which the avatar fallback did. Fixed at both levels: the token moved to
+`oklch(0.53)` (4.82 on muted, 5.25 on white) and the fallback now uses `text-foreground`.
+**Do not eyeball a contrast change — run the script.**
+
 `restartApi()` kills by port with `-sTCP:LISTEN` and escalates SIGTERM→SIGKILL. Both details
 are load-bearing: `pnpm dev` is `tsx watch`, whose CHILD holds the port and survives a
 group SIGTERM, and without `-sTCP:LISTEN` lsof also lists the Vite proxy as a client of that
@@ -220,7 +231,8 @@ Three details that took measuring, and that a "tidy-up" would quietly undo:
   `[aria-level=1]`, a selector jsdom rejects outright, so axe files them under
   `incomplete` — which `toHaveNoViolations` does not read. `CardTitle` renders a
   `div`, so a page's `h1` goes _inside_ it.
-- Colour contrast is **not** checked. jest-axe's default — reproduced explicitly
-  in that file — switches every `cat.color` rule off under jsdom, which has no
-  layout. Contrast, focus rings and the member table's horizontal scroll are
-  browser checks.
+- Colour contrast is **not** checked _there_. jest-axe's default — reproduced
+  explicitly in that file — switches every `cat.color` rule off under jsdom,
+  which has no layout. Contrast is measured separately, in a real browser, by
+  `pnpm test:contrast`; focus rings and the member table's horizontal scroll
+  are covered by the e2e suites.
