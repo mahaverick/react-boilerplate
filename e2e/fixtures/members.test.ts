@@ -39,6 +39,9 @@ test.describe('desktop', () => {
   test('offers a retry when the member list fails, rather than a stuck skeleton', async ({
     page,
   }) => {
+    // Playwright's default test timeout is 30s, which the 45s wait below
+    // cannot fit inside: the expect timeout does not raise the test's own.
+    test.setTimeout(120_000)
     await page.goto('/e2e/harness/?state=error')
     // Generous: this has to outlast TanStack Query's retry backoff before the
     // error state replaces the skeleton.

@@ -139,8 +139,27 @@ const worker = setupWorker(
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: PREFERENCES }, 'Notification preferences retrieved.')
   ),
-  // The SSE stream would hang the page's network-idle; answer it and stop.
-  http.get('/api/v1/notifications/stream', () => new Response(null, { status: 204 }))
+  // A stream that STAYS OPEN. Answering 204 looks to the hook exactly like a
+  // dropped connection: it fires `error`, calls ensureSession(), and that
+  // request — unmocked — used to fall through to the real API, come back 401
+  // and redirect the harness to /login mid-test. A test that is racing a
+  // redirect is not testing what it says it is.
+  http.get(
+    '/api/v1/notifications/stream',
+    () =>
+      new Response(
+        new ReadableStream({ start: (controller) => controller.enqueue(': open\n\n') }),
+        {
+          headers: { 'Content-Type': 'text/event-stream' },
+        }
+      )
+  ),
+  http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.')),
+  // Belt and braces: nothing in the fixtures suite should ever reach the real
+  // backend, and a silent fall-through is how it did.
+  http.post('/api/v1/auth/refresh', () =>
+    ok({ accessToken: 'harness-token', user: testUser }, 'Session refreshed.')
+  )
 )
 
 await worker.start({ onUnhandledRequest: 'bypass', quiet: true })
