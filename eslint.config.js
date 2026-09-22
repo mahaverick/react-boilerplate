@@ -32,15 +32,6 @@ export default tseslint.config(
     rules: { 'tailwindcss/classnames-order': 'off' },
   },
   {
-    // `cn(...inputs: ClassValue[])` forwards a rest parameter into
-    // twMerge(clsx(inputs)) — the plugin's no-custom-classname rule
-    // pattern-matches the identifier itself as if it were a literal
-    // classname and flags "inputs". False positive on the forwarding
-    // parameter, not a real class string.
-    files: ['src/lib/utils.ts'],
-    rules: { 'tailwindcss/no-custom-classname': 'off' },
-  },
-  {
     // Root-level flat configs (eslint.config.js, prettier.config.js,
     // vite.config.ts, vitest.config.ts) sit outside tsconfig.app.json's
     // "src" include, so the type-aware project cannot parse them and every
@@ -179,6 +170,10 @@ export default tseslint.config(
     // block below it does not stop its rules applying here.
     files: ['src/components/ui/**', 'src/hooks/use-mobile.ts'],
     rules: {
+      // Vendored components export a `cva` variants object beside the
+      // component (badge, button, sidebar, tabs). Restructuring upstream's
+      // files to satisfy a dev-server ergonomics rule is not worth the churn.
+      'react-refresh/only-export-components': 'off',
       'tailwindcss/classnames-order': 'off',
       'tailwindcss/enforces-canonical-classname': 'off',
       'tailwindcss/enforces-negative-arbitrary-values': 'off',
@@ -209,6 +204,10 @@ export default tseslint.config(
     // framework idiom the guards are built on.
     files: ['src/pages/**/*.{ts,tsx}'],
     rules: {
+      // Every TanStack file route exports both `Route` and its component from
+      // one file — that IS the file-route contract, so the rule is a false
+      // positive on every route file this project will ever have.
+      'react-refresh/only-export-components': 'off',
       '@typescript-eslint/only-throw-error': [
         'error',
         { allow: [{ from: 'lib', name: 'Response' }] },
