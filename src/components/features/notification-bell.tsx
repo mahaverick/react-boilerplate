@@ -63,10 +63,11 @@ export function NotificationBell() {
             // A real anchor, so the preview is keyboard-reachable and
             // openable in a new tab. Base UI's Menu.Item has no `onSelect`.
             <DropdownMenuItem key={notification.id} render={<Link to={ROUTES.notifications} />}>
-              <span className="truncate">
-                {notification.readAt === null ? '● ' : ''}
-                {notification.title}
-              </span>
+              {/* aria-hidden: a screen reader would otherwise announce the
+                  dot as "black circle". The unread state is spelled out in
+                  the trigger's own label, and in full on the page. */}
+              {notification.readAt === null && <span aria-hidden="true">&#9679;</span>}
+              <span className="truncate">{notification.title}</span>
             </DropdownMenuItem>
           ))
         )}

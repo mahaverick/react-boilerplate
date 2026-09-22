@@ -100,11 +100,15 @@ function PreferenceRow({ preference }: { preference: NotificationPreference }) {
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
       <span className="font-medium">{label}</span>
       <div className="flex items-center gap-6">
+        {/* The visible text sits in a wrapping label, but the matrix renders
+            one of these rows PER TYPE — so without an aria-label a screen
+            reader hears several switches all called "Email". */}
         <label className="flex items-center gap-2 text-sm">
           <span>Email</span>
           <Switch
             checked={preference.emailEnabled}
             disabled={update.isPending}
+            aria-label={`${label}: email`}
             onCheckedChange={(checked) => toggle('emailEnabled', checked)}
           />
         </label>
@@ -113,6 +117,7 @@ function PreferenceRow({ preference }: { preference: NotificationPreference }) {
           <Switch
             checked={preference.inAppEnabled}
             disabled={update.isPending}
+            aria-label={`${label}: in-app`}
             onCheckedChange={(checked) => toggle('inAppEnabled', checked)}
           />
         </label>

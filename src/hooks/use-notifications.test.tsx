@@ -184,6 +184,35 @@ describe('useNotificationStream', () => {
     expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(true)
   })
 
+  it('does NOT let a bare open reset the backoff', async () => {
+    // A backend that accepts the connection and immediately drops it fires
+    // `open` on every attempt. If `open` reset the backoff, the retry would
+    // stay pinned at one second — and each retry calls ensureSession(), which
+    // rotates the refresh cookie. Only a delivered frame may reset it.
+    renderHook(() => useNotificationStream(), { wrapper })
+
+    act(() => latest().onerror?.(new Event('error')))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2))
+
+    // The connection came up, then died — exactly the flapping case.
+    act(() => latest().dispatch('open'))
+    act(() => latest().onerror?.(new Event('error')))
+
+    // One second is no longer enough: the interval has doubled to two.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(MockEventSource.instances).toHaveLength(2)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(3))
+  })
+
   it('closes and reconnects through ensureSession after an error', async () => {
     server.use(
       http.post('/api/v1/auth/refresh', () =>

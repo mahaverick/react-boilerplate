@@ -42,9 +42,21 @@ export function useNotificationStream(): void {
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let cancelled = false
 
-    const refresh = () => {
-      backoffRef.current = INITIAL_BACKOFF_MS
+    const refetchList = () => {
       void queryClient.invalidateQueries({ queryKey: notificationKeys.list })
+    }
+
+    // Only a frame that actually ARRIVED clears the backoff — never a mere
+    // `open`. A backend that accepts the connection and then drops it (an
+    // overloaded server, a proxy that answers 200 and closes) fires `open`
+    // every time, so resetting there would pin the retry at one second
+    // forever. Each of those retries calls ensureSession(), and every refresh
+    // ROTATES the refresh cookie, so an `open`-reset loop would be one cookie
+    // rotation per second — with two tabs open, exactly the concurrent-
+    // rotation collision session.ts exists to prevent.
+    const onNotification = () => {
+      backoffRef.current = INITIAL_BACKOFF_MS
+      refetchList()
     }
 
     const connect = (token: string) => {
@@ -59,7 +71,7 @@ export function useNotificationStream(): void {
       // while disconnected never fires for us. Refetching the list on open is
       // what recovers those notifications instead. (React Query dedupes this
       // against the first-load fetch, so the common case costs nothing.)
-      source.addEventListener('open', refresh)
+      source.addEventListener('open', refetchList)
 
       // The server's `retry: 3000` directive is deliberately overridden: it
       // governs EventSource's OWN reconnect, which re-requests the identical
@@ -67,7 +79,7 @@ export function useNotificationStream(): void {
       // closes the connection instead, so that built-in retry never runs.
       // Its `:ping` comment frames dispatch no event at all; they exist only
       // to stop an idle connection being reaped by a proxy.
-      source.addEventListener(NOTIFICATION_EVENT, refresh)
+      source.addEventListener(NOTIFICATION_EVENT, onNotification)
 
       // An EventSource `error` event carries no status code, so this cannot
       // tell an expired token from dropped Wi-Fi. Closing and waiting for the
