@@ -1,0 +1,24 @@
+# Installed inside the image against the Linux platform, never copied in.
+node_modules
+# Built inside the image. A host build copied in would be served instead.
+dist
+dist-ssr
+build
+.git
+coverage
+# Never bake a developer's environment into an image. The build stage sets
+# VITE_API_URL through a build ARG instead.
+.env
+.env.*
+!.env.example
+*.local
+# A stale incremental-build cache makes `tsc -b` skip work it should redo.
+*.tsbuildinfo
+.tanstack
+# Docs, specs and CI config: none of them change the bundle.
+docs
+.superpowers
+.github
+.husky
+Dockerfile
+.dockerignore
