@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "id": "members",
+  "target": {
+    "kind": "route",
+    "locator": "/tenants/$slug/members"
+  },
+  "selection": {
+    "grammar": "operations-console",
+    "adapter": "product-ui",
+    "domain": "saas",
+    "page": "detail",
+    "recipe": "enterprise-workbench",
+    "palette": "quiet-mineral",
+    "profile": "none",
+    "fallback": "operations-console"
+  },
+  "decisions": {
+    "primaryDecision": "Who has access to this tenant, and at what role?",
+    "primaryAction": "Change a member's role",
+    "signatureMove": "Keep the member list readable while a role change is in flight."
+  },
+  "implementation": {
+    "sourceRoots": [
+      "src/pages/_app/tenants",
+      "src/components/ui",
+      "src/components/features",
+      "src/styles"
+    ],
+    "tokenFiles": [
+      "src/styles/globals.css"
+    ]
+  },
+  "validation": {
+    "scoreFloor": 80,
+    "requiredRenders": [
+      {
+        "id": "desktop-loaded",
+        "state": "loaded",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        }
+      },
+      {
+        "id": "mobile-loaded",
+        "state": "loaded",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        }
+      }
+    ],
+    "temporal": {
+      "required": false,
+      "scenarios": []
+    },
+    "humanAcceptance": false
+  }
+}

@@ -6,6 +6,12 @@ in the code exist; this file is what is NOT yet done.
 
 Ordered by what would cost most if forgotten.
 
+> **Updated 2026-09-22, end of Phase B.** §3, §4 and §8 are closed. §1 is mostly
+> closed: two of its three behaviours are now executed against a live backend, a third
+> was **mis-stated** and is corrected below, and the SSE one turned out not to be
+> provable through the Vite dev proxy. Evidence:
+> `2026-09-22-phase-b-evidence.md`; tests: `e2e/live/session.test.ts`.
+
 ---
 
 ## 1. Three behaviours have never actually been executed
@@ -13,22 +19,32 @@ Ordered by what would cost most if forgotten.
 Each is unit-tested and inferred end to end. All three need a live API and a real browser,
 which the test harness does not have. **This is the largest gap in Phase A.**
 
-- **A reload keeps you signed in.** The access token is memory-only, so every reload
-  starts unauthenticated and the root route's `beforeLoad` must restore the session before
-  any guard runs. Unit-tested in `src/pages/guards.test.tsx`.
-- **The SSE stream reconnects after a real backend restart.** The hook closes on error and
-  reconnects through `ensureSession()` under exponential backoff. Unit-tested with a mock
-  `EventSource`; jsdom has none of its own.
-- **`X-Forwarded-Proto` reaches Express** and drives the `secure` cookie flag and
-  `TRUST_PROXY`. The nginx directive is present and was verified by `curl -I`; the
-  behaviour behind it is inferred.
+- **A reload keeps you signed in.** ✅ **VERIFIED 2026-09-22** against a live
+  express-boilerplate — `e2e/live/session.test.ts`. The same test also pins **exactly one**
+  `/auth/refresh` per reload, which is the first assertion anywhere that `ensureSession()`'s
+  single-flight wrapper actually holds.
+- **The SSE stream reconnects after a real backend restart.** ⚠️ **NOT PROVABLE HERE.**
+  Measured: a `curl -N` through the Vite dev proxy stays open after the API is killed — the
+  proxy does not propagate the upstream close. So `EventSource` never fires `error`,
+  `source.onerror` never runs, and the reconnect path is unreachable from a dev-server
+  browser. Confirmed page-side too: after a real restart there was no stream request, no
+  `/auth/refresh` and no console error. **This is a property of the proxy, not the hook.**
+  Proving it needs the nginx container. Kept as `test.fixme` in `e2e/live/session.test.ts`
+  with the evidence.
+- **~~`X-Forwarded-Proto` … drives the `secure` cookie flag~~ — THIS WAS WRONG.**
+  `isSecureCookieEnvironment()` (`auth.controller.ts`) returns
+  `getEnv().NODE_ENV === 'production'` and never reads `req.secure`, so **no request header
+  can change that flag**. `TRUST_PROXY` is real but governs `req.ip`, which the IP-keyed rate
+  limiters consume — a different mechanism entirely. The claim is asserted false in
+  `e2e/live/session.test.ts`. ✅ The cookie's `Path=/api/v1/auth`, `HttpOnly` and
+  `SameSite=Strict` — all previously inferred — **are** now verified.
 
 Also inferred: SSE actually streaming unbuffered (`proxy_buffering off` being present is
 not the same as watching chunks arrive), and the refresh cookie's `Path=/api/v1/auth`
 surviving the proxy, which needs a real `Set-Cookie` round trip.
 
-**How to close:** run the app against a live express-boilerplate and check the three by
-hand. Thirty minutes of work that no amount of unit testing substitutes for.
+**How to close what remains:** only the SSE reconnect is left, and it needs the nginx
+container rather than the dev proxy. `pnpm test:e2e:live` runs the rest.
 
 ## 2. The first cold CI run is the real test of the flake fix
 
@@ -38,7 +54,7 @@ Library's 1s default while 28 workers each spawn ~700ms). Fixed at the mechanism
 not with `retry`, which hides flakes rather than fixing them. The evidence is mechanistic;
 a cold CI box is the only honest test.
 
-## 3. No opened dropdown is axe-checked anywhere
+## 3. ~~No opened dropdown is axe-checked anywhere~~ — CLOSED 2026-09-22
 
 The a11y gate's overlay block covers a dialog and a sheet. It covers no open menu.
 
@@ -51,6 +67,11 @@ unrelated fix made the error states unreachable without opening the menu.
 Every overlay component now has a test that opens it, so the crash class is closed. Adding
 the opened menus to the axe gate is the cheaper guard against a repeat: bell, tenant
 switcher, user menu, theme toggle.
+
+**Done.** All four are axe-checked open in `src/tests/a11y.test.tsx`. They run through
+`expectNoViolationsIn`, which narrows the CONTEXT to the popup without disabling any rule —
+Base UI portals menus to `document.body`, so at document scope every open menu trips
+`region`. See CLAUDE.md's accessibility section.
 
 ## 4. Smaller gaps
 
@@ -72,7 +93,11 @@ switcher, user menu, theme toggle.
   Needs a browser.
 - **axe colour-contrast is disabled by jest-axe under jsdom.** A green axe run is not a
   contrast check.
-- **The member table's horizontal scroll** is reasoned CSS; jsdom cannot demonstrate it.
+- ~~**The member table's horizontal scroll** is reasoned CSS; jsdom cannot demonstrate
+  it.~~ **CLOSED.** Measured at 390×844: `scrollWidth 672` against `clientWidth 326`, page
+  itself not overflowing. It worked — but the scroll put the Actions column and the
+  last-owner sentence off-screen, so the members list now **stacks as cards** below the
+  mobile breakpoint and the table is desktop-only. `e2e/fixtures/members.test.ts`.
 - **`/auth/refresh` returning 403 or 419** leaves the user stuck signed-in-but-broken
   rather than bounced. Neither status is in the backend's emitted set, and the alternative
   is the false sign-outs that took two fix rounds to remove.
@@ -108,10 +133,19 @@ exact script in the policy, regenerated by a build step so it cannot rot.
 A wrong CSP is worse than none: it either breaks the theme script or teaches people to add
 `'unsafe-inline'`.
 
-## 8. Phase B is blocked on one decision
+## 8. ~~Phase B is blocked on one decision~~ — SETTLED 2026-09-22
 
 StyleSeed's bundled scaffold declares 19 `@radix-ui/react-*` packages, so its 32 primitives
 are Radix-based. Phase A is Base UI. They cannot both own `src/components/ui/`.
+
+**Settled: option 1, and the conflict turned out not to exist.** StyleSeed's gate chain
+references neither Radix nor `engine/components`; `ss-component` reads the project's own
+primitives; the 19 `@radix-ui/*` packages live only in a fresh-project scaffold. Base UI owns
+`src/components/ui/` permanently — see `STYLESEED.md` and
+`../specs/2026-09-22-phase-b-styleseed-design.md`. Playwright is installed and `ss-verify`
+has been run.
+
+The options as they were recorded:
 
 1. **Take StyleSeed's method, not its primitives** (recommended) — adopt `ss-setup`,
    `ss-tokens`, the compiled grammar and the `ss-lint`/`ss-a11y`/`ss-audit`/`ss-score`/

@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "artifacts": [
+    { "id": "members", "config": "members.json" }
+  ]
+}

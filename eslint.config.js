@@ -9,7 +9,16 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'src/routeTree.gen.ts', 'coverage'] },
+  {
+    ignores: [
+      'dist',
+      'src/routeTree.gen.ts',
+      'coverage',
+      'public/mockServiceWorker.js',
+      'test-results',
+      'playwright-report',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -46,8 +55,47 @@ export default tseslint.config(
     // src/**/*.{ts,tsx} only) the plugin falls back to its default
     // 'src/style.css' path and throws ENOENT. Its rules are turned off here
     // for the same reason the type-checked rules are.
-    files: ['eslint.config.js', 'prettier.config.js', 'vite.config.ts', 'vitest.config.ts'],
+    files: [
+      'eslint.config.js',
+      'prettier.config.js',
+      'vite.config.ts',
+      'vitest.config.ts',
+      'playwright.config.ts',
+    ],
     extends: [tseslint.configs.disableTypeChecked],
+    rules: {
+      'tailwindcss/classnames-order': 'off',
+      'tailwindcss/enforces-canonical-classname': 'off',
+      'tailwindcss/enforces-negative-arbitrary-values': 'off',
+      'tailwindcss/enforces-shorthand': 'off',
+      'tailwindcss/important-modifier-suffix': 'off',
+      'tailwindcss/no-custom-classname': 'off',
+      'tailwindcss/no-contradicting-classname': 'off',
+      'tailwindcss/no-unnecessary-arbitrary-value': 'off',
+    },
+  },
+  {
+    // The e2e suite and its fixture harness. Typed linting rather than the
+    // `disableTypeChecked` used for the root configs above: `e2e/tsconfig.json`
+    // exists precisely so `projectService` can find these files, so the
+    // type-aware rules work here and there is no reason to give them up.
+    //
+    // The tailwind rules are off for the same reason they are off on the root
+    // configs: the plugin's own `files` glob matches `**/*.ts`, and
+    // `cssConfigPath` is scoped to `src/**/*.{ts,tsx}`, so without this the
+    // plugin falls back to its default 'src/style.css' and throws ENOENT.
+    //
+    // `check-file`'s rules below are all scoped to `src/**`, so nothing here
+    // needs exempting from them — but note Playwright's default spec glob is
+    // `*.spec.ts`, which `filename-blocklist` would reject. `playwright.config.ts`
+    // sets `testMatch: '**/*.test.ts'` to stay inside the repo's convention.
+    // That config file itself is a root-level flat config and is linted with
+    // the others above, not here.
+    files: ['e2e/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: globals.browser,
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
     rules: {
       'tailwindcss/classnames-order': 'off',
       'tailwindcss/enforces-canonical-classname': 'off',

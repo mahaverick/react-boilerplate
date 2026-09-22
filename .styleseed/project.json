@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "projectId": "react-boilerplate",
+  "defaults": {
+    "agent": "claude",
+    "domain": "saas",
+    "adapter": "product-ui",
+    "recipe": "enterprise-workbench",
+    "palette": "quiet-mineral",
+    "profile": "none",
+    "fallback": "operations-console"
+  },
+  "brand": {
+    "keyColor": "#171717",
+    "paletteCharacter": "calm",
+    "paletteMode": "light",
+    "paletteHarmony": "tonal",
+    "surfaceTemperature": "neutral",
+    "fontFamilies": ["Geist Variable"],
+    "radius": "soft",
+    "elevation": "restrained-shadow",
+    "density": "compact",
+    "motion": { "seed": "snap", "intensity": "restrained" },
+    "imageryRole": "none"
+  }
+}

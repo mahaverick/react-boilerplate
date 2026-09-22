@@ -1,0 +1,188 @@
+/**
+ * The e2e fixture harness. Not part of the shipped app — nothing in `src/`
+ * imports it, and `index.html` is the only Vite entry that builds.
+ *
+ * Playwright's `fixtures` project needs the REAL shell, the real router and
+ * the real CSS in a real browser, but not a real backend. This boots the
+ * actual router with MSW answering the same fixtures `src/tests/a11y.test.tsx`
+ * uses, and the same signed-in store state.
+ *
+ * `?state=loaded|empty|error|loading|soleowner` picks what the members
+ * endpoint answers, which is how the e2e suite reaches the states that only
+ * exist for one shape of data.
+ */
+import { QueryClientProvider } from '@tanstack/react-query'
+import { RouterProvider } from '@tanstack/react-router'
+import { http } from 'msw'
+import { setupWorker } from 'msw/browser'
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import '@/styles/globals.css'
+import { queryClient, router } from '@/router'
+import { useAuthStore } from '@/states/auth.store'
+
+const TENANT = {
+  id: 't1',
+  name: 'Acme Corp',
+  slug: 'acme',
+  description: 'Anvils',
+  logo: null,
+  website: 'https://acme.test',
+  lifecycleState: 'active',
+  deletedAt: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+const SETTINGS = {
+  tenantId: 't1',
+  timezone: 'Europe/London',
+  locale: 'en',
+  metadata: { tier: 'pro' },
+  updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+const MEMBERS = [
+  {
+    membership: {
+      id: 'm-u1',
+      userId: 'u1',
+      tenantId: TENANT.id,
+      role: 'owner',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    user: { id: 'u1', email: 'a@b.com', firstName: 'A', lastName: 'B' },
+  },
+  {
+    membership: {
+      id: 'm-u2',
+      userId: 'u2',
+      tenantId: TENANT.id,
+      role: 'member',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    user: { id: 'u2', email: 'c@d.com', firstName: 'Cleo', lastName: 'D' },
+  },
+]
+
+const NOTIFICATIONS = [
+  {
+    id: 'n1',
+    userId: 'u1',
+    type: 'verify_email',
+    title: 'Confirm your email',
+    body: 'We sent a link to a@b.com.',
+    data: null,
+    readAt: null,
+    createdAt: '2026-01-02T09:00:00.000Z',
+  },
+  {
+    id: 'n2',
+    userId: 'u1',
+    type: 'password_changed',
+    title: 'Your password changed',
+    body: 'If this was not you, reset it now.',
+    data: null,
+    readAt: '2026-01-02T10:00:00.000Z',
+    createdAt: '2026-01-02T08:00:00.000Z',
+  },
+]
+
+const PREFERENCES = [
+  { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
+]
+
+const testUser = { id: 'u1', email: 'a@b.com', firstName: 'A', lastName: 'B' }
+
+function ok<T>(data: T, message = 'OK', statusCode = 200) {
+  return Response.json({ success: true, message, statusCode, data })
+}
+
+// `?state=` picks which variant to render, so the empty and error states get
+// screenshots too rather than only the happy path.
+const state = new URLSearchParams(location.search).get('state') ?? 'loaded'
+
+const SOLE_OWNER = [MEMBERS[0]]
+
+const membersHandler =
+  state === 'soleowner'
+    ? http.get('/api/v1/tenants/acme/members', () => ok(SOLE_OWNER, 'Members retrieved.'))
+    : state === 'empty'
+      ? http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+      : state === 'error'
+        ? http.get(
+            '/api/v1/tenants/acme/members',
+            () =>
+              new Response(JSON.stringify({ success: false, message: 'Nope', statusCode: 500 }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+              })
+          )
+        : state === 'loading'
+          ? http.get('/api/v1/tenants/acme/members', async () => {
+              await new Promise((r) => setTimeout(r, 1_000_000))
+              return ok(MEMBERS, 'Members retrieved.')
+            })
+          : http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
+
+const worker = setupWorker(
+  http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')),
+  http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+  membersHandler,
+  http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
+  http.get('/api/v1/notifications', () =>
+    ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
+  ),
+  http.get('/api/v1/notifications/preferences', () =>
+    ok({ preferences: PREFERENCES }, 'Notification preferences retrieved.')
+  ),
+  // A stream that STAYS OPEN. Answering 204 looks to the hook exactly like a
+  // dropped connection: it fires `error`, calls ensureSession(), and that
+  // request — unmocked — used to fall through to the real API, come back 401
+  // and redirect the harness to /login mid-test. A test that is racing a
+  // redirect is not testing what it says it is.
+  http.get(
+    '/api/v1/notifications/stream',
+    () =>
+      new Response(
+        new ReadableStream({ start: (controller) => controller.enqueue(': open\n\n') }),
+        {
+          headers: { 'Content-Type': 'text/event-stream' },
+        }
+      )
+  ),
+  http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.')),
+  // Belt and braces: nothing in the fixtures suite should ever reach the real
+  // backend, and a silent fall-through is how it did.
+  http.post('/api/v1/auth/refresh', () =>
+    ok({ accessToken: 'harness-token', user: testUser }, 'Session refreshed.')
+  )
+)
+
+await worker.start({ onUnhandledRequest: 'bypass', quiet: true })
+
+// The real store state a signed-in user has. `isBootstrapped` skips the
+// refresh round trip the root route would otherwise wait on.
+useAuthStore.setState({
+  accessToken: 'harness-token',
+  user: testUser,
+  isAuthenticated: true,
+  isBootstrapped: true,
+})
+
+// replaceState, NOT router.navigate: navigate before the router mounts does a
+// real navigation, and the dev server then answers /tenants/acme/members with
+// the SPA fallback (index.html -> main.tsx), so the harness never runs. The
+// router reads location on mount, so setting it first is enough.
+history.replaceState(null, '', '/tenants/acme/members' + location.search)
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  </StrictMode>
+)

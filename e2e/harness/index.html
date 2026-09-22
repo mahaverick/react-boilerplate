@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>React Boilerplate</title>
+    <script>
+      // Runs before the bundle. Without this the page paints light and then
+      // flips to dark on every load for dark-mode users. Spec section 9.
+      try {
+        var stored = localStorage.getItem('theme')
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        var isDark = stored === 'dark' || ((stored === 'system' || !stored) && prefersDark)
+        document.documentElement.classList.toggle('dark', isDark)
+      } catch (_) {
+        /* private mode, blocked storage: fall through to light */
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/e2e/harness/harness.tsx"></script>
+  </body>
+</html>
