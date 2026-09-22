@@ -140,8 +140,24 @@ is fine — just regenerate the lockfile in the same commit.
 ## Accessibility
 
 `src/tests/a11y.test.tsx` is a gate, not a smoke test: every routed page, plus
-an open dialog and an open sheet, must come back clean. If something trips a
-rule, **fix the markup** — no rule is disabled to make it pass.
+an open dialog, an open sheet and all four open menus, must come back clean. If
+something trips a rule, **fix the markup** — no rule is disabled to make it pass.
+
+**Menus are graded at menu scope, not document scope, and that is the one place
+the gate narrows.** Base UI portals a menu popup to `document.body`, so at
+document scope every open menu trips `region` — "some page content is not
+contained by landmarks". That is a page-structure rule, and it does not describe
+a barrier in a transient popup that focus has just been moved into; the dialog
+and sheet escape it only because axe exempts `role="dialog"`. `expectNoViolationsIn`
+therefore runs the **identical rule set** against the popup element. Nothing is
+disabled, and the narrowing is pinned the same way the document context is: it
+asserts `aria-required-children` is in `results.passes`, which only happens when
+axe really evaluated a `role="menu"`. Pages are still graded at document scope.
+
+The alternative — rendering the popups into a container inside a landmark — was
+not taken: the triggers live in the sidebar and header, so `<main>` would be the
+wrong home for their menus, and dropping the portal risks real clipping and
+stacking regressions to satisfy a rule that is not describing a real barrier.
 
 Three details that took measuring, and that a "tidy-up" would quietly undo:
 
