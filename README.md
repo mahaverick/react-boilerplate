@@ -38,20 +38,38 @@ The dev server proxies `/api` to `http://localhost:4040` (`vite.config.ts`).
 Nothing that touches the backend works without it — sign-in, the session
 bootstrap on page load, and the notification stream all fail immediately.
 
-That proxy is not a convenience. `VITE_API_URL` is a **relative** path
+That proxy is not a convenience. The API path is a **relative** one
 (`/api/v1`) because the backend sends no CORS headers, so the SPA and the API
 have to be served from one origin. In development that origin is the Vite
 proxy; in the container it is nginx.
 
+### The API prefix is fixed
+
+`/api/v1` is not configurable, and there is no environment variable that
+moves it. It is written once, as `API_PREFIX` in `src/constants/routes.ts`,
+and everything on the JavaScript side derives from it: the axios base
+(`src/http/client.ts`), the `EventSource` URL for the notification stream
+(`src/hooks/use-notifications.ts`, which ignores axios entirely), and the
+Google OAuth anchor (`GOOGLE_OAUTH_PATH`).
+
+Two things outside JavaScript hardcode it as well, and they are why it is
+fixed rather than a knob: `nginx.conf` routes
+`location /api/v1/notifications/stream` — its SSE buffering and its
+token-stripping log format hang off that exact prefix — and `vite.config.ts`
+proxies `/api` in development.
+
+Moving the API to another prefix therefore means changing `API_PREFIX`,
+`nginx.conf` and the Vite proxy together, in one change. An earlier
+`VITE_API_URL` build variable is gone precisely because it did not: it moved
+the axios base alone and left the stream, the OAuth anchor and nginx pointing
+at the old path, producing a build in which Google sign-in and every
+notification were broken with nothing to say so.
+
 ### Environment
 
 `.env` is read at **build** time — Vite inlines `VITE_*` values into the
-bundle, so changing one means rebuilding, not restarting.
-
-| Variable               | Default   | Meaning                                   |
-| ---------------------- | --------- | ----------------------------------------- |
-| `VITE_API_URL`         | `/api/v1` | API base path. Keep it relative.          |
-| `VITE_ENABLE_DEVTOOLS` | `true`    | Router and Query devtools in development. |
+bundle, so changing one means rebuilding, not restarting. Nothing in the app
+currently reads one.
 
 ## Scripts
 
@@ -127,11 +145,9 @@ what makes a standalone smoke test start at all (the proxy itself will answer
 502 until a real API is there). Under compose, name the API service `api` and
 nothing else is needed.
 
-To point the bundle at a different API path:
-
-```bash
-docker build --build-arg VITE_API_URL=/api/v2 -t react-boilerplate .
-```
+The image takes no build arguments. The API prefix is baked in and fixed —
+see [The API prefix is fixed](#the-api-prefix-is-fixed) for what has to change
+together if it ever moves.
 
 ### What `nginx.conf` is doing
 

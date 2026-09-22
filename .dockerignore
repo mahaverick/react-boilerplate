@@ -6,8 +6,9 @@ dist-ssr
 build
 .git
 coverage
-# Never bake a developer's environment into an image. The build stage sets
-# VITE_API_URL through a build ARG instead.
+# Never bake a developer's environment into an image. The build stage takes no
+# build ARGs: the API prefix is fixed (see API_PREFIX in
+# src/constants/routes.ts), not configured per build.
 .env
 .env.*
 !.env.example

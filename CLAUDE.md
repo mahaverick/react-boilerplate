@@ -30,10 +30,15 @@ eslint half exits 0 on warnings.
 
 ## Auth — the rules that break silently when broken
 
-- **`VITE_API_URL` is relative** (`/api/v1`). The backend sets no CORS headers,
+- **The API prefix is fixed and relative** (`/api/v1`), written once as
+  `API_PREFIX` in `src/constants/routes.ts`. The backend sets no CORS headers,
   so the SPA and the API must be one origin: the dev server proxies `/api`, and
-  the container's nginx does the same. An absolute URL here fails at runtime in
-  a way no test catches.
+  the container's nginx does the same. An absolute URL fails at runtime in a
+  way no test catches. There is no environment variable for it, and there was:
+  `VITE_API_URL` moved the axios base alone while the `EventSource` URL, the
+  Google OAuth anchor and nginx's SSE `location` kept the old prefix. Moving
+  the prefix means changing `API_PREFIX`, `nginx.conf` and `vite.config.ts`
+  together.
 - **The access token is memory-only.** It lives in `auth.store` and nowhere
   else. Never write it to `localStorage`, `sessionStorage`, a cookie or a query
   string, and never add a `persist` middleware to that store. The refresh token

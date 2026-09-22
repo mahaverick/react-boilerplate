@@ -31,23 +31,6 @@ export interface Notification {
 }
 
 /**
- * What `GET /api/v1/notifications/stream` puts on a `notification` event's
- * `data:` line — NOT a list row. `toStreamPayload`
- * (notification-stream.controller.ts) narrows the row to exactly these six
- * fields, dropping `userId` (the connection is already scoped to one user)
- * and `metadata`. Typed separately so nothing reads `metadata` off a value
- * that never carries it.
- */
-export interface NotificationStreamPayload {
-  id: string
-  type: string
-  title: string
-  body: string
-  readAt: string | null
-  createdAt: string
-}
-
-/**
  * A page of the inbox.
  *
  * `notifications`, not `items` — and `nextCursor` is OMITTED, not null, when

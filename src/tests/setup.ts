@@ -1,9 +1,30 @@
 import '@testing-library/jest-dom/vitest'
+import { configure } from '@testing-library/react'
 import { toHaveNoViolations } from 'jest-axe'
 import { afterAll, afterEach, beforeAll, expect } from 'vitest'
 import { server } from '@/tests/mocks/server'
 
 expect.extend(toHaveNoViolations)
+
+/**
+ * How long `findBy*` and `waitFor` may wait. Testing Library's default is
+ * ONE SECOND, and it is its own budget — vitest's `testTimeout` does not
+ * govern it, so raising that alone would have changed nothing here.
+ *
+ * One second is not honest for this suite. It spawns a worker per test file —
+ * 26 of them, at ~870ms of spawn plus jsdom environment each, a figure the
+ * runner prints on every run — and a `findBy*` that starts while the machine
+ * is still standing those up is racing the runner rather than the code. That
+ * is measured, not supposed: three tests across `$slug.members` and
+ * `tenants/index` failed on one full run in four, passed alone, and passed on
+ * three reruns. CI is always cold, so it would have surfaced there.
+ *
+ * Five seconds, and `testTimeout` in vitest.config.ts is raised to 20s so a
+ * test that genuinely hangs still fails on its own assertion rather than
+ * being cut off mid-wait. Raised here rather than papered over with `retry`,
+ * which would have hidden the next real race as effectively as this one.
+ */
+configure({ asyncUtilTimeout: 5_000 })
 
 // The matcher registered above, told to the type system. `@types/jest-axe`
 // augments `jest.Matchers`, which this project does not have — vitest keeps its

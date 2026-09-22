@@ -1,20 +1,22 @@
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios'
+import { API_PREFIX } from '@/constants/routes'
 import { installInterceptors } from '@/http/interceptors'
 import type { ApiSuccess } from '@/types/api.types'
 
 // Relative on purpose. The API has no CORS middleware, so the SPA is served
 // same-origin behind a proxy (Vite in dev, nginx in prod). An absolute origin
 // here would be blocked by the browser AND would bypass the proxy. Spec
-// section 1. `import.meta.env` is typed with an `any` index signature, so the
-// assertion is what keeps `any` from leaking into the client's config.
+// section 1.
 //
-// `||`, not `??`: an env file with VITE_API_URL= (empty) is a real deployment
-// mistake, and `??` would honour it, giving every request a bare path with no
-// /api/v1 prefix and a 404 from the SPA's own index.html.
-const baseURL = (import.meta.env.VITE_API_URL as string | undefined) || '/api/v1'
-
+// Read from the shared constant, not from a `VITE_API_URL` build variable.
+// That variable used to sit here and it was a trap: it moved THIS base and
+// nothing else, while the SSE URL, the Google OAuth anchor and nginx's
+// `location /api/v1/notifications/stream` all kept the old prefix — so the
+// documented `--build-arg VITE_API_URL=/api/v2` produced a build in which
+// sign-in by Google and the entire notification stream were broken, with
+// nothing to say so. The prefix is fixed; see API_PREFIX.
 export const apiClient: AxiosInstance = axios.create({
-  baseURL,
+  baseURL: API_PREFIX,
   withCredentials: true,
   // Axios defaults to NO timeout, so a request that never answers — a proxy
   // that accepts the connection and goes quiet, a backend blocked on a lock —

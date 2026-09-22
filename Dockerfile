@@ -27,13 +27,12 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-# Vite inlines every VITE_* value at BUILD time, and .env is dockerignored, so
-# without this the image would bake in whatever `src/http/client.ts` falls back
-# to. The default is the same relative path .env.example uses — relative
-# because the backend sets no CORS headers, so the SPA and the API must be one
-# origin, which the nginx proxy makes true.
-ARG VITE_API_URL=/api/v1
-ENV VITE_API_URL=$VITE_API_URL
+# No build ARGs, deliberately. The API prefix is FIXED at /api/v1 — it lives in
+# src/constants/routes.ts as API_PREFIX, and nginx.conf's SSE location, the
+# EventSource URL and the Google OAuth anchor all hardcode it too. The
+# `--build-arg VITE_API_URL=/api/v2` this file used to accept moved the axios
+# base and nothing else, so it shipped an image whose notification stream and
+# Google sign-in were broken with nothing in any log to say so.
 RUN pnpm build
 
 FROM nginx:alpine

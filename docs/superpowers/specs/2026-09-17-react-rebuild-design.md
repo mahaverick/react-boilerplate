@@ -499,9 +499,14 @@ is awaiting `/profile`. That self-wait hangs indefinitely rather than erroring.
 1. Call `POST /auth/refresh`.
 2. Store the new access token.
 3. Replay the original request once.
-4. If **the refresh itself** fails: `logout()` and redirect to `/login`. The replay sits
-   outside that error path — a 404, 500 or second 401 from the retried request rejects
-   with its own error and must not bounce a still-valid session to the login page.
+4. If **the refresh itself** is JUDGED — that is, one of its requests answers `401`, and
+   only then — `logout()` and redirect to `/login`, carrying the caller's location in
+   `?redirect=`. Every other refresh failure (a 502 through a rolling restart, the refresh
+   route's own 429, a malformed 200, no response at all) leaves the session intact and
+   redirects nowhere: `isAuthVerdict` in `http/session.ts` is the single predicate both
+   halves apply. The replay sits outside that error path too — a 404, 500 or second 401
+   from the retried request rejects with its own error and must not bounce a still-valid
+   session to the login page.
 
 Step 1 is `ensureSession()`, so N requests 401-ing concurrently produce exactly one
 refresh. A request that has already been retried once is never retried again.
@@ -517,7 +522,8 @@ if the *freshly minted* token is ever rejected as expired — clock skew, a near
 a key-rotation race — that `/profile` call 401s, the interceptor calls `ensureSession()`,
 and it awaits the promise it is itself settling. That hangs forever: no rejection, no
 logout, no redirect, nothing in a log. Marking the requests instead surfaces the failure
-as a rejected `ensureSession()`, which logs out.
+as a rejected `ensureSession()` — which logs out if, and only if, that rejection is a
+401.
 
 `/auth/refresh` carries the flag too. It cannot currently emit that code — the auth
 router has no `requireAuth` — but it is rate-limited (`auth.routes.ts:78`), so recursing
@@ -547,7 +553,11 @@ the same expired token — forever. The hook therefore:
 - on `error`, closes the connection, then calls `ensureSession()` and reconnects with
   whatever token that resolves to, under exponential backoff (1s doubling to a 30s cap,
   reset on a successful message);
-- writes incoming events into the TanStack Query cache via `queryClient.setQueryData`;
+- INVALIDATES the notification list on an incoming event (`queryClient.invalidateQueries`)
+  rather than writing the frame into the cache with `setQueryData`: the stream payload is
+  narrower than a list row (no `userId`, no `metadata`), so splicing it in would seed the
+  cache with half-populated rows, and a refetch is what also recovers anything missed
+  while disconnected — a fresh `EventSource` sends no `Last-Event-ID`;
 - closes on unmount.
 
 **The `error` handler cannot simply stop.** An `EventSource` `error` event carries no
@@ -570,15 +580,15 @@ src/
 │   ├── layouts/         ← auth-layout, app-layout
 │   └── features/        ← notification-bell, tenant-switcher, theme-toggle
 ├── pages/               ← TanStack Router file-based routes
-│   ├── __root.tsx       ← providers, Toaster, devtools, bootstrap beforeLoad
+│   ├── __root.tsx       ← Outlet, Toaster, bootstrap beforeLoad (no devtools)
 │   ├── index.tsx        ← redirect to /dashboard or /login
 │   ├── _auth.tsx        ← unauthenticated layout route
 │   ├── _auth/
 │   │   ├── login.tsx
 │   │   ├── register.tsx
-│   │   ├── forgot-password.tsx
-│   │   ├── reset-password.tsx
-│   │   └── verify-email.tsx
+│   │   └── forgot-password.tsx
+│   ├── reset-password.tsx   ← top-level and UNGUARDED: both are reached from
+│   ├── verify-email.tsx        an emailed link, by someone with no session
 │   ├── _app.tsx         ← authenticated layout route
 │   ├── _app/
 │   │   ├── dashboard.tsx
@@ -592,10 +602,13 @@ src/
 │   │       └── $slug.settings.tsx  ← settings tab
 │   └── auth/
 │       └── callback.tsx  ← Google OAuth landing
-├── hooks/               ← use-auth, use-notifications, use-theme, use-sidebar
+├── hooks/               ← use-notifications, use-server-errors, use-form-field, use-mobile
+│                          (there is no use-auth, use-theme or use-sidebar: the stores
+│                           in states/ ARE the hooks)
 ├── queries/             ← auth, profile, notification, tenant query/mutation hooks
 ├── states/              ← auth.store, theme.store, sidebar.store
-├── http/                ← client.ts, interceptors.ts, bootstrap.ts
+├── http/                ← client.ts, interceptors.ts, session.ts (there is no bootstrap.ts —
+│                          bootstrapSession lives in router.tsx)
 ├── schemas/             ← auth, profile, tenant Zod schemas
 ├── types/               ← api.types.ts
 ├── styles/              ← globals.css
@@ -743,8 +756,10 @@ These are **Phase A acceptance criteria**, not aspirations — each is checked i
   Submit disabled while pending. Server-side field errors reconcile with client validation.
 - **Keyboard.** Every interactive element reachable by Tab, in visual order, with a
   **visible focus indicator**. Focus trapped in dialogs and sheets, restored on close.
-- **Screen readers.** Radix primitives carry the ARIA roles and relationships. Toasts and
-  form errors announce via live regions. Icon-only controls carry accessible names.
+- **Screen readers.** Base UI is the primitive layer in Phase A, NOT Radix, and it is not
+  a drop-in for Radix's accessibility: its `Tooltip` emits neither `role="tooltip"` nor
+  `aria-describedby`, so a tooltip is not an accessible name and every icon-only control
+  needs an explicit `aria-label`. Toasts and form errors announce via live regions.
 - **Contrast.** WCAG 2.2 AA for text and interactive states, in both themes.
 - **Motion.** `prefers-reduced-motion: reduce` honoured — transitions reduced to
   near-instant, no non-essential animation.
@@ -852,9 +867,18 @@ Plus gzip and long-lived cache headers on hashed assets, `no-store` on `index.ht
 ## 13. Environment
 
 ```
-VITE_API_URL=/api/v1
-VITE_ENABLE_DEVTOOLS=true
+(none)
 ```
+
+`VITE_ENABLE_DEVTOOLS` was specified and never implemented: nothing imported the
+devtools, `__root` never rendered them, and the flag existed only in `.env.example`, the
+README and this file. It was removed rather than wired in the 2026-09-21 Phase A fix wave.
+
+`VITE_API_URL` is gone from this block for a different reason: the API prefix is FIXED at
+`/api/v1` and lives in `src/constants/routes.ts` as `API_PREFIX`. A variable moved the
+axios base alone while the `EventSource` URL, the Google OAuth anchor and nginx's SSE
+`location` kept the old prefix, so it could only ever break a build silently. §2's table
+and §14 still describe it and have not been revised.
 
 `VITE_GOOGLE_OAUTH_URL` is removed — the Google control is a same-origin anchor (§1.1).
 Only `VITE_`-prefixed variables reach client code.

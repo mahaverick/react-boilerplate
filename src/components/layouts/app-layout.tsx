@@ -204,10 +204,11 @@ export function AppLayout() {
         </SidebarContent>
         <SidebarFooter>
           <UserMenu user={user} />
-          {/* A sibling of the user menu, not an item inside it. The listener
-              that makes `theme: 'system'` follow the OS lives in ThemeToggle,
-              and inside a dropdown it would unmount every time the menu
-              closed — so it has to be mounted by the layout itself. */}
+          {/* A sibling of the user menu, not an item inside it: inside a
+              dropdown this control would unmount every time the menu closed.
+              The listener that makes `theme: 'system'` follow the OS is NOT
+              in here — it is the effect above, in this component, for the
+              reason given there and repeated in theme-toggle.tsx. */}
           <div className="flex justify-center">
             <ThemeToggle />
           </div>
