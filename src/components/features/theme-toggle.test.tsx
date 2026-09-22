@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ThemeToggle } from '@/components/features/theme-toggle'
@@ -92,6 +93,20 @@ describe('ThemeToggle', () => {
     osSwitchesTo(true)
     // The user asked for light. The OS does not get a vote.
     expect(document.documentElement.classList.contains('dark')).toBe(false)
+  })
+
+  it('applies the theme the user picks from the menu', async () => {
+    useThemeStore.setState({ theme: 'system' })
+    const user = userEvent.setup()
+    render(<ThemeToggle />)
+
+    await user.click(screen.getByRole('button', { name: 'Theme: system. Change theme' }))
+    // Base UI's Menu.Item has no `onSelect` (that is Radix's API), so the
+    // items are wired with `onClick`. This is what proves that works.
+    await user.click(await screen.findByRole('menuitem', { name: 'Dark' }))
+
+    expect(useThemeStore.getState().theme).toBe('dark')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
   })
 
   it('stops listening once unmounted', () => {

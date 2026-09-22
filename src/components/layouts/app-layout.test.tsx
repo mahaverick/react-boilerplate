@@ -5,14 +5,17 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { http } from 'msw'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
-import { testUser } from '@/tests/mocks/handlers'
+import { ok, testUser } from '@/tests/mocks/handlers'
+import { server } from '@/tests/mocks/server'
 
 /**
  * Driven through a real RouterProvider: the layout reads `useMatches()` for
@@ -46,6 +49,13 @@ describe('AppLayout', () => {
       isAuthenticated: true,
       isBootstrapped: true,
     })
+  })
+
+  const realLocation = window.location
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
   })
 
   it('renders exactly one main landmark', async () => {
@@ -82,6 +92,43 @@ describe('AppLayout', () => {
     expect(within(breadcrumb).getByText('Profile')).toBeInTheDocument()
     // The layout route itself contributes no crumb: `_app` is pathless.
     expect(within(breadcrumb).queryByText('Dashboard')).not.toBeInTheDocument()
+  })
+
+  it('navigates to the profile from the account menu', async () => {
+    const user = userEvent.setup()
+    const router = renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Profile' }))
+
+    // A real router navigation, not a click handler that only closes the menu.
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/profile')
+    })
+  })
+
+  it('signs out from the account menu', async () => {
+    server.use(http.post('/api/v1/auth/logout', () => ok(null, 'Signed out.')))
+    // `window.location.assign` is non-configurable in jsdom, so vi.spyOn on it
+    // throws "Cannot redefine property". Replacing the whole `location` object
+    // is the way in; `afterEach` puts the real one back.
+    const assign = vi.fn()
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, assign },
+    })
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    })
+    expect(assign).toHaveBeenCalledWith('/login')
   })
 
   it('takes its open state from the sidebar store', async () => {
