@@ -54,6 +54,55 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  # The `fixtures` Playwright project ONLY. It drives the MSW harness in
+  # e2e/harness/, so it needs the dev server and nothing else —
+  # playwright.config.ts's `webServer` starts one, and `reuseExistingServer` is
+  # off under CI so it always gets a clean boot.
+  #
+  # `live` is deliberately NOT here. It needs a real express-boilerplate plus
+  # postgres, redis and mailpit, and registers accounts through the verification
+  # email; that is a service-container job of its own, not a flag on this one.
+  # It stays opt-in behind `E2E_LIVE=1` (`pnpm test:e2e:live`).
+  #
+  # This job exists because the checks it makes are the ones jsdom cannot:
+  # jsdom has no layout and no cascade, so "the webfont actually loaded",
+  # "nothing overflows the viewport at 390px" and "the empty state renders as
+  # more than a bare table header" are all invisible to `pnpm test`. Each of
+  # those three was a real defect found by looking at a screenshot.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with: { version: 12.4.1 }
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      # The browser is ~100MB and is not in the pnpm store, so setup-node's
+      # cache does not cover it. Keyed on the lockfile: a Playwright bump
+      # changes the lockfile and must fetch a matching browser build.
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      # `--with-deps` installs the system libraries the browser needs, which a
+      # bare runner does not have. On a cache hit only those are needed; the
+      # browser binary is already there.
+      - run: pnpm exec playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - run: pnpm exec playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+      - run: pnpm test:e2e
+      # Only on failure, and only for a week: the report is how you find out
+      # what a red run actually saw, and it is useless once the branch moves on.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   # A third job the brief did not ask for. The image and its nginx config are
   # half of this task's deliverable and neither is exercised by lint, typecheck
   # or the test suite — a broken proxy_pass or a typo'd directive would
