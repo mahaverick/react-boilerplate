@@ -214,5 +214,33 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // The files under src/components/ui/ that are OURS, not upstream's:
+    // sonner.tsx (hand-written, because the registry one imports next-themes)
+    // and form.tsx (hand-written in Task 5). The vendored block above turns
+    // these rules off for the whole directory; this turns them back on for our
+    // two files, at the severities eslint-plugin-tailwindcss's own recommended
+    // config uses. `classnames-order` stays off to match the rest of src/ --
+    // prettier-plugin-tailwindcss owns ordering. `settings` is repeated because
+    // the block that sets cssConfigPath deliberately ignores this directory,
+    // and without it the plugin falls back to 'src/style.css' and throws ENOENT.
+    // form.tsx is listed before it exists so Task 5's file is covered the
+    // moment it lands rather than silently escaping.
+    files: ['src/components/ui/sonner.tsx', 'src/components/ui/form.tsx'],
+    settings: { tailwindcss: { cssConfigPath: './src/styles/globals.css' } },
+    rules: {
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      'tailwindcss/enforces-canonical-classname': 'warn',
+      'tailwindcss/enforces-negative-arbitrary-values': 'warn',
+      'tailwindcss/enforces-shorthand': 'warn',
+      'tailwindcss/important-modifier-suffix': 'warn',
+      'tailwindcss/no-arbitrary-value': 'off',
+      'tailwindcss/no-contradicting-classname': 'error',
+      // `toaster` is sonner's OWN class, the hook its stylesheet targets — a
+      // real third-party classname, which is exactly what this option is for.
+      'tailwindcss/no-custom-classname': ['warn', { whitelist: ['toaster'] }],
+      'tailwindcss/no-unnecessary-arbitrary-value': 'warn',
+    },
+  },
   prettier
 )

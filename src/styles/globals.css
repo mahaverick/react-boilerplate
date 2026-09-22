@@ -1,3 +1,8 @@
+/* WARNING: re-running `pnpm dlx shadcn init` DUPLICATES these four @import
+   lines rather than detecting them. Its idempotency check is quote-sensitive
+   and prettier normalises the quotes here to single, so it never matches what
+   it wrote. If you re-run init, diff this file and delete the duplicates by
+   hand. The same run also overwrites src/lib/utils.ts -- check that too. */
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';

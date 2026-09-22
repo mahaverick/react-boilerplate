@@ -14,4 +14,15 @@ docs/
 # Vendored shadcn output. eslint already excludes it as upstream's to own;
 # prettier must match, or every `shadcn add` re-add churns the diff on files
 # we do not edit. shadcn emits semicolons and double quotes.
-src/components/ui/
+# NOTE the trailing `*`, not a trailing `/`: gitignore syntax cannot re-include
+# a file whose parent DIRECTORY is excluded, so `src/components/ui/` would make
+# the negations below silently do nothing. Excluding the entries instead of the
+# directory is what makes them work.
+src/components/ui/*
+# ...except the files in there that are OURS, not upstream's. sonner.tsx is
+# hand-written (the registry one imports next-themes) and form.tsx is written
+# by hand in Task 5. Without these negations our own code would sit in the
+# directory unformatted and unchecked. form.tsx is listed before it exists so
+# it is covered the moment it lands.
+!src/components/ui/sonner.tsx
+!src/components/ui/form.tsx
