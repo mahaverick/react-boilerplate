@@ -98,21 +98,37 @@ TypeScript). Resolved from the npm registry on 2026-09-21.
 
 ### Runtime
 
+Generated from `package.json`, not maintained by hand — an earlier revision of this
+table listed `clsx` and `tailwind-merge` after they had been removed, and omitted `cn`,
+`tw-animate-css` and the Geist font after they were added. A `pnpm add` driven from a
+stale table reintroduces a banned package.
+
 | Package | Version | Note |
 |---|---|---|
-| react, react-dom | 19.3.0 | |
-| @tanstack/react-router | 1.170.38 | File-based routing |
-| @tanstack/react-query | 5.103.2 | Server state |
-| @tanstack/react-form | 1.33.5 | **No adapter package** — see below |
-| zustand | 5.0.15 | Client state |
-| zod | 4.6.5 | Matches express-boilerplate |
-| axios | 1.20.0 | |
-| sonner | 2.0.8 | Toasts |
-| lucide-react | 1.47.0 | Icons |
 | @base-ui/react | 1.8.0 | Base UI primitives — see below |
-| clsx | 2.1.1 | |
-| tailwind-merge | 3.7.0 | |
-| class-variance-authority | 0.7.1 | |
+| @fontsource-variable/geist | 5.3.0 | Self-hosted, charset-subset; the base-nova default |
+| @tanstack/react-form | 1.33.5 | **No adapter package** — see below |
+| @tanstack/react-query | 5.103.2 | Server state |
+| @tanstack/react-router | 1.170.38 | File-based routing |
+| axios | 1.20.0 |  |
+| class-variance-authority | 0.7.1 |  |
+| cn | 0.3.0 | shadcn's own clsx+tailwind-merge replacement — see below |
+| lucide-react | 1.47.0 | Icons |
+| react | 19.3.0 |  |
+| react-dom | 19.3.0 |  |
+| sonner | 2.0.8 | Toasts |
+| tw-animate-css | 1.4.0 | Required by the base-nova theme |
+| zod | 4.6.5 | Matches express-boilerplate |
+| zustand | 5.0.15 | Client state |
+
+**`clsx` and `tailwind-merge` are NOT dependencies.** `cn@0.3.0` is shadcn's own package
+(github.com/shadcn-ui/cn), a drop-in replacement for both, and all 20 vendored components
+import from it. `src/lib/utils.ts` is a bare `export { cn } from 'cn'` so there is exactly
+one merge implementation — two mergers can resolve conflicting Tailwind classes
+differently.
+
+`shadcn@4.21.0` is a **devDependency**: `globals.css` imports `shadcn/tailwind.css`, which
+Vite inlines at build time, so the runtime bundle never needs the CLI.
 
 **The primitive library is Base UI**, and the shadcn **style** is `base-nova`.
 `base-nova/dialog.json` emits `import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"`.
