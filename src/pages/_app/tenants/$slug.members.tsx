@@ -471,6 +471,18 @@ function TenantMembersTab() {
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
+          ) : (members.data ?? []).length === 0 ? (
+            // AFTER the error branch, never before it: `[]` is what a failed
+            // load and an empty tenant both look like, and saying "no one has
+            // access" on the strength of a request that never answered is a
+            // statement about the tenant we have not earned. Same ordering,
+            // and the same reason, as `notifications.tsx`.
+            //
+            // A bare `Name / Email / Role / Actions` header over nothing was
+            // what rendered here before; the visual gate caught it.
+            <p className="text-sm text-muted-foreground">
+              No one has access to this tenant yet. Add someone below.
+            </p>
           ) : (
             // The vendored Table already wraps itself in an overflow-x-auto
             // container; `min-w-2xl` is what makes that container actually

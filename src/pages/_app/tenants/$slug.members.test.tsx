@@ -207,6 +207,17 @@ describe('members tab permissions', () => {
     expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
   })
 
+  it('says the list is empty rather than showing a bare table header', async () => {
+    // A header row over nothing is the "blank void for no data" tell, and it
+    // is what the visual gate caught. The error branch above still runs
+    // FIRST: [] means "no members" only once we know the request answered.
+    mockTenant('owner', [])
+    renderAppAt('/tenants/acme/members')
+
+    expect(await screen.findByText(/no one has access to this tenant yet/i)).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
   it('renders an error, not an endless skeleton, when the role lookup fails', async () => {
     server.use(
       http.get('/api/v1/tenants', () => fail('Something went wrong.', 500)),
