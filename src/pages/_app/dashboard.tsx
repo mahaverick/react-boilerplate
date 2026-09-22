@@ -1,7 +1,24 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useAuthStore } from '@/states/auth.store'
 
-// STUB — Task 6 replaces this file wholesale with the real dashboard.
-// Same reason as src/pages/_auth/login.tsx: a childless pathless layout route
-// cannot be generated, and `redirect({ to: ROUTES.dashboard })` needs a typed
-// target to point at.
-export const Route = createFileRoute('/_app/dashboard')({})
+export const Route = createFileRoute('/_app/dashboard')({ component: DashboardPage })
+
+function DashboardPage() {
+  const user = useAuthStore((s) => s.user)
+  const name = user?.firstName ?? user?.email ?? 'there'
+  return (
+    <Card>
+      <CardHeader>
+        {/* CardTitle renders a div, so the page would otherwise have no
+            heading at all — axe's `page-has-heading-one` is on by default. */}
+        <CardTitle>
+          <h1>Welcome back, {name}</h1>
+        </CardTitle>
+        <CardDescription>
+          This page is intentionally empty. Derived projects fill it.
+        </CardDescription>
+      </CardHeader>
+    </Card>
+  )
+}
