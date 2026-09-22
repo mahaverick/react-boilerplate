@@ -1,5 +1,6 @@
 import { execFile as execFileCallback, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
+import { expect, type Page } from '@playwright/test'
 
 const execFile = promisify(execFileCallback)
 
@@ -150,4 +151,17 @@ export async function restartApi(): Promise<void> {
 
   spawn('pnpm', ['dev'], { cwd: API_DIR, detached: true, stdio: 'ignore' }).unref()
   await waitForApi()
+}
+
+/**
+ * Registers, verifies and signs in through the real UI, leaving the browser
+ * with a real session and a real refresh cookie.
+ */
+export async function signIn(page: Page, email: string): Promise<void> {
+  await createVerifiedUser(email)
+  await page.goto('/login')
+  await page.getByLabel(/email/i).fill(email)
+  await page.getByLabel(/password/i).fill(PASSWORD)
+  await page.getByRole('button', { name: /sign in|log in/i }).click()
+  await expect(page).not.toHaveURL(/login/, { timeout: 15_000 })
 }

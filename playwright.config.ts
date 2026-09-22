@@ -35,12 +35,18 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   // Reuses a dev server you already have running; starts one otherwise.
-  webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  //
+  // Skipped entirely for the `nginx` project, which serves the PRODUCTION
+  // bundle out of a container and has no use for Vite. `webServer` is a
+  // top-level option with no per-project form, so the switch is an env var.
+  webServer: process.env.E2E_NGINX
+    ? undefined
+    : {
+        command: 'pnpm dev',
+        url: 'http://localhost:5173',
+        reuseExistingServer: !process.env.CI,
+        timeout: 60_000,
+      },
   projects: [
     {
       name: 'fixtures',
@@ -51,6 +57,17 @@ export default defineConfig({
       name: 'live',
       testMatch: 'live/**/*.test.ts',
       use: { ...devices['Desktop Chrome'] },
+    },
+    // Against the production image, not the dev server. The SSE reconnect is
+    // only observable here: the Vite proxy does not propagate an upstream
+    // close, so the browser never learns the stream died. nginx does.
+    {
+      name: 'nginx',
+      testMatch: 'nginx/**/*.test.ts',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: process.env.E2E_NGINX_ORIGIN ?? 'http://localhost:8088',
+      },
     },
   ],
 })
