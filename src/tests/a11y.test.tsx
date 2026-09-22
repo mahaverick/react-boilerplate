@@ -250,6 +250,18 @@ async function expectNoViolations() {
   const results = await axeCore.run(document, AXE_OPTIONS)
   expect(results).toHaveNoViolations()
 
+  // THE CONTEXT ITSELF, PINNED. Changing `document` above to `document.body` —
+  // the exact regression note 1 describes — makes every page-level rule
+  // inapplicable while leaving `region`, the hand assertions below and all 17
+  // tests passing. It was measured: someone made that one-word edit and the
+  // suite stayed green, which is how a false green comes back. These three
+  // rules only produce a result when the context IS the document, so asserting
+  // they RAN is what makes the context non-negotiable rather than a comment
+  // somebody trusts.
+  expect(results.passes.map((result) => result.id)).toEqual(
+    expect.arrayContaining(['html-has-lang', 'document-title', 'bypass'])
+  )
+
   const unexpected = results.incomplete.map((r) => r.id).filter((id) => !KNOWN_INCOMPLETE.has(id))
   expect(unexpected).toEqual([])
 

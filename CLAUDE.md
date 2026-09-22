@@ -68,13 +68,24 @@ are hand-written for this stack.
 
 ## The `src/components/ui/**` exception
 
-That directory is **vendored** shadcn output: eslint and prettier both skip it,
-because linting upstream's files churns the diff on every re-add and its class
-strings are upstream's to own. Edits there are lost the next time the component
-is re-added.
+That directory is **vendored** shadcn output. Edits there are lost the next time
+the component is re-added, so it is excluded from the checks that would
+otherwise churn the diff on every `shadcn add`:
 
-**Except `form.tsx` and `sonner.tsx`.** Those two are ours, they are linted and
-formatted, and they are named explicitly in both `eslint.config.js` and
+- **prettier skips it entirely** (`.prettierignore`) — shadcn emits semicolons
+  and double quotes, and reformatting them fights the registry on every re-add.
+- **eslint excludes only the Tailwind rules and `react-refresh/only-export-components`**
+  (`eslint.config.js`, the `src/components/ui/**` block). Everything else still
+  applies. Do not read this as "eslint skips the directory" — print the config
+  for a file in there and count: 507 rules, 113 of them enabled, including
+  type-aware ones like `@typescript-eslint/no-unsafe-call` at **error**. A type
+  error in there fails CI like anywhere else. Settle this with
+  `eslint --print-config` rather than by reading the config file: the `ignores`
+  at `eslint.config.js:30` is scoped to the Tailwind _settings_ block, which is
+  exactly what makes it easy to misread.
+
+**`form.tsx` and `sonner.tsx` are ours, not upstream's.** Both are fully linted
+and formatted, and both are named explicitly in `eslint.config.js` and
 `.prettierignore`. If you add a third hand-written file to that directory, add
 it to both lists in the same change or it will sit there unchecked.
 
@@ -115,8 +126,11 @@ is fine — just regenerate the lockfile in the same commit.
 - **`src/pages/**` is exempt** from all of it. TanStack Router's file-based
   routing needs `__root.tsx`, `_auth.tsx` and `$slug.members.tsx`, which are not
   kebab-case by design.
-- Tests are **`.test.ts(x)`, co-located** beside their subject. Not `.spec.`,
-  and not in a `__tests__/` folder.
+- Tests are **`.test.ts(x)`**, never `.spec.`, and never in a `__tests__/`
+  folder — those two ARE linted (`check-file/filename-blocklist`). Co-location
+  beside the subject is the convention wherever there is a subject to sit beside;
+  nothing enforces it, and the cross-cutting suites under `src/tests/`
+  (`a11y.test.tsx`) sit beside nothing by design.
 
 ## Accessibility
 
@@ -130,7 +144,10 @@ Three details that took measuring, and that a "tidy-up" would quietly undo:
   Axe reports its page-level rules (`page-has-heading-one`, `landmark-one-main`,
   `bypass`, `html-has-lang`, `document-title`) as _inapplicable_ for anything
   smaller than the document, so a fragment run grades far less than it looks
-  like it does.
+  like it does. The context is **pinned by an assertion**, not by this comment:
+  the gate asserts `html-has-lang`, `document-title` and `bypass` are in
+  `results.passes`, so narrowing the context back to `document.body` fails 14
+  tests instead of silently passing all 17.
 - **Every page needs exactly one `<main>` and exactly one `<h1>`**, and the test
   asserts both by hand. It has to: axe's own rules for them query
   `[aria-level=1]`, a selector jsdom rejects outright, so axe files them under
