@@ -1,6 +1,8 @@
 import type { AxiosResponse } from 'axios'
+import { http } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { apiClient, unwrap } from '@/http/client'
+import { server } from '@/tests/mocks/server'
 import type { ApiSuccess } from '@/types/api.types'
 
 describe('apiClient', () => {
@@ -17,6 +19,38 @@ describe('apiClient', () => {
   // /auth/refresh has nothing left to authenticate with.
   it('sends credentials so the refresh cookie travels', () => {
     expect(apiClient.defaults.withCredentials).toBe(true)
+  })
+
+  // Axios has no timeout by default: a request that is accepted and then never
+  // answered hangs forever, leaving its mutation pending and its button
+  // disabled with nothing for the user to do.
+  it('bounds every request with a timeout', () => {
+    expect(apiClient.defaults.timeout).toBe(30_000)
+  })
+
+  /**
+   * Asserted on the outgoing request config rather than by letting a request
+   * actually time out: the timeout is enforced by the XHR/fetch adapter, and
+   * MSW's XMLHttpRequest interceptor proxies `ontimeout` without ever firing
+   * it, so no mocked request can be made to exceed one. What CAN break here is
+   * the default failing to reach an individual request — which is exactly what
+   * the adapter reads — so that is what is pinned.
+   */
+  it('puts that timeout on the requests it actually sends', async () => {
+    const seen: (number | undefined)[] = []
+    const interceptor = apiClient.interceptors.request.use((config) => {
+      seen.push(config.timeout)
+      return config
+    })
+    server.use(http.get('/api/v1/ping', () => new Response('{}')))
+
+    try {
+      await apiClient.get('/ping', { skipAuthRetry: true })
+    } finally {
+      apiClient.interceptors.request.eject(interceptor)
+    }
+
+    expect(seen).toEqual([30_000])
   })
 
   it('unwrap strips the success envelope', () => {

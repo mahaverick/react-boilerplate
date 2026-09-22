@@ -23,6 +23,20 @@ import { cn } from '@/lib/utils'
  */
 
 /**
+ * Tracks whether a `<FormError>` is mounted inside this form, so `<Form>` can
+ * say something in dev when form-level errors would otherwise go unrendered.
+ * Deliberately not exported: this file is linted, and a non-component export
+ * here trips `react-refresh/only-export-components`.
+ */
+interface FormErrorSlot {
+  /** Called by a mounted `<FormError>`; returns its own deregistration. */
+  register: () => () => void
+  isMounted: () => boolean
+}
+
+const FormErrorSlotContext = React.createContext<FormErrorSlot | null>(null)
+
+/**
  * The form element itself. TanStack Form has no provider component.
  *
  * `onChange` is where a server verdict expires. It fires for every control in
@@ -30,14 +44,50 @@ import { cn } from '@/lib/utils'
  * `name` on each control, so one handler here clears exactly the field the
  * user is fixing — not its siblings, whose verdicts are still true, and not on
  * blur, which is not the user changing anything.
+ *
+ * A caller's own `onChange`/`onSubmit` is pulled out of `props` and called
+ * AFTER ours rather than spread over them: `{...props}` last would let a page
+ * silently turn off either the clearing rule or submission itself.
  */
 export function Form({
   form,
   serverErrors,
   className,
   children,
+  onChange,
+  onSubmit,
   ...props
 }: React.ComponentProps<'form'> & { form: AnyFormApi; serverErrors?: ServerErrors }) {
+  // A pair of functions over a closure variable, not a mutable object: a
+  // consumer may not modify a value it got from useContext
+  // (`react-hooks/immutability`), but it may call one.
+  const [errorSlot] = React.useState<FormErrorSlot>(() => {
+    let mounted = false
+    return {
+      register: () => {
+        mounted = true
+        return () => {
+          mounted = false
+        }
+      },
+      isMounted: () => mounted,
+    }
+  })
+  const formErrors = serverErrors?.formErrors
+
+  React.useEffect(() => {
+    if (!import.meta.env.DEV) return
+    if (!formErrors || formErrors.length === 0 || errorSlot.isMounted()) return
+    // Child effects run before parent effects, so a mounted <FormError> has
+    // already registered by now.
+    console.warn(
+      "<Form> was given form-level server errors (the `errors` map's reserved " +
+        '`formErrors` key) but no <FormError> is mounted to render them, so the ' +
+        'user sees nothing. Place <FormError /> above the submit button.',
+      formErrors
+    )
+  }, [formErrors, errorSlot])
+
   const element = (
     <form
       noValidate
@@ -45,11 +95,13 @@ export function Form({
       onChange={(event) => {
         const { name } = event.target as Partial<HTMLInputElement>
         if (name) serverErrors?.clearField(name)
+        onChange?.(event)
       }}
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
         void form.handleSubmit()
+        onSubmit?.(event)
       }}
       {...props}
     >
@@ -57,7 +109,11 @@ export function Form({
     </form>
   )
   if (!serverErrors) return element
-  return <ServerErrorsContext.Provider value={serverErrors}>{element}</ServerErrorsContext.Provider>
+  return (
+    <ServerErrorsContext.Provider value={serverErrors}>
+      <FormErrorSlotContext.Provider value={errorSlot}>{element}</FormErrorSlotContext.Provider>
+    </ServerErrorsContext.Provider>
+  )
 }
 
 /**
@@ -145,11 +201,29 @@ export function FormLabel({ className, ...props }: React.ComponentProps<typeof L
  * Base UI has no `Slot` component — `useRender` is its equivalent, and this
  * is the same call shape the vendored primitives (breadcrumb, badge) use.
  */
-export function FormControl({ children }: { children: React.ReactElement }) {
+export function FormControl({ children }: { children: React.ReactElement<{ name?: string }> }) {
   const { name, errors, formItemId, formMessageId } = useFormField()
   const hasError = errors.length > 0
+  const ownName = children.props.name
+
+  if (import.meta.env.DEV && ownName !== undefined && ownName !== name) {
+    console.warn(
+      `<FormControl> is replacing the control's own name "${ownName}" with the ` +
+        `field's name "${name}". <Form> reads that name to decide whose server ` +
+        `error to clear, so a control naming itself something else would clear ` +
+        `the wrong field. Remove the name prop.`
+    )
+  }
+
+  // Cloned so the injected name WINS. useRender lets the rendered element's
+  // own props override the ones passed below, which would otherwise hand the
+  // clearing rule a name that belongs to no field. Cloned UNCONDITIONALLY:
+  // `<Input name={undefined} />` still carries the key, and it overrides the
+  // injected name with nothing, which is the same bug wearing a disguise.
+  const control = React.cloneElement(children, { name })
+
   return useRender({
-    render: children,
+    render: control,
     props: {
       id: formItemId,
       // Not decoration: `<Form>`'s change handler reads this to know which
@@ -188,6 +262,12 @@ function issueText(issue: unknown): string {
  */
 export function FormError({ className, ...props }: React.ComponentProps<'div'>) {
   const serverErrors = React.useContext(ServerErrorsContext)
+  const slot = React.useContext(FormErrorSlotContext)
+
+  // Registered whether or not there is anything to show, so <Form>'s dev
+  // warning fires only when this component is genuinely absent.
+  React.useEffect(() => slot?.register(), [slot])
+
   const messages = serverErrors?.formErrors ?? []
   if (messages.length === 0) return null
   return (

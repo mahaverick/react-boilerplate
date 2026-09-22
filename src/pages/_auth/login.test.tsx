@@ -107,6 +107,25 @@ describe('login page', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
+  it('posts the NORMALISED email, not what was typed', async () => {
+    let body: unknown
+    server.use(
+      http.post('/api/v1/auth/login', async ({ request }) => {
+        body = await request.json()
+        return signedInResponse()
+      })
+    )
+    renderLoginAt('/login')
+    await fillAndSubmit('  ADA@B.COM  ', 'secret123')
+
+    // The schema trims and lower-cases, but TanStack hands `onSubmit` the raw
+    // form state — only parsing the value before posting puts the transform on
+    // the wire. Without that this arrives as "  ADA@B.COM  ".
+    await waitFor(() => {
+      expect(body).toEqual({ email: 'ada@b.com', password: 'secret123' })
+    })
+  })
+
   it("surfaces the server's own message on a 401", async () => {
     server.use(http.post('/api/v1/auth/login', () => fail('Invalid email or password.', 401)))
     const router = renderLoginAt('/login')
@@ -264,6 +283,11 @@ describe('safeRedirect', () => {
     expect(safeRedirect('/tenants/acme?tab=members')).toBe('/tenants/acme?tab=members')
   })
 
+  it('keeps the query and hash, which a redirect target may carry', () => {
+    expect(safeRedirect('/dashboard?next=1')).toBe('/dashboard?next=1')
+    expect(safeRedirect('/dashboard#section')).toBe('/dashboard#section')
+  })
+
   it('rejects everything that could leave the origin', () => {
     // `?redirect=` comes off the URL bar, so every one of these is reachable.
     expect(safeRedirect('https://evil.example')).toBeNull()
@@ -275,5 +299,29 @@ describe('safeRedirect', () => {
     expect(safeRedirect('dashboard')).toBeNull()
     expect(safeRedirect(undefined)).toBeNull()
     expect(safeRedirect('')).toBeNull()
+  })
+
+  /**
+   * Every one of these starts with exactly one slash, so a
+   * `^/(?![/\\])`-shaped test passes them — and the URL standard still
+   * resolves them off-origin. The first four because the parser STRIPS ASCII
+   * tab, LF and CR, leaving "//"; the last three because dot segments collapse
+   * to "//". All are typeable into the URL bar as %09, %0A, %0D and ..%2F%2F.
+   *
+   * Nothing escapes through TanStack today, which normalises them before
+   * pushState — but that is the router's behaviour, not this guard's, and
+   * `useLogout` already reaches for `window.location.assign`, which normalises
+   * nothing.
+   */
+  it.each([
+    ['tab', '/\t/evil.example'],
+    ['line feed', '/\n/evil.example'],
+    ['carriage return', '/\r/evil.example'],
+    ['tab then backslash', '/\t\\evil.example'],
+    ['double dot segment', '/..//evil.example'],
+    ['single dot segment', '/.//evil.example'],
+    ['dot segments below the root', '/a/../..//evil.example'],
+  ])('rejects the %s bypass', (_label, input) => {
+    expect(safeRedirect(input)).toBeNull()
   })
 })

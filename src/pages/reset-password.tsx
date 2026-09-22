@@ -53,7 +53,11 @@ function ResetPasswordPage() {
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        await resetPassword.mutateAsync(value)
+        // Parsed, not posted raw: TanStack hands `value` straight from form
+        // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
+        // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
+        // what makes the schema the wire contract it looks like.
+        await resetPassword.mutateAsync(resetPasswordSchema.parse(value))
         toast.success('Your password has been reset. Sign in with it.')
         await navigate({ to: ROUTES.login })
       } catch (submitError) {

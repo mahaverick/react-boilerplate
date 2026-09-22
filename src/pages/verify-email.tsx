@@ -56,7 +56,11 @@ function VerifyEmailPage() {
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        await verifyEmail.mutateAsync(value)
+        // Parsed, not posted raw: TanStack hands `value` straight from form
+        // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
+        // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
+        // what makes the schema the wire contract it looks like.
+        await verifyEmail.mutateAsync(verifyEmailSchema.parse(value))
         setFailed(false)
         toast.success('Your email is verified. Sign in to continue.')
         await navigate({ to: ROUTES.login })
@@ -73,7 +77,7 @@ function VerifyEmailPage() {
     validators: { onSubmit: resendVerificationSchema },
     onSubmit: async ({ value }) => {
       try {
-        await resend.mutateAsync(value)
+        await resend.mutateAsync(resendVerificationSchema.parse(value))
       } catch {
         // Same message either way: whether an address needs verifying is not
         // ours to leak.

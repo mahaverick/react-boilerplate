@@ -1,8 +1,18 @@
 import { z } from 'zod'
 
 const MIN_PASSWORD_LENGTH = 8
+/**
+ * bcrypt hashes at most 72 BYTES and silently ignores the rest, so the
+ * backend's registrationPasswordSchema refuses anything longer
+ * (`.refine(Buffer.byteLength(v) <= 72)`). Mirrored here so an over-long
+ * password fails inline instead of round-tripping to a 400 — and counted in
+ * bytes, not characters: one emoji is four of them.
+ */
+const MAX_PASSWORD_BYTES = 72
 const MAX_EMAIL_LENGTH = 320
 const MAX_NAME_LENGTH = 100
+
+const encoder = new TextEncoder()
 
 export const emailSchema = z
   .string()
@@ -15,8 +25,22 @@ export const emailSchema = z
 export const newPasswordSchema = z
   .string()
   .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`)
+  .refine(
+    (value) => encoder.encode(value).length <= MAX_PASSWORD_BYTES,
+    `Password must be at most ${MAX_PASSWORD_BYTES} bytes long.`
+  )
 
-const nameSchema = z.string().trim().min(1, 'This field is required.').max(MAX_NAME_LENGTH)
+/**
+ * Optional, matching the backend, where firstName and lastName are
+ * `.optional()`. An empty control therefore means "not given" rather than
+ * "invalid", and is dropped from the payload instead of posting `''`.
+ */
+const nameSchema = z
+  .string()
+  .trim()
+  .max(MAX_NAME_LENGTH, `Name must be at most ${MAX_NAME_LENGTH} characters.`)
+  .transform((value) => (value === '' ? undefined : value))
+  .optional()
 
 export const loginSchema = z.object({
   email: emailSchema,

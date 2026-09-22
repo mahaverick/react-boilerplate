@@ -16,6 +16,18 @@ const baseURL = (import.meta.env.VITE_API_URL as string | undefined) || '/api/v1
 export const apiClient: AxiosInstance = axios.create({
   baseURL,
   withCredentials: true,
+  // Axios defaults to NO timeout, so a request that never answers — a proxy
+  // that accepts the connection and goes quiet, a backend blocked on a lock —
+  // hangs forever. Its mutation stays `isPending`, its button stays disabled,
+  // and nothing in the UI ever moves again. 30s is well past any healthy
+  // request on this API and short enough that a user sees an error instead of
+  // a dead page.
+  //
+  // This is a timeout on the WIRE, not a deadlock guard: the one known
+  // deadlock path — a 401 on a refresh request re-entering the very promise it
+  // is settling — is closed structurally by `skipAuthRetry` in interceptors.ts,
+  // and a timeout would have turned that into a 30s hang rather than a fix.
+  timeout: 30_000,
   headers: { 'Content-Type': 'application/json' },
 })
 

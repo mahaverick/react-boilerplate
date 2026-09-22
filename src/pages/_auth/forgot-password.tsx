@@ -39,7 +39,11 @@ function ForgotPasswordPage() {
     validators: { onSubmit: forgotPasswordSchema },
     onSubmit: async ({ value }) => {
       try {
-        await forgotPassword.mutateAsync(value)
+        // Parsed, not posted raw: TanStack hands `value` straight from form
+        // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
+        // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
+        // what makes the schema the wire contract it looks like.
+        await forgotPassword.mutateAsync(forgotPasswordSchema.parse(value))
       } catch {
         // Swallowed on purpose — see SENT_MESSAGE. This is the one form that
         // does NOT wire `useServerErrors`: rendering the backend's field-level

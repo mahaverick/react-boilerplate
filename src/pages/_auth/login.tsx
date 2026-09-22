@@ -43,14 +43,39 @@ const OAUTH_ERRORS: Record<string, string> = {
  *
  * `?redirect=` is written by `_app`'s guard, but it arrives from the URL bar
  * and is therefore attacker-controlled: an absolute URL there would make this
- * page an open redirect. Only a same-origin ABSOLUTE PATH is accepted — one
- * leading slash, and the next character must not be another slash or a
- * backslash (browsers normalise `/\evil.com` to `//evil.com`, which is
- * protocol-relative and leaves the site).
+ * page an open redirect.
+ *
+ * Resolved by the URL parser rather than matched by a pattern, because the
+ * URL standard is what actually decides where a string points and it is not
+ * the shape the string has. `/\t/evil.example`, `/\n/evil.example` and
+ * `/\r/evil.example` are stripped of the control character and become
+ * protocol-relative; `/..//evil.example`, `/.//evil.example` and
+ * `/a/../..//evil.example` collapse their dot segments to the same thing.
+ * Every one of them starts with a single slash and passes a
+ * `^/(?![/\\])`-style test while resolving OFF this origin. Only the parser's
+ * own verdict is trustworthy, so ask it.
+ *
+ * The whole same-origin path is returned — `pathname + search + hash` — not
+ * just the pathname, or `?redirect=/dashboard?next=1` would lose its query.
  */
 export function safeRedirect(value: string | undefined): string | null {
-  if (!value) return null
-  return /^\/(?![/\\])/.test(value) ? value : null
+  // Keeps a bare relative value ("dashboard") and a scheme
+  // ("javascript:alert(1)") out before the parser is asked anything.
+  if (!value || !value.startsWith('/')) return null
+  try {
+    const resolved = new URL(value, window.location.origin)
+    if (resolved.origin !== window.location.origin) return null
+    const path = `${resolved.pathname}${resolved.search}${resolved.hash}`
+    // The origin check alone is NOT enough. "/..//evil.example" resolves
+    // same-origin, but its dot segments collapse to a PATHNAME of
+    // "//evil.example" — hand that to location.assign and it is
+    // protocol-relative again. Re-check the string actually being returned.
+    return path.startsWith('/') && !path.startsWith('//') ? path : null
+  } catch {
+    // `new URL` throws on inputs it cannot resolve at all. Unresolvable is
+    // not navigable.
+    return null
+  }
 }
 
 function LoginPage() {
@@ -77,7 +102,11 @@ function LoginPage() {
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        await login.mutateAsync(value)
+        // Parsed, not posted raw: TanStack hands `value` straight from form
+        // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
+        // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
+        // what makes the schema the wire contract it looks like.
+        await login.mutateAsync(loginSchema.parse(value))
         const target = safeRedirect(redirect)
         await (target ? navigate({ href: target }) : navigate({ to: ROUTES.dashboard }))
       } catch (submitError) {

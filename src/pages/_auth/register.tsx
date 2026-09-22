@@ -19,7 +19,7 @@ import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { messageFrom } from '@/lib/api-error'
 import { useRegister, useResendVerification } from '@/queries/auth.queries'
-import { registerSchema } from '@/schemas/auth.schemas'
+import { registerSchema, type RegisterInput } from '@/schemas/auth.schemas'
 
 export const Route = createFileRoute('/_auth/register')({
   component: RegisterPage,
@@ -33,13 +33,22 @@ function RegisterPage() {
   const resend = useResendVerification()
   const serverErrors = useServerErrors()
 
+  // Annotated rather than inferred: the names are OPTIONAL in the schema (as
+  // they are on the backend), and an inferred `{ firstName: string }` from the
+  // literal below would not match the validator's input type.
+  const defaultValues: RegisterInput = { email: '', password: '', firstName: '', lastName: '' }
+
   const form = useForm({
-    defaultValues: { email: '', password: '', firstName: '', lastName: '' },
+    defaultValues,
     validators: { onSubmit: registerSchema },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        const user = await register.mutateAsync(value)
+        // Parsed, not posted raw: TanStack hands `value` straight from form
+        // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
+        // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
+        // what makes the schema the wire contract it looks like.
+        const user = await register.mutateAsync(registerSchema.parse(value))
         setRegisteredEmail(user.email)
       } catch (submitError) {
         serverErrors.capture(submitError)
@@ -98,7 +107,7 @@ function RegisterPage() {
           <FormField form={form} name="firstName">
             {(field) => (
               <FormItem>
-                <FormLabel>First name</FormLabel>
+                <FormLabel>First name (optional)</FormLabel>
                 <FormControl>
                   <Input
                     autoComplete="given-name"
@@ -115,7 +124,7 @@ function RegisterPage() {
           <FormField form={form} name="lastName">
             {(field) => (
               <FormItem>
-                <FormLabel>Last name</FormLabel>
+                <FormLabel>Last name (optional)</FormLabel>
                 <FormControl>
                   <Input
                     autoComplete="family-name"
