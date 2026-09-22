@@ -9,6 +9,19 @@ export function messageFrom(error: unknown): string {
   return 'Something went wrong. Please try again.'
 }
 
+/**
+ * The HTTP status a failed request answered with, or `undefined` when the
+ * request never reached a response at all (a network failure, a timeout, or
+ * a rejection that is not an axios error).
+ *
+ * The distinction matters: "the server said 404" and "there was no server"
+ * are different outcomes, and a caller that treats the second as the first
+ * renders "not found" for a dropped connection.
+ */
+export function statusFrom(error: unknown): number | undefined {
+  return error instanceof AxiosError ? error.response?.status : undefined
+}
+
 /** The one key in `errors` that is NOT a field name. See below. */
 const FORM_ERRORS_KEY = 'formErrors'
 

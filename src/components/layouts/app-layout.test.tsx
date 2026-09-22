@@ -96,6 +96,65 @@ describe('AppLayout', () => {
     expect(within(breadcrumb).queryByText('Dashboard')).not.toBeInTheDocument()
   })
 
+  it('shows a breadcrumb trail on a DYNAMIC route', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok(
+          [
+            {
+              tenant: {
+                id: 't1',
+                name: 'Acme Corp',
+                slug: 'acme',
+                description: null,
+                logo: null,
+                website: null,
+                lifecycleState: 'active',
+                deletedAt: null,
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+              },
+              role: 'viewer',
+            },
+          ],
+          'Tenants retrieved.'
+        )
+      ),
+      http.get('/api/v1/tenants/acme', () => ok(null, 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+    )
+    renderAppAt('/tenants/acme/members')
+    const breadcrumb = await screen.findByRole('navigation', { name: 'breadcrumb' })
+
+    // The regression this guards: the old lookup compared a literal `to`
+    // against `match.pathname`, so `/tenants/$slug` — which resolves to
+    // `/tenants/acme` — matched nothing, and `/tenants` is a SIBLING of it
+    // rather than an ancestor, so nothing covered for it. Every tenant page
+    // rendered an empty breadcrumb bar.
+    expect(within(breadcrumb).getByText('acme')).toBeInTheDocument()
+    expect(within(breadcrumb).getByText('Members')).toBeInTheDocument()
+  })
+
+  it('keeps every piece of sidebar-header content inside a widget', async () => {
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    const header = document.querySelector('[data-slot="sidebar-header"]')
+    expect(header).not.toBeNull()
+    // axe's `region` rule passes over this layout only because all of the
+    // sidebar's content sits inside a button or a link. A bare
+    // `<p>Acme Corp</p>` here would be content in no landmark, and would
+    // fail it — so the switcher's label lives INSIDE its trigger button.
+    // Every TEXT node, not every element: an ancestor `ul` legitimately
+    // "contains" text that belongs to a button several levels down.
+    const walker = document.createTreeWalker(header as Node, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      if (!node.textContent?.trim()) continue
+      expect(node.parentElement?.closest('button,a')).not.toBeNull()
+    }
+    expect(screen.getByRole('button', { name: /Switch tenant/ })).toBeInTheDocument()
+  })
+
   it('navigates to the profile from the account menu', async () => {
     const user = userEvent.setup()
     const router = renderAppAt('/dashboard')

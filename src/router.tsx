@@ -39,4 +39,22 @@ declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router
   }
+
+  /**
+   * Breadcrumb labels live on the ROUTE, not in a table keyed by pathname.
+   *
+   * The lookup they replaced matched a literal `to` against
+   * `match.pathname`, which cannot work for a dynamic route: `/tenants/$slug`
+   * resolves to `/tenants/acme` and matches no literal, and there is no
+   * `/tenants` ancestor match to fall back on either (the list page and the
+   * detail page are siblings, not parent and child). Declaring the crumb
+   * where the route is declared makes every match self-describing, dynamic
+   * segments included.
+   *
+   * A function receives the match's path params, so a detail route can name
+   * itself after what it is showing rather than carrying a fixed word.
+   */
+  interface StaticDataRouteOption {
+    crumb?: string | ((params: Record<string, string>) => string)
+  }
 }

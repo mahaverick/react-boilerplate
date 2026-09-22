@@ -34,4 +34,12 @@ export const handlers = [
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: [] }, 'Notification preferences retrieved.')
   ),
+  // The tenant switcher lives in the app shell's sidebar, so every test that
+  // mounts an authenticated route hits this one too — same reason as the two
+  // notification defaults above. An empty list: a test about tenants
+  // overrides it with `server.use(...)`.
+  //
+  // `[{ tenant, role }]`, not bare tenants — `TenantRepository.listForUser`
+  // selects the tenant row and the caller's membership role side by side.
+  http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
 ]

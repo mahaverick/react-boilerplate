@@ -1,7 +1,8 @@
-import { Link, Outlet, useMatches } from '@tanstack/react-router'
-import { Bell, LayoutDashboard } from 'lucide-react'
+import { Link, Outlet, useLocation, useMatches, type LinkProps } from '@tanstack/react-router'
+import { Bell, Building2, LayoutDashboard } from 'lucide-react'
 import { Fragment, useEffect } from 'react'
 import { NotificationBell } from '@/components/features/notification-bell'
+import { TenantSwitcher } from '@/components/features/tenant-switcher'
 import { ThemeToggle } from '@/components/features/theme-toggle'
 import { UserMenu } from '@/components/features/user-menu'
 import {
@@ -37,40 +38,59 @@ import { useThemeStore } from '@/states/theme.store'
  * Only the routes that EXIST carry an entry: `to` is typed against the
  * generated route tree, so listing `/notifications` or `/tenants` before their
  * route files land is a type error, not a dead link.
- *
- * Task 8 adds `{ to: ROUTES.tenants, label: 'Tenants', Icon: Building2 }`.
  */
 const NAV_ITEMS = [
   { to: ROUTES.dashboard, label: 'Dashboard', Icon: LayoutDashboard },
   { to: ROUTES.notifications, label: 'Notifications', Icon: Bell },
+  { to: ROUTES.tenants, label: 'Tenants', Icon: Building2 },
 ] as const
 
-/**
- * Breadcrumb labels, keyed by the pathname the router reports for a match.
- *
- * Kept as literal `to` values rather than a `Record<string, string>` so an
- * ancestor crumb can be rendered as a typed `<Link>` when nesting arrives.
- * Task 8 appends its own entries here.
- */
-const CRUMBS = [
-  { to: ROUTES.dashboard, label: 'Dashboard' },
-  { to: ROUTES.profile, label: 'Profile' },
-  { to: ROUTES.notifications, label: 'Notifications' },
-] as const
-
-type Crumb = (typeof CRUMBS)[number]
+interface Crumb {
+  /** Stable across renders: one crumb per matched route. */
+  key: string
+  label: string
+  /** The RESOLVED path of that match — `/tenants/acme`, not `/tenants/$slug`. */
+  to: LinkProps['to']
+}
 
 /**
  * The trail for the current location, in route order.
  *
- * Pathless layout matches (`__root__`, `/_app`) report a pathname of `/`,
- * which matches no entry, so they drop out without a special case.
+ * Read off each match's `staticData.crumb` (see the augmentation in
+ * `@/router`), NOT by matching a literal path. The table this replaced could
+ * not describe a dynamic route at all: `/tenants/$slug` resolves to
+ * `/tenants/acme`, which equals no literal `to`, and `/tenants` is a SIBLING
+ * of it rather than an ancestor, so no parent match covered for it either —
+ * every tenant detail page rendered an empty breadcrumb bar.
+ *
+ * Pathless layout matches (`__root__`, `/_app`) declare no crumb and drop out
+ * without a special case, exactly as they did before.
  */
 function useBreadcrumbs(): Crumb[] {
   const matches = useMatches()
-  return matches
-    .map((match) => CRUMBS.find((crumb) => crumb.to === match.pathname.replace(/\/+$/, '')))
-    .filter((crumb) => crumb !== undefined)
+  return matches.flatMap((match) => {
+    const crumb = match.staticData.crumb
+    if (crumb === undefined) return []
+    const params = match.params as Record<string, string>
+    // The trailing slash an index match reports would make `/tenants/` a
+    // different href from the `/tenants` the nav links to.
+    const path = match.pathname.replace(/(.)\/+$/, '$1')
+    return [
+      {
+        key: match.routeId,
+        label: typeof crumb === 'function' ? crumb(params) : crumb,
+        // `pathname` is a resolved string; `to` is a union of route patterns.
+        // The router navigates by the string either way — this assertion is
+        // about the type, not about what is being linked to.
+        to: path as LinkProps['to'],
+      },
+    ]
+  })
+}
+
+/** Whether a nav item's route contains the current location. */
+function isNavActive(pathname: string, to: string): boolean {
+  return pathname === to || pathname.startsWith(`${to}/`)
 }
 
 export function AppLayout() {
@@ -80,7 +100,10 @@ export function AppLayout() {
   const theme = useThemeStore((s) => s.theme)
   const setTheme = useThemeStore((s) => s.setTheme)
   const crumbs = useBreadcrumbs()
-  const activePath = crumbs.at(-1)?.to
+  // Read from the location, not from the last crumb: `/tenants/acme/members`
+  // ends on a crumb whose `to` is that same deep path, which would light no
+  // nav item at all.
+  const pathname = useLocation({ select: (location) => location.pathname })
 
   // The ONE mount of the notification stream, and it belongs here for the
   // same reason the theme listener below does — see that comment. A single
@@ -123,8 +146,7 @@ export function AppLayout() {
     <SidebarProvider open={!isCollapsed} onOpenChange={(open) => setCollapsed(!open)}>
       <Sidebar collapsible="icon">
         <SidebarHeader>
-          {/* TenantSwitcher slot — Task 8 fills this. Left empty rather than
-              stubbed so that task adds a component instead of deleting one. */}
+          <TenantSwitcher />
         </SidebarHeader>
         <SidebarContent>
           {/* A real `nav` landmark: `Sidebar` renders plain divs, so without
@@ -136,7 +158,7 @@ export function AppLayout() {
                   {/* `render` is Base UI's `asChild`: the button IS the
                       anchor, so the nav item is keyboard-reachable and
                       openable in a new tab — not a click handler on a div. */}
-                  <SidebarMenuButton isActive={activePath === to} render={<Link to={to} />}>
+                  <SidebarMenuButton isActive={isNavActive(pathname, to)} render={<Link to={to} />}>
                     <Icon />
                     <span>{label}</span>
                   </SidebarMenuButton>
@@ -173,7 +195,7 @@ export function AppLayout() {
                 // The separator is a SIBLING `li`, not a child of the item:
                 // BreadcrumbSeparator renders an `<li>` and an `<li>` inside
                 // an `<li>` is invalid markup.
-                <Fragment key={crumb.to}>
+                <Fragment key={crumb.key}>
                   {index > 0 && <BreadcrumbSeparator />}
                   <BreadcrumbItem>
                     {index === crumbs.length - 1 ? (

@@ -2,7 +2,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuthStore } from '@/states/auth.store'
 
-export const Route = createFileRoute('/_app/dashboard')({ component: DashboardPage })
+export const Route = createFileRoute('/_app/dashboard')({
+  staticData: { crumb: 'Dashboard' },
+  component: DashboardPage,
+})
 
 function DashboardPage() {
   const user = useAuthStore((s) => s.user)

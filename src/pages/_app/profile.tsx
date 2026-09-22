@@ -21,7 +21,10 @@ import { useProfile, useUpdateProfile } from '@/queries/profile.queries'
 import { updateProfileSchema } from '@/schemas/profile.schemas'
 import type { User } from '@/types/api.types'
 
-export const Route = createFileRoute('/_app/profile')({ component: ProfilePage })
+export const Route = createFileRoute('/_app/profile')({
+  staticData: { crumb: 'Profile' },
+  component: ProfilePage,
+})
 
 /** The account's join date, in the reader's own locale. */
 function memberSince(createdAt: string): string {

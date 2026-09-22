@@ -21,6 +21,11 @@ import { Route as AuthForgotPasswordRouteImport } from './pages/_auth/forgot-pas
 import { Route as AuthLoginRouteImport } from './pages/_auth/login'
 import { Route as AuthRegisterRouteImport } from './pages/_auth/register'
 import { Route as AuthCallbackRouteImport } from './pages/auth/callback'
+import { Route as AppTenantsIndexRouteImport } from './pages/_app/tenants/index'
+import { Route as AppTenantsSlugRouteImport } from './pages/_app/tenants/$slug'
+import { Route as AppTenantsSlugIndexRouteImport } from './pages/_app/tenants/$slug.index'
+import { Route as AppTenantsSlugMembersRouteImport } from './pages/_app/tenants/$slug.members'
+import { Route as AppTenantsSlugSettingsRouteImport } from './pages/_app/tenants/$slug.settings'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -80,6 +85,31 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppTenantsIndexRoute = AppTenantsIndexRouteImport.update({
+  id: '/tenants/',
+  path: '/tenants/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTenantsSlugRoute = AppTenantsSlugRouteImport.update({
+  id: '/tenants/$slug',
+  path: '/tenants/$slug',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTenantsSlugIndexRoute = AppTenantsSlugIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppTenantsSlugRoute,
+} as any)
+const AppTenantsSlugMembersRoute = AppTenantsSlugMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => AppTenantsSlugRoute,
+} as any)
+const AppTenantsSlugSettingsRoute = AppTenantsSlugSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppTenantsSlugRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -92,6 +122,11 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
+  '/tenants/': typeof AppTenantsIndexRoute
+  '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
+  '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
+  '/tenants/$slug/': typeof AppTenantsSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -104,6 +139,10 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/tenants': typeof AppTenantsIndexRoute
+  '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
+  '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
+  '/tenants/$slug': typeof AppTenantsSlugIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -119,6 +158,11 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/_app/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
+  '/_app/tenants/': typeof AppTenantsIndexRoute
+  '/_app/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
+  '/_app/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
+  '/_app/tenants/$slug/': typeof AppTenantsSlugIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -133,6 +177,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/auth/callback'
+    | '/tenants/$slug'
+    | '/tenants/'
+    | '/tenants/$slug/members'
+    | '/tenants/$slug/settings'
+    | '/tenants/$slug/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -145,6 +194,10 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/auth/callback'
+    | '/tenants'
+    | '/tenants/$slug/members'
+    | '/tenants/$slug/settings'
+    | '/tenants/$slug'
   id:
     | '__root__'
     | '/'
@@ -159,6 +212,11 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/register'
     | '/auth/callback'
+    | '/_app/tenants/$slug'
+    | '/_app/tenants/'
+    | '/_app/tenants/$slug/members'
+    | '/_app/tenants/$slug/settings'
+    | '/_app/tenants/$slug/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -256,19 +314,74 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/tenants/': {
+      id: '/_app/tenants/'
+      path: '/tenants'
+      fullPath: '/tenants/'
+      preLoaderRoute: typeof AppTenantsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tenants/$slug': {
+      id: '/_app/tenants/$slug'
+      path: '/tenants/$slug'
+      fullPath: '/tenants/$slug'
+      preLoaderRoute: typeof AppTenantsSlugRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tenants/$slug/': {
+      id: '/_app/tenants/$slug/'
+      path: '/'
+      fullPath: '/tenants/$slug/'
+      preLoaderRoute: typeof AppTenantsSlugIndexRouteImport
+      parentRoute: typeof AppTenantsSlugRoute
+    }
+    '/_app/tenants/$slug/members': {
+      id: '/_app/tenants/$slug/members'
+      path: '/members'
+      fullPath: '/tenants/$slug/members'
+      preLoaderRoute: typeof AppTenantsSlugMembersRouteImport
+      parentRoute: typeof AppTenantsSlugRoute
+    }
+    '/_app/tenants/$slug/settings': {
+      id: '/_app/tenants/$slug/settings'
+      path: '/settings'
+      fullPath: '/tenants/$slug/settings'
+      preLoaderRoute: typeof AppTenantsSlugSettingsRouteImport
+      parentRoute: typeof AppTenantsSlugRoute
+    }
   }
 }
+
+interface AppTenantsSlugRouteChildren {
+  AppTenantsSlugMembersRoute: typeof AppTenantsSlugMembersRoute
+  AppTenantsSlugSettingsRoute: typeof AppTenantsSlugSettingsRoute
+  AppTenantsSlugIndexRoute: typeof AppTenantsSlugIndexRoute
+}
+
+const AppTenantsSlugRouteChildren: AppTenantsSlugRouteChildren = {
+  AppTenantsSlugMembersRoute: AppTenantsSlugMembersRoute,
+  AppTenantsSlugSettingsRoute: AppTenantsSlugSettingsRoute,
+  AppTenantsSlugIndexRoute: AppTenantsSlugIndexRoute,
+}
+
+const AppTenantsSlugRouteWithChildren = AppTenantsSlugRoute._addFileChildren(
+  AppTenantsSlugRouteChildren,
+)
 
 interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppProfileRoute: typeof AppProfileRoute
+  AppTenantsSlugRoute: typeof AppTenantsSlugRouteWithChildren
+  AppTenantsIndexRoute: typeof AppTenantsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppProfileRoute: AppProfileRoute,
+  AppTenantsSlugRoute: AppTenantsSlugRouteWithChildren,
+  AppTenantsIndexRoute: AppTenantsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

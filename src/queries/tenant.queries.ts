@@ -1,0 +1,240 @@
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { MembershipRole } from '@/constants/roles'
+import { apiClient, unwrap } from '@/http/client'
+import { statusFrom } from '@/lib/api-error'
+import type {
+  AddMemberInput,
+  NewTenantInput,
+  UpdateTenantInput,
+  UpdateTenantSettingsInput,
+} from '@/schemas/tenant.schemas'
+import type { ApiSuccess } from '@/types/api.types'
+
+/**
+ * A whole `tenants` row, as `TenantRepository` returns it — `db.select()`
+ * with no projection, so every column is on the wire including the soft
+ * delete bookkeeping.
+ */
+export interface Tenant {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  logo: string | null
+  website: string | null
+  /** 'active' | 'suspended' | 'archived'. */
+  lifecycleState: string
+  deletedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** A `user_memberships` row. */
+export interface TenantMembership {
+  id: string
+  userId: string
+  tenantId: string
+  role: MembershipRole
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * One row of `GET /tenants/:slug/members`.
+ *
+ * `user` is an explicit four-column projection on the server, never the
+ * whole users row — there is no `createdAt` here and, deliberately, no
+ * `passwordHash`.
+ */
+export interface TenantMember {
+  membership: TenantMembership
+  user: { id: string; email: string; firstName: string | null; lastName: string | null }
+}
+
+/** One row of `GET /tenants` — the tenant plus the caller's role in it. */
+export interface TenantWithRole {
+  tenant: Tenant
+  role: MembershipRole
+}
+
+/** A `tenant_settings` row. Both text columns are NOT NULL with defaults. */
+export interface TenantSettings {
+  tenantId: string
+  timezone: string
+  locale: string
+  metadata: Record<string, unknown> | null
+  updatedAt: string
+}
+
+/**
+ * `['tenants']` is a PREFIX of every other key here, so invalidating it
+ * without `exact: true` refetches every open detail, member and settings
+ * query as well. Each mutation below invalidates the narrowest key that
+ * actually changed, and says `exact: true` when it means the list alone.
+ */
+export const tenantKeys = {
+  list: ['tenants'] as const,
+  detail: (slug: string) => ['tenants', slug] as const,
+  members: (slug: string) => ['tenants', slug, 'members'] as const,
+  settings: (slug: string) => ['tenants', slug, 'settings'] as const,
+}
+
+export function useTenants() {
+  return useQuery({
+    queryKey: tenantKeys.list,
+    queryFn: async () => unwrap(await apiClient.get<ApiSuccess<TenantWithRole[]>>('/tenants')),
+  })
+}
+
+/**
+ * One tenant, where NOT FOUND IS A VALUE (`null`), not a rejection.
+ *
+ * `GET /tenants/:slug` answers an identical 404 for "no such tenant" and
+ * "you are not a member" (Ruling G), and both are a page state, not an
+ * error: the route must render a not-found panel rather than an error
+ * boundary, and must not let the caller tell the two apart.
+ *
+ * Resolving to `null` rather than rejecting is what makes that work end to
+ * end. A rejected query would (a) be retried by the router's `retry: 1`
+ * default, (b) be refetched again on mount by `retryOnMount`, and (c) make
+ * `ensureQueryData` throw inside `$slug.tsx`'s loader, which is the error
+ * boundary this must avoid. Every OTHER failure — a 500, a dropped
+ * connection — still rejects and still reaches the boundary, which is
+ * where an unexpected failure belongs.
+ */
+export function tenantQueryOptions(slug: string) {
+  return queryOptions({
+    queryKey: tenantKeys.detail(slug),
+    queryFn: async () => {
+      try {
+        return unwrap(await apiClient.get<ApiSuccess<Tenant>>(`/tenants/${slug}`))
+      } catch (error) {
+        if (statusFrom(error) === 404) return null
+        throw error
+      }
+    },
+  })
+}
+
+export function useTenant(slug: string) {
+  return useQuery(tenantQueryOptions(slug))
+}
+
+/**
+ * The caller's own role in one tenant.
+ *
+ * Read off the LIST, because `GET /tenants/:slug` returns the tenant row
+ * and nothing about the caller — `listForUser` is the only endpoint that
+ * joins the membership. `undefined` therefore means "not known yet", which
+ * every gated screen must render as loading rather than as read-only, or
+ * an owner watches their own controls appear a moment late.
+ */
+export function useMyRole(slug: string): { role: MembershipRole | undefined; isPending: boolean } {
+  const tenants = useTenants()
+  const role = tenants.data?.find((entry) => entry.tenant.slug === slug)?.role
+  return { role, isPending: tenants.isPending }
+}
+
+export function useCreateTenant() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: NewTenantInput) =>
+      unwrap(await apiClient.post<ApiSuccess<Tenant>>('/tenants', input)),
+    // `exact`, or this would also refetch every detail/members/settings
+    // query currently mounted — none of which a new tenant changes.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true }),
+  })
+}
+
+export function useUpdateTenant(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: UpdateTenantInput) =>
+      unwrap(await apiClient.patch<ApiSuccess<Tenant>>(`/tenants/${slug}`, input)),
+    onSuccess: async () => {
+      // Both: the detail query holds this tenant, and the LIST carries its
+      // name too — the switcher and the tenant list would otherwise keep
+      // showing the old one until something else refetched them.
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.detail(slug) })
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+    },
+  })
+}
+
+export function useMembers(slug: string) {
+  return useQuery({
+    queryKey: tenantKeys.members(slug),
+    queryFn: async () =>
+      unwrap(await apiClient.get<ApiSuccess<TenantMember[]>>(`/tenants/${slug}/members`)),
+  })
+}
+
+export function useAddMember(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: AddMemberInput) =>
+      unwrap(await apiClient.post<ApiSuccess<TenantMember>>(`/tenants/${slug}/members`, input)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) }),
+  })
+}
+
+export function useUpdateMemberRole(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: MembershipRole }) =>
+      unwrap(
+        await apiClient.patch<ApiSuccess<TenantMembership>>(`/tenants/${slug}/members/${userId}`, {
+          role,
+        })
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
+      // The caller may have changed their OWN role, and `useMyRole` reads
+      // the list — without this, the page would keep gating on the role the
+      // caller no longer holds.
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+    },
+  })
+}
+
+export function useRemoveMember(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (userId: string) =>
+      apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/members/${userId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
+      // The caller may have removed THEMSELVES, in which case this tenant
+      // is no longer theirs at all and the list must drop it.
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+    },
+  })
+}
+
+export function useTenantSettings(slug: string) {
+  return useQuery({
+    queryKey: tenantKeys.settings(slug),
+    queryFn: async () =>
+      unwrap(await apiClient.get<ApiSuccess<TenantSettings>>(`/tenants/${slug}/settings`)),
+  })
+}
+
+export function useUpdateTenantSettings(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: UpdateTenantSettingsInput) =>
+      unwrap(await apiClient.patch<ApiSuccess<TenantSettings>>(`/tenants/${slug}/settings`, input)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: tenantKeys.settings(slug) }),
+  })
+}
+
+/** How many owners a member list holds — the last-owner guard's input. */
+export function ownerCount(members: TenantMember[] | undefined): number {
+  return (members ?? []).filter((member) => member.membership.role === 'owner').length
+}
+
+/** "Ada Lovelace", or the email when the member has no name on file. */
+export function memberName(member: TenantMember): string {
+  const full = [member.user.firstName, member.user.lastName].filter(Boolean).join(' ').trim()
+  return full || member.user.email
+}

@@ -1,6 +1,6 @@
 import { AxiosError, AxiosHeaders } from 'axios'
 import { describe, expect, it } from 'vitest'
-import { fieldErrorsFrom, formErrorsFrom, messageFrom } from '@/lib/api-error'
+import { fieldErrorsFrom, formErrorsFrom, messageFrom, statusFrom } from '@/lib/api-error'
 import type { ApiErrorBody } from '@/types/api.types'
 
 function axiosErrorWith(body: ApiErrorBody): AxiosError {
@@ -49,6 +49,14 @@ describe('api-error', () => {
 
   it('returns the schema-level issues separately, for form-level display', () => {
     expect(formErrorsFrom(VALIDATION_FAILURE)).toEqual(['Passwords do not match.'])
+  })
+
+  it('reports the response status, and undefined when there was no response', () => {
+    // `useTenant` turns a 404 into a not-found VALUE; a network failure must
+    // stay an error, or a dropped connection would render "no such tenant".
+    expect(statusFrom(VALIDATION_FAILURE)).toBe(422)
+    expect(statusFrom(new AxiosError('Network Error'))).toBeUndefined()
+    expect(statusFrom(new Error('boom'))).toBeUndefined()
   })
 
   it('returns empty collections when the body carries no validator detail', () => {

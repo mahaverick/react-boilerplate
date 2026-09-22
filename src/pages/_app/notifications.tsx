@@ -16,7 +16,10 @@ import {
   type NotificationPreference,
 } from '@/queries/notification.queries'
 
-export const Route = createFileRoute('/_app/notifications')({ component: NotificationsPage })
+export const Route = createFileRoute('/_app/notifications')({
+  staticData: { crumb: 'Notifications' },
+  component: NotificationsPage,
+})
 
 /** The notification's own timestamp, in the reader's locale. */
 function receivedAt(createdAt: string): string {
