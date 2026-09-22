@@ -1,4 +1,4 @@
-import type { AxiosError, AxiosInstance } from 'axios'
+import { AxiosError, type AxiosInstance, type AxiosResponse } from 'axios'
 import { ROUTES } from '@/constants/routes'
 import { ensureSession } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
@@ -24,6 +24,44 @@ declare module 'axios' {
     /** Set by the response interceptor so a request is replayed at most once. */
     _retried?: boolean
   }
+}
+
+/**
+ * Rejects a 2xx response whose body is not the JSON object every endpoint
+ * promises. Axios parses JSON silently: a 200 carrying an empty body or an
+ * HTML error page (a poisoned browser-cache entry, a misrouted proxy
+ * response) resolves successfully with `response.data` as a raw string, and
+ * `unwrap()`'s `response.data.data` then yields `undefined` — a failure that
+ * surfaces far away, naming no request. Registered as a SECOND response
+ * interceptor so silent-refresh replays pass through it too.
+ */
+export function rejectMalformedJsonResponse(response: AxiosResponse): AxiosResponse {
+  // Blob/text/arraybuffer consumers opt out by setting responseType.
+  const responseType = response.config.responseType
+  if (responseType && responseType !== 'json') return response
+
+  // Parsed to an object — the JSON body every endpoint promises.
+  if (typeof response.data === 'object' && response.data !== null) return response
+
+  const contentType = String(response.headers['content-type'] ?? '')
+  const declaresJson = contentType.includes('json')
+
+  // An empty body under a non-JSON (or absent) content-type is a legitimate
+  // no-content response (204-style), not corruption.
+  if (!declaresJson && (response.data === '' || response.data === undefined)) return response
+
+  const method = response.config.method?.toUpperCase() ?? 'GET'
+  throw new AxiosError(
+    `Malformed JSON response body for ${method} ${response.config.url} — ` +
+      (declaresJson
+        ? 'content-type is JSON but the body did not parse to an object '
+        : `expected JSON but got content-type "${contentType}" `) +
+      '(corrupted or poisoned browser cache entry, or a misrouted response)',
+    'ERR_MALFORMED_RESPONSE',
+    response.config,
+    response.request,
+    response
+  )
 }
 
 export function installInterceptors(client: AxiosInstance): void {
@@ -94,4 +132,6 @@ export function installInterceptors(client: AxiosInstance): void {
       return client.request(config)
     }
   )
+
+  client.interceptors.response.use(rejectMalformedJsonResponse)
 }
