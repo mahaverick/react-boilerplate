@@ -5,6 +5,7 @@ import { ROUTES } from '@/constants/routes'
 import { installInterceptors } from '@/http/interceptors'
 import { resetSessionForTests } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
+import { NON_VERDICT_FAILURES } from '@/tests/fixtures/non-verdict-failures'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import { ACCESS_TOKEN_EXPIRED, type ApiSuccess } from '@/types/api.types'
@@ -22,33 +23,6 @@ function makeClient() {
   installInterceptors(client)
   return client
 }
-
-/**
- * Every way `/auth/refresh` can fail WITHOUT judging the caller's
- * credentials. None of these may end a session.
- *
- * - 503: nginx through a rolling restart. The SSE stream errors, the hook
- *   reconnects through ensureSession(), and a logout here would sign out
- *   every user with a tab open on every deploy.
- * - 429: /auth/refresh is rate limited, and the hook calls ensureSession()
- *   on a schedule across every open tab — so a flapping network can
- *   manufacture the 429 that would then end the session.
- * - A 200 carrying HTML: rejectMalformedJsonResponse throws an AxiosError
- *   that CARRIES a response, so a poisoned cache entry looked exactly like
- *   an auth verdict under the old `response !== undefined` test.
- */
-const NON_VERDICT_FAILURES: [string, () => Response][] = [
-  ['a 503 from a restarting upstream', () => fail('Service Unavailable', 503)],
-  ['a 429 from the refresh rate limiter', () => fail('Too Many Requests', 429)],
-  [
-    'a malformed 200 carrying HTML',
-    () =>
-      new HttpResponse('<!doctype html><title>nope</title>', {
-        status: 200,
-        headers: { 'Content-Type': 'text/html' },
-      }),
-  ],
-]
 
 describe('auth interceptors', () => {
   beforeEach(() => {
