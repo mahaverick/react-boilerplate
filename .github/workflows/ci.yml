@@ -16,9 +16,18 @@ permissions:
 
 jobs:
   # Two parallel jobs, matching express-boilerplate's split. Action majors are
-  # the ones current at the time of writing (checked against each action's
-  # latest release, not copied from the brief): actions/checkout v7,
-  # pnpm/action-setup v6, actions/setup-node v7.
+  # the ones current at the time of writing, checked against each action's
+  # latest release rather than copied from anywhere. Verified 2026-09-22:
+  # actions/checkout v7, pnpm/action-setup v6, actions/setup-node v7,
+  # actions/cache v6, actions/upload-artifact v7.
+  #
+  # cache and upload-artifact were pinned a major or more behind when the e2e
+  # job was added, and the runner said so: both still targeted Node 20, which
+  # GitHub has deprecated, and were being force-run on Node 24. Their v5+
+  # releases are that runtime move plus a port to ESM — no input changed, so
+  # `path`/`key`/`cache-hit` and `name`/`path`/`retention-days` all still mean
+  # what they did. Both require an Actions Runner of at least 2.327.1, which
+  # matters only for self-hosted runners; these jobs run on ubuntu-latest.
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -81,7 +90,7 @@ jobs:
       # The browser is ~100MB and is not in the pnpm store, so setup-node's
       # cache does not cover it. Keyed on the lockfile: a Playwright bump
       # changes the lockfile and must fetch a matching browser build.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -96,7 +105,7 @@ jobs:
       - run: pnpm test:e2e
       # Only on failure, and only for a week: the report is how you find out
       # what a red run actually saw, and it is useless once the branch moves on.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
