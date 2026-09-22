@@ -45,3 +45,7 @@ dist-ssr
 
 # StyleSeed local evidence (screenshots, run records)
 .styleseed/evidence/
+
+# Playwright output
+/test-results/
+/playwright-report/

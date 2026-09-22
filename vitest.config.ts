@@ -21,6 +21,11 @@ export default defineConfig({
     // of their own — see `asyncUtilTimeout` in src/tests/setup.ts, which is
     // the half that was actually producing the intermittent failures. Both
     // are needed, and this one must stay comfortably the larger.
+    // Vitest's default `include` is `**/*.{test,spec}.?(c|m)[jt]s?(x)`, which
+    // would collect `e2e/**/*.test.ts` and run Playwright specs under jsdom.
+    // The e2e suite is `pnpm test:e2e`; these two runners share a filename
+    // convention and must not share files.
+    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
     testTimeout: 20_000,
     // Deliberately NOT `retry`. A retry would have made the observed failures
     // disappear from the report while leaving the race in place, and the next

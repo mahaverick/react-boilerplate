@@ -18,7 +18,9 @@
     "test": "vitest --watch=false",
     "test:watch": "vitest",
     "prepare": "husky",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,css,json,md,html}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,css,json,md,html}\"",
+    "test:e2e": "playwright test --project=fixtures",
+    "test:e2e:live": "E2E_LIVE=1 playwright test --project=live"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",
@@ -40,6 +42,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@ianvs/prettier-plugin-sort-imports": "4.7.1",
+    "@playwright/test": "^1.63.0",
     "@rolldown/plugin-babel": "0.2.4",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/eslint-plugin-router": "1.162.0",
