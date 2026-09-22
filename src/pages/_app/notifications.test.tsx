@@ -82,6 +82,27 @@ describe('notifications page', () => {
     await waitFor(() => expect(screen.queryByText('Unread')).not.toBeInTheDocument())
   })
 
+  it('restores the snapshot when a mark-read fails', async () => {
+    const user = userEvent.setup()
+    renderNotifications()
+    await screen.findByText(unreadRow.title)
+
+    server.use(
+      http.patch('/api/v1/notifications/:id/read', () => fail('Notification not found', 404)),
+      // The rollback is what has to put the Unread badge back: onSettled's
+      // invalidation fires too, and a refetch that answered would hide
+      // whether onError restored anything.
+      http.get('/api/v1/notifications', () => delay('infinite'))
+    )
+
+    await user.click(screen.getByRole('button', { name: `Mark "${unreadRow.title}" as read` }))
+
+    await waitFor(() => expect(screen.getByText('Unread')).toBeInTheDocument())
+    expect(
+      screen.getByRole('button', { name: `Mark "${unreadRow.title}" as read` })
+    ).toBeInTheDocument()
+  })
+
   it('restores the snapshot when a delete fails', async () => {
     const user = userEvent.setup()
     renderNotifications()
