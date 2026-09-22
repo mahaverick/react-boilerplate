@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
-import { ensureSession } from '@/http/session'
+import { API_PREFIX } from '@/constants/routes'
+import { ensureSession, isAuthVerdict, redirectToLogin } from '@/http/session'
 import { notificationKeys } from '@/queries/notification.queries'
 import { useAuthStore } from '@/states/auth.store'
 
@@ -75,10 +76,27 @@ export function useNotificationStream(): void {
             // which is then immediately torn down by the cleanup.
             if (fresh === token) connect(fresh)
           })
-          .catch(() => {
-            // ensureSession rejected, and WHY decides whether to carry on.
+          .catch((error: unknown) => {
+            // ensureSession rejected, and WHY decides what happens next.
+            //
             // A 401 — a dead refresh cookie — has already cleared the store,
-            // and the route guard is about to send the user to /login: stop.
+            // and NOTHING ELSE MOVES THE USER. There is no `errorComponent`,
+            // no store subscription and no `router.invalidate` anywhere, and
+            // `_app.beforeLoad` runs only on navigation — so a tab that is
+            // sitting still stays exactly where it is, signed out, showing
+            // whatever it had cached. (An earlier comment here claimed "the
+            // route guard is about to send the user to /login"; it does not,
+            // and a rendered /dashboard with a 401 refresh proved it.) This
+            // path therefore performs the redirect itself, through the same
+            // routine the 401 interceptor calls.
+            if (isAuthVerdict(error)) {
+              redirectToLogin()
+              return
+            }
+            // Not gated on `cancelled`: `logout()` updates the store, which
+            // re-runs this effect and sets `cancelled` in its cleanup, so the
+            // flag races the redirect. The session is over either way.
+
             // EVERY other failure leaves the session untouched (see
             // isAuthVerdict in http/session.ts): a deploy's 502, the refresh
             // rate limiter's 429, an unreachable API. Giving up on those
@@ -98,7 +116,12 @@ export function useNotificationStream(): void {
       // A URL string, absolute from the root rather than built from
       // `apiClient`: EventSource takes a URL and ignores axios entirely, so
       // none of the client's baseURL, interceptors or headers apply here.
-      source = new EventSource(`/api/v1/notifications/stream?token=${encodeURIComponent(token)}`)
+      // The prefix comes from API_PREFIX for exactly that reason — it is the
+      // one thing this URL and the axios base still have to agree on, and
+      // they agreed only by coincidence while both were written out by hand.
+      source = new EventSource(
+        `${API_PREFIX}/notifications/stream?token=${encodeURIComponent(token)}`
+      )
 
       // Every reconnect below builds a NEW EventSource, and a new EventSource
       // sends no `Last-Event-ID` — so the server's replay of everything missed
@@ -121,7 +144,7 @@ export function useNotificationStream(): void {
       // lifetime after a one-second blip. Routing every error through
       // ensureSession() handles all three cases with one path: an expired
       // token is refreshed, a transient failure gets the same token back, and
-      // a genuinely dead session logs out and stops the loop.
+      // a genuinely dead session logs out, redirects and stops the loop.
       source.onerror = () => {
         source?.close()
         source = null

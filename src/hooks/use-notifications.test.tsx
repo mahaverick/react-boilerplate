@@ -9,58 +9,27 @@ import {
   notificationKeys,
   useNotifications,
   type Notification,
-  type NotificationStreamPayload,
 } from '@/queries/notification.queries'
 import { useAuthStore } from '@/states/auth.store'
+import { latestEventSource as latest, MockEventSource } from '@/tests/mocks/event-source'
 import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /**
- * Enough of `EventSource` to drive the hook, and no more.
+ * What the server actually puts on a `notification` frame's `data:` line —
+ * NOT a list row. `toStreamPayload` (notification-stream.controller.ts)
+ * narrows the row to these six fields, dropping `userId` (the connection is
+ * already scoped to one user) and `metadata`.
  *
- * `listeners` is a map keyed by event NAME, not a single `onmessage` slot,
- * because that distinction is the whole point of the third test: the server
- * writes `event: notification`, and a browser dispatches a named frame only
- * to listeners registered for that name.
+ * Typed by subtraction from `Notification` rather than through a hand-written
+ * interface of its own. There WAS one, exported from notification.queries.ts,
+ * and nothing but this fixture ever referenced it: it was residue of the
+ * superseded design in which the hook wrote frames into the cache with
+ * `setQueryData`. The hook invalidates instead, so no production code reads
+ * this shape at all — but the frame is still narrower than a row, and saying
+ * so here keeps the fixture honest without shipping a type for it.
  */
-class MockEventSource {
-  static instances: MockEventSource[] = []
-  onerror: ((event: Event) => void) | null = null
-  closed = false
-  private readonly listeners = new Map<string, Set<(event: Event) => void>>()
-
-  constructor(public url: string) {
-    MockEventSource.instances.push(this)
-  }
-
-  addEventListener(type: string, listener: (event: Event) => void): void {
-    const existing = this.listeners.get(type) ?? new Set<(event: Event) => void>()
-    existing.add(listener)
-    this.listeners.set(type, existing)
-  }
-
-  removeEventListener(type: string, listener: (event: Event) => void): void {
-    this.listeners.get(type)?.delete(listener)
-  }
-
-  close(): void {
-    this.closed = true
-  }
-
-  /** Deliver one frame, exactly as the browser would: by event name only. */
-  dispatch(type: string, data?: string): void {
-    const event = data === undefined ? new Event(type) : new MessageEvent(type, { data })
-    for (const listener of this.listeners.get(type) ?? []) listener(event)
-  }
-}
-
-function latest(): MockEventSource {
-  const instance = MockEventSource.instances.at(-1)
-  if (!instance) throw new Error('no EventSource was opened')
-  return instance
-}
-
-const streamPayload: NotificationStreamPayload = {
+const streamPayload: Omit<Notification, 'userId' | 'metadata'> = {
   id: 'n1',
   type: 'verify_email',
   title: 'Verify your email',
@@ -276,7 +245,21 @@ describe('useNotificationStream', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
-  it('stops retrying once the session is genuinely dead', async () => {
+  it('stops retrying once the session is genuinely dead, and sends the user to /login', async () => {
+    // The redirect is the half that was missing. `logout()` clears the store
+    // and nothing else moves the user — no errorComponent, no store
+    // subscription, no router.invalidate, and `_app.beforeLoad` only runs on
+    // navigation — so a still tab stayed on /dashboard, signed out, showing
+    // cached data. jsdom's location is unforgeable, hence the stub.
+    const assign = vi.fn()
+    vi.stubGlobal('location', {
+      ...window.location,
+      href: `${window.location.origin}/dashboard`,
+      pathname: '/dashboard',
+      search: '',
+      hash: '',
+      assign,
+    })
     server.use(
       http.post(
         '/api/v1/auth/refresh',
@@ -302,6 +285,8 @@ describe('useNotificationStream', () => {
     // ensureSession rejected and logged out; no second connection.
     expect(MockEventSource.instances).toHaveLength(1)
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    // …and the user is actually moved, carrying where they were.
+    expect(assign).toHaveBeenCalledWith(`/login?redirect=${encodeURIComponent('/dashboard')}`)
   })
 
   it('closes the connection on unmount', () => {

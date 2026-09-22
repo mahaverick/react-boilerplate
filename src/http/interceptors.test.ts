@@ -37,10 +37,25 @@ describe('auth interceptors', () => {
 
   afterEach(() => vi.unstubAllGlobals())
 
-  /** jsdom's window.location is unforgeable, so assign() cannot be spied on. */
-  function stubLocation() {
+  /**
+   * jsdom's window.location is unforgeable, so assign() cannot be spied on.
+   *
+   * `pathname`/`search`/`hash` are set EXPLICITLY rather than left to the
+   * spread: they are prototype accessors on jsdom's Location, so `{...}`
+   * copies none of them — which is why `href` was already being restated
+   * here. `redirectToLogin` reads all three to build `?redirect=`, and a
+   * spread-only stub would have it encode `undefined`.
+   */
+  function stubLocation(pathname = '/widgets', search = '', hash = '') {
     const assign = vi.fn()
-    vi.stubGlobal('location', { ...window.location, href: window.location.href, assign })
+    vi.stubGlobal('location', {
+      ...window.location,
+      href: `${window.location.origin}${pathname}${search}${hash}`,
+      pathname,
+      search,
+      hash,
+      assign,
+    })
     return assign
   }
 
@@ -140,9 +155,36 @@ describe('auth interceptors', () => {
     await expect(makeClient().get('/widgets')).rejects.toThrow()
     expect(attempts).toBe(2)
   })
-  it('redirects to the login page when the refresh itself fails', async () => {
+  // The forced logout carries the caller's whole location, query and all:
+  // `_app`'s guard already writes `?redirect=` on the navigations it blocks
+  // and login.tsx already consumes it, so a forced logout that dropped it
+  // would be the one door into /login that forgets where the user was.
+  it('redirects to the login page, preserving the location, when the refresh fails', async () => {
     useAuthStore.getState().login('stale', testUser)
-    const assign = stubLocation()
+    const assign = stubLocation('/tenants/acme/members', '?page=2', '#roles')
+    let attempts = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)),
+      http.get('/api/v1/widgets', () => {
+        attempts += 1
+        return attempts > RETRY_CAP
+          ? ok(['widget'])
+          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+      })
+    )
+
+    await expect(makeClient().get('/widgets')).rejects.toThrow()
+    expect(assign).toHaveBeenCalledWith(
+      `${ROUTES.login}?redirect=${encodeURIComponent('/tenants/acme/members?page=2#roles')}`
+    )
+    expect(useAuthStore.getState().accessToken).toBeNull()
+  })
+
+  // Without this guard /login becomes its own redirect target, and signing in
+  // "returns" the user to the page they just signed in on.
+  it('writes no redirect param when the forced logout happens on /login itself', async () => {
+    useAuthStore.getState().login('stale', testUser)
+    const assign = stubLocation(ROUTES.login)
     let attempts = 0
     server.use(
       http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)),
@@ -156,7 +198,6 @@ describe('auth interceptors', () => {
 
     await expect(makeClient().get('/widgets')).rejects.toThrow()
     expect(assign).toHaveBeenCalledWith(ROUTES.login)
-    expect(useAuthStore.getState().accessToken).toBeNull()
   })
 
   // The mirror of the test above, and the reason session.ts no longer logs

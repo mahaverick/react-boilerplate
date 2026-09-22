@@ -1,3 +1,23 @@
+/**
+ * The API's path prefix, and the ONE place it is written.
+ *
+ * It is FIXED, not configurable, and that is a statement about the system
+ * rather than a preference. Four things hardcode it and only one of them is
+ * JavaScript: nginx routes `location /api/v1/notifications/stream` (its SSE
+ * buffering and its token-stripping log format hang off that exact prefix),
+ * `EventSource` builds its URL from a string because it ignores axios
+ * entirely, the Google OAuth control is a plain same-origin anchor, and the
+ * dev server proxies `/api`. A build that moved the axios base alone would
+ * leave the other three pointing at the old path — so sign-in by Google and
+ * the whole notification stream would break, silently, in a build that
+ * otherwise looked healthy.
+ *
+ * Everything on the JavaScript side therefore derives from here. Moving the
+ * API to another prefix means changing this constant AND `nginx.conf` AND
+ * `vite.config.ts`'s proxy, in one change.
+ */
+export const API_PREFIX = '/api/v1'
+
 export const ROUTES = {
   home: '/',
   login: '/login',
@@ -16,4 +36,4 @@ export const ROUTES = {
 } as const
 
 /** The API path for the Google OAuth start. Same-origin, so a plain anchor. */
-export const GOOGLE_OAUTH_PATH = '/api/v1/auth/google'
+export const GOOGLE_OAUTH_PATH = `${API_PREFIX}/auth/google`

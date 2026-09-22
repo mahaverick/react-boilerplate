@@ -1,4 +1,5 @@
 import { isAxiosError } from 'axios'
+import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
@@ -39,6 +40,53 @@ import type { ApiSuccess, User } from '@/types/api.types'
  */
 export function isAuthVerdict(error: unknown): boolean {
   return isAxiosError(error) && error.response?.status === 401
+}
+
+/**
+ * Move the browser to /login after a session has ENDED — the one place that
+ * navigation is written, called by every path that can end one.
+ *
+ * There are two such paths and they must not diverge. The 401 interceptor
+ * (interceptors.ts) is one. The SSE reconnect (`useNotificationStream`) is
+ * the other, and it used to have NO navigation at all: `refreshSession()`
+ * cleared the store and then nothing moved the user, because there is no
+ * `errorComponent`, no store subscription and no `router.invalidate`
+ * anywhere, and `_app.beforeLoad` only runs on navigation. The tab simply
+ * sat where it was, signed out, showing cached data.
+ *
+ * **The caller's location is preserved**, because `_app`'s guard already
+ * writes `?redirect=` on the navigations it blocks and `login.tsx` already
+ * consumes it through `safeRedirect`; a forced logout that dropped it would
+ * be the one door into /login that forgets where the user was.
+ *
+ * `pathname + search + hash`, not just the pathname — `/tenants?page=2` must
+ * come back with its query. `safeRedirect` re-validates the value on the way
+ * out, because by then it has been through the URL bar.
+ *
+ * **The `/login` guard is not belt-and-braces.** Without it, a bounce that
+ * lands here while already on /login writes /login into its own redirect
+ * target, and signing in then "returns" the user to the login page.
+ *
+ * A full-page `assign`, not a router navigation, and deliberately so: both
+ * callers live outside React (an axios interceptor and an EventSource
+ * handler), and a dead session is exactly the moment to discard every piece
+ * of in-memory state rather than carry it across.
+ *
+ * NOT called from `refreshSession()` itself, even though that is where
+ * `logout()` happens. `bootstrapSession()` also drives a 401 through there on
+ * every cold load with a dead refresh cookie, and navigating from inside
+ * would replace the router guard's clean client-side redirect with a second
+ * full page load — and on /login itself, with a reload loop. The callers that
+ * have no other way to move the user are the ones that call this.
+ */
+export function redirectToLogin(): void {
+  if (typeof window === 'undefined') return
+  const { pathname, search, hash } = window.location
+  const target =
+    pathname === ROUTES.login
+      ? ROUTES.login
+      : `${ROUTES.login}?redirect=${encodeURIComponent(`${pathname}${search}${hash}`)}`
+  window.location.assign(target)
 }
 
 /**

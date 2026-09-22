@@ -1,6 +1,5 @@
 import { AxiosError, type AxiosInstance, type AxiosResponse } from 'axios'
-import { ROUTES } from '@/constants/routes'
-import { ensureSession, isAuthVerdict } from '@/http/session'
+import { ensureSession, isAuthVerdict, redirectToLogin } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
 import { ACCESS_TOKEN_EXPIRED, type ApiErrorBody } from '@/types/api.types'
 
@@ -128,8 +127,13 @@ export function installInterceptors(client: AxiosInstance): void {
         // would undo that from the other side, throwing the user out of a
         // session that is still perfectly valid. Redirect only when the store
         // was actually cleared.
-        if (isAuthVerdict(refreshError) && typeof window !== 'undefined') {
-          window.location.assign(ROUTES.login)
+        //
+        // `redirectToLogin` rather than a bare assign to ROUTES.login: it is
+        // the routine the SSE path calls too, and it carries the caller's
+        // location into `?redirect=` so signing back in returns them to the
+        // page they were forced off. See session.ts.
+        if (isAuthVerdict(refreshError)) {
+          redirectToLogin()
         }
         // `throw` rather than Promise.reject: identical in an async function,
         // and refreshError is `unknown`, which prefer-promise-reject-errors
