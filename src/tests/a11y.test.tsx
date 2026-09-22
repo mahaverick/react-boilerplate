@@ -463,6 +463,17 @@ describe('open overlays', () => {
     await expectNoViolations()
   })
 
+  it('has no violations with the member list stacked as cards on a phone', async () => {
+    // A second render path is a second chance to ship a duplicate id or an
+    // unlabelled control, and it is the path the table tests never touch.
+    setViewportWidth(390)
+    renderAppAt('/tenants/acme/members')
+    await screen.findByText('Cleo D')
+
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    await expectNoViolations()
+  })
+
   it('has no violations with the mobile sidebar sheet open, and the sheet is named', async () => {
     setViewportWidth(500)
     const user = userEvent.setup()

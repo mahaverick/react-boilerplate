@@ -55,6 +55,7 @@ import {
   type MembershipRole,
 } from '@/constants/roles'
 import { fieldValue } from '@/hooks/use-form-field'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { messageFrom } from '@/lib/api-error'
 import {
@@ -381,12 +382,15 @@ function MemberRow({
   myRole,
   myUserId,
   owners,
+  asCard = false,
 }: {
   slug: string
   member: TenantMember
   myRole: MembershipRole
   myUserId: string | undefined
   owners: number
+  /** Stacked card instead of a table row. See the list below for why. */
+  asCard?: boolean
 }) {
   const targetRole = member.membership.role
   const isSelf = member.user.id === myUserId
@@ -398,6 +402,42 @@ function MemberRow({
   // every control the guard disables points at it.
   const reasonId = `last-owner-${member.membership.id}`
 
+  const role = (
+    <RoleCell
+      slug={slug}
+      member={member}
+      myRole={myRole}
+      isSelf={isSelf}
+      isLastOwner={isLastOwner}
+      reasonId={reasonId}
+    />
+  )
+  const remove = canRemove ? (
+    <RemoveMemberButton
+      slug={slug}
+      member={member}
+      isSelf={isSelf}
+      isLastOwner={isLastOwner}
+      reasonId={reasonId}
+    />
+  ) : null
+
+  if (asCard) {
+    return (
+      <li className="grid gap-3 rounded-lg border p-4">
+        <div className="grid gap-0.5">
+          <span className="font-medium">
+            {memberName(member)}
+            {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
+          </span>
+          <span className="text-sm break-all text-muted-foreground">{member.user.email}</span>
+        </div>
+        {role}
+        {remove && <div>{remove}</div>}
+      </li>
+    )
+  }
+
   return (
     <TableRow>
       <TableCell className="font-medium">
@@ -405,27 +445,8 @@ function MemberRow({
         {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
       </TableCell>
       <TableCell>{member.user.email}</TableCell>
-      <TableCell>
-        <RoleCell
-          slug={slug}
-          member={member}
-          myRole={myRole}
-          isSelf={isSelf}
-          isLastOwner={isLastOwner}
-          reasonId={reasonId}
-        />
-      </TableCell>
-      <TableCell className="text-right">
-        {canRemove ? (
-          <RemoveMemberButton
-            slug={slug}
-            member={member}
-            isSelf={isSelf}
-            isLastOwner={isLastOwner}
-            reasonId={reasonId}
-          />
-        ) : null}
-      </TableCell>
+      <TableCell>{role}</TableCell>
+      <TableCell className="text-right">{remove}</TableCell>
     </TableRow>
   )
 }
@@ -436,6 +457,7 @@ function TenantMembersTab() {
   const { role: myRole, isPending: isRolePending, isError: isRoleError, retry } = useMyRole(slug)
   const myUserId = useAuthStore((state) => state.user?.id)
   const owners = ownerCount(members.data)
+  const isMobile = useIsMobile()
 
   return (
     <div className="grid gap-6">
@@ -483,6 +505,33 @@ function TenantMembersTab() {
             <p className="text-sm text-muted-foreground">
               No one has access to this tenant yet. Add someone below.
             </p>
+          ) : isMobile ? (
+            // CARDS ON A PHONE. The table below is `min-w-2xl` so it scrolls
+            // rather than crushing four columns into 320px, and that scroll
+            // works — but it put the Actions column and the last-owner
+            // explanation past the right edge, where a reader has no reason
+            // to look. Measured at 390px: scrollWidth 672 against clientWidth
+            // 326.
+            //
+            // Chosen in JS rather than with `hidden md:table` / `md:hidden`
+            // because a CSS pair renders BOTH paths into the DOM: two role
+            // selects per member, two copies of one `reasonId`, and a
+            // duplicate-id accessibility failure that looks like a
+            // regression. `useIsMobile` is the same hook the sidebar sheet
+            // uses, so "phone" means one thing across the app.
+            <ul className="grid gap-3">
+              {(members.data ?? []).map((member) => (
+                <MemberRow
+                  key={member.membership.id}
+                  asCard
+                  slug={slug}
+                  member={member}
+                  myRole={myRole}
+                  myUserId={myUserId}
+                  owners={owners}
+                />
+              ))}
+            </ul>
           ) : (
             // The vendored Table already wraps itself in an overflow-x-auto
             // container; `min-w-2xl` is what makes that container actually

@@ -8,7 +8,7 @@ import {
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
@@ -78,7 +78,20 @@ async function rowFor(name: string) {
   return within(row)
 }
 
+/**
+ * `useIsMobile` reads `window.innerWidth` for the VALUE and only uses
+ * matchMedia for the listener, so setting the width is what decides.
+ */
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+}
+const realInnerWidth = window.innerWidth
+
 describe('members tab permissions', () => {
+  afterEach(() => {
+    setViewportWidth(realInnerWidth)
+  })
+
   beforeEach(() => {
     resetSessionForTests()
     queryClient.clear()
@@ -205,6 +218,22 @@ describe('members tab permissions', () => {
     const me = await rowFor('Me')
     expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeEnabled()
     expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
+  })
+
+  it('stacks members as cards on a phone, so no control sits off-screen', async () => {
+    // At 390px the four-column table scrolled horizontally and put both the
+    // Actions column and the last-owner explanation past the right edge. The
+    // card path is ONE render path chosen in JS, not a CSS `sm:hidden` pair:
+    // two paths in the DOM would mean two role selects sharing one id.
+    setViewportWidth(390)
+    mockTenant('owner', [member(ME, 'owner', 'A'), member('u2', 'viewer', 'Cleo')])
+    renderAppAt('/tenants/acme/members')
+
+    expect(await screen.findByText('Cleo X')).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    // The controls that were off-screen are present and reachable.
+    expect(screen.getByRole('combobox', { name: 'Role for Cleo X' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
   })
 
   it('says the list is empty rather than showing a bare table header', async () => {
