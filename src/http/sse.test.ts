@@ -99,4 +99,20 @@ describe('parseSseStream', () => {
     }).rejects.toThrow(/buffer exceeded/i)
     expect(events).toHaveLength(0)
   })
+
+  it('delivers a burst of complete frames larger than the cap instead of mistaking it for a runaway', async () => {
+    // The cap measures what is RETAINED after framing, not what arrived. A
+    // single chunk carrying more than a megabyte of perfectly complete
+    // frames is a big burst, not a frame that never ends — checking the
+    // pre-split buffer would throw here, blame "no complete frame", and
+    // discard every one of them.
+    const frame = `data: ${'y'.repeat(16 * 1024)}\n\n`
+    const burst = frame.repeat(80) // ~1.3 MiB, all of it complete frames
+    const events: SseEvent[] = []
+
+    for await (const event of parseSseStream(streamOf(burst))) events.push(event)
+
+    expect(events).toHaveLength(80)
+    expect(events[0]?.data).toHaveLength(16 * 1024)
+  })
 })

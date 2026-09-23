@@ -54,11 +54,6 @@ export async function* parseSseStream(
       const { value, done } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
-      if (buffer.length > MAX_BUFFER_LENGTH) {
-        throw new Error(
-          `SSE buffer exceeded ${String(MAX_BUFFER_LENGTH)} bytes without a complete frame`
-        )
-      }
 
       const frames = buffer.split(/\r?\n\r?\n/)
       // The last element is an incomplete frame, or ''. Keep it for next read.
@@ -67,6 +62,19 @@ export async function* parseSseStream(
       for (const frame of frames) {
         const parsed = parseFrame(frame)
         if (parsed) yield parsed
+      }
+
+      // Checked AFTER the split and AFTER yielding, against what is actually
+      // RETAINED. Two things would go wrong checking the pre-split buffer:
+      // it measures the incomplete tail plus every complete frame that
+      // arrived in the same chunk, so a large burst of perfectly good frames
+      // trips a limit whose message says no frame ever completed; and it
+      // discards those frames instead of delivering them. Here, whatever
+      // completed is already out, and only a genuinely unbounded tail throws.
+      if (buffer.length > MAX_BUFFER_LENGTH) {
+        throw new Error(
+          `SSE buffer exceeded ${String(MAX_BUFFER_LENGTH)} bytes without a complete frame`
+        )
       }
     }
   } finally {
