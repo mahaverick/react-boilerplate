@@ -82,7 +82,8 @@ async function contrastOf(
   page: Page,
   url: string,
   theme: string,
-  heading: string | RegExp
+  heading: string | RegExp,
+  scope?: string
 ): Promise<ContrastResult> {
   // Set BEFORE the document runs: index.html carries a pre-paint script that
   // reads localStorage and toggles `.dark` before the bundle loads, so setting
@@ -103,7 +104,22 @@ async function contrastOf(
 
   await page.addScriptTag({ path: AXE_PATH })
 
-  return page.evaluate(async () => {
+  return runAxe(page, scope)
+}
+
+/**
+ * Run axe's contrast rule over the whole document, or over one element.
+ *
+ * Scoping matters for the popup surfaces: the page behind an open menu is
+ * already graded by its own entry above, so running the whole document again
+ * would report the same nodes twice and make a popup failure harder to see,
+ * not easier.
+ * @param page - The page, with axe already injected.
+ * @param scope - A selector to grade instead of the whole document.
+ * @returns axe's violations and incompletes.
+ */
+async function runAxe(page: Page, scope?: string): Promise<ContrastResult> {
+  return page.evaluate(async (selector) => {
     // `color-contrast` ONLY. Everything else about these pages is already
     // gated by src/tests/a11y.test.tsx, and re-running it here would mean two
     // sources of truth for the same finding.
@@ -111,7 +127,7 @@ async function contrastOf(
       window as unknown as {
         axe: { run: (ctx: Document, opts: unknown) => Promise<ContrastResult> }
       }
-    ).axe.run(document, {
+    ).axe.run((selector ? document.querySelector(selector) : document) ?? document, {
       runOnly: { type: 'rule', values: ['color-contrast'] },
       resultTypes: ['violations'],
     })
@@ -125,7 +141,7 @@ async function contrastOf(
         nodes: v.nodes.map((n) => ({ target: n.target, failureSummary: n.failureSummary })),
       })),
     }
-  })
+  }, scope)
 }
 
 /** axe's failureSummary carries the ratio and both colours; keep it readable. */
@@ -162,3 +178,118 @@ for (const theme of THEMES) {
     })
   }
 }
+
+/**
+ * Popup surfaces — menus, the mobile sheet, and the destructive confirm.
+ *
+ * These carry their own `--popover` / `--popover-foreground` pair (and the
+ * sheet its own background), so a failure on one is invisible to every page
+ * test above: axe only sees what is in the DOM, and a closed menu is not.
+ * That makes them the surfaces most likely to hide a bad token pair, and the
+ * ones a palette change is least likely to be checked against by eye.
+ *
+ * Selectors are ported from `src/tests/a11y.test.tsx`'s "open overlays" and
+ * menu blocks, which already drive each of these open — deliberately reused
+ * rather than reinvented, so the two suites cannot drift on what "the user
+ * menu" means.
+ */
+const POPUPS = [
+  {
+    name: 'notification bell menu',
+    path: '/dashboard',
+    trigger: /^Notifications,/,
+    role: 'menu',
+  },
+  {
+    name: 'tenant switcher menu',
+    path: '/dashboard',
+    trigger: /^Switch tenant/,
+    role: 'menu',
+  },
+  {
+    name: 'user menu',
+    path: '/dashboard',
+    trigger: /^Account menu for/,
+    role: 'menu',
+  },
+] as const
+
+for (const theme of THEMES) {
+  for (const popup of POPUPS) {
+    test(`${popup.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
+      await page.goto(`/e2e/harness/?path=${popup.path}`, { waitUntil: 'networkidle' })
+      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible()
+
+      await page.getByRole('button', { name: popup.trigger }).click()
+      const menu = page.getByRole(popup.role)
+      await expect(menu).toBeVisible()
+      // A menu that opened EMPTY would grade clean while saying nothing about
+      // the items this test exists for — the same guard the a11y gate states
+      // for its own menu block.
+      await expect(menu.getByRole('menuitem').first()).toBeVisible()
+
+      await page.evaluate(() => document.fonts.ready)
+      await page.waitForTimeout(300)
+      await page.addScriptTag({ path: AXE_PATH })
+
+      const result = await runAxe(page, `[role="${popup.role}"]`)
+      expect(report(popup.name, theme, result), report(popup.name, theme, result)).toBe('')
+    })
+  }
+}
+
+test.describe('popups that are not menus', () => {
+  for (const theme of THEMES) {
+    test(`the mobile navigation sheet meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      // The sheet carries its own background token, and it only exists below
+      // the desktop breakpoint — so the desktop shell tests above can never
+      // reach it however many pages they visit.
+      await page.setViewportSize({ width: 390, height: 844 })
+      await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
+      await page.goto('/e2e/harness/?path=/dashboard', { waitUntil: 'networkidle' })
+      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible()
+
+      await page.getByRole('button', { name: 'Toggle sidebar' }).click()
+      const sheet = page.getByRole('dialog')
+      await expect(sheet).toBeVisible()
+      // Opened AND populated: an empty sheet grades clean and proves nothing.
+      await expect(sheet.getByRole('link').first()).toBeVisible()
+
+      await page.evaluate(() => document.fonts.ready)
+      await page.waitForTimeout(300)
+      await page.addScriptTag({ path: AXE_PATH })
+
+      const result = await runAxe(page, '[role="dialog"]')
+      expect(report('mobile sheet', theme, result), report('mobile sheet', theme, result)).toBe('')
+    })
+
+    test(`the remove-member confirm meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      // The one place a `destructive` foreground lands on a raised surface.
+      // Every other destructive control in the app sits on the page
+      // background, which the page entries above already cover.
+      await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
+      await page.goto('/e2e/harness/', { waitUntil: 'networkidle' })
+      await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible()
+
+      // Cleo is a plain member and not the last owner, so her row's control is
+      // the enabled one — the same row src/tests/a11y.test.tsx drives for the
+      // same reason.
+      const row = page.getByRole('row').filter({ hasText: 'Cleo' })
+      await row.getByRole('button', { name: 'Remove' }).click()
+      const confirm = page.getByRole('alertdialog')
+      await expect(confirm).toBeVisible()
+      await expect(confirm.getByRole('button', { name: /Remove/ })).toBeVisible()
+
+      await page.evaluate(() => document.fonts.ready)
+      await page.waitForTimeout(300)
+      await page.addScriptTag({ path: AXE_PATH })
+
+      const result = await runAxe(page, '[role="alertdialog"]')
+      expect(
+        report('remove-member confirm', theme, result),
+        report('remove-member confirm', theme, result)
+      ).toBe('')
+    })
+  }
+})
