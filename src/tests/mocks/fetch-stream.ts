@@ -1,4 +1,32 @@
 import { vi } from 'vitest'
+import type { ApiErrorBody } from '@/types/api.types'
+
+/**
+ * A refused CONNECT — the response `fetch()` resolves to when the server
+ * declines the connection outright (a 401, a 500), as opposed to `fail()`
+ * below, which fails a stream already open. `body`, when given, matches this
+ * codebase's `ApiErrorBody` envelope, exactly as `errorHandler`
+ * (express-boilerplate's error.middleware.ts) actually serializes a
+ * rejection.
+ */
+export interface ConnectRefusal {
+  status: number
+  body?: ApiErrorBody
+}
+
+let queuedConnectRefusal: ConnectRefusal | null = null
+
+/**
+ * Make the NEXT `MockFetchStream` constructed answer its `fetch()` caller
+ * with a non-ok response instead of the ordinary streaming 200 — the connect
+ * itself refused, exactly as `!response.ok` looks to
+ * `useNotificationStream`. Consumed once: it affects only the very next
+ * connect, never a later reconnect.
+ * @param refusal - The status (and, optionally, JSON body) the refused connect resolves with.
+ */
+export function queueConnectRefusal(refusal: ConnectRefusal): void {
+  queuedConnectRefusal = refusal
+}
 
 /**
  * Enough of a `fetch` streaming response to drive `useNotificationStream`
@@ -8,8 +36,8 @@ import { vi } from 'vitest'
  * `connect()` call, captured
  * on `instances` so a test can inspect what was actually sent (the URL, the
  * `Authorization` and `Last-Event-ID` headers) and control what comes back —
- * a frame, a clean end, or a mid-stream failure — without a real network
- * call or a real server.
+ * a frame, a clean end, a mid-stream failure, or (via `queueConnectRefusal`)
+ * a non-ok CONNECT response — without a real network call or a real server.
  */
 export class MockFetchStream {
   static instances: MockFetchStream[] = []
@@ -28,6 +56,24 @@ export class MockFetchStream {
     init.signal?.addEventListener('abort', () => {
       this.aborted = true
     })
+
+    // Consumed once: only the very next connect is refused. Every later
+    // reconnect — including the one this same failure schedules — gets the
+    // ordinary streaming 200 below, unless the test queues another refusal.
+    const refusal = queuedConnectRefusal
+    queuedConnectRefusal = null
+    if (refusal) {
+      this.response = new Response(
+        refusal.body === undefined ? null : JSON.stringify(refusal.body),
+        {
+          status: refusal.status,
+          headers: refusal.body === undefined ? {} : { 'Content-Type': 'application/json' },
+        }
+      )
+      MockFetchStream.instances.push(this)
+      return
+    }
+
     const body = new ReadableStream<Uint8Array>({
       start: (controller) => {
         this.controller = controller
@@ -97,6 +143,9 @@ export function latestFetchStream(): MockFetchStream {
  * test's own stack.
  */
 export function stubStreamFetch(matchUrl: string): void {
+  // Reset here, not left to bleed from a previous test: this is the one
+  // function every test in this suite already calls from `beforeEach`.
+  queuedConnectRefusal = null
   vi.stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL, init: RequestInit = {}) => {

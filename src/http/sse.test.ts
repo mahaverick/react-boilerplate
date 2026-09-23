@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseSseStream } from '@/http/sse'
+import { parseSseStream, type SseEvent } from '@/http/sse'
 
 function streamOf(...chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
@@ -74,5 +74,29 @@ describe('parseSseStream', () => {
       { id: '1', event: 'notification', data: 'mixed' },
       { data: 'two' },
     ])
+  })
+
+  it('throws once a frame with no blank line grows past the buffer cap, rather than growing forever', async () => {
+    // No `\n\n` anywhere in this stream — exactly a server that never closes
+    // a frame. Without a cap, `buffer` would grow for as long as the stream
+    // stays open; native `EventSource` parsed line-by-line and had no such
+    // failure mode at all.
+    const chunk = `data: ${'x'.repeat(64 * 1024)}\n`
+    const runaway = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder()
+        // 17 * 64KiB > 1 MiB, still well under it after 16.
+        for (let i = 0; i < 17; i += 1) controller.enqueue(encoder.encode(chunk))
+        // Deliberately never closed and never sends a blank line — closing it
+        // would let the generator return normally before the cap is ever
+        // reached, which is not the case this test exists to cover.
+      },
+    })
+
+    const events: SseEvent[] = []
+    await expect(async () => {
+      for await (const event of parseSseStream(runaway)) events.push(event)
+    }).rejects.toThrow(/buffer exceeded/i)
+    expect(events).toHaveLength(0)
   })
 })

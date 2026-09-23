@@ -31,14 +31,18 @@ eslint half exits 0 on warnings.
 ## Auth — the rules that break silently when broken
 
 - **The API prefix is fixed and relative** (`/api/v1`), written once as
-  `API_PREFIX` in `src/constants/routes.ts`. The backend sets no CORS headers,
-  so the SPA and the API must be one origin: the dev server proxies `/api`, and
-  the container's nginx does the same. An absolute URL fails at runtime in a
-  way no test catches. There is no environment variable for it, and there was:
-  `VITE_API_URL` moved the axios base alone while the `EventSource` URL, the
-  Google OAuth anchor and nginx's SSE `location` kept the old prefix. Moving
-  the prefix means changing `API_PREFIX`, `nginx.conf` and `vite.config.ts`
-  together.
+  `API_PREFIX` in `src/constants/routes.ts`. This SPA's own traffic is same-origin
+  by design — the dev server proxies `/api`, and the container's nginx does the
+  same — so an absolute URL fails at runtime in a way no test catches. There is
+  no environment variable for it, and there was: `VITE_API_URL` moved the axios
+  base alone while the stream's URL, the Google OAuth anchor and nginx's SSE
+  `location` kept the old prefix. Moving the prefix means changing
+  `API_PREFIX`, `nginx.conf` and `vite.config.ts` together. **The backend is
+  not actually CORS-blind** — `cors.config.ts` (express-boilerplate) answers a
+  cross-origin caller, and its `allowedHeaders` entry for `Last-Event-ID` is
+  the only reason a second, cross-origin frontend's stream can replay on
+  reconnect at all (see `docs/superpowers/specs/2026-09-23-sse-auth-and-multi-frontend-design.md`,
+  express-boilerplate) — same-origin is simply what this particular SPA ships as.
 - **The access token is memory-only.** It lives in `auth.store` and nowhere
   else. Never write it to `localStorage`, `sessionStorage`, a cookie or a query
   string, and never add a `persist` middleware to that store. The refresh token
@@ -173,10 +177,11 @@ and a fixed address would rate-limit every rerun.
 **`nginx`** runs against the PRODUCTION image — `pnpm test:e2e:nginx` builds it, runs it on
 :8088 with `--add-host=api:host-gateway`, tests, and tears it down. It exists for one test,
 and for a reason worth keeping: **the Vite dev proxy does not propagate an upstream close.**
-A `curl -N` at it stays open after the API is killed, so `EventSource` never fires `error`
-and the SSE reconnect path is unreachable from a dev-server browser. The same curl against
-nginx exits on the second the API dies. Anything that depends on noticing a dropped upstream
-has to be tested here, not against `pnpm dev`.
+A `curl -N` at it stays open after the API is killed, so the reading side of the client's
+`fetch` body stream never sees `done: true`, `parseSseStream`'s generator never returns, and
+the SSE reconnect path is unreachable from a dev-server browser. The same curl against nginx
+exits on the second the API dies. Anything that depends on noticing a dropped upstream has to
+be tested here, not against `pnpm dev`.
 
 **`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom
 cannot compute at all — over every surface reachable without a backend, in **both themes**. It

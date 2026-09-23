@@ -15,6 +15,7 @@ import { useAuthStore } from '@/states/auth.store'
 import {
   latestFetchStream as latest,
   MockFetchStream,
+  queueConnectRefusal,
   stubStreamFetch,
 } from '@/tests/mocks/fetch-stream'
 import { ok, testUser } from '@/tests/mocks/handlers'
@@ -253,6 +254,50 @@ describe('useNotificationStream', () => {
       await vi.advanceTimersByTimeAsync(1_000)
     })
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(3))
+  })
+
+  it('treats a non-ok connect response as a refused connect, not a delivered frame, and recovers exactly like a mid-stream failure', async () => {
+    // The one behaviour `fetch` invented over `EventSource`: the two collapsed
+    // into a single `onerror`, and a non-ok CONNECT response is the half that
+    // was never covered anywhere — every other test in this file fails via
+    // `latest().fail()`, a MID-STREAM rejection, after the connect already
+    // succeeded with `status: 200`.
+    server.use(
+      http.post('/api/v1/auth/refresh', () =>
+        ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      )
+    )
+    queueConnectRefusal({
+      status: 401,
+      body: {
+        success: false,
+        message: 'Access token expired',
+        statusCode: 401,
+        code: 'ACCESS_TOKEN_EXPIRED',
+        requestId: 'r',
+      },
+    })
+    client.setQueryData(notificationKeys.list, { pages: [{ notifications: [] }], pageParams: [] })
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+
+    // No frame ever arrives from a refused connect: `!response.ok` throws
+    // before the `for await` loop — and before the unconditional
+    // `refetchList()` every successful connect makes (see "invalidates the
+    // list on every successful connect" above) — so nothing here ever
+    // invalidates the list.
+    expect(invalidate).not.toHaveBeenCalled()
+
+    // The same recovery a mid-stream failure gets: one backoff interval,
+    // then a reconnect that goes through ensureSession() first.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    expect(latest().headers.Authorization).toBe('Bearer fresh-token')
   })
 
   it('reconnects through ensureSession after a stream failure', async () => {

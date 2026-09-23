@@ -59,8 +59,15 @@ export function useNotificationStream(): void {
     // every time, so resetting the backoff there would pin the retry at one
     // second forever. Each of those retries calls ensureSession(), and every
     // refresh ROTATES the refresh cookie, so a reset-on-connect loop would be
-    // one cookie rotation per second — with two tabs open, exactly the
-    // concurrent-rotation collision session.ts exists to prevent.
+    // one cookie rotation per second — from THIS tab alone. `inFlight`
+    // (session.ts) is module-scoped, so it only dedupes concurrent calls
+    // WITHIN a tab; it does nothing across tabs. Two tabs dropped by the same
+    // backend restart both wake at the same 1s backoff with no jitter, both
+    // POST /auth/refresh with the same pre-rotation cookie, and the loser
+    // trips refresh-token reuse detection — signing both out. Pre-existing
+    // (the EventSource hook had the same shape), out of scope here, and a
+    // known limitation: fixing it means cross-tab coordination or jitter,
+    // neither of which this backoff reset is a substitute for.
     const onNotification = () => {
       backoffRef.current = INITIAL_BACKOFF_MS
       refetchList()
