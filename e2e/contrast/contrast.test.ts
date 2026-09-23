@@ -22,11 +22,53 @@ import { expect, test, type Page } from '@playwright/test'
 const require = createRequire(import.meta.url)
 const AXE_PATH = require.resolve('axe-core/axe.min.js')
 
-/** Every surface reachable without a backend. */
+/**
+ * Every surface reachable without a backend, with a selector proving the page
+ * actually rendered.
+ *
+ * `expect` is not optional decoration. A route that silently redirected — an
+ * authenticated page losing its session, a `validateSearch` rejecting a token
+ * and bouncing to /login — would still produce a fully painted page with
+ * perfectly good contrast, and this suite would report it green while
+ * measuring something else entirely. Each entry therefore names something only
+ * THAT surface renders, asserted before axe runs.
+ *
+ * The `/e2e/harness/` entries mount an in-app route with MSW answering and the
+ * auth store pre-populated (e2e/harness/harness.tsx). `?path=` picks which
+ * route; without it the harness mounts the members page, which is what the
+ * `?state=` fixtures are about.
+ */
 const SURFACES = [
-  { name: 'sign-in', url: '/login' },
-  { name: 'members (populated)', url: '/e2e/harness/' },
-  { name: 'members (empty)', url: '/e2e/harness/?state=empty' },
+  // Public — straight URLs, no harness needed.
+  { name: 'sign-in', url: '/login', heading: 'Sign in' },
+  { name: 'register', url: '/register', heading: 'Create an account' },
+  { name: 'forgot-password', url: '/forgot-password', heading: 'Forgot your password?' },
+  // Both of these routes read a token out of the query. Without one,
+  // reset-password renders its "This link is incomplete" branch instead —
+  // a real surface, but not the one worth measuring, and the heading
+  // assertion is what keeps that swap from passing unnoticed.
+  {
+    name: 'reset-password',
+    url: '/reset-password?token=contrast-probe',
+    heading: 'Choose a new password',
+  },
+  {
+    name: 'verify-email',
+    url: '/verify-email?token=contrast-probe',
+    heading: 'Verify your email',
+  },
+  // Authenticated — mounted through the harness.
+  { name: 'members (populated)', url: '/e2e/harness/', heading: 'Members' },
+  { name: 'members (empty)', url: '/e2e/harness/?state=empty', heading: 'Members' },
+  { name: 'dashboard', url: '/e2e/harness/?path=/dashboard', heading: /^Welcome back,/ },
+  { name: 'notifications', url: '/e2e/harness/?path=/notifications', heading: 'Notifications' },
+  { name: 'profile', url: '/e2e/harness/?path=/profile', heading: 'Profile' },
+  { name: 'tenants', url: '/e2e/harness/?path=/tenants', heading: 'Tenants' },
+  {
+    name: 'tenant settings',
+    url: '/e2e/harness/?path=/tenants/acme/settings',
+    heading: 'Settings',
+  },
 ] as const
 
 const THEMES = ['light', 'dark'] as const
@@ -36,12 +78,24 @@ type ContrastResult = {
   incomplete: { id: string; nodes: { target: string[]; failureSummary?: string }[] }[]
 }
 
-async function contrastOf(page: Page, url: string, theme: string): Promise<ContrastResult> {
+async function contrastOf(
+  page: Page,
+  url: string,
+  theme: string,
+  heading: string | RegExp
+): Promise<ContrastResult> {
   // Set BEFORE the document runs: index.html carries a pre-paint script that
   // reads localStorage and toggles `.dark` before the bundle loads, so setting
   // the theme afterwards would measure a repaint rather than the real render.
   await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
   await page.goto(url, { waitUntil: 'networkidle' })
+  // Prove the surface we asked for is the surface we got, BEFORE measuring it.
+  // A route that redirected — an authenticated page without a session, a
+  // `validateSearch` rejecting the probe token — still paints a perfectly
+  // legible page, so contrast over it would come back green while saying
+  // nothing about the surface this entry names.
+  await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+
   await page.evaluate(() => document.fonts.ready)
   // Fonts change glyph coverage, not colour, but a late swap can move text over
   // a different background. Settle before sampling.
@@ -91,7 +145,7 @@ function report(surface: string, theme: string, result: ContrastResult): string 
 for (const theme of THEMES) {
   for (const surface of SURFACES) {
     test(`${surface.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
-      const result = await contrastOf(page, surface.url, theme)
+      const result = await contrastOf(page, surface.url, theme, surface.heading)
 
       // `incomplete` is not a pass. axe files a node here when it cannot
       // resolve the background — a gradient, an image, an overlapped element —

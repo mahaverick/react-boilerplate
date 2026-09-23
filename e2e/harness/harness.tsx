@@ -173,11 +173,28 @@ useAuthStore.setState({
   isBootstrapped: true,
 })
 
+// Which in-app route to mount. Defaults to the members page, which is what
+// every `?state=` fixture is about — so the fixtures suite needs no changes
+// and reads exactly as it did before this parameter existed. `?path=` exists
+// for the CONTRAST suite, which needs to reach the other authenticated
+// surfaces: the handlers above already answer /profile, /notifications,
+// /notifications/preferences, /tenants, /tenants/acme and its /settings, so
+// those pages render fully without a backend and only ever lacked a way in.
+//
+// Only a same-origin absolute path is accepted. This harness is not shipped
+// (nothing in `src/` imports it, and `index.html` is the only Vite entry that
+// builds), but it does run against a real browser with a signed-in store, and
+// a query parameter that reached `replaceState` unchecked would be an
+// open-redirect shape worth never writing down in the first place.
+const requestedPath = new URLSearchParams(location.search).get('path')
+const targetPath =
+  requestedPath && /^\/[^/\\]/.test(requestedPath) ? requestedPath : '/tenants/acme/members'
+
 // replaceState, NOT router.navigate: navigate before the router mounts does a
 // real navigation, and the dev server then answers /tenants/acme/members with
 // the SPA fallback (index.html -> main.tsx), so the harness never runs. The
 // router reads location on mount, so setting it first is enough.
-history.replaceState(null, '', '/tenants/acme/members' + location.search)
+history.replaceState(null, '', targetPath + location.search)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
