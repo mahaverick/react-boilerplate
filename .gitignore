@@ -49,3 +49,10 @@ dist-ssr
 # Playwright output
 /test-results/
 /playwright-report/
+
+# Agent tooling: per-machine files that must never be committed
+.claude/worktrees/
+.claude/settings.local.json
+.superpowers/
+# May hold credentials (e.g. a database DSN) — commit an .mcp.json.example instead
+.mcp.json
