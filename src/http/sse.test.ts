@@ -48,4 +48,31 @@ describe('parseSseStream', () => {
     }
     expect(events.map((e) => e.data)).toEqual(['real'])
   })
+
+  it('parses a CRLF-terminated frame, not just LF', async () => {
+    // Nothing in this stack emits CRLF today, but it is legal SSE, and a
+    // `\n\n` split against a `\r\n\r\n` stream matches nothing at all: the
+    // buffer would grow forever and every frame would be silently dropped
+    // when the stream ends. No partial delivery, no error — just a
+    // connection that looks alive and never delivers.
+    const events = []
+    for await (const event of parseSseStream(streamOf('data: crlf\r\n\r\n'))) {
+      events.push(event)
+    }
+    expect(events).toHaveLength(1)
+    expect(events[0]!.data).toBe('crlf')
+  })
+
+  it('tolerates mixed CRLF and LF endings, within and between frames', async () => {
+    const events = []
+    for await (const event of parseSseStream(
+      streamOf('id: 1\r\nevent: notification\r\ndata: mixed\r\n\r\ndata: two\n\n')
+    )) {
+      events.push(event)
+    }
+    expect(events).toMatchObject([
+      { id: '1', event: 'notification', data: 'mixed' },
+      { data: 'two' },
+    ])
+  })
 })

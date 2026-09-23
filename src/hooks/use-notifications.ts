@@ -53,13 +53,14 @@ export function useNotificationStream(): void {
     }
 
     // Only a frame that actually ARRIVED clears the backoff — never a mere
-    // `open`. A backend that accepts the connection and then drops it (an
-    // overloaded server, a proxy that answers 200 and closes) fires `open`
-    // every time, so resetting there would pin the retry at one second
-    // forever. Each of those retries calls ensureSession(), and every refresh
-    // ROTATES the refresh cookie, so an `open`-reset loop would be one cookie
-    // rotation per second — with two tabs open, exactly the concurrent-
-    // rotation collision session.ts exists to prevent.
+    // successful connect. A backend that accepts the connection and then
+    // ends the stream having delivered zero frames (an overloaded server, a
+    // proxy that answers 200 and closes) resolves `fetch()` successfully
+    // every time, so resetting the backoff there would pin the retry at one
+    // second forever. Each of those retries calls ensureSession(), and every
+    // refresh ROTATES the refresh cookie, so a reset-on-connect loop would be
+    // one cookie rotation per second — with two tabs open, exactly the
+    // concurrent-rotation collision session.ts exists to prevent.
     const onNotification = () => {
       backoffRef.current = INITIAL_BACKOFF_MS
       refetchList()

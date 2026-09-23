@@ -16,6 +16,14 @@ export interface SseEvent {
  * The buffer OUTLIVES each read deliberately. A frame is not guaranteed to
  * arrive whole in one chunk, and splitting per chunk drops the boundary case
  * silently.
+ *
+ * Frame and line separators both tolerate a `\r` before the `\n`. Nothing in
+ * this stack emits CRLF today — `notification-stream.controller.ts` writes
+ * literal `\n` at every call site, and nginx passes body bytes through
+ * unmodified — but CRLF is legal SSE, and the failure mode if it ever showed
+ * up would be total and silent: `\n\n` never matches `\r\n\r\n`, the buffer
+ * grows without bound, and every frame is discarded unparsed when the stream
+ * ends. A regex here is cheaper than that risk.
  * @param body - The response body stream.
  * @yields Each complete frame, in order.
  */
@@ -31,7 +39,7 @@ export async function* parseSseStream(
     if (done) break
     buffer += decoder.decode(value, { stream: true })
 
-    const frames = buffer.split('\n\n')
+    const frames = buffer.split(/\r?\n\r?\n/)
     // The last element is an incomplete frame, or ''. Keep it for next read.
     buffer = frames.pop() ?? ''
 
@@ -52,7 +60,7 @@ function parseFrame(frame: string): SseEvent | undefined {
   let event: string | undefined
   const data: string[] = []
 
-  for (const line of frame.split('\n')) {
+  for (const line of frame.split(/\r?\n/)) {
     // A comment. The server's heartbeat is `: ping`, and it must not surface
     // as an event — it exists to keep proxies from reaping an idle socket.
     if (line.startsWith(':')) continue

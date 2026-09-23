@@ -101,6 +101,49 @@ describe('useNotificationStream', () => {
     expect(latest().headers.Authorization).toBe('Bearer tok-a')
   })
 
+  it('sends no Last-Event-ID on the very first connect', async () => {
+    // There is nothing to replay yet — this hook has not seen an id. The
+    // header must be ABSENT, not present-and-empty: `EventSource` never gave
+    // a server a way to tell "no id yet" from "id is the empty string", and
+    // this transport must not reintroduce that ambiguity.
+    renderHook(() => useNotificationStream(), { wrapper })
+
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    expect('Last-Event-ID' in latest().headers).toBe(false)
+  })
+
+  it('sends Last-Event-ID with the id of the last delivered event, on reconnect', async () => {
+    // The whole point of the transport switch: a reconnect now tells the
+    // server what it missed, so the server's replay can actually fire. A
+    // wrong id here means silently duplicated or silently missed
+    // notifications, so the header must carry the id from the event that
+    // ACTUALLY ARRIVED — not the first connect (which sent none) and not a
+    // stale one from an earlier delivery.
+    renderHook(() => useNotificationStream(), { wrapper })
+    client.setQueryData(notificationKeys.list, { pages: [{ notifications: [] }], pageParams: [] })
+
+    // Let the initial connect's own refetchList() settle before isolating
+    // the delivered event's effect, same reason as the unnamed-frame test
+    // below.
+    await waitFor(() =>
+      expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(true)
+    )
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+
+    act(() =>
+      latest().dispatch({ id: 'n7', event: 'notification', data: JSON.stringify(streamPayload) })
+    )
+    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1))
+
+    latest().fail()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    expect(latest().headers['Last-Event-ID']).toBe('n7')
+  })
+
   it('tears down and rebuilds when the token changes', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
