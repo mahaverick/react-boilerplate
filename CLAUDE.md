@@ -41,6 +41,16 @@ eslint half exits 0 on warnings.
   ran, but no hook was ever committed, so nothing ran locally. If `git ls-files
 .husky` is ever empty again, that is the bug.
 
+## CI and deploy
+
+`ci.yml` runs on PRs and is called by `deploy.yml` on push to `main` as the
+gate; then `deploy.yml` builds and pushes `ghcr.io/<repo>:sha-<commit>` and
+`:main` with SBOM and provenance attestations, then runs a placeholder
+`deploy` job bound to the `production` environment. Keep CI's concurrency
+group keyed on `github.event_name` (comment in `ci.yml`). A manual
+`workflow_dispatch` from a non-`main` branch pushes an sha-tagged image
+only — `:main` and the `deploy` job both run only from `main`.
+
 ## Auth — the rules that break silently when broken
 
 - **The API prefix is fixed and relative** (`/api/v1`), written once as

@@ -3,13 +3,19 @@ name: CI
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+  # Called by deploy.yml as the gate before an image is built. `push: main`
+  # lives in deploy.yml now, so main isn't tested twice.
+  workflow_call:
+  workflow_dispatch:
 
-# A second push to the same branch cancels the run still in flight.
+# Keyed on the event, NOT github.workflow: when deploy.yml calls this file,
+# github.workflow is the CALLER's name, and concurrency group names are
+# case-insensitive — "Deploy-refs/heads/main" would collide with deploy.yml's
+# own "deploy-refs/heads/main" group. Only PR runs are cancelled by a newer
+# push; a gate run on main is never killed half-way.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

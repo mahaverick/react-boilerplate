@@ -195,6 +195,22 @@ asset, not by reading the config.**
   terminator. A `max-age` sent over plain HTTP is ignored by browsers and is
   actively wrong if TLS is ever absent. Set it at the edge that terminates TLS.
 
+## Deploying
+
+A push to `main` runs [`deploy.yml`](.github/workflows/deploy.yml), which
+calls `ci.yml` as a gate and, once it passes, builds and pushes
+`ghcr.io/<repo>:sha-<commit>` and `:main` to GHCR with an SBOM and build
+provenance attestation. The `deploy` job itself is a placeholder — no
+deployment target has been chosen yet. A manual `workflow_dispatch` from
+another branch only pushes the sha-tagged image — the `:main` tag and the
+`deploy` job both run only from `main`.
+
+**Add protection rules to the `production` GitHub Environment**
+(Settings → Environments → `production`) — at minimum, required
+reviewers — before replacing the placeholder `deploy` step with a real
+deployment target. Until then, anything merged to `main` would deploy
+unreviewed the moment that step does something real.
+
 ## Releases
 
 [release-please](https://github.com/googleapis/release-please) opens (and
