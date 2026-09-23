@@ -7,6 +7,13 @@
   "engines": {
     "node": ">=24"
   },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=24",
+      "onFail": "error"
+    }
+  },
   "description": "React boilerplate for Mahaverick Labs projects",
   "author": {
     "name": "Mahaverick Labs",
