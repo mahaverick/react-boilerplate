@@ -7,11 +7,11 @@ import { API_ORIGIN, apiIsReady, freshEmail, restartApi, signIn } from '../live/
  *
  * This could not be tested against the dev server, and the reason is worth
  * keeping. A `curl -N` at the Vite proxy stays open after the API is killed —
- * the proxy never propagates the upstream close — so the browser's
- * `EventSource` never fires `error`, `source.onerror` never runs, and the
- * reconnect path is simply unreachable. Measured from the page side too: no
- * stream request, no `/auth/refresh`, no console error. The tab never learned
- * it had been disconnected.
+ * the proxy never propagates the upstream close — so the reading side of the
+ * client's `fetch` body stream never sees `done: true`, `parseSseStream`'s
+ * generator never returns, and the reconnect path is simply unreachable.
+ * Measured from the page side too: no stream request, no `/auth/refresh`, no
+ * console error. The tab never learned it had been disconnected.
  *
  * nginx does propagate it. The same curl against the container exited on the
  * exact second the API was killed. So this suite runs against the PRODUCTION
@@ -55,9 +55,11 @@ test('the notification stream reconnects after the backend really restarts', asy
   await page.goto('/dashboard')
   await expect.poll(() => streamOpens.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1)
 
-  // A real restart: the process is killed and a new one started. Not a mocked
-  // error event — jsdom has no EventSource at all, so until now this path had
-  // only ever run against a mock of the thing being tested.
+  // A real restart: the process is killed and a new one started. Not
+  // `MockFetchStream.end()` or `.fail()` (fetch-stream.ts) — those close or
+  // error a `ReadableStream` a test built by hand, so until now this path
+  // had only ever run against a mock of the thing being tested, never a
+  // stream that closed because a real server process actually died.
   const killedAt = Date.now()
   await restartApi()
   const readyAt = Date.now()

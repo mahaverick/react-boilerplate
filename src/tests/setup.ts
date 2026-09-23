@@ -68,28 +68,14 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
   })
 }
 
-// jsdom ships no `EventSource` either, and `AppLayout` opens one through
-// `useNotificationStream()` on every authenticated render — so without this
-// every test that mounts the app shell dies with a ReferenceError before it
-// renders anything. A no-op that merely satisfies the surface the hook uses
-// is the whole fix: the hook only ever constructs, listens and closes, and a
-// stub that never dispatches leaves the connection permanently idle, which is
-// exactly what a test that is not about the stream wants.
+// `useNotificationStream()` used to open an `EventSource`, which jsdom does
+// not ship, and needed a global idle stub here for exactly that reason. It
+// now reads the stream over `fetch` instead — real traffic as far as msw is
+// concerned — so the idle case is handled by the default `/notifications/
+// stream` handler in `tests/mocks/handlers.ts` (a body that never enqueues
+// and never closes), the same way the two `/notifications` defaults already
+// handle the bell. Nothing here needs a stub of its own any more.
 //
-// Assigned to `globalThis` rather than stubbed with `vi.stubGlobal`, because
-// tests that DO care about the stream install a richer mock with
-// `vi.stubGlobal` and call `vi.unstubAllGlobals()` afterwards — which restores
-// whatever was here BEFORE, and that has to be this no-op rather than
-// `undefined`. (Which tests those are is not listed: the list was wrong within
-// one commit of being written. Grep for `vi.stubGlobal('EventSource'`.)
-class IdleEventSource implements Pick<EventSource, 'close' | 'addEventListener'> {
-  constructor(public url: string) {}
-  addEventListener(): void {}
-  removeEventListener(): void {}
-  close(): void {}
-}
-globalThis.EventSource = IdleEventSource as unknown as typeof EventSource
-
 // `onUnhandledRequest: 'error'` is deliberate: a test that hits an unmocked
 // URL should fail loudly, not silently pass against a real network.
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))

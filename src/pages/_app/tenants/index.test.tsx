@@ -9,13 +9,16 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { API_PREFIX } from '@/constants/routes'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { latestEventSource, MockEventSource } from '@/tests/mocks/event-source'
+import { latestFetchStream, MockFetchStream, stubStreamFetch } from '@/tests/mocks/fetch-stream'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+
+const STREAM_URL = `${API_PREFIX}/notifications/stream`
 
 const TENANT = {
   id: 't1',
@@ -190,8 +193,8 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
   beforeEach(() => {
     resetSessionForTests()
     queryClient.clear()
-    MockEventSource.instances = []
-    vi.stubGlobal('EventSource', MockEventSource)
+    MockFetchStream.instances = []
+    stubStreamFetch(STREAM_URL)
     // jsdom's location is unforgeable, and a real `assign` here would only
     // log "Not implemented: navigation" — asserting nothing.
     assign = vi.fn()
@@ -212,8 +215,9 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
   })
 
   afterEach(() => {
-    // Puts back the idle EventSource stub from tests/setup.ts, and the real
-    // location — NOT `undefined`, which the next file would inherit.
+    // Puts back whatever fetch setup.ts's own globals had before this
+    // test's stub, and the real location — NOT `undefined`, which the next
+    // file would inherit.
     vi.unstubAllGlobals()
   })
 
@@ -237,11 +241,11 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
 
     renderAppAt('/tenants')
     // The shell is up and the stream is connected before anything else.
-    await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThan(0))
+    await waitFor(() => expect(MockFetchStream.instances.length).toBeGreaterThan(0))
     await waitFor(() => expect(release).toBeDefined())
 
     // The stream drops, the reconnect refreshes, and the refresh is judged.
-    latestEventSource().onerror?.(new Event('error'))
+    latestFetchStream().fail()
 
     // Finding 1: the session ends AND the user is actually moved, carrying
     // where they were so signing back in returns them to /tenants.

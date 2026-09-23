@@ -34,6 +34,21 @@ export const handlers = [
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: [] }, 'Notification preferences retrieved.')
   ),
+  // `useNotificationStream` reads this over `fetch`, not `EventSource` — so
+  // it is real traffic as far as msw is concerned, and `AppLayout` opens it
+  // on every authenticated render, same reason as the two defaults above.
+  // A body that never enqueues and never closes is the fetch-transport
+  // equivalent of the idle `EventSource` stub this replaced: `response.ok`
+  // resolves, the hook's `for await` parks on a read that never settles, and
+  // nothing here ever needs to look like a real notification. A test that
+  // DOES care about the stream's frames overrides `fetch` itself with
+  // `stubStreamFetch` (`tests/mocks/fetch-stream.ts`), which bypasses this
+  // handler entirely.
+  http.get(
+    '/api/v1/notifications/stream',
+    () =>
+      new HttpResponse(new ReadableStream(), { headers: { 'Content-Type': 'text/event-stream' } })
+  ),
   // The tenant switcher lives in the app shell's sidebar, so every test that
   // mounts an authenticated route hits this one too — same reason as the two
   // notification defaults above. An empty list: a test about tenants

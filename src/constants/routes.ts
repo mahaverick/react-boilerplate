@@ -5,12 +5,12 @@
  * rather than a preference. Four things hardcode it and only one of them is
  * JavaScript: nginx routes `location /api/v1/notifications/stream` (its SSE
  * buffering and its token-stripping log format hang off that exact prefix),
- * `EventSource` builds its URL from a string because it ignores axios
- * entirely, the Google OAuth control is a plain same-origin anchor, and the
- * dev server proxies `/api`. A build that moved the axios base alone would
- * leave the other three pointing at the old path — so sign-in by Google and
- * the whole notification stream would break, silently, in a build that
- * otherwise looked healthy.
+ * the notification stream builds its URL from a string via `fetch` because
+ * it ignores axios entirely, the Google OAuth control is a plain same-origin
+ * anchor, and the dev server proxies `/api`. A build that moved the axios
+ * base alone would leave the other three pointing at the old path — so
+ * sign-in by Google and the whole notification stream would break, silently,
+ * in a build that otherwise looked healthy.
  *
  * Everything on the JavaScript side therefore derives from here. Moving the
  * API to another prefix means changing this constant AND `nginx.conf` AND

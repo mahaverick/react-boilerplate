@@ -142,10 +142,10 @@ export function AppLayout() {
 
   // The ONE mount of the notification stream, and it belongs here for the
   // same reason the theme listener below does — see that comment. A single
-  // EventSource per session: mounting this in NotificationBell or on the
-  // notifications page instead would open a second connection, and mounting
-  // it anywhere inside `Sidebar` would leave it live on desktop and silently
-  // dead on every phone, with nothing in any log to say so.
+  // fetch-based SSE connection per session: mounting this in NotificationBell
+  // or on the notifications page instead would open a second connection, and
+  // mounting it anywhere inside `Sidebar` would leave it live on desktop and
+  // silently dead on every phone, with nothing in any log to say so.
   useNotificationStream()
 
   // `theme: 'system'` has to mean "follow the OS", not "whatever the OS was
