@@ -149,8 +149,9 @@ so changing the field means regenerating `pnpm-lock.yaml` in the same commit,
 or `--frozen-lockfile` fails.
 
 **Renovate proposes updates** (weekly, grouped, 3-day minimum release age,
-actions pinned to SHAs). `renovate.json` holds TypeScript `<6.1.0` and the
-`node` image `<25`; lift those rules deliberately.
+actions pinned to SHAs). `renovate.json` holds TypeScript `<6.1.0` and every
+Node version pin — the docker `node` image, `.nvmrc` and CI's
+`node-version:` — `<25`; lift those rules deliberately.
 
 ## Conventions the linter enforces
 
