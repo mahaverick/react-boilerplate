@@ -68,9 +68,10 @@ export function isAuthVerdict(error: unknown): boolean {
  * target, and signing in then "returns" the user to the login page.
  *
  * A full-page `assign`, not a router navigation, and deliberately so: both
- * callers live outside React (an axios interceptor and an EventSource
- * handler), and a dead session is exactly the moment to discard every piece
- * of in-memory state rather than carry it across.
+ * callers live outside React (an axios interceptor and the SSE stream's own
+ * catch handler in `useNotificationStream`), and a dead session is exactly
+ * the moment to discard every piece of in-memory state rather than carry it
+ * across.
  *
  * NOT called from `refreshSession()` itself, even though that is where
  * `logout()` happens. `bootstrapSession()` also drives a 401 through there on

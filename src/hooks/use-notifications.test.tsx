@@ -3,6 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { API_PREFIX } from '@/constants/routes'
 import { useNotificationStream } from '@/hooks/use-notifications'
 import { resetSessionForTests } from '@/http/session'
 import {
@@ -11,9 +12,15 @@ import {
   type Notification,
 } from '@/queries/notification.queries'
 import { useAuthStore } from '@/states/auth.store'
-import { latestEventSource as latest, MockEventSource } from '@/tests/mocks/event-source'
+import {
+  latestFetchStream as latest,
+  MockFetchStream,
+  stubStreamFetch,
+} from '@/tests/mocks/fetch-stream'
 import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+
+const STREAM_URL = `${API_PREFIX}/notifications/stream`
 
 /**
  * What the server actually puts on a `notification` frame's `data:` line —
@@ -60,8 +67,8 @@ describe('useNotificationStream', () => {
   }
 
   beforeEach(() => {
-    MockEventSource.instances = []
-    vi.stubGlobal('EventSource', MockEventSource)
+    MockFetchStream.instances = []
+    stubStreamFetch(STREAM_URL)
     vi.useFakeTimers({ shouldAdvanceTime: true })
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     resetSessionForTests()
@@ -75,37 +82,41 @@ describe('useNotificationStream', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    // Restores the idle no-op from tests/setup.ts, not `undefined`.
+    // Restores whatever fetch setup.ts's own globals had before this test's
+    // stub, not `undefined`.
     vi.unstubAllGlobals()
     client.clear()
   })
 
-  it('puts the access token in the query string', () => {
-    // EventSource cannot set an Authorization header, which is exactly
-    // why /notifications/stream authenticates from ?token=.
+  it('sends the access token as a Bearer header, never in the URL', async () => {
+    // The whole point of the fetch transport: EventSource could only
+    // authenticate via `?token=`, which lands in browser history, `Referer`
+    // and any log that records request lines. fetch can set headers, so the
+    // credential moves to one instead.
     renderHook(() => useNotificationStream(), { wrapper })
 
-    expect(MockEventSource.instances).toHaveLength(1)
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
     expect(latest().url).toContain('/api/v1/notifications/stream')
-    expect(latest().url).toContain('token=tok-a')
+    expect(latest().url).not.toContain('token=')
+    expect(latest().headers.Authorization).toBe('Bearer tok-a')
   })
 
   it('tears down and rebuilds when the token changes', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
-    expect(MockEventSource.instances).toHaveLength(1)
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
 
     act(() => useAuthStore.getState().setToken('tok-b'))
 
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2))
-    expect(MockEventSource.instances[0]!.closed).toBe(true)
-    expect(latest().url).toContain('token=tok-b')
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    expect(MockFetchStream.instances[0]!.aborted).toBe(true)
+    expect(latest().headers.Authorization).toBe('Bearer tok-b')
   })
 
   it('delivers a NAMED `notification` frame into the query cache', async () => {
-    // The listener is registered with addEventListener('notification'), not
-    // onmessage — the server writes `event: notification`, and onmessage
-    // fires only for UNNAMED frames. Registered the wrong way, this hook
-    // would be inert with no error anywhere; this test is what catches that.
+    // The check is against `event.event`, not against every frame — the
+    // server writes `event: notification`, and a frame with no event name
+    // must not be treated as one. Registered the wrong way, this hook would
+    // be inert with no error anywhere; this test is what catches that.
     const { result } = renderHook(
       () => {
         useNotificationStream()
@@ -123,88 +134,106 @@ describe('useNotificationStream', () => {
       )
     )
 
-    act(() => latest().dispatch('notification', JSON.stringify(streamPayload)))
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    act(() =>
+      latest().dispatch({ id: 'n1', event: 'notification', data: JSON.stringify(streamPayload) })
+    )
 
     await waitFor(() => expect(result.current.data?.pages[0]?.notifications).toEqual([listRow]))
   })
 
-  it('ignores an unnamed frame, and invalidates on a named one', () => {
+  it('ignores an unnamed frame, and invalidates on a named one', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
     client.setQueryData(notificationKeys.list, { pages: [{ notifications: [] }], pageParams: [] })
 
-    // `message` is what `onmessage` would have caught. The server never sends
-    // an unnamed frame, so this must be a no-op.
-    act(() => latest().dispatch('message', JSON.stringify(streamPayload)))
-    expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(false)
+    // The connect itself invalidates the list once (see the next test) —
+    // let that settle before isolating the frame-level effect below, so the
+    // spy only counts invalidations the two dispatched frames cause.
+    await waitFor(() =>
+      expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(true)
+    )
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
 
-    act(() => latest().dispatch('notification', JSON.stringify(streamPayload)))
-    expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(true)
+    // A frame with no `event:` line parses to `event: undefined`, which is
+    // what an unnamed frame becomes — the server never sends one, but this
+    // must be a no-op if it ever did. Asserted on the spy, not on
+    // `isInvalidated` alone: a fixed-length flush cannot prove a negative
+    // (it only proves nothing happened to have arrived YET), but a call
+    // count pinned at exactly one after the second frame proves the first
+    // one truly never invalidated anything.
+    act(() => latest().dispatch({ data: JSON.stringify(streamPayload) }))
+    act(() => latest().dispatch({ event: 'notification', data: JSON.stringify(streamPayload) }))
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1))
   })
 
-  it('refetches on open, because a fresh EventSource sends no Last-Event-ID', () => {
-    // The server replays what was missed during a disconnect only from a
-    // Last-Event-ID header, which a newly constructed EventSource never
-    // sends. Refetching on open is what recovers those notifications.
+  it('invalidates the list on every successful connect, which is what recovers the very first connect', async () => {
+    // A reconnect now sends `Last-Event-ID`, so the server CAN replay what
+    // it missed, but the very first connect has no id yet and definitely
+    // gets none — refetching on every connect is what covers that one case.
+    // (React Query dedupes this against whatever else invalidates around
+    // it, so the common case costs nothing.)
     renderHook(() => useNotificationStream(), { wrapper })
     client.setQueryData(notificationKeys.list, { pages: [{ notifications: [] }], pageParams: [] })
 
-    act(() => latest().dispatch('open'))
-
-    expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(true)
+    await waitFor(() =>
+      expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(true)
+    )
   })
 
-  it('does NOT let a bare open reset the backoff', async () => {
-    // A backend that accepts the connection and immediately drops it fires
-    // `open` on every attempt. If `open` reset the backoff, the retry would
-    // stay pinned at one second — and each retry calls ensureSession(), which
-    // rotates the refresh cookie. Only a delivered frame may reset it.
+  it('does NOT let a connect with no delivered frame reset the backoff', async () => {
+    // A backend that accepts the connection and immediately drops it ends
+    // the stream with no frame ever delivered. If that reset the backoff,
+    // the retry would stay pinned at one second — and each retry calls
+    // ensureSession(), which rotates the refresh cookie. Only a delivered
+    // notification frame may reset it.
     renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
 
-    act(() => latest().onerror?.(new Event('error')))
+    latest().end()
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
     })
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2))
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
 
-    // The connection came up, then died — exactly the flapping case.
-    act(() => latest().dispatch('open'))
-    act(() => latest().onerror?.(new Event('error')))
+    // The connection came up, then ended with nothing delivered — exactly
+    // the flapping case.
+    latest().end()
 
     // One second is no longer enough: the interval has doubled to two.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
     })
-    expect(MockEventSource.instances).toHaveLength(2)
+    expect(MockFetchStream.instances).toHaveLength(2)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
     })
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(3))
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(3))
   })
 
-  it('closes and reconnects through ensureSession after an error', async () => {
+  it('reconnects through ensureSession after a stream failure', async () => {
     server.use(
       http.post('/api/v1/auth/refresh', () =>
         ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
       )
     )
     renderHook(() => useNotificationStream(), { wrapper })
-    const first = latest()
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
 
-    act(() => first.onerror?.(new Event('error')))
-    expect(first.closed).toBe(true)
+    latest().fail()
 
     // The first retry waits one backoff interval before reconnecting.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
     })
 
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2))
-    expect(latest().url).toContain('token=fresh-token')
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    expect(latest().headers.Authorization).toBe('Bearer fresh-token')
     // Exactly two: the refreshed token re-runs the effect, and the effect
     // re-run owns the reconnect. A second connect from inside the retry's
     // own `.then` would open a third, immediately-torn-down connection.
-    expect(MockEventSource.instances).toHaveLength(2)
+    expect(MockFetchStream.instances).toHaveLength(2)
   })
 
   it('survives a transient outage and reconnects, without ending the session', async () => {
@@ -222,15 +251,16 @@ describe('useNotificationStream', () => {
       })
     )
     renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
 
-    act(() => latest().onerror?.(new Event('error')))
+    latest().fail()
 
     // Retry 1, at 1s: the API is down.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
     })
     expect(attempts).toBe(1)
-    expect(MockEventSource.instances).toHaveLength(1)
+    expect(MockFetchStream.instances).toHaveLength(1)
     // The session was never judged, so it is still here.
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
     expect(useAuthStore.getState().accessToken).toBe('tok-a')
@@ -240,8 +270,8 @@ describe('useNotificationStream', () => {
       await vi.advanceTimersByTimeAsync(2_000)
     })
 
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2))
-    expect(latest().url).toContain('token=fresh-token')
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    expect(latest().headers.Authorization).toBe('Bearer fresh-token')
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
@@ -276,28 +306,31 @@ describe('useNotificationStream', () => {
       )
     )
     renderHook(() => useNotificationStream(), { wrapper })
-    act(() => latest().onerror?.(new Event('error')))
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+
+    latest().fail()
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000)
     })
 
     // ensureSession rejected and logged out; no second connection.
-    expect(MockEventSource.instances).toHaveLength(1)
+    expect(MockFetchStream.instances).toHaveLength(1)
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
     // …and the user is actually moved, carrying where they were.
     expect(assign).toHaveBeenCalledWith(`/login?redirect=${encodeURIComponent('/dashboard')}`)
   })
 
-  it('closes the connection on unmount', () => {
+  it('aborts the connection on unmount', async () => {
     const { unmount } = renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
     unmount()
-    expect(MockEventSource.instances[0]!.closed).toBe(true)
+    expect(MockFetchStream.instances[0]!.aborted).toBe(true)
   })
 
   it('opens no connection at all without a token', () => {
     useAuthStore.setState({ accessToken: null, isAuthenticated: false })
     renderHook(() => useNotificationStream(), { wrapper })
-    expect(MockEventSource.instances).toHaveLength(0)
+    expect(MockFetchStream.instances).toHaveLength(0)
   })
 })
