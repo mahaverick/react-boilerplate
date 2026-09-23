@@ -1,0 +1,11 @@
+# Fast checks on what you changed; the full sweep is in pre-push.
+set -e
+
+# Lockfile drift: under a second, and it catches the mistake that sends PRs
+# to CI red, since CI installs with --frozen-lockfile and refuses.
+pnpm install --frozen-lockfile --lockfile-only --ignore-scripts >/dev/null
+
+pnpm exec lint-staged
+
+# Tests for what you touched and everything importing it.
+pnpm exec vitest run --changed HEAD --passWithNoTests

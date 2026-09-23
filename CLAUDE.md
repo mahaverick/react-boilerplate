@@ -28,6 +28,19 @@ The gate is **0 errors and 0 warnings**: verify with
 `pnpm exec eslint . --max-warnings 0`, not with a bare `pnpm lint`, whose
 eslint half exits 0 on warnings.
 
+## Git hooks
+
+- **Tracked in `.husky/`, executable.** pre-commit: lockfile drift, lint-staged
+  (eslint `--fix --max-warnings 0` + prettier on staged files), `vitest --changed`.
+  commit-msg: commitlint (conventional commits). pre-push: the full lint gate,
+  typecheck and unit tests — **no e2e**, on purpose: long pre-push hooks have
+  dropped SSH pushes in this workspace. CI runs e2e.
+- **Hooks call `pnpm exec`, never `npx`** — `npx` on a fresh machine downloads
+  whatever version is newest, not the one this repo tested against.
+- **Before this, `.husky/` held only husky's generated `_/` directory** — `prepare`
+  ran, but no hook was ever committed, so nothing ran locally. If `git ls-files
+.husky` is ever empty again, that is the bug.
+
 ## Auth — the rules that break silently when broken
 
 - **The API prefix is fixed and relative** (`/api/v1`), written once as

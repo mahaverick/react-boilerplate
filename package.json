@@ -46,6 +46,8 @@
     "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
     "@eslint/js": "10.0.1",
     "@ianvs/prettier-plugin-sort-imports": "4.7.1",
     "@playwright/test": "^1.63.0",
@@ -77,6 +79,7 @@
     "husky": "9.1.7",
     "jest-axe": "11.0.0",
     "jsdom": "30.1.1",
+    "lint-staged": "17.5.1",
     "msw": "2.15.0",
     "playwright": "^1.63.0",
     "prettier": "3.9.8",
@@ -87,5 +90,14 @@
     "typescript-eslint": "8.70.1",
     "vite": "8.3.0",
     "vitest": "5.0.1"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ],
+    "*.{js,jsx,css,json,md,html}": [
+      "prettier --write"
+    ]
   }
 }
