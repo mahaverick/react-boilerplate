@@ -195,6 +195,20 @@ asset, not by reading the config.**
   terminator. A `max-age` sent over plain HTTP is ignored by browsers and is
   actively wrong if TLS is ever absent. Set it at the edge that terminates TLS.
 
+## Releases
+
+[release-please](https://github.com/googleapis/release-please) opens (and
+keeps updating) a release PR from conventional commits on `main`
+(`.github/workflows/release.yml`). Merging that PR tags a version and
+publishes a GitHub Release. Release PRs show **no CI checks** — they're
+opened with `GITHUB_TOKEN`, and GitHub never triggers workflows from
+`GITHUB_TOKEN` events; see the comment in `release.yml`.
+
+One manual step, once: **install the
+[Renovate GitHub App](https://github.com/apps/renovate)** on this repository.
+`renovate.json` is inert without it — nothing schedules or opens Renovate PRs
+until the app is installed.
+
 ## Conventions
 
 `CLAUDE.md` is the short list of decisions that are easy to undo by accident —

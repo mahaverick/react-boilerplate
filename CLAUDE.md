@@ -148,6 +148,10 @@ field. pnpm 12 records itself in the lockfile (`packageManagerDependencies`),
 so changing the field means regenerating `pnpm-lock.yaml` in the same commit,
 or `--frozen-lockfile` fails.
 
+**Renovate proposes updates** (weekly, grouped, 3-day minimum release age,
+actions pinned to SHAs). `renovate.json` holds TypeScript `<6.1.0` and the
+`node` image `<25`; lift those rules deliberately.
+
 ## Conventions the linter enforces
 
 - **kebab-case** filenames and folders under `src/`, with suffixed files
