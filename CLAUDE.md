@@ -114,9 +114,20 @@ it to both lists in the same change or it will sit there unchecked.
 
 ## Versions
 
-TypeScript stays at `~6.0.3` and `@types/node` at `24.x` until typescript-eslint
-supports TS 7. Bumping either ahead of that breaks the type-aware lint rules,
-which is most of the lint config.
+**TypeScript stays at `~6.0.3`.** typescript-eslint peers
+`typescript: ">=4.8.4 <6.1.0"`, which excludes all of 7.x — checked against
+8.70.1, the latest, on 2026-09-23. Bumping ahead of that breaks the type-aware
+lint rules, which are most of the lint config. Re-check that peer range before
+assuming the block still holds; it is the whole of the constraint.
+
+**`@types/node` is NOT part of that constraint, and this file used to say it
+was.** It read "TypeScript stays at ~6.0.3 and `@types/node` at 24.x until
+typescript-eslint supports TS 7", which was wrong twice over: express-boilerplate
+has been running `@types/node` 26 on the identical `typescript ~6.0.3` for some
+time, and bumping this repo 24.13.6 → 26.6.2 on 2026-09-23 left eslint
+(type-aware rules included), `tsc`, 262 unit tests, the e2e fixtures and
+`pnpm build` all green. The two versions were pinned in one sentence and only
+one of them had a reason.
 
 The pnpm version is pinned in **two** places that must move together: the
 Dockerfile's `corepack prepare` and `.github/workflows/ci.yml`'s
