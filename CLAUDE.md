@@ -158,6 +158,14 @@ field. pnpm 12 records itself in the lockfile (`packageManagerDependencies`),
 so changing the field means regenerating `pnpm-lock.yaml` in the same commit,
 or `--frozen-lockfile` fails.
 
+**`devEngines.runtime` (`onFail: "error"`) is what refuses a wrong Node at
+install; `.npmrc`'s `engine-strict` does not enforce this root project's own
+Node version under pnpm 12.**
+
+**When Node moves to 26, `engines.node` and `devEngines.runtime.version` are
+moved by hand alongside the Renovate-held pins** — Renovate does not move a
+`>=` range on its own, only the pinned versions it already tracks.
+
 **Renovate proposes updates** (weekly, grouped, 3-day minimum release age,
 actions pinned to SHAs). `renovate.json` holds TypeScript `<6.1.0` and every
 Node version pin — the docker `node` image, `.nvmrc` and CI's

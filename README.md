@@ -20,6 +20,7 @@ that a new project starts here rather than at `create-vite`.
 ## Prerequisites
 
 - **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ no longer ships Corepack, so this works on 24 and 26 alike)
+- `devEngines.runtime` (`onFail: "error"`) is what actually refuses a wrong Node at install — `.npmrc`'s `engine-strict` does not enforce this root project's own `engines.node` under pnpm 12.
 - The **API running on `:4040`** — see below
 
 ## Getting started
@@ -224,6 +225,10 @@ One manual step, once: **install the
 [Renovate GitHub App](https://github.com/apps/renovate)** on this repository.
 `renovate.json` is inert without it — nothing schedules or opens Renovate PRs
 until the app is installed.
+
+With squash merges, the squashed commit on `main` is the PR's title, not any
+of its individual commit messages — so PR titles must themselves be
+conventional commits for release-please to read them correctly.
 
 ## Conventions
 
