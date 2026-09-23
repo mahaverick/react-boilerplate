@@ -3,7 +3,8 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { AuthLayout } from '@/components/layouts/auth-layout'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { cn } from 'cn'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -81,13 +82,15 @@ function ResetPasswordPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button
-              variant="outline"
-              className="w-full"
-              render={<Link to={ROUTES.forgotPassword} />}
+            {/* Styled as a button, but a <Link>, because it navigates — see
+                login.tsx's "Continue with Google" for the full reasoning on
+                why `<Button render={<Link/>}>` is the wrong shape here. */}
+            <Link
+              to={ROUTES.forgotPassword}
+              className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
             >
               Request a new link
-            </Button>
+            </Link>
           </CardContent>
         </Card>
       </AuthLayout>

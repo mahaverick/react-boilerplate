@@ -3,7 +3,8 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { cn } from 'cn'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -172,10 +173,25 @@ function LoginPage() {
 
         {/* A plain anchor, not an axios call: this is a top-level navigation
             to a same-origin API route. Base UI's Button composes through
-            `render`, where Radix used `asChild`. */}
-        <Button variant="outline" className="mt-3 w-full" render={<a href={GOOGLE_OAUTH_PATH} />}>
+            `render`, where Radix used `asChild`.
+
+            `buttonVariants` for the styling rather than `<Button render={<a/>}>`
+            for the whole thing, and the distinction is semantic, not stylistic.
+            This element NAVIGATES, so it is a link and must stay one — the
+            keyboard test below pins `role="link"`, and a screen-reader user who
+            hears "button" does not expect the page to change under them.
+
+            Base UI's Button warns on `render={<a/>}` because its `nativeButton`
+            prop defaults true and it is not getting a native button. Setting
+            that prop false clears the warning by applying `role="button"` — the
+            wrong answer here, since it would relabel a navigation as a button.
+            Taking the class names alone keeps the anchor an anchor. */}
+        <a
+          href={GOOGLE_OAUTH_PATH}
+          className={cn(buttonVariants({ variant: 'outline' }), 'mt-3 w-full')}
+        >
           Continue with Google
-        </Button>
+        </a>
 
         <div className="mt-4 flex justify-between text-sm">
           <Link to={ROUTES.forgotPassword} className="underline underline-offset-4">
