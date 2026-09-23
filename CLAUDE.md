@@ -129,13 +129,11 @@ time, and bumping this repo 24.13.6 → 26.6.2 on 2026-09-23 left eslint
 `pnpm build` all green. The two versions were pinned in one sentence and only
 one of them had a reason.
 
-The pnpm version is pinned in **two** places that must move together: the
-Dockerfile's `corepack prepare` and `.github/workflows/ci.yml`'s
-`pnpm/action-setup`. A `packageManager` field in package.json would collapse
-those into one, but pnpm 12 then records itself in the lockfile
-(`packageManagerDependencies`, ~160 lines of per-platform binaries) and
-`--frozen-lockfile` fails until the lockfile is regenerated. Adding the field
-is fine — just regenerate the lockfile in the same commit.
+**The pnpm version lives in one place: `packageManager` in package.json.** The
+Dockerfile runs `corepack install` and CI's `pnpm/action-setup` reads the same
+field. pnpm 12 records itself in the lockfile (`packageManagerDependencies`),
+so changing the field means regenerating `pnpm-lock.yaml` in the same commit,
+or `--frozen-lockfile` fails.
 
 ## Conventions the linter enforces
 

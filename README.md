@@ -19,7 +19,7 @@ that a new project starts here rather than at `create-vite`.
 
 ## Prerequisites
 
-- **Node 24** and **pnpm 12** (`corepack enable && corepack prepare pnpm@12.4.1 --activate`)
+- **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ no longer ships Corepack, so this works on 24 and 26 alike)
 - The **API running on `:4040`** — see below
 
 ## Getting started

@@ -3,17 +3,14 @@
 FROM node:24-alpine AS build
 WORKDIR /app
 
-# PINNED, not "whatever pnpm this Node image bundles". pnpm-workspace.yaml uses
-# `allowBuilds` and `minimumReleaseAgeExclude`, which an older pnpm ignores in
-# silence — and `allowBuilds` is what lets msw's postinstall run at all.
-#
-# Pinned HERE rather than through package.json's `packageManager` field: adding
-# that field makes pnpm 12 record itself in the lockfile
-# (`packageManagerDependencies`, ~160 lines of per-platform binaries), and
-# `--frozen-lockfile` then fails until the lockfile is regenerated. Keep this
-# version in step with .github/workflows/ci.yml, which pins the same one.
+# Corepack is installed explicitly: Node 25+ no longer bundles it, and doing
+# it now makes the Node 26 move a version bump only. The pnpm version comes
+# from package.json's packageManager field (corepack install, below) — the
+# one place it is written. It must be pnpm 12: pnpm-workspace.yaml uses
+# allowBuilds and minimumReleaseAgeExclude, which older pnpm ignores in
+# silence, and allowBuilds is what lets msw's postinstall run at all.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN corepack enable && corepack prepare pnpm@12.4.1 --activate
+RUN npm i -g corepack@0.36.0 && corepack enable
 # `husky` is package.json's `prepare` script. There is no .git in the build
 # context (see .dockerignore), and husky exits cleanly without one — this just
 # says so out loud.
@@ -23,6 +20,7 @@ ENV HUSKY=0
 # the install settings above, so leaving it out of this layer changes what
 # `pnpm install` does.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN corepack install
 RUN pnpm install --frozen-lockfile
 
 COPY . .
