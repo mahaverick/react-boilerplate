@@ -115,8 +115,9 @@ jobs:
   # A third job the brief did not ask for. The image and its nginx config are
   # half of this task's deliverable and neither is exercised by lint, typecheck
   # or the test suite — a broken proxy_pass or a typo'd directive would
-  # otherwise surface at deploy time. Built, never pushed: publishing is a
-  # release concern.
+  # otherwise surface at deploy time. Built, never pushed: this job only proves
+  # the image builds and `nginx -t` passes — the image is built and pushed in
+  # deploy.yml.
   #
   # Plain `docker` rather than docker/build-push-action, so this adds no action
   # pins to keep current. The runner ships with docker already.
