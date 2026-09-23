@@ -60,6 +60,9 @@ jobs:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+          # Storage records need `artifact-metadata: write` and an org-owned
+          # repo; without it this defaults to true and warns on every run.
+          create-storage-record: false
       - name: Summary
         run: |
           {
