@@ -184,9 +184,20 @@ exits on the second the API dies. Anything that depends on noticing a dropped up
 be tested here, not against `pnpm dev`.
 
 **`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom
-cannot compute at all — over every surface reachable without a backend, in **both themes**. It
-injects the axe-core already in devDependencies rather than adding a package. Opt-in and not in
-CI: contrast is a property of the palette, which moves rarely and deliberately.
+cannot compute at all — over every surface reachable without a backend, in **both themes**:
+the four public auth pages, `reset-password`/`verify-email` (both need a `?token=`, or they
+render their "link is incomplete" branch instead), and the authenticated pages through the
+harness's `?path=`. Every surface asserts a heading it alone renders BEFORE axe runs — a route
+that redirects still paints a perfectly legible page, so without that assertion a surface
+could report green while measuring something else entirely. It
+injects the axe-core already in devDependencies rather than adding a package.
+
+**Opt-in and not in CI** — a deliberate cost decision, but do not read the usual justification
+for it ("contrast is a property of the palette, which moves rarely") as the whole risk model.
+The paragraph below disproves it: the one real failure this suite has found was a COMPONENT
+fault, not a palette change. `--muted-foreground` was fine; the avatar fallback put it on a
+muted surface. Component composition breaks contrast, and that changes on every feature — so
+run this before merging UI work, not only when a token moves.
 
 It earned itself immediately. `--muted-foreground` measured **4.35:1** on `--muted` in light
 theme (`#737373` on `#f5f5f5`) — under the 4.5:1 AA floor wherever muted text sits on a muted
