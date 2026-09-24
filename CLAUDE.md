@@ -22,7 +22,7 @@ v4, Base UI via shadcn, axios, Zod v4, Vitest + Testing Library + MSW.
 | `pnpm lint`          | eslint **and** `prettier --check` — both must be clean                                             |
 | `pnpm typecheck`     | `tsc --noEmit -p tsconfig.app.json`                                                                |
 | `pnpm test`          | Vitest, one pass                                                                                   |
-| `pnpm test:coverage` | Vitest with coverage; fails under 85/78/80/85 (statements/branches/functions/lines), as CI runs it |
+| `pnpm test:coverage` | Vitest with coverage; fails under 88/82/86/89 (statements/branches/functions/lines), as CI runs it |
 | `pnpm format`        | prettier --write                                                                                   |
 
 The gate is **0 errors and 0 warnings**: verify with

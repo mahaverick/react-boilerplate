@@ -43,8 +43,11 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
+      // Excludes the generated route tree, the mount-only entry and vendored shadcn.
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/routeTree.gen.ts', 'src/main.tsx', 'src/components/ui/**'],
       // A few points under the measured baseline, so a drop fails CI.
-      thresholds: { statements: 85, branches: 78, functions: 80, lines: 85 },
+      thresholds: { statements: 88, branches: 82, functions: 86, lines: 89 },
     },
   },
 })
