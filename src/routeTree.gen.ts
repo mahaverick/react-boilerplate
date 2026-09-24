@@ -21,6 +21,7 @@ import { Route as AuthForgotPasswordRouteImport } from './pages/_auth/forgot-pas
 import { Route as AuthLoginRouteImport } from './pages/_auth/login'
 import { Route as AuthRegisterRouteImport } from './pages/_auth/register'
 import { Route as AuthCallbackRouteImport } from './pages/auth/callback'
+import { Route as InvitationsAcceptRouteImport } from './pages/invitations/accept'
 import { Route as AppTenantsIndexRouteImport } from './pages/_app/tenants/index'
 import { Route as AppTenantsSlugRouteImport } from './pages/_app/tenants/$slug'
 import { Route as AppTenantsSlugIndexRouteImport } from './pages/_app/tenants/$slug.index'
@@ -85,6 +86,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
+  id: '/invitations/accept',
+  path: '/invitations/accept',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppTenantsIndexRoute = AppTenantsIndexRouteImport.update({
   id: '/tenants/',
   path: '/tenants/',
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/tenants/': typeof AppTenantsIndexRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
@@ -139,6 +146,7 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/tenants': typeof AppTenantsIndexRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
@@ -158,6 +166,7 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/_app/tenants/': typeof AppTenantsIndexRoute
   '/_app/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/auth/callback'
+    | '/invitations/accept'
     | '/tenants/$slug'
     | '/tenants/'
     | '/tenants/$slug/members'
@@ -194,6 +204,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/auth/callback'
+    | '/invitations/accept'
     | '/tenants'
     | '/tenants/$slug/members'
     | '/tenants/$slug/settings'
@@ -212,6 +223,7 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/register'
     | '/auth/callback'
+    | '/invitations/accept'
     | '/_app/tenants/$slug'
     | '/_app/tenants/'
     | '/_app/tenants/$slug/members'
@@ -226,6 +238,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  InvitationsAcceptRoute: typeof InvitationsAcceptRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -312,6 +325,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/callback'
       fullPath: '/auth/callback'
       preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invitations/accept': {
+      id: '/invitations/accept'
+      path: '/invitations/accept'
+      fullPath: '/invitations/accept'
+      preLoaderRoute: typeof InvitationsAcceptRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/tenants/': {
@@ -407,6 +427,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  InvitationsAcceptRoute: InvitationsAcceptRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

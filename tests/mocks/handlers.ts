@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type { User } from '@/types/api.types'
+import type { InvitationPreview, TenantInvitation, User } from '@/types/api.types'
 
 export const testUser: User = {
   id: 'u1',
@@ -7,6 +7,27 @@ export const testUser: User = {
   firstName: 'A',
   lastName: 'B',
   createdAt: '2026-01-01T00:00:00.000Z',
+}
+
+/** 43 characters of base64url, the shape the server mints and validates. */
+export const TEST_INVITATION_TOKEN = 'inv-token-'.padEnd(43, 'x')
+
+/** One pending row, as `GET /tenants/:slug/invitations` lists it. */
+export const testInvitation: TenantInvitation = {
+  id: 'inv-1',
+  email: 'invitee@b.com',
+  role: 'editor',
+  invitedBy: { id: 'u1', firstName: 'A', lastName: 'B' },
+  expiresAt: '2026-10-01T00:00:00.000Z',
+  createdAt: '2026-09-24T00:00:00.000Z',
+}
+
+/** Sent to `testUser`'s own address, so a signed-in test user is the invitee. */
+export const testInvitationPreview: InvitationPreview = {
+  tenant: { name: 'Acme Corp', slug: 'acme' },
+  role: 'editor',
+  invitedBy: { firstName: 'Ada', lastName: 'Lovelace' },
+  email: testUser.email,
 }
 
 export function ok<T>(data: T, message = 'OK', statusCode = 200) {
@@ -61,4 +82,25 @@ export const handlers = [
   // `[{ tenant, role }]`, not bare tenants — `TenantRepository.listForUser`
   // selects the tenant row and the caller's membership role side by side.
   http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+  // Pending invitations, empty like the list above. A test about them
+  // overrides it with `server.use(...)`.
+  http.get('/api/v1/tenants/:slug/invitations', () => ok([], 'Invitations retrieved.')),
+  // Invite answers 202 with `data: null` whether or not the address has an
+  // account, the same way register does.
+  http.post('/api/v1/tenants/:slug/invitations', () =>
+    ok(null, 'If that address can be invited, an invitation has been sent.', 202)
+  ),
+  http.post('/api/v1/tenants/:slug/invitations/:id/resend', () =>
+    ok(null, 'Invitation resent.', 202)
+  ),
+  http.delete('/api/v1/tenants/:slug/invitations/:id', () => ok(null, 'Invitation revoked.')),
+  http.post('/api/v1/invitations/preview', () =>
+    ok(testInvitationPreview, 'Invitation retrieved.')
+  ),
+  http.post('/api/v1/invitations/accept', () =>
+    ok(
+      { tenant: testInvitationPreview.tenant, role: testInvitationPreview.role },
+      'Invitation accepted.'
+    )
+  ),
 ]

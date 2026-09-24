@@ -22,6 +22,18 @@ export function statusFrom(error: unknown): number | undefined {
   return error instanceof AxiosError ? error.response?.status : undefined
 }
 
+/**
+ * The envelope's machine-readable `code`, or `undefined` when the failure
+ * carried none (or never reached a response at all).
+ */
+export function codeFrom(error: unknown): string | undefined {
+  if (error instanceof AxiosError) {
+    const body = error.response?.data as ApiErrorBody | undefined
+    if (typeof body?.code === 'string') return body.code
+  }
+  return undefined
+}
+
 /** The one key in `errors` that is NOT a field name. See below. */
 const FORM_ERRORS_KEY = 'formErrors'
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addMemberSchema,
+  inviteMemberSchema,
   metadataTextSchema,
   newTenantSchema,
   slugSchema,
@@ -92,16 +92,25 @@ describe('updateTenantSchema', () => {
   })
 })
 
-describe('addMemberSchema', () => {
+describe('inviteMemberSchema', () => {
   it('normalises the email and keeps the role', () => {
-    expect(addMemberSchema.parse({ email: '  ADA@B.COM ', role: 'viewer' })).toEqual({
+    expect(inviteMemberSchema.parse({ email: '  ADA@B.COM ', role: 'viewer' })).toEqual({
       email: 'ada@b.com',
       role: 'viewer',
     })
   })
 
   it('rejects a role the server does not know', () => {
-    expect(addMemberSchema.safeParse({ email: 'a@b.com', role: 'superuser' }).success).toBe(false)
+    expect(inviteMemberSchema.safeParse({ email: 'a@b.com', role: 'superuser' }).success).toBe(
+      false
+    )
+  })
+
+  it('caps the address at 320, the same ceiling as registration', () => {
+    const at320 = `${'a'.repeat(314)}@b.com`
+    expect(at320).toHaveLength(320)
+    expect(inviteMemberSchema.safeParse({ email: at320, role: 'viewer' }).success).toBe(true)
+    expect(inviteMemberSchema.safeParse({ email: `a${at320}`, role: 'viewer' }).success).toBe(false)
   })
 })
 

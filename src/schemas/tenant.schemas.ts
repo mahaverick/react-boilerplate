@@ -175,17 +175,17 @@ export const updateTenantSchema = z.object({
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>
 
 /**
- * `POST /tenants/:slug/members`. `role` is required, not defaulted — this is
- * an owner or admin consciously granting access. WHICH roles may be offered
- * is `canActorGrantRole`'s job (constants/roles.ts), not a schema's: a
+ * `POST /tenants/:slug/invitations`. `role` is required, not defaulted — this
+ * is an owner or admin consciously granting access. WHICH roles may be
+ * offered is `canActorGrantRole`'s job (constants/roles.ts), not a schema's: a
  * schema knows the shape of a role, never who is asking.
  */
-export const addMemberSchema = z.object({
+export const inviteMemberSchema = z.object({
   email: emailSchema,
   role: z.enum(MEMBERSHIP_ROLES),
 })
 
-export type AddMemberInput = z.infer<typeof addMemberSchema>
+export type InviteMemberInput = z.infer<typeof inviteMemberSchema>
 
 /** `PATCH /tenants/:slug/members/:userId`. */
 export const updateMemberRoleSchema = z.object({ role: z.enum(MEMBERSHIP_ROLES) })

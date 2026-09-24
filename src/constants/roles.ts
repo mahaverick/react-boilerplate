@@ -22,7 +22,7 @@
 export const MEMBERSHIP_ROLES = ['owner', 'admin', 'manager', 'editor', 'viewer'] as const
 export type MembershipRole = (typeof MEMBERSHIP_ROLES)[number]
 
-/** The role a newly added member receives. */
+/** The invite form's default role. */
 export const DEFAULT_MEMBER_ROLE: MembershipRole = 'viewer'
 
 /** A reader-facing label for each role, for selects and badges. */
@@ -83,7 +83,7 @@ export function canChangeRoles(actorRole: MembershipRole): boolean {
   return actorRole === 'owner'
 }
 
-/** Tenant update, member add/remove and settings: owner or admin. */
+/** Tenant update, settings, member removal and invitations: owner or admin. */
 export function canManageTenant(actorRole: MembershipRole): boolean {
   return actorRole === 'owner' || actorRole === 'admin'
 }

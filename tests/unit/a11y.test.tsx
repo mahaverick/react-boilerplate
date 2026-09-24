@@ -14,7 +14,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-import { fail, ok, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /**
@@ -140,6 +140,17 @@ const NOTIFICATIONS = [
   },
 ]
 
+/** One pending invitation, so the members page's third card has a row to grade. */
+const INVITATIONS = [
+  {
+    id: 'inv-1',
+    email: 'invitee@b.com',
+    role: 'editor',
+    invitedBy: { id: 'u1', firstName: 'A', lastName: 'B' },
+    expiresAt: '2026-10-01T00:00:00.000Z',
+    createdAt: '2026-09-24T00:00:00.000Z',
+  },
+]
 const PREFERENCES = [
   { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
   { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
@@ -159,6 +170,7 @@ function mockSignedInData() {
     ),
     http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
     http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.')),
+    http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
     http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
     http.get('/api/v1/notifications', () =>
       ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
@@ -392,6 +404,21 @@ describe('signed-out pages', () => {
       '/verify-email?token=a-token',
       () => screen.findByRole('button', { name: 'Verify email' }),
     ],
+    [
+      'register, prefilled from an invitation',
+      '/register?email=a%40b.com',
+      () => screen.findByDisplayValue('a@b.com'),
+    ],
+    [
+      'invitation accept',
+      `/invitations/accept?token=${TEST_INVITATION_TOKEN}`,
+      () => screen.findByRole('link', { name: 'Log in' }),
+    ],
+    [
+      'invitation accept without a token',
+      '/invitations/accept',
+      () => screen.findByRole('heading', { name: 'This link is incomplete' }),
+    ],
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
@@ -419,15 +446,96 @@ describe('signed-in pages', () => {
       '/tenants/acme',
       () => screen.findByRole('heading', { name: 'Acme Corp', level: 1 }),
     ],
-    ['tenant members', '/tenants/acme/members', () => screen.findByRole('table')],
+    [
+      'tenant members',
+      '/tenants/acme/members',
+      // Both lists: the member table and the pending invitations under it.
+      async () => {
+        await screen.findByRole('table')
+        return screen.findByText('invitee@b.com')
+      },
+    ],
     [
       'tenant settings',
       '/tenants/acme/settings',
       () => screen.findByRole('button', { name: 'Save settings' }),
     ],
+    [
+      'invitation accept',
+      `/invitations/accept?token=${TEST_INVITATION_TOKEN}`,
+      () => screen.findByRole('button', { name: 'Accept invitation' }),
+    ],
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
+    await expectNoViolations()
+  })
+})
+
+/**
+ * The accept page's other states, each one its own render: a default sweep
+ * only ever sees the invited account arriving at a valid link.
+ */
+describe('invitation accept states', () => {
+  const acceptPath = `/invitations/accept?token=${TEST_INVITATION_TOKEN}`
+
+  beforeEach(() => {
+    signIn()
+    mockSignedInData()
+  })
+
+  it('has no violations signed in as the wrong account', async () => {
+    server.use(
+      http.post('/api/v1/invitations/preview', () =>
+        ok(
+          {
+            tenant: { name: 'Acme Corp', slug: 'acme' },
+            role: 'editor',
+            invitedBy: { firstName: 'Ada', lastName: 'Lovelace' },
+            email: 'someone@else.com',
+          },
+          'Invitation retrieved.'
+        )
+      )
+    )
+    renderAppAt(acceptPath)
+    await screen.findByRole('button', { name: 'Sign out' })
+    await expectNoViolations()
+  })
+
+  it('has no violations for an invalid invitation', async () => {
+    server.use(
+      http.post('/api/v1/invitations/preview', () =>
+        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+      )
+    )
+    renderAppAt(acceptPath)
+    await screen.findByRole('heading', { name: 'This invitation can’t be used' })
+    await expectNoViolations()
+  })
+
+  it('has no violations when the preview request failed', async () => {
+    server.use(http.post('/api/v1/invitations/preview', () => fail('Something went wrong.', 500)))
+    renderAppAt(acceptPath)
+    // The preview retries a non-404 once, so the failure takes a moment.
+    await screen.findByRole('alert', {}, { timeout: 5000 })
+    await expectNoViolations()
+  })
+
+  it('has no violations with the unverified-email refusal showing', async () => {
+    server.use(
+      http.post('/api/v1/invitations/accept', () =>
+        fail(
+          'Verify your email address before accepting this invitation.',
+          403,
+          'invitation_email_unverified'
+        )
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt(acceptPath)
+    await user.click(await screen.findByRole('button', { name: 'Accept invitation' }))
+    await screen.findByRole('alert')
     await expectNoViolations()
   })
 })
@@ -463,12 +571,26 @@ describe('open overlays', () => {
     await expectNoViolations()
   })
 
+  it('has no violations with the revoke-invitation dialog open, and the dialog is named', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
+    )
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveAccessibleName('Revoke the invitation to invitee@b.com?')
+    await expectNoViolations()
+  })
+
   it('has no violations with the member list stacked as cards on a phone', async () => {
     // A second render path is a second chance to ship a duplicate id or an
     // unlabelled control, and it is the path the table tests never touch.
     setViewportWidth(390)
     renderAppAt('/tenants/acme/members')
     await screen.findByText('Cleo D')
+    await screen.findByText('invitee@b.com')
 
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     await expectNoViolations()

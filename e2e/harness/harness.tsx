@@ -67,6 +67,17 @@ const MEMBERS = [
   },
 ]
 
+const INVITATIONS = [
+  {
+    id: 'inv-1',
+    email: 'invitee@b.com',
+    role: 'editor',
+    invitedBy: { id: 'u1', firstName: 'A', lastName: 'B' },
+    expiresAt: '2026-10-01T00:00:00.000Z',
+    createdAt: '2026-09-24T00:00:00.000Z',
+  },
+]
+
 const NOTIFICATIONS = [
   {
     id: 'n1',
@@ -132,6 +143,9 @@ const worker = setupWorker(
   http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')),
   http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
   membersHandler,
+  // The members page lists pending invitations for an owner. Unmocked, this
+  // would reach the real API, 401, and sign the harness user out.
+  http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
   http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
   http.get('/api/v1/notifications', () =>
     ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')

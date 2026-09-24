@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -22,10 +23,15 @@ import { useRegister, useResendVerification } from '@/queries/auth.queries'
 import { registerSchema, type RegisterInput } from '@/schemas/auth.schemas'
 
 export const Route = createFileRoute('/_auth/register')({
+  // `?email=` prefills the address: an invitation's "Create account" sends the
+  // invitee here with the address the invitation was sent to. `.catch`: the
+  // router JSON-parses search values, so `?email=123` is a number, ignored.
+  validateSearch: z.object({ email: z.string().optional().catch(undefined) }),
   component: RegisterPage,
 })
 
 function RegisterPage() {
+  const { email: invitedEmail } = Route.useSearch()
   // Set once the API accepts the registration. The address is kept so the
   // resend control below can use it without asking for it a second time.
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
@@ -36,7 +42,12 @@ function RegisterPage() {
   // Annotated rather than inferred: the names are OPTIONAL in the schema (as
   // they are on the backend), and an inferred `{ firstName: string }` from the
   // literal below would not match the validator's input type.
-  const defaultValues: RegisterInput = { email: '', password: '', firstName: '', lastName: '' }
+  const defaultValues: RegisterInput = {
+    email: invitedEmail ?? '',
+    password: '',
+    firstName: '',
+    lastName: '',
+  }
 
   const form = useForm({
     defaultValues,

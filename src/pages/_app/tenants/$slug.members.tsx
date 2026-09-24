@@ -1,9 +1,9 @@
-import { useForm } from '@tanstack/react-form'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { z } from 'zod'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
+import { InviteMemberForm } from '@/components/features/tenant/invite-member-form'
+import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,16 +17,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Form,
-  FormControl,
-  FormError,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -44,31 +34,25 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  canActorGrantRole,
   canActorModifyTarget,
   canChangeRoles,
   canManageTenant,
-  DEFAULT_MEMBER_ROLE,
   isLastOwnerBlocked,
   MEMBERSHIP_ROLES,
   ROLE_LABELS,
   type MembershipRole,
 } from '@/constants/roles'
-import { fieldValue } from '@/hooks/use-form-field'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { useServerErrors } from '@/hooks/use-server-errors'
 import { messageFrom } from '@/lib/api-error'
 import {
   memberName,
   ownerCount,
-  useAddMember,
   useMembers,
   useMyRole,
   useRemoveMember,
   useUpdateMemberRole,
   type TenantMember,
 } from '@/queries/tenant.queries'
-import { addMemberSchema } from '@/schemas/tenant.schemas'
 import { useAuthStore } from '@/states/auth.store'
 
 export const Route = createFileRoute('/_app/tenants/$slug/members')({
@@ -94,120 +78,6 @@ const LAST_OWNER_REASON = 'A tenant must always have an owner. Add another owner
  */
 const MEMBERS_ERROR =
   'We could not load this tenant’s members, so none are listed here. This is not a sign that it has none.'
-
-/**
- * Add an existing user by email.
- *
- * Reachable for owner and admin (`canManageTenant`), but the roles OFFERED
- * come from `canActorGrantRole` — a third rule, separate from the
- * actor→target matrix, because a person who is not yet a member has no
- * current role to compare against. Without it an admin could add a brand-new
- * `admin` (or `owner`) directly, which is a larger grant than the matrix lets
- * that same admin apply to an EXISTING admin.
- */
-function AddMemberForm({ slug, myRole }: { slug: string; myRole: MembershipRole }) {
-  const addMember = useAddMember(slug)
-  const serverErrors = useServerErrors()
-  const grantable = MEMBERSHIP_ROLES.filter((role) => canActorGrantRole(myRole, role))
-
-  // The schema's own input type, so `role` stays a MembershipRole rather than
-  // widening to `string` — the same annotation register.tsx makes.
-  const defaultValues: z.input<typeof addMemberSchema> = {
-    email: '',
-    role: DEFAULT_MEMBER_ROLE,
-  }
-
-  const form = useForm({
-    defaultValues,
-    validators: { onSubmit: addMemberSchema },
-    onSubmit: async ({ value }) => {
-      serverErrors.reset()
-      try {
-        const member = await addMember.mutateAsync(addMemberSchema.parse(value))
-        toast.success(`${memberName(member)} added.`)
-        form.reset()
-      } catch (error) {
-        serverErrors.capture(error)
-        toast.error(messageFrom(error))
-      }
-    },
-  })
-
-  return (
-    <Form form={form} serverErrors={serverErrors} className="sm:flex sm:items-start sm:gap-3">
-      <FormField form={form} name="email">
-        {(field) => (
-          <FormItem className="sm:flex-1">
-            <FormLabel>Email</FormLabel>
-            <FormControl>
-              <Input
-                type="email"
-                autoComplete="off"
-                value={fieldValue(field.state.value)}
-                onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      </FormField>
-
-      <FormField form={form} name="role">
-        {(field) => (
-          <FormItem>
-            <FormLabel>Role</FormLabel>
-            {/* MEASURED, not assumed, and both halves matter:
-                (1) `FormControl`'s id lands on the VISIBLE trigger button
-                    here — a Select's trigger IS the control — so
-                    `FormLabel htmlFor` points at something a pointer can
-                    reach. (A Base UI Checkbox is the opposite case: its id
-                    goes to the hidden input.)
-                (2) Base UI's selection does NOT emit a change event that
-                    bubbles to `<form>`, so `<Form>`'s server-error clearing
-                    rule never fires for this control. `clearField` is
-                    therefore called by hand below. Delete that line and a
-                    server error on `role` would sit there while the user
-                    changes the very field it is about. */}
-            <Select
-              value={fieldValue(field.state.value)}
-              onValueChange={(value: string | null) => {
-                if (value === null) return
-                field.handleChange(value)
-                // Base UI's selection does NOT bubble a change event to the
-                // <form>, so <Form>'s own clearing rule never sees this.
-                serverErrors.clearField('role')
-              }}
-            >
-              <FormControl>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue>
-                    {(value: string) => ROLE_LABELS[value as MembershipRole] ?? value}
-                  </SelectValue>
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {grantable.map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {ROLE_LABELS[role]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      </FormField>
-
-      <div className="grid gap-2 sm:pt-6">
-        <FormError />
-        <Button type="submit" disabled={addMember.isPending}>
-          {addMember.isPending ? 'Adding…' : 'Add member'}
-        </Button>
-      </div>
-    </Form>
-  )
-}
 
 /** The role cell: a select for an owner, plain text for everyone else. */
 function RoleCell({
@@ -340,7 +210,7 @@ function RemoveMemberButton({
           <AlertDialogTitle>{isSelf ? 'Leave this tenant?' : `Remove ${name}?`}</AlertDialogTitle>
           <AlertDialogDescription>
             {isSelf
-              ? 'You will lose access to this tenant immediately. Another member will have to add you back.'
+              ? 'You will lose access to this tenant immediately. An owner or admin will have to invite you back.'
               : `${name} will lose access to this tenant immediately.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -503,7 +373,7 @@ function TenantMembersTab() {
             // A bare `Name / Email / Role / Actions` header over nothing was
             // what rendered here before; the visual gate caught it.
             <p className="text-sm text-muted-foreground">
-              No one has access to this tenant yet. Add someone below.
+              No one has access to this tenant yet. Invite someone below.
             </p>
           ) : isMobile ? (
             // CARDS ON A PHONE. The table below is `min-w-2xl` so it scrolls
@@ -562,22 +432,27 @@ function TenantMembersTab() {
         </CardContent>
       </Card>
 
-      {/* Owner and admin only. A manager, editor or viewer never reaches
-          POST /tenants/:slug/members at all. */}
+      {/* Owner and admin only: all four invitation routes are
+          `requireRole('owner', 'admin')`, and PendingInvitations issues its
+          request only once mounted. */}
       {myRole && canManageTenant(myRole) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <h2>Add a member</h2>
-            </CardTitle>
-            <CardDescription>
-              The person must already have an account with this email address.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AddMemberForm slug={slug} myRole={myRole} />
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <h2>Invite a member</h2>
+              </CardTitle>
+              <CardDescription>
+                We email them a link to join. Someone without an account can create one with that
+                address, then open the link again.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <InviteMemberForm slug={slug} myRole={myRole} />
+            </CardContent>
+          </Card>
+          <PendingInvitations slug={slug} myRole={myRole} />
+        </>
       )}
     </div>
   )

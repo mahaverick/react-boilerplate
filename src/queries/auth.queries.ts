@@ -71,13 +71,16 @@ export function useResendVerification() {
 
 const LOGOUT_FAILED_MESSAGE = "Couldn't sign out. Check your connection and try again."
 
-/** Signs out server-side first; the local session ends only once the server's has. */
-export function useLogout() {
+/**
+ * Signs out server-side first; the local session ends only once the server's has.
+ * `returnTo` is the same-origin path to land on afterwards, `/login` by default.
+ */
+export function useLogout({ returnTo = ROUTES.login }: { returnTo?: string } = {}) {
   const logout = useAuthStore((s) => s.logout)
   const endSession = () => {
     logout()
     broadcastLogout()
-    window.location.assign(ROUTES.login)
+    window.location.assign(returnTo)
   }
   return useMutation({
     // skipAuthRetry: a 401 here is handled below, not by the interceptor's verdict path.
