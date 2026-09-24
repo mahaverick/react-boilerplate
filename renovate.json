@@ -3,6 +3,13 @@
   "extends": ["config:recommended", ":semanticCommits", "helpers:pinGitHubActionDigests"],
   "schedule": ["before 6am on monday"],
   "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "minimumReleaseAge": null,
+    "schedule": ["at any time"]
+  },
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 6am on the first day of the month"]
@@ -10,9 +17,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Track the explicit Corepack pin in Dockerfile and README",
-      "managerFilePatterns": ["Dockerfile", "README.md"],
-      "matchStrings": ["corepack@(?<currentValue>[^\\s]+)"],
+      "description": "Track the explicit Corepack pin in the Dockerfile and README install instructions; no built-in manager sees a version inside a shell command or prose.",
+      "managerFilePatterns": ["/^Dockerfile$/", "/^README\\.md$/"],
+      "matchStrings": ["corepack@(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
       "depNameTemplate": "corepack",
       "datasourceTemplate": "npm"
     }
@@ -43,6 +50,22 @@
       ]
     },
     { "groupName": "tanstack", "matchPackageNames": ["@tanstack/*"] },
-    { "groupName": "types", "matchPackageNames": ["@types/*"] }
+    { "groupName": "types", "matchPackageNames": ["@types/*"] },
+    {
+      "description": "Minor, patch and digest updates merge themselves once the required checks pass.",
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    {
+      "description": "Majors always wait for a human.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "The pinned toolchain always waits for a human.",
+      "matchDepNames": ["node", "typescript"],
+      "automerge": false
+    }
   ]
 }
