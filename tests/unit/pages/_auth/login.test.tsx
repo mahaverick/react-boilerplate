@@ -277,6 +277,31 @@ describe('server-side validation errors', () => {
   })
 })
 
+/** Each `?error=` code the API's Google callback redirects here with. */
+describe('OAuth failure messages', () => {
+  beforeEach(arriveSignedOut)
+
+  it.each([
+    [
+      'email_not_verified',
+      "Google hasn't verified this email address. Verify it with Google, or sign up with email and password.",
+    ],
+    ['google_email_missing', "Your Google account didn't share an email address."],
+    ['processing_failed', 'Something went wrong signing in with Google. Try again.'],
+    ['google_auth_failed', 'Google sign-in failed. Please try again.'],
+  ])('explains ?error=%s', async (code, message) => {
+    renderLoginAt(`/login?error=${code}`)
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+  })
+
+  it('falls back to a generic message for a code it does not know', async () => {
+    renderLoginAt('/login?error=something_new')
+
+    expect(await screen.findByText('Sign-in failed. Please try again.')).toBeInTheDocument()
+  })
+})
+
 describe('safeRedirect', () => {
   it('accepts an absolute same-origin path', () => {
     expect(safeRedirect('/dashboard')).toBe('/dashboard')
