@@ -90,6 +90,51 @@ export function redirectToLogin(): void {
   window.location.assign(target)
 }
 
+/** BroadcastChannel name shared by every tab of this app. */
+const AUTH_CHANNEL = 'auth'
+/** Web Lock name that serialises POST /auth/refresh across tabs. */
+const REFRESH_LOCK = 'auth-refresh'
+
+interface AuthMessage {
+  type?: string
+}
+
+// ONE channel per tab, for posting and listening alike: a channel never
+// receives its own posts, but a second instance in the same tab would.
+let channel: BroadcastChannel | null = null
+let uninstallListener: (() => void) | null = null
+
+function authChannel(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === 'undefined') return null
+  channel ??= new BroadcastChannel(AUTH_CHANNEL)
+  return channel
+}
+
+/** Tell every other tab this session has ended; a no-op without BroadcastChannel. */
+export function broadcastLogout(): void {
+  authChannel()?.postMessage({ type: 'logout' } satisfies AuthMessage)
+}
+
+/** Sign this tab out when another tab broadcasts a logout; idempotent, returns the cleanup. */
+export function installAuthBroadcastListener(): () => void {
+  if (uninstallListener) return uninstallListener
+  const target = authChannel()
+  if (!target) return () => {}
+
+  const onMessage = (event: MessageEvent<AuthMessage | null>) => {
+    // A tab already signed out (on /login, say) has nothing to end and must not reload.
+    if (event.data?.type !== 'logout' || !useAuthStore.getState().isAuthenticated) return
+    useAuthStore.getState().logout()
+    redirectToLogin()
+  }
+  target.addEventListener('message', onMessage)
+  uninstallListener = () => {
+    target.removeEventListener('message', onMessage)
+    uninstallListener = null
+  }
+  return uninstallListener
+}
+
 /**
  * The single in-flight refresh. Every caller — bootstrap, the 401
  * interceptor, and the SSE reconnect path — awaits this same promise.
@@ -130,19 +175,34 @@ async function refreshSession(): Promise<string> {
     // See isAuthVerdict for why this is 401 and not "the server answered".
     if (isAuthVerdict(error)) {
       useAuthStore.getState().logout()
+      // The cookie is shared, so the verdict holds for every tab.
+      broadcastLogout()
     }
     throw error
   }
 }
 
+// `inFlight` dedupes callers within a tab; the Web Lock queues tabs, since each
+// refresh rotates the cookie they share. Without locks (an insecure context, an
+// old browser) the server's short reuse grace window covers concurrent tabs.
+function refreshAcrossTabs(): Promise<string> {
+  if (typeof navigator !== 'undefined' && 'locks' in navigator) {
+    return navigator.locks.request(REFRESH_LOCK, () => refreshSession())
+  }
+  return refreshSession()
+}
+
 export function ensureSession(): Promise<string> {
-  inFlight ??= refreshSession().finally(() => {
+  inFlight ??= refreshAcrossTabs().finally(() => {
     inFlight = null
   })
   return inFlight
 }
 
-/** Test-only: drop the cached promise between cases. */
+/** Test-only: drop the cached promise and this tab's broadcast channel between cases. */
 export function resetSessionForTests(): void {
   inFlight = null
+  uninstallListener?.()
+  channel?.close()
+  channel = null
 }

@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 import { createRouter } from '@tanstack/react-router'
-import { ensureSession } from '@/http/session'
+import { ensureSession, installAuthBroadcastListener } from '@/http/session'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 
@@ -16,10 +16,12 @@ export const queryClient = new QueryClient({
  * `_auth` would let them sit on /login while their cookie was still good.
  *
  * ensureSession() already dedupes concurrent callers and already calls
- * logout() on failure, so this only has to flip isBootstrapped.
+ * logout() on failure, so this only has to flip isBootstrapped — and start
+ * listening for a logout from another tab (idempotent).
  */
 export async function bootstrapSession(): Promise<void> {
   if (useAuthStore.getState().isBootstrapped) return
+  installAuthBroadcastListener()
   try {
     await ensureSession()
   } catch {

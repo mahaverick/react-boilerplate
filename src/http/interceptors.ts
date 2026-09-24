@@ -1,5 +1,5 @@
 import { AxiosError, type AxiosInstance, type AxiosResponse } from 'axios'
-import { ensureSession, isAuthVerdict, redirectToLogin } from '@/http/session'
+import { broadcastLogout, ensureSession, isAuthVerdict, redirectToLogin } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
 import { ACCESS_TOKEN_EXPIRED, type ApiErrorBody } from '@/types/api.types'
 
@@ -102,11 +102,11 @@ export function installInterceptors(client: AxiosInstance): void {
       const isUnauthorized = error.response?.status === 401
       const isExpired = isUnauthorized && error.response?.data?.code === ACCESS_TOKEN_EXPIRED
 
-      // Any other 401 on a request that carried a token is the server's verdict
-      // on that token (revoked, deactivated, invalid): the session is over. A
-      // request with no token (the login form) was judging a password instead.
+      // A non-expiry 401 on a request that carried a token is the server's verdict on
+      // it (revoked/deactivated/invalid); with no token (the login form) it judged a password.
       if (isUnauthorized && !isExpired && config?.headers.has('Authorization')) {
         useAuthStore.getState().logout()
+        broadcastLogout()
         redirectToLogin()
         return Promise.reject(error)
       }

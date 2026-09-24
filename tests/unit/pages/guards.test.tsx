@@ -54,6 +54,30 @@ describe('session bootstrap', () => {
     await Promise.all([bootstrapSession(), bootstrapSession(), bootstrapSession()])
     expect(refreshCount).toBe(1)
   })
+
+  it('listens for another tab signing out once the session is restored', async () => {
+    await bootstrapSession()
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    const assign = vi.fn()
+    vi.stubGlobal('location', {
+      ...window.location,
+      href: `${window.location.origin}/dashboard`,
+      pathname: '/dashboard',
+      search: '',
+      hash: '',
+      assign,
+    })
+    const otherTab = new BroadcastChannel('auth')
+
+    try {
+      otherTab.postMessage({ type: 'logout' })
+      await vi.waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false))
+      expect(assign).toHaveBeenCalledWith(`/login?redirect=${encodeURIComponent('/dashboard')}`)
+    } finally {
+      otherTab.close()
+      vi.unstubAllGlobals()
+    }
+  })
 })
 
 function HttpResponseOk() {

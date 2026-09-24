@@ -362,4 +362,22 @@ describe('auth interceptors', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
     expect(assign).not.toHaveBeenCalled()
   })
+
+  it('tells other tabs when a 401 verdict ends the session', async () => {
+    useAuthStore.getState().login('tok', testUser)
+    stubLocation()
+    const otherTab = new BroadcastChannel('auth')
+    const received: unknown[] = []
+    otherTab.addEventListener('message', (event: MessageEvent<unknown>) => {
+      received.push(event.data)
+    })
+    server.use(http.get('/api/v1/widgets', () => fail('Invalid access token', 401)))
+
+    try {
+      await expect(makeClient().get('/widgets')).rejects.toThrow()
+      await vi.waitFor(() => expect(received).toEqual([{ type: 'logout' }]))
+    } finally {
+      otherTab.close()
+    }
+  })
 })
