@@ -52,6 +52,7 @@ group keyed on `github.event_name` (comment in `ci.yml`). A manual
 only — `:main` and the `deploy` job both run only from `main`.
 
 - `gitleaks.yml` scans each PR's commits and each push to `main` for secrets.
+- `pr-title` — the PR title must be a conventional commit; it becomes the squash commit release-please reads.
 - `ci.yml`'s `test` job ends with `pnpm audit --prod --audit-level high`: a high or critical advisory in a production dependency fails CI.
 
 **Releases merge themselves.** `release.yml` merges release-please's PR as
