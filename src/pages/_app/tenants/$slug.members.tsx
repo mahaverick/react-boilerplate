@@ -61,14 +61,14 @@ import { messageFrom } from '@/lib/api-error'
 import {
   memberName,
   ownerCount,
-  useAddMember,
+  useInviteMember,
   useMembers,
   useMyRole,
   useRemoveMember,
   useUpdateMemberRole,
   type TenantMember,
 } from '@/queries/tenant.queries'
-import { addMemberSchema } from '@/schemas/tenant.schemas'
+import { inviteMemberSchema } from '@/schemas/tenant.schemas'
 import { useAuthStore } from '@/states/auth.store'
 
 export const Route = createFileRoute('/_app/tenants/$slug/members')({
@@ -106,25 +106,27 @@ const MEMBERS_ERROR =
  * that same admin apply to an EXISTING admin.
  */
 function AddMemberForm({ slug, myRole }: { slug: string; myRole: MembershipRole }) {
-  const addMember = useAddMember(slug)
+  const inviteMember = useInviteMember(slug)
   const serverErrors = useServerErrors()
   const grantable = MEMBERSHIP_ROLES.filter((role) => canActorGrantRole(myRole, role))
 
   // The schema's own input type, so `role` stays a MembershipRole rather than
   // widening to `string` — the same annotation register.tsx makes.
-  const defaultValues: z.input<typeof addMemberSchema> = {
+  const defaultValues: z.input<typeof inviteMemberSchema> = {
     email: '',
     role: DEFAULT_MEMBER_ROLE,
   }
 
   const form = useForm({
     defaultValues,
-    validators: { onSubmit: addMemberSchema },
+    validators: { onSubmit: inviteMemberSchema },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        const member = await addMember.mutateAsync(addMemberSchema.parse(value))
-        toast.success(`${memberName(member)} added.`)
+        // The 202 carries `data: null`, so the toast names what was sent.
+        const input = inviteMemberSchema.parse(value)
+        await inviteMember.mutateAsync(input)
+        toast.success(`Invitation sent to ${input.email}.`)
         form.reset()
       } catch (error) {
         serverErrors.capture(error)
@@ -201,8 +203,8 @@ function AddMemberForm({ slug, myRole }: { slug: string; myRole: MembershipRole 
 
       <div className="grid gap-2 sm:pt-6">
         <FormError />
-        <Button type="submit" disabled={addMember.isPending}>
-          {addMember.isPending ? 'Adding…' : 'Add member'}
+        <Button type="submit" disabled={inviteMember.isPending}>
+          {inviteMember.isPending ? 'Adding…' : 'Add member'}
         </Button>
       </div>
     </Form>

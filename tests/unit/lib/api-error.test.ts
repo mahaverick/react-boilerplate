@@ -1,6 +1,6 @@
 import { AxiosError, AxiosHeaders } from 'axios'
 import { describe, expect, it } from 'vitest'
-import { fieldErrorsFrom, formErrorsFrom, messageFrom, statusFrom } from '@/lib/api-error'
+import { codeFrom, fieldErrorsFrom, formErrorsFrom, messageFrom, statusFrom } from '@/lib/api-error'
 import type { ApiErrorBody } from '@/types/api.types'
 
 function axiosErrorWith(body: ApiErrorBody): AxiosError {
@@ -69,5 +69,19 @@ describe('api-error', () => {
     expect(fieldErrorsFrom(plain)).toEqual({})
     expect(formErrorsFrom(plain)).toEqual([])
     expect(formErrorsFrom(new Error('boom'))).toEqual([])
+  })
+
+  it('reads the machine-readable code, and undefined when there is none', () => {
+    const conflict = axiosErrorWith({
+      success: false,
+      message: 'That person is already a member.',
+      statusCode: 409,
+      code: 'already_member',
+      requestId: 'req-3',
+    })
+    expect(codeFrom(conflict)).toBe('already_member')
+    expect(codeFrom(VALIDATION_FAILURE)).toBeUndefined()
+    expect(codeFrom(new AxiosError('Network Error'))).toBeUndefined()
+    expect(codeFrom(new Error('boom'))).toBeUndefined()
   })
 })

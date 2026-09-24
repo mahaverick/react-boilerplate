@@ -427,7 +427,7 @@ describe('the add-member role select', () => {
     server.use(
       // A field-level verdict on `role`, which is what the clearing rule is
       // about. `fail()` carries no `errors` map, so this one is built here.
-      http.post('/api/v1/tenants/acme/members', () =>
+      http.post('/api/v1/tenants/acme/invitations', () =>
         HttpResponse.json(
           {
             success: false,

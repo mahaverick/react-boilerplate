@@ -1,14 +1,14 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { MembershipRole } from '@/constants/roles'
 import { apiClient, unwrap } from '@/http/client'
-import { statusFrom } from '@/lib/api-error'
+import { codeFrom, statusFrom } from '@/lib/api-error'
 import type {
-  AddMemberInput,
+  InviteMemberInput,
   NewTenantInput,
   UpdateTenantInput,
   UpdateTenantSettingsInput,
 } from '@/schemas/tenant.schemas'
-import type { ApiSuccess } from '@/types/api.types'
+import { INVITATION_CONFLICT, type ApiSuccess, type TenantInvitation } from '@/types/api.types'
 
 /**
  * A whole `tenants` row, as `TenantRepository` returns it — `db.select()`
@@ -77,6 +77,7 @@ export const tenantKeys = {
   detail: (slug: string) => ['tenants', slug] as const,
   members: (slug: string) => ['tenants', slug, 'members'] as const,
   settings: (slug: string) => ['tenants', slug, 'settings'] as const,
+  invitations: (slug: string) => ['tenants', slug, 'invitations'] as const,
 }
 
 export function useTenants() {
@@ -188,12 +189,57 @@ export function useMembers(slug: string) {
   })
 }
 
-export function useAddMember(slug: string) {
+/** Pending invitations. Owner and admin only: anyone else gets a 403. */
+export function useInvitations(slug: string) {
+  return useQuery({
+    queryKey: tenantKeys.invitations(slug),
+    queryFn: async () =>
+      unwrap(await apiClient.get<ApiSuccess<TenantInvitation[]>>(`/tenants/${slug}/invitations`)),
+  })
+}
+
+/**
+ * Answers 202 with `data: null` whether or not the address has an account,
+ * so there is nothing to read off the response. The distinguishable answers
+ * are the 409s `already_member` and `invitation_conflict`.
+ */
+export function useInviteMember(slug: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: AddMemberInput) =>
-      unwrap(await apiClient.post<ApiSuccess<TenantMember>>(`/tenants/${slug}/members`, input)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) }),
+    mutationFn: async (input: InviteMemberInput) =>
+      unwrap(await apiClient.post<ApiSuccess<null>>(`/tenants/${slug}/invitations`, input)),
+    // A conflict means someone else's invite for this address just landed,
+    // so the list on screen is stale; `already_member` changes nothing here.
+    onSettled: (_data, error) =>
+      !error || codeFrom(error) === INVITATION_CONFLICT
+        ? queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) })
+        : undefined,
+  })
+}
+
+/** A new link and a fresh expiry; the old link stops working. */
+export function useResendInvitation(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (invitationId: string) =>
+      unwrap(
+        await apiClient.post<ApiSuccess<null>>(
+          `/tenants/${slug}/invitations/${invitationId}/resend`
+        )
+      ),
+    // Settled, not success: a 404 means the row is no longer pending, so the
+    // list on screen is stale either way.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) }),
+  })
+}
+
+export function useRevokeInvitation(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (invitationId: string) =>
+      apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/invitations/${invitationId}`),
+    // Settled, for the same reason as resend.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) }),
   })
 }
 
