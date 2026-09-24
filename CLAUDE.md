@@ -51,6 +51,14 @@ group keyed on `github.event_name` (comment in `ci.yml`). A manual
 `workflow_dispatch` from a non-`main` branch pushes an sha-tagged image
 only — `:main` and the `deploy` job both run only from `main`.
 
+**Releases merge themselves.** `release.yml` merges release-please's PR as
+soon as it is opened, using the `RELEASE_PLEASE_TOKEN` secret — not
+`GITHUB_TOKEN`, whose merge would start no workflow and so would never be
+tagged, released or deployed. The resulting `vX.Y.Z` tag re-runs
+`deploy.yml`, which adds `:X.Y.Z`, `:X.Y` and `:X` image tags; the `deploy`
+job skips tag runs. If that secret expires, releases silently stop at the
+release PR — renew it, don't swap in `GITHUB_TOKEN`.
+
 ## Auth — the rules that break silently when broken
 
 - **The API prefix is fixed and relative** (`/api/v1`), written once as
