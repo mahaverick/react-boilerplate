@@ -7,8 +7,8 @@ declare module 'axios' {
   interface AxiosRequestConfig {
     /**
      * Opts a request out of the 401 retry path AND the 401 verdict path
-     * entirely. Set on the two requests refreshSession() makes itself.
-     * Without it, a 401 carrying
+     * entirely. Set on the two requests refreshSession() makes itself, and on
+     * POST /auth/logout, whose 401 useLogout handles. Without it, a 401 carrying
      * ACCESS_TOKEN_EXPIRED on either of them sends the response interceptor
      * into ensureSession(), which returns the promise that is awaiting that
      * very request — a self-wait that never settles and never logs out.
