@@ -26,10 +26,11 @@ export function useLogin() {
   })
 }
 
+/** Registers an address; the API answers 202 with `data: null` whether or not it was free. */
 export function useRegister() {
   return useMutation({
     mutationFn: async (input: RegisterInput) =>
-      unwrap(await apiClient.post<ApiSuccess<User>>('/auth/register', input)),
+      unwrap(await apiClient.post<ApiSuccess<null>>('/auth/register', input)),
   })
 }
 

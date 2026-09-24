@@ -23,6 +23,10 @@ export function fail(message: string, statusCode: number, code?: string) {
 export const handlers = [
   http.post('/api/v1/auth/refresh', () => ok({ accessToken: 'fresh-token' }, 'Token refreshed.')),
   http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.')),
+  // Express answers every registration this way, free address or taken: no user, ever.
+  http.post('/api/v1/auth/register', () =>
+    ok(null, 'If that address can be registered, a verification email has been sent.', 202)
+  ),
   // The notification bell lives in the app shell's header, so EVERY test that
   // mounts an authenticated route hits these two — and `onUnhandledRequest:
   // 'error'` would fail each one otherwise. Empty defaults: a test that cares
