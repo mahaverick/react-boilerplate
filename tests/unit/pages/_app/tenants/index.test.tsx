@@ -222,10 +222,10 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
   })
 
   it('redirects to /login and shows the failure, never the empty state', async () => {
-    // The list is held open until the session has died, then answers the
-    // plain 401 a request with no Authorization header gets. Plain, not
-    // ACCESS_TOKEN_EXPIRED: the interceptor correctly refuses to retry it,
-    // which is exactly what leaves the query with no data.
+    // The list is held open until the session has died, then answers a plain
+    // 401. Plain, not ACCESS_TOKEN_EXPIRED: the interceptor does not retry it
+    // (it is a verdict, ending a session that is already over), which is
+    // exactly what leaves the query with no data.
     let release: (() => void) | undefined
     let attempt = 0
     server.use(

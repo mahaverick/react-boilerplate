@@ -83,8 +83,10 @@ release PR — renew it, don't swap in `GITHUB_TOKEN`.
   call site anywhere — an interceptor, a retry, a bootstrap path — reintroduces
   the thundering herd it exists to prevent, and the existing tests will not see
   it.
-- **A user is signed out if and only if a request made by `refreshSession()`
-  returns 401.** Not "the refresh failed", not "the server answered". A 502
+- **A user is signed out only by a 401 verdict**: a 401 on a request made by
+  `refreshSession()`, or a 401 WITHOUT `ACCESS_TOKEN_EXPIRED` on any request
+  that carried a bearer token and no `skipAuthRetry` (interceptors.ts). Not
+  "the refresh failed", not "the server answered". A 502
   during a rolling restart, a timeout, a dropped connection: none of those sign
   anyone out. Widening this to any error is the single easiest way to log every
   user out during a deploy.
@@ -224,8 +226,11 @@ header. `?state=loaded|empty|error|loading|soleowner` picks the members response
 Two harness traps, both of which made tests measure the wrong thing once already: answering
 the SSE stream with `204` looks to the hook exactly like a dropped connection and sends the
 page into a refresh-then-redirect that a test will race; and **any endpoint left unmocked
-falls through to the real backend** (`onUnhandledRequest: 'bypass'`) and 401s. If a fixtures
-test starts landing on `/login`, that is why.
+falls through to the real backend** (`onUnhandledRequest: 'bypass'`) and 401s. An unmocked
+AUTHENTICATED endpoint now signs the harness user out too — any 401 on a token-bearing request
+is a verdict (interceptors.ts) — so every authed endpoint the page under test calls must be
+mocked, not only the one being asserted on. If a fixtures test starts landing on `/login`,
+that is why.
 
 **`live`** needs a real express-boilerplate on `:4040` and its docker services, and is skipped
 unless `E2E_LIVE=1`. Accounts are registered and verified through mailpit — login stays 401

@@ -26,8 +26,8 @@ export const Route = createFileRoute('/_auth/register')({
 })
 
 function RegisterPage() {
-  // Set once the account exists. The address is kept so the resend control
-  // below can use it without asking for it a second time.
+  // Set once the API accepts the registration. The address is kept so the
+  // resend control below can use it without asking for it a second time.
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
   const register = useRegister()
   const resend = useResendVerification()
@@ -48,8 +48,10 @@ function RegisterPage() {
         // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
         // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
         // what makes the schema the wire contract it looks like.
-        const user = await register.mutateAsync(registerSchema.parse(value))
-        setRegisteredEmail(user.email)
+        const input = registerSchema.parse(value)
+        // The response carries no user (`data: null`), so show what was submitted, normalised.
+        await register.mutateAsync(input)
+        setRegisteredEmail(input.email)
       } catch (submitError) {
         serverErrors.capture(submitError)
         toast.error(messageFrom(submitError))

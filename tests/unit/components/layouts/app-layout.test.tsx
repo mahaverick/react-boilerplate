@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
@@ -16,7 +16,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-import { ok, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /** One tenant row, for the dynamic-route breadcrumb case below. */
@@ -32,6 +32,18 @@ const ACME = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
+
+const LOGOUT_FAILED = "Couldn't sign out. Check your connection and try again."
+
+/** Every way POST /auth/logout can fail WITHOUT the server saying the session is over. */
+const LOGOUT_FAILURES: [string, () => Response][] = [
+  ['the API cannot be reached', () => HttpResponse.error()],
+  ['a 503 from a restarting upstream', () => fail('Service Unavailable', 503)],
+  [
+    'a 429 from the logout rate limiter',
+    () => fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED'),
+  ],
+]
 
 /**
  * Driven through a real RouterProvider: the layout reads `useMatches()` for
@@ -210,6 +222,77 @@ describe('AppLayout', () => {
       expect(useAuthStore.getState().isAuthenticated).toBe(false)
     })
     expect(assign).toHaveBeenCalledWith('/login')
+  })
+
+  function stubAssign() {
+    // Same reason as the test above: jsdom's assign cannot be spied on.
+    const assign = vi.fn()
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, assign },
+    })
+    return assign
+  }
+
+  async function clickSignOut() {
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
+  }
+
+  // The server never revoked the session, so clearing it here would leave a
+  // live refresh cookie behind a UI that claims the user signed out.
+  it.each(LOGOUT_FAILURES)(
+    'keeps the session and says so when sign-out fails on %s',
+    async (_label, respond) => {
+      server.use(http.post('/api/v1/auth/logout', () => respond()))
+      const assign = stubAssign()
+      renderAppAt('/dashboard')
+      await screen.findByRole('heading', { name: /Welcome back/ })
+
+      await clickSignOut()
+
+      expect(await screen.findByText(LOGOUT_FAILED)).toBeInTheDocument()
+      expect(useAuthStore.getState().isAuthenticated).toBe(true)
+      expect(assign).not.toHaveBeenCalled()
+    }
+  )
+
+  // A 401 means the server already considers the session over.
+  it('signs out when the logout itself answers 401, redirecting exactly once', async () => {
+    server.use(http.post('/api/v1/auth/logout', () => fail('Unauthorized', 401)))
+    const assign = stubAssign()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await clickSignOut()
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    })
+    expect(assign).toHaveBeenCalledWith('/login')
+    // skipAuthRetry keeps the interceptor's own 401 verdict from redirecting first.
+    expect(assign).toHaveBeenCalledTimes(1)
+  })
+
+  it('tells other tabs when signing out succeeds', async () => {
+    server.use(http.post('/api/v1/auth/logout', () => ok(undefined, 'Logged out.')))
+    stubAssign()
+    const otherTab = new BroadcastChannel('auth')
+    const received: unknown[] = []
+    otherTab.addEventListener('message', (event: MessageEvent<unknown>) => {
+      received.push(event.data)
+    })
+    try {
+      renderAppAt('/dashboard')
+      await screen.findByRole('heading', { name: /Welcome back/ })
+
+      await clickSignOut()
+
+      await vi.waitFor(() => expect(received).toEqual([{ type: 'logout' }]))
+    } finally {
+      otherTab.close()
+    }
   })
 
   it('takes its open state from the sidebar store', async () => {

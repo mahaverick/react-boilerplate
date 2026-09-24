@@ -35,8 +35,13 @@ export const Route = createFileRoute('/_auth/login')({
   component: LoginPage,
 })
 
+// Keyed by the `?error=` codes the API's Google callback redirects with.
 const OAUTH_ERRORS: Record<string, string> = {
   google_auth_failed: 'Google sign-in failed. Please try again.',
+  email_not_verified:
+    "Google hasn't verified this email address. Verify it with Google, or sign up with email and password.",
+  google_email_missing: "Your Google account didn't share an email address.",
+  processing_failed: 'Something went wrong signing in with Google. Try again.',
 }
 
 /**

@@ -128,6 +128,8 @@ describe('auth interceptors', () => {
 
   it('does not retry a 401 that lacks the expiry code', async () => {
     useAuthStore.getState().login('tok', testUser)
+    // That 401 is now a verdict, which navigates; keep jsdom's navigation stub quiet.
+    stubLocation()
     let attempts = 0
     server.use(
       http.get('/api/v1/widgets', () => {
@@ -163,8 +165,12 @@ describe('auth interceptors', () => {
     useAuthStore.getState().login('stale', testUser)
     const assign = stubLocation('/tenants/acme/members', '?page=2', '#roles')
     let attempts = 0
+    let refreshCalls = 0
     server.use(
-      http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)),
+      http.post('/api/v1/auth/refresh', () => {
+        refreshCalls += 1
+        return fail('Unauthorized', 401)
+      }),
       http.get('/api/v1/widgets', () => {
         attempts += 1
         return attempts > RETRY_CAP
@@ -178,6 +184,8 @@ describe('auth interceptors', () => {
       `${ROUTES.login}?redirect=${encodeURIComponent('/tenants/acme/members?page=2#roles')}`
     )
     expect(useAuthStore.getState().accessToken).toBeNull()
+    // Refresh's own 401 (skipAuthRetry) is not re-judged or retried: exactly one call.
+    expect(refreshCalls).toBe(1)
   })
 
   // Without this guard /login becomes its own redirect target, and signing in
@@ -267,5 +275,109 @@ describe('auth interceptors', () => {
     expect(attempts).toBe(2)
     expect(assign).not.toHaveBeenCalled()
     expect(useAuthStore.getState().accessToken).toBe('fresh-token')
+  })
+
+  // A 401 without ACCESS_TOKEN_EXPIRED, on a request that carried a token, is
+  // the server judging that token: revoked, deactivated, or simply invalid.
+  it('logs out and redirects on a plain 401 (no code) to an authenticated request', async () => {
+    useAuthStore.getState().login('tok', testUser)
+    const assign = stubLocation('/tenants', '?page=2')
+    server.use(
+      http.get('/api/v1/widgets', () => fail('Account no longer exists or is inactive', 401))
+    )
+
+    await expect(makeClient().get('/widgets')).rejects.toMatchObject({
+      response: { status: 401 },
+    })
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    expect(useAuthStore.getState().accessToken).toBeNull()
+    expect(assign).toHaveBeenCalledWith(
+      `${ROUTES.login}?redirect=${encodeURIComponent('/tenants?page=2')}`
+    )
+  })
+
+  it('ends the session when the REPLAY after a refresh is judged', async () => {
+    useAuthStore.getState().login('stale', testUser)
+    const assign = stubLocation()
+    server.use(
+      http.get('/api/v1/widgets', ({ request }) =>
+        request.headers.get('authorization') === 'Bearer stale'
+          ? fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+          : fail('Account no longer exists or is inactive', 401)
+      )
+    )
+
+    await expect(makeClient().get('/widgets')).rejects.toThrow()
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    expect(assign).toHaveBeenCalledWith(
+      `${ROUTES.login}?redirect=${encodeURIComponent('/widgets')}`
+    )
+  })
+
+  // The login form's 401 judges a password, not a session: no token was sent.
+  it("leaves an unauthenticated request's 401 alone, like the login form's", async () => {
+    const assign = stubLocation(ROUTES.login)
+    let seen: string | null = 'unset'
+    server.use(
+      http.post('/api/v1/auth/login', ({ request }) => {
+        seen = request.headers.get('authorization')
+        return fail('Invalid email or password', 401)
+      })
+    )
+
+    await expect(
+      makeClient().post('/auth/login', { email: 'a@b.com', password: 'wrong' })
+    ).rejects.toMatchObject({ response: { status: 401 } })
+    expect(seen).toBeNull()
+    expect(assign).not.toHaveBeenCalled()
+  })
+
+  // refreshSession()'s own calls carry skipAuthRetry, and the stale token too.
+  // Judging them here would redirect from inside bootstrap and double-handle the 401.
+  it('does not judge a 401 on a skipAuthRetry request, even with a token attached', async () => {
+    useAuthStore.getState().login('tok', testUser)
+    const assign = stubLocation()
+    let refreshCalls = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => {
+        refreshCalls += 1
+        return fail('Missing refresh token', 401)
+      })
+    )
+
+    await expect(
+      makeClient().post('/auth/refresh', undefined, { skipAuthRetry: true })
+    ).rejects.toMatchObject({ response: { status: 401 } })
+    expect(refreshCalls).toBe(1)
+    expect(assign).not.toHaveBeenCalled()
+    expect(useAuthStore.getState().accessToken).toBe('tok')
+  })
+
+  it('does not end the session on a 403', async () => {
+    useAuthStore.getState().login('tok', testUser)
+    const assign = stubLocation()
+    server.use(http.get('/api/v1/widgets', () => fail('Insufficient permissions', 403)))
+
+    await expect(makeClient().get('/widgets')).rejects.toThrow()
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(assign).not.toHaveBeenCalled()
+  })
+
+  it('tells other tabs when a 401 verdict ends the session', async () => {
+    useAuthStore.getState().login('tok', testUser)
+    stubLocation()
+    const otherTab = new BroadcastChannel('auth')
+    const received: unknown[] = []
+    otherTab.addEventListener('message', (event: MessageEvent<unknown>) => {
+      received.push(event.data)
+    })
+    server.use(http.get('/api/v1/widgets', () => fail('Invalid access token', 401)))
+
+    try {
+      await expect(makeClient().get('/widgets')).rejects.toThrow()
+      await vi.waitFor(() => expect(received).toEqual([{ type: 'logout' }]))
+    } finally {
+      otherTab.close()
+    }
   })
 })
