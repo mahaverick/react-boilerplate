@@ -59,8 +59,9 @@ only — `:main` and the `deploy` job both run only from `main`.
 `--auto`; it merges once required checks pass. Its token is a GitHub App's
 (variable `RELEASE_APP_CLIENT_ID`, secret `RELEASE_APP_PRIVATE_KEY`; Contents
 and Pull requests read/write), not `GITHUB_TOKEN`, whose events start no
-workflow. The `vX.Y.Z` tag re-runs `deploy.yml`, which adds `:X.Y.Z`, `:X.Y`
-and `:X` image tags; the `deploy` job skips tag runs.
+workflow. The `vX.Y.Z` tag re-runs `deploy.yml`, whose `promote` job builds
+nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
+`:X.Y` and `:X` to that same digest. Tag runs skip `ci`, `image` and `deploy`.
 
 ## Auth — the rules that break silently when broken
 

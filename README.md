@@ -224,8 +224,9 @@ Releases are automatic. On every push to `main`,
 PR from the conventional commits since the last release, and
 `.github/workflows/release.yml` queues it with `--auto`; once required checks
 pass it merges, the next run tags `vX.Y.Z` and publishes the GitHub Release,
-and the tag push makes `deploy.yml` publish the image as `:X.Y.Z`, `:X.Y` and
-`:X`. Only `feat`/`fix`/breaking commits cut a release — `chore`, `docs`, `ci`
+and the tag push makes `deploy.yml` promote the image `main` already built and
+tested: it adds `:X.Y.Z`, `:X.Y` and `:X` to that same digest rather than
+rebuilding. Only `feat`/`fix`/breaking commits cut a release — `chore`, `docs`, `ci`
 and the like do not.
 
 Releases use a GitHub App token, from the repo variable
