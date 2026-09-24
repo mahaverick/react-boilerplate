@@ -51,6 +51,9 @@ group keyed on `github.event_name` (comment in `ci.yml`). A manual
 `workflow_dispatch` from a non-`main` branch pushes an sha-tagged image
 only — `:main` and the `deploy` job both run only from `main`.
 
+- `gitleaks.yml` scans the full history for secrets on every PR and every push to `main`.
+- `ci.yml`'s `test` job ends with `pnpm audit --prod --audit-level high`: a high or critical advisory in a production dependency fails CI.
+
 **Releases merge themselves.** `release.yml` merges release-please's PR as
 soon as it is opened, using the `RELEASE_PLEASE_TOKEN` secret — not
 `GITHUB_TOKEN`, whose merge would start no workflow and so would never be
