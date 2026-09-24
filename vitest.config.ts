@@ -43,9 +43,16 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
-      // Excludes the generated route tree, the mount-only entry and vendored shadcn.
+      // Excludes the generated route tree, the mount-only entry and the vendored
+      // shadcn files, by name: form.tsx and sonner.tsx in ui/ are ours and measured.
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/routeTree.gen.ts', 'src/main.tsx', 'src/components/ui/**'],
+      exclude: [
+        'src/routeTree.gen.ts',
+        'src/main.tsx',
+        'src/components/ui/{alert-dialog,avatar,badge,breadcrumb,button,card,dialog,dropdown-menu}.tsx',
+        'src/components/ui/{input,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
+        'src/components/ui/{table,tabs,textarea,tooltip}.tsx',
+      ],
       // A few points under the measured baseline, so a drop fails CI.
       thresholds: { statements: 88, branches: 82, functions: 86, lines: 89 },
     },

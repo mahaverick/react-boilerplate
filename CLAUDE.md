@@ -136,7 +136,9 @@ otherwise churn the diff on every `shadcn add`:
 **`form.tsx` and `sonner.tsx` are ours, not upstream's.** Both are fully linted
 and formatted, and both are named explicitly in `eslint.config.js` and
 `.prettierignore`. If you add a third hand-written file to that directory, add
-it to both lists in the same change or it will sit there unchecked.
+it to both lists in the same change or it will sit there unchecked. The third
+list, `coverage.exclude` in `vitest.config.ts`, is the inverse: it names the
+vendored files, so a new vendored one goes there and a hand-written one stays out.
 
 ## Forms
 
