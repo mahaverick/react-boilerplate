@@ -14,8 +14,8 @@
     "skipLibCheck": true,
     "noEmit": true,
     "composite": true,
-    "paths": { "@/*": ["./src/*"] },
+    "paths": { "@/tests/*": ["./tests/*"], "@/*": ["./src/*"] },
     "types": ["vite/client", "vitest/globals"]
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }

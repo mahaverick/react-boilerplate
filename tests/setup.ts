@@ -29,7 +29,7 @@ configure({ asyncUtilTimeout: 5_000 })
 // The matcher registered above, told to the type system. `@types/jest-axe`
 // augments `jest.Matchers`, which this project does not have — vitest keeps its
 // own `Matchers` interface — so without this every `toHaveNoViolations()` call
-// in `src/tests/a11y.test.tsx` is a TS2339 and an eslint `no-unsafe-call`.
+// in `tests/unit/a11y.test.tsx` is a TS2339 and an eslint `no-unsafe-call`.
 //
 // Both type parameters have to repeat vitest's own declaration EXACTLY,
 // constraints and defaults included (see `interface Matchers` in

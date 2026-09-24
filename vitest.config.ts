@@ -2,11 +2,18 @@ import path from 'node:path'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
-  resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
+  resolve: {
+    // `@/tests` first: an alias list matches in order, and `@` would otherwise
+    // claim `@/tests/mocks/server` and resolve it into src/.
+    alias: [
+      { find: '@/tests', replacement: path.resolve(import.meta.dirname, './tests') },
+      { find: '@', replacement: path.resolve(import.meta.dirname, './src') },
+    ],
+  },
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./src/tests/setup.ts'],
+    setupFiles: ['./tests/setup.ts'],
     // Vitest's own default is 5s, and this suite spawns ONE WORKER PER TEST
     // FILE — dozens of them — at roughly 870ms of spawn + jsdom environment
     // each; the runner prints both figures on every run, so read them there
@@ -18,14 +25,15 @@ export default defineConfig({
     // for its own reasons rather than for the runner's.
     //
     // It does NOT govern `findBy*`/`waitFor`, which have a separate 1s budget
-    // of their own — see `asyncUtilTimeout` in src/tests/setup.ts, which is
+    // of their own — see `asyncUtilTimeout` in tests/setup.ts, which is
     // the half that was actually producing the intermittent failures. Both
     // are needed, and this one must stay comfortably the larger.
-    // Vitest's default `include` is `**/*.{test,spec}.?(c|m)[jt]s?(x)`, which
-    // would collect `e2e/**/*.test.ts` and run Playwright specs under jsdom.
-    // The e2e suite is `pnpm test:e2e`; these two runners share a filename
-    // convention and must not share files.
-    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
+    // Every Vitest test lives under tests/ — none in src/, which eslint
+    // enforces. Explicit rather than Vitest's default `**/*.{test,spec}.*`,
+    // which would also collect `e2e/**/*.test.ts` and run Playwright specs
+    // under jsdom: the two runners share a filename convention and must not
+    // share files.
+    include: ['tests/**/*.test.{ts,tsx}'],
     testTimeout: 20_000,
     // Deliberately NOT `retry`. A retry would have made the observed failures
     // disappear from the report while leaving the race in place, and the next

@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test'
 /**
  * COLOUR CONTRAST, measured.
  *
- * `src/tests/a11y.test.tsx` disables every `cat.color` rule, and says so in its
+ * `tests/unit/a11y.test.tsx` disables every `cat.color` rule, and says so in its
  * header: jest-axe turns them off by default under jsdom because jsdom has no
  * layout and no cascade, so a contrast ratio cannot be computed there at all.
  * A green run of the a11y gate therefore says **nothing** about contrast, and
@@ -121,7 +121,7 @@ async function contrastOf(
 async function runAxe(page: Page, scope?: string): Promise<ContrastResult> {
   return page.evaluate(async (selector) => {
     // `color-contrast` ONLY. Everything else about these pages is already
-    // gated by src/tests/a11y.test.tsx, and re-running it here would mean two
+    // gated by tests/unit/a11y.test.tsx, and re-running it here would mean two
     // sources of truth for the same finding.
     const results = await (
       window as unknown as {
@@ -188,7 +188,7 @@ for (const theme of THEMES) {
  * That makes them the surfaces most likely to hide a bad token pair, and the
  * ones a palette change is least likely to be checked against by eye.
  *
- * Selectors are ported from `src/tests/a11y.test.tsx`'s "open overlays" and
+ * Selectors are ported from `tests/unit/a11y.test.tsx`'s "open overlays" and
  * menu blocks, which already drive each of these open — deliberately reused
  * rather than reinvented, so the two suites cannot drift on what "the user
  * menu" means.
@@ -273,7 +273,7 @@ test.describe('popups that are not menus', () => {
       await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible()
 
       // Cleo is a plain member and not the last owner, so her row's control is
-      // the enabled one — the same row src/tests/a11y.test.tsx drives for the
+      // the enabled one — the same row tests/unit/a11y.test.tsx drives for the
       // same reason.
       const row = page.getByRole('row').filter({ hasText: 'Cleo' })
       await row.getByRole('button', { name: 'Remove' }).click()

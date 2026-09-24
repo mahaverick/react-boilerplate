@@ -59,7 +59,7 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      # This runs src/tests/a11y.test.tsx with the rest, which is what makes
+      # This runs tests/unit/a11y.test.tsx with the rest, which is what makes
       # the accessibility criteria a gate rather than an aspiration.
       - run: pnpm test
       - run: pnpm build

@@ -106,12 +106,17 @@ src/
   schemas/      Zod schemas mirroring the backend validators
   states/       Zustand stores
   styles/       globals.css and the design tokens
-  tests/        setup, MSW handlers, fixtures, the accessibility gate
   types/        shared API types
+tests/
+  unit/         Vitest suites, mirroring src/ (plus the accessibility gate)
+  mocks/        MSW server and handlers
+  fixtures/     shared test data
+  setup.ts      Vitest setup
+e2e/            Playwright suites and the fixture harness
 ```
 
-Tests are co-located beside their subject as `*.test.ts(x)`, except the
-cross-cutting ones under `src/tests/`.
+No test file lives under `src/` — eslint rejects one. A test for
+`src/http/session.ts` is `tests/unit/http/session.test.ts`.
 
 ## Testing
 
@@ -119,7 +124,7 @@ cross-cutting ones under `src/tests/`.
 pnpm test
 ```
 
-`src/tests/a11y.test.tsx` is an **accessibility gate**: every routed page — plus
+`tests/unit/a11y.test.tsx` is an **accessibility gate**: every routed page — plus
 an open dialog and an open sheet, which a default-state sweep never sees — must
 come back clean, with no rule disabled to get there. A violation is fixed in the
 markup, never suppressed. It runs axe-core over the whole `document`, because

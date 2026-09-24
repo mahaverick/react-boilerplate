@@ -4,7 +4,7 @@
  *
  * Playwright's `fixtures` project needs the REAL shell, the real router and
  * the real CSS in a real browser, but not a real backend. This boots the
- * actual router with MSW answering the same fixtures `src/tests/a11y.test.tsx`
+ * actual router with MSW answering the same fixtures `tests/unit/a11y.test.tsx`
  * uses, and the same signed-in store state.
  *
  * `?state=loaded|empty|error|loading|soleowner` picks what the members
