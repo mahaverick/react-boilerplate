@@ -68,6 +68,18 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
   })
 }
 
+// jsdom defines `window.scrollTo` but only as a "Not implemented" stub that
+// logs through its virtual console and does nothing. TanStack Router calls it
+// on every navigation (router-core's scroll-restoration resets the window to
+// the top), so every test that mounts the route tree printed one line per
+// navigation — 133 on a full run — burying real warnings. Replacing it with a
+// silent no-op loses no behaviour: jsdom has no layout, so there was never a
+// scroll position to change. Unconditional, unlike matchMedia above, because
+// the property exists; a `!window.scrollTo` guard would never fire.
+if (typeof window !== 'undefined') {
+  window.scrollTo = () => {}
+}
+
 // `useNotificationStream()` used to open an `EventSource`, which jsdom does
 // not ship, and needed a global idle stub here for exactly that reason. It
 // now reads the stream over `fetch` instead — real traffic as far as msw is
