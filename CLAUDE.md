@@ -47,7 +47,9 @@ eslint half exits 0 on warnings.
 gate; then `deploy.yml` builds and pushes `ghcr.io/<repo>:sha-<commit>` and
 `:main` with SBOM and provenance attestations, then runs a placeholder
 `deploy` job bound to the `production` environment. Keep CI's concurrency
-group keyed on `github.event_name` (comment in `ci.yml`). A manual
+group keyed on `github.event_name`, not `github.workflow`: when `deploy.yml`
+calls `ci.yml`, `github.workflow` is the caller's name. Non-PR runs are grouped
+per commit so a newer push never drops a pending one. A manual
 `workflow_dispatch` from a non-`main` branch pushes an sha-tagged image
 only — `:main` and the `deploy` job both run only from `main`.
 
