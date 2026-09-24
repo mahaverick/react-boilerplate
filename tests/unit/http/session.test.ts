@@ -394,6 +394,20 @@ describe('across tabs', () => {
     expect(probe.received).toEqual([{ type: 'sentinel' }])
   })
 
+  // Tab B (this one, never signed in) sent its bootstrap refresh before tab A
+  // signed in, so it 401s. That is B's own absent session, not a verdict on
+  // A's — broadcasting it would sign A out of a perfectly good session.
+  it('does not broadcast a refresh 401 on a tab that was never signed in', async () => {
+    const probe = openOtherTab()
+    server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
+
+    await expect(ensureSession()).rejects.toThrow()
+    openOtherTab().tab.postMessage({ type: 'sentinel' })
+
+    await flushDeliveries(probe, 1)
+    expect(probe.received).toEqual([{ type: 'sentinel' }])
+  })
+
   it('works, silently, where BroadcastChannel does not exist', async () => {
     vi.stubGlobal('BroadcastChannel', undefined)
     resetSessionForTests()

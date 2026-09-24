@@ -226,8 +226,11 @@ header. `?state=loaded|empty|error|loading|soleowner` picks the members response
 Two harness traps, both of which made tests measure the wrong thing once already: answering
 the SSE stream with `204` looks to the hook exactly like a dropped connection and sends the
 page into a refresh-then-redirect that a test will race; and **any endpoint left unmocked
-falls through to the real backend** (`onUnhandledRequest: 'bypass'`) and 401s. If a fixtures
-test starts landing on `/login`, that is why.
+falls through to the real backend** (`onUnhandledRequest: 'bypass'`) and 401s. An unmocked
+AUTHENTICATED endpoint now signs the harness user out too — any 401 on a token-bearing request
+is a verdict (interceptors.ts) — so every authed endpoint the page under test calls must be
+mocked, not only the one being asserted on. If a fixtures test starts landing on `/login`,
+that is why.
 
 **`live`** needs a real express-boilerplate on `:4040` and its docker services, and is skipped
 unless `E2E_LIVE=1`. Accounts are registered and verified through mailpit — login stays 401

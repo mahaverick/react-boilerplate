@@ -67,11 +67,10 @@ export function isAuthVerdict(error: unknown): boolean {
  * lands here while already on /login writes /login into its own redirect
  * target, and signing in then "returns" the user to the login page.
  *
- * A full-page `assign`, not a router navigation, and deliberately so: both
- * callers live outside React (an axios interceptor and the SSE stream's own
- * catch handler in `useNotificationStream`), and a dead session is exactly
- * the moment to discard every piece of in-memory state rather than carry it
- * across.
+ * A full-page `assign`, not a router navigation, and deliberately so: its
+ * callers run outside React's render, with no router to hand, and a dead
+ * session is exactly the moment to discard every piece of in-memory state
+ * rather than carry it across.
  *
  * NOT called from `refreshSession()` itself, even though that is where
  * `logout()` happens. `bootstrapSession()` also drives a 401 through there on
@@ -174,17 +173,21 @@ async function refreshSession(): Promise<string> {
     // `.finally` either way, so a rejected attempt never wedges the next one.
     // See isAuthVerdict for why this is 401 and not "the server answered".
     if (isAuthVerdict(error)) {
+      // Captured before logout(): a tab that was never signed in (bootstrap
+      // with a dead/absent cookie) has no session to announce the end of —
+      // broadcasting anyway would sign out a sibling tab that just logged in
+      // before this tab's own refresh had a chance to see the new cookie.
+      const wasAuthed = useAuthStore.getState().isAuthenticated
       useAuthStore.getState().logout()
-      // The cookie is shared, so the verdict holds for every tab.
-      broadcastLogout()
+      // The cookie is shared, so a verdict from an authed tab holds for every tab.
+      if (wasAuthed) broadcastLogout()
     }
     throw error
   }
 }
 
-// `inFlight` dedupes callers within a tab; the Web Lock queues tabs, since each
-// refresh rotates the cookie they share. Without locks (an insecure context, an
-// old browser) the server's short reuse grace window covers concurrent tabs.
+// `inFlight` dedupes callers in a tab; the Web Lock queues tabs, as each refresh rotates the shared
+// cookie. Without locks (insecure context, old browser) the server's reuse grace window covers it.
 function refreshAcrossTabs(): Promise<string> {
   if (typeof navigator !== 'undefined' && 'locks' in navigator) {
     return navigator.locks.request(REFRESH_LOCK, () => refreshSession())

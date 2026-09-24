@@ -34,6 +34,8 @@ export default defineConfig({
     // under jsdom: the two runners share a filename convention and must not
     // share files.
     include: ['tests/**/*.test.{ts,tsx}'],
+    // Node's BroadcastChannel crosses worker_threads, so 'threads' lets test files hear each other.
+    pool: 'forks',
     testTimeout: 20_000,
     // Deliberately NOT `retry`. A retry would have made the observed failures
     // disappear from the report while leaving the race in place, and the next
