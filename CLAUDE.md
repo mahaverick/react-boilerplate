@@ -28,6 +28,29 @@ The gate is **0 errors and 0 warnings**: verify with
 `pnpm exec eslint . --max-warnings 0`, not with a bare `pnpm lint`, whose
 eslint half exits 0 on warnings.
 
+## Git hooks
+
+- **Tracked in `.husky/`, executable.** pre-commit: lockfile drift, lint-staged
+  (eslint `--fix --max-warnings 0` + prettier on staged files), `vitest --changed`.
+  commit-msg: commitlint (conventional commits). pre-push: the full lint gate,
+  typecheck and unit tests — **no e2e**, on purpose: long pre-push hooks have
+  dropped SSH pushes in this workspace. CI runs e2e.
+- **Hooks call `pnpm exec`, never `npx`** — `npx` on a fresh machine downloads
+  whatever version is newest, not the one this repo tested against.
+- **Before this, `.husky/` held only husky's generated `_/` directory** — `prepare`
+  ran, but no hook was ever committed, so nothing ran locally. If `git ls-files
+.husky` is ever empty again, that is the bug.
+
+## CI and deploy
+
+`ci.yml` runs on PRs and is called by `deploy.yml` on push to `main` as the
+gate; then `deploy.yml` builds and pushes `ghcr.io/<repo>:sha-<commit>` and
+`:main` with SBOM and provenance attestations, then runs a placeholder
+`deploy` job bound to the `production` environment. Keep CI's concurrency
+group keyed on `github.event_name` (comment in `ci.yml`). A manual
+`workflow_dispatch` from a non-`main` branch pushes an sha-tagged image
+only — `:main` and the `deploy` job both run only from `main`.
+
 ## Auth — the rules that break silently when broken
 
 - **The API prefix is fixed and relative** (`/api/v1`), written once as
@@ -129,13 +152,24 @@ time, and bumping this repo 24.13.6 → 26.6.2 on 2026-09-23 left eslint
 `pnpm build` all green. The two versions were pinned in one sentence and only
 one of them had a reason.
 
-The pnpm version is pinned in **two** places that must move together: the
-Dockerfile's `corepack prepare` and `.github/workflows/ci.yml`'s
-`pnpm/action-setup`. A `packageManager` field in package.json would collapse
-those into one, but pnpm 12 then records itself in the lockfile
-(`packageManagerDependencies`, ~160 lines of per-platform binaries) and
-`--frozen-lockfile` fails until the lockfile is regenerated. Adding the field
-is fine — just regenerate the lockfile in the same commit.
+**The pnpm version lives in one place: `packageManager` in package.json.** The
+Dockerfile runs `corepack install` and CI's `pnpm/action-setup` reads the same
+field. pnpm 12 records itself in the lockfile (`packageManagerDependencies`),
+so changing the field means regenerating `pnpm-lock.yaml` in the same commit,
+or `--frozen-lockfile` fails.
+
+**`devEngines.runtime` (`onFail: "error"`) is what refuses a wrong Node at
+install; `.npmrc`'s `engine-strict` does not enforce this root project's own
+Node version under pnpm 12.**
+
+**When Node moves to 26, `engines.node` and `devEngines.runtime.version` are
+moved by hand alongside the Renovate-held pins** — Renovate does not move a
+`>=` range on its own, only the pinned versions it already tracks.
+
+**Renovate proposes updates** (weekly, grouped, 3-day minimum release age,
+actions pinned to SHAs). `renovate.json` holds TypeScript `<6.1.0` and every
+Node version pin — the docker `node` image, `.nvmrc` and CI's
+`node-version:` — `<25`; lift those rules deliberately.
 
 ## Conventions the linter enforces
 

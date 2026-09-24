@@ -42,9 +42,9 @@ export default tseslint.config(
   },
   {
     // Root-level flat configs (eslint.config.js, prettier.config.js,
-    // vite.config.ts, vitest.config.ts) sit outside tsconfig.app.json's
-    // "src" include, so the type-aware project cannot parse them and every
-    // typed rule from recommendedTypeChecked throws
+    // vite.config.ts, vitest.config.ts, commitlint.config.js) sit outside
+    // tsconfig.app.json's "src" include, so the type-aware project cannot
+    // parse them and every typed rule from recommendedTypeChecked throws
     // "parserOptions set to generate type information" on them. Lint them
     // syntactically only. Listed explicitly rather than widened, so this
     // never accidentally covers a file under src/.
@@ -61,6 +61,7 @@ export default tseslint.config(
       'vite.config.ts',
       'vitest.config.ts',
       'playwright.config.ts',
+      'commitlint.config.js',
     ],
     extends: [tseslint.configs.disableTypeChecked],
     rules: {

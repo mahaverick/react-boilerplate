@@ -19,7 +19,8 @@ that a new project starts here rather than at `create-vite`.
 
 ## Prerequisites
 
-- **Node 24** and **pnpm 12** (`corepack enable && corepack prepare pnpm@12.4.1 --activate`)
+- **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ no longer ships Corepack, so this works on 24 and 26 alike)
+- `devEngines.runtime` (`onFail: "error"`) is what actually refuses a wrong Node at install — `.npmrc`'s `engine-strict` does not enforce this root project's own `engines.node` under pnpm 12.
 - The **API running on `:4040`** — see below
 
 ## Getting started
@@ -194,6 +195,40 @@ asset, not by reading the config.**
 - **No HSTS.** Deliberate: this server listens on `:80` behind a TLS
   terminator. A `max-age` sent over plain HTTP is ignored by browsers and is
   actively wrong if TLS is ever absent. Set it at the edge that terminates TLS.
+
+## Deploying
+
+A push to `main` runs [`deploy.yml`](.github/workflows/deploy.yml), which
+calls `ci.yml` as a gate and, once it passes, builds and pushes
+`ghcr.io/<repo>:sha-<commit>` and `:main` to GHCR with an SBOM and build
+provenance attestation. The `deploy` job itself is a placeholder — no
+deployment target has been chosen yet. A manual `workflow_dispatch` from
+another branch only pushes the sha-tagged image — the `:main` tag and the
+`deploy` job both run only from `main`.
+
+**Add protection rules to the `production` GitHub Environment**
+(Settings → Environments → `production`) — at minimum, required
+reviewers — before replacing the placeholder `deploy` step with a real
+deployment target. Until then, anything merged to `main` would deploy
+unreviewed the moment that step does something real.
+
+## Releases
+
+[release-please](https://github.com/googleapis/release-please) opens (and
+keeps updating) a release PR from conventional commits on `main`
+(`.github/workflows/release.yml`). Merging that PR tags a version and
+publishes a GitHub Release. Release PRs show **no CI checks** — they're
+opened with `GITHUB_TOKEN`, and GitHub never triggers workflows from
+`GITHUB_TOKEN` events; see the comment in `release.yml`.
+
+One manual step, once: **install the
+[Renovate GitHub App](https://github.com/apps/renovate)** on this repository.
+`renovate.json` is inert without it — nothing schedules or opens Renovate PRs
+until the app is installed.
+
+With squash merges, the squashed commit on `main` is the PR's title, not any
+of its individual commit messages — so PR titles must themselves be
+conventional commits for release-please to read them correctly.
 
 ## Conventions
 

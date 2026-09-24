@@ -3,13 +3,19 @@ name: CI
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+  # Called by deploy.yml as the gate before an image is built. `push: main`
+  # lives in deploy.yml now, so main isn't tested twice.
+  workflow_call:
+  workflow_dispatch:
 
-# A second push to the same branch cancels the run still in flight.
+# Keyed on the event, NOT github.workflow: when deploy.yml calls this file,
+# github.workflow is the CALLER's name, and concurrency group names are
+# case-insensitive — "Deploy-refs/heads/main" would collide with deploy.yml's
+# own "deploy-refs/heads/main" group. Only PR runs are cancelled by a newer
+# push; a gate run on main is never killed half-way.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -34,11 +40,7 @@ jobs:
       - uses: actions/checkout@v7
       # BEFORE setup-node, not after: `cache: pnpm` needs the pnpm binary on
       # PATH to resolve the store directory, and fails the job without it.
-      # The version is explicit because this repo has no `packageManager`
-      # field (see the Dockerfile for why) and action-setup errors without one
-      # or the other. Keep it in step with the Dockerfile's `corepack prepare`.
       - uses: pnpm/action-setup@v6
-        with: { version: 12.4.1 }
       - uses: actions/setup-node@v7
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -54,7 +56,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-        with: { version: 12.4.1 }
       - uses: actions/setup-node@v7
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -83,7 +84,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-        with: { version: 12.4.1 }
       - uses: actions/setup-node@v7
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -115,8 +115,9 @@ jobs:
   # A third job the brief did not ask for. The image and its nginx config are
   # half of this task's deliverable and neither is exercised by lint, typecheck
   # or the test suite — a broken proxy_pass or a typo'd directive would
-  # otherwise surface at deploy time. Built, never pushed: publishing is a
-  # release concern.
+  # otherwise surface at deploy time. Built, never pushed: this job only proves
+  # the image builds and `nginx -t` passes — the image is built and pushed in
+  # deploy.yml.
   #
   # Plain `docker` rather than docker/build-push-action, so this adds no action
   # pins to keep current. The runner ships with docker already.
