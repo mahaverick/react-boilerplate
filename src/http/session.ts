@@ -5,8 +5,8 @@ import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 
 /**
- * Whether the server JUDGED the credentials — the one and only condition that
- * may end a session.
+ * Whether a failed refresh was the server JUDGING the credentials — the only
+ * refresh failure that may end a session (other requests: interceptors.ts).
  *
  * **A 401, and nothing else.** Not "the server answered": that is a strictly
  * wider set, and every extra member of it is a way to sign out a user whose

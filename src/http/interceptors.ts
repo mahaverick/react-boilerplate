@@ -6,8 +6,9 @@ import { ACCESS_TOKEN_EXPIRED, type ApiErrorBody } from '@/types/api.types'
 declare module 'axios' {
   interface AxiosRequestConfig {
     /**
-     * Opts a request out of the 401 retry path entirely. Set on the two
-     * requests refreshSession() makes itself. Without it, a 401 carrying
+     * Opts a request out of the 401 retry path AND the 401 verdict path
+     * entirely. Set on the two requests refreshSession() makes itself.
+     * Without it, a 401 carrying
      * ACCESS_TOKEN_EXPIRED on either of them sends the response interceptor
      * into ensureSession(), which returns the promise that is awaiting that
      * very request — a self-wait that never settles and never logs out.
@@ -98,12 +99,20 @@ export function installInterceptors(client: AxiosInstance): void {
         return Promise.reject(error)
       }
 
-      const isExpired =
-        error.response?.status === 401 && error.response.data?.code === ACCESS_TOKEN_EXPIRED
+      const isUnauthorized = error.response?.status === 401
+      const isExpired = isUnauthorized && error.response?.data?.code === ACCESS_TOKEN_EXPIRED
 
-      // Only an EXPIRED token is retriable. A plain 401 is a real
-      // authorisation failure and must reach the caller. `_retried` stops
-      // an endpoint that 401s unconditionally from looping.
+      // Any other 401 on a request that carried a token is the server's verdict
+      // on that token (revoked, deactivated, invalid): the session is over. A
+      // request with no token (the login form) was judging a password instead.
+      if (isUnauthorized && !isExpired && config?.headers.has('Authorization')) {
+        useAuthStore.getState().logout()
+        redirectToLogin()
+        return Promise.reject(error)
+      }
+
+      // Only an EXPIRED token is retriable. `_retried` stops an endpoint that
+      // 401s unconditionally from looping.
       if (!isExpired || !config || config._retried) {
         return Promise.reject(error)
       }
