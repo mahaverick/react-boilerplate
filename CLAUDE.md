@@ -182,8 +182,10 @@ Node version under pnpm 12.**
 moved by hand alongside the Renovate-held pins** — Renovate does not move a
 `>=` range on its own, only the pinned versions it already tracks.
 
-**Renovate proposes updates** (weekly, grouped, 3-day minimum release age,
-actions pinned to SHAs). `renovate.json` holds TypeScript `<6.1.0` and every
+**Renovate opens updates weekly** (grouped, 3-day minimum release age,
+actions pinned to SHAs); minor, patch and digest updates auto-merge once
+required checks pass, majors and the node/typescript pins wait for a human,
+and security fixes open immediately with the `security` label. `renovate.json` holds TypeScript `<6.1.0` and every
 Node version pin — the docker `node` image, `.nvmrc` and CI's
 `node-version:` — `<25`; lift those rules deliberately. The explicit Corepack
 pin in `Dockerfile` and `README.md` is tracked via a custom regex manager.
