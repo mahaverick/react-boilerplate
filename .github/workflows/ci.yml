@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # Every PR, whatever its base, so a stacked PR already carries the
+  # required checks when GitHub retargets it to main.
   pull_request:
-    branches: [main]
   # Called by deploy.yml as the gate before an image is built. `push: main`
   # lives in deploy.yml now, so main isn't tested twice.
   workflow_call:
@@ -19,9 +20,10 @@ permissions:
   contents: read
 
 jobs:
-  # Two parallel jobs, matching express-boilerplate's split. Action majors are
-  # the ones current at the time of writing, checked against each action's
-  # latest release rather than copied from anywhere. Verified 2026-09-22:
+  # Four parallel jobs: lint, test, e2e and docker. lint and test split the
+  # way express-boilerplate's do. Action majors are the ones current at the
+  # time of writing, checked against each action's latest release rather
+  # than copied from anywhere. Verified 2026-09-22:
   # actions/checkout v7, pnpm/action-setup v6, actions/setup-node v7,
   # actions/cache v6, actions/upload-artifact v7.
   #
@@ -120,7 +122,7 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  # A third job the brief did not ask for. The image and its nginx config are
+  # A job the original brief did not ask for. The image and its nginx config are
   # half of this task's deliverable and neither is exercised by lint, typecheck
   # or the test suite — a broken proxy_pass or a typo'd directive would
   # otherwise surface at deploy time. Built, never pushed: this job only proves

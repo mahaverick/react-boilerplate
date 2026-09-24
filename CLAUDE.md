@@ -57,10 +57,13 @@ only — `:main` and the `deploy` job both run only from `main`.
 - `gitleaks.yml` scans each PR's commits and each push to `main` for secrets.
 - `pr-title` — the PR title must be a conventional commit; it becomes the squash commit release-please reads.
 - `ci.yml`'s `test` job ends with `pnpm audit --prod --audit-level high`: a high or critical advisory in a production dependency fails CI.
+  Because `test` is a required check, an advisory with no fixed version blocks every PR. The escape hatch is `pnpm audit --ignore <GHSA>`,
+  which writes that one ID under `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`; add a comment there by hand giving the reason and a date to revisit.
 
 **Releases merge themselves.** `release.yml` queues release-please's PR with
-`--auto`; it merges once required checks pass. Its token is a GitHub App's
-(variable `RELEASE_APP_CLIENT_ID`, secret `RELEASE_APP_PRIVATE_KEY`; Contents
+`--auto`, falling back to a direct merge if `--auto` is refused; the `main`
+ruleset (README, one-time setup) keeps either from skipping required checks.
+Its token is a GitHub App's (variable `RELEASE_APP_CLIENT_ID`, secret `RELEASE_APP_PRIVATE_KEY`; Contents
 and Pull requests read/write), not `GITHUB_TOKEN`, whose events start no
 workflow. The `vX.Y.Z` tag re-runs `deploy.yml`, whose `promote` job builds
 nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
