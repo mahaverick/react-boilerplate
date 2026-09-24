@@ -124,4 +124,31 @@ describe('register page', () => {
     })
     expect(screen.getByRole('heading', { name: 'Create an account' })).toBeInTheDocument()
   })
+
+  it('prefills the address from ?email=, and posts it', async () => {
+    // How an invitation's "Create account" arrives.
+    let body: unknown
+    server.use(
+      http.post('/api/v1/auth/register', async ({ request }) => {
+        body = await request.json()
+        return ok(null, REGISTER_MESSAGE, 202)
+      })
+    )
+    renderRegisterAt('/register?email=ada%40b.com')
+
+    expect(await screen.findByLabelText('Email')).toHaveValue('ada@b.com')
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Password'), 'secret123')
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+    await waitFor(() => {
+      expect(body).toEqual({ email: 'ada@b.com', password: 'secret123' })
+    })
+  })
+
+  it('leaves the address empty without ?email=', async () => {
+    renderRegisterAt('/register')
+
+    expect(await screen.findByLabelText('Email')).toHaveValue('')
+  })
 })

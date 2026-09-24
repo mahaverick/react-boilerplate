@@ -14,7 +14,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-import { fail, ok, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /**
@@ -404,6 +404,21 @@ describe('signed-out pages', () => {
       '/verify-email?token=a-token',
       () => screen.findByRole('button', { name: 'Verify email' }),
     ],
+    [
+      'register, prefilled from an invitation',
+      '/register?email=a%40b.com',
+      () => screen.findByDisplayValue('a@b.com'),
+    ],
+    [
+      'invitation accept',
+      `/invitations/accept?token=${TEST_INVITATION_TOKEN}`,
+      () => screen.findByRole('link', { name: 'Log in' }),
+    ],
+    [
+      'invitation accept without a token',
+      '/invitations/accept',
+      () => screen.findByRole('heading', { name: 'This link is incomplete' }),
+    ],
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
@@ -445,9 +460,74 @@ describe('signed-in pages', () => {
       '/tenants/acme/settings',
       () => screen.findByRole('button', { name: 'Save settings' }),
     ],
+    [
+      'invitation accept',
+      `/invitations/accept?token=${TEST_INVITATION_TOKEN}`,
+      () => screen.findByRole('button', { name: 'Accept invitation' }),
+    ],
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
+    await expectNoViolations()
+  })
+})
+
+/**
+ * The accept page's other states, each one its own render: a default sweep
+ * only ever sees the invited account arriving at a valid link.
+ */
+describe('invitation accept states', () => {
+  const acceptPath = `/invitations/accept?token=${TEST_INVITATION_TOKEN}`
+
+  beforeEach(() => {
+    signIn()
+    mockSignedInData()
+  })
+
+  it('has no violations signed in as the wrong account', async () => {
+    server.use(
+      http.post('/api/v1/invitations/preview', () =>
+        ok(
+          {
+            tenant: { name: 'Acme Corp', slug: 'acme' },
+            role: 'editor',
+            invitedBy: { firstName: 'Ada', lastName: 'Lovelace' },
+            email: 'someone@else.com',
+          },
+          'Invitation retrieved.'
+        )
+      )
+    )
+    renderAppAt(acceptPath)
+    await screen.findByRole('button', { name: 'Sign out' })
+    await expectNoViolations()
+  })
+
+  it('has no violations for an invalid invitation', async () => {
+    server.use(
+      http.post('/api/v1/invitations/preview', () =>
+        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+      )
+    )
+    renderAppAt(acceptPath)
+    await screen.findByRole('heading', { name: 'This invitation can’t be used' })
+    await expectNoViolations()
+  })
+
+  it('has no violations with the unverified-email refusal showing', async () => {
+    server.use(
+      http.post('/api/v1/invitations/accept', () =>
+        fail(
+          'This invitation was sent to a different email address.',
+          403,
+          'invitation_email_mismatch'
+        )
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt(acceptPath)
+    await user.click(await screen.findByRole('button', { name: 'Accept invitation' }))
+    await screen.findByRole('alert')
     await expectNoViolations()
   })
 })

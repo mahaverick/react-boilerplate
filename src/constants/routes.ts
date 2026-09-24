@@ -33,6 +33,7 @@ export const ROUTES = {
   tenant: (slug: string) => `/tenants/${slug}`,
   tenantMembers: (slug: string) => `/tenants/${slug}/members`,
   tenantSettings: (slug: string) => `/tenants/${slug}/settings`,
+  invitationAccept: '/invitations/accept',
 } as const
 
 /** The API path for the Google OAuth start. Same-origin, so a plain anchor. */
