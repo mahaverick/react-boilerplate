@@ -189,11 +189,16 @@ pin in `Dockerfile` and `README.md` is tracked via a custom regex manager.
 - **`src/pages/**` is exempt** from all of it. TanStack Router's file-based
   routing needs `__root.tsx`, `_auth.tsx` and `$slug.members.tsx`, which are not
   kebab-case by design.
+- **No test file lives under `src/`.** Vitest suites go in `tests/unit/`,
+  mirroring the src/ path of their subject (`src/http/session.ts` →
+  `tests/unit/http/session.test.ts`); cross-cutting suites (`a11y.test.tsx`)
+  sit at `tests/unit/`, shared support in `tests/mocks/` and `tests/fixtures/`,
+  imported as `@/tests/...`. Playwright suites stay in `e2e/`. Linted:
+  `check-file/filename-blocklist` rejects any `*.test.*`, `*.spec.*`,
+  `__tests__/` or `src/tests/` file under `src/`, `src/pages/` included — so
+  TanStack Router never sees a test file in its routes directory.
 - Tests are **`.test.ts(x)`**, never `.spec.`, and never in a `__tests__/`
-  folder — those two ARE linted (`check-file/filename-blocklist`). Co-location
-  beside the subject is the convention wherever there is a subject to sit beside;
-  nothing enforces it, and the cross-cutting suites under `src/tests/`
-  (`a11y.test.tsx`) sit beside nothing by design.
+  folder — also linted, under `tests/` as well as `src/`.
 
 ## End-to-end tests
 
@@ -201,9 +206,9 @@ pin in `Dockerfile` and `README.md` is tracked via a custom regex manager.
 projects, and three conventions that are load-bearing rather than taste:
 
 - **Tests are `*.test.ts`, never Playwright's default `*.spec.ts`** —
-  `check-file/filename-blocklist` rejects `.spec.` repo-wide, so the default fails lint on
-  the first file. `playwright.config.ts` sets `testMatch` accordingly.
-- **`vitest.config.ts` carries an explicit `exclude` for `e2e/**`.** Vitest's default
+  the rest of the repo uses `.test.` (`check-file/filename-blocklist` rejects `.spec.` in
+  `src/` and `tests/`). `playwright.config.ts` sets `testMatch` accordingly.
+- **`vitest.config.ts` carries an explicit `include` of `tests/**`.** Vitest's default
   `include` is `**/*.{test,spec}.*`, so without it Vitest collects the Playwright specs and
   runs them under jsdom.
 - **`e2e/` is typed-linted via its own `tsconfig.json`** and `projectService`, not exempted
@@ -211,7 +216,7 @@ projects, and three conventions that are load-bearing rather than taste:
   root config and is linted with those.
 
 **`fixtures`** drives `e2e/harness/` — the real router and real CSS with MSW answering the
-same fixtures `src/tests/a11y.test.tsx` uses, so it needs no backend. It exists for the
+same fixtures `tests/unit/a11y.test.tsx` uses, so it needs no backend. It exists for the
 checks jsdom cannot make, because jsdom has no layout: whether the webfont actually resolved,
 whether anything overflows the viewport at 390px, whether a state renders as more than a bare
 header. `?state=loaded|empty|error|loading|soleowner` picks the members response.
@@ -266,7 +271,7 @@ port and the kill takes the dev server down too.
 
 ## Accessibility
 
-`src/tests/a11y.test.tsx` is a gate, not a smoke test: every routed page, plus
+`tests/unit/a11y.test.tsx` is a gate, not a smoke test: every routed page, plus
 an open dialog, an open sheet and all four open menus, must come back clean. If
 something trips a rule, **fix the markup** — no rule is disabled to make it pass.
 

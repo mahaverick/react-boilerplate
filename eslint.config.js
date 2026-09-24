@@ -140,11 +140,58 @@ export default tseslint.config(
           '**/*.types.ts': 'src/types/**',
         },
       ],
-      // This project uses `.test.`, never `.spec.`, and tests are
-      // co-located beside their subject rather than collected under a
-      // parallel `__tests__/` tree. A custom `errorMessage` is required here:
-      // without it, check-file validates the map's VALUES as glob patterns
-      // too (see its README), and free text like this fails that check.
+    },
+  },
+  {
+    // Test placement. No test file lives under src/: unit tests go in
+    // tests/unit/, mirroring the src/ path of their subject
+    // (src/http/session.ts → tests/unit/http/session.test.ts); cross-cutting
+    // suites (a11y) sit at tests/unit/ and support code in tests/{mocks,fixtures}.
+    // Keeps src/ to shipped code only, matches express-boilerplate's layout,
+    // and keeps test files out of TanStack Router's src/pages/ routes directory.
+    //
+    // Covers src/pages/ too, unlike the naming rules above. A custom
+    // `errorMessage` is required: without it, check-file validates the map's
+    // VALUES as glob patterns too (see its README), and free text fails that.
+    files: ['src/**/*.{ts,tsx}'],
+    plugins: { 'check-file': checkFile },
+    rules: {
+      'check-file/filename-blocklist': [
+        'error',
+        {
+          '**/*.{test,spec}.{ts,tsx}': 'tests/unit/**/*.test.{ts,tsx}',
+          '**/__tests__/**': 'tests/unit/**/*.test.{ts,tsx}',
+          'src/tests/**': 'tests/**',
+        },
+        {
+          errorMessage:
+            '`{{ target }}` is a test file under src/. Tests live in tests/unit/, mirroring the src/ path of the subject, e.g. src/http/session.ts → tests/unit/http/session.test.ts.',
+        },
+      ],
+    },
+  },
+  {
+    // The Vitest suite under tests/. Typed linting via projectService —
+    // tsconfig.app.json includes tests/ — with the same react-hooks rules as
+    // src/ (tests render components and call hooks). Tailwind rules are off
+    // for the reason given on the e2e block above.
+    files: ['tests/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: globals.browser,
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    plugins: { 'react-hooks': reactHooks, 'check-file': checkFile },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      'tailwindcss/classnames-order': 'off',
+      'tailwindcss/enforces-canonical-classname': 'off',
+      'tailwindcss/enforces-negative-arbitrary-values': 'off',
+      'tailwindcss/enforces-shorthand': 'off',
+      'tailwindcss/important-modifier-suffix': 'off',
+      'tailwindcss/no-custom-classname': 'off',
+      'tailwindcss/no-contradicting-classname': 'off',
+      'tailwindcss/no-unnecessary-arbitrary-value': 'off',
+      // `.test.`, never `.spec.`, and no `__tests__/` folders.
       'check-file/filename-blocklist': [
         'error',
         {
@@ -153,7 +200,7 @@ export default tseslint.config(
         },
         {
           errorMessage:
-            'This project uses `.test.` filenames, co-located beside their subject — not `.spec.` and not a `__tests__/` folder.',
+            'This project uses `.test.` filenames under tests/unit/ — not `.spec.` and not a `__tests__/` folder.',
         },
       ],
     },
@@ -197,18 +244,6 @@ export default tseslint.config(
         },
       ],
     },
-  },
-  {
-    // Exempt from the suffix rule above, and scoped ONLY to the suffix
-    // directories: `auth.store.test.ts` sits beside `auth.store.ts` and
-    // does not itself end in `.store`, so it needs an exemption — but a
-    // test file anywhere else (e.g. src/http, which has no suffix rule)
-    // must keep the plain KEBAB_CASE check from block 1. A blanket
-    // `**/*.test.{ts,tsx}` exemption (fix-round-1 finding) let
-    // `src/lib/BadName.test.ts` pass with zero errors.
-    files: ['src/{states,queries,schemas,types,hooks}/**/*.test.{ts,tsx}'],
-    plugins: { 'check-file': checkFile },
-    rules: { 'check-file/filename-naming-convention': 'off' },
   },
   ...tanstackRouter.configs['flat/recommended'],
   {

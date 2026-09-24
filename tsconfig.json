@@ -9,6 +9,6 @@
   // lives in tsconfig.app.json and must stay in sync with this one.
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] }
+    "paths": { "@/tests/*": ["./tests/*"], "@/*": ["./src/*"] }
   }
 }
