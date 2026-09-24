@@ -1,5 +1,5 @@
 import { useForm } from '@tanstack/react-form'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, AxiosHeaders } from 'axios'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -182,5 +182,27 @@ describe('the server-error bridge in <Form>', () => {
     await waitFor(() => {
       expect(screen.queryByText('Already taken.')).not.toBeInTheDocument()
     })
+  })
+})
+
+describe('setFieldError', () => {
+  it('adds to what capture set in the same tick, and clears like any other', () => {
+    const { result } = renderHook(() => useServerErrors())
+
+    // The invite form does exactly this: capture the 409, then put its
+    // message on the email field, before React renders in between.
+    act(() => {
+      result.current.capture(validationFailure())
+      result.current.setFieldError('nickname', ['Taken by a member.'])
+    })
+    expect(result.current.fieldErrors).toEqual({
+      email: ['Already taken.'],
+      nickname: ['Taken by a member.'],
+    })
+
+    act(() => {
+      result.current.clearField('nickname')
+    })
+    expect(result.current.fieldErrors).toEqual({ email: ['Already taken.'] })
   })
 })

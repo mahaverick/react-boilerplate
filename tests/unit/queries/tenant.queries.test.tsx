@@ -131,6 +131,25 @@ describe('tenant invitation queries', () => {
     expect(isInvalidated(tenantKeys.members('acme'))).toBe(false)
   })
 
+  it('resends with no body, so no Content-Type header either', async () => {
+    let body: string | undefined
+    let contentType: string | null = 'unset'
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations/inv-1/resend', async ({ request }) => {
+        body = await request.text()
+        contentType = request.headers.get('content-type')
+        return ok(null, 'Invitation resent.', 202)
+      })
+    )
+
+    const { result } = renderHook(() => useResendInvitation('acme'), { wrapper })
+    result.current.mutate('inv-1')
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(body).toBe('')
+    expect(contentType).toBeNull()
+  })
+
   it('refreshes the list after a resend 404, because the row is gone', async () => {
     server.use(
       http.post('/api/v1/tenants/acme/invitations/inv-1/resend', () =>
@@ -161,8 +180,25 @@ describe('tenant invitation queries', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(method).toBe('DELETE')
+    // Unwrapped like its siblings: the envelope's `data`, not the AxiosResponse.
+    expect(result.current.data).toBeNull()
     expect(isInvalidated(tenantKeys.invitations('acme'))).toBe(true)
     expect(isInvalidated(tenantKeys.list)).toBe(false)
+  })
+
+  it('refreshes the list after a revoke 404, because the row is gone', async () => {
+    server.use(
+      http.delete('/api/v1/tenants/acme/invitations/inv-1', () =>
+        fail('Invitation not found.', 404, 'invitation_not_found')
+      )
+    )
+    seedCache()
+
+    const { result } = renderHook(() => useRevokeInvitation('acme'), { wrapper })
+    result.current.mutate('inv-1')
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(isInvalidated(tenantKeys.invitations('acme'))).toBe(true)
   })
 
   it('no longer offers direct add', () => {

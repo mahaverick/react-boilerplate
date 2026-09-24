@@ -140,6 +140,17 @@ const NOTIFICATIONS = [
   },
 ]
 
+/** One pending invitation, so the members page's third card has a row to grade. */
+const INVITATIONS = [
+  {
+    id: 'inv-1',
+    email: 'invitee@b.com',
+    role: 'editor',
+    invitedBy: { id: 'u1', firstName: 'A', lastName: 'B' },
+    expiresAt: '2026-10-01T00:00:00.000Z',
+    createdAt: '2026-09-24T00:00:00.000Z',
+  },
+]
 const PREFERENCES = [
   { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
   { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
@@ -159,6 +170,7 @@ function mockSignedInData() {
     ),
     http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
     http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.')),
+    http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
     http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
     http.get('/api/v1/notifications', () =>
       ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
@@ -419,7 +431,15 @@ describe('signed-in pages', () => {
       '/tenants/acme',
       () => screen.findByRole('heading', { name: 'Acme Corp', level: 1 }),
     ],
-    ['tenant members', '/tenants/acme/members', () => screen.findByRole('table')],
+    [
+      'tenant members',
+      '/tenants/acme/members',
+      // Both lists: the member table and the pending invitations under it.
+      async () => {
+        await screen.findByRole('table')
+        return screen.findByText('invitee@b.com')
+      },
+    ],
     [
       'tenant settings',
       '/tenants/acme/settings',
@@ -463,12 +483,26 @@ describe('open overlays', () => {
     await expectNoViolations()
   })
 
+  it('has no violations with the revoke-invitation dialog open, and the dialog is named', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
+    )
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveAccessibleName('Revoke the invitation to invitee@b.com?')
+    await expectNoViolations()
+  })
+
   it('has no violations with the member list stacked as cards on a phone', async () => {
     // A second render path is a second chance to ship a duplicate id or an
     // unlabelled control, and it is the path the table tests never touch.
     setViewportWidth(390)
     renderAppAt('/tenants/acme/members')
     await screen.findByText('Cleo D')
+    await screen.findByText('invitee@b.com')
 
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     await expectNoViolations()

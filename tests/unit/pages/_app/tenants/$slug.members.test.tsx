@@ -14,8 +14,9 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { fail, ok, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, testInvitation, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+import type { TenantInvitation } from '@/types/api.types'
 
 const TENANT = {
   id: 't1',
@@ -158,7 +159,7 @@ describe('members tab permissions', () => {
     expect(me.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
   })
 
-  it('offers an admin only the roles below admin when adding someone', async () => {
+  it('offers an admin only the roles below admin when inviting someone', async () => {
     mockTenant('admin', [member(ME, 'admin', 'Me')])
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/members')
@@ -169,7 +170,7 @@ describe('members tab permissions', () => {
     expect(options).toEqual(['Manager', 'Editor', 'Viewer'])
   })
 
-  it('offers an owner every role when adding someone', async () => {
+  it('offers an owner every role when inviting someone', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member('u4', 'owner', 'Otto')])
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/members')
@@ -179,14 +180,24 @@ describe('members tab permissions', () => {
     expect(options).toEqual(['Owner', 'Admin', 'Manager', 'Editor', 'Viewer'])
   })
 
-  it('gives a viewer no controls and no add-member form', async () => {
+  it('gives a viewer no controls, no invite form and no invitations request', async () => {
+    let invitationCalls = 0
     mockTenant('viewer', [member(ME, 'viewer', 'Me'), member('u3', 'viewer', 'Vic')])
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () => {
+        invitationCalls += 1
+        return ok([], 'Invitations retrieved.')
+      })
+    )
     renderAppAt('/tenants/acme/members')
 
-    await screen.findByRole('heading', { name: 'Members' })
+    await rowFor('Vic')
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Add a member' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Invite a member' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Pending invitations' })).not.toBeInTheDocument()
+    // The list route is owner/admin only, so a viewer's page never asks it.
+    expect(invitationCalls).toBe(0)
   })
 
   it('disables the last owner’s own controls and says why', async () => {
@@ -398,7 +409,7 @@ describe('members tab permissions', () => {
   })
 })
 
-describe('the add-member role select', () => {
+describe('the invite form role select', () => {
   beforeEach(() => {
     resetSessionForTests()
     queryClient.clear()
@@ -444,7 +455,7 @@ describe('the add-member role select', () => {
     renderAppAt('/tenants/acme/members')
 
     await user.type(await screen.findByLabelText('Email'), 'new@b.com')
-    await user.click(screen.getByRole('button', { name: 'Add member' }))
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
     await screen.findByText('That role is not yours to grant.')
 
     // Base UI's selection does NOT bubble a change event to the <form>, so
@@ -457,5 +468,347 @@ describe('the add-member role select', () => {
     await waitFor(() => {
       expect(screen.queryByText('That role is not yours to grant.')).not.toBeInTheDocument()
     })
+  })
+})
+
+/** A pending row with its own id and address; everything else from `testInvitation`. */
+function invitation(
+  id: string,
+  email: string,
+  overrides: Partial<TenantInvitation> = {}
+): TenantInvitation {
+  return { ...testInvitation, id, email, ...overrides }
+}
+
+describe('inviting, and the pending invitations', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member('u3', 'viewer', 'Vic')])
+  })
+
+  it('sends an invitation, says so, and refreshes the pending list', async () => {
+    let body: unknown
+    let listCalls = 0
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () => {
+        listCalls += 1
+        return ok(
+          listCalls === 1 ? [] : [invitation('inv-2', 'new@b.com', { role: 'viewer' })],
+          'Invitations retrieved.'
+        )
+      }),
+      http.post('/api/v1/tenants/acme/invitations', async ({ request }) => {
+        body = await request.json()
+        return ok(null, 'If that address can be invited, an invitation has been sent.', 202)
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'New@B.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    // The 202 is the same for every address, so the toast names what was sent.
+    expect(await screen.findByText('Invitation sent to new@b.com.')).toBeInTheDocument()
+    expect(body).toEqual({ email: 'new@b.com', role: 'viewer' })
+    expect(await screen.findByText('new@b.com')).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('')
+  })
+
+  it('shows already_member on the email field, not in a toast', async () => {
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('That person is already a member.', 409, 'already_member')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const email = await screen.findByLabelText('Email')
+    await user.type(email, 'u3@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    await waitFor(() => {
+      expect(email).toHaveAccessibleDescription('That person is already a member.')
+    })
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+    // Once: inline. A toast as well would say the same thing twice.
+    expect(screen.getAllByText('That person is already a member.')).toHaveLength(1)
+
+    // Changing the address clears it, like any other server verdict.
+    await user.type(email, 'x')
+    await waitFor(() => {
+      expect(screen.queryByText('That person is already a member.')).not.toBeInTheDocument()
+    })
+  })
+
+  it('says a racing invite won, and shows it in the refreshed list', async () => {
+    let listCalls = 0
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () => {
+        listCalls += 1
+        return ok(
+          listCalls === 1 ? [] : [invitation('inv-9', 'new@b.com')],
+          'Invitations retrieved.'
+        )
+      }),
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('An invitation for this address was just created.', 409, 'invitation_conflict')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    expect(
+      await screen.findByText('Someone just invited this address — refresh and try again.')
+    ).toBeInTheDocument()
+    // The winning invitation arrives with the refetch.
+    expect(await screen.findByText('new@b.com', { selector: 'span' })).toBeInTheDocument()
+  })
+
+  it('toasts any other refusal and leaves the field alone', async () => {
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const email = await screen.findByLabelText('Email')
+    await user.type(email, 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    expect(
+      await screen.findByText('Too many attempts. Please try again later.')
+    ).toBeInTheDocument()
+    expect(email).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  it('lists each pending invitation with its role, inviter and expiry', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok(
+          [testInvitation, invitation('inv-2', 'old@b.com', { role: 'viewer', invitedBy: null })],
+          'Invitations retrieved.'
+        )
+      )
+    )
+    renderAppAt('/tenants/acme/members')
+
+    expect(await screen.findByRole('heading', { name: 'Pending invitations' })).toBeInTheDocument()
+    const first = within((await screen.findByText('invitee@b.com')).closest('li') as HTMLElement)
+    expect(first.getByText('Editor · Invited by A B')).toBeInTheDocument()
+    expect(first.getByText(/^Expires /)).toBeInTheDocument()
+    // An inviter whose account is gone is `null`, not a crash.
+    const second = within(screen.getByText('old@b.com').closest('li') as HTMLElement)
+    expect(second.getByText('Viewer · Invited by A teammate')).toBeInTheDocument()
+  })
+
+  it('says when nothing is pending', async () => {
+    renderAppAt('/tenants/acme/members')
+
+    expect(
+      await screen.findByText('No invitations are waiting to be accepted.')
+    ).toBeInTheDocument()
+  })
+
+  it('offers a retry when the pending list fails, and the retry refetches it', async () => {
+    let calls = 0
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () => {
+        calls += 1
+        // Two failures: the router's client retries once by itself.
+        return calls <= 2
+          ? fail('Something went wrong.', 500)
+          : ok([testInvitation], 'Invitations retrieved.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    expect(alert).toHaveTextContent(/could not load the pending invitations/i)
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByText('invitee@b.com')).toBeInTheDocument()
+  })
+
+  it('shows the section to an admin too', async () => {
+    mockTenant('admin', [member(ME, 'admin', 'Me')])
+    renderAppAt('/tenants/acme/members')
+
+    expect(await screen.findByRole('heading', { name: 'Pending invitations' })).toBeInTheDocument()
+  })
+
+  it('resends one invitation, says so, and refreshes the list', async () => {
+    let resent: unknown
+    let listCalls = 0
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () => {
+        listCalls += 1
+        return ok([testInvitation], 'Invitations retrieved.')
+      }),
+      http.post('/api/v1/tenants/acme/invitations/:id/resend', ({ params }) => {
+        resent = params.id
+        return ok(null, 'Invitation resent.', 202)
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+    )
+
+    expect(await screen.findByText('Invitation resent to invitee@b.com.')).toBeInTheDocument()
+    expect(resent).toBe('inv-1')
+    // The expiry moved, so the list is fetched again.
+    await waitFor(() => {
+      expect(listCalls).toBeGreaterThan(1)
+    })
+  })
+
+  it('shows the server’s message when a resend is refused, e.g. a 403', async () => {
+    // An admin resending an owner-role invitation.
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok([invitation('inv-1', 'invitee@b.com', { role: 'owner' })], 'Invitations retrieved.')
+      ),
+      http.post('/api/v1/tenants/acme/invitations/:id/resend', () =>
+        fail('You cannot manage an invitation for that role.', 403)
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+    )
+
+    expect(
+      await screen.findByText('You cannot manage an invitation for that role.')
+    ).toBeInTheDocument()
+  })
+
+  it('says a resend found the invitation no longer pending, and refreshes the list', async () => {
+    let listCalls = 0
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () => {
+        listCalls += 1
+        return ok(listCalls === 1 ? [testInvitation] : [], 'Invitations retrieved.')
+      }),
+      http.post('/api/v1/tenants/acme/invitations/:id/resend', () =>
+        fail('Invitation not found.', 404, 'invitation_not_found')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+    )
+
+    expect(await screen.findByText('That invitation is no longer pending.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('No invitations are waiting to be accepted.')
+    ).toBeInTheDocument()
+  })
+
+  it('asks before revoking, and Cancel sends nothing', async () => {
+    let deletes = 0
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok([testInvitation], 'Invitations retrieved.')
+      ),
+      http.delete('/api/v1/tenants/acme/invitations/:id', () => {
+        deletes += 1
+        return ok(null, 'Invitation revoked.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
+    )
+    // The app's AlertDialog, not a browser confirm().
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveAccessibleName('Revoke the invitation to invitee@b.com?')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+    expect(deletes).toBe(0)
+    expect(screen.getByText('invitee@b.com')).toBeInTheDocument()
+  })
+
+  it('revokes on confirm, says so, and drops the row', async () => {
+    let revoked: unknown
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok(revoked ? [] : [testInvitation], 'Invitations retrieved.')
+      ),
+      http.delete('/api/v1/tenants/acme/invitations/:id', ({ params }) => {
+        revoked = params.id
+        return ok(null, 'Invitation revoked.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
+    )
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Revoke' }))
+
+    // The toast still arrives although the refetch unmounts the row first.
+    expect(await screen.findByText('Invitation to invitee@b.com revoked.')).toBeInTheDocument()
+    expect(revoked).toBe('inv-1')
+    expect(
+      await screen.findByText('No invitations are waiting to be accepted.')
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+  })
+
+  it('reports a revoke that lost the race, and refreshes the list', async () => {
+    let listCalls = 0
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () => {
+        listCalls += 1
+        return ok(listCalls === 1 ? [testInvitation] : [], 'Invitations retrieved.')
+      }),
+      http.delete('/api/v1/tenants/acme/invitations/:id', () =>
+        fail('Invitation not found.', 404, 'invitation_not_found')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
+    )
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Revoke' }))
+
+    expect(await screen.findByText('That invitation is no longer pending.')).toBeInTheDocument()
+    // Someone else revoked or it was accepted: the row goes either way.
+    expect(
+      await screen.findByText('No invitations are waiting to be accepted.')
+    ).toBeInTheDocument()
   })
 })

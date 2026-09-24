@@ -18,6 +18,11 @@ export interface ServerErrors {
   capture: (error: unknown) => void
   /** Drop one field's messages. Called when that field changes. */
   clearField: (name: string) => void
+  /**
+   * Put messages on one field by hand, for a verdict the server sends as a
+   * `code` rather than in `errors`. Cleared by the same rule as the rest.
+   */
+  setFieldError: (name: string, messages: string[]) => void
   /** Drop everything. Called at the start of each submit. */
   reset: () => void
 }
@@ -40,12 +45,17 @@ export function useServerErrors(): ServerErrors {
     })
   }, [])
 
+  const setFieldError = React.useCallback((name: string, messages: string[]) => {
+    // An updater, so it composes with a `capture` made in the same tick.
+    setFieldErrors((current) => ({ ...current, [name]: messages }))
+  }, [])
+
   const reset = React.useCallback(() => {
     setFieldErrors({})
     setFormErrors([])
   }, [])
 
-  return { fieldErrors, formErrors, capture, clearField, reset }
+  return { fieldErrors, formErrors, capture, clearField, setFieldError, reset }
 }
 
 /**

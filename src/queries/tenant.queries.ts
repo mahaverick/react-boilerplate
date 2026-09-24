@@ -200,8 +200,9 @@ export function useInvitations(slug: string) {
 
 /**
  * Answers 202 with `data: null` whether or not the address has an account,
- * so there is nothing to read off the response. The distinguishable answers
- * are the 409s `already_member` and `invitation_conflict`.
+ * so a success never says whether one exists. Refusals still differ: 409
+ * `already_member` or `invitation_conflict`, 403 for a role the caller can't
+ * grant, 422 for an invalid body.
  */
 export function useInviteMember(slug: string) {
   const queryClient = useQueryClient()
@@ -237,7 +238,9 @@ export function useRevokeInvitation(slug: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (invitationId: string) =>
-      apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/invitations/${invitationId}`),
+      unwrap(
+        await apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/invitations/${invitationId}`)
+      ),
     // Settled, for the same reason as resend.
     onSettled: () => queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) }),
   })
