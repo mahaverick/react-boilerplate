@@ -65,7 +65,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # This runs tests/unit/a11y.test.tsx with the rest, which is what makes
       # the accessibility criteria a gate rather than an aspiration.
-      - run: pnpm test
+      - run: pnpm test:coverage
       - run: pnpm build
       - run: pnpm audit --prod --audit-level high
 

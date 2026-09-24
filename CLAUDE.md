@@ -15,14 +15,15 @@ v4, Base UI via shadcn, axios, Zod v4, Vitest + Testing Library + MSW.
 
 ## Commands
 
-| Command          | What it does                                           |
-| ---------------- | ------------------------------------------------------ |
-| `pnpm dev`       | Dev server on :5173, proxying `/api` to `:4040`        |
-| `pnpm build`     | `tsc -b` then `vite build`                             |
-| `pnpm lint`      | eslint **and** `prettier --check` — both must be clean |
-| `pnpm typecheck` | `tsc --noEmit -p tsconfig.app.json`                    |
-| `pnpm test`      | Vitest, one pass                                       |
-| `pnpm format`    | prettier --write                                       |
+| Command              | What it does                                                                                       |
+| -------------------- | -------------------------------------------------------------------------------------------------- |
+| `pnpm dev`           | Dev server on :5173, proxying `/api` to `:4040`                                                    |
+| `pnpm build`         | `tsc -b` then `vite build`                                                                         |
+| `pnpm lint`          | eslint **and** `prettier --check` — both must be clean                                             |
+| `pnpm typecheck`     | `tsc --noEmit -p tsconfig.app.json`                                                                |
+| `pnpm test`          | Vitest, one pass                                                                                   |
+| `pnpm test:coverage` | Vitest with coverage; fails under 85/78/80/85 (statements/branches/functions/lines), as CI runs it |
+| `pnpm format`        | prettier --write                                                                                   |
 
 The gate is **0 errors and 0 warnings**: verify with
 `pnpm exec eslint . --max-warnings 0`, not with a bare `pnpm lint`, whose

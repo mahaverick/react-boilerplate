@@ -40,6 +40,11 @@ export default defineConfig({
     // Deliberately NOT `retry`. A retry would have made the observed failures
     // disappear from the report while leaving the race in place, and the next
     // thing it hid would be a real one.
-    coverage: { provider: 'v8', reporter: ['text', 'lcov'] },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      // A few points under the measured baseline, so a drop fails CI.
+      thresholds: { statements: 85, branches: 78, functions: 80, lines: 85 },
+    },
   },
 })

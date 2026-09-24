@@ -27,6 +27,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,css,json,md,html}\"",
     "test": "vitest --watch=false",
+    "test:coverage": "vitest --watch=false --coverage",
     "test:watch": "vitest",
     "prepare": "husky",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,css,json,md,html}\"",
