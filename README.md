@@ -234,10 +234,14 @@ App needs Contents and Pull requests read/write. GitHub never starts workflows
 from events `GITHUB_TOKEN` creates, so its release PRs would get no CI and its
 tags no image promotion — don't fall back to it.
 
-One manual step, once: **install the
-[Renovate GitHub App](https://github.com/apps/renovate)** on this repository.
-`renovate.json` is inert without it — nothing schedules or opens Renovate PRs
-until the app is installed.
+Two manual steps, once:
+
+- **Create and install the release GitHub App** on this repository, then set
+  its client ID as the `RELEASE_APP_CLIENT_ID` variable and its private key as
+  the `RELEASE_APP_PRIVATE_KEY` secret. Without them `release.yml` fails.
+- **Install the [Renovate GitHub App](https://github.com/apps/renovate).**
+  `renovate.json` is inert without it — nothing schedules or opens Renovate
+  PRs until the app is installed.
 
 With squash merges, the squashed commit on `main` is the PR's title, not any
 of its individual commit messages — so PR titles must themselves be
