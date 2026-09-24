@@ -24,8 +24,9 @@ import { registerSchema, type RegisterInput } from '@/schemas/auth.schemas'
 
 export const Route = createFileRoute('/_auth/register')({
   // `?email=` prefills the address: an invitation's "Create account" sends the
-  // invitee here with the address the invitation was sent to.
-  validateSearch: z.object({ email: z.string().optional() }),
+  // invitee here with the address the invitation was sent to. `.catch`: the
+  // router JSON-parses search values, so `?email=123` is a number, ignored.
+  validateSearch: z.object({ email: z.string().optional().catch(undefined) }),
   component: RegisterPage,
 })
 

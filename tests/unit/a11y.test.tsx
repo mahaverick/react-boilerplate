@@ -514,13 +514,21 @@ describe('invitation accept states', () => {
     await expectNoViolations()
   })
 
+  it('has no violations when the preview request failed', async () => {
+    server.use(http.post('/api/v1/invitations/preview', () => fail('Something went wrong.', 500)))
+    renderAppAt(acceptPath)
+    // The preview retries a non-404 once, so the failure takes a moment.
+    await screen.findByRole('alert', {}, { timeout: 5000 })
+    await expectNoViolations()
+  })
+
   it('has no violations with the unverified-email refusal showing', async () => {
     server.use(
       http.post('/api/v1/invitations/accept', () =>
         fail(
-          'This invitation was sent to a different email address.',
+          'Verify your email address before accepting this invitation.',
           403,
-          'invitation_email_mismatch'
+          'invitation_email_unverified'
         )
       )
     )

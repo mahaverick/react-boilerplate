@@ -10,7 +10,7 @@ import {
   useAcceptInvitation,
   useInvitationPreview,
 } from '@/queries/invitation.queries'
-import { tenantKeys } from '@/queries/tenant.queries'
+import { tenantKeys, useTenants } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 import {
   fail,
@@ -168,6 +168,31 @@ describe('invitation queries', () => {
       expect(client.getQueryState(tenantKeys.detail('acme'))).toBeUndefined()
       expect(client.getQueryState(tenantKeys.invitations('acme'))).toBeUndefined()
       expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
+    })
+
+    it('refetches a cached tenant list that nothing is observing', async () => {
+      // The accept page doesn't observe the list, and an invalidation alone
+      // only refetches active queries.
+      let listCalls = 0
+      const joined = [{ tenant: { id: 't1', slug: 'acme' }, role: 'editor' }]
+      server.use(
+        http.get('/api/v1/tenants', () => {
+          listCalls += 1
+          return ok(listCalls === 1 ? [] : joined, 'Tenants retrieved.')
+        })
+      )
+      // Loaded earlier by a page that has since unmounted, as when the reader
+      // visited /tenants before opening the link.
+      const tenants = renderHook(() => useTenants(), { wrapper })
+      await waitFor(() => expect(tenants.result.current.isSuccess).toBe(true))
+      tenants.unmount()
+
+      const { result } = renderHook(() => useAcceptInvitation(), { wrapper })
+      result.current.mutate(TEST_INVITATION_TOKEN)
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(listCalls).toBe(2)
+      expect(client.getQueryData(tenantKeys.list)).toEqual(joined)
     })
 
     it('leaves the cache alone when the server refuses', async () => {

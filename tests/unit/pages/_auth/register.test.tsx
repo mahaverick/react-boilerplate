@@ -146,6 +146,14 @@ describe('register page', () => {
     })
   })
 
+  it('ignores an ?email= the router reads as a non-string, rather than crashing', async () => {
+    // TanStack JSON-parses search values, so `?email=123` arrives as 123.
+    renderRegisterAt('/register?email=123')
+
+    expect(await screen.findByRole('heading', { name: 'Create an account' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('')
+  })
+
   it('leaves the address empty without ?email=', async () => {
     renderRegisterAt('/register')
 

@@ -54,9 +54,14 @@ export function useAcceptInvitation() {
       // Removed, not invalidated: the tenant route's loader uses
       // `ensureQueryData`, which hands back a cached pre-membership `null`
       // (a 404 from before) without refetching. The prefix also drops this
-      // tenant's invitations list.
+      // tenant's invitations list. `refetchType: 'all'`: nothing on the accept
+      // page observes the list, and a plain invalidation refetches only active queries.
       queryClient.removeQueries({ queryKey: tenantKeys.detail(tenant.slug) })
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      await queryClient.invalidateQueries({
+        queryKey: tenantKeys.list,
+        exact: true,
+        refetchType: 'all',
+      })
     },
   })
 }

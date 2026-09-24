@@ -83,5 +83,8 @@ export const INVITATION_NOT_FOUND = 'invitation_not_found'
 /** 404 on preview and accept: invalid, expired, revoked or already used. */
 export const INVITATION_INVALID = 'invitation_invalid'
 
-/** 403 on accept: the signed-in account's email is not the invited one, or is unverified. */
+/** 403 on accept: the signed-in account's email is not the invited one. */
 export const INVITATION_EMAIL_MISMATCH = 'invitation_email_mismatch'
+
+/** 403 on accept: the signed-in account is the invited one, but its email is unverified. */
+export const INVITATION_EMAIL_UNVERIFIED = 'invitation_email_unverified'

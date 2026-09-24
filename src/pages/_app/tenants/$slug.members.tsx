@@ -432,7 +432,7 @@ function TenantMembersTab() {
         </CardContent>
       </Card>
 
-      {/* Owner and admin only: both invitation routes are
+      {/* Owner and admin only: all four invitation routes are
           `requireRole('owner', 'admin')`, and PendingInvitations issues its
           request only once mounted. */}
       {myRole && canManageTenant(myRole) && (
@@ -451,7 +451,7 @@ function TenantMembersTab() {
               <InviteMemberForm slug={slug} myRole={myRole} />
             </CardContent>
           </Card>
-          <PendingInvitations slug={slug} />
+          <PendingInvitations slug={slug} myRole={myRole} />
         </>
       )}
     </div>

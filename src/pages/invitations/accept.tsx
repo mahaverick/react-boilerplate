@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { ROLE_LABELS } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
-import { messageFrom, statusFrom } from '@/lib/api-error'
+import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
 import { useLogout } from '@/queries/auth.queries'
 import {
   inviterName,
@@ -19,7 +19,7 @@ import {
 } from '@/queries/invitation.queries'
 import { invitationTokenSchema } from '@/schemas/invitation.schemas'
 import { useAuthStore } from '@/states/auth.store'
-import type { InvitationPreview } from '@/types/api.types'
+import { INVITATION_EMAIL_UNVERIFIED, type InvitationPreview } from '@/types/api.types'
 
 /**
  * Top level on purpose, under neither `_auth` nor `_app`: the link is opened
@@ -28,7 +28,9 @@ import type { InvitationPreview } from '@/types/api.types'
  * fixed. This page renders `AuthLayout` itself, like reset-password.tsx.
  */
 export const Route = createFileRoute('/invitations/accept')({
-  validateSearch: z.object({ token: z.string().optional() }),
+  // `.catch`: the router JSON-parses search values, so `?token=123` is a
+  // number, treated as no token.
+  validateSearch: z.object({ token: z.string().optional().catch(undefined) }),
   component: AcceptInvitationPage,
 })
 
@@ -145,7 +147,7 @@ function WrongAccount({
         <Button className="w-full" disabled={logout.isPending} onClick={() => logout.mutate()}>
           {logout.isPending ? 'Signing out…' : 'Sign out'}
         </Button>
-        {/* A way out that is neither choice; also the state's only link, without
+        {/* A way out that isn't signing out; also the state's only link, without
             which axe's `bypass` rule has nothing to apply to. */}
         <HomeLink />
       </div>
@@ -156,8 +158,9 @@ function WrongAccount({
 function AcceptPanel({ token, invitation }: { token: string; invitation: InvitationPreview }) {
   const accept = useAcceptInvitation()
   const navigate = useNavigate()
-  // The server's 403: signed in as the invited address, but not verified.
-  const [refusal, setRefusal] = useState<string | null>(null)
+  // The server's 403: unverified (the verify hint applies) or, despite the
+  // local match, a different address (its message alone).
+  const [refusal, setRefusal] = useState<{ message: string; unverified: boolean } | null>(null)
   // The server's 404: revoked, expired or used since the preview loaded.
   const [gone, setGone] = useState<string | null>(null)
 
@@ -178,7 +181,10 @@ function AcceptPanel({ token, invitation }: { token: string; invitation: Invitat
         return
       }
       if (status === 403) {
-        setRefusal(messageFrom(error))
+        setRefusal({
+          message: messageFrom(error),
+          unverified: codeFrom(error) === INVITATION_EMAIL_UNVERIFIED,
+        })
         return
       }
       toast.error(messageFrom(error))
@@ -195,16 +201,18 @@ function AcceptPanel({ token, invitation }: { token: string; invitation: Invitat
       <div className="grid gap-3">
         {refusal && (
           <div role="alert" className="grid gap-1 text-sm">
-            <p className="text-destructive">{refusal}</p>
-            <p className="text-muted-foreground">
-              Verify the email address on your account first, then open this invitation link again.
-            </p>
+            <p className="text-destructive">{refusal.message}</p>
+            {refusal.unverified && (
+              <p className="text-muted-foreground">
+                Use the link in your verification email, then open this invitation link again.
+              </p>
+            )}
           </div>
         )}
         <Button className="w-full" disabled={accept.isPending} onClick={() => void onAccept()}>
           {accept.isPending ? 'Accepting…' : 'Accept invitation'}
         </Button>
-        {/* A way out that is neither choice; also the state's only link, without
+        {/* A way out that isn't accepting; also the state's only link, without
             which axe's `bypass` rule has nothing to apply to. */}
         <HomeLink />
       </div>
@@ -235,7 +243,10 @@ function InvitationForToken({ token }: { token: string }) {
     }
     return (
       <InvitationCard title="We could not load this invitation">
-        <LoadError message={PREVIEW_ERROR} onRetry={() => void preview.refetch()} />
+        <div className="grid gap-3">
+          <LoadError message={PREVIEW_ERROR} onRetry={() => void preview.refetch()} />
+          <HomeLink />
+        </div>
       </InvitationCard>
     )
   }

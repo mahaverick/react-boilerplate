@@ -38,6 +38,7 @@ const TENANT = {
 const ACCEPT_PATH = `/invitations/accept?token=${TEST_INVITATION_TOKEN}`
 const INVALID = 'This invitation is invalid or has expired.'
 const MISMATCH = 'This invitation was sent to a different email address.'
+const UNVERIFIED = 'Verify your email address before accepting this invitation.'
 
 function renderAt(path: string): AnyRouter {
   const router = createRouter({
@@ -113,6 +114,17 @@ describe('accept page: the link itself', () => {
     expect(previews.count).toBe(0)
   })
 
+  it('treats a token the router reads as a number as missing, without crashing', async () => {
+    // TanStack JSON-parses search values, so `?token=123` arrives as 123.
+    const previews = countPreviews()
+    renderAt('/invitations/accept?token=123')
+
+    expect(
+      await screen.findByRole('heading', { name: 'This link is incomplete' })
+    ).toBeInTheDocument()
+    expect(previews.count).toBe(0)
+  })
+
   it('refuses a malformed token locally, without a request', async () => {
     const previews = countPreviews()
     renderAt('/invitations/accept?token=truncated')
@@ -150,6 +162,7 @@ describe('accept page: the link itself', () => {
     const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
     expect(alert).toHaveTextContent(/could not load this invitation/i)
     expect(screen.queryByText(INVALID)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to the home page' })).toHaveAttribute('href', '/')
 
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('heading', { name: 'Join Acme Corp' })).toBeInTheDocument()
@@ -314,11 +327,11 @@ describe('accept page, signed in', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
   })
 
-  it('shows the server’s 403 with a hint to verify first, and stays put', async () => {
+  it('shows the unverified 403 with how to verify, and stays put', async () => {
     signIn()
     server.use(
       http.post('/api/v1/invitations/accept', () =>
-        fail(MISMATCH, 403, 'invitation_email_mismatch')
+        fail(UNVERIFIED, 403, 'invitation_email_unverified')
       )
     )
     const user = userEvent.setup()
@@ -327,10 +340,30 @@ describe('accept page, signed in', () => {
     await user.click(await screen.findByRole('button', { name: 'Accept invitation' }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(MISMATCH)
-    expect(alert).toHaveTextContent(/Verify the email address on your account first/)
+    expect(alert).toHaveTextContent(UNVERIFIED)
+    expect(alert).toHaveTextContent(/verification email/)
+    expect(alert).not.toHaveTextContent(/different email address/)
     expect(router.state.location.pathname).toBe('/invitations/accept')
     // A 403 is not a session verdict.
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+  })
+
+  it('shows the server’s mismatch 403 without telling a mismatched account to verify', async () => {
+    // The addresses matched here, so the server's copy is the only account of it.
+    signIn()
+    server.use(
+      http.post('/api/v1/invitations/accept', () =>
+        fail(MISMATCH, 403, 'invitation_email_mismatch')
+      )
+    )
+    const user = userEvent.setup()
+    renderAt(ACCEPT_PATH)
+
+    await user.click(await screen.findByRole('button', { name: 'Accept invitation' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(MISMATCH)
+    expect(alert).not.toHaveTextContent(/verif/i)
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 

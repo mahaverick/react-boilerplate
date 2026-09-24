@@ -680,7 +680,7 @@ describe('inviting, and the pending invitations', () => {
   })
 
   it('shows the server’s message when a resend is refused, e.g. a 403', async () => {
-    // An admin resending an owner-role invitation.
+    // Offered to an owner, and refused anyway: the server has the last word.
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () =>
         ok([invitation('inv-1', 'invitee@b.com', { role: 'owner' })], 'Invitations retrieved.')
@@ -699,6 +699,59 @@ describe('inviting, and the pending invitations', () => {
     expect(
       await screen.findByText('You cannot manage an invitation for that role.')
     ).toBeInTheDocument()
+  })
+
+  it('switches off Resend, with the reason, for a role an admin cannot grant', async () => {
+    mockTenant('admin', [member(ME, 'admin', 'Me'), member('u3', 'viewer', 'Vic')])
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok(
+          [
+            invitation('inv-1', 'owner@b.com', { role: 'owner' }),
+            invitation('inv-2', 'admin@b.com', { role: 'admin' }),
+            invitation('inv-3', 'editor@b.com', { role: 'editor' }),
+          ],
+          'Invitations retrieved.'
+        )
+      )
+    )
+    renderAppAt('/tenants/acme/members')
+
+    for (const email of ['owner@b.com', 'admin@b.com']) {
+      const resend = await screen.findByRole('button', { name: `Resend invitation to ${email}` })
+      expect(resend).toBeDisabled()
+      expect(resend).toHaveAccessibleDescription(
+        'Only an owner can resend an invitation for this role.'
+      )
+    }
+    const editorResend = screen.getByRole('button', { name: 'Resend invitation to editor@b.com' })
+    expect(editorResend).toBeEnabled()
+    expect(editorResend).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('lets an owner resend an invitation for every role', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok(
+          [
+            invitation('inv-1', 'owner@b.com', { role: 'owner' }),
+            invitation('inv-2', 'admin@b.com', { role: 'admin' }),
+            invitation('inv-3', 'editor@b.com', { role: 'editor' }),
+          ],
+          'Invitations retrieved.'
+        )
+      )
+    )
+    renderAppAt('/tenants/acme/members')
+
+    for (const email of ['owner@b.com', 'admin@b.com', 'editor@b.com']) {
+      expect(
+        await screen.findByRole('button', { name: `Resend invitation to ${email}` })
+      ).toBeEnabled()
+    }
+    expect(
+      screen.queryByText('Only an owner can resend an invitation for this role.')
+    ).not.toBeInTheDocument()
   })
 
   it('says a resend found the invitation no longer pending, and refreshes the list', async () => {

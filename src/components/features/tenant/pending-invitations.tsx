@@ -15,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ROLE_LABELS } from '@/constants/roles'
+import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
 import { codeFrom, messageFrom } from '@/lib/api-error'
 import { inviterName } from '@/queries/invitation.queries'
 import { useInvitations, useResendInvitation, useRevokeInvitation } from '@/queries/tenant.queries'
@@ -24,6 +24,12 @@ import { INVITATION_NOT_FOUND, type TenantInvitation } from '@/types/api.types'
 /** Said of the request, not of the tenant: a failed load is not "none pending". */
 const INVITATIONS_ERROR =
   'We could not load the pending invitations, so none are listed here. This is not a sign that there are none.'
+
+/**
+ * Why Resend is off: resend re-checks `canActorGrantRole` against the
+ * invitation's role, so an admin's resend of an owner or admin invite is refused.
+ */
+const RESEND_REASON = 'Only an owner can resend an invitation for this role.'
 
 /** Resend or revoke found the row accepted, revoked or expired meanwhile. */
 const NO_LONGER_PENDING = 'That invitation is no longer pending.'
@@ -47,11 +53,34 @@ function expiresOn(expiresAt: string): string {
 function ResendInvitationButton({
   slug,
   invitation,
+  myRole,
 }: {
   slug: string
   invitation: TenantInvitation
+  myRole: MembershipRole
 }) {
   const resend = useResendInvitation(slug)
+  const reasonId = `resend-reason-${invitation.id}`
+
+  if (!canActorGrantRole(myRole, invitation.role)) {
+    // Visible text, not a tooltip: a disabled control gets no pointer events.
+    return (
+      <div className="grid gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled
+          aria-label={`Resend invitation to ${invitation.email}`}
+          aria-describedby={reasonId}
+        >
+          Resend
+        </Button>
+        <p id={reasonId} className="text-xs text-muted-foreground">
+          {RESEND_REASON}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <Button
@@ -141,7 +170,15 @@ function RevokeInvitationButton({
  * one render path keeps every id unique, and there is no fixed-width table
  * to scroll off a phone screen.
  */
-function InvitationItem({ slug, invitation }: { slug: string; invitation: TenantInvitation }) {
+function InvitationItem({
+  slug,
+  invitation,
+  myRole,
+}: {
+  slug: string
+  invitation: TenantInvitation
+  myRole: MembershipRole
+}) {
   return (
     <li className="grid gap-3 rounded-lg border p-4 sm:flex sm:items-center sm:justify-between">
       <div className="grid min-w-0 gap-0.5">
@@ -154,7 +191,7 @@ function InvitationItem({ slug, invitation }: { slug: string; invitation: Tenant
         </span>
       </div>
       <div className="flex gap-2">
-        <ResendInvitationButton slug={slug} invitation={invitation} />
+        <ResendInvitationButton slug={slug} invitation={invitation} myRole={myRole} />
         <RevokeInvitationButton slug={slug} invitation={invitation} />
       </div>
     </li>
@@ -166,7 +203,7 @@ function InvitationItem({ slug, invitation }: { slug: string; invitation: Tenant
  * only: the list endpoint is `requireRole('owner', 'admin')`, and mounting it
  * is what issues the request.
  */
-export function PendingInvitations({ slug }: { slug: string }) {
+export function PendingInvitations({ slug, myRole }: { slug: string; myRole: MembershipRole }) {
   const invitations = useInvitations(slug)
 
   return (
@@ -194,7 +231,12 @@ export function PendingInvitations({ slug }: { slug: string }) {
         ) : (
           <ul className="grid gap-3">
             {invitations.data.map((invitation) => (
-              <InvitationItem key={invitation.id} slug={slug} invitation={invitation} />
+              <InvitationItem
+                key={invitation.id}
+                slug={slug}
+                invitation={invitation}
+                myRole={myRole}
+              />
             ))}
           </ul>
         )}
