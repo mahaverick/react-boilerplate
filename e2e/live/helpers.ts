@@ -73,7 +73,7 @@ async function verificationTokenFor(email: string): Promise<string> {
       const message = await fetch(`${MAILPIT_ORIGIN}/api/v1/message/${id}`)
       const body = (await message.json()) as { Text?: string; HTML?: string }
       const link = /[?&]token=([a-f0-9]+)/i.exec(`${body.Text ?? ''}${body.HTML ?? ''}`)
-      if (link) return link[1]
+      if (link?.[1]) return link[1]
     }
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
