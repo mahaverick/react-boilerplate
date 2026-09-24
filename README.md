@@ -222,16 +222,17 @@ unreviewed the moment that step does something real.
 Releases are automatic. On every push to `main`,
 [release-please](https://github.com/googleapis/release-please) opens a release
 PR from the conventional commits since the last release, and
-`.github/workflows/release.yml` merges it straight away; that merge tags
-`vX.Y.Z`, publishes the GitHub Release, and the tag push makes `deploy.yml`
-publish the image as `:X.Y.Z`, `:X.Y` and `:X`. Only `feat`/`fix`/breaking
-commits cut a release — `chore`, `docs`, `ci` and the like do not.
+`.github/workflows/release.yml` queues it with `--auto`; once required checks
+pass it merges, the next run tags `vX.Y.Z` and publishes the GitHub Release,
+and the tag push makes `deploy.yml` publish the image as `:X.Y.Z`, `:X.Y` and
+`:X`. Only `feat`/`fix`/breaking commits cut a release — `chore`, `docs`, `ci`
+and the like do not.
 
-This needs the **`RELEASE_PLEASE_TOKEN`** repo secret (a fine-grained PAT with
-Contents and Pull requests read/write). GitHub never starts workflows from
-events `GITHUB_TOKEN` creates, so a `GITHUB_TOKEN` merge would never be
-tagged, released or deployed; if the secret expires, releases stop at the
-release PR — renew it rather than falling back to `GITHUB_TOKEN`.
+Releases use a GitHub App token, from the repo variable
+**`RELEASE_APP_CLIENT_ID`** and the secret **`RELEASE_APP_PRIVATE_KEY`**; the
+App needs Contents and Pull requests read/write. GitHub never starts workflows
+from events `GITHUB_TOKEN` creates, so its release PRs would get no CI and its
+tags no image promotion — don't fall back to it.
 
 One manual step, once: **install the
 [Renovate GitHub App](https://github.com/apps/renovate)** on this repository.

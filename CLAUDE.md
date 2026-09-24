@@ -55,13 +55,12 @@ only — `:main` and the `deploy` job both run only from `main`.
 - `pr-title` — the PR title must be a conventional commit; it becomes the squash commit release-please reads.
 - `ci.yml`'s `test` job ends with `pnpm audit --prod --audit-level high`: a high or critical advisory in a production dependency fails CI.
 
-**Releases merge themselves.** `release.yml` merges release-please's PR as
-soon as it is opened, using the `RELEASE_PLEASE_TOKEN` secret — not
-`GITHUB_TOKEN`, whose merge would start no workflow and so would never be
-tagged, released or deployed. The resulting `vX.Y.Z` tag re-runs
-`deploy.yml`, which adds `:X.Y.Z`, `:X.Y` and `:X` image tags; the `deploy`
-job skips tag runs. If that secret expires, releases silently stop at the
-release PR — renew it, don't swap in `GITHUB_TOKEN`.
+**Releases merge themselves.** `release.yml` queues release-please's PR with
+`--auto`; it merges once required checks pass. Its token is a GitHub App's
+(variable `RELEASE_APP_CLIENT_ID`, secret `RELEASE_APP_PRIVATE_KEY`; Contents
+and Pull requests read/write), not `GITHUB_TOKEN`, whose events start no
+workflow. The `vX.Y.Z` tag re-runs `deploy.yml`, which adds `:X.Y.Z`, `:X.Y`
+and `:X` image tags; the `deploy` job skips tag runs.
 
 ## Auth — the rules that break silently when broken
 
