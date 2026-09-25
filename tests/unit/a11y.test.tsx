@@ -532,6 +532,17 @@ describe('signed-in pages', () => {
     await ready()
     await expectNoViolations()
   })
+
+  it('tenant overview under platform access has no axe violations', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(TENANT, 'viewer', 'platform'), 'Tenant retrieved.')
+      )
+    )
+    renderAppAt('/tenants/acme')
+    await screen.findByText(/as platform staff/)
+    await expectNoViolations()
+  })
 })
 
 /**
@@ -728,6 +739,19 @@ describe('open overlays', () => {
     }
 
     await expectNoViolations()
+  })
+
+  it('has no violations with the staff user menu open', async () => {
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'admin' } })
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: /^Account menu for/ }))
+
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).getByRole('menuitem', { name: 'Platform' })).toBeInTheDocument()
+    await expectNoViolationsIn(menu)
   })
 
   it('has no violations with the theme menu open inside the mobile sheet', async () => {

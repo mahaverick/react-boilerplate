@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { LogOut, User as UserIcon } from 'lucide-react'
+import { LogOut, ShieldCheck, User as UserIcon } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -9,7 +9,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
-import { ROUTES } from '@/constants/routes'
+import { isStaff } from '@/constants/roles'
+import { PLATFORM_TENANT_SLUG, ROUTES } from '@/constants/routes'
 import { useLogout } from '@/queries/auth.queries'
 import type { User } from '@/types/api.types'
 
@@ -33,6 +34,7 @@ function initials(user: User | null): string {
 export function UserMenu({ user }: { user: User | null }) {
   const logout = useLogout()
   const name = displayName(user)
+  const staff = isStaff(user?.platformRole)
 
   return (
     <SidebarMenu>
@@ -57,6 +59,16 @@ export function UserMenu({ user }: { user: User | null }) {
               <UserIcon className="mr-2 size-4" />
               Profile
             </DropdownMenuItem>
+            {/* The platform tenant is left out of the switcher; this is its
+                door. Its Members and Invitations pages ARE staff management. */}
+            {staff && (
+              <DropdownMenuItem
+                render={<Link to="/tenants/$slug" params={{ slug: PLATFORM_TENANT_SLUG }} />}
+              >
+                <ShieldCheck className="mr-2 size-4" />
+                Platform
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"

@@ -269,4 +269,38 @@ describe('tenant detail', () => {
     })
     expect(detailCalls).toBe(detailBefore)
   })
+
+  it('tells staff they are viewing the tenant as platform staff, with a way back', async () => {
+    mockTenant('viewer', 'platform')
+    renderAppAt('/tenants/acme')
+
+    const text = await screen.findByText(/as platform staff/)
+    const banner = text.closest('[role="status"]')
+    if (!(banner instanceof HTMLElement)) throw new Error('the banner is not a status region')
+    expect(banner).toHaveTextContent('You’re viewing Acme Corp as platform staff (Viewer).')
+    expect(within(banner).getByRole('link', { name: 'Back to your tenants' })).toHaveAttribute(
+      'href',
+      '/tenants'
+    )
+    // The effective role is what gates: a staff viewer gets the read-only view.
+    expect(await screen.findByText('Anvils')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
+  })
+
+  // Membership wins, and a member is never told they are "staff" here.
+  it('shows no staff banner to a member', async () => {
+    mockTenant('owner')
+    renderAppAt('/tenants/acme')
+
+    await screen.findByRole('button', { name: 'Save changes' })
+    expect(screen.queryByText(/as platform staff/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the banner on every tab, not only the overview', async () => {
+    mockTenant('admin', 'platform')
+    renderAppAt('/tenants/acme/settings')
+
+    await screen.findByRole('button', { name: 'Save settings' })
+    expect(screen.getByText(/as platform staff \(Admin\)/)).toBeInTheDocument()
+  })
 })

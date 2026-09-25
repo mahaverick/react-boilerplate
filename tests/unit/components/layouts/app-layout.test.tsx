@@ -306,6 +306,31 @@ describe('AppLayout', () => {
     // collapsed sidebar on first paint rather than after a click.
     expect(document.querySelector('[data-state="collapsed"]')).not.toBeNull()
   })
+
+  it('offers staff a Platform item that opens the platform tenant', async () => {
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'viewer' } })
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Platform' })).toHaveAttribute(
+      'href',
+      '/tenants/platform'
+    )
+  })
+
+  it('offers no Platform item to someone who is not staff', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+
+    await screen.findByRole('menuitem', { name: 'Profile' })
+    expect(screen.queryByRole('menuitem', { name: 'Platform' })).not.toBeInTheDocument()
+  })
 })
 
 /**

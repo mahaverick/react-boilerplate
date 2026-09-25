@@ -38,3 +38,9 @@ export const ROUTES = {
 
 /** The API path for the Google OAuth start. Same-origin, so a plain anchor. */
 export const GOOGLE_OAUTH_PATH = `${API_PREFIX}/auth/google`
+
+/**
+ * The platform tenant's slug, seeded by express migration 0016 and reserved
+ * there. Staff management is that tenant's own Members and Invitations pages.
+ */
+export const PLATFORM_TENANT_SLUG = 'platform'

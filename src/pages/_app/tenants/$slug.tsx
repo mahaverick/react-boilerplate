@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouter } from '@tanstack/react-router'
 import { LoadError } from '@/components/features/load-error'
+import { PlatformAccessBanner } from '@/components/features/platform-access-banner'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -147,6 +148,10 @@ function TenantLayout() {
 
   return (
     <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
+      {/* Above the header, and in the LAYOUT, so every tab carries it. */}
+      {tenant.data.access === 'platform' && (
+        <PlatformAccessBanner tenantName={tenant.data.name} role={tenant.data.role} />
+      )}
       <header className="grid gap-1">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold lg:text-3xl">{tenant.data.name}</h1>
