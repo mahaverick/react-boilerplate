@@ -27,10 +27,10 @@ COPY . .
 
 # No build ARGs, deliberately. The API prefix is FIXED at /api/v1 — it lives in
 # src/constants/routes.ts as API_PREFIX, and nginx.conf's SSE location, the
-# EventSource URL and the Google OAuth anchor all hardcode it too. The
-# `--build-arg VITE_API_URL=/api/v2` this file used to accept moved the axios
-# base and nothing else, so it shipped an image whose notification stream and
-# Google sign-in were broken with nothing in any log to say so.
+# notification stream's `fetch` URL and the Google OAuth anchor all hardcode it
+# too. The `--build-arg VITE_API_URL=/api/v2` this file used to accept moved the
+# axios base and nothing else, so it shipped an image whose notification stream
+# and Google sign-in were broken with nothing in any log to say so.
 RUN pnpm build
 
 FROM nginx:alpine

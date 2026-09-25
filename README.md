@@ -57,7 +57,8 @@ Google OAuth anchor (`GOOGLE_OAUTH_PATH`).
 Two things outside JavaScript hardcode it as well, and they are why it is
 fixed rather than a knob: `nginx.conf` routes
 `location /api/v1/notifications/stream` — its SSE buffering and its
-token-stripping log format hang off that exact prefix — and `vite.config.ts`
+query-stripping log format (defence in depth now that the token travels in a
+header) hang off that exact prefix — and `vite.config.ts`
 proxies `/api` in development.
 
 Moving the API to another prefix therefore means changing `API_PREFIX`,
@@ -180,16 +181,12 @@ and a fourth is defence in depth. `nginx.conf` explains each at the line; in
 short:
 
 - `proxy_pass ${API_UPSTREAM};` carries **no trailing path**, and
-  `API_UPSTREAM` must not bring one. A path there makes nginx rewrite the URI,
-  and the refresh cookie is scoped `Path=/api/v1/auth` — token refresh then
-  stops working with nothing in any log.
-- `X-Forwarded-Proto` is forwarded for the OAuth session cookie, not the
-  refresh cookie. express's `COOKIE_SECURE` — on by default unless
-  `APP_ENV=local` — decides `Secure` on the refresh cookie, and no request
-  header changes that. express-session is different: it silently skips a
-  `Secure` cookie on a request it does not see as HTTPS, and behind TLS
-  termination it sees HTTPS only through this header with express's
-  `TRUST_PROXY` set.
+  `API_UPSTREAM` must not bring one, not even `/`. A path there makes nginx
+  rewrite the URI (`/api/` becomes that path), so express stops matching its
+  routes.
+- The TLS terminator's `X-Forwarded-Proto` is passed through to express. express
+  needs `TRUST_PROXY` set for express-session to see HTTPS and set the Secure
+  `oauth.sid` cookie.
 - The SSE location sets `proxy_buffering off` (plus HTTP/1.1, an empty
   `Connection` header and a long read timeout). nginx buffers by default, which
   stalls an event stream indefinitely.

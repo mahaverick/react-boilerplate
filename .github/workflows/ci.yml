@@ -144,23 +144,31 @@ jobs:
       - run: docker run --rm --add-host=api:127.0.0.1 react-boilerplate:ci nginx -t
       # The entrypoint renders nginx.conf with envsubst, limited by
       # NGINX_ENVSUBST_FILTER to API_UPSTREAM. The lowercase `host`, `scheme`,
-      # `uri` and `cache_control` collide with nginx's own variables: without
-      # the filter envsubst replaces them, and the checks below fail.
+      # `uri`, `cache_control`, `forwarded_proto` and `http_x_forwarded_proto`
+      # collide with nginx's own variables: without the filter envsubst
+      # replaces them, and the checks below fail.
       - name: Render with a custom API_UPSTREAM
         run: |
           docker run --rm --add-host=example:127.0.0.1 \
             -e API_UPSTREAM=http://example:1234 \
             -e host=clobbered -e scheme=clobbered -e uri=clobbered -e cache_control=clobbered \
+            -e forwarded_proto=clobbered -e http_x_forwarded_proto=clobbered \
             react-boilerplate:ci nginx -T > rendered.conf 2>&1 || { cat rendered.conf; exit 1; }
           fail=0
           expect() {
             n=$(grep -cF -- "$2" rendered.conf || true)
             if [ "$n" != "$1" ]; then echo "expected $1 of: $2 (found $n)"; fail=1; fi
           }
+          # Counts directive lines only, so a comment that names the directive
+          # does not count.
+          expect_directive() {
+            n=$(grep -cE -- "^\s*$2" rendered.conf || true)
+            if [ "$n" != "$1" ]; then echo "expected $1 directive(s): $2 (found $n)"; fail=1; fi
+          }
           expect 2 'proxy_pass http://example:1234;'
-          expect 2 'proxy_pass '
+          expect_directive 2 'proxy_pass '
           expect 2 "proxy_set_header Host \$host;"
-          expect 2 "proxy_set_header X-Forwarded-Proto \$scheme;"
+          expect 2 "proxy_set_header X-Forwarded-Proto \$forwarded_proto;"
           expect 1 "add_header Cache-Control \$cache_control always;"
           expect 1 "try_files \$uri /index.html;"
           expect 0 'clobbered'
