@@ -182,21 +182,25 @@ Four things in there are load-bearing and fail **silently** if edited away.
   `API_UPSTREAM` must not bring one. A path there makes nginx rewrite the URI,
   and the refresh cookie is scoped `Path=/api/v1/auth` — token refresh then
   stops working with nothing in any log.
-- `X-Forwarded-Proto` is forwarded, because express reads it for the `secure`
-  cookie flag and `TRUST_PROXY`.
+- `X-Forwarded-Proto` is forwarded for the OAuth session cookie, not the
+  refresh cookie. express's `COOKIE_SECURE` — on unless `APP_ENV=local` —
+  decides `Secure` on the refresh cookie, and no request header changes that.
+  express-session is different: it silently skips a `Secure` cookie on a
+  request it does not see as HTTPS, and behind TLS termination it sees HTTPS
+  only through this header with express's `TRUST_PROXY` set.
 - The SSE location sets `proxy_buffering off` (plus HTTP/1.1, an empty
   `Connection` header and a long read timeout). nginx buffers by default, which
   stalls an event stream indefinitely.
 - That same location logs with a `stream_nolog` format that records `$uri`
   instead of `$request`, and raises its `error_log` level to `crit`. The access
-  token rides in the query string there — `requireAuth` reads only a Bearer
-  header and `EventSource` cannot set one — so the default access format would
-  write a live token into the log on every connect and every reconnect, and the
-  **error** log writes it too: nginx puts the full request line and the full
-  upstream URL into every `connect() failed` message, which no log format can
-  change. Both were confirmed by curling the running container and reading its
-  logs. The cost is that `error`-level upstream detail for this one location is
-  dropped; the access log still records every request and its status.
+  token no longer rides in the query string there: the client sends an
+  `Authorization: Bearer` header, which never appears in a logged request line.
+  Both lines stay as defence in depth, so that a query parameter added to this
+  route later cannot quietly reach the access log, or the **error** log — nginx
+  puts the full request line and the full upstream URL into every
+  `connect() failed` message, which no log format can change. The cost is that
+  `error`-level upstream detail for this one location is dropped; the access log
+  still records every request and its status.
 
 Security headers (`Referrer-Policy`, `X-Content-Type-Options`,
 `X-Frame-Options`, `Cross-Origin-Opener-Policy`) are set once on the server

@@ -41,7 +41,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 # Where nginx proxies /api, read at container start: scheme://host:port, no
-# path (see nginx.conf's /api/ location). The default is the compose service.
+# path (see nginx.conf's /api/ location). The default assumes a compose service named `api`.
 ENV API_UPSTREAM=http://api:4040
 # envsubst substitutes only env names matching this, so nginx's own $host,
 # $scheme and the rest survive the render.

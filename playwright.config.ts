@@ -13,9 +13,11 @@ import { defineConfig, devices } from '@playwright/test'
  * proxy, and is SKIPPED unless `E2E_LIVE=1`. It exists for the three
  * behaviours in `docs/superpowers/decisions/2026-09-22-open-items.md` §1 that
  * no amount of unit testing substitutes for: a reload keeps you signed in, the
- * SSE stream reconnects after a real backend restart, and `X-Forwarded-Proto`
- * drives the `secure` cookie flag. Each needs a real server, a real cookie jar
- * and a real reload.
+ * SSE stream reconnects after a real backend restart, and the refresh cookie
+ * carries the flags the SPA assumes — its `Secure` flag set by express's
+ * `COOKIE_SECURE` (default from `APP_ENV`), which no `X-Forwarded-Proto`
+ * header changes. Each needs a real server, a real cookie jar and a real
+ * reload.
  *
  * Tests are `*.test.ts`, NOT Playwright's default `*.spec.ts`:
  * `check-file/filename-blocklist` rejects `.spec.` across this repo, so the
