@@ -5,16 +5,17 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
+import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { fail, ok, testInvitation, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, tenantDetail, testInvitation, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantInvitation } from '@/types/api.types'
 
@@ -52,7 +53,7 @@ const ME = 'u1'
 function mockTenant(myRole: MembershipRole, members: ReturnType<typeof member>[]) {
   server.use(
     http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: myRole }], 'Tenants retrieved.')),
-    http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+    http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, myRole), 'Tenant retrieved.')),
     http.get('/api/v1/tenants/acme/members', () => ok(members, 'Members retrieved.'))
   )
 }
@@ -192,10 +193,13 @@ describe('members tab permissions', () => {
     renderAppAt('/tenants/acme/members')
 
     await rowFor('Vic')
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Invite a member' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Pending invitations' })).not.toBeInTheDocument()
+    // Scoped to `main`: the sidebar's tenant switcher is a combobox too, on
+    // every authenticated page, and is not what this test is about.
+    const main = within(screen.getByRole('main'))
+    expect(main.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(main.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
+    expect(main.queryByRole('heading', { name: 'Invite a member' })).not.toBeInTheDocument()
+    expect(main.queryByRole('heading', { name: 'Pending invitations' })).not.toBeInTheDocument()
     // The list route is owner/admin only, so a viewer's page never asks it.
     expect(invitationCalls).toBe(0)
   })
@@ -258,55 +262,67 @@ describe('members tab permissions', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
-  it('renders an error, not an endless skeleton, when the role lookup fails', async () => {
+  // The role used to be read off the tenant LIST, so a failed list hid every
+  // control on this tab. It now comes from the tenant itself, and a list
+  // failure (the switcher's problem) must not take the tab's controls with it.
+  it('keeps the role-gated controls when the tenant LIST fails', async () => {
     server.use(
       http.get('/api/v1/tenants', () => fail('Something went wrong.', 500)),
-      http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
-      http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/members', () =>
+        ok([member(ME, 'owner', 'Me'), member('u3', 'viewer', 'Vic')], 'Members retrieved.')
+      )
     )
     renderAppAt('/tenants/acme/members')
 
-    // The failure mode this guards: `useMyRole` used to report a failed list
-    // as `{ role: undefined, isPending: false }`, and every tab read `!role`
-    // as "still loading" — so an API failure spun a skeleton for ever, with
-    // no error, no retry and no way out.
-    // Generous, deliberately: the router's queryClient is configured
-    // `retry: 1`, so a failed list is attempted a second time (after
-    // react-query's ~1s backoff) before the error state is reached at all.
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
-    expect(alert).toHaveTextContent(/could not load your role/i)
-    expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
-    expect(document.querySelector('[data-slot="skeleton"]')).toBeNull()
+    const vic = await rowFor('Vic')
+    expect(vic.getByRole('combobox', { name: 'Role for Vic X' })).toBeEnabled()
+    expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
   })
 
-  it('recovers when the retry succeeds', async () => {
-    let attempt = 0
+  /**
+   * The role's error state, and the only way to reach it now. A FIRST load
+   * that fails is the layout's error boundary, so the tab never mounts. A
+   * REFETCH that fails keeps the cached row, the layout keeps rendering, and
+   * the tab has to say what it no longer knows instead of spinning a skeleton.
+   */
+  it('renders an error with a working retry when the role cannot be refreshed', async () => {
+    let detailFails = false
+    let detailCalls = 0
     server.use(
-      // The first TWO attempts fail, not just one: the queryClient is
-      // `retry: 1`, so react-query itself makes the second attempt and the
-      // query would otherwise recover on its own without ever showing the
-      // error this test is about.
-      http.get('/api/v1/tenants', () => {
-        attempt += 1
-        return attempt <= 2
+      http.get('/api/v1/tenants/acme', () => {
+        detailCalls += 1
+        return detailFails
           ? fail('Something went wrong.', 500)
-          : ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+          : ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
       }),
-      http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/members', () =>
         ok([member(ME, 'owner', 'Me'), member('u4', 'owner', 'Otto')], 'Members retrieved.')
       )
     )
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/members')
+    await screen.findByRole('combobox', { name: 'Role for Me X' })
+
+    detailFails = true
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme'), exact: true })
+    })
 
     const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    expect(alert).toHaveTextContent(/could not load your role/i)
+    expect(document.querySelector('[data-slot="skeleton"]')).toBeNull()
+
+    const before = detailCalls
+    detailFails = false
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
 
-    // The retry control is not decoration: the table arrives after it.
-    // The retry control is not decoration: the table arrives after it, with
-    // the role-gated controls this owner is entitled to. (Otto's row
-    // deliberately has no select — an owner may not act on another owner.)
+    // A NEW detail request, and the controls it gates come back with it.
+    await waitFor(() => {
+      expect(detailCalls).toBeGreaterThan(before)
+    })
     expect(
       await screen.findByRole('combobox', { name: 'Role for Me X' }, { timeout: 5000 })
     ).toBeInTheDocument()
@@ -315,24 +331,18 @@ describe('members tab permissions', () => {
 
   /**
    * The retry has to reach THE QUERY THAT FAILED, and the only proof of that
-   * is a new request on the wire.
-   *
-   * What this replaces: a members failure was folded into the role branch, so
-   * the tab said "We could not load your role in this tenant" — about a query
-   * that had SUCCEEDED — under a Try again wired to `useMyRole`'s retry, which
-   * is `useTenants().refetch`. Measured before the fix: the members call count
-   * was 2 before the click and 2 after it, and the panel never left. Asserting
-   * that a handler fired would not have caught that; asserting the COUNT does.
+   * is a new request on the wire, counted. The members failure's retry must
+   * refetch the members and leave the tenant detail (the role's source)
+   * untouched.
    */
-  it('retries the MEMBER LIST, not the tenant list, when the members are what failed', async () => {
+  it('retries the MEMBER LIST, not the tenant detail, when the members are what failed', async () => {
     let memberCalls = 0
-    let tenantCalls = 0
+    let detailCalls = 0
     server.use(
-      http.get('/api/v1/tenants', () => {
-        tenantCalls += 1
-        return ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+      http.get('/api/v1/tenants/acme', () => {
+        detailCalls += 1
+        return ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
       }),
-      http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/members', () => {
         memberCalls += 1
         return fail('Something went wrong.', 500)
@@ -341,50 +351,56 @@ describe('members tab permissions', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/members')
 
-    // The message names the query that actually failed — and NOT the role,
-    // which loaded perfectly well and whose controls the tab could still gate
-    // on if the list arrived.
     const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
     expect(alert).toHaveTextContent(/could not load this tenant’s members/i)
     expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
 
-    // Two, not one: the queryClient is `retry: 1`, so react-query has already
-    // made the second attempt by the time the error state renders.
     await waitFor(() => {
       expect(memberCalls).toBe(2)
     })
     const membersBefore = memberCalls
-    const tenantsBefore = tenantCalls
+    const detailBefore = detailCalls
 
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
 
-    // THE PAIR is what proves it: a new members request went out, and the
-    // tenant list — the query the broken retry used to refetch instead — was
-    // not touched.
     await waitFor(() => {
       expect(memberCalls).toBeGreaterThan(membersBefore)
     })
-    expect(tenantCalls).toBe(tenantsBefore)
+    expect(detailCalls).toBe(detailBefore)
   })
 
   it('shows BOTH failures when both queries fail, each with its own retry', async () => {
+    let detailFails = false
     server.use(
-      http.get('/api/v1/tenants', () => fail('Something went wrong.', 500)),
-      http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme', () =>
+        detailFails
+          ? fail('Something went wrong.', 500)
+          : ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
+      ),
       http.get('/api/v1/tenants/acme/members', () => fail('Something went wrong.', 500))
     )
     renderAppAt('/tenants/acme/members')
+    await screen.findByRole('alert', {}, { timeout: 5000 })
+
+    detailFails = true
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme'), exact: true })
+    })
 
     // Stacked rather than chained: picking one branch would mean picking a
     // winner whose retry cannot fix the loser.
-    const alerts = await screen.findAllByRole('alert', {}, { timeout: 5000 })
-    expect(alerts).toHaveLength(2)
-    expect(alerts.map((alert) => alert.textContent).join(' ')).toMatch(
-      /could not load this tenant’s members/i
-    )
-    expect(alerts.map((alert) => alert.textContent).join(' ')).toMatch(
-      /could not load your role in this tenant/i
-    )
+    await waitFor(() => {
+      expect(screen.getAllByRole('alert')).toHaveLength(2)
+    })
+    const text = screen
+      .getAllByRole('alert')
+      .map((alert) => alert.textContent)
+      .join(' ')
+    expect(text).toMatch(/could not load this tenant’s members/i)
+    expect(text).toMatch(/could not load your role in this tenant/i)
+    for (const alert of screen.getAllByRole('alert')) {
+      expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    }
   })
 
   it('changes a role through the API and reports it', async () => {

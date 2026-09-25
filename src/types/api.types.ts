@@ -1,3 +1,4 @@
+import type { AuditAction } from '@/constants/audit-actions'
 import type { MembershipRole } from '@/constants/roles'
 
 export interface ApiSuccess<T> {
@@ -18,14 +19,22 @@ export interface ApiErrorBody {
   requestId: string
 }
 
-/** Exactly `toPublicUser` on the server: AuthenticatedUser plus createdAt. */
+/**
+ * `toPublicUser` on the server (AuthenticatedUser plus createdAt), plus the
+ * caller's role in the platform tenant. `platformRole` is `null` for everyone
+ * who is not staff; test it with `isStaff`, never by truthiness of a copy.
+ */
 export interface User {
   id: string
   email: string
   firstName: string | null
   lastName: string | null
   createdAt: string
+  platformRole: MembershipRole | null
 }
+
+/** How the caller reached a tenant: as one of its members, or as platform staff. */
+export type TenantAccess = 'member' | 'platform'
 
 export const ACCESS_TOKEN_EXPIRED = 'ACCESS_TOKEN_EXPIRED'
 
@@ -88,3 +97,58 @@ export const INVITATION_EMAIL_MISMATCH = 'invitation_email_mismatch'
 
 /** 403 on accept: the signed-in account is the invited one, but its email is unverified. */
 export const INVITATION_EMAIL_UNVERIFIED = 'invitation_email_unverified'
+
+/** One row of `GET /platform/tenants`: staff search across every tenant. */
+export interface PlatformTenantRow {
+  id: string
+  name: string
+  slug: string
+  lifecycleState: 'active' | 'suspended' | 'archived'
+  memberCount: number
+  createdAt: string
+}
+
+/** A keyset page of `GET /platform/tenants`. `nextCursor` is opaque; send it back as-is. */
+export interface PlatformTenantPage {
+  tenants: PlatformTenantRow[]
+  nextCursor: string | null
+}
+
+/** How an audit entry's actor reached the tenant. `system` is a script, with no actor. */
+export type AuditAccess = 'member' | 'platform' | 'system'
+
+/** The actor on an audit entry. Staff are shown with their email too. */
+export interface AuditActor {
+  id: string
+  name: string
+  email: string
+}
+
+export interface AuditTarget {
+  type: 'tenant' | 'membership' | 'invitation' | 'settings' | 'user'
+  id: string
+}
+
+/** One row of a tenant's `GET /tenants/:slug/audit-log`. */
+export interface AuditEntry {
+  id: string
+  /** ISO 8601, millisecond precision. */
+  occurredAt: string
+  action: AuditAction
+  access: AuditAccess
+  actor: AuditActor | null
+  target: AuditTarget | null
+  /** Per-action; never a full email address or a token. */
+  metadata: Record<string, unknown>
+}
+
+/** One row of `GET /platform/audit-log`: the same entry, plus where it happened. */
+export interface PlatformAuditEntry extends AuditEntry {
+  tenant: { id: string; name: string; slug: string }
+}
+
+/** A keyset page of either audit log. `nextCursor` is opaque. */
+export interface AuditPage<T extends AuditEntry> {
+  entries: T[]
+  nextCursor: string | null
+}

@@ -4,7 +4,10 @@ import {
   canActorModifyTarget,
   canChangeRoles,
   canManageTenant,
+  canViewActivity,
+  canViewPlatformActivity,
   isLastOwnerBlocked,
+  isStaff,
   MEMBERSHIP_ROLES,
 } from '@/constants/roles'
 
@@ -123,5 +126,37 @@ describe('isLastOwnerBlocked', () => {
   it('does not block acting on somebody else, or on a non-owner membership', () => {
     expect(isLastOwnerBlocked({ targetRole: 'owner', isSelf: false, ownerCount: 1 })).toBe(false)
     expect(isLastOwnerBlocked({ targetRole: 'admin', isSelf: true, ownerCount: 1 })).toBe(false)
+  })
+})
+
+describe('canViewActivity', () => {
+  // The audit-log route is `requireRole('owner', 'admin')` on the EFFECTIVE
+  // role, so a staff admin passes and a staff viewer does not.
+  it('allows owners and admins only', () => {
+    expect(MEMBERSHIP_ROLES.filter((role) => canViewActivity(role))).toEqual(['owner', 'admin'])
+  })
+})
+
+describe('isStaff', () => {
+  it('is true for any platform role', () => {
+    for (const role of MEMBERSHIP_ROLES) expect(isStaff(role)).toBe(true)
+  })
+
+  // `undefined` is a user object from a response that predates the field:
+  // not staff, rather than a crash or a guess.
+  it('is false for null and for a missing field', () => {
+    expect(isStaff(null)).toBe(false)
+    expect(isStaff(undefined)).toBe(false)
+  })
+})
+
+describe('canViewPlatformActivity', () => {
+  it('allows platform owners and admins only', () => {
+    expect(MEMBERSHIP_ROLES.filter((role) => canViewPlatformActivity(role))).toEqual([
+      'owner',
+      'admin',
+    ])
+    expect(canViewPlatformActivity(null)).toBe(false)
+    expect(canViewPlatformActivity(undefined)).toBe(false)
   })
 })

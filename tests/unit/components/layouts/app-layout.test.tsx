@@ -16,7 +16,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-import { fail, ok, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /** One tenant row, for the dynamic-route breadcrumb case below. */
@@ -127,7 +127,7 @@ describe('AppLayout', () => {
       http.get('/api/v1/tenants', () =>
         ok([{ tenant: ACME, role: 'viewer' }], 'Tenants retrieved.')
       ),
-      http.get('/api/v1/tenants/acme', () => ok(ACME, 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'viewer'), 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
     )
     renderAppAt('/tenants/acme/members')
@@ -173,10 +173,12 @@ describe('AppLayout', () => {
 
     const header = document.querySelector('[data-slot="sidebar-header"]')
     expect(header).not.toBeNull()
-    // axe's `region` rule passes over this layout only because all of the
-    // sidebar's content sits inside a button or a link. A bare
-    // `<p>Acme Corp</p>` here would be content in no landmark, and would
-    // fail it — so the switcher's label lives INSIDE its trigger button.
+    // The header's whole content sits inside `TenantSwitcher`'s own
+    // `<nav aria-label="Tenant">` landmark, which is why axe's `region` rule
+    // passes over it (see tenant-switcher.tsx). This asserts a narrower
+    // invariant on top of that: every text node here is ALSO inside a button
+    // or a link, so nothing renders as bare text sitting next to the widget
+    // it belongs to.
     // Every TEXT node, not every element: an ancestor `ul` legitimately
     // "contains" text that belongs to a button several levels down.
     const walker = document.createTreeWalker(header as Node, NodeFilter.SHOW_TEXT)
@@ -184,7 +186,7 @@ describe('AppLayout', () => {
       if (!node.textContent?.trim()) continue
       expect(node.parentElement?.closest('button,a')).not.toBeNull()
     }
-    expect(screen.getByRole('button', { name: /Switch tenant/ })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /Switch tenant/ })).toBeInTheDocument()
   })
 
   it('navigates to the profile from the account menu', async () => {
@@ -303,6 +305,57 @@ describe('AppLayout', () => {
     // The provider is controlled by the store, so a collapsed store means a
     // collapsed sidebar on first paint rather than after a click.
     expect(document.querySelector('[data-state="collapsed"]')).not.toBeNull()
+  })
+
+  it('offers staff a Platform item that opens the platform tenant', async () => {
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'viewer' } })
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Platform' })).toHaveAttribute(
+      'href',
+      '/tenants/platform'
+    )
+  })
+
+  it('offers no Platform item to someone who is not staff', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+
+    await screen.findByRole('menuitem', { name: 'Profile' })
+    expect(screen.queryByRole('menuitem', { name: 'Platform' })).not.toBeInTheDocument()
+  })
+
+  it('offers platform owners and admins a Platform activity item', async () => {
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'admin' } })
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Platform activity' })).toHaveAttribute(
+      'href',
+      '/platform/activity'
+    )
+  })
+
+  it('offers a staff viewer the Platform item but not Platform activity', async () => {
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'viewer' } })
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+
+    await screen.findByRole('menuitem', { name: 'Platform' })
+    expect(screen.queryByRole('menuitem', { name: 'Platform activity' })).not.toBeInTheDocument()
   })
 })
 

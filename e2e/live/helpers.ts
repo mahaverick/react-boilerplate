@@ -1,6 +1,7 @@
 import { execFile as execFileCallback, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { expect, type Page } from '@playwright/test'
+import type { MembershipRole } from '@/constants/roles'
 
 const execFile = promisify(execFileCallback)
 
@@ -154,14 +155,75 @@ export async function restartApi(): Promise<void> {
 }
 
 /**
- * Registers, verifies and signs in through the real UI, leaving the browser
- * with a real session and a real refresh cookie.
+ * Signs an EXISTING, verified account in through the real UI, leaving the
+ * browser with a real session and a real refresh cookie.
  */
-export async function signIn(page: Page, email: string): Promise<void> {
-  await createVerifiedUser(email)
+export async function logIn(page: Page, email: string): Promise<void> {
   await page.goto('/login')
   await page.getByLabel(/email/i).fill(email)
   await page.getByLabel(/password/i).fill(PASSWORD)
   await page.getByRole('button', { name: /sign in|log in/i }).click()
   await expect(page).not.toHaveURL(/login/, { timeout: 15_000 })
+}
+
+/** Registers, verifies and signs in through the real UI. */
+export async function signIn(page: Page, email: string): Promise<void> {
+  await createVerifiedUser(email)
+  await logIn(page, email)
+}
+
+/**
+ * An access token straight from the API, for requests the browser cannot
+ * make for us: the SPA's token lives in memory only (CLAUDE.md).
+ */
+export async function apiLogin(email: string): Promise<string> {
+  const response = await json(`${API_ORIGIN}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: PASSWORD }),
+  })
+  const token = (response.body as { data?: { accessToken?: string } } | null)?.data?.accessToken
+  if (response.status !== 200 || !token) {
+    throw new Error(`login failed: ${response.status} ${JSON.stringify(response.body)}`)
+  }
+  return token
+}
+
+/** One authenticated API call, answered with its status and parsed body. */
+export async function apiRequest(
+  token: string,
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  body?: unknown
+): Promise<{ status: number; body: unknown }> {
+  return json(`${API_ORIGIN}/api/v1${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+}
+
+/** Creates a tenant owned by the token's user. */
+export async function createTenant(
+  token: string,
+  tenant: { name: string; slug: string }
+): Promise<void> {
+  const created = await apiRequest(token, 'POST', '/tenants', tenant)
+  if (created.status !== 201 && created.status !== 200) {
+    throw new Error(`create tenant failed: ${created.status} ${JSON.stringify(created.body)}`)
+  }
+}
+
+/**
+ * Gives a verified account a platform role through express's own bootstrap
+ * script: the supported way in, and audited as `platform.member.granted`.
+ * Must run BEFORE that account signs in: the role arrives with the session.
+ */
+export async function grantPlatformRole(email: string, role: MembershipRole): Promise<void> {
+  await execFile('pnpm', ['platform:grant', email, role], { cwd: API_DIR, timeout: 60_000 })
+}
+
+/** A slug no earlier run has taken: lowercase, hyphenated, 3 to 100 characters. */
+export function freshSlug(): string {
+  return `e2e-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e4)}`
 }

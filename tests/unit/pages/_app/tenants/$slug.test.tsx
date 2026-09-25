@@ -14,8 +14,9 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { fail, ok, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+import type { TenantAccess } from '@/types/api.types'
 
 const TENANT = {
   id: 't1',
@@ -38,10 +39,12 @@ const SETTINGS = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
-function mockTenant(myRole: MembershipRole) {
+function mockTenant(myRole: MembershipRole, access: TenantAccess = 'member') {
   server.use(
     http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: myRole }], 'Tenants retrieved.')),
-    http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+    http.get('/api/v1/tenants/acme', () =>
+      ok(tenantDetail(TENANT, myRole, access), 'Tenant retrieved.')
+    ),
     http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.')),
     http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.'))
   )
@@ -96,7 +99,9 @@ describe('tenant detail', () => {
     server.use(
       http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants.')),
       http.get('/api/v1/tenants/acme', () =>
-        failNext ? fail('Something went wrong', 500) : ok(TENANT, 'Tenant retrieved.')
+        failNext
+          ? fail('Something went wrong', 500)
+          : ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
       ),
       http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.')),
       http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.'))
@@ -133,9 +138,18 @@ describe('tenant detail', () => {
 
     expect(await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })).toBeInTheDocument()
     const tabs = screen.getByRole('navigation', { name: 'Tenant sections' })
-    for (const label of ['Overview', 'Members', 'Settings']) {
+    for (const label of ['Overview', 'Members', 'Settings', 'Activity']) {
       expect(within(tabs).getByRole('link', { name: label })).toBeInTheDocument()
     }
+  })
+
+  it('offers the Activity tab to owners and admins only', async () => {
+    mockTenant('editor')
+    renderAppAt('/tenants/acme')
+
+    const tabs = await screen.findByRole('navigation', { name: 'Tenant sections' })
+    expect(within(tabs).getByRole('link', { name: 'Settings' })).toBeInTheDocument()
+    expect(within(tabs).queryByRole('link', { name: 'Activity' })).not.toBeInTheDocument()
   })
 
   it('navigates between tabs as real routes', async () => {
@@ -156,9 +170,8 @@ describe('tenant detail', () => {
     mockTenant('viewer')
     renderAppAt('/tenants/acme')
 
-    // Awaited: the role arrives with the tenant LIST, a beat after the tab
-    // itself renders, and until then the tab shows a skeleton rather than
-    // guessing read-only.
+    // Awaited: the role arrives with the tenant detail, and until then
+    // the tab shows a skeleton rather than guessing read-only.
     expect(await screen.findByText('Anvils')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
   })
@@ -225,24 +238,20 @@ describe('tenant detail', () => {
   })
 
   /**
-   * The settings twin of the members-tab retry test — same defect, same proof.
-   *
-   * `useMyRole`'s retry is `useTenants().refetch`, so folding a settings
-   * failure into the role branch gave the reader a Try again that refetched
-   * the TENANT LIST and issued no further settings request at all. Measured on
-   * the members tab before the fix: the failing query's count stayed at 2
-   * across the click while the tenant list's went from 1 to 2 — the retry
-   * reached a query, just never the broken one.
+   * The settings twin of the members-tab retry test. A settings failure has
+   * its own retry, which must reach the SETTINGS query and leave the tenant
+   * detail alone. The detail is the role's source, and refetching it instead
+   * was the defect the members-tab test was written for.
    */
-  it('retries the SETTINGS, not the tenant list, when the settings are what failed', async () => {
+  it('retries the SETTINGS, not the tenant detail, when the settings are what failed', async () => {
     let settingsCalls = 0
-    let tenantCalls = 0
+    let detailCalls = 0
     server.use(
-      http.get('/api/v1/tenants', () => {
-        tenantCalls += 1
-        return ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+      http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants.')),
+      http.get('/api/v1/tenants/acme', () => {
+        detailCalls += 1
+        return ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
       }),
-      http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/settings', () => {
         settingsCalls += 1
         return fail('Something went wrong.', 500)
@@ -253,23 +262,54 @@ describe('tenant detail', () => {
 
     const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
     expect(alert).toHaveTextContent(/could not load this tenant’s settings/i)
-    // NOT the role message: that query succeeded.
     expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
 
-    // Two: the queryClient is `retry: 1`, so the second attempt is already in
-    // before the error state renders.
+    // Two: the queryClient is `retry: 1`.
     await waitFor(() => {
       expect(settingsCalls).toBe(2)
     })
     const settingsBefore = settingsCalls
-    const tenantsBefore = tenantCalls
+    const detailBefore = detailCalls
 
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
 
-    // The pair: a NEW settings request, and the tenant list left alone.
     await waitFor(() => {
       expect(settingsCalls).toBeGreaterThan(settingsBefore)
     })
-    expect(tenantCalls).toBe(tenantsBefore)
+    expect(detailCalls).toBe(detailBefore)
+  })
+
+  it('tells staff they are viewing the tenant as platform staff, with a way back', async () => {
+    mockTenant('viewer', 'platform')
+    renderAppAt('/tenants/acme')
+
+    const text = await screen.findByText(/as platform staff/)
+    const banner = text.closest('[role="status"]')
+    if (!(banner instanceof HTMLElement)) throw new Error('the banner is not a status region')
+    expect(banner).toHaveTextContent('You’re viewing Acme Corp as platform staff (Viewer).')
+    expect(within(banner).getByRole('link', { name: 'Back to your tenants' })).toHaveAttribute(
+      'href',
+      '/tenants'
+    )
+    // The effective role is what gates: a staff viewer gets the read-only view.
+    expect(await screen.findByText('Anvils')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
+  })
+
+  // Membership wins, and a member is never told they are "staff" here.
+  it('shows no staff banner to a member', async () => {
+    mockTenant('owner')
+    renderAppAt('/tenants/acme')
+
+    await screen.findByRole('button', { name: 'Save changes' })
+    expect(screen.queryByText(/as platform staff/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the banner on every tab, not only the overview', async () => {
+    mockTenant('admin', 'platform')
+    renderAppAt('/tenants/acme/settings')
+
+    await screen.findByRole('button', { name: 'Save settings' })
+    expect(screen.getByText(/as platform staff \(Admin\)/)).toBeInTheDocument()
   })
 })

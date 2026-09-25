@@ -1,14 +1,22 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { MembershipRole } from '@/constants/roles'
+import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { codeFrom, statusFrom } from '@/lib/api-error'
+import { refreshProfile } from '@/queries/profile.queries'
 import type {
   InviteMemberInput,
   NewTenantInput,
   UpdateTenantInput,
   UpdateTenantSettingsInput,
 } from '@/schemas/tenant.schemas'
-import { INVITATION_CONFLICT, type ApiSuccess, type TenantInvitation } from '@/types/api.types'
+import { useAuthStore } from '@/states/auth.store'
+import {
+  INVITATION_CONFLICT,
+  type ApiSuccess,
+  type TenantAccess,
+  type TenantInvitation,
+} from '@/types/api.types'
 
 /**
  * A whole `tenants` row, as `TenantRepository` returns it — `db.select()`
@@ -27,6 +35,8 @@ export interface Tenant {
   deletedAt: string | null
   createdAt: string
   updatedAt: string
+  /** The one platform tenant. Never reachable through platform access. */
+  isPlatform: boolean
 }
 
 /** A `user_memberships` row. */
@@ -51,10 +61,22 @@ export interface TenantMember {
   user: { id: string; email: string; firstName: string | null; lastName: string | null }
 }
 
-/** One row of `GET /tenants` — the tenant plus the caller's role in it. */
+/** One row of `GET /tenants`: the tenant plus the caller's membership role in it. */
 export interface TenantWithRole {
   tenant: Tenant
   role: MembershipRole
+  /** The platform tenant's row, which the switcher leaves out and the user menu links instead. */
+  isPlatform: boolean
+}
+
+/**
+ * `GET /tenants/:slug`: the row plus the caller's EFFECTIVE role there and
+ * how they reached it. A member's role wins over any platform role, so
+ * `access: 'platform'` only ever appears in a tenant the caller is not in.
+ */
+export interface TenantDetail extends Tenant {
+  role: MembershipRole
+  access: TenantAccess
 }
 
 /** A `tenant_settings` row. Both text columns are NOT NULL with defaults. */
@@ -108,7 +130,7 @@ export function tenantQueryOptions(slug: string) {
     queryKey: tenantKeys.detail(slug),
     queryFn: async () => {
       try {
-        return unwrap(await apiClient.get<ApiSuccess<Tenant>>(`/tenants/${slug}`))
+        return unwrap(await apiClient.get<ApiSuccess<TenantDetail>>(`/tenants/${slug}`))
       } catch (error) {
         if (statusFrom(error) === 404) return null
         throw error
@@ -122,35 +144,37 @@ export function useTenant(slug: string) {
 }
 
 /**
- * The caller's own role in one tenant.
+ * The caller's EFFECTIVE role in one tenant, and how they reached it.
  *
- * Read off the LIST, because `GET /tenants/:slug` returns the tenant row
- * and nothing about the caller — `listForUser` is the only endpoint that
- * joins the membership.
+ * Read off `GET /tenants/:slug`, not the tenant list. Staff opening a tenant
+ * they don't belong to have no list row for it, and their role there is
+ * their platform role. The detail is the one response that carries the role
+ * the API will actually enforce. Every role-gated control reads this, so the
+ * existing predicates already disable the right things under platform access.
  *
- * THREE states, not two, and keeping them apart is the point. `isPending`
- * is "not known YET" and a screen renders a skeleton for it. `isError` is
- * "not knowable right now" and a screen must say so and offer a retry:
- * treating it as pending too — which this hook did until the failure was
- * spotted — leaves a skeleton spinning forever on a failed request, with
- * no error, no retry and no way out. A role of `undefined` after a
- * SUCCESSFUL load is the third: the list simply does not list this tenant,
- * which no gated screen can act on either.
+ * THREE states, not two, and keeping them apart is the point. `isPending` is
+ * "not known YET", and a screen renders a skeleton for it. `isError` is "not
+ * knowable right now", and a screen must say so and offer a retry. A first
+ * load that fails never gets here: `$slug.tsx`'s error boundary catches it.
+ * So this is a REFETCH that failed, with the cached row still in place. A
+ * role of `undefined` after a successful load is the third state: a 404,
+ * which the layout has already turned into its not-found panel.
  */
 export function useMyRole(slug: string): {
   role: MembershipRole | undefined
+  access: TenantAccess | undefined
   isPending: boolean
   isError: boolean
-  /** Refetch the list. Hand this to the error state's retry control. */
+  /** Refetch the tenant. Hand this to the error state's retry control. */
   retry: () => void
 } {
-  const tenants = useTenants()
-  const role = tenants.data?.find((entry) => entry.tenant.slug === slug)?.role
-  const { refetch } = tenants
+  const tenant = useTenant(slug)
+  const { refetch } = tenant
   return {
-    role,
-    isPending: tenants.isPending,
-    isError: tenants.isError,
+    role: tenant.data?.role,
+    access: tenant.data?.access,
+    isPending: tenant.isPending,
+    isError: tenant.isError,
     retry: () => void refetch(),
   }
 }
@@ -255,12 +279,19 @@ export function useUpdateMemberRole(slug: string) {
           role,
         })
       ),
-    onSuccess: async () => {
+    onSuccess: async (_data, { userId }) => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
-      // The caller may have changed their OWN role, and `useMyRole` reads
-      // the list — without this, the page would keep gating on the role the
-      // caller no longer holds.
+      // The caller may have changed their OWN role. `useMyRole` reads the
+      // detail, and the list's role badge reads the list: refresh both, and
+      // `exact` so the detail refresh does not refetch every tab's query.
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.detail(slug), exact: true })
       await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      // A SELF role change in the PLATFORM tenant changes the caller's own
+      // platformRole, which `useAuthStore` would otherwise keep stale until
+      // the next reload — every other tenant's roles don't touch it.
+      if (slug === PLATFORM_TENANT_SLUG && userId === useAuthStore.getState().user?.id) {
+        await refreshProfile(queryClient)
+      }
     },
   })
 }
@@ -270,11 +301,24 @@ export function useRemoveMember(slug: string) {
   return useMutation({
     mutationFn: async (userId: string) =>
       apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/members/${userId}`),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
-      // The caller may have removed THEMSELVES, in which case this tenant
-      // is no longer theirs at all and the list must drop it.
+    onSuccess: async (_data, userId) => {
+      const isSelf = userId === useAuthStore.getState().user?.id
+      if (isSelf) {
+        // The caller removed THEMSELVES: they no longer belong here at all,
+        // so drop the tenant's whole cache prefix — members, settings,
+        // invitations, the audit log — rather than refetch queries a former
+        // member has no access to.
+        queryClient.removeQueries({ queryKey: tenantKeys.detail(slug) })
+      } else {
+        await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
+      }
+      // Either way the list must drop or keep this tenant correctly.
       await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      // See useUpdateMemberRole: a SELF removal from the PLATFORM tenant
+      // changes the caller's own platformRole.
+      if (isSelf && slug === PLATFORM_TENANT_SLUG) {
+        await refreshProfile(queryClient)
+      }
     },
   })
 }

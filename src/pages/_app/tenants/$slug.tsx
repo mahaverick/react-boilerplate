@@ -1,22 +1,23 @@
 import { createFileRoute, Link, Outlet, useRouter } from '@tanstack/react-router'
 import { LoadError } from '@/components/features/load-error'
+import { PlatformAccessBanner } from '@/components/features/platform-access-banner'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ROLE_LABELS } from '@/constants/roles'
+import { canViewActivity, ROLE_LABELS } from '@/constants/roles'
 import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useMyRole, useTenant } from '@/queries/tenant.queries'
 
 /**
  * The tenant shell: header, tab bar, `<Outlet />`.
  *
- * A LAYOUT route, not a leaf. The three tabs are real child routes
- * (`$slug.index.tsx`, `$slug.members.tsx`, `$slug.settings.tsx`), so each one
- * is linkable, bookmarkable and survives a reload — which a `<Tabs>` widget
- * holding its own panel state would not.
+ * A LAYOUT route, not a leaf. The tabs are real child routes
+ * (`$slug.index.tsx`, `$slug.members.tsx`, `$slug.settings.tsx`,
+ * `$slug.activity.tsx`), so each one is linkable, bookmarkable and survives a
+ * reload — which a `<Tabs>` widget holding its own panel state would not.
  */
 export const Route = createFileRoute('/_app/tenants/$slug')({
-  // Warms the cache once for all three tabs. `tenantQueryOptions` resolves a
+  // Warms the cache once for every tab. `tenantQueryOptions` resolves a
   // 404 to `null` rather than rejecting, so this never throws and a tenant
   // that does not exist — or that this user is not a member of — reaches the
   // not-found panel below instead of the router's error boundary.
@@ -65,6 +66,9 @@ const TABS = [
   { to: '/tenants/$slug/settings', label: 'Settings', exact: false },
 ] as const
 
+/** Owner and admin only, the same bar as the audit-log route it reads. */
+const ACTIVITY_TAB = { to: '/tenants/$slug/activity', label: 'Activity', exact: false } as const
+
 /**
  * The tab bar.
  *
@@ -72,11 +76,15 @@ const TABS = [
  * A tab widget would own the panel state, and reloading on the Members tab
  * would put the reader back on Overview.
  */
-function TenantTabs({ slug }: { slug: string }) {
+function TenantTabs({ slug, showActivity }: { slug: string; showActivity: boolean }) {
+  // Annotated: `.map` over a union of two array types is not callable.
+  const tabs: readonly ((typeof TABS)[number] | typeof ACTIVITY_TAB)[] = showActivity
+    ? [...TABS, ACTIVITY_TAB]
+    : TABS
   return (
     <nav aria-label="Tenant sections" className="border-b">
       <ul className="flex gap-1 overflow-x-auto">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <li key={tab.to}>
             <Link
               to={tab.to}
@@ -147,6 +155,10 @@ function TenantLayout() {
 
   return (
     <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
+      {/* Above the header, and in the LAYOUT, so every tab carries it. */}
+      {tenant.data.access === 'platform' && (
+        <PlatformAccessBanner tenantName={tenant.data.name} role={tenant.data.role} />
+      )}
       <header className="grid gap-1">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold lg:text-3xl">{tenant.data.name}</h1>
@@ -154,7 +166,7 @@ function TenantLayout() {
         </div>
         <p className="text-sm text-muted-foreground">/{tenant.data.slug}</p>
       </header>
-      <TenantTabs slug={slug} />
+      <TenantTabs slug={slug} showActivity={canViewActivity(tenant.data.role)} />
       <Outlet />
     </div>
   )

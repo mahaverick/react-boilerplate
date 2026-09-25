@@ -1,0 +1,399 @@
+import { QueryClientProvider } from '@tanstack/react-query'
+import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { delay, http } from 'msw'
+import { beforeEach, describe, expect, it } from 'vitest'
+import type { MembershipRole } from '@/constants/roles'
+import { resetSessionForTests } from '@/http/session'
+import { queryClient } from '@/router'
+import { routeTree } from '@/routeTree.gen'
+import { useAuthStore } from '@/states/auth.store'
+import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
+import { server } from '@/tests/mocks/server'
+import type { AuditEntry, TenantAccess } from '@/types/api.types'
+
+const TENANT = {
+  id: 't1',
+  name: 'Acme Corp',
+  slug: 'acme',
+  description: null,
+  logo: null,
+  website: null,
+  lifecycleState: 'active',
+  deletedAt: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+const MEMBERS = [
+  {
+    membership: {
+      id: 'm-u1',
+      userId: 'u1',
+      tenantId: 't1',
+      role: 'owner',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    user: { id: 'u1', email: 'a@b.com', firstName: 'A', lastName: 'B' },
+  },
+]
+
+function entry(
+  fields: Pick<AuditEntry, 'id' | 'action' | 'metadata'> & Partial<AuditEntry>
+): AuditEntry {
+  return {
+    occurredAt: '2026-09-25T09:00:00.000Z',
+    access: 'member',
+    actor: { id: 'u1', name: 'A B', email: 'a@b.com' },
+    target: null,
+    ...fields,
+  }
+}
+
+const CREATED = entry({
+  id: 'a1',
+  action: 'tenant.created',
+  metadata: { name: 'Acme Corp', slug: 'acme' },
+})
+const STAFF_CHANGE = entry({
+  id: 'a2',
+  occurredAt: '2026-09-25T10:00:00.000Z',
+  action: 'tenant.settings_updated',
+  access: 'platform',
+  actor: { id: 's1', name: 'Sam Staff', email: 'sam@platform.test' },
+  target: { type: 'settings', id: 't1' },
+  metadata: { changed: ['timezone'] },
+})
+// The API falls back to the email AS the actor's name when no name is on
+// file, so a nameless actor's `name` equals their `email` — never `''`.
+const NAMELESS = entry({
+  id: 'a3',
+  occurredAt: '2026-09-25T11:00:00.000Z',
+  action: 'invitation.created',
+  actor: { id: 'u9', name: 'nameless@b.com', email: 'nameless@b.com' },
+  metadata: { role: 'viewer', emailDomain: 'b.com' },
+})
+
+function mockTenant(role: MembershipRole, access: TenantAccess = 'member') {
+  server.use(
+    http.get('/api/v1/tenants/acme', () =>
+      ok(tenantDetail(TENANT, role, access), 'Tenant retrieved.')
+    ),
+    http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
+  )
+}
+
+function page(entries: AuditEntry[], nextCursor: string | null = null) {
+  return ok({ entries, nextCursor }, 'Audit log retrieved.')
+}
+
+/** Every audit-log request, in order, answered by `respond`. */
+function mockLog(respond: (url: URL) => Response | Promise<Response>) {
+  const seen: URL[] = []
+  server.use(
+    http.get('/api/v1/tenants/acme/audit-log', ({ request }) => {
+      const url = new URL(request.url)
+      seen.push(url)
+      return respond(url)
+    })
+  )
+  return seen
+}
+
+function renderAppAt(path: string) {
+  const router = createRouter({
+    routeTree,
+    context: { queryClient },
+    history: createMemoryHistory({ initialEntries: [path] }),
+  })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router as never} />
+    </QueryClientProvider>
+  )
+}
+
+/** The activity row that says `text`. */
+function rowFor(text: RegExp) {
+  const item = screen.getByText(text).closest('li')
+  if (!item) throw new Error(`no activity row for ${String(text)}`)
+  return within(item)
+}
+
+describe('tenant activity tab', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  it('lists each entry as a sentence, and badges only what staff did', async () => {
+    mockTenant('owner')
+    mockLog(() => page([STAFF_CHANGE, CREATED]))
+    renderAppAt('/tenants/acme/activity')
+
+    expect(await screen.findByText('changed the settings (timezone)')).toBeInTheDocument()
+    const staff = rowFor(/changed the settings/)
+    expect(staff.getByText('Sam Staff')).toBeInTheDocument()
+    expect(staff.getByText('sam@platform.test')).toBeInTheDocument()
+    expect(staff.getByText('Staff')).toBeInTheDocument()
+
+    const created = rowFor(/created the tenant/)
+    expect(created.getByText('A B')).toBeInTheDocument()
+    expect(created.queryByText('Staff')).not.toBeInTheDocument()
+    // The machine-readable instant is on the element, whatever the words say.
+    expect(document.querySelector('time[datetime="2026-09-25T09:00:00.000Z"]')).not.toBeNull()
+  })
+
+  // The route is `requireRole('owner', 'admin')` on the EFFECTIVE role.
+  it('shows a nameless actor’s email once, not twice', async () => {
+    mockTenant('owner')
+    mockLog(() => page([NAMELESS]))
+    renderAppAt('/tenants/acme/activity')
+
+    await screen.findByText('invited someone at b.com as Viewer')
+    const row = rowFor(/invited someone at/)
+    expect(row.getAllByText('nameless@b.com')).toHaveLength(1)
+  })
+
+  it('lets a staff admin read it under platform access', async () => {
+    mockTenant('admin', 'platform')
+    mockLog(() => page([CREATED]))
+    renderAppAt('/tenants/acme/activity')
+
+    expect(await screen.findByText('created the tenant “Acme Corp”')).toBeInTheDocument()
+  })
+
+  it('tells an editor it is for owners and admins, and never asks the API', async () => {
+    mockTenant('editor')
+    const seen = mockLog(() => page([]))
+    renderAppAt('/tenants/acme/activity')
+
+    expect(
+      await screen.findByText('Only this tenant’s owners and admins can see its activity.')
+    ).toBeInTheDocument()
+    expect(seen).toHaveLength(0)
+  })
+
+  it('shows a skeleton while the first page is in flight', async () => {
+    mockTenant('owner')
+    const seen = mockLog(async () => {
+      await delay('infinite')
+      return page([])
+    })
+    renderAppAt('/tenants/acme/activity')
+
+    // The log's own request is out (so the role skeleton is gone), and
+    // nothing has answered it.
+    await waitFor(() => {
+      expect(seen).toHaveLength(1)
+    })
+    expect(document.querySelector('[data-slot="skeleton"]')).not.toBeNull()
+    expect(screen.queryByText('Nothing has happened in this tenant yet.')).not.toBeInTheDocument()
+  })
+
+  it('says nothing has happened yet when the log is empty', async () => {
+    mockTenant('owner')
+    mockLog(() => page([]))
+    renderAppAt('/tenants/acme/activity')
+
+    expect(await screen.findByText('Nothing has happened in this tenant yet.')).toBeInTheDocument()
+  })
+
+  it('states the failure, not an empty log, and retries the log', async () => {
+    mockTenant('owner')
+    const seen = mockLog(() => fail('Something went wrong.', 500))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/activity')
+
+    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    expect(alert).toHaveTextContent(/could not load the activity/i)
+    expect(screen.queryByText('Nothing has happened in this tenant yet.')).not.toBeInTheDocument()
+
+    const before = seen.length
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => {
+      expect(seen.length).toBeGreaterThan(before)
+    })
+  })
+
+  it('filters by action, on the server', async () => {
+    mockTenant('owner')
+    const seen = mockLog((url) =>
+      page(
+        url.searchParams.get('action') === 'tenant.settings_updated'
+          ? [STAFF_CHANGE]
+          : [STAFF_CHANGE, CREATED]
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText(/created the tenant/)
+
+    await user.click(screen.getByRole('combobox', { name: 'Filter by action' }))
+    await user.click(await screen.findByRole('option', { name: 'Settings changed' }))
+
+    await waitFor(() => {
+      expect(seen.at(-1)?.searchParams.get('action')).toBe('tenant.settings_updated')
+    })
+    expect(await screen.findByText(/changed the settings/)).toBeInTheDocument()
+    expect(screen.queryByText(/created the tenant/)).not.toBeInTheDocument()
+  })
+
+  it('says nothing matches, rather than nothing happened, under a filter', async () => {
+    mockTenant('owner')
+    mockLog((url) => page(url.searchParams.has('action') ? [] : [CREATED]))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText(/created the tenant/)
+
+    await user.click(screen.getByRole('combobox', { name: 'Filter by action' }))
+    await user.click(await screen.findByRole('option', { name: 'Member removed' }))
+
+    expect(await screen.findByText('Nothing matches these filters.')).toBeInTheDocument()
+  })
+
+  it('filters to staff by access, not by a user id', async () => {
+    mockTenant('owner')
+    const seen = mockLog(() => page([STAFF_CHANGE]))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText(/changed the settings/)
+
+    await user.click(screen.getByRole('combobox', { name: 'Filter by who acted' }))
+    await user.click(await screen.findByRole('option', { name: 'Staff' }))
+
+    await waitFor(() => {
+      expect(seen.at(-1)?.searchParams.get('access')).toBe('platform')
+    })
+    expect(seen.at(-1)?.searchParams.has('actorUserId')).toBe(false)
+  })
+
+  it('filters by one of this tenant’s members', async () => {
+    mockTenant('owner')
+    const seen = mockLog(() => page([CREATED]))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText(/created the tenant/)
+
+    await user.click(screen.getByRole('combobox', { name: 'Filter by who acted' }))
+    await user.click(await screen.findByRole('option', { name: 'A B' }))
+
+    await waitFor(() => {
+      expect(seen.at(-1)?.searchParams.get('actorUserId')).toBe('u1')
+    })
+    expect(seen.at(-1)?.searchParams.has('access')).toBe(false)
+  })
+
+  it('loads the next page from a Load more button', async () => {
+    mockTenant('owner')
+    const seen = mockLog((url) =>
+      url.searchParams.get('cursor') === 'c2' ? page([CREATED]) : page([STAFF_CHANGE], 'c2')
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText(/changed the settings/)
+    expect(screen.queryByText(/created the tenant/)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Load more activity' }))
+
+    expect(await screen.findByText(/created the tenant/)).toBeInTheDocument()
+    expect(seen.at(-1)?.searchParams.get('cursor')).toBe('c2')
+    expect(screen.queryByRole('button', { name: 'Load more activity' })).not.toBeInTheDocument()
+  })
+
+  // A failed NEXT page keeps what is already listed, and says so.
+  it('keeps the loaded page when the next one fails, and says the list may be incomplete', async () => {
+    mockTenant('owner')
+    mockLog((url) =>
+      url.searchParams.get('cursor') === 'c2'
+        ? fail('Something went wrong.', 500)
+        : page([STAFF_CHANGE], 'c2')
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText(/changed the settings/)
+
+    await user.click(screen.getByRole('button', { name: 'Load more activity' }))
+
+    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    expect(alert).toHaveTextContent(/could not load more activity/i)
+    expect(screen.getByText(/changed the settings/)).toBeInTheDocument()
+  })
+
+  // A REFRESH failure is a different event from a "Load more" failure: no new
+  // page was being appended, so what's on screen is not necessarily complete,
+  // but nothing said it was incomplete either.
+  it('shows a refresh failure separately from a "Load more" failure, and retries with a fresh fetch', async () => {
+    mockTenant('owner')
+    let attempt = 0
+    const seen = mockLog(() => {
+      attempt += 1
+      return attempt === 1 ? page([STAFF_CHANGE]) : fail('Something went wrong.', 500)
+    })
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText(/changed the settings/)
+
+    // Leaving the tab and returning unmounts and remounts the log's own
+    // query. `staleTime: 0` means the remount refetches on its own — a
+    // REFRESH, never a "Load more" (there is no next page here to load).
+    await user.click(screen.getByRole('link', { name: 'Overview' }))
+    await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
+    await user.click(screen.getByRole('link', { name: 'Activity' }))
+
+    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    expect(alert).toHaveTextContent(/could not refresh the activity/i)
+    expect(screen.queryByText(/could not load more activity/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/changed the settings/)).toBeInTheDocument()
+
+    const before = seen.length
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => {
+      expect(seen.length).toBeGreaterThan(before)
+    })
+  })
+
+  // The route's role check already passed on cached data; a fresh 403 means
+  // the effective role changed server-side since then.
+  it('says the tenant’s activity is owners-and-admins only when the log answers 403, and does not retry', async () => {
+    mockTenant('owner')
+    const seen = mockLog(() => fail('Forbidden', 403))
+    renderAppAt('/tenants/acme/activity')
+
+    expect(
+      await screen.findByText('Only this tenant’s owners and admins can see its activity.')
+    ).toBeInTheDocument()
+    expect(seen).toHaveLength(1)
+  })
+
+  // A 403 here means the cached role is stale, so the tab gate (`useMyRole`,
+  // reading the same `tenantKeys.detail` key) must refetch too — otherwise
+  // the tab keeps rendering on the role that no longer holds.
+  it('invalidates the tenant detail when the log answers 403, so the tab gate refreshes', async () => {
+    let detailCalls = 0
+    server.use(
+      http.get('/api/v1/tenants/acme', () => {
+        detailCalls += 1
+        return ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
+      }),
+      http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
+    )
+    mockLog(() => fail('Forbidden', 403))
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText('Only this tenant’s owners and admins can see its activity.')
+
+    // The initial load is one request; a second means the effect fired,
+    // whether or not it landed before this text appeared.
+    await waitFor(() => {
+      expect(detailCalls).toBeGreaterThan(1)
+    })
+  })
+})

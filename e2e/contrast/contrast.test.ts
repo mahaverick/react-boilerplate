@@ -69,6 +69,11 @@ const SURFACES = [
     url: '/e2e/harness/?path=/tenants/acme/settings',
     heading: 'Settings',
   },
+  {
+    name: 'tenant activity',
+    url: '/e2e/harness/?path=/tenants/acme/activity',
+    heading: 'Activity',
+  },
 ] as const
 
 const THEMES = ['light', 'dark'] as const
@@ -198,19 +203,25 @@ const POPUPS = [
     name: 'notification bell menu',
     path: '/dashboard',
     trigger: /^Notifications,/,
+    triggerRole: 'button',
     role: 'menu',
+    itemRole: 'menuitem',
   },
   {
-    name: 'tenant switcher menu',
+    name: 'tenant switcher',
     path: '/dashboard',
     trigger: /^Switch tenant/,
-    role: 'menu',
+    triggerRole: 'combobox',
+    role: 'dialog',
+    itemRole: 'option',
   },
   {
     name: 'user menu',
     path: '/dashboard',
     trigger: /^Account menu for/,
+    triggerRole: 'button',
     role: 'menu',
+    itemRole: 'menuitem',
   },
 ] as const
 
@@ -221,13 +232,13 @@ for (const theme of THEMES) {
       await page.goto(`/e2e/harness/?path=${popup.path}`, { waitUntil: 'networkidle' })
       await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible()
 
-      await page.getByRole('button', { name: popup.trigger }).click()
+      await page.getByRole(popup.triggerRole, { name: popup.trigger }).click()
       const menu = page.getByRole(popup.role)
       await expect(menu).toBeVisible()
       // A menu that opened EMPTY would grade clean while saying nothing about
       // the items this test exists for — the same guard the a11y gate states
       // for its own menu block.
-      await expect(menu.getByRole('menuitem').first()).toBeVisible()
+      await expect(menu.getByRole(popup.itemRole).first()).toBeVisible()
 
       await page.evaluate(() => document.fonts.ready)
       await page.waitForTimeout(300)
@@ -290,6 +301,41 @@ test.describe('popups that are not menus', () => {
         report('remove-member confirm', theme, result),
         report('remove-member confirm', theme, result)
       ).toBe('')
+    })
+  }
+})
+
+/**
+ * The staff surfaces: the banner a staff member sees on a tenant they reached
+ * through platform access, and the Staff badge on an Activity row. Each is
+ * asserted present, because a page without it grades clean and proves nothing
+ * about it.
+ */
+test.describe('staff surfaces', () => {
+  for (const theme of THEMES) {
+    test(`the platform access banner meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      const result = await contrastOf(
+        page,
+        '/e2e/harness/?path=/tenants/acme&access=platform',
+        theme,
+        'Acme Corp'
+      )
+      await expect(
+        page.getByRole('status').filter({ hasText: 'as platform staff (Viewer)' })
+      ).toBeVisible()
+      expect(report('staff banner', theme, result), report('staff banner', theme, result)).toBe('')
+    })
+
+    test(`the Activity Staff badge meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      const result = await contrastOf(
+        page,
+        '/e2e/harness/?path=/tenants/acme/activity',
+        theme,
+        'Activity'
+      )
+      const row = page.getByRole('listitem').filter({ hasText: 'Sam Staff' })
+      await expect(row.getByText('Staff', { exact: true })).toBeVisible()
+      expect(report('staff badge', theme, result), report('staff badge', theme, result)).toBe('')
     })
   }
 })

@@ -33,8 +33,16 @@ export const ROUTES = {
   tenant: (slug: string) => `/tenants/${slug}`,
   tenantMembers: (slug: string) => `/tenants/${slug}/members`,
   tenantSettings: (slug: string) => `/tenants/${slug}/settings`,
+  tenantActivity: (slug: string) => `/tenants/${slug}/activity`,
+  platformActivity: '/platform/activity',
   invitationAccept: '/invitations/accept',
 } as const
 
 /** The API path for the Google OAuth start. Same-origin, so a plain anchor. */
 export const GOOGLE_OAUTH_PATH = `${API_PREFIX}/auth/google`
+
+/**
+ * The platform tenant's slug, seeded by express migration 0016 and reserved
+ * there. Staff management is that tenant's own Members and Invitations pages.
+ */
+export const PLATFORM_TENANT_SLUG = 'platform'

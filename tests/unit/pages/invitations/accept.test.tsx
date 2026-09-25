@@ -16,6 +16,7 @@ import { useAuthStore } from '@/states/auth.store'
 import {
   fail,
   ok,
+  tenantDetail,
   TEST_INVITATION_TOKEN,
   testInvitationPreview,
   testUser,
@@ -92,7 +93,7 @@ function mockTenantRoute() {
     http.get('/api/v1/tenants', () =>
       ok([{ tenant: TENANT, role: 'editor' }], 'Tenants retrieved.')
     ),
-    http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.'))
+    http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'editor'), 'Tenant retrieved.'))
   )
 }
 

@@ -10,6 +10,10 @@
  * `?state=loaded|empty|error|loading|soleowner` picks what the members
  * endpoint answers, which is how the e2e suite reaches the states that only
  * exist for one shape of data.
+ *
+ * `?access=platform` signs the harness user in as a staff viewer who is not a
+ * member of `acme`, so the tenant pages render under the platform access
+ * banner.
  */
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
@@ -112,6 +116,7 @@ const testUser = {
   firstName: 'A',
   lastName: 'B',
   createdAt: '2026-01-01T00:00:00.000Z',
+  platformRole: null as 'viewer' | null,
 }
 
 function ok<T>(data: T, message = 'OK', statusCode = 200) {
@@ -121,6 +126,8 @@ function ok<T>(data: T, message = 'OK', statusCode = 200) {
 // `?state=` picks which variant to render, so the empty and error states get
 // screenshots too rather than only the happy path.
 const state = new URLSearchParams(location.search).get('state') ?? 'loaded'
+const asStaff = new URLSearchParams(location.search).get('access') === 'platform'
+if (asStaff) testUser.platformRole = 'viewer'
 
 const SOLE_OWNER = [MEMBERS[0]]
 
@@ -146,13 +153,50 @@ const membersHandler =
           : http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
 
 const worker = setupWorker(
-  http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')),
-  http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+  http.get('/api/v1/tenants', () =>
+    ok(asStaff ? [] : [{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+  ),
+  http.get('/api/v1/tenants/acme', () =>
+    ok(
+      asStaff
+        ? { ...TENANT, isPlatform: false, role: 'viewer', access: 'platform' }
+        : { ...TENANT, isPlatform: false, role: 'owner', access: 'member' },
+      'Tenant retrieved.'
+    )
+  ),
   membersHandler,
   // The members page lists pending invitations for an owner. Unmocked, this
   // would reach the real API, 401, and sign the harness user out.
   http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
   http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
+  http.get('/api/v1/tenants/acme/audit-log', () =>
+    ok(
+      {
+        entries: [
+          {
+            id: 'a2',
+            occurredAt: '2026-09-25T10:00:00.000Z',
+            action: 'tenant.settings_updated',
+            access: 'platform',
+            actor: { id: 's1', name: 'Sam Staff', email: 'sam@platform.test' },
+            target: { type: 'settings', id: 't1' },
+            metadata: { changed: ['timezone'] },
+          },
+          {
+            id: 'a1',
+            occurredAt: '2026-09-25T09:00:00.000Z',
+            action: 'tenant.created',
+            access: 'member',
+            actor: { id: 'u1', name: 'A B', email: 'a@b.com' },
+            target: { type: 'tenant', id: 't1' },
+            metadata: { name: 'Acme Corp', slug: 'acme' },
+          },
+        ],
+        nextCursor: 'c2',
+      },
+      'Audit log retrieved.'
+    )
+  ),
   http.get('/api/v1/notifications', () =>
     ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
   ),

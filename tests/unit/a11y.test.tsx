@@ -14,8 +14,9 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-import { fail, ok, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, tenantDetail, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+import type { AuditEntry, PlatformAuditEntry } from '@/types/api.types'
 
 /**
  * THE ACCESSIBILITY GATE. Spec section 9's criteria, made enforceable.
@@ -151,6 +152,27 @@ const INVITATIONS = [
     createdAt: '2026-09-24T00:00:00.000Z',
   },
 ]
+/** One member action and one staff action, so the Staff badge is graded too. */
+const AUDIT_ENTRIES: AuditEntry[] = [
+  {
+    id: 'a2',
+    occurredAt: '2026-09-25T10:00:00.000Z',
+    action: 'tenant.settings_updated',
+    access: 'platform',
+    actor: { id: 's1', name: 'Sam Staff', email: 'sam@platform.test' },
+    target: { type: 'settings', id: 't1' },
+    metadata: { changed: ['timezone'] },
+  },
+  {
+    id: 'a1',
+    occurredAt: '2026-09-25T09:00:00.000Z',
+    action: 'tenant.created',
+    access: 'member',
+    actor: { id: 'u1', name: 'A B', email: 'a@b.com' },
+    target: { type: 'tenant', id: 't1' },
+    metadata: { name: 'Acme Corp', slug: 'acme' },
+  },
+]
 const PREFERENCES = [
   { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
   { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
@@ -168,10 +190,13 @@ function mockSignedInData() {
     http.get('/api/v1/tenants', () =>
       ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
     ),
-    http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+    http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')),
     http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.')),
     http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
     http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
+    http.get('/api/v1/tenants/acme/audit-log', () =>
+      ok({ entries: AUDIT_ENTRIES, nextCursor: 'c2' }, 'Audit log retrieved.')
+    ),
     http.get('/api/v1/notifications', () =>
       ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
     ),
@@ -242,13 +267,56 @@ const AXE_OPTIONS: axeCore.RunOptions = {
  *   current state". Base UI marks the background `aria-hidden` and inert while a
  *   modal is open; whether its contents are still tabbable is a layout question
  *   jsdom cannot answer.
+ * - `aria-valid-attr-value`: "Unable to determine if aria-controls referenced ID
+ *   exists on the page while using aria-haspopup" (axe's own `controlsWithinPopup`
+ *   check). The combobox trigger and its input both carry `aria-controls`
+ *   alongside `aria-haspopup`, and both referenced IDs resolving is asserted
+ *   in code by the "tenant switcher open" test below, not just claimed here.
+ *   This id is NOT accepted outright: `isOnlyControlsWithinPopup`, below,
+ *   still fails a node whose `aria-valid-attr-value` finding is a genuinely
+ *   dangling reference (`messageKey: 'noId'`) rather than this one.
  */
 const KNOWN_INCOMPLETE = new Set([
   'page-has-heading-one',
   'landmark-one-main',
   'heading-order',
   'aria-hidden-focus',
+  'aria-valid-attr-value',
 ])
+
+/**
+ * `aria-valid-attr-value` is pinned above for exactly ONE reason
+ * (`controlsWithinPopup`), but axe files the SAME rule id for a genuinely
+ * dangling `aria-describedby`/`aria-labelledby` (`messageKey: 'noId'`) or an
+ * invalid enumerated value like `aria-current="bogus"`. Accepting the id
+ * outright would swallow those too, so this checks every `any`/`all`/`none`
+ * check on every flagged node and accepts the result only when EVERY one of
+ * them is `controlsWithinPopup` — a node mixing that with a real dangling
+ * reference still fails.
+ */
+function isOnlyControlsWithinPopup(result: axeCore.IncompleteResult): boolean {
+  return result.nodes.every((node) => {
+    const keys = [...node.any, ...node.all, ...node.none].map(
+      (check) => (check.data as { messageKey?: unknown } | null | undefined)?.messageKey
+    )
+    return keys.length > 0 && keys.every((key) => key === 'controlsWithinPopup')
+  })
+}
+
+/**
+ * `results.incomplete`, minus the ones `KNOWN_INCOMPLETE` explains — with
+ * `aria-valid-attr-value` narrowed by `isOnlyControlsWithinPopup` rather than
+ * accepted by id alone, so a real dangling ARIA reference still surfaces here.
+ */
+function unexpectedIncomplete(results: axeCore.AxeResults): string[] {
+  return results.incomplete
+    .filter((result) => {
+      if (!KNOWN_INCOMPLETE.has(result.id)) return true
+      if (result.id === 'aria-valid-attr-value') return !isOnlyControlsWithinPopup(result)
+      return false
+    })
+    .map((result) => result.id)
+}
 
 /**
  * Asserts the WHOLE document is clean — portals, landmarks and page-level rules
@@ -275,8 +343,7 @@ async function expectNoViolations() {
     expect.arrayContaining(['html-has-lang', 'document-title', 'bypass'])
   )
 
-  const unexpected = results.incomplete.map((r) => r.id).filter((id) => !KNOWN_INCOMPLETE.has(id))
-  expect(unexpected).toEqual([])
+  expect(unexpectedIncomplete(results)).toEqual([])
 
   // `page-has-heading-one` and `landmark-one-main`, by hand.
   expect(document.querySelectorAll('main')).toHaveLength(1)
@@ -315,8 +382,7 @@ async function expectNoViolationsIn(element: HTMLElement) {
   // hands it an element that is not the popup.
   expect(results.passes.map((result) => result.id)).toContain('aria-required-children')
 
-  const unexpected = results.incomplete.map((r) => r.id).filter((id) => !KNOWN_INCOMPLETE.has(id))
-  expect(unexpected).toEqual([])
+  expect(unexpectedIncomplete(results)).toEqual([])
 }
 
 /**
@@ -373,6 +439,27 @@ describe('the axe gate itself', () => {
       // proves the gate if the rule it was planted for is the one that fired.
       expect(results.violations.map((violation) => violation.id)).toContain('region')
       expect(results).not.toHaveNoViolations()
+    } finally {
+      stray.remove()
+    }
+  })
+
+  // Same proof as above, for the narrower claim `unexpectedIncomplete` makes:
+  // `aria-valid-attr-value` is accepted ONLY for `controlsWithinPopup`, so a
+  // genuinely dangling reference — the `noId` messageKey, not that one — must
+  // still come back as unexpected. If this ever stops failing, the narrowing
+  // has widened back to accepting the whole rule id and every combobox on
+  // every page could grow a broken `aria-describedby` unnoticed.
+  it('does not swallow a dangling aria-describedby under aria-valid-attr-value', async () => {
+    const stray = document.createElement('button')
+    stray.setAttribute('aria-describedby', 'does-not-exist')
+    stray.textContent = 'Stray'
+    document.body.append(stray)
+    try {
+      const results = await axeCore.run(document, {
+        runOnly: { type: 'rule', values: ['aria-valid-attr-value'] },
+      })
+      expect(unexpectedIncomplete(results)).toContain('aria-valid-attr-value')
     } finally {
       stray.remove()
     }
@@ -461,6 +548,11 @@ describe('signed-in pages', () => {
       () => screen.findByRole('button', { name: 'Save settings' }),
     ],
     [
+      'tenant activity',
+      '/tenants/acme/activity',
+      () => screen.findByText('changed the settings (timezone)'),
+    ],
+    [
       'invitation accept',
       `/invitations/accept?token=${TEST_INVITATION_TOKEN}`,
       () => screen.findByRole('button', { name: 'Accept invitation' }),
@@ -468,6 +560,34 @@ describe('signed-in pages', () => {
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
+    await expectNoViolations()
+  })
+
+  it('tenant overview under platform access has no axe violations', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(TENANT, 'viewer', 'platform'), 'Tenant retrieved.')
+      )
+    )
+    renderAppAt('/tenants/acme')
+    await screen.findByText(/as platform staff/)
+    await expectNoViolations()
+  })
+
+  it('platform activity has no axe violations', async () => {
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'admin' } })
+    const entries: PlatformAuditEntry[] = AUDIT_ENTRIES.map((entry) => ({
+      ...entry,
+      tenant: { id: 't1', name: 'Acme Corp', slug: 'acme' },
+    }))
+    server.use(
+      http.get('/api/v1/platform/audit-log', () =>
+        ok({ entries, nextCursor: null }, 'Audit log retrieved.')
+      ),
+      http.get('/api/v1/tenants/platform/members', () => ok(MEMBERS, 'Members retrieved.'))
+    )
+    renderAppAt('/platform/activity')
+    await screen.findByText('changed the settings (timezone)')
     await expectNoViolations()
   })
 })
@@ -619,7 +739,6 @@ describe('open overlays', () => {
    */
   it.each([
     ['the notification bell', /^Notifications,/],
-    ['the tenant switcher', /^Switch tenant/],
     ['the user menu', /^Account menu for/],
   ])('has no violations with %s menu open', async (_label, name) => {
     const user = userEvent.setup()
@@ -634,6 +753,51 @@ describe('open overlays', () => {
     // Not vacuous: a menu that opened empty would pass axe while asserting
     // nothing about the items this block exists to grade.
     expect(within(menu).getAllByRole('menuitem').length).toBeGreaterThan(0)
+    await expectNoViolationsIn(menu)
+  })
+
+  /**
+   * The switcher is a combobox now, not a menu: the popup is a `dialog`
+   * holding the search box and a `listbox`. Base UI portals it, and axe
+   * exempts `role="dialog"` from `region` (as it does for the sheet), so this
+   * one is graded at DOCUMENT scope with nothing narrowed.
+   */
+  it('has no violations with the tenant switcher open, and its listbox is populated', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    const trigger = screen.getByRole('combobox', { name: /^Switch tenant/ })
+    await user.click(trigger)
+
+    const popup = await screen.findByRole('dialog', { name: 'Switch tenant' })
+    const listbox = within(popup).getByRole('listbox')
+    expect(within(listbox).getAllByRole('option').length).toBeGreaterThan(0)
+
+    // Enforces in code what the KNOWN_INCOMPLETE comment claims: the trigger's
+    // and the input's `aria-controls` both name a real element on the page,
+    // which is exactly why their `aria-valid-attr-value` finding is axe
+    // declining to fully resolve a reference rather than a broken one.
+    const input = screen.getByLabelText('Search tenants')
+    for (const element of [trigger, input]) {
+      const controls = element.getAttribute('aria-controls')
+      expect(controls).not.toBeNull()
+      expect(document.getElementById(controls as string)).not.toBeNull()
+    }
+
+    await expectNoViolations()
+  })
+
+  it('has no violations with the staff user menu open', async () => {
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'admin' } })
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: /^Account menu for/ }))
+
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).getByRole('menuitem', { name: 'Platform' })).toBeInTheDocument()
     await expectNoViolationsIn(menu)
   })
 

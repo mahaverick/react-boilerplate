@@ -49,8 +49,8 @@ export default defineConfig({
       exclude: [
         'src/routeTree.gen.ts',
         'src/main.tsx',
-        'src/components/ui/{alert-dialog,avatar,badge,breadcrumb,button,card,dialog,dropdown-menu}.tsx',
-        'src/components/ui/{input,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
+        'src/components/ui/{alert-dialog,avatar,badge,breadcrumb,button,card,combobox,dialog,dropdown-menu}.tsx',
+        'src/components/ui/{input,input-group,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
         'src/components/ui/{table,tabs,textarea,tooltip}.tsx',
       ],
       // A few points under the measured baseline, so a drop fails CI.
