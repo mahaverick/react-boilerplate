@@ -173,10 +173,12 @@ describe('AppLayout', () => {
 
     const header = document.querySelector('[data-slot="sidebar-header"]')
     expect(header).not.toBeNull()
-    // axe's `region` rule passes over this layout only because all of the
-    // sidebar's content sits inside a button or a link. A bare
-    // `<p>Acme Corp</p>` here would be content in no landmark, and would
-    // fail it — so the switcher's label lives INSIDE its trigger button.
+    // The header's whole content sits inside `TenantSwitcher`'s own
+    // `<nav aria-label="Tenant">` landmark, which is why axe's `region` rule
+    // passes over it (see tenant-switcher.tsx). This asserts a narrower
+    // invariant on top of that: every text node here is ALSO inside a button
+    // or a link, so nothing renders as bare text sitting next to the widget
+    // it belongs to.
     // Every TEXT node, not every element: an ancestor `ul` legitimately
     // "contains" text that belongs to a button several levels down.
     const walker = document.createTreeWalker(header as Node, NodeFilter.SHOW_TEXT)

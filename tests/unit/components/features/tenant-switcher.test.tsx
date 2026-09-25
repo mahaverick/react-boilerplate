@@ -254,6 +254,24 @@ describe('TenantSwitcher', () => {
       expect(terms).toEqual(['glob'])
     })
 
+    // `q.trim()` happens inside the hook, so three spaces is the same empty
+    // term as never having typed anything — never sent, past the debounce.
+    it('sends no q for a whitespace-only search', async () => {
+      const seen = recordSearches(() => ok({ tenants: [], nextCursor: null }, 'Tenants.'))
+      renderShell()
+      const user = await openSwitcher()
+      await waitFor(() => {
+        expect(seen.length).toBeGreaterThan(0)
+      })
+
+      await user.type(screen.getByLabelText('Search tenants'), '   ')
+      // Past the 250ms debounce: long enough for a request to have fired if
+      // the whitespace were going to produce one.
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      expect(seen.every((url) => !url.searchParams.has('q'))).toBe(true)
+    })
+
     it('says the search FAILED rather than that nothing matched', async () => {
       recordSearches(() => fail('Something went wrong', 500))
       renderShell()
@@ -290,6 +308,41 @@ describe('TenantSwitcher', () => {
       expect(screen.getByRole('option', { name: 'Globex' })).toBeInTheDocument()
       expect(screen.queryByRole('option', { name: 'Load more tenants' })).not.toBeInTheDocument()
       expect(screen.getByRole('dialog', { name: 'Switch tenant' })).toBeInTheDocument()
+    })
+
+    // A failed page must stay retryable, not get stuck disabled — a click on
+    // the same option is the retry. The query client retries once on its
+    // own (`retry: 1`), so the first TWO `cursor=c2` requests are the
+    // automatic attempt and its retry; only the third is the user's click.
+    it('shows a retryable message when Load more fails, and a retry succeeds', async () => {
+      let attempt = 0
+      const seen = recordSearches((url) => {
+        if (url.searchParams.get('cursor') !== 'c2') {
+          return ok({ tenants: [GLOBEX_ROW], nextCursor: 'c2' }, 'Tenants.')
+        }
+        attempt += 1
+        return attempt <= 2
+          ? fail('Something went wrong', 500)
+          : ok({ tenants: [INITECH_ROW], nextCursor: null }, 'Tenants.')
+      })
+      renderShell()
+      const user = await openSwitcher()
+      const more = await screen.findByRole('option', { name: 'Load more tenants' })
+
+      await user.click(more)
+      const failed = await screen.findByRole(
+        'option',
+        { name: 'Could not load more tenants' },
+        { timeout: 5000 }
+      )
+
+      await user.click(failed)
+
+      expect(await screen.findByRole('option', { name: 'Initech' })).toBeInTheDocument()
+      expect(
+        screen.queryByRole('option', { name: 'Could not load more tenants' })
+      ).not.toBeInTheDocument()
+      expect(seen.filter((url) => url.searchParams.get('cursor') === 'c2')).toHaveLength(3)
     })
 
     it('navigates to the chosen tenant', async () => {

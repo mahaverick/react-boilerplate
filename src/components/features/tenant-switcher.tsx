@@ -52,6 +52,23 @@ function matches(option: TenantOption, query: string): boolean {
 }
 
 /**
+ * The Load more option's own label. A failed page stays retryable — the
+ * option is never disabled for it — so the label is what tells the caller
+ * the last attempt failed rather than that there is simply more to load.
+ */
+function loadMoreLabel({
+  isFetchingNextPage,
+  isFetchNextPageError,
+}: {
+  isFetchingNextPage: boolean
+  isFetchNextPageError: boolean
+}): string {
+  if (isFetchingNextPage) return 'Loading more…'
+  if (isFetchNextPageError) return 'Could not load more tenants'
+  return 'Load more tenants'
+}
+
+/**
  * What the popup says about the caller's OWN tenants when it has no rows to
  * show for them. The list's three states stay apart: in flight, failed, and
  * genuinely empty. A cached list keeps rendering through a background refetch.
@@ -160,7 +177,7 @@ export function TenantSwitcher() {
             inputValue={query}
             onInputValueChange={(next) => setQuery(next)}
             itemToStringLabel={(option) =>
-              option.kind === 'tenant' ? option.name : 'Load more tenants'
+              option.kind === 'tenant' ? option.name : loadMoreLabel(all)
             }
             isItemEqualToValue={(a, b) =>
               a.kind === 'tenant' && b.kind === 'tenant' ? a.id === b.id : a.kind === b.kind
@@ -207,6 +224,9 @@ export function TenantSwitcher() {
                           <ComboboxItem
                             key="load-more"
                             value={option}
+                            // NOT disabled on `isFetchNextPageError`: clicking
+                            // it again is the retry, so it must stay
+                            // selectable rather than get stuck failed.
                             disabled={all.isFetchingNextPage}
                             // Enter on a highlighted option clicks it, so this
                             // one handler serves pointer and keyboard alike.
@@ -216,7 +236,7 @@ export function TenantSwitcher() {
                               void all.fetchNextPage()
                             }}
                           >
-                            {all.isFetchingNextPage ? 'Loading more…' : 'Load more tenants'}
+                            {loadMoreLabel(all)}
                           </ComboboxItem>
                         )
                       }

@@ -245,10 +245,11 @@ const AXE_OPTIONS: axeCore.RunOptions = {
  * - `aria-valid-attr-value`: "Unable to determine if aria-controls referenced ID
  *   exists on the page while using aria-haspopup" (axe's own `controlsWithinPopup`
  *   check). The combobox trigger and its input both carry `aria-controls`
- *   alongside `aria-haspopup`, and both referenced IDs are confirmed present —
- *   checked by hand against `document.getElementById` with the popup open.
- *   Axe still files this as needs-review rather than a pass, which is its own
- *   stated behaviour for that attribute pairing, not a broken reference here.
+ *   alongside `aria-haspopup`, and both referenced IDs resolving is asserted
+ *   in code by the "tenant switcher open" test below, not just claimed here.
+ *   This id is NOT accepted outright: `isOnlyControlsWithinPopup`, below,
+ *   still fails a node whose `aria-valid-attr-value` finding is a genuinely
+ *   dangling reference (`messageKey: 'noId'`) rather than this one.
  */
 const KNOWN_INCOMPLETE = new Set([
   'page-has-heading-one',
@@ -257,6 +258,40 @@ const KNOWN_INCOMPLETE = new Set([
   'aria-hidden-focus',
   'aria-valid-attr-value',
 ])
+
+/**
+ * `aria-valid-attr-value` is pinned above for exactly ONE reason
+ * (`controlsWithinPopup`), but axe files the SAME rule id for a genuinely
+ * dangling `aria-describedby`/`aria-labelledby` (`messageKey: 'noId'`) or an
+ * invalid enumerated value like `aria-current="bogus"`. Accepting the id
+ * outright would swallow those too, so this checks every `any`/`all`/`none`
+ * check on every flagged node and accepts the result only when EVERY one of
+ * them is `controlsWithinPopup` — a node mixing that with a real dangling
+ * reference still fails.
+ */
+function isOnlyControlsWithinPopup(result: axeCore.IncompleteResult): boolean {
+  return result.nodes.every((node) => {
+    const keys = [...node.any, ...node.all, ...node.none].map(
+      (check) => (check.data as { messageKey?: unknown } | null | undefined)?.messageKey
+    )
+    return keys.length > 0 && keys.every((key) => key === 'controlsWithinPopup')
+  })
+}
+
+/**
+ * `results.incomplete`, minus the ones `KNOWN_INCOMPLETE` explains — with
+ * `aria-valid-attr-value` narrowed by `isOnlyControlsWithinPopup` rather than
+ * accepted by id alone, so a real dangling ARIA reference still surfaces here.
+ */
+function unexpectedIncomplete(results: axeCore.AxeResults): string[] {
+  return results.incomplete
+    .filter((result) => {
+      if (!KNOWN_INCOMPLETE.has(result.id)) return true
+      if (result.id === 'aria-valid-attr-value') return !isOnlyControlsWithinPopup(result)
+      return false
+    })
+    .map((result) => result.id)
+}
 
 /**
  * Asserts the WHOLE document is clean — portals, landmarks and page-level rules
@@ -283,8 +318,7 @@ async function expectNoViolations() {
     expect.arrayContaining(['html-has-lang', 'document-title', 'bypass'])
   )
 
-  const unexpected = results.incomplete.map((r) => r.id).filter((id) => !KNOWN_INCOMPLETE.has(id))
-  expect(unexpected).toEqual([])
+  expect(unexpectedIncomplete(results)).toEqual([])
 
   // `page-has-heading-one` and `landmark-one-main`, by hand.
   expect(document.querySelectorAll('main')).toHaveLength(1)
@@ -323,8 +357,7 @@ async function expectNoViolationsIn(element: HTMLElement) {
   // hands it an element that is not the popup.
   expect(results.passes.map((result) => result.id)).toContain('aria-required-children')
 
-  const unexpected = results.incomplete.map((r) => r.id).filter((id) => !KNOWN_INCOMPLETE.has(id))
-  expect(unexpected).toEqual([])
+  expect(unexpectedIncomplete(results)).toEqual([])
 }
 
 /**
@@ -381,6 +414,27 @@ describe('the axe gate itself', () => {
       // proves the gate if the rule it was planted for is the one that fired.
       expect(results.violations.map((violation) => violation.id)).toContain('region')
       expect(results).not.toHaveNoViolations()
+    } finally {
+      stray.remove()
+    }
+  })
+
+  // Same proof as above, for the narrower claim `unexpectedIncomplete` makes:
+  // `aria-valid-attr-value` is accepted ONLY for `controlsWithinPopup`, so a
+  // genuinely dangling reference — the `noId` messageKey, not that one — must
+  // still come back as unexpected. If this ever stops failing, the narrowing
+  // has widened back to accepting the whole rule id and every combobox on
+  // every page could grow a broken `aria-describedby` unnoticed.
+  it('does not swallow a dangling aria-describedby under aria-valid-attr-value', async () => {
+    const stray = document.createElement('button')
+    stray.setAttribute('aria-describedby', 'does-not-exist')
+    stray.textContent = 'Stray'
+    document.body.append(stray)
+    try {
+      const results = await axeCore.run(document, {
+        runOnly: { type: 'rule', values: ['aria-valid-attr-value'] },
+      })
+      expect(unexpectedIncomplete(results)).toContain('aria-valid-attr-value')
     } finally {
       stray.remove()
     }
@@ -655,11 +709,24 @@ describe('open overlays', () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
 
-    await user.click(screen.getByRole('combobox', { name: /^Switch tenant/ }))
+    const trigger = screen.getByRole('combobox', { name: /^Switch tenant/ })
+    await user.click(trigger)
 
     const popup = await screen.findByRole('dialog', { name: 'Switch tenant' })
     const listbox = within(popup).getByRole('listbox')
     expect(within(listbox).getAllByRole('option').length).toBeGreaterThan(0)
+
+    // Enforces in code what the KNOWN_INCOMPLETE comment claims: the trigger's
+    // and the input's `aria-controls` both name a real element on the page,
+    // which is exactly why their `aria-valid-attr-value` finding is axe
+    // declining to fully resolve a reference rather than a broken one.
+    const input = screen.getByLabelText('Search tenants')
+    for (const element of [trigger, input]) {
+      const controls = element.getAttribute('aria-controls')
+      expect(controls).not.toBeNull()
+      expect(document.getElementById(controls as string)).not.toBeNull()
+    }
+
     await expectNoViolations()
   })
 
