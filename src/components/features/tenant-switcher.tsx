@@ -1,91 +1,233 @@
-import { Link, useParams } from '@tanstack/react-router'
-import { Building2, ChevronsUpDown } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate, useParams } from '@tanstack/react-router'
+import { Building2 } from 'lucide-react'
+import { useState } from 'react'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Combobox,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxLabel,
+  ComboboxList,
+  ComboboxTrigger,
+} from '@/components/ui/combobox'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
-import { ROUTES } from '@/constants/routes'
-import { useTenants } from '@/queries/tenant.queries'
+import { isStaff } from '@/constants/roles'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import {
+  flattenTenantPages,
+  SEARCH_DEBOUNCE_MS,
+  usePlatformTenantSearch,
+} from '@/queries/platform.queries'
+import { tenantQueryOptions, useTenants } from '@/queries/tenant.queries'
+import { useAuthStore } from '@/states/auth.store'
+
+interface TenantOption {
+  kind: 'tenant'
+  id: string
+  name: string
+  slug: string
+}
+
+/** The "next page" row. An option, so it sits in the arrow-key order. */
+interface LoadMoreOption {
+  kind: 'more'
+}
+
+type SwitcherOption = TenantOption | LoadMoreOption
+
+interface OptionGroup {
+  label: string
+  items: SwitcherOption[]
+}
+
+const LOAD_MORE: LoadMoreOption = { kind: 'more' }
+
+function matches(option: TenantOption, query: string): boolean {
+  const needle = query.trim().toLowerCase()
+  return needle === '' || option.name.toLowerCase().includes(needle) || option.slug.includes(needle)
+}
 
 /**
- * A NAVIGATION dropdown, and nothing else.
+ * What the popup says about the caller's OWN tenants when it has no rows to
+ * show for them. The list's three states stay apart: in flight, failed, and
+ * genuinely empty. A cached list keeps rendering through a background refetch.
+ */
+function ownTenantsMessage({
+  hasData,
+  isPending,
+  isEmpty,
+  staff,
+}: {
+  hasData: boolean
+  isPending: boolean
+  isEmpty: boolean
+  staff: boolean
+}): string | null {
+  if (!hasData) return isPending ? 'Loading tenants…' : 'Tenants could not be loaded'
+  // Staff with no memberships still have the whole platform below.
+  return isEmpty && !staff ? 'No tenants yet' : null
+}
+
+/**
+ * A NAVIGATION combobox, and nothing else.
  *
  * Tenant scope is the URL: the API resolves the tenant from the `:slug` path
  * param alone, with no tenant header and no "current tenant" cookie, so there
- * is nothing to switch but the address. Each item is a link to
+ * is nothing to switch but the address. Choosing an option navigates to
  * `/tenants/$slug`; the current tenant is whatever the URL says.
+ *
+ * "Your tenants" is the caller's memberships, minus the platform tenant (the
+ * user menu links that). Staff also get "All tenants": a server-side search,
+ * de-duplicated against "Your tenants", paged by a Load more option.
  */
 export function TenantSwitcher() {
+  const navigate = useNavigate()
   const tenants = useTenants()
+  const staff = useAuthStore((state) => isStaff(state.user?.platformRole))
   // `strict: false` because this renders in the app shell, on every
-  // authenticated route — most of which have no `$slug` at all.
+  // authenticated route, most of which have no `$slug` at all.
   const { slug } = useParams({ strict: false })
-  const current = tenants.data?.find((entry) => entry.tenant.slug === slug)
-  const label = current?.tenant.name ?? 'Tenants'
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const term = useDebouncedValue(query, SEARCH_DEBOUNCE_MS)
+  // Only staff, and only while open: nobody else may call it, and a closed
+  // popup has nothing to show.
+  const all = usePlatformTenantSearch(term, { enabled: staff && open })
+  // The `$slug` loader's own key, so on a tenant page this is a cache read.
+  const current = useQuery({ ...tenantQueryOptions(slug ?? ''), enabled: slug !== undefined })
+
+  const own = (tenants.data ?? [])
+    .filter((entry) => !entry.isPlatform)
+    .map((entry): TenantOption => ({
+      kind: 'tenant',
+      id: entry.tenant.id,
+      name: entry.tenant.name,
+      slug: entry.tenant.slug,
+    }))
+  const ownIds = new Set(own.map((option) => option.id))
+  const ownMatches = own.filter((option) => matches(option, query))
+  const others: SwitcherOption[] = [
+    ...flattenTenantPages(all.data)
+      .filter((row) => !ownIds.has(row.id))
+      .map((row): TenantOption => ({ kind: 'tenant', id: row.id, name: row.name, slug: row.slug })),
+    ...(all.hasNextPage ? [LOAD_MORE] : []),
+  ]
+  const groups: OptionGroup[] = [
+    ...(ownMatches.length > 0 ? [{ label: 'Your tenants', items: ownMatches }] : []),
+    ...(staff && others.length > 0 ? [{ label: 'All tenants', items: others }] : []),
+  ]
+
+  const label = own.find((option) => option.slug === slug)?.name ?? current.data?.name ?? 'Tenants'
+  const ownMessage = ownTenantsMessage({
+    hasData: tenants.data !== undefined,
+    isPending: tenants.isPending,
+    isEmpty: own.length === 0,
+    staff,
+  })
+  const allMessage = !staff
+    ? null
+    : all.data === undefined && all.isError
+      ? 'All tenants could not be loaded'
+      : all.data === undefined
+        ? 'Searching all tenants…'
+        : null
+  const searching = tenants.isPending || (staff && all.isFetching)
+  const noMatches = query.trim() !== '' && !searching && ownMessage === null && allMessage === null
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          {/* Every piece of text here lives INSIDE the trigger button. A bare
-              `<p>Acme Corp</p>` in the SidebarHeader would be content sitting
-              in no landmark, which axe's `region` rule fails — the sidebar
-              passes today only because all of its content is inside a button
-              or a link. */}
-          <DropdownMenuTrigger
-            render={<SidebarMenuButton size="lg" aria-label={`Switch tenant. Current: ${label}`} />}
+    // A real `nav` landmark, distinct from the sidebar's "Main" one: axe's
+    // `region` rule exempts a bare `<button>` from needing one, but not a
+    // trigger whose role is overridden to `combobox`, which this one's is.
+    // Without this wrapper the trigger's own text — "Tenants" or the current
+    // tenant's name — sits in no landmark at all on every authenticated page.
+    <nav aria-label="Tenant">
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <Combobox<SwitcherOption>
+            items={groups}
+            // The API filters "All tenants"; "Your tenants" is filtered above.
+            filter={null}
+            value={null}
+            open={open}
+            onOpenChange={(next) => {
+              setOpen(next)
+              if (!next) setQuery('')
+            }}
+            inputValue={query}
+            onInputValueChange={(next) => setQuery(next)}
+            itemToStringLabel={(option) =>
+              option.kind === 'tenant' ? option.name : 'Load more tenants'
+            }
+            isItemEqualToValue={(a, b) =>
+              a.kind === 'tenant' && b.kind === 'tenant' ? a.id === b.id : a.kind === b.kind
+            }
+            onValueChange={(option) => {
+              if (option?.kind !== 'tenant') return
+              setOpen(false)
+              setQuery('')
+              void navigate({ to: '/tenants/$slug', params: { slug: option.slug } })
+            }}
           >
-            <Building2 className="size-4 shrink-0" />
-            <span className="truncate">{label}</span>
-            <ChevronsUpDown className="ml-auto size-4 shrink-0" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="bottom" className="min-w-56">
-            {tenants.data && tenants.data.length > 0 ? (
-              tenants.data.map((entry) => (
-                <DropdownMenuItem
-                  key={entry.tenant.id}
-                  // `render` is Base UI's `asChild`: the menu item IS the
-                  // anchor, so it opens in a new tab like any other link.
-                  render={<Link to="/tenants/$slug" params={{ slug: entry.tenant.slug }} />}
-                >
-                  <span className="truncate">{entry.tenant.name}</span>
-                </DropdownMenuItem>
-              ))
-            ) : tenants.isPending ? (
-              // THREE states, not two. A menu opened while the list was still
-              // in flight fell through to "No tenants yet" — the same claim
-              // about the account that the error branch below exists to stop,
-              // made a moment earlier and on even less evidence.
-              //
-              // Below the `data` branch, deliberately: a cached list still
-              // renders while a background refetch is in flight, because a
-              // switcher whose rows are usable should stay usable.
-              <DropdownMenuItem disabled>Loading tenants…</DropdownMenuItem>
-            ) : tenants.isError ? (
-              // A FAILED load is not an empty account, and this menu used to
-              // say it was: `tenants.data` is undefined in both cases, so a
-              // 500 rendered "No tenants yet" as a statement of fact about
-              // something the app did not know. The same defect the three
-              // list surfaces carried (see LoadError's doc comment); a closed
-              // dropdown changes its blast radius, not its correctness.
-              //
-              // Not `LoadError` — a menu is no place for an alert region and
-              // a nested retry button. Stating the failure is the whole
-              // requirement, and "All tenants" below already leads to the
-              // page that DOES offer a retry.
-              <DropdownMenuItem disabled>Tenants could not be loaded</DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem disabled>No tenants yet</DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link to={ROUTES.tenants} />}>All tenants</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+            <ComboboxTrigger
+              render={
+                <SidebarMenuButton size="lg" aria-label={`Switch tenant. Current: ${label}`} />
+              }
+            >
+              <Building2 className="size-4 shrink-0" />
+              <span className="flex-1 truncate text-left">{label}</span>
+            </ComboboxTrigger>
+            <ComboboxContent aria-label="Switch tenant" className="w-72">
+              <ComboboxInput
+                showTrigger={false}
+                aria-label="Search tenants"
+                placeholder={staff ? 'Search all tenants…' : 'Search your tenants…'}
+              />
+              {ownMessage && (
+                <p className="px-2 py-1.5 text-sm text-muted-foreground">{ownMessage}</p>
+              )}
+              {allMessage && (
+                <p className="px-2 py-1.5 text-sm text-muted-foreground">{allMessage}</p>
+              )}
+              <ComboboxEmpty>{noMatches ? 'No tenants match your search' : null}</ComboboxEmpty>
+              <ComboboxList>
+                {(group: OptionGroup) => (
+                  <ComboboxGroup key={group.label} items={group.items}>
+                    <ComboboxLabel>{group.label}</ComboboxLabel>
+                    <ComboboxCollection>
+                      {(option: SwitcherOption) =>
+                        option.kind === 'tenant' ? (
+                          <ComboboxItem key={option.id} value={option}>
+                            <span className="truncate">{option.name}</span>
+                          </ComboboxItem>
+                        ) : (
+                          <ComboboxItem
+                            key="load-more"
+                            value={option}
+                            disabled={all.isFetchingNextPage}
+                            // Enter on a highlighted option clicks it, so this
+                            // one handler serves pointer and keyboard alike.
+                            // Base UI's own handler would select and close.
+                            onClick={(event) => {
+                              event.preventBaseUIHandler()
+                              void all.fetchNextPage()
+                            }}
+                          >
+                            {all.isFetchingNextPage ? 'Loading more…' : 'Load more tenants'}
+                          </ComboboxItem>
+                        )
+                      }
+                    </ComboboxCollection>
+                  </ComboboxGroup>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    </nav>
   )
 }

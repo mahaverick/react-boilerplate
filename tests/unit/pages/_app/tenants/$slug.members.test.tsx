@@ -193,10 +193,13 @@ describe('members tab permissions', () => {
     renderAppAt('/tenants/acme/members')
 
     await rowFor('Vic')
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Invite a member' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Pending invitations' })).not.toBeInTheDocument()
+    // Scoped to `main`: the sidebar's tenant switcher is a combobox too, on
+    // every authenticated page, and is not what this test is about.
+    const main = within(screen.getByRole('main'))
+    expect(main.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(main.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
+    expect(main.queryByRole('heading', { name: 'Invite a member' })).not.toBeInTheDocument()
+    expect(main.queryByRole('heading', { name: 'Pending invitations' })).not.toBeInTheDocument()
     // The list route is owner/admin only, so a viewer's page never asks it.
     expect(invitationCalls).toBe(0)
   })

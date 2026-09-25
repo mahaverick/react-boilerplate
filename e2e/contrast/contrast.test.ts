@@ -198,19 +198,25 @@ const POPUPS = [
     name: 'notification bell menu',
     path: '/dashboard',
     trigger: /^Notifications,/,
+    triggerRole: 'button',
     role: 'menu',
+    itemRole: 'menuitem',
   },
   {
-    name: 'tenant switcher menu',
+    name: 'tenant switcher',
     path: '/dashboard',
     trigger: /^Switch tenant/,
-    role: 'menu',
+    triggerRole: 'combobox',
+    role: 'dialog',
+    itemRole: 'option',
   },
   {
     name: 'user menu',
     path: '/dashboard',
     trigger: /^Account menu for/,
+    triggerRole: 'button',
     role: 'menu',
+    itemRole: 'menuitem',
   },
 ] as const
 
@@ -221,13 +227,13 @@ for (const theme of THEMES) {
       await page.goto(`/e2e/harness/?path=${popup.path}`, { waitUntil: 'networkidle' })
       await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible()
 
-      await page.getByRole('button', { name: popup.trigger }).click()
+      await page.getByRole(popup.triggerRole, { name: popup.trigger }).click()
       const menu = page.getByRole(popup.role)
       await expect(menu).toBeVisible()
       // A menu that opened EMPTY would grade clean while saying nothing about
       // the items this test exists for — the same guard the a11y gate states
       // for its own menu block.
-      await expect(menu.getByRole('menuitem').first()).toBeVisible()
+      await expect(menu.getByRole(popup.itemRole).first()).toBeVisible()
 
       await page.evaluate(() => document.fonts.ready)
       await page.waitForTimeout(300)

@@ -184,7 +184,7 @@ describe('AppLayout', () => {
       if (!node.textContent?.trim()) continue
       expect(node.parentElement?.closest('button,a')).not.toBeNull()
     }
-    expect(screen.getByRole('button', { name: /Switch tenant/ })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /Switch tenant/ })).toBeInTheDocument()
   })
 
   it('navigates to the profile from the account menu', async () => {

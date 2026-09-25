@@ -118,4 +118,8 @@ export const handlers = [
       'Invitation accepted.'
     )
   ),
+  // Staff-only search. The switcher asks only for staff, only while open.
+  http.get('/api/v1/platform/tenants', () =>
+    ok({ tenants: [], nextCursor: null }, 'Tenants retrieved.')
+  ),
 ]

@@ -242,12 +242,21 @@ const AXE_OPTIONS: axeCore.RunOptions = {
  *   current state". Base UI marks the background `aria-hidden` and inert while a
  *   modal is open; whether its contents are still tabbable is a layout question
  *   jsdom cannot answer.
+ * - `aria-valid-attr-value`: "Unable to determine if aria-controls referenced ID
+ *   exists on the page while using aria-haspopup" (axe's own `controlsWithinPopup`
+ *   check). The combobox trigger and its input both carry `aria-controls`
+ *   pointing at the portaled popup, and both IDs genuinely exist on the page —
+ *   checked by hand against `document.getElementById`. Axe defers to
+ *   `incomplete` rather than pass whenever the referenced element sits inside
+ *   an `aria-haspopup` target it cannot statically resolve as "within" the
+ *   popup, which is inherent to Base UI's combobox markup, not a markup fault.
  */
 const KNOWN_INCOMPLETE = new Set([
   'page-has-heading-one',
   'landmark-one-main',
   'heading-order',
   'aria-hidden-focus',
+  'aria-valid-attr-value',
 ])
 
 /**
@@ -619,7 +628,6 @@ describe('open overlays', () => {
    */
   it.each([
     ['the notification bell', /^Notifications,/],
-    ['the tenant switcher', /^Switch tenant/],
     ['the user menu', /^Account menu for/],
   ])('has no violations with %s menu open', async (_label, name) => {
     const user = userEvent.setup()
@@ -635,6 +643,25 @@ describe('open overlays', () => {
     // nothing about the items this block exists to grade.
     expect(within(menu).getAllByRole('menuitem').length).toBeGreaterThan(0)
     await expectNoViolationsIn(menu)
+  })
+
+  /**
+   * The switcher is a combobox now, not a menu: the popup is a `dialog`
+   * holding the search box and a `listbox`. Base UI portals it, and axe
+   * exempts `role="dialog"` from `region` (as it does for the sheet), so this
+   * one is graded at DOCUMENT scope with nothing narrowed.
+   */
+  it('has no violations with the tenant switcher open, and its listbox is populated', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('combobox', { name: /^Switch tenant/ }))
+
+    const popup = await screen.findByRole('dialog', { name: 'Switch tenant' })
+    const listbox = within(popup).getByRole('listbox')
+    expect(within(listbox).getAllByRole('option').length).toBeGreaterThan(0)
+    await expectNoViolations()
   })
 
   it('has no violations with the theme menu open inside the mobile sheet', async () => {

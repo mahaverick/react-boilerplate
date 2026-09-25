@@ -96,3 +96,19 @@ export const INVITATION_EMAIL_MISMATCH = 'invitation_email_mismatch'
 
 /** 403 on accept: the signed-in account is the invited one, but its email is unverified. */
 export const INVITATION_EMAIL_UNVERIFIED = 'invitation_email_unverified'
+
+/** One row of `GET /platform/tenants`: staff search across every tenant. */
+export interface PlatformTenantRow {
+  id: string
+  name: string
+  slug: string
+  lifecycleState: 'active' | 'suspended' | 'archived'
+  memberCount: number
+  createdAt: string
+}
+
+/** A keyset page of `GET /platform/tenants`. `nextCursor` is opaque; send it back as-is. */
+export interface PlatformTenantPage {
+  tenants: PlatformTenantRow[]
+  nextCursor: string | null
+}
