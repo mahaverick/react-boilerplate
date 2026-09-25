@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/mahaverick/react-boilerplate/compare/v1.2.0...v1.3.0) (2026-09-25)
+
+
+### Features
+
+* staff tenant switcher, access banner and activity views (stream 4b) ([#19](https://github.com/mahaverick/react-boilerplate/issues/19)) ([00169d0](https://github.com/mahaverick/react-boilerplate/commit/00169d00b05b798a4b1e18df900ad70adf98aabc))
+
 ## [1.2.0](https://github.com/mahaverick/react-boilerplate/compare/v1.1.0...v1.2.0) (2026-09-25)
 
 
