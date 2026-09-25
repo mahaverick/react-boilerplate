@@ -1,5 +1,6 @@
 import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query'
 import { apiClient, unwrap } from '@/http/client'
+import { statusFrom } from '@/lib/api-error'
 import type { ApiSuccess, PlatformTenantPage, PlatformTenantRow } from '@/types/api.types'
 
 export const platformKeys = {
@@ -34,6 +35,9 @@ export function usePlatformTenantSearch(q: string, { enabled }: { enabled: boole
       ),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled,
+    // A 404 is the API's answer about who is asking (non-staff); asking
+    // again changes nothing. Same rule as `usePlatformAuditLog`.
+    retry: (failureCount, error) => statusFrom(error) !== 404 && failureCount < 1,
   })
 }
 

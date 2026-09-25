@@ -15,9 +15,8 @@
  *     current role for the matrix to compare against.
  *
  * Plus `isLastOwnerBlocked`, which is not a permission at all but the
- * backend's "a tenant must keep an owner" 409.
- *
- * And the audit-log readers (`canViewActivity`, `canViewPlatformActivity`) and `isStaff`.
+ * backend's "a tenant must keep an owner" 409, and the audit-log readers
+ * (`canViewActivity`, `canViewPlatformActivity`) plus `isStaff`.
  */
 
 /** Descending authority. Mirrors MEMBERSHIP_ROLES on the server. */

@@ -2,8 +2,8 @@ import { Button } from '@/components/ui/button'
 
 /**
  * The message every tenant tab shows when the role lookup fails. One
- * definition, because all three tabs gate on the same query and a reader
- * moving between them should not get three different accounts of one
+ * definition, because every tenant tab gates on the same query and a reader
+ * moving between them should not get a different account of the same
  * failure.
  */
 export const ROLE_ERROR =

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient, unwrap } from '@/http/client'
 import { statusFrom } from '@/lib/api-error'
+import { refreshProfile } from '@/queries/profile.queries'
 import { tenantKeys } from '@/queries/tenant.queries'
 import type { AcceptedInvitation, ApiSuccess, InvitationPreview } from '@/types/api.types'
 
@@ -62,6 +63,10 @@ export function useAcceptInvitation() {
         exact: true,
         refetchType: 'all',
       })
+      // Accepting can change the caller's platformRole (the platform tenant
+      // is a tenant like any other) — always refresh, rather than special-case
+      // it, so `useAuthStore`'s copy is never stale until reload.
+      await refreshProfile(queryClient)
     },
   })
 }

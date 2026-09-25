@@ -195,6 +195,21 @@ describe('invitation queries', () => {
       expect(client.getQueryData(tenantKeys.list)).toEqual(joined)
     })
 
+    it('refreshes the profile, so a role gained by accepting is live without a reload', async () => {
+      server.use(
+        http.get('/api/v1/profile', () => ok({ ...testUser, platformRole: 'viewer' }, 'Profile.'))
+      )
+
+      const { result } = renderHook(() => useAcceptInvitation(), { wrapper })
+      result.current.mutate(TEST_INVITATION_TOKEN)
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      await waitFor(() => {
+        expect(useAuthStore.getState().user?.platformRole).toBe('viewer')
+      })
+      expect(client.getQueryData(['profile'])).toEqual({ ...testUser, platformRole: 'viewer' })
+    })
+
     it('leaves the cache alone when the server refuses', async () => {
       server.use(
         http.post('/api/v1/invitations/accept', () =>

@@ -1,13 +1,16 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { MembershipRole } from '@/constants/roles'
+import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { codeFrom, statusFrom } from '@/lib/api-error'
+import { refreshProfile } from '@/queries/profile.queries'
 import type {
   InviteMemberInput,
   NewTenantInput,
   UpdateTenantInput,
   UpdateTenantSettingsInput,
 } from '@/schemas/tenant.schemas'
+import { useAuthStore } from '@/states/auth.store'
 import {
   INVITATION_CONFLICT,
   type ApiSuccess,
@@ -276,13 +279,19 @@ export function useUpdateMemberRole(slug: string) {
           role,
         })
       ),
-    onSuccess: async () => {
+    onSuccess: async (_data, { userId }) => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
       // The caller may have changed their OWN role. `useMyRole` reads the
       // detail, and the list's role badge reads the list: refresh both, and
       // `exact` so the detail refresh does not refetch every tab's query.
       await queryClient.invalidateQueries({ queryKey: tenantKeys.detail(slug), exact: true })
       await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      // A SELF role change in the PLATFORM tenant changes the caller's own
+      // platformRole, which `useAuthStore` would otherwise keep stale until
+      // the next reload — every other tenant's roles don't touch it.
+      if (slug === PLATFORM_TENANT_SLUG && userId === useAuthStore.getState().user?.id) {
+        await refreshProfile(queryClient)
+      }
     },
   })
 }
@@ -292,11 +301,24 @@ export function useRemoveMember(slug: string) {
   return useMutation({
     mutationFn: async (userId: string) =>
       apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/members/${userId}`),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
-      // The caller may have removed THEMSELVES, in which case this tenant
-      // is no longer theirs at all and the list must drop it.
+    onSuccess: async (_data, userId) => {
+      const isSelf = userId === useAuthStore.getState().user?.id
+      if (isSelf) {
+        // The caller removed THEMSELVES: they no longer belong here at all,
+        // so drop the tenant's whole cache prefix — members, settings,
+        // invitations, the audit log — rather than refetch queries a former
+        // member has no access to.
+        queryClient.removeQueries({ queryKey: tenantKeys.detail(slug) })
+      } else {
+        await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
+      }
+      // Either way the list must drop or keep this tenant correctly.
       await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      // See useUpdateMemberRole: a SELF removal from the PLATFORM tenant
+      // changes the caller's own platformRole.
+      if (isSelf && slug === PLATFORM_TENANT_SLUG) {
+        await refreshProfile(queryClient)
+      }
     },
   })
 }

@@ -69,7 +69,7 @@ describe('auditSentence', () => {
     [
       'platform.member.auto_joined',
       { userId: 'u2', emailDomain: 'corp.test' },
-      'auto-joined the platform as Viewer (corp.test)',
+      'added someone at corp.test to the platform as Viewer (auto-join)',
     ],
     [
       'platform.member.granted',
@@ -95,6 +95,12 @@ describe('auditSentence', () => {
     expect(auditSentence({ action: 'tenant.archived', metadata: {} })).toBe(
       'performed tenant.archived'
     )
+    expect(
+      auditSentence({
+        action: 'invitation.created',
+        metadata: { role: 'viewer', emailDomain: null },
+      })
+    ).toBe('invited someone at an unknown domain as Viewer')
   })
 })
 

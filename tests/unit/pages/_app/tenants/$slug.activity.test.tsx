@@ -66,6 +66,15 @@ const STAFF_CHANGE = entry({
   target: { type: 'settings', id: 't1' },
   metadata: { changed: ['timezone'] },
 })
+// The API falls back to the email AS the actor's name when no name is on
+// file, so a nameless actor's `name` equals their `email` — never `''`.
+const NAMELESS = entry({
+  id: 'a3',
+  occurredAt: '2026-09-25T11:00:00.000Z',
+  action: 'invitation.created',
+  actor: { id: 'u9', name: 'nameless@b.com', email: 'nameless@b.com' },
+  metadata: { role: 'viewer', emailDomain: 'b.com' },
+})
 
 function mockTenant(role: MembershipRole, access: TenantAccess = 'member') {
   server.use(
@@ -144,6 +153,16 @@ describe('tenant activity tab', () => {
   })
 
   // The route is `requireRole('owner', 'admin')` on the EFFECTIVE role.
+  it('shows a nameless actor’s email once, not twice', async () => {
+    mockTenant('owner')
+    mockLog(() => page([NAMELESS]))
+    renderAppAt('/tenants/acme/activity')
+
+    await screen.findByText('invited someone at b.com as Viewer')
+    const row = rowFor(/invited someone at/)
+    expect(row.getAllByText('nameless@b.com')).toHaveLength(1)
+  })
+
   it('lets a staff admin read it under platform access', async () => {
     mockTenant('admin', 'platform')
     mockLog(() => page([CREATED]))
@@ -353,5 +372,28 @@ describe('tenant activity tab', () => {
       await screen.findByText('Only this tenant’s owners and admins can see its activity.')
     ).toBeInTheDocument()
     expect(seen).toHaveLength(1)
+  })
+
+  // A 403 here means the cached role is stale, so the tab gate (`useMyRole`,
+  // reading the same `tenantKeys.detail` key) must refetch too — otherwise
+  // the tab keeps rendering on the role that no longer holds.
+  it('invalidates the tenant detail when the log answers 403, so the tab gate refreshes', async () => {
+    let detailCalls = 0
+    server.use(
+      http.get('/api/v1/tenants/acme', () => {
+        detailCalls += 1
+        return ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
+      }),
+      http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
+    )
+    mockLog(() => fail('Forbidden', 403))
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText('Only this tenant’s owners and admins can see its activity.')
+
+    // The initial load is one request; a second means the effect fired,
+    // whether or not it landed before this text appeared.
+    await waitFor(() => {
+      expect(detailCalls).toBeGreaterThan(1)
+    })
   })
 })

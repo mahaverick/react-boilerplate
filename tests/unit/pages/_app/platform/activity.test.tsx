@@ -120,6 +120,22 @@ describe('platform activity page', () => {
     })
   })
 
+  // A visible label is part of the control, not a decoration next to it:
+  // clicking the WORDS must toggle the switch too.
+  it('toggles the Staff only switch by clicking its label text', async () => {
+    signInAs('owner')
+    const seen = mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
+    const user = userEvent.setup()
+    renderPlatformActivity()
+    await screen.findByText(/opened this tenant/)
+
+    await user.click(screen.getByText('Staff only'))
+
+    await waitFor(() => {
+      expect(seen.at(-1)?.searchParams.get('access')).toBe('platform')
+    })
+  })
+
   it('filters to one tenant chosen from the platform search', async () => {
     signInAs('admin')
     const seen = mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
@@ -160,6 +176,22 @@ describe('platform activity page', () => {
       expect(seen.at(-1)?.searchParams.has('tenantId')).toBe(false)
     })
     expect(screen.getByLabelText('Filter by tenant')).toHaveValue('')
+  })
+
+  it('says the tenant search FAILED, not that nothing matched', async () => {
+    signInAs('admin')
+    mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
+    server.use(http.get('/api/v1/platform/tenants', () => fail('Something went wrong', 500)))
+    const user = userEvent.setup()
+    renderPlatformActivity()
+    await screen.findByText(/opened this tenant/)
+
+    await user.click(screen.getByLabelText('Filter by tenant'))
+
+    expect(
+      await screen.findByText('Tenants could not be loaded', {}, { timeout: 5000 })
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No tenants match')).not.toBeInTheDocument()
   })
 
   it('does not search for tenants until the tenant filter is opened', async () => {

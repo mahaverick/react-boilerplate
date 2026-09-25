@@ -54,7 +54,10 @@ function ActivityRow<T extends AuditEntry>({
       </div>
       <p className="text-sm">{auditSentence(entry)}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        {entry.actor && entry.actor.name !== '' && (
+        {/* The API falls back to the email AS the name when there is none on
+            file, so a nameless actor's `name` equals their `email` rather
+            than being `''` — this line would otherwise repeat it. */}
+        {entry.actor && entry.actor.name !== entry.actor.email && (
           <span className="break-all">{entry.actor.email}</span>
         )}
         {/* Base UI's Tooltip is not announced, so the absolute time is also

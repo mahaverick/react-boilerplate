@@ -22,6 +22,7 @@ that a new project starts here rather than at `create-vite`.
 - **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ no longer ships Corepack, so this works on 24 and 26 alike)
 - `devEngines.runtime` (`onFail: "error"`) is what actually refuses a wrong Node at install — `.npmrc`'s `engine-strict` does not enforce this root project's own `engines.node` under pnpm 12.
 - The **API running on `:4040`** — see below
+- **React Boilerplate 1.3.0 needs `express-boilerplate` 3.1.0 or later.**
 
 ## Getting started
 

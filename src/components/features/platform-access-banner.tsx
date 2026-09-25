@@ -9,7 +9,7 @@ import { ROUTES } from '@/constants/routes'
  * authority, and that stays true for as long as the page is open.
  *
  * `bg-muted` with `text-foreground`: the measured AA pair. Muted text on a
- * muted surface is the 4.35:1 failure `pnpm test:contrast` caught once.
+ * muted surface measures 4.35:1, below AA.
  */
 export function PlatformAccessBanner({
   tenantName,

@@ -80,7 +80,8 @@ const SENTENCES: Record<AuditAction, (metadata: Metadata) => string> = {
   'invitation.resent': (m) => `resent the invitation to someone at ${domain(m)}`,
   'invitation.revoked': (m) => `revoked the invitation to someone at ${domain(m)}`,
   'invitation.accepted': (m) => `accepted an invitation as ${roleLabel(m, 'role')}`,
-  'platform.member.auto_joined': (m) => `auto-joined the platform as Viewer (${domain(m)})`,
+  'platform.member.auto_joined': (m) =>
+    `added someone at ${domain(m)} to the platform as Viewer (auto-join)`,
   'platform.member.granted': (m) => `granted a platform member the ${roleLabel(m, 'role')} role`,
   'tenant.accessed_by_platform': (m) =>
     `opened this tenant as platform staff (${roleLabel(m, 'platformRole')})`,

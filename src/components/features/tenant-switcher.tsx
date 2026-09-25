@@ -99,7 +99,10 @@ function ownTenantsMessage({
  *
  * "Your tenants" is the caller's memberships, minus the platform tenant (the
  * user menu links that). Staff also get "All tenants": a server-side search,
- * de-duplicated against "Your tenants", paged by a Load more option.
+ * de-duplicated against "Your tenants", paged by a Load more option, and
+ * leaving out any tenant that is not active. `resolveTenant` only opens an
+ * active tenant, so a suspended or archived row would 404 the moment it was
+ * chosen — there is nowhere for picking one to go.
  */
 export function TenantSwitcher() {
   const navigate = useNavigate()
@@ -129,7 +132,7 @@ export function TenantSwitcher() {
   const ownMatches = own.filter((option) => matches(option, query))
   const others: SwitcherOption[] = [
     ...flattenTenantPages(all.data)
-      .filter((row) => !ownIds.has(row.id))
+      .filter((row) => !ownIds.has(row.id) && row.lifecycleState === 'active')
       .map((row): TenantOption => ({ kind: 'tenant', id: row.id, name: row.name, slug: row.slug })),
     ...(all.hasNextPage ? [LOAD_MORE] : []),
   ]

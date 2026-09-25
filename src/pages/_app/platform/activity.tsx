@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { ActivityList } from '@/components/features/activity/activity-list'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import {
   ComboboxItem,
   ComboboxList,
 } from '@/components/ui/combobox'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -108,7 +109,13 @@ function TenantFilter({
           className="w-56"
         />
         <ComboboxContent>
-          <ComboboxEmpty>{search.isPending ? 'Searching…' : 'No tenants match'}</ComboboxEmpty>
+          <ComboboxEmpty>
+            {search.isPending
+              ? 'Searching…'
+              : search.isError
+                ? 'Tenants could not be loaded'
+                : 'No tenants match'}
+          </ComboboxEmpty>
           <ComboboxList>
             {(tenant: PlatformTenantRow) => (
               <ComboboxItem key={tenant.id} value={tenant}>
@@ -136,11 +143,12 @@ function TenantFilter({
 }
 
 function PlatformActivity() {
+  const staffOnlyId = useId()
   const [tenant, setTenant] = useState<PlatformTenantRow | null>(null)
   const [action, setAction] = useState(ANY)
   const [actor, setActor] = useState(ANY)
   const [staffOnly, setStaffOnly] = useState(false)
-  // Platform-wide actors are staff, and staff are the platform tenant's members.
+  // The actor filter offers staff: the platform tenant's members.
   const staff = useMembers(PLATFORM_TENANT_SLUG)
   const filters: PlatformAuditFilters = {
     tenantId: tenant?.id,
@@ -209,13 +217,13 @@ function PlatformActivity() {
             </Select>
             <div className="flex items-center gap-2">
               <Switch
-                aria-label="Staff only"
+                id={staffOnlyId}
                 checked={staffOnly}
                 onCheckedChange={(checked) => setStaffOnly(checked)}
               />
-              <span aria-hidden="true" className="text-sm">
+              <Label htmlFor={staffOnlyId} className="text-sm font-normal">
                 Staff only
-              </span>
+              </Label>
             </div>
           </div>
           <ActivityList

@@ -1,5 +1,6 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ActivityList } from '@/components/features/activity/activity-list'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,7 +20,7 @@ import {
   useTenantAuditLog,
   type TenantAuditFilters,
 } from '@/queries/audit.queries'
-import { memberName, useMembers, useMyRole } from '@/queries/tenant.queries'
+import { memberName, tenantKeys, useMembers, useMyRole } from '@/queries/tenant.queries'
 
 export const Route = createFileRoute('/_app/tenants/$slug/activity')({
   staticData: { crumb: 'Activity' },
@@ -47,6 +48,7 @@ function actionLabel(value: string): string {
  * actor filter is only requested once the role check has passed.
  */
 function TenantActivity({ slug }: { slug: string }) {
+  const queryClient = useQueryClient()
   const [action, setAction] = useState(ANY)
   const [actor, setActor] = useState(ANY)
   const members = useMembers(slug)
@@ -60,6 +62,16 @@ function TenantActivity({ slug }: { slug: string }) {
   // A stale cached role: the tab rendered on a role that passed
   // `canViewActivity`, but the log itself says that role no longer qualifies.
   const forbidden = log.isError && statusFrom(log.error) === 403
+
+  useEffect(() => {
+    // `useMyRole` (the tab gate) reads this same key, so invalidating it
+    // makes the gate re-check the role rather than keep trusting the stale
+    // cached one that got this far. `exact`, or the audit log query under
+    // this same prefix would also refetch and 403 again for nothing.
+    if (forbidden) {
+      void queryClient.invalidateQueries({ queryKey: tenantKeys.detail(slug), exact: true })
+    }
+  }, [forbidden, slug, queryClient])
 
   function actorLabel(value: string): string {
     if (value === ANY) return 'Anyone'

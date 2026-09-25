@@ -230,6 +230,37 @@ describe('TenantSwitcher', () => {
       expect(screen.getAllByRole('option', { name: 'Acme Corp' })).toHaveLength(1)
     })
 
+    // resolveTenant only opens active tenants, so a suspended or archived row
+    // would 404 the moment it was chosen. Leaving them out is simplest: there
+    // is nowhere for choosing one to go.
+    it('leaves suspended and archived tenants out of All tenants, since neither can be opened', async () => {
+      server.use(
+        http.get('/api/v1/tenants', () =>
+          ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
+        )
+      )
+      recordSearches(() =>
+        ok(
+          {
+            tenants: [
+              GLOBEX_ROW,
+              { ...INITECH_ROW, lifecycleState: 'suspended' },
+              { ...searchRow('t4', 'Umbrella', 'umbrella'), lifecycleState: 'archived' },
+            ],
+            nextCursor: null,
+          },
+          'Tenants.'
+        )
+      )
+      renderShell()
+      await openSwitcher()
+
+      const all = await screen.findByRole('group', { name: 'All tenants' })
+      expect(within(all).getByRole('option', { name: 'Globex' })).toBeInTheDocument()
+      expect(within(all).queryByRole('option', { name: 'Initech' })).not.toBeInTheDocument()
+      expect(within(all).queryByRole('option', { name: 'Umbrella' })).not.toBeInTheDocument()
+    })
+
     // Four keystrokes inside the 250ms window: one request for the word, not
     // one per letter.
     it('debounces the search, sending one request for a burst of typing', async () => {
