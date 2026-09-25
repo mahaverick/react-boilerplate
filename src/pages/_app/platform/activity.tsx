@@ -78,9 +78,12 @@ function TenantFilter({
   value: PlatformTenantRow | null
   onChange: (tenant: PlatformTenantRow | null) => void
 }) {
+  const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const term = useDebouncedValue(query, SEARCH_DEBOUNCE_MS)
-  const search = usePlatformTenantSearch(term, { enabled: true })
+  // Only while open: a closed popup has nothing to show, the same reason the
+  // tenant switcher gates its own search this way.
+  const search = usePlatformTenantSearch(term, { enabled: open })
 
   return (
     <div className="flex items-center gap-1">
@@ -88,6 +91,8 @@ function TenantFilter({
         items={flattenTenantPages(search.data)}
         filter={null}
         value={value}
+        open={open}
+        onOpenChange={setOpen}
         onValueChange={(tenant) => onChange(tenant)}
         inputValue={query}
         onInputValueChange={(next) => setQuery(next)}
@@ -220,6 +225,7 @@ function PlatformActivity() {
             onRetry={() => void log.refetch()}
             hasNextPage={log.hasNextPage}
             isFetchingNextPage={log.isFetchingNextPage}
+            isFetchNextPageError={log.isFetchNextPageError}
             onLoadMore={() => void log.fetchNextPage()}
             emptyMessage={
               isFiltered ? 'Nothing matches these filters.' : 'Nothing has happened yet.'

@@ -11,13 +11,13 @@ import { tenantQueryOptions, useMyRole, useTenant } from '@/queries/tenant.queri
 /**
  * The tenant shell: header, tab bar, `<Outlet />`.
  *
- * A LAYOUT route, not a leaf. The three tabs are real child routes
- * (`$slug.index.tsx`, `$slug.members.tsx`, `$slug.settings.tsx`), so each one
- * is linkable, bookmarkable and survives a reload — which a `<Tabs>` widget
- * holding its own panel state would not.
+ * A LAYOUT route, not a leaf. The tabs are real child routes
+ * (`$slug.index.tsx`, `$slug.members.tsx`, `$slug.settings.tsx`,
+ * `$slug.activity.tsx`), so each one is linkable, bookmarkable and survives a
+ * reload — which a `<Tabs>` widget holding its own panel state would not.
  */
 export const Route = createFileRoute('/_app/tenants/$slug')({
-  // Warms the cache once for all three tabs. `tenantQueryOptions` resolves a
+  // Warms the cache once for every tab. `tenantQueryOptions` resolves a
   // 404 to `null` rather than rejecting, so this never throws and a tenant
   // that does not exist — or that this user is not a member of — reaches the
   // not-found panel below instead of the router's error boundary.

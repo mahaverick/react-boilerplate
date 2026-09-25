@@ -308,4 +308,50 @@ describe('tenant activity tab', () => {
     expect(alert).toHaveTextContent(/could not load more activity/i)
     expect(screen.getByText(/changed the settings/)).toBeInTheDocument()
   })
+
+  // A REFRESH failure is a different event from a "Load more" failure: no new
+  // page was being appended, so what's on screen is not necessarily complete,
+  // but nothing said it was incomplete either.
+  it('shows a refresh failure separately from a "Load more" failure, and retries with a fresh fetch', async () => {
+    mockTenant('owner')
+    let attempt = 0
+    const seen = mockLog(() => {
+      attempt += 1
+      return attempt === 1 ? page([STAFF_CHANGE]) : fail('Something went wrong.', 500)
+    })
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText(/changed the settings/)
+
+    // Leaving the tab and returning unmounts and remounts the log's own
+    // query. `staleTime: 0` means the remount refetches on its own — a
+    // REFRESH, never a "Load more" (there is no next page here to load).
+    await user.click(screen.getByRole('link', { name: 'Overview' }))
+    await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
+    await user.click(screen.getByRole('link', { name: 'Activity' }))
+
+    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    expect(alert).toHaveTextContent(/could not refresh the activity/i)
+    expect(screen.queryByText(/could not load more activity/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/changed the settings/)).toBeInTheDocument()
+
+    const before = seen.length
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => {
+      expect(seen.length).toBeGreaterThan(before)
+    })
+  })
+
+  // The route's role check already passed on cached data; a fresh 403 means
+  // the effective role changed server-side since then.
+  it('says the tenant’s activity is owners-and-admins only when the log answers 403, and does not retry', async () => {
+    mockTenant('owner')
+    const seen = mockLog(() => fail('Forbidden', 403))
+    renderAppAt('/tenants/acme/activity')
+
+    expect(
+      await screen.findByText('Only this tenant’s owners and admins can see its activity.')
+    ).toBeInTheDocument()
+    expect(seen).toHaveLength(1)
+  })
 })

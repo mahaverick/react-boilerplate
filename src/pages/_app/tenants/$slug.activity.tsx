@@ -13,6 +13,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { AUDIT_ACTION_LABELS, AUDIT_ACTIONS, isAuditAction } from '@/constants/audit-actions'
 import { canViewActivity } from '@/constants/roles'
+import { statusFrom } from '@/lib/api-error'
 import {
   flattenAuditPages,
   useTenantAuditLog,
@@ -29,6 +30,13 @@ export const Route = createFileRoute('/_app/tenants/$slug/activity')({
 const ANY = 'any'
 /** The actor select's "anyone acting under platform access". */
 const STAFF = 'staff'
+
+/**
+ * Said both when the cached role statically fails `canViewActivity` and when
+ * a fresh request 403s despite it passing: the two read the same to the
+ * reader, a role that no longer qualifies.
+ */
+const OWNERS_AND_ADMINS_MESSAGE = 'Only this tenant’s owners and admins can see its activity.'
 
 function actionLabel(value: string): string {
   return isAuditAction(value) ? AUDIT_ACTION_LABELS[value] : 'All actions'
@@ -49,12 +57,19 @@ function TenantActivity({ slug }: { slug: string }) {
   }
   const log = useTenantAuditLog(slug, filters, { enabled: true })
   const isFiltered = action !== ANY || actor !== ANY
+  // A stale cached role: the tab rendered on a role that passed
+  // `canViewActivity`, but the log itself says that role no longer qualifies.
+  const forbidden = log.isError && statusFrom(log.error) === 403
 
   function actorLabel(value: string): string {
     if (value === ANY) return 'Anyone'
     if (value === STAFF) return 'Staff'
     const match = members.data?.find((member) => member.user.id === value)
     return match ? memberName(match) : 'A member'
+  }
+
+  if (forbidden) {
+    return <p className="text-sm text-muted-foreground">{OWNERS_AND_ADMINS_MESSAGE}</p>
   }
 
   return (
@@ -95,6 +110,7 @@ function TenantActivity({ slug }: { slug: string }) {
         onRetry={() => void log.refetch()}
         hasNextPage={log.hasNextPage}
         isFetchingNextPage={log.isFetchingNextPage}
+        isFetchNextPageError={log.isFetchNextPageError}
         onLoadMore={() => void log.fetchNextPage()}
         emptyMessage={
           isFiltered ? 'Nothing matches these filters.' : 'Nothing has happened in this tenant yet.'
@@ -117,7 +133,7 @@ function TenantActivityTab() {
         </CardTitle>
         <CardDescription>
           {role !== undefined && !isAllowed
-            ? 'Only this tenant’s owners and admins can see its activity.'
+            ? OWNERS_AND_ADMINS_MESSAGE
             : 'Every change made in this tenant, newest first. What platform staff did is marked Staff.'}
         </CardDescription>
       </CardHeader>

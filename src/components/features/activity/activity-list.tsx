@@ -13,6 +13,13 @@ const ACTIVITY_ERROR =
   'We could not load the activity, so none is listed here. This is not a sign that there is none.'
 const MORE_ERROR =
   'We could not load more activity. What is listed above is correct, but it may not be all of it.'
+/**
+ * `staleTime: 0` (audit.queries.ts) makes a background refetch of the pages
+ * already loaded common, and that failure is not the same event as a failed
+ * "Load more": nothing new was being appended, so what's on screen is not
+ * necessarily complete or current, but it is not wrong either.
+ */
+const REFETCH_ERROR = 'We could not refresh the activity. What is listed above may be out of date.'
 
 export interface ActivityListProps<T extends AuditEntry> {
   entries: T[]
@@ -21,6 +28,8 @@ export interface ActivityListProps<T extends AuditEntry> {
   onRetry: () => void
   hasNextPage: boolean
   isFetchingNextPage: boolean
+  /** True only when the FAILED fetch was a next-page one, not a refetch of an already-loaded page. */
+  isFetchNextPageError: boolean
   onLoadMore: () => void
   /** Filters decide whether "nothing has happened" is true, so the page says it. */
   emptyMessage: string
@@ -74,6 +83,7 @@ export function ActivityList<T extends AuditEntry>({
   onRetry,
   hasNextPage,
   isFetchingNextPage,
+  isFetchNextPageError,
   onLoadMore,
   emptyMessage,
   renderTenant,
@@ -103,7 +113,11 @@ export function ActivityList<T extends AuditEntry>({
           <ActivityRow key={entry.id} entry={entry} renderTenant={renderTenant} />
         ))}
       </ul>
-      {isError && <LoadError message={MORE_ERROR} onRetry={onRetry} />}
+      {isFetchNextPageError ? (
+        <LoadError message={MORE_ERROR} onRetry={onLoadMore} />
+      ) : (
+        isError && <LoadError message={REFETCH_ERROR} onRetry={onRetry} />
+      )}
       {hasNextPage && (
         <Button
           variant="outline"

@@ -161,4 +161,27 @@ describe('platform activity page', () => {
     })
     expect(screen.getByLabelText('Filter by tenant')).toHaveValue('')
   })
+
+  it('does not search for tenants until the tenant filter is opened', async () => {
+    signInAs('admin')
+    mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
+    const seen: URL[] = []
+    server.use(
+      http.get('/api/v1/platform/tenants', ({ request }) => {
+        seen.push(new URL(request.url))
+        return ok({ tenants: [], nextCursor: null }, 'Tenants retrieved.')
+      })
+    )
+    const user = userEvent.setup()
+    renderPlatformActivity()
+    await screen.findByText(/opened this tenant/)
+
+    expect(seen).toHaveLength(0)
+
+    await user.click(screen.getByLabelText('Filter by tenant'))
+
+    await waitFor(() => {
+      expect(seen.length).toBeGreaterThan(0)
+    })
+  })
 })

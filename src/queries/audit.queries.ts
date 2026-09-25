@@ -57,6 +57,10 @@ export function useTenantAuditLog(
     // Below the client's 30s default: switching a filter away and back must
     // show what changed meanwhile, not a few-seconds-old cached page.
     staleTime: 0,
+    // A stale cached role reads as a 403 here, not as a generic failure: the
+    // route's role check already passed on cached data, so a fresh 403 means
+    // the effective role changed server-side since. Retrying repeats it.
+    retry: (failureCount, error) => statusFrom(error) !== 403 && failureCount < 1,
   })
 }
 
@@ -74,6 +78,7 @@ export function usePlatformAuditLog(filters: PlatformAuditFilters) {
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     // A 404 is the API's answer about who is asking; asking again changes nothing.
     retry: (failureCount, error) => statusFrom(error) !== 404 && failureCount < 1,
+    // See useTenantAuditLog's staleTime for why this isn't the client's 30s default.
     staleTime: 0,
   })
 }
