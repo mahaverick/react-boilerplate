@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
-import type { InvitationPreview, TenantInvitation, User } from '@/types/api.types'
+import type { MembershipRole } from '@/constants/roles'
+import type { InvitationPreview, TenantAccess, TenantInvitation, User } from '@/types/api.types'
 
 export const testUser: User = {
   id: 'u1',
@@ -7,6 +8,7 @@ export const testUser: User = {
   firstName: 'A',
   lastName: 'B',
   createdAt: '2026-01-01T00:00:00.000Z',
+  platformRole: null,
 }
 
 /** 43 characters of base64url, the shape the server mints and validates. */
@@ -39,6 +41,19 @@ export function fail(message: string, statusCode: number, code?: string) {
     { success: false, message, statusCode, code, requestId: 'test-request-id' },
     { status: statusCode }
   )
+}
+
+/**
+ * `GET /tenants/:slug` as the API answers it: the tenant row plus the
+ * caller's EFFECTIVE role there and how they reached it. `useMyRole` reads
+ * the role from here, so a detail mock without it renders the role error.
+ */
+export function tenantDetail<T extends object>(
+  tenant: T,
+  role: MembershipRole,
+  access: TenantAccess = 'member'
+) {
+  return { ...tenant, isPlatform: false, role, access }
 }
 
 export const handlers = [

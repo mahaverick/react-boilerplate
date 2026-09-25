@@ -41,8 +41,8 @@ export const Route = createFileRoute('/_app/tenants/$slug/settings')({
  *
  * Its own message and its own `refetch`, for the reason spelled out on
  * `MEMBERS_ERROR` in the members tab: `useMyRole`'s retry refetches the tenant
- * LIST, so handing it to a settings failure produced a Try again that issued
- * no further settings request, under a sentence about a query that had
+ * itself, so handing it to a settings failure would produce a Try again that
+ * issued no further settings request, under a sentence about a query that had
  * succeeded.
  */
 const SETTINGS_ERROR =

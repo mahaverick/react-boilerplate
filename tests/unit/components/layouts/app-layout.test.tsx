@@ -16,7 +16,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-import { fail, ok, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /** One tenant row, for the dynamic-route breadcrumb case below. */
@@ -127,7 +127,7 @@ describe('AppLayout', () => {
       http.get('/api/v1/tenants', () =>
         ok([{ tenant: ACME, role: 'viewer' }], 'Tenants retrieved.')
       ),
-      http.get('/api/v1/tenants/acme', () => ok(ACME, 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'viewer'), 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
     )
     renderAppAt('/tenants/acme/members')

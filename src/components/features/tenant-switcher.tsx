@@ -14,12 +14,10 @@ import { useTenants } from '@/queries/tenant.queries'
 /**
  * A NAVIGATION dropdown, and nothing else.
  *
- * Tenant scope is the URL: every tenant-scoped route resolves its tenant from
- * the `:slug` path param. The API reserves an `X-Tenant-Id` header, but
- * `tenant.middleware.ts` marks it "reserved for a future" and no route reads
- * it — so a switcher that set that header, or wrote a "current tenant" to a
- * store, would be a silent no-op that looked like it worked. Each item is a
- * link to `/tenants/$slug`; the current tenant is whatever the URL says.
+ * Tenant scope is the URL: the API resolves the tenant from the `:slug` path
+ * param alone, with no tenant header and no "current tenant" cookie, so there
+ * is nothing to switch but the address. Each item is a link to
+ * `/tenants/$slug`; the current tenant is whatever the URL says.
  */
 export function TenantSwitcher() {
   const tenants = useTenants()

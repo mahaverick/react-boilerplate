@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
-import { http } from 'msw'
+import { delay, http } from 'msw'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
@@ -9,11 +9,12 @@ import {
   tenantKeys,
   useInvitations,
   useInviteMember,
+  useMyRole,
   useResendInvitation,
   useRevokeInvitation,
 } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
-import { fail, ok, testInvitation, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, tenantDetail, testInvitation, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 describe('tenant invitation queries', () => {
@@ -204,5 +205,98 @@ describe('tenant invitation queries', () => {
   it('no longer offers direct add', () => {
     // POST /tenants/:slug/members is gone from the API.
     expect('useAddMember' in tenantQueries).toBe(false)
+  })
+})
+
+const DETAIL_TENANT = {
+  id: 't1',
+  name: 'Acme Corp',
+  slug: 'acme',
+  description: null,
+  logo: null,
+  website: null,
+  lifecycleState: 'active',
+  deletedAt: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+describe('useMyRole', () => {
+  let client: QueryClient
+
+  function wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  }
+
+  beforeEach(() => {
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    resetSessionForTests()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  // Under platform access the caller has no membership, so the tenant LIST
+  // does not carry this tenant at all: the role has to come from the detail.
+  it('reads the effective role and the access path from GET /tenants/:slug', async () => {
+    let listCalls = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        listCalls += 1
+        return ok([], 'Tenants retrieved.')
+      }),
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(DETAIL_TENANT, 'viewer', 'platform'), 'Tenant retrieved.')
+      )
+    )
+
+    const { result } = renderHook(() => useMyRole('acme'), { wrapper })
+
+    await waitFor(() => expect(result.current.role).toBe('viewer'))
+    expect(result.current.access).toBe('platform')
+    expect(result.current.isPending).toBe(false)
+    expect(result.current.isError).toBe(false)
+    expect(listCalls).toBe(0)
+  })
+
+  it('is pending, not errored, while the tenant is in flight', () => {
+    server.use(http.get('/api/v1/tenants/acme', async () => delay('infinite')))
+
+    const { result } = renderHook(() => useMyRole('acme'), { wrapper })
+
+    expect(result.current.isPending).toBe(true)
+    expect(result.current.isError).toBe(false)
+    expect(result.current.role).toBeUndefined()
+  })
+
+  // A 404 is a VALUE (`null`), so this is "settled, and no role here".
+  it('settles with no role after a 404', async () => {
+    server.use(http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404)))
+
+    const { result } = renderHook(() => useMyRole('acme'), { wrapper })
+
+    await waitFor(() => expect(result.current.isPending).toBe(false))
+    expect(result.current.isError).toBe(false)
+    expect(result.current.role).toBeUndefined()
+  })
+
+  it('reports a failure, and its retry refetches the tenant', async () => {
+    let calls = 0
+    server.use(
+      http.get('/api/v1/tenants/acme', () => {
+        calls += 1
+        return fail('Something went wrong.', 500)
+      })
+    )
+
+    const { result } = renderHook(() => useMyRole('acme'), { wrapper })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    const before = calls
+    result.current.retry()
+    await waitFor(() => expect(calls).toBeGreaterThan(before))
   })
 })

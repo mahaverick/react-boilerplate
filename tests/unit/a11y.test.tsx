@@ -14,7 +14,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-import { fail, ok, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, tenantDetail, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /**
@@ -168,7 +168,7 @@ function mockSignedInData() {
     http.get('/api/v1/tenants', () =>
       ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
     ),
-    http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+    http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')),
     http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.')),
     http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
     http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),

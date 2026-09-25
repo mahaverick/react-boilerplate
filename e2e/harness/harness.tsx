@@ -112,6 +112,7 @@ const testUser = {
   firstName: 'A',
   lastName: 'B',
   createdAt: '2026-01-01T00:00:00.000Z',
+  platformRole: null,
 }
 
 function ok<T>(data: T, message = 'OK', statusCode = 200) {
@@ -147,7 +148,9 @@ const membersHandler =
 
 const worker = setupWorker(
   http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')),
-  http.get('/api/v1/tenants/acme', () => ok(TENANT, 'Tenant retrieved.')),
+  http.get('/api/v1/tenants/acme', () =>
+    ok({ ...TENANT, isPlatform: false, role: 'owner', access: 'member' }, 'Tenant retrieved.')
+  ),
   membersHandler,
   // The members page lists pending invitations for an owner. Unmocked, this
   // would reach the real API, 401, and sign the harness user out.

@@ -16,6 +16,8 @@
  *
  * Plus `isLastOwnerBlocked`, which is not a permission at all but the
  * backend's "a tenant must keep an owner" 409.
+ *
+ * And the audit-log readers (`canViewActivity`, `canViewPlatformActivity`) and `isStaff`.
  */
 
 /** Descending authority. Mirrors MEMBERSHIP_ROLES on the server. */
@@ -117,4 +119,27 @@ export function isLastOwnerBlocked({
   ownerCount: number
 }): boolean {
   return isSelf && targetRole === 'owner' && ownerCount <= 1
+}
+
+/**
+ * The Activity tab and `GET /tenants/:slug/audit-log`: owner or admin.
+ *
+ * Takes the EFFECTIVE role (`useMyRole`), so a staff admin passes and a staff
+ * viewer does not, which is exactly the route's `requireRole('owner', 'admin')`.
+ */
+export function canViewActivity(role: MembershipRole): boolean {
+  return role === 'owner' || role === 'admin'
+}
+
+/**
+ * Whether the signed-in user is platform staff: any role in the platform
+ * tenant. `undefined` is a user object without the field, and is not staff.
+ */
+export function isStaff(platformRole: MembershipRole | null | undefined): boolean {
+  return platformRole !== null && platformRole !== undefined
+}
+
+/** `GET /platform/audit-log` and its page: platform owner or admin. */
+export function canViewPlatformActivity(platformRole: MembershipRole | null | undefined): boolean {
+  return platformRole === 'owner' || platformRole === 'admin'
 }

@@ -18,14 +18,22 @@ export interface ApiErrorBody {
   requestId: string
 }
 
-/** Exactly `toPublicUser` on the server: AuthenticatedUser plus createdAt. */
+/**
+ * `toPublicUser` on the server (AuthenticatedUser plus createdAt), plus the
+ * caller's role in the platform tenant. `platformRole` is `null` for everyone
+ * who is not staff; test it with `isStaff`, never by truthiness of a copy.
+ */
 export interface User {
   id: string
   email: string
   firstName: string | null
   lastName: string | null
   createdAt: string
+  platformRole: MembershipRole | null
 }
+
+/** How the caller reached a tenant: as one of its members, or as platform staff. */
+export type TenantAccess = 'member' | 'platform'
 
 export const ACCESS_TOKEN_EXPIRED = 'ACCESS_TOKEN_EXPIRED'
 
