@@ -304,3 +304,38 @@ test.describe('popups that are not menus', () => {
     })
   }
 })
+
+/**
+ * The staff surfaces: the banner a staff member sees on a tenant they reached
+ * through platform access, and the Staff badge on an Activity row. Each is
+ * asserted present, because a page without it grades clean and proves nothing
+ * about it.
+ */
+test.describe('staff surfaces', () => {
+  for (const theme of THEMES) {
+    test(`the platform access banner meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      const result = await contrastOf(
+        page,
+        '/e2e/harness/?path=/tenants/acme&access=platform',
+        theme,
+        'Acme Corp'
+      )
+      await expect(
+        page.getByRole('status').filter({ hasText: 'as platform staff (Viewer)' })
+      ).toBeVisible()
+      expect(report('staff banner', theme, result), report('staff banner', theme, result)).toBe('')
+    })
+
+    test(`the Activity Staff badge meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      const result = await contrastOf(
+        page,
+        '/e2e/harness/?path=/tenants/acme/activity',
+        theme,
+        'Activity'
+      )
+      const row = page.getByRole('listitem').filter({ hasText: 'Sam Staff' })
+      await expect(row.getByText('Staff', { exact: true })).toBeVisible()
+      expect(report('staff badge', theme, result), report('staff badge', theme, result)).toBe('')
+    })
+  }
+})

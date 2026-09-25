@@ -10,6 +10,10 @@
  * `?state=loaded|empty|error|loading|soleowner` picks what the members
  * endpoint answers, which is how the e2e suite reaches the states that only
  * exist for one shape of data.
+ *
+ * `?access=platform` signs the harness user in as a staff viewer who is not a
+ * member of `acme`, so the tenant pages render under the platform access
+ * banner.
  */
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
@@ -112,7 +116,7 @@ const testUser = {
   firstName: 'A',
   lastName: 'B',
   createdAt: '2026-01-01T00:00:00.000Z',
-  platformRole: null,
+  platformRole: null as 'viewer' | null,
 }
 
 function ok<T>(data: T, message = 'OK', statusCode = 200) {
@@ -122,6 +126,8 @@ function ok<T>(data: T, message = 'OK', statusCode = 200) {
 // `?state=` picks which variant to render, so the empty and error states get
 // screenshots too rather than only the happy path.
 const state = new URLSearchParams(location.search).get('state') ?? 'loaded'
+const asStaff = new URLSearchParams(location.search).get('access') === 'platform'
+if (asStaff) testUser.platformRole = 'viewer'
 
 const SOLE_OWNER = [MEMBERS[0]]
 
@@ -147,9 +153,16 @@ const membersHandler =
           : http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
 
 const worker = setupWorker(
-  http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')),
+  http.get('/api/v1/tenants', () =>
+    ok(asStaff ? [] : [{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+  ),
   http.get('/api/v1/tenants/acme', () =>
-    ok({ ...TENANT, isPlatform: false, role: 'owner', access: 'member' }, 'Tenant retrieved.')
+    ok(
+      asStaff
+        ? { ...TENANT, isPlatform: false, role: 'viewer', access: 'platform' }
+        : { ...TENANT, isPlatform: false, role: 'owner', access: 'member' },
+      'Tenant retrieved.'
+    )
   ),
   membersHandler,
   // The members page lists pending invitations for an owner. Unmocked, this
