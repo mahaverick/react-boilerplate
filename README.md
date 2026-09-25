@@ -50,7 +50,7 @@ proxy; in the container it is nginx.
 `/api/v1` is not configurable, and there is no environment variable that
 moves it. It is written once, as `API_PREFIX` in `src/constants/routes.ts`,
 and everything on the JavaScript side derives from it: the axios base
-(`src/http/client.ts`), the `EventSource` URL for the notification stream
+(`src/http/client.ts`), the notification stream's `fetch` URL
 (`src/hooks/use-notifications.ts`, which ignores axios entirely), and the
 Google OAuth anchor (`GOOGLE_OAUTH_PATH`).
 
@@ -175,25 +175,27 @@ together if it ever moves.
 
 ### What `nginx.conf` is doing
 
-Four things in there are load-bearing and fail **silently** if edited away.
-`nginx.conf` explains each at the line; in short:
+Three things in there are load-bearing and fail **silently** if edited away,
+and a fourth is defence in depth. `nginx.conf` explains each at the line; in
+short:
 
 - `proxy_pass ${API_UPSTREAM};` carries **no trailing path**, and
   `API_UPSTREAM` must not bring one. A path there makes nginx rewrite the URI,
   and the refresh cookie is scoped `Path=/api/v1/auth` — token refresh then
   stops working with nothing in any log.
 - `X-Forwarded-Proto` is forwarded for the OAuth session cookie, not the
-  refresh cookie. express's `COOKIE_SECURE` — on unless `APP_ENV=local` —
-  decides `Secure` on the refresh cookie, and no request header changes that.
-  express-session is different: it silently skips a `Secure` cookie on a
-  request it does not see as HTTPS, and behind TLS termination it sees HTTPS
-  only through this header with express's `TRUST_PROXY` set.
+  refresh cookie. express's `COOKIE_SECURE` — on by default unless
+  `APP_ENV=local` — decides `Secure` on the refresh cookie, and no request
+  header changes that. express-session is different: it silently skips a
+  `Secure` cookie on a request it does not see as HTTPS, and behind TLS
+  termination it sees HTTPS only through this header with express's
+  `TRUST_PROXY` set.
 - The SSE location sets `proxy_buffering off` (plus HTTP/1.1, an empty
   `Connection` header and a long read timeout). nginx buffers by default, which
   stalls an event stream indefinitely.
 - That same location logs with a `stream_nolog` format that records `$uri`
   instead of `$request`, and raises its `error_log` level to `crit`. The access
-  token no longer rides in the query string there: the client sends an
+  token is not in the query string there: the client sends an
   `Authorization: Bearer` header, which never appears in a logged request line.
   Both lines stay as defence in depth, so that a query parameter added to this
   route later cannot quietly reach the access log, or the **error** log — nginx
