@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { LogOut, ShieldCheck, User as UserIcon } from 'lucide-react'
+import { History, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
-import { isStaff } from '@/constants/roles'
+import { canViewPlatformActivity, isStaff } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG, ROUTES } from '@/constants/routes'
 import { useLogout } from '@/queries/auth.queries'
 import type { User } from '@/types/api.types'
@@ -67,6 +67,12 @@ export function UserMenu({ user }: { user: User | null }) {
               >
                 <ShieldCheck className="mr-2 size-4" />
                 Platform
+              </DropdownMenuItem>
+            )}
+            {canViewPlatformActivity(user?.platformRole) && (
+              <DropdownMenuItem render={<Link to={ROUTES.platformActivity} />}>
+                <History className="mr-2 size-4" />
+                Platform activity
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />

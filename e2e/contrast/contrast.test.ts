@@ -69,6 +69,11 @@ const SURFACES = [
     url: '/e2e/harness/?path=/tenants/acme/settings',
     heading: 'Settings',
   },
+  {
+    name: 'tenant activity',
+    url: '/e2e/harness/?path=/tenants/acme/activity',
+    heading: 'Activity',
+  },
 ] as const
 
 const THEMES = ['light', 'dark'] as const

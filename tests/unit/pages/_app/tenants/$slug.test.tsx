@@ -138,9 +138,18 @@ describe('tenant detail', () => {
 
     expect(await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })).toBeInTheDocument()
     const tabs = screen.getByRole('navigation', { name: 'Tenant sections' })
-    for (const label of ['Overview', 'Members', 'Settings']) {
+    for (const label of ['Overview', 'Members', 'Settings', 'Activity']) {
       expect(within(tabs).getByRole('link', { name: label })).toBeInTheDocument()
     }
+  })
+
+  it('offers the Activity tab to owners and admins only', async () => {
+    mockTenant('editor')
+    renderAppAt('/tenants/acme')
+
+    const tabs = await screen.findByRole('navigation', { name: 'Tenant sections' })
+    expect(within(tabs).getByRole('link', { name: 'Settings' })).toBeInTheDocument()
+    expect(within(tabs).queryByRole('link', { name: 'Activity' })).not.toBeInTheDocument()
   })
 
   it('navigates between tabs as real routes', async () => {

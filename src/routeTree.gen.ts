@@ -22,9 +22,11 @@ import { Route as AuthLoginRouteImport } from './pages/_auth/login'
 import { Route as AuthRegisterRouteImport } from './pages/_auth/register'
 import { Route as AuthCallbackRouteImport } from './pages/auth/callback'
 import { Route as InvitationsAcceptRouteImport } from './pages/invitations/accept'
+import { Route as AppPlatformActivityRouteImport } from './pages/_app/platform/activity'
 import { Route as AppTenantsIndexRouteImport } from './pages/_app/tenants/index'
 import { Route as AppTenantsSlugRouteImport } from './pages/_app/tenants/$slug'
 import { Route as AppTenantsSlugIndexRouteImport } from './pages/_app/tenants/$slug.index'
+import { Route as AppTenantsSlugActivityRouteImport } from './pages/_app/tenants/$slug.activity'
 import { Route as AppTenantsSlugMembersRouteImport } from './pages/_app/tenants/$slug.members'
 import { Route as AppTenantsSlugSettingsRouteImport } from './pages/_app/tenants/$slug.settings'
 
@@ -91,6 +93,11 @@ const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
   path: '/invitations/accept',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppPlatformActivityRoute = AppPlatformActivityRouteImport.update({
+  id: '/platform/activity',
+  path: '/platform/activity',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTenantsIndexRoute = AppTenantsIndexRouteImport.update({
   id: '/tenants/',
   path: '/tenants/',
@@ -104,6 +111,11 @@ const AppTenantsSlugRoute = AppTenantsSlugRouteImport.update({
 const AppTenantsSlugIndexRoute = AppTenantsSlugIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppTenantsSlugRoute,
+} as any)
+const AppTenantsSlugActivityRoute = AppTenantsSlugActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => AppTenantsSlugRoute,
 } as any)
 const AppTenantsSlugMembersRoute = AppTenantsSlugMembersRouteImport.update({
@@ -129,8 +141,10 @@ export interface FileRoutesByFullPath {
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/platform/activity': typeof AppPlatformActivityRoute
   '/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/tenants/': typeof AppTenantsIndexRoute
+  '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
   '/tenants/$slug/': typeof AppTenantsSlugIndexRoute
@@ -147,7 +161,9 @@ export interface FileRoutesByTo {
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/platform/activity': typeof AppPlatformActivityRoute
   '/tenants': typeof AppTenantsIndexRoute
+  '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
   '/tenants/$slug': typeof AppTenantsSlugIndexRoute
@@ -167,8 +183,10 @@ export interface FileRoutesById {
   '/_auth/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/_app/platform/activity': typeof AppPlatformActivityRoute
   '/_app/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/_app/tenants/': typeof AppTenantsIndexRoute
+  '/_app/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/_app/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/_app/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
   '/_app/tenants/$slug/': typeof AppTenantsSlugIndexRoute
@@ -187,8 +205,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/auth/callback'
     | '/invitations/accept'
+    | '/platform/activity'
     | '/tenants/$slug'
     | '/tenants/'
+    | '/tenants/$slug/activity'
     | '/tenants/$slug/members'
     | '/tenants/$slug/settings'
     | '/tenants/$slug/'
@@ -205,7 +225,9 @@ export interface FileRouteTypes {
     | '/register'
     | '/auth/callback'
     | '/invitations/accept'
+    | '/platform/activity'
     | '/tenants'
+    | '/tenants/$slug/activity'
     | '/tenants/$slug/members'
     | '/tenants/$slug/settings'
     | '/tenants/$slug'
@@ -224,8 +246,10 @@ export interface FileRouteTypes {
     | '/_auth/register'
     | '/auth/callback'
     | '/invitations/accept'
+    | '/_app/platform/activity'
     | '/_app/tenants/$slug'
     | '/_app/tenants/'
+    | '/_app/tenants/$slug/activity'
     | '/_app/tenants/$slug/members'
     | '/_app/tenants/$slug/settings'
     | '/_app/tenants/$slug/'
@@ -334,6 +358,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InvitationsAcceptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/platform/activity': {
+      id: '/_app/platform/activity'
+      path: '/platform/activity'
+      fullPath: '/platform/activity'
+      preLoaderRoute: typeof AppPlatformActivityRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tenants/': {
       id: '/_app/tenants/'
       path: '/tenants'
@@ -355,6 +386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTenantsSlugIndexRouteImport
       parentRoute: typeof AppTenantsSlugRoute
     }
+    '/_app/tenants/$slug/activity': {
+      id: '/_app/tenants/$slug/activity'
+      path: '/activity'
+      fullPath: '/tenants/$slug/activity'
+      preLoaderRoute: typeof AppTenantsSlugActivityRouteImport
+      parentRoute: typeof AppTenantsSlugRoute
+    }
     '/_app/tenants/$slug/members': {
       id: '/_app/tenants/$slug/members'
       path: '/members'
@@ -373,12 +411,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppTenantsSlugRouteChildren {
+  AppTenantsSlugActivityRoute: typeof AppTenantsSlugActivityRoute
   AppTenantsSlugMembersRoute: typeof AppTenantsSlugMembersRoute
   AppTenantsSlugSettingsRoute: typeof AppTenantsSlugSettingsRoute
   AppTenantsSlugIndexRoute: typeof AppTenantsSlugIndexRoute
 }
 
 const AppTenantsSlugRouteChildren: AppTenantsSlugRouteChildren = {
+  AppTenantsSlugActivityRoute: AppTenantsSlugActivityRoute,
   AppTenantsSlugMembersRoute: AppTenantsSlugMembersRoute,
   AppTenantsSlugSettingsRoute: AppTenantsSlugSettingsRoute,
   AppTenantsSlugIndexRoute: AppTenantsSlugIndexRoute,
@@ -392,6 +432,7 @@ interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppProfileRoute: typeof AppProfileRoute
+  AppPlatformActivityRoute: typeof AppPlatformActivityRoute
   AppTenantsSlugRoute: typeof AppTenantsSlugRouteWithChildren
   AppTenantsIndexRoute: typeof AppTenantsIndexRoute
 }
@@ -400,6 +441,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppProfileRoute: AppProfileRoute,
+  AppPlatformActivityRoute: AppPlatformActivityRoute,
   AppTenantsSlugRoute: AppTenantsSlugRouteWithChildren,
   AppTenantsIndexRoute: AppTenantsIndexRoute,
 }

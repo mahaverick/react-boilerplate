@@ -1,3 +1,4 @@
+import type { AuditAction } from '@/constants/audit-actions'
 import type { MembershipRole } from '@/constants/roles'
 
 export interface ApiSuccess<T> {
@@ -110,5 +111,44 @@ export interface PlatformTenantRow {
 /** A keyset page of `GET /platform/tenants`. `nextCursor` is opaque; send it back as-is. */
 export interface PlatformTenantPage {
   tenants: PlatformTenantRow[]
+  nextCursor: string | null
+}
+
+/** How an audit entry's actor reached the tenant. `system` is a script, with no actor. */
+export type AuditAccess = 'member' | 'platform' | 'system'
+
+/** The actor on an audit entry. Staff are shown with their email too. */
+export interface AuditActor {
+  id: string
+  name: string
+  email: string
+}
+
+export interface AuditTarget {
+  type: 'tenant' | 'membership' | 'invitation' | 'settings' | 'user'
+  id: string
+}
+
+/** One row of a tenant's `GET /tenants/:slug/audit-log`. */
+export interface AuditEntry {
+  id: string
+  /** ISO 8601, millisecond precision. */
+  occurredAt: string
+  action: AuditAction
+  access: AuditAccess
+  actor: AuditActor | null
+  target: AuditTarget | null
+  /** Per-action; never a full email address or a token. */
+  metadata: Record<string, unknown>
+}
+
+/** One row of `GET /platform/audit-log`: the same entry, plus where it happened. */
+export interface PlatformAuditEntry extends AuditEntry {
+  tenant: { id: string; name: string; slug: string }
+}
+
+/** A keyset page of either audit log. `nextCursor` is opaque. */
+export interface AuditPage<T extends AuditEntry> {
+  entries: T[]
   nextCursor: string | null
 }

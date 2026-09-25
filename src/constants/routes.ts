@@ -33,6 +33,8 @@ export const ROUTES = {
   tenant: (slug: string) => `/tenants/${slug}`,
   tenantMembers: (slug: string) => `/tenants/${slug}/members`,
   tenantSettings: (slug: string) => `/tenants/${slug}/settings`,
+  tenantActivity: (slug: string) => `/tenants/${slug}/activity`,
+  platformActivity: '/platform/activity',
   invitationAccept: '/invitations/accept',
 } as const
 

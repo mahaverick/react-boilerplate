@@ -156,6 +156,34 @@ const worker = setupWorker(
   // would reach the real API, 401, and sign the harness user out.
   http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
   http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
+  http.get('/api/v1/tenants/acme/audit-log', () =>
+    ok(
+      {
+        entries: [
+          {
+            id: 'a2',
+            occurredAt: '2026-09-25T10:00:00.000Z',
+            action: 'tenant.settings_updated',
+            access: 'platform',
+            actor: { id: 's1', name: 'Sam Staff', email: 'sam@platform.test' },
+            target: { type: 'settings', id: 't1' },
+            metadata: { changed: ['timezone'] },
+          },
+          {
+            id: 'a1',
+            occurredAt: '2026-09-25T09:00:00.000Z',
+            action: 'tenant.created',
+            access: 'member',
+            actor: { id: 'u1', name: 'A B', email: 'a@b.com' },
+            target: { type: 'tenant', id: 't1' },
+            metadata: { name: 'Acme Corp', slug: 'acme' },
+          },
+        ],
+        nextCursor: 'c2',
+      },
+      'Audit log retrieved.'
+    )
+  ),
   http.get('/api/v1/notifications', () =>
     ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
   ),

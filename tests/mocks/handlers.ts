@@ -122,4 +122,11 @@ export const handlers = [
   http.get('/api/v1/platform/tenants', () =>
     ok({ tenants: [], nextCursor: null }, 'Tenants retrieved.')
   ),
+  // Both audit logs, empty. A test about activity overrides them.
+  http.get('/api/v1/tenants/:slug/audit-log', () =>
+    ok({ entries: [], nextCursor: null }, 'Audit log retrieved.')
+  ),
+  http.get('/api/v1/platform/audit-log', () =>
+    ok({ entries: [], nextCursor: null }, 'Audit log retrieved.')
+  ),
 ]

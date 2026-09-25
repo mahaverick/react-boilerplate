@@ -4,7 +4,7 @@ import { PlatformAccessBanner } from '@/components/features/platform-access-bann
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ROLE_LABELS } from '@/constants/roles'
+import { canViewActivity, ROLE_LABELS } from '@/constants/roles'
 import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useMyRole, useTenant } from '@/queries/tenant.queries'
 
@@ -66,6 +66,9 @@ const TABS = [
   { to: '/tenants/$slug/settings', label: 'Settings', exact: false },
 ] as const
 
+/** Owner and admin only, the same bar as the audit-log route it reads. */
+const ACTIVITY_TAB = { to: '/tenants/$slug/activity', label: 'Activity', exact: false } as const
+
 /**
  * The tab bar.
  *
@@ -73,11 +76,15 @@ const TABS = [
  * A tab widget would own the panel state, and reloading on the Members tab
  * would put the reader back on Overview.
  */
-function TenantTabs({ slug }: { slug: string }) {
+function TenantTabs({ slug, showActivity }: { slug: string; showActivity: boolean }) {
+  // Annotated: `.map` over a union of two array types is not callable.
+  const tabs: readonly ((typeof TABS)[number] | typeof ACTIVITY_TAB)[] = showActivity
+    ? [...TABS, ACTIVITY_TAB]
+    : TABS
   return (
     <nav aria-label="Tenant sections" className="border-b">
       <ul className="flex gap-1 overflow-x-auto">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <li key={tab.to}>
             <Link
               to={tab.to}
@@ -159,7 +166,7 @@ function TenantLayout() {
         </div>
         <p className="text-sm text-muted-foreground">/{tenant.data.slug}</p>
       </header>
-      <TenantTabs slug={slug} />
+      <TenantTabs slug={slug} showActivity={canViewActivity(tenant.data.role)} />
       <Outlet />
     </div>
   )

@@ -16,6 +16,7 @@ import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
 import { fail, ok, tenantDetail, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+import type { AuditEntry, PlatformAuditEntry } from '@/types/api.types'
 
 /**
  * THE ACCESSIBILITY GATE. Spec section 9's criteria, made enforceable.
@@ -151,6 +152,27 @@ const INVITATIONS = [
     createdAt: '2026-09-24T00:00:00.000Z',
   },
 ]
+/** One member action and one staff action, so the Staff badge is graded too. */
+const AUDIT_ENTRIES: AuditEntry[] = [
+  {
+    id: 'a2',
+    occurredAt: '2026-09-25T10:00:00.000Z',
+    action: 'tenant.settings_updated',
+    access: 'platform',
+    actor: { id: 's1', name: 'Sam Staff', email: 'sam@platform.test' },
+    target: { type: 'settings', id: 't1' },
+    metadata: { changed: ['timezone'] },
+  },
+  {
+    id: 'a1',
+    occurredAt: '2026-09-25T09:00:00.000Z',
+    action: 'tenant.created',
+    access: 'member',
+    actor: { id: 'u1', name: 'A B', email: 'a@b.com' },
+    target: { type: 'tenant', id: 't1' },
+    metadata: { name: 'Acme Corp', slug: 'acme' },
+  },
+]
 const PREFERENCES = [
   { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
   { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
@@ -172,6 +194,9 @@ function mockSignedInData() {
     http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.')),
     http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
     http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
+    http.get('/api/v1/tenants/acme/audit-log', () =>
+      ok({ entries: AUDIT_ENTRIES, nextCursor: 'c2' }, 'Audit log retrieved.')
+    ),
     http.get('/api/v1/notifications', () =>
       ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
     ),
@@ -523,6 +548,11 @@ describe('signed-in pages', () => {
       () => screen.findByRole('button', { name: 'Save settings' }),
     ],
     [
+      'tenant activity',
+      '/tenants/acme/activity',
+      () => screen.findByText('changed the settings (timezone)'),
+    ],
+    [
       'invitation accept',
       `/invitations/accept?token=${TEST_INVITATION_TOKEN}`,
       () => screen.findByRole('button', { name: 'Accept invitation' }),
@@ -541,6 +571,23 @@ describe('signed-in pages', () => {
     )
     renderAppAt('/tenants/acme')
     await screen.findByText(/as platform staff/)
+    await expectNoViolations()
+  })
+
+  it('platform activity has no axe violations', async () => {
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'admin' } })
+    const entries: PlatformAuditEntry[] = AUDIT_ENTRIES.map((entry) => ({
+      ...entry,
+      tenant: { id: 't1', name: 'Acme Corp', slug: 'acme' },
+    }))
+    server.use(
+      http.get('/api/v1/platform/audit-log', () =>
+        ok({ entries, nextCursor: null }, 'Audit log retrieved.')
+      ),
+      http.get('/api/v1/tenants/platform/members', () => ok(MEMBERS, 'Members retrieved.'))
+    )
+    renderAppAt('/platform/activity')
+    await screen.findByText('changed the settings (timezone)')
     await expectNoViolations()
   })
 })

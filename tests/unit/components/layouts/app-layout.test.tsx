@@ -331,6 +331,32 @@ describe('AppLayout', () => {
     await screen.findByRole('menuitem', { name: 'Profile' })
     expect(screen.queryByRole('menuitem', { name: 'Platform' })).not.toBeInTheDocument()
   })
+
+  it('offers platform owners and admins a Platform activity item', async () => {
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'admin' } })
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Platform activity' })).toHaveAttribute(
+      'href',
+      '/platform/activity'
+    )
+  })
+
+  it('offers a staff viewer the Platform item but not Platform activity', async () => {
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'viewer' } })
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
+
+    await screen.findByRole('menuitem', { name: 'Platform' })
+    expect(screen.queryByRole('menuitem', { name: 'Platform activity' })).not.toBeInTheDocument()
+  })
 })
 
 /**
