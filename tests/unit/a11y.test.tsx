@@ -245,11 +245,10 @@ const AXE_OPTIONS: axeCore.RunOptions = {
  * - `aria-valid-attr-value`: "Unable to determine if aria-controls referenced ID
  *   exists on the page while using aria-haspopup" (axe's own `controlsWithinPopup`
  *   check). The combobox trigger and its input both carry `aria-controls`
- *   pointing at the portaled popup, and both IDs genuinely exist on the page —
- *   checked by hand against `document.getElementById`. Axe defers to
- *   `incomplete` rather than pass whenever the referenced element sits inside
- *   an `aria-haspopup` target it cannot statically resolve as "within" the
- *   popup, which is inherent to Base UI's combobox markup, not a markup fault.
+ *   alongside `aria-haspopup`, and both referenced IDs are confirmed present —
+ *   checked by hand against `document.getElementById` with the popup open.
+ *   Axe still files this as needs-review rather than a pass, which is its own
+ *   stated behaviour for that attribute pairing, not a broken reference here.
  */
 const KNOWN_INCOMPLETE = new Set([
   'page-has-heading-one',
