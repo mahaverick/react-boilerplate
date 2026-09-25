@@ -69,9 +69,16 @@ notification were broken with nothing to say so.
 
 ### Environment
 
-`.env` is read at **build** time — Vite inlines `VITE_*` values into the
-bundle, so changing one means rebuilding, not restarting. Nothing in the app
-currently reads one.
+There are no build-time variables. `.env` would be read at **build** time —
+Vite inlines `VITE_*` values into the bundle — but nothing in the app reads
+one, so the same image serves every environment.
+
+The container reads one variable at **start**: `API_UPSTREAM`, where nginx
+proxies `/api`. It defaults to `http://api:4040` and must be
+`scheme://host:port` with no path, not even a trailing `/` (see
+[What `nginx.conf` is doing](#what-nginxconf-is-doing)). Changing it means
+restarting the container, not rebuilding the image. The dev server ignores
+it: `pnpm dev` always proxies to `http://localhost:4040`.
 
 ## Scripts
 
@@ -146,12 +153,21 @@ docker run --rm -p 8080:80 --add-host=api:127.0.0.1 react-boilerplate
 ```
 
 The image builds the bundle with Node and serves `dist/` from nginx, proxying
-`/api` to `http://api:4040` — so the container expects an **`api` host** on the
-same network. nginx resolves that name when it loads its config, so without it
-the container exits with `host not found in upstream`; `--add-host` above is
-what makes a standalone smoke test start at all (the proxy itself will answer
-502 until a real API is there). Under compose, name the API service `api` and
-nothing else is needed.
+`/api` to `API_UPSTREAM` — `http://api:4040` unless you set it — so by default
+the container expects an **`api` host** on the same network. nginx resolves
+the upstream's host when it loads its config, so without it the container
+exits with `host not found in upstream`; `--add-host` above is what makes a
+standalone smoke test start at all (the proxy itself will answer 502 until a
+real API is there). Under compose, name the API service `api` and nothing else
+is needed. To point it elsewhere, set the variable at start:
+
+```bash
+docker run --rm -p 8080:80 -e API_UPSTREAM=http://my-api:8080 react-boilerplate
+```
+
+At start the entrypoint renders `nginx.conf` as a template, and it substitutes
+`API_UPSTREAM` and nothing else, so nginx's own `$host`, `$scheme` and the
+rest are left alone.
 
 The image takes no build arguments. The API prefix is baked in and fixed —
 see [The API prefix is fixed](#the-api-prefix-is-fixed) for what has to change
@@ -162,9 +178,10 @@ together if it ever moves.
 Four things in there are load-bearing and fail **silently** if edited away.
 `nginx.conf` explains each at the line; in short:
 
-- `proxy_pass http://api:4040;` carries **no trailing path**. A path there makes
-  nginx rewrite the URI, and the refresh cookie is scoped `Path=/api/v1/auth` —
-  token refresh then stops working with nothing in any log.
+- `proxy_pass ${API_UPSTREAM};` carries **no trailing path**, and
+  `API_UPSTREAM` must not bring one. A path there makes nginx rewrite the URI,
+  and the refresh cookie is scoped `Path=/api/v1/auth` — token refresh then
+  stops working with nothing in any log.
 - `X-Forwarded-Proto` is forwarded, because express reads it for the `secure`
   cookie flag and `TRUST_PROXY`.
 - The SSE location sets `proxy_buffering off` (plus HTTP/1.1, an empty

@@ -35,6 +35,16 @@ RUN pnpm build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx.conf is a template. The image's entrypoint renders it into
+# conf.d/default.conf at start; the stock file of that name goes first, so the
+# rendered template is the only server config in conf.d.
+RUN rm /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Where nginx proxies /api, read at container start: scheme://host:port, no
+# path (see nginx.conf's /api/ location). The default is the compose service.
+ENV API_UPSTREAM=http://api:4040
+# envsubst substitutes only env names matching this, so nginx's own $host,
+# $scheme and the rest survive the render.
+ENV NGINX_ENVSUBST_FILTER='^API_UPSTREAM$'
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
