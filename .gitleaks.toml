@@ -1,0 +1,4 @@
+# Extends gitleaks' default rules. No allowlist: this repo commits no fake
+# secrets. Add one here, with its reason, if a fixture ever needs it.
+[extend]
+useDefault = true

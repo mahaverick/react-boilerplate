@@ -125,7 +125,7 @@ async function runAxe(page: Page, scope?: string): Promise<ContrastResult> {
     // sources of truth for the same finding.
     const results = await (
       window as unknown as {
-        axe: { run: (ctx: Document, opts: unknown) => Promise<ContrastResult> }
+        axe: { run: (ctx: Document | Element, opts: unknown) => Promise<ContrastResult> }
       }
     ).axe.run((selector ? document.querySelector(selector) : document) ?? document, {
       runOnly: { type: 'rule', values: ['color-contrast'] },

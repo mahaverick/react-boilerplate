@@ -40,6 +40,21 @@ export default defineConfig({
     // Deliberately NOT `retry`. A retry would have made the observed failures
     // disappear from the report while leaving the race in place, and the next
     // thing it hid would be a real one.
-    coverage: { provider: 'v8', reporter: ['text', 'lcov'] },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      // Excludes the generated route tree, the mount-only entry and the vendored
+      // shadcn files, by name: form.tsx and sonner.tsx in ui/ are ours and measured.
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/routeTree.gen.ts',
+        'src/main.tsx',
+        'src/components/ui/{alert-dialog,avatar,badge,breadcrumb,button,card,dialog,dropdown-menu}.tsx',
+        'src/components/ui/{input,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
+        'src/components/ui/{table,tabs,textarea,tooltip}.tsx',
+      ],
+      // A few points under the measured baseline, so a drop fails CI.
+      thresholds: { statements: 88, branches: 82, functions: 86, lines: 89 },
+    },
   },
 })

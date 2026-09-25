@@ -15,14 +15,15 @@ v4, Base UI via shadcn, axios, Zod v4, Vitest + Testing Library + MSW.
 
 ## Commands
 
-| Command          | What it does                                           |
-| ---------------- | ------------------------------------------------------ |
-| `pnpm dev`       | Dev server on :5173, proxying `/api` to `:4040`        |
-| `pnpm build`     | `tsc -b` then `vite build`                             |
-| `pnpm lint`      | eslint **and** `prettier --check` — both must be clean |
-| `pnpm typecheck` | `tsc --noEmit -p tsconfig.app.json`                    |
-| `pnpm test`      | Vitest, one pass                                       |
-| `pnpm format`    | prettier --write                                       |
+| Command              | What it does                                                                                       |
+| -------------------- | -------------------------------------------------------------------------------------------------- |
+| `pnpm dev`           | Dev server on :5173, proxying `/api` to `:4040`                                                    |
+| `pnpm build`         | `tsc -b` then `vite build`                                                                         |
+| `pnpm lint`          | eslint **and** `prettier --check` — both must be clean                                             |
+| `pnpm typecheck`     | `tsc --noEmit` over `tsconfig.app.json`, then `e2e/tsconfig.json`                                  |
+| `pnpm test`          | Vitest, one pass                                                                                   |
+| `pnpm test:coverage` | Vitest with coverage; fails under 88/82/86/89 (statements/branches/functions/lines), as CI runs it |
+| `pnpm format`        | prettier --write                                                                                   |
 
 The gate is **0 errors and 0 warnings**: verify with
 `pnpm exec eslint . --max-warnings 0`, not with a bare `pnpm lint`, whose
@@ -47,17 +48,26 @@ eslint half exits 0 on warnings.
 gate; then `deploy.yml` builds and pushes `ghcr.io/<repo>:sha-<commit>` and
 `:main` with SBOM and provenance attestations, then runs a placeholder
 `deploy` job bound to the `production` environment. Keep CI's concurrency
-group keyed on `github.event_name` (comment in `ci.yml`). A manual
+group keyed on `github.event_name`, not `github.workflow`: when `deploy.yml`
+calls `ci.yml`, `github.workflow` is the caller's name. Non-PR runs are grouped
+per commit so a newer push never drops a pending one. A manual
 `workflow_dispatch` from a non-`main` branch pushes an sha-tagged image
 only — `:main` and the `deploy` job both run only from `main`.
 
-**Releases merge themselves.** `release.yml` merges release-please's PR as
-soon as it is opened, using the `RELEASE_PLEASE_TOKEN` secret — not
-`GITHUB_TOKEN`, whose merge would start no workflow and so would never be
-tagged, released or deployed. The resulting `vX.Y.Z` tag re-runs
-`deploy.yml`, which adds `:X.Y.Z`, `:X.Y` and `:X` image tags; the `deploy`
-job skips tag runs. If that secret expires, releases silently stop at the
-release PR — renew it, don't swap in `GITHUB_TOKEN`.
+- `gitleaks.yml` scans each PR's commits and each push to `main` for secrets.
+- `pr-title` — the PR title must be a conventional commit; it becomes the squash commit release-please reads.
+- `ci.yml`'s `test` job ends with `pnpm audit --prod --audit-level high`: a high or critical advisory in a production dependency fails CI.
+  Because `test` is a required check, an advisory with no fixed version blocks every PR. The escape hatch is `pnpm audit --ignore <GHSA>`,
+  which writes that one ID under `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`; add a comment there by hand giving the reason and a date to revisit.
+
+**Releases merge themselves.** `release.yml` queues release-please's PR with
+`--auto`, falling back to a direct merge if `--auto` is refused; the `main`
+ruleset (README, one-time setup) keeps either from skipping required checks.
+Its token is a GitHub App's (variable `RELEASE_APP_CLIENT_ID`, secret `RELEASE_APP_PRIVATE_KEY`; Contents
+and Pull requests read/write), not `GITHUB_TOKEN`, whose events start no
+workflow. The `vX.Y.Z` tag re-runs `deploy.yml`, whose `promote` job builds
+nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
+`:X.Y` and `:X` to that same digest. Tag runs skip `ci`, `image` and `deploy`.
 
 ## Auth — the rules that break silently when broken
 
@@ -129,7 +139,9 @@ otherwise churn the diff on every `shadcn add`:
 **`form.tsx` and `sonner.tsx` are ours, not upstream's.** Both are fully linted
 and formatted, and both are named explicitly in `eslint.config.js` and
 `.prettierignore`. If you add a third hand-written file to that directory, add
-it to both lists in the same change or it will sit there unchecked.
+it to both lists in the same change or it will sit there unchecked. The third
+list, `coverage.exclude` in `vitest.config.ts`, is the inverse: it names the
+vendored files, so a new vendored one goes there and a hand-written one stays out.
 
 ## Forms
 
@@ -176,8 +188,10 @@ Node version under pnpm 12.**
 moved by hand alongside the Renovate-held pins** — Renovate does not move a
 `>=` range on its own, only the pinned versions it already tracks.
 
-**Renovate proposes updates** (weekly, grouped, 3-day minimum release age,
-actions pinned to SHAs). `renovate.json` holds TypeScript `<6.1.0` and every
+**Renovate opens updates weekly** (grouped, 3-day minimum release age,
+actions pinned to SHAs); minor, patch and digest updates auto-merge once
+required checks pass, majors and the node/typescript pins wait for a human,
+and security fixes open immediately with the `security` label. `renovate.json` holds TypeScript `<6.1.0` and every
 Node version pin — the docker `node` image, `.nvmrc` and CI's
 `node-version:` — `<25`; lift those rules deliberately. The explicit Corepack
 pin in `Dockerfile` and `README.md` is tracked via a custom regex manager.

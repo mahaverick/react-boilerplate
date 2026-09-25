@@ -75,16 +75,17 @@ currently reads one.
 
 ## Scripts
 
-| Script            | What it does                                       |
-| ----------------- | -------------------------------------------------- |
-| `pnpm dev`        | Dev server on :5173 with the `/api` proxy          |
-| `pnpm build`      | `tsc -b` then `vite build` → `dist/`               |
-| `pnpm preview`    | Serve the built bundle locally                     |
-| `pnpm lint`       | eslint **and** `prettier --check` — both must pass |
-| `pnpm typecheck`  | `tsc --noEmit -p tsconfig.app.json`                |
-| `pnpm test`       | Vitest, single pass                                |
-| `pnpm test:watch` | Vitest in watch mode                               |
-| `pnpm format`     | `prettier --write`                                 |
+| Script               | What it does                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| `pnpm dev`           | Dev server on :5173 with the `/api` proxy                                             |
+| `pnpm build`         | `tsc -b` then `vite build` → `dist/`                                                  |
+| `pnpm preview`       | Serve the built bundle locally                                                        |
+| `pnpm lint`          | eslint **and** `prettier --check` — both must pass                                    |
+| `pnpm typecheck`     | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                       |
+| `pnpm test`          | Vitest, single pass                                                                   |
+| `pnpm test:coverage` | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it |
+| `pnpm test:watch`    | Vitest in watch mode                                                                  |
+| `pnpm format`        | `prettier --write`                                                                    |
 
 CI holds eslint to **zero warnings** as well as zero errors
 (`pnpm exec eslint . --max-warnings 0`).
@@ -222,24 +223,40 @@ unreviewed the moment that step does something real.
 Releases are automatic. On every push to `main`,
 [release-please](https://github.com/googleapis/release-please) opens a release
 PR from the conventional commits since the last release, and
-`.github/workflows/release.yml` merges it straight away; that merge tags
-`vX.Y.Z`, publishes the GitHub Release, and the tag push makes `deploy.yml`
-publish the image as `:X.Y.Z`, `:X.Y` and `:X`. Only `feat`/`fix`/breaking
-commits cut a release — `chore`, `docs`, `ci` and the like do not.
+`.github/workflows/release.yml` queues it with `--auto` (or merges it directly
+if GitHub refuses auto-merge). With the `main` ruleset below, either way it
+merges only once the required checks pass. The next run tags `vX.Y.Z` and
+publishes the GitHub Release, and the tag push makes `deploy.yml` promote the image `main` already built and
+tested: it adds `:X.Y.Z`, `:X.Y` and `:X` to that same digest rather than
+rebuilding. Only `feat`/`fix`/breaking commits cut a release — `chore`, `docs`, `ci`
+and the like do not.
 
-This needs the **`RELEASE_PLEASE_TOKEN`** repo secret (a fine-grained PAT with
-Contents and Pull requests read/write). GitHub never starts workflows from
-events `GITHUB_TOKEN` creates, so a `GITHUB_TOKEN` merge would never be
-tagged, released or deployed; if the secret expires, releases stop at the
-release PR — renew it rather than falling back to `GITHUB_TOKEN`.
+Releases use a GitHub App token, from the repo variable
+**`RELEASE_APP_CLIENT_ID`** and the secret **`RELEASE_APP_PRIVATE_KEY`**; the
+App needs Contents and Pull requests read/write. GitHub never starts workflows
+from events `GITHUB_TOKEN` creates, so its release PRs would get no CI and its
+tags no image promotion — don't fall back to it.
 
-One manual step, once: **install the
-[Renovate GitHub App](https://github.com/apps/renovate)** on this repository.
-`renovate.json` is inert without it — nothing schedules or opens Renovate PRs
-until the app is installed.
+Three manual steps, once:
 
-With squash merges, the squashed commit on `main` is the PR's title, not any
-of its individual commit messages — so PR titles must themselves be
+- **Create and install the release GitHub App** on this repository, then set
+  its client ID as the `RELEASE_APP_CLIENT_ID` variable and its private key as
+  the `RELEASE_APP_PRIVATE_KEY` secret. Without them `release.yml` fails.
+- **Install the [Renovate GitHub App](https://github.com/apps/renovate).**
+  `renovate.json` is inert without it — nothing schedules or opens Renovate
+  PRs until the app is installed.
+- **Set the merge rules** (Settings → General, then Settings → Rules).
+  Enable "Allow auto-merge"; allow squash merging only, with the commit
+  title set to the PR title and the commit message left blank; enable
+  "Automatically delete head branches"; and add a ruleset on `main`, with no
+  bypass list, requiring the checks `lint`, `test`, `e2e`, `docker`,
+  `gitleaks` and `pr-title`. Without the ruleset, `release.yml`'s fallback
+  merges the release PR without waiting for CI; without the blank squash
+  message, each squash body would carry the branch's commit list, which
+  release-please reads as extra conventional commits.
+
+With those rules, the squashed commit on `main` is the PR's title alone, not
+any of its individual commit messages — so PR titles must themselves be
 conventional commits for release-please to read them correctly.
 
 ## Conventions

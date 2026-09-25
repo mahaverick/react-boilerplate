@@ -106,7 +106,13 @@ const PREFERENCES = [
   { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
 ]
 
-const testUser = { id: 'u1', email: 'a@b.com', firstName: 'A', lastName: 'B' }
+const testUser = {
+  id: 'u1',
+  email: 'a@b.com',
+  firstName: 'A',
+  lastName: 'B',
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
 
 function ok<T>(data: T, message = 'OK', statusCode = 200) {
   return Response.json({ success: true, message, statusCode, data })
