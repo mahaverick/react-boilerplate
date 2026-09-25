@@ -50,14 +50,15 @@ proxy; in the container it is nginx.
 `/api/v1` is not configurable, and there is no environment variable that
 moves it. It is written once, as `API_PREFIX` in `src/constants/routes.ts`,
 and everything on the JavaScript side derives from it: the axios base
-(`src/http/client.ts`), the `EventSource` URL for the notification stream
+(`src/http/client.ts`), the notification stream's `fetch` URL
 (`src/hooks/use-notifications.ts`, which ignores axios entirely), and the
 Google OAuth anchor (`GOOGLE_OAUTH_PATH`).
 
 Two things outside JavaScript hardcode it as well, and they are why it is
 fixed rather than a knob: `nginx.conf` routes
 `location /api/v1/notifications/stream` — its SSE buffering and its
-token-stripping log format hang off that exact prefix — and `vite.config.ts`
+query-stripping log format (defence in depth now that the token travels in a
+header) hang off that exact prefix — and `vite.config.ts`
 proxies `/api` in development.
 
 Moving the API to another prefix therefore means changing `API_PREFIX`,
@@ -69,9 +70,16 @@ notification were broken with nothing to say so.
 
 ### Environment
 
-`.env` is read at **build** time — Vite inlines `VITE_*` values into the
-bundle, so changing one means rebuilding, not restarting. Nothing in the app
-currently reads one.
+There are no build-time variables. `.env` would be read at **build** time —
+Vite inlines `VITE_*` values into the bundle — but nothing in the app reads
+one, so the same image serves every environment.
+
+The container reads one variable at **start**: `API_UPSTREAM`, where nginx
+proxies `/api`. It defaults to `http://api:4040` and must be
+`scheme://host:port` with no path, not even a trailing `/` (see
+[What `nginx.conf` is doing](#what-nginxconf-is-doing)). Changing it means
+restarting the container, not rebuilding the image. The dev server ignores
+it: `pnpm dev` always proxies to `http://localhost:4040`.
 
 ## Scripts
 
@@ -146,12 +154,21 @@ docker run --rm -p 8080:80 --add-host=api:127.0.0.1 react-boilerplate
 ```
 
 The image builds the bundle with Node and serves `dist/` from nginx, proxying
-`/api` to `http://api:4040` — so the container expects an **`api` host** on the
-same network. nginx resolves that name when it loads its config, so without it
-the container exits with `host not found in upstream`; `--add-host` above is
-what makes a standalone smoke test start at all (the proxy itself will answer
-502 until a real API is there). Under compose, name the API service `api` and
-nothing else is needed.
+`/api` to `API_UPSTREAM` — `http://api:4040` unless you set it — so by default
+the container expects an **`api` host** on the same network. nginx resolves
+the upstream's host when it loads its config, so without it the container
+exits with `host not found in upstream`; `--add-host` above is what makes a
+standalone smoke test start at all (the proxy itself will answer 502 until a
+real API is there). Under compose, name the API service `api` and nothing else
+is needed. To point it elsewhere, set the variable at start:
+
+```bash
+docker run --rm -p 8080:80 -e API_UPSTREAM=http://my-api:8080 react-boilerplate
+```
+
+At start the entrypoint renders `nginx.conf` as a template, and it substitutes
+`API_UPSTREAM` and nothing else, so nginx's own `$host`, `$scheme` and the
+rest are left alone.
 
 The image takes no build arguments. The API prefix is baked in and fixed —
 see [The API prefix is fixed](#the-api-prefix-is-fixed) for what has to change
@@ -159,27 +176,30 @@ together if it ever moves.
 
 ### What `nginx.conf` is doing
 
-Four things in there are load-bearing and fail **silently** if edited away.
-`nginx.conf` explains each at the line; in short:
+Three things in there are load-bearing and fail **silently** if edited away,
+and a fourth is defence in depth. `nginx.conf` explains each at the line; in
+short:
 
-- `proxy_pass http://api:4040;` carries **no trailing path**. A path there makes
-  nginx rewrite the URI, and the refresh cookie is scoped `Path=/api/v1/auth` —
-  token refresh then stops working with nothing in any log.
-- `X-Forwarded-Proto` is forwarded, because express reads it for the `secure`
-  cookie flag and `TRUST_PROXY`.
+- `proxy_pass ${API_UPSTREAM};` carries **no trailing path**, and
+  `API_UPSTREAM` must not bring one, not even `/`. A path there makes nginx
+  rewrite the URI (`/api/` becomes that path), so express stops matching its
+  routes.
+- The TLS terminator's `X-Forwarded-Proto` is passed through to express. express
+  needs `TRUST_PROXY` set for express-session to see HTTPS and set the Secure
+  `oauth.sid` cookie.
 - The SSE location sets `proxy_buffering off` (plus HTTP/1.1, an empty
   `Connection` header and a long read timeout). nginx buffers by default, which
   stalls an event stream indefinitely.
 - That same location logs with a `stream_nolog` format that records `$uri`
   instead of `$request`, and raises its `error_log` level to `crit`. The access
-  token rides in the query string there — `requireAuth` reads only a Bearer
-  header and `EventSource` cannot set one — so the default access format would
-  write a live token into the log on every connect and every reconnect, and the
-  **error** log writes it too: nginx puts the full request line and the full
-  upstream URL into every `connect() failed` message, which no log format can
-  change. Both were confirmed by curling the running container and reading its
-  logs. The cost is that `error`-level upstream detail for this one location is
-  dropped; the access log still records every request and its status.
+  token is not in the query string there: the client sends an
+  `Authorization: Bearer` header, which never appears in a logged request line.
+  Both lines stay as defence in depth, so that a query parameter added to this
+  route later cannot quietly reach the access log, or the **error** log — nginx
+  puts the full request line and the full upstream URL into every
+  `connect() failed` message, which no log format can change. The cost is that
+  `error`-level upstream detail for this one location is dropped; the access log
+  still records every request and its status.
 
 Security headers (`Referrer-Policy`, `X-Content-Type-Options`,
 `X-Frame-Options`, `Cross-Origin-Opener-Policy`) are set once on the server

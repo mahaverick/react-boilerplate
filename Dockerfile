@@ -27,14 +27,25 @@ COPY . .
 
 # No build ARGs, deliberately. The API prefix is FIXED at /api/v1 — it lives in
 # src/constants/routes.ts as API_PREFIX, and nginx.conf's SSE location, the
-# EventSource URL and the Google OAuth anchor all hardcode it too. The
-# `--build-arg VITE_API_URL=/api/v2` this file used to accept moved the axios
-# base and nothing else, so it shipped an image whose notification stream and
-# Google sign-in were broken with nothing in any log to say so.
+# notification stream's `fetch` URL and the Google OAuth anchor all hardcode it
+# too. The `--build-arg VITE_API_URL=/api/v2` this file used to accept moved the
+# axios base and nothing else, so it shipped an image whose notification stream
+# and Google sign-in were broken with nothing in any log to say so.
 RUN pnpm build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx.conf is a template. The image's entrypoint renders it into
+# conf.d/default.conf at start; the stock file of that name goes first, so the
+# rendered template is the only server config in conf.d.
+RUN rm /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Where nginx proxies /api, read at container start: scheme://host:port, no
+# path (see nginx.conf's /api/ location). The default assumes a compose
+# service named `api`.
+ENV API_UPSTREAM=http://api:4040
+# envsubst substitutes only env names matching this, so nginx's own $host,
+# $scheme and the rest survive the render.
+ENV NGINX_ENVSUBST_FILTER='^API_UPSTREAM$'
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

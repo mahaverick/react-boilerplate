@@ -77,15 +77,16 @@ test('the refresh cookie is scoped and flagged as the SPA assumes', async ({ req
 
   // OPEN-ITEMS §1.3 IS MIS-STATED, and this is what corrects it.
   //
-  // It claims `X-Forwarded-Proto` "drives the `secure` cookie flag". It does
-  // not. `isSecureCookieEnvironment()` (auth.controller.ts) returns
-  // `getEnv().NODE_ENV === 'production'` — the flag is keyed on NODE_ENV and
-  // never reads `req.secure`, so no request header can change it. Sending the
-  // header changes nothing, which is what this asserts.
+  // It claims `X-Forwarded-Proto` drives the cookie's Secure flag. For this
+  // cookie it does not. express's `isCookieSecure(env)` (env.config.ts) returns
+  // `COOKIE_SECURE ?? APP_ENV !== 'local'` and never reads `req.secure`, so no
+  // request header can change it. Sending the header changes nothing, which is
+  // what this asserts.
   //
-  // TRUST_PROXY is real and does matter, but for `req.ip`: it decides how much
-  // of X-Forwarded-For to believe, and the IP-keyed rate limiters are what
-  // consume it. That is a different mechanism from cookie security.
+  // TRUST_PROXY decides how much of X-Forwarded-For to believe for `req.ip`,
+  // which the IP-keyed rate limiters consume. With X-Forwarded-Proto it also
+  // decides `req.secure`, which only the OAuth session cookie depends on:
+  // express-session silently skips a Secure cookie on a non-HTTPS request.
   const forwarded = await request.post(`${API_ORIGIN}/api/v1/auth/login`, {
     headers: { 'X-Forwarded-Proto': 'https' },
     data: { email, password: PASSWORD },
@@ -96,8 +97,9 @@ test('the refresh cookie is scoped and flagged as the SPA assumes', async ({ req
     .find((h) => h.name.toLowerCase() === 'set-cookie')?.value
   expect(forwardedCookie).not.toMatch(/;\s*Secure/i)
 
-  // And in development neither cookie is Secure, which is deliberate: a
-  // browser refuses a Secure cookie over http://, so a hard-coded true would
-  // make local cookie login impossible.
+  // And neither cookie is Secure under APP_ENV=local with COOKIE_SECURE unset,
+  // which is how express's .env.example sets the live backend up. That is
+  // deliberate: a browser refuses a Secure cookie over http://, so a
+  // hard-coded true would make local cookie login impossible.
   expect(cookie).not.toMatch(/;\s*Secure/i)
 })
