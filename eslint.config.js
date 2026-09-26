@@ -270,6 +270,18 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // One import path for the class merger in our own code. The vendored
+    // shadcn files are left as shadcn wrote them.
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
+    ignores: ['src/lib/utils.ts', 'src/components/ui/!(form|sonner).tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { paths: [{ name: 'cn', message: "Import `cn` from '@/lib/utils'." }] },
+      ],
+    },
+  },
   ...tanstackRouter.configs['flat/recommended'],
   {
     // Vendored shadcn output. Linting it churns the diff on every upstream

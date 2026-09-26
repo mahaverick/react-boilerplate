@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
+import { formatDate } from '@/lib/format'
 import { useProfile, useUpdateProfile } from '@/queries/profile.queries'
 import { updateProfileSchema } from '@/schemas/profile.schemas'
 import type { User } from '@/types/api.types'
@@ -30,9 +31,7 @@ export const Route = createFileRoute('/_app/profile')({
 
 /** The account's join date, in the reader's own locale. */
 function memberSince(createdAt: string): string {
-  const date = new Date(createdAt)
-  if (Number.isNaN(date.getTime())) return 'Unknown'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(date)
+  return formatDate(createdAt, 'long') ?? 'Unknown'
 }
 
 function ProfilePage() {

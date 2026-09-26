@@ -11,6 +11,7 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
 import { canViewPlatformActivity, isStaff } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG, ROUTES } from '@/constants/routes'
+import { fullName } from '@/lib/format'
 import { useLogout } from '@/queries/auth.queries'
 import type { User } from '@/types/api.types'
 
@@ -22,8 +23,7 @@ import type { User } from '@/types/api.types'
  * beside a component here would fail lint.
  */
 function displayName(user: User | null): string {
-  const full = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
-  return full || (user?.email ?? 'Account')
+  return fullName(user) ?? user?.email ?? 'Account'
 }
 
 function initials(user: User | null): string {

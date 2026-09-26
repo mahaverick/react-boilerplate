@@ -22,6 +22,7 @@ import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
+import { formatDate } from '@/lib/format'
 import { useMyRole, useTenant, useUpdateTenant, type Tenant } from '@/queries/tenant.queries'
 import { updateTenantSchema } from '@/schemas/tenant.schemas'
 
@@ -33,9 +34,7 @@ export const Route = createFileRoute('/_app/tenants/$slug/')({
 
 /** The tenant's creation date, in the reader's own locale. */
 function createdOn(createdAt: string): string {
-  const date = new Date(createdAt)
-  if (Number.isNaN(date.getTime())) return 'Unknown'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(date)
+  return formatDate(createdAt, 'long') ?? 'Unknown'
 }
 
 /** One read-only row, for a member who may not edit this tenant. */

@@ -1,5 +1,4 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { cn } from 'cn'
 import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -12,6 +11,7 @@ import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 import { useLogout } from '@/queries/auth.queries'
 import {
   inviterName,
