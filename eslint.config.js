@@ -76,6 +76,24 @@ export default tseslint.config(
     },
   },
   {
+    // The pre-paint theme script: a classic browser script served as-is from
+    // public/, outside every tsconfig, so it is linted syntactically only.
+    // The tailwind rules are off for the reason given on the e2e block below.
+    files: ['public/theme-init.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: { globals: globals.browser, sourceType: 'script' },
+    rules: {
+      'tailwindcss/classnames-order': 'off',
+      'tailwindcss/enforces-canonical-classname': 'off',
+      'tailwindcss/enforces-negative-arbitrary-values': 'off',
+      'tailwindcss/enforces-shorthand': 'off',
+      'tailwindcss/important-modifier-suffix': 'off',
+      'tailwindcss/no-custom-classname': 'off',
+      'tailwindcss/no-contradicting-classname': 'off',
+      'tailwindcss/no-unnecessary-arbitrary-value': 'off',
+    },
+  },
+  {
     // The e2e suite and its fixture harness. Typed linting rather than the
     // `disableTypeChecked` used for the root configs above: `e2e/tsconfig.json`
     // exists precisely so `projectService` can find these files, so the

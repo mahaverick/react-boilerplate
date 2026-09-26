@@ -176,6 +176,9 @@ jobs:
           expect_directive 1 'listen 8080;'
           expect 1 '# configuration file /tmp/nginx/conf.d/default.conf:'
           expect_directive 1 'include /tmp/nginx/conf\.d/\*\.conf;'
+          expect_directive 1 'server_tokens off;'
+          expect_directive 1 'add_header Content-Security-Policy '
+          expect_directive 1 'add_header Permissions-Policy '
           if [ "$fail" != 0 ]; then cat rendered.conf; exit 1; fi
       # The image from outside, the way it ships. docker/check-image.sh says
       # what it checks; run it locally with the same command.

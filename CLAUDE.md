@@ -101,14 +101,28 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   anyone out. Widening this to any error is the single easiest way to log every
   user out during a deploy.
 
+## The container
+
+- **nginx enforces a Content-Security-Policy with `script-src 'self'`.** There
+  is no inline script anywhere, and there must not be one: the pre-paint theme
+  script is `public/theme-init.js`, loaded by a blocking `<script src>`. A new
+  origin for scripts, styles, images, fonts or `fetch` means changing the policy
+  in `nginx.conf` in the same commit. The README's CSP section has the reasons
+  for each directive.
+- **It listens on 8080 as uid 101 and is built for a read-only root.** Everything
+  it writes is under `/tmp`, so it needs a writable `/tmp` (a tmpfs);
+  `docker/check-image.sh` checks all of this from outside.
+- **No `location` declares `add_header`.** One that did would silently drop
+  every security header — `nginx.conf`'s map comment says why.
+
 ## Never install
 
 `react-hook-form`, `@hookform/resolvers`, `next-themes`,
 `@tanstack/zod-form-adapter`, `clsx`, `tailwind-merge`, any `@radix-ui/*`.
 
 Each has an in-repo replacement: TanStack Form with a Zod validator (no
-adapter package is needed in v1), `theme.store` plus the pre-paint script in
-`index.html`, the `cn` package, and Base UI through shadcn. Adding one of these
+adapter package is needed in v1), `theme.store` plus the pre-paint script
+`public/theme-init.js`, the `cn` package, and Base UI through shadcn. Adding one of these
 back gives the project two ways to do the same thing, which is how the
 inconsistency starts.
 

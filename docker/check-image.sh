@@ -77,4 +77,27 @@ grep -q 'location /api/ {' "$work/nginx-T" || problem "the /api/ location is not
 status=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/health")
 [ "$status" = 502 ] || problem "/api/ with no API behind it answered $status, not 502"
 
+# --- Security headers on pages and assets ------------------------------------
+asset=$({ curl -sf "$base/" || true; } | { grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' || true; } | head -n 1)
+[ -n "$asset" ] || problem "index.html names no /assets/index-*.js entry chunk"
+csp="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+for path in / /dashboard "$asset" /theme-init.js; do
+  curl -s -D "$work/headers" -o /dev/null "$base$path"
+  while IFS='|' read -r field value; do
+    got=$(header "$field" "$work/headers")
+    [ "$got" = "$value" ] || problem "$path: $field is [$got], expected [$value]"
+  done <<EOF
+Content-Security-Policy|$csp
+Permissions-Policy|camera=(), microphone=(), geolocation=(), payment=(), usb=()
+Referrer-Policy|no-referrer
+X-Content-Type-Options|nosniff
+X-Frame-Options|DENY
+Cross-Origin-Opener-Policy|same-origin
+Server|nginx
+EOF
+done
+curl -s -D "$work/headers" -o /dev/null "$base/theme-init.js"
+[ "$(header Content-Type "$work/headers")" = application/javascript ] || problem "/theme-init.js is not served as JavaScript"
+[ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/theme-init.js is not no-store"
+
 exit "$fail"
