@@ -173,4 +173,8 @@ jobs:
           expect 1 "try_files \$uri /index.html;"
           expect 0 'clobbered'
           expect 0 'API_UPSTREAM}'
+          expect_directive 1 'listen 8080;'
           if [ "$fail" != 0 ]; then cat rendered.conf; exit 1; fi
+      # The image from outside, the way it ships. docker/check-image.sh says
+      # what it checks; run it locally with the same command.
+      - run: bash docker/check-image.sh react-boilerplate:ci

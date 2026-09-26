@@ -34,7 +34,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,css,json,md,html}\"",
     "test:e2e": "playwright test --project=fixtures",
     "test:e2e:live": "E2E_LIVE=1 playwright test --project=live",
-    "test:e2e:nginx": "docker rm -f rb-e2e >/dev/null 2>&1; docker build -t react-boilerplate:e2e . && docker run -d --name rb-e2e -p 8088:80 --add-host=api:host-gateway react-boilerplate:e2e >/dev/null && for i in $(seq 1 60); do curl -sf http://localhost:8088 >/dev/null && break; sleep 0.5; done && E2E_LIVE=1 E2E_NGINX=1 playwright test --project=nginx; code=$?; docker rm -f rb-e2e >/dev/null 2>&1; exit $code",
+    "test:e2e:nginx": "docker rm -f rb-e2e >/dev/null 2>&1; docker build -t react-boilerplate:e2e . && docker run -d --name rb-e2e -p 8088:8080 --add-host=api:host-gateway react-boilerplate:e2e >/dev/null && for i in $(seq 1 60); do curl -sf http://localhost:8088 >/dev/null && break; sleep 0.5; done && E2E_LIVE=1 E2E_NGINX=1 playwright test --project=nginx; code=$?; docker rm -f rb-e2e >/dev/null 2>&1; exit $code",
     "test:contrast": "playwright test --project=contrast"
   },
   "dependencies": {
