@@ -21,7 +21,7 @@ export const emailSchema = z
   .email('Enter a valid email address.')
   .max(MAX_EMAIL_LENGTH, `Email must be at most ${MAX_EMAIL_LENGTH} characters.`)
 
-/** Registration/reset policy. NOT used for login or verify-email. */
+/** Registration, reset and change-password policy. NOT used for login or verify-email. */
 export const newPasswordSchema = z
   .string()
   .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`)
@@ -78,9 +78,25 @@ export const verifyEmailSchema = z.object({
 
 export const resendVerificationSchema = z.object({ email: emailSchema })
 
+/**
+ * Mirrors the backend's changePasswordSchema, plus a confirmation it never
+ * sees. `currentPassword` carries no policy, for the same reason as login's.
+ */
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required.'),
+    newPassword: newPasswordSchema,
+    confirmPassword: z.string().min(1, 'Confirm your new password.'),
+  })
+  .refine((v) => v.newPassword === v.confirmPassword, {
+    message: 'Passwords do not match.',
+    path: ['confirmPassword'],
+  })
+
 export type LoginInput = z.infer<typeof loginSchema>
 export type RegisterInput = z.infer<typeof registerSchema>
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>
 export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>

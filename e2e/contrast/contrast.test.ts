@@ -62,7 +62,7 @@ const SURFACES = [
   { name: 'members (empty)', url: '/e2e/harness/?state=empty', heading: 'Members' },
   { name: 'dashboard', url: '/e2e/harness/?path=/dashboard', heading: /^Welcome back,/ },
   { name: 'notifications', url: '/e2e/harness/?path=/notifications', heading: 'Notifications' },
-  { name: 'profile', url: '/e2e/harness/?path=/profile', heading: 'Profile' },
+  { name: 'profile', url: '/e2e/harness/?path=/profile', heading: 'Sign-in methods' },
   { name: 'tenants', url: '/e2e/harness/?path=/tenants', heading: 'Tenants' },
   {
     name: 'tenant settings',

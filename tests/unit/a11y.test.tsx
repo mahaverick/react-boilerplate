@@ -521,7 +521,7 @@ describe('signed-in pages', () => {
 
   it.each([
     ['dashboard', '/dashboard', () => screen.findByRole('heading', { name: /Welcome back/ })],
-    ['profile', '/profile', () => screen.findByRole('heading', { name: 'Profile' })],
+    ['profile', '/profile', () => screen.findByRole('button', { name: 'Change password' })],
     [
       'notifications',
       '/notifications',

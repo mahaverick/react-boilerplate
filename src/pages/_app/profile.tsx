@@ -1,6 +1,7 @@
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute } from '@tanstack/react-router'
 import { toast } from 'sonner'
+import { SecuritySection } from '@/components/features/profile/security-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -130,8 +131,7 @@ function ProfileDetails({ user }: { user: User }) {
       </Form>
 
       {/* Read-only, because PATCH /profile accepts firstName and lastName and
-          nothing else. There is deliberately no change-password form and no
-          auth-provider list: the API exposes an endpoint for neither. */}
+          nothing else. */}
       <dl className="mt-6 grid gap-3 border-t pt-6 text-sm">
         <div className="flex justify-between gap-4">
           <dt className="text-muted-foreground">Email</dt>
@@ -142,6 +142,8 @@ function ProfileDetails({ user }: { user: User }) {
           <dd>{memberSince(user.createdAt)}</dd>
         </div>
       </dl>
+
+      <SecuritySection />
     </>
   )
 }

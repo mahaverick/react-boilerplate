@@ -152,3 +152,20 @@ export interface AuditPage<T extends AuditEntry> {
   entries: T[]
   nextCursor: string | null
 }
+
+/** One sign-in method linked to the account, as `GET /auth/providers` lists it. */
+export interface AuthProviderLink {
+  /** `'email'` or `'google'`. A string, so a new provider renders rather than breaks. */
+  provider: string
+  /** ISO timestamp of when the method was linked. */
+  linkedAt: string
+}
+
+/**
+ * `GET /auth/providers`. `hasPassword` is the only password signal: a Google
+ * sign-up also has an `'email'` row, and cannot sign in with a password.
+ */
+export interface AuthProviders {
+  providers: AuthProviderLink[]
+  hasPassword: boolean
+}

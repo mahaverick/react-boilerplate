@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { loginSchema, registerSchema, verifyEmailSchema } from '@/schemas/auth.schemas'
+import {
+  changePasswordSchema,
+  loginSchema,
+  registerSchema,
+  verifyEmailSchema,
+} from '@/schemas/auth.schemas'
 
 describe('auth schemas', () => {
   it('login requires a password but applies no policy to it', () => {
@@ -51,5 +56,35 @@ describe('auth schemas', () => {
   it('verify-email requires BOTH a token and a password', () => {
     expect(verifyEmailSchema.safeParse({ token: 't' }).success).toBe(false)
     expect(verifyEmailSchema.safeParse({ token: 't', password: 'p' }).success).toBe(true)
+  })
+
+  it('change-password verifies the current password without a policy', () => {
+    // It is compared against the stored hash, like login's.
+    const base = { newPassword: 'longenough8', confirmPassword: 'longenough8' }
+    expect(changePasswordSchema.safeParse({ ...base, currentPassword: 'x' }).success).toBe(true)
+    expect(changePasswordSchema.safeParse({ ...base, currentPassword: '' }).success).toBe(false)
+  })
+
+  it('change-password holds the new password to the registration rule', () => {
+    const parse = (newPassword: string) =>
+      changePasswordSchema.safeParse({
+        currentPassword: 'old-password',
+        newPassword,
+        confirmPassword: newPassword,
+      }).success
+    expect(parse('short7c')).toBe(false)
+    expect(parse('a'.repeat(72))).toBe(true)
+    expect(parse('a'.repeat(73))).toBe(false)
+  })
+
+  it('change-password flags a mismatched confirmation on that field', () => {
+    const result = changePasswordSchema.safeParse({
+      currentPassword: 'old-password',
+      newPassword: 'longenough8',
+      confirmPassword: 'different99',
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.path).toEqual(['confirmPassword'])
+    expect(result.error?.issues[0]?.message).toBe('Passwords do not match.')
   })
 })

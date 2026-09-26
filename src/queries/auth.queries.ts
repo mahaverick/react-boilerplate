@@ -1,10 +1,11 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { broadcastLogout } from '@/http/session'
 import { statusFrom } from '@/lib/api-error'
 import type {
+  ChangePasswordInput,
   ForgotPasswordInput,
   LoginInput,
   RegisterInput,
@@ -13,12 +14,14 @@ import type {
   VerifyEmailInput,
 } from '@/schemas/auth.schemas'
 import { useAuthStore } from '@/states/auth.store'
-import type { ApiSuccess, User } from '@/types/api.types'
+import type { ApiSuccess, AuthProviders, User } from '@/types/api.types'
 
 interface AuthPayload {
   accessToken: string
   user: User
 }
+
+export const authKeys = { providers: ['auth', 'providers'] as const }
 
 export function useLogin() {
   const login = useAuthStore((s) => s.login)
@@ -66,6 +69,26 @@ export function useResendVerification() {
   return useMutation({
     mutationFn: async (input: ResendVerificationInput) =>
       apiClient.post<ApiSuccess<unknown>>('/auth/resend-verification', input),
+  })
+}
+
+/** The sign-in methods linked to the caller's account, and whether it has a password. */
+export function useAuthProviders() {
+  return useQuery({
+    queryKey: authKeys.providers,
+    queryFn: async () => unwrap(await apiClient.get<ApiSuccess<AuthProviders>>('/auth/providers')),
+  })
+}
+
+/** Changes the caller's password. The API keeps this session and revokes every other one. */
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: async (input: ChangePasswordInput) =>
+      // confirmPassword is a client-side concern; the API does not accept it.
+      apiClient.post<ApiSuccess<null>>('/auth/change-password', {
+        currentPassword: input.currentPassword,
+        newPassword: input.newPassword,
+      }),
   })
 }
 

@@ -51,9 +51,13 @@ describe('profile page', () => {
       new Date(testUser.createdAt)
     )
     expect(screen.getByText(expected)).toBeInTheDocument()
-    // Neither has an endpoint, so neither has UI.
-    expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/google/i)).not.toBeInTheDocument()
+  })
+
+  it('renders the Security section below the profile form', async () => {
+    renderProfile()
+
+    expect(await screen.findByRole('region', { name: 'Security' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Change password' })).toBeInTheDocument()
   })
 
   it('sends only the trimmed first and last name', async () => {
