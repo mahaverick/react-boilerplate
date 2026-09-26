@@ -260,6 +260,13 @@ describe('security section', () => {
     const toastSuccess = vi.spyOn(toast, 'success')
     mockProviders(['email'], true)
     server.use(http.post('/api/v1/auth/change-password', () => ok(null, 'Password changed.')))
+    let refreshCalls = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => {
+        refreshCalls += 1
+        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      })
+    )
     const router = renderProfile()
     await fillAndSubmit('old-passphrase-1', 'new-passphrase-2')
 
@@ -270,5 +277,8 @@ describe('security section', () => {
     // The next request still succeeds.
     await act(() => queryClient.refetchQueries({ queryKey: authKeys.providers }))
     expect(queryClient.getQueryState(authKeys.providers)?.status).toBe('success')
+    // A successful password change keeps this device's own access token; it
+    // must never trigger a refresh to get there.
+    expect(refreshCalls).toBe(0)
   })
 })
