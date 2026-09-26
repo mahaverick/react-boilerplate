@@ -88,3 +88,26 @@ describe('auth schemas', () => {
     expect(result.error?.issues[0]?.message).toBe('Passwords do not match.')
   })
 })
+
+describe('register names: the API safeText rule', () => {
+  const base = { email: 'a@b.com', password: 'longenough8' }
+
+  it('rejects a control or bidi character, naming the field the way the API does', () => {
+    const result = registerSchema.safeParse({
+      ...base,
+      firstName: 'a\u{1B}b',
+      lastName: 'x\u{202E}',
+    })
+    expect(result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])).toEqual([
+      ['firstName', 'First name contains characters that are not allowed'],
+      ['lastName', 'Last name contains characters that are not allowed'],
+    ])
+  })
+
+  it('accepts names in other scripts, with direction marks', () => {
+    expect(
+      registerSchema.safeParse({ ...base, firstName: 'שָׁלוֹם\u{200F}', lastName: 'Ὀδυσσεύς' })
+        .success
+    ).toBe(true)
+  })
+})

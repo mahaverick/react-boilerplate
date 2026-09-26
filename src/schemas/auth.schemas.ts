@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { notAllowedMessage, safeText } from '@/schemas/safe-text.schemas'
 
 const MIN_PASSWORD_LENGTH = 8
 /**
@@ -35,12 +36,15 @@ export const newPasswordSchema = z
  * `.optional()`. An empty control therefore means "not given" rather than
  * "invalid", and is dropped from the payload instead of posting `''`.
  */
-const nameSchema = z
-  .string()
-  .trim()
-  .max(MAX_NAME_LENGTH, `Name must be at most ${MAX_NAME_LENGTH} characters.`)
-  .transform((value) => (value === '' ? undefined : value))
-  .optional()
+function nameSchema(label: string) {
+  return z
+    .string()
+    .trim()
+    .max(MAX_NAME_LENGTH, `Name must be at most ${MAX_NAME_LENGTH} characters.`)
+    .refine(safeText(), notAllowedMessage(label))
+    .transform((value) => (value === '' ? undefined : value))
+    .optional()
+}
 
 export const loginSchema = z.object({
   email: emailSchema,
@@ -52,8 +56,8 @@ export const loginSchema = z.object({
 export const registerSchema = z.object({
   email: emailSchema,
   password: newPasswordSchema,
-  firstName: nameSchema,
-  lastName: nameSchema,
+  firstName: nameSchema('First name'),
+  lastName: nameSchema('Last name'),
 })
 
 export const forgotPasswordSchema = z.object({ email: emailSchema })
