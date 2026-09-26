@@ -22,7 +22,7 @@ import {
  * Needs the container and express on :4040; `pnpm test:e2e:nginx` runs it.
  */
 
-test.skip(process.env.E2E_LIVE !== '1', 'needs the nginx container — run pnpm test:e2e:nginx')
+test.skip(process.env.E2E_LIVE !== '1', 'needs a live API — set E2E_LIVE=1 (pnpm test:e2e:nginx)')
 
 test.beforeAll(async () => {
   if (!(await apiIsReady())) throw new Error(`No API at ${API_ORIGIN}`)

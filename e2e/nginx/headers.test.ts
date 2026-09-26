@@ -64,3 +64,16 @@ test(
     expect(response.headers()['cache-control']).toBe('no-store')
   }
 )
+
+test(
+  'the theme script is loaded by a plain, blocking script tag',
+  { tag: '@no-api' },
+  async ({ request }) => {
+    // Pinned against the served bundle, not the source: `type="module"` or
+    // `async`/`defer` would let the bundle paint before the theme class is
+    // set, which is exactly the flash-of-wrong-theme this tag exists to
+    // prevent — and `script-src 'self'` still allows any of them.
+    const html = await (await request.get('/')).text()
+    expect(html).toContain('<script src="/theme-init.js"></script>')
+  }
+)

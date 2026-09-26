@@ -41,8 +41,8 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # root filesystem can be mounted read-only. /tmp must be writable (a tmpfs).
 COPY docker/nginx.main.conf /etc/nginx/nginx.conf
 # nginx.conf is a template. The image's entrypoint renders it into
-# $NGINX_ENVSUBST_OUTPUT_DIR at start. The stock server config is not included
-# any more, and is removed so the entrypoint's IPv6 script has nothing to edit.
+# $NGINX_ENVSUBST_OUTPUT_DIR at start. The stock server config is not
+# included; it is removed so the entrypoint's IPv6 script has nothing to edit.
 RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 ENV NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d

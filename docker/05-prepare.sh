@@ -5,6 +5,11 @@ set -eu
 
 # envsubst skips rendering, logging one line and exiting 0, when its output
 # directory is not writable, and a missing one is not. /tmp starts empty.
+# `set -u` alone catches an UNSET value here, but not one that is set and
+# empty: `mkdir -p ""` still fails under `set -e`, just with "mkdir: : No such
+# file or directory", naming neither this variable nor this script. `:?` gives
+# the same clear message either way.
+: "${NGINX_ENVSUBST_OUTPUT_DIR:?NGINX_ENVSUBST_OUTPUT_DIR must be set}"
 mkdir -p "$NGINX_ENVSUBST_OUTPUT_DIR"
 
 # proxy_pass takes this verbatim: a path, even "/", rewrites every /api/ URI,
