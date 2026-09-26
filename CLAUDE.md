@@ -345,6 +345,17 @@ Three details that took measuring, and that a "tidy-up" would quietly undo:
   `[aria-level=1]`, a selector jsdom rejects outright, so axe files them under
   `incomplete` — which `toHaveNoViolations` does not read. `CardTitle` renders a
   `div`, so a page's `h1` goes _inside_ it.
+- **`RouteError` and `RoutePending` — the router's other two default
+  components, alongside `RouteNotFound` — carry no `<main>` of their own.**
+  Whether the page still has one depends on where they fire. For a route
+  with no layout ancestor — an error, or a slow loader, before `_app`/`_auth`
+  resolves — nothing else supplies a `<main>` either, the same gap
+  `RouteNotFound` had before it got its own. For a route nested inside
+  `_app` or `_auth`, the router renders them in place of that route's own
+  component, inside the `Outlet` the layout already wrapped in its `<main>`
+  — measured against the tenant loader, which has no `pendingComponent` of
+  its own — so the page still ends up with exactly one, contributed by the
+  layout rather than by `RoutePending`.
 - Colour contrast is **not** checked _there_. jest-axe's default — reproduced
   explicitly in that file — switches every `cat.color` rule off under jsdom,
   which has no layout. Contrast is measured separately, in a real browser, by
