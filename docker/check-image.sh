@@ -28,6 +28,26 @@ header() {
   { grep -i "^$1:" "$2" || true; } | head -n 1 | cut -d' ' -f2- | tr -d '\r'
 }
 
+# --- API_UPSTREAM is validated before nginx starts ---------------------------
+# `nginx -t` as the command, so every run ends by itself. The message is what
+# proves the check ran: `nginx -t` fails on its own for some of these values.
+for good in http://api:4040 https://api.example.com; do
+  if ! out=$(docker run --rm --add-host=api:127.0.0.1 --add-host=api.example.com:127.0.0.1 \
+    -e "API_UPSTREAM=$good" "$image" nginx -t 2>&1); then
+    problem "rejected API_UPSTREAM=$good: $out"
+  fi
+done
+for bad in 'http://api:4040/' 'http://api:4040/v1' 'api:4040' '' 'http://$host' 'http://api:4040;' \
+  'http://api:4040?x' 'http://u@api:4040' 'http://{api}:4040' 'http://api :4040' $'http://api:4040\nx'; do
+  if out=$(docker run --rm --add-host=api:127.0.0.1 -e "API_UPSTREAM=$bad" "$image" nginx -t 2>&1); then
+    problem "accepted API_UPSTREAM=[$bad]"
+  fi
+  case $out in
+    *"API_UPSTREAM must be scheme://host[:port] with no path, got: $bad"*) ;;
+    *) problem "no validation message for API_UPSTREAM=[$bad]: $out" ;;
+  esac
+done
+
 # --- The container: unprivileged, on 8080 ------------------------------------
 docker run -d --name "$name" -p "127.0.0.1:$port:8080" --read-only --tmpfs /tmp \
   --add-host=api:127.0.0.1 "$image" >/dev/null

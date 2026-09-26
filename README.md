@@ -168,6 +168,11 @@ is needed. To point it elsewhere, set the variable at start:
 docker run --rm -p 8080:8080 -e API_UPSTREAM=http://my-api:8080 react-boilerplate
 ```
 
+`API_UPSTREAM` is checked at start: `http://` or `https://`, a host (or a
+bracketed IPv6 address) and an optional port — nothing else, not even a
+trailing `/`. Any other value stops the container with
+`API_UPSTREAM must be scheme://host[:port] with no path, got: …`.
+
 At start the entrypoint renders `nginx.conf` as a template, and it substitutes
 `API_UPSTREAM` and nothing else, so nginx's own `$host`, `$scheme` and the
 rest are left alone.
@@ -235,6 +240,9 @@ asset, not by reading the config.**
 
 - **The container listens on 8080, not 80, and runs as uid 101.** Change port
   mappings, a Service's `targetPort` and any health check that dials `:80`.
+- **`API_UPSTREAM` is validated at start.** A value with a path or a trailing
+  `/` — which never worked, because nginx rewrote every `/api/` URI to it — now
+  stops the container instead of starting it broken.
 
 ## Deploying
 
