@@ -81,7 +81,7 @@ status=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/health")
 asset=$({ curl -sf "$base/" || true; } | { grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' || true; } | head -n 1)
 [ -n "$asset" ] || problem "index.html names no /assets/index-*.js entry chunk"
 csp="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
-for path in / /dashboard "$asset" /theme-init.js; do
+for path in / /dashboard "$asset" /theme-init.js /assets/does-not-exist.js; do
   curl -s -D "$work/headers" -o /dev/null "$base$path"
   while IFS='|' read -r field value; do
     got=$(header "$field" "$work/headers")
@@ -99,5 +99,14 @@ done
 curl -s -D "$work/headers" -o /dev/null "$base/theme-init.js"
 [ "$(header Content-Type "$work/headers")" = application/javascript ] || problem "/theme-init.js is not served as JavaScript"
 [ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/theme-init.js is not no-store"
+
+# --- A missing asset is a 404 that no cache keeps ----------------------------
+status=$(curl -s -D "$work/headers" -o "$work/body" -w '%{http_code}' "$base/assets/does-not-exist.js")
+[ "$status" = 404 ] || problem "a missing asset answered $status, not 404"
+if grep -q 'id="root"' "$work/body"; then problem "a missing asset was answered with index.html"; fi
+[ -z "$(header Cache-Control "$work/headers")" ] || problem "a 404 carries Cache-Control"
+curl -s -D "$work/headers" -o /dev/null "$base$asset"
+[ "$(header Cache-Control "$work/headers")" = 'public, max-age=31536000, immutable' ] \
+  || problem "$asset is not cached as immutable"
 
 exit "$fail"

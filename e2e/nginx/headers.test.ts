@@ -19,10 +19,16 @@ async function entryChunk(request: APIRequestContext): Promise<string> {
 }
 
 test(
-  'pages and assets carry every security header, and no nginx version',
+  'pages, assets and a 404 carry every security header, and no nginx version',
   { tag: '@no-api' },
   async ({ request }) => {
-    const paths = ['/', '/dashboard', await entryChunk(request), '/theme-init.js']
+    const paths = [
+      '/',
+      '/dashboard',
+      await entryChunk(request),
+      '/theme-init.js',
+      '/assets/does-not-exist.js',
+    ]
     for (const path of paths) {
       const headers = (await request.get(path)).headers()
       for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
@@ -30,6 +36,21 @@ test(
       }
       expect(headers.server, `server on ${path}`).toBe('nginx')
     }
+  }
+)
+
+test(
+  'a missing asset is a 404 no cache keeps, and a real one is immutable',
+  { tag: '@no-api' },
+  async ({ request }) => {
+    const missing = await request.get('/assets/does-not-exist.js')
+    expect(missing.status()).toBe(404)
+    expect(await missing.text()).not.toContain('<div id="root">')
+    expect(missing.headers()['cache-control']).toBeUndefined()
+
+    const real = await request.get(await entryChunk(request))
+    expect(real.status()).toBe(200)
+    expect(real.headers()['cache-control']).toBe('public, max-age=31536000, immutable')
   }
 )
 

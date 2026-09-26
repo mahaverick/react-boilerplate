@@ -169,7 +169,9 @@ jobs:
           expect_directive 2 'proxy_pass '
           expect 2 "proxy_set_header Host \$host;"
           expect 2 "proxy_set_header X-Forwarded-Proto \$forwarded_proto;"
-          expect 1 "add_header Cache-Control \$cache_control always;"
+          expect 1 "add_header Cache-Control \$cache_control;"
+          expect 0 "add_header Cache-Control \$cache_control always;"
+          expect 1 "try_files \$uri =404;"
           expect 1 "try_files \$uri /index.html;"
           expect 0 'clobbered'
           expect 0 'API_UPSTREAM}'
