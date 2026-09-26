@@ -227,6 +227,16 @@ describe('server-side validation errors', () => {
     expect(toastError).not.toHaveBeenCalled()
   })
 
+  it('moves focus to the first field the server faulted, described by its message', async () => {
+    renderLoginAt('/login')
+    await fillAndSubmit('a@b.com', 'secret123')
+
+    const email = screen.getByLabelText('Email')
+    await waitFor(() => expect(email).toHaveFocus())
+    const message = screen.getByText('That address is not registered.')
+    expect(email).toHaveAttribute('aria-describedby', message.id)
+  })
+
   it('renders a field error under its own field and describes the control', async () => {
     renderLoginAt('/login')
     await fillAndSubmit('a@b.com', 'secret123')

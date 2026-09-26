@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { flushSync } from 'react-dom'
 import { fieldErrorsFrom, formErrorsFrom, messageFrom } from '@/lib/api-error'
 
 /**
@@ -32,18 +33,26 @@ export interface ServerErrors {
   reset: () => void
 }
 
+/*
+ * `capture`, `setFieldError` and `setFormErrors` commit through `flushSync`.
+ * They run in a submit's promise continuation, and `<Form>` focuses the first
+ * `aria-invalid` control once that submit settles: the error has to be in the
+ * DOM by then, not in a render React has merely scheduled.
+ */
 export function useServerErrors(): ServerErrors {
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string[]>>({})
-  const [formErrors, setFormErrors] = React.useState<string[]>([])
+  const [formErrors, setFormErrorsState] = React.useState<string[]>([])
 
   const capture = React.useCallback((error: unknown) => {
     const fields = fieldErrorsFrom(error)
     const formLevel = formErrorsFrom(error)
-    setFieldErrors(fields)
     // No detail at all (a 401, a 429, a 500, no response): the message is the
     // only account of the failure, so it is shown at form level.
     const hasDetail = Object.keys(fields).length > 0 || formLevel.length > 0
-    setFormErrors(hasDetail ? formLevel : [messageFrom(error)])
+    flushSync(() => {
+      setFieldErrors(fields)
+      setFormErrorsState(hasDetail ? formLevel : [messageFrom(error)])
+    })
   }, [])
 
   const clearField = React.useCallback((name: string) => {
@@ -57,12 +66,20 @@ export function useServerErrors(): ServerErrors {
 
   const setFieldError = React.useCallback((name: string, messages: string[]) => {
     // An updater, so it composes with a `capture` made in the same tick.
-    setFieldErrors((current) => ({ ...current, [name]: messages }))
+    flushSync(() => {
+      setFieldErrors((current) => ({ ...current, [name]: messages }))
+    })
+  }, [])
+
+  const setFormErrors = React.useCallback((messages: string[]) => {
+    flushSync(() => {
+      setFormErrorsState(messages)
+    })
   }, [])
 
   const reset = React.useCallback(() => {
     setFieldErrors({})
-    setFormErrors([])
+    setFormErrorsState([])
   }, [])
 
   return { fieldErrors, formErrors, capture, clearField, setFieldError, setFormErrors, reset }

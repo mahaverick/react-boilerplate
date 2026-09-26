@@ -37,6 +37,19 @@ interface FormErrorSlot {
 const FormErrorSlotContext = React.createContext<FormErrorSlot | null>(null)
 
 /**
+ * The names of the `<FormField>`s mounted inside this form, so `<Form>` can say
+ * something in dev when a server error names a field nothing renders. Not
+ * exported, for the same reason as `FormErrorSlot`.
+ */
+interface RenderedFields {
+  /** Called by a mounted field; returns its own deregistration. */
+  register: (name: string) => () => void
+  has: (name: string) => boolean
+}
+
+const RenderedFieldsContext = React.createContext<RenderedFields | null>(null)
+
+/**
  * The form element itself. TanStack Form has no provider component.
  *
  * `onChange` is where a server verdict expires. It fires for every NATIVE
@@ -94,7 +107,24 @@ export function Form({
       isMounted: () => mounted,
     }
   })
+  const [renderedFields] = React.useState<RenderedFields>(() => {
+    // A count per name: two fields may share one, and unmounting one of them
+    // must not make the other disappear.
+    const counts = new Map<string, number>()
+    return {
+      register: (name) => {
+        counts.set(name, (counts.get(name) ?? 0) + 1)
+        return () => {
+          const next = (counts.get(name) ?? 1) - 1
+          if (next > 0) counts.set(name, next)
+          else counts.delete(name)
+        }
+      },
+      has: (name) => counts.has(name),
+    }
+  })
   const formErrors = serverErrors?.formErrors
+  const fieldErrors = serverErrors?.fieldErrors
 
   React.useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -103,11 +133,25 @@ export function Form({
     // already registered by now.
     console.warn(
       "<Form> was given form-level server errors (the `errors` map's reserved " +
-        '`formErrors` key) but no <FormError> is mounted to render them, so the ' +
-        'user sees nothing. Place <FormError /> above the submit button.',
+        '`formErrors` key, or the message of a failure that named no field) but ' +
+        'no <FormError> is mounted to render them, so the user sees nothing. ' +
+        'Place <FormError /> above the submit button.',
       formErrors
     )
   }, [formErrors, errorSlot])
+
+  React.useEffect(() => {
+    if (!import.meta.env.DEV || !fieldErrors) return
+    // Child effects run first here too, so every mounted field has registered.
+    const unrendered = Object.keys(fieldErrors).filter((name) => !renderedFields.has(name))
+    if (unrendered.length === 0) return
+    console.warn(
+      `<Form> was given server errors for ${unrendered.join(', ')}, but no ` +
+        '<FormField> with that name is mounted, so the user sees nothing. Render ' +
+        'the field, or route the message to <FormError> with setFormErrors.',
+      unrendered
+    )
+  }, [fieldErrors, renderedFields])
 
   const element = (
     <form
@@ -122,9 +166,10 @@ export function Form({
         event.preventDefault()
         event.stopPropagation()
         const formElement = event.currentTarget
-        // After a failed submit, the first invalid control takes focus, so its
-        // described-by message is read. A frame's wait lets React commit the
-        // aria-invalid that submit produced.
+        // Once every submit settles, the first invalid control, if any, takes
+        // focus, so its described-by message is read. Client errors are
+        // committed by then, and server errors are too: the hook commits them
+        // with flushSync.
         void form
           .handleSubmit()
           .finally(() =>
@@ -142,7 +187,11 @@ export function Form({
   if (!serverErrors) return element
   return (
     <ServerErrorsContext.Provider value={serverErrors}>
-      <FormErrorSlotContext.Provider value={errorSlot}>{element}</FormErrorSlotContext.Provider>
+      <FormErrorSlotContext.Provider value={errorSlot}>
+        <RenderedFieldsContext.Provider value={renderedFields}>
+          {element}
+        </RenderedFieldsContext.Provider>
+      </FormErrorSlotContext.Provider>
     </ServerErrorsContext.Provider>
   )
 }
@@ -221,6 +270,8 @@ function FieldProvider({
 }) {
   const id = React.useId()
   const serverErrors = React.useContext(ServerErrorsContext)
+  const renderedFields = React.useContext(RenderedFieldsContext)
+  React.useEffect(() => renderedFields?.register(name), [renderedFields, name])
   const serverMessages = serverErrors?.fieldErrors[name]
   const errors = field.state.meta.errors as unknown[]
   const value = React.useMemo<FormFieldContextValue>(
