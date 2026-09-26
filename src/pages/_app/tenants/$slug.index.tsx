@@ -21,7 +21,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { canManageTenant } from '@/constants/roles'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
 import { useMyRole, useTenant, useUpdateTenant, type Tenant } from '@/queries/tenant.queries'
 import { updateTenantSchema } from '@/schemas/tenant.schemas'
 
@@ -95,7 +94,6 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
         toast.success('Tenant updated.')
       } catch (error) {
         serverErrors.capture(error)
-        toast.error(messageFrom(error))
       }
     },
   })

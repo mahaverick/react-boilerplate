@@ -8,13 +8,18 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { toast } from 'sonner'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { fail, ok } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 const REGISTER_MESSAGE = 'If that address can be registered, a verification email has been sent.'
 
@@ -107,7 +112,8 @@ describe('register page', () => {
     expect(screen.queryByRole('heading', { name: 'Check your email' })).not.toBeInTheDocument()
   })
 
-  it('announces a rate-limited attempt and stays on the form', async () => {
+  it('announces a rate-limited attempt once, in the form, and stays on it', async () => {
+    const toastError = vi.spyOn(toast, 'error')
     server.use(
       http.post('/api/v1/auth/register', () =>
         fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED')
@@ -116,9 +122,10 @@ describe('register page', () => {
     renderRegisterAt('/register')
     await fillAndSubmit('ada@b.com', 'secret123')
 
-    expect(
-      await screen.findByText('Too many attempts. Please try again later.')
-    ).toBeInTheDocument()
+    const message = await screen.findByText('Too many attempts. Please try again later.')
+    expect(message.closest('form')).not.toBeNull()
+    expect(screen.getAllByText('Too many attempts. Please try again later.')).toHaveLength(1)
+    expect(toastError).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Create account' })).toBeEnabled()
     })

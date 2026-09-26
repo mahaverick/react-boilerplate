@@ -16,7 +16,6 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
 import { useProfile, useUpdateProfile } from '@/queries/profile.queries'
 import { updateProfileSchema } from '@/schemas/profile.schemas'
 import type { User } from '@/types/api.types'
@@ -80,7 +79,6 @@ function ProfileDetails({ user }: { user: User }) {
         toast.success('Profile updated.')
       } catch (error) {
         serverErrors.capture(error)
-        toast.error(messageFrom(error))
       }
     },
   })

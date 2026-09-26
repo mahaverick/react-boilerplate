@@ -19,7 +19,6 @@ import { Input } from '@/components/ui/input'
 import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
 import { useResendVerification, useVerifyEmail } from '@/queries/auth.queries'
 import { resendVerificationSchema, verifyEmailSchema } from '@/schemas/auth.schemas'
 
@@ -67,7 +66,6 @@ function VerifyEmailPage() {
       } catch (submitError) {
         setFailed(true)
         serverErrors.capture(submitError)
-        toast.error(messageFrom(submitError))
       }
     },
   })

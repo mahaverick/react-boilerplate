@@ -21,7 +21,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { canManageTenant } from '@/constants/roles'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
 import {
   useMyRole,
   useTenantSettings,
@@ -78,7 +77,6 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
         toast.success('Settings updated.')
       } catch (error) {
         serverErrors.capture(error)
-        toast.error(messageFrom(error))
       }
     },
   })

@@ -22,7 +22,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { ROLE_LABELS } from '@/constants/roles'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
 import { useCreateTenant, useTenants, type TenantWithRole } from '@/queries/tenant.queries'
 import { newTenantSchema, slugSchema } from '@/schemas/tenant.schemas'
 
@@ -91,7 +90,6 @@ function CreateTenantCard() {
         form.reset()
       } catch (error) {
         serverErrors.capture(error)
-        toast.error(messageFrom(error))
       }
     },
   })

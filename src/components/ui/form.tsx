@@ -121,7 +121,17 @@ export function Form({
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        void form.handleSubmit()
+        const formElement = event.currentTarget
+        // After a failed submit, the first invalid control takes focus, so its
+        // described-by message is read. A frame's wait lets React commit the
+        // aria-invalid that submit produced.
+        void form
+          .handleSubmit()
+          .finally(() =>
+            requestAnimationFrame(() =>
+              formElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+            )
+          )
         onSubmit?.(event)
       }}
       {...props}
@@ -320,11 +330,11 @@ function issueText(issue: unknown): string {
 }
 
 /**
- * The server's schema-level messages — the `errors` map's reserved
- * `formErrors` key, which names no field.
+ * The form-level failure: the `errors` map's reserved `formErrors` key, or
+ * the response's own message when it carried no field detail.
  *
- * Rendered at form level, above the submit button. Attaching these to an
- * input called "formErrors" would put an error against a field no form has.
+ * Rendered above the submit button, and the one place a submit failure is
+ * announced: pages raise no toast for it.
  */
 export function FormError({ className, ...props }: React.ComponentProps<'div'>) {
   const serverErrors = React.useContext(ServerErrorsContext)
@@ -345,18 +355,16 @@ export function FormError({ className, ...props }: React.ComponentProps<'div'>) 
   )
 }
 
-/** Renders the first error, if any. */
+/**
+ * Renders the first error, if any. Not a live region: `FormControl` points
+ * the control's `aria-describedby` at this id, so it is read with the field.
+ */
 export function FormMessage({ className, ...props }: React.ComponentProps<'p'>) {
   const { errors, formMessageId } = useFormField()
   const text = issueText(errors[0])
   if (!text) return null
   return (
-    <p
-      id={formMessageId}
-      role="alert"
-      className={cn('text-sm text-destructive', className)}
-      {...props}
-    >
+    <p id={formMessageId} className={cn('text-sm text-destructive', className)} {...props}>
       {text}
     </p>
   )

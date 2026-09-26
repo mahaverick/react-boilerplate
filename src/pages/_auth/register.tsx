@@ -18,7 +18,6 @@ import { Input } from '@/components/ui/input'
 import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
 import { useRegister, useResendVerification } from '@/queries/auth.queries'
 import { registerSchema, type RegisterInput } from '@/schemas/auth.schemas'
 
@@ -65,7 +64,6 @@ function RegisterPage() {
         setRegisteredEmail(input.email)
       } catch (submitError) {
         serverErrors.capture(submitError)
-        toast.error(messageFrom(submitError))
       }
     },
   })

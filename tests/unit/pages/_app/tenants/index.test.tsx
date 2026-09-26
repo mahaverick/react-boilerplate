@@ -8,6 +8,7 @@ import {
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_PREFIX } from '@/constants/routes'
 import { resetSessionForTests } from '@/http/session'
@@ -17,6 +18,10 @@ import { useAuthStore } from '@/states/auth.store'
 import { latestFetchStream, MockFetchStream, stubStreamFetch } from '@/tests/mocks/fetch-stream'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 const STREAM_URL = `${API_PREFIX}/notifications/stream`
 
@@ -173,6 +178,22 @@ describe('tenants list', () => {
     // Trimmed by the schema, and the untouched description is ABSENT rather
     // than posted as '' — which the API's own `.min(1)` would refuse.
     expect(posted).toEqual({ name: 'Acme Corp', slug: 'acme' })
+  })
+
+  it('shows a refused create once, in the form, with no toast', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    server.use(http.post('/api/v1/tenants', () => fail('Something broke.', 500)))
+    const user = userEvent.setup()
+    renderAppAt('/tenants')
+
+    await user.type(await screen.findByLabelText('Name'), 'Acme Corp')
+    await user.type(screen.getByLabelText('Slug'), 'acme')
+    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
+
+    const message = await screen.findByText('Something broke.')
+    expect(message.closest('form')).not.toBeNull()
+    expect(screen.getAllByText('Something broke.')).toHaveLength(1)
+    expect(toastError).not.toHaveBeenCalled()
   })
 })
 

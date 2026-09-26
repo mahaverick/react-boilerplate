@@ -19,7 +19,6 @@ import { Input } from '@/components/ui/input'
 import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
 import { useResetPassword } from '@/queries/auth.queries'
 import { resetPasswordSchema } from '@/schemas/auth.schemas'
 
@@ -63,7 +62,6 @@ function ResetPasswordPage() {
         await navigate({ to: ROUTES.login })
       } catch (submitError) {
         serverErrors.capture(submitError)
-        toast.error(messageFrom(submitError))
       }
     },
   })

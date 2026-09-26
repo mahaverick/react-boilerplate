@@ -34,6 +34,36 @@ function validationFailure(): AxiosError {
   })
 }
 
+/** A refusal carrying only a message: no `errors` map at all. */
+function plainFailure(message: string, status: number): AxiosError {
+  const config = { headers: new AxiosHeaders() }
+  return new AxiosError(message, String(status), config, null, {
+    data: { success: false, message, statusCode: status, requestId: 'test-request-id' },
+    status,
+    statusText: 'Error',
+    headers: {},
+    config,
+  })
+}
+
+/** A 400 whose detail is all field-level. */
+function fieldOnlyFailure(): AxiosError {
+  const config = { headers: new AxiosHeaders() }
+  return new AxiosError('Validation failed.', '400', config, null, {
+    data: {
+      success: false,
+      message: 'Validation failed.',
+      statusCode: 400,
+      errors: { email: ['Already taken.'] },
+      requestId: 'test-request-id',
+    },
+    status: 400,
+    statusText: 'Bad Request',
+    headers: {},
+    config,
+  })
+}
+
 /**
  * A form with nothing behind it, so the bridge itself is the subject rather
  * than a page's copy. `options` turns on the shapes that `<Form>` has to cope
@@ -183,14 +213,29 @@ describe('the server-error bridge in <Form>', () => {
       expect(screen.queryByText('Already taken.')).not.toBeInTheDocument()
     })
   })
+  it('ties a field message to its control without making it a live region', async () => {
+    render(<Fixture />)
+    await submit()
+
+    const message = await screen.findByText('Already taken.')
+    expect(message).not.toHaveAttribute('role')
+    expect(message.id).not.toBe('')
+    const email = screen.getByLabelText('Email')
+    expect(email).toHaveAttribute('aria-describedby', message.id)
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+    // The form-level message stays the live region.
+    expect(
+      screen.getByText('Those two do not go together.').closest('[role="alert"]')
+    ).not.toBeNull()
+  })
 })
 
 describe('setFieldError', () => {
   it('adds to what capture set in the same tick, and clears like any other', () => {
     const { result } = renderHook(() => useServerErrors())
 
-    // The invite form does exactly this: capture the 409, then put its
-    // message on the email field, before React renders in between.
+    // A capture and a hand-set field message in one tick, before React
+    // renders in between.
     act(() => {
       result.current.capture(validationFailure())
       result.current.setFieldError('nickname', ['Taken by a member.'])
@@ -204,5 +249,55 @@ describe('setFieldError', () => {
       result.current.clearField('nickname')
     })
     expect(result.current.fieldErrors).toEqual({ email: ['Already taken.'] })
+  })
+})
+
+describe('capture', () => {
+  it('shows the message at form level when the response names no field', () => {
+    const { result } = renderHook(() => useServerErrors())
+
+    act(() => {
+      result.current.capture(plainFailure('Too many attempts. Please try again later.', 429))
+    })
+
+    expect(result.current.formErrors).toEqual(['Too many attempts. Please try again later.'])
+    expect(result.current.fieldErrors).toEqual({})
+  })
+
+  it('falls back to the generic message when no response arrived', () => {
+    const { result } = renderHook(() => useServerErrors())
+
+    act(() => {
+      result.current.capture(new Error('Network Error'))
+    })
+
+    expect(result.current.formErrors).toEqual(['Something went wrong. Please try again.'])
+  })
+
+  it('leaves the envelope message out when the response carries field detail', () => {
+    const { result } = renderHook(() => useServerErrors())
+
+    act(() => {
+      result.current.capture(fieldOnlyFailure())
+    })
+
+    expect(result.current.formErrors).toEqual([])
+    expect(result.current.fieldErrors).toEqual({ email: ['Already taken.'] })
+  })
+})
+
+describe('setFormErrors', () => {
+  it('replaces the form-level messages, and reset drops them', () => {
+    const { result } = renderHook(() => useServerErrors())
+
+    act(() => {
+      result.current.setFormErrors(['Someone got there first.'])
+    })
+    expect(result.current.formErrors).toEqual(['Someone got there first.'])
+
+    act(() => {
+      result.current.reset()
+    })
+    expect(result.current.formErrors).toEqual([])
   })
 })

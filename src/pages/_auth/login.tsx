@@ -19,7 +19,6 @@ import { Input } from '@/components/ui/input'
 import { GOOGLE_OAUTH_PATH, ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
 import { useLogin } from '@/queries/auth.queries'
 import { loginSchema } from '@/schemas/auth.schemas'
 
@@ -117,7 +116,6 @@ function LoginPage() {
         await (target ? navigate({ href: target }) : navigate({ to: ROUTES.dashboard }))
       } catch (submitError) {
         serverErrors.capture(submitError)
-        toast.error(messageFrom(submitError))
       }
     },
   })

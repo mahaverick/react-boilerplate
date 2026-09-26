@@ -8,7 +8,8 @@ import {
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { toast } from 'sonner'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
@@ -17,6 +18,10 @@ import { useAuthStore } from '@/states/auth.store'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantAccess } from '@/types/api.types'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 const TENANT = {
   id: 't1',
@@ -235,6 +240,37 @@ describe('tenant detail', () => {
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
 
     expect(await screen.findByText('Metadata must be valid JSON.')).toBeInTheDocument()
+  })
+
+  it('shows a refused tenant edit once, in the form, with no toast', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    mockTenant('owner')
+    server.use(http.patch('/api/v1/tenants/acme', () => fail('Something broke.', 500)))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    await screen.findByLabelText('Name')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    const message = await screen.findByText('Something broke.')
+    expect(message.closest('form')).not.toBeNull()
+    expect(screen.getAllByText('Something broke.')).toHaveLength(1)
+    expect(toastError).not.toHaveBeenCalled()
+  })
+
+  it('shows a refused settings save once, in the form, with no toast', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    mockTenant('owner')
+    server.use(http.patch('/api/v1/tenants/acme/settings', () => fail('Something broke.', 500)))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/settings')
+
+    await user.click(await screen.findByRole('button', { name: 'Save settings' }))
+
+    const message = await screen.findByText('Something broke.')
+    expect(message.closest('form')).not.toBeNull()
+    expect(screen.getAllByText('Something broke.')).toHaveLength(1)
+    expect(toastError).not.toHaveBeenCalled()
   })
 
   /**

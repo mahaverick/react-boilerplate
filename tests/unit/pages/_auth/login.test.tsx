@@ -8,7 +8,8 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { toast } from 'sonner'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { safeRedirect } from '@/pages/_auth/login'
 import { queryClient } from '@/router'
@@ -16,6 +17,10 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 /**
  * Driven through a real RouterProvider rather than by rendering the component
@@ -126,12 +131,17 @@ describe('login page', () => {
     })
   })
 
-  it("surfaces the server's own message on a 401", async () => {
+  it("surfaces the server's own message on a 401, once, inside the form", async () => {
+    const toastError = vi.spyOn(toast, 'error')
     server.use(http.post('/api/v1/auth/login', () => fail('Invalid email or password.', 401)))
     const router = renderLoginAt('/login')
     await fillAndSubmit('a@b.com', 'wrong-password')
 
-    expect(await screen.findByText('Invalid email or password.')).toBeInTheDocument()
+    const message = await screen.findByText('Invalid email or password.')
+    expect(message.closest('form')).not.toBeNull()
+    expect(message.closest('[role="alert"]')).not.toBeNull()
+    expect(screen.getAllByText('Invalid email or password.')).toHaveLength(1)
+    expect(toastError).not.toHaveBeenCalled()
     expect(router.state.location.pathname).toBe('/login')
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
   })
@@ -204,6 +214,17 @@ describe('server-side validation errors', () => {
   beforeEach(() => {
     arriveSignedOut()
     server.use(http.post('/api/v1/auth/login', () => validationFailure()))
+  })
+
+  it('raises no toast for field errors it already shows', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    renderLoginAt('/login')
+    await fillAndSubmit('a@b.com', 'secret123')
+
+    expect(await screen.findByText('That address is not registered.')).toBeInTheDocument()
+    // "Validation failed." is the envelope's own message; the fields say it better.
+    expect(screen.queryByText('Validation failed.')).not.toBeInTheDocument()
+    expect(toastError).not.toHaveBeenCalled()
   })
 
   it('renders a field error under its own field and describes the control', async () => {
