@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { router as appRouter } from '@/router'
 
@@ -49,11 +50,25 @@ function renderTree(loader: () => unknown, initialPath: string) {
   return router
 }
 
-/** Records whether the pending screen was ever in the DOM, however briefly. */
+/**
+ * Records whether the pending screen was ever in the DOM, however briefly.
+ * Reads `addedNodes` off each mutation record rather than querying the live
+ * DOM in the callback: React can insert the pending screen and remove it
+ * again within the same batch, before the observer callback ever runs, and
+ * a query at callback time would miss it entirely.
+ */
 function watchForPending(): () => boolean {
   let seen = false
-  const observer = new MutationObserver(() => {
-    if (document.querySelector('[role="status"][aria-label="Loading"]')) seen = true
+  const matchesPending = (node: Node) =>
+    node instanceof HTMLElement &&
+    (node.matches('[role="status"][aria-label="Loading"]') ||
+      node.querySelector('[role="status"][aria-label="Loading"]') !== null)
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      mutation.addedNodes.forEach((node) => {
+        if (matchesPending(node)) seen = true
+      })
+    }
   })
   observer.observe(document.body, { childList: true, subtree: true })
   return () => {
@@ -177,5 +192,28 @@ describe('pending navigation', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Page' })).toBeInTheDocument()
     expect(pendingWasShown()).toBe(false)
+  })
+
+  it('keeps the pending screen up for defaultPendingMinMs even when the loader resolves right away', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const router = renderTree(() => gate, '/')
+    await screen.findByRole('heading', { level: 1, name: 'Home' })
+
+    router.history.push('/page')
+    await screen.findByRole('status', { name: 'Loading' })
+    // The loader settles the instant the pending screen appears; with
+    // defaultPendingMinMs at 0 it would swap to the page immediately, so
+    // this regresses if that floor is ever dropped.
+    release()
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    })
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Page' })).toBeInTheDocument()
   })
 })

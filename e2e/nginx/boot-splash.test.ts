@@ -14,7 +14,7 @@ test(
   { tag: '@no-api' },
   async ({ request }) => {
     const html = await (await request.get('/')).text()
-    expect(html).toMatch(/<div id="root">\s*<div class="boot-splash" aria-busy="true">/)
+    expect(html).toMatch(/<div id="root">\s*<div class="boot-splash" role="status">/)
     expect(html).toContain('Loading…')
   }
 )
@@ -33,6 +33,7 @@ test.describe('with the bundle blocked', () => {
         await page.goto('/login')
         const splash = page.locator('.boot-splash')
         await expect(splash).toBeVisible()
+        await expect(splash).toHaveAttribute('role', 'status')
         await expect(splash).toHaveText('Loading…')
         // `flex` comes from the stylesheet; unstyled, a div is `block`.
         await expect(splash).toHaveCSS('display', 'flex')

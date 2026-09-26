@@ -7,10 +7,25 @@ import { createRoot } from 'react-dom/client'
 import '@/styles/globals.css'
 import { queryClient, router } from '@/router'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
-  </StrictMode>
-)
+/**
+ * `router.load()` resolves the first match set (running the root route's
+ * `beforeLoad`, so `bootstrapSession`) before React ever touches `#root`.
+ * `createRoot(...).render(...)` clears whatever is already in the container
+ * on its first commit, and until a match is offered `MatchesInner` renders
+ * null — so rendering before the load resolves replaces index.html's static
+ * splash with nothing, then the router's own pending screen, then the page.
+ * Waiting here means the first commit already has a real match (or an error
+ * match), so the splash stays up as a single piece of static markup the
+ * whole time. `finally`, not `then`: it mounts React even if `load()`
+ * itself rejects. A `beforeLoad` or loader error instead resolves normally
+ * with an error match, and the first commit renders `RouteError` for it.
+ */
+void router.load().finally(() => {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </StrictMode>
+  )
+})
