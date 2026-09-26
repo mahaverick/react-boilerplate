@@ -862,6 +862,8 @@ describe('keyboard', () => {
     await screen.findByRole('button', { name: 'Sign in' })
 
     const expected = [
+      // Every layout's first Tab stop.
+      screen.getByRole('link', { name: 'Skip to content' }),
       screen.getByLabelText('Email'),
       screen.getByLabelText('Password'),
       screen.getByRole('button', { name: 'Sign in' }),

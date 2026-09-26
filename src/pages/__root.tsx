@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
+import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react-router'
 import { Toaster } from '@/components/ui/sonner'
+import { APP_NAME } from '@/constants/app'
 import { bootstrapSession } from '@/router'
 
 // Exported, not local: tsconfig.app.json sets `composite: true`, which turns
@@ -17,12 +18,16 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: async () => {
     await bootstrapSession()
   },
+  // The title of any route that declares none of its own.
+  head: () => ({ meta: [{ title: APP_NAME }] }),
   component: RootComponent,
 })
 
 function RootComponent() {
   return (
     <>
+      {/* React hoists the <title> this renders into <head>. */}
+      <HeadContent />
       <Outlet />
       <Toaster position="top-right" richColors closeButton />
     </>

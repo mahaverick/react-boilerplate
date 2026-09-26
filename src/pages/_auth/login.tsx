@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { pageTitle } from '@/constants/app'
 import { GOOGLE_OAUTH_PATH, ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
@@ -31,6 +32,7 @@ export const Route = createFileRoute('/_auth/login')({
     error: z.string().optional(),
     redirect: z.string().optional(),
   }),
+  head: () => ({ meta: [{ title: pageTitle('Sign in') }] }),
   component: LoginPage,
 })
 

@@ -19,6 +19,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
@@ -26,6 +27,7 @@ import { useCreateTenant, useTenants, type TenantWithRole } from '@/queries/tena
 import { newTenantSchema, slugSchema } from '@/schemas/tenant.schemas'
 
 export const Route = createFileRoute('/_app/tenants/')({
+  head: () => ({ meta: [{ title: pageTitle('Tenants') }] }),
   staticData: { crumb: 'Tenants' },
   component: TenantsPage,
 })

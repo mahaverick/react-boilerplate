@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
@@ -36,6 +37,7 @@ import { resendVerificationSchema, verifyEmailSchema } from '@/schemas/auth.sche
  */
 export const Route = createFileRoute('/verify-email')({
   validateSearch: z.object({ token: z.string().optional() }),
+  head: () => ({ meta: [{ title: pageTitle('Verify email') }] }),
   component: VerifyEmailPage,
 })
 

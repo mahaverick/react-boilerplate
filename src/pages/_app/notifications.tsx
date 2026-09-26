@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { pageTitle } from '@/constants/app'
 import { cn } from '@/lib/utils'
 import {
   flattenPages,
@@ -18,6 +19,7 @@ import {
 } from '@/queries/notification.queries'
 
 export const Route = createFileRoute('/_app/notifications')({
+  head: () => ({ meta: [{ title: pageTitle('Notifications') }] }),
   staticData: { crumb: 'Notifications' },
   component: NotificationsPage,
 })

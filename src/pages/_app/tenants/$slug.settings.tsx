@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
@@ -30,6 +31,7 @@ import {
 import { tenantSettingsFormSchema } from '@/schemas/tenant.schemas'
 
 export const Route = createFileRoute('/_app/tenants/$slug/settings')({
+  head: ({ params }) => ({ meta: [{ title: pageTitle(`Settings · ${params.slug}`) }] }),
   staticData: { crumb: 'Settings' },
   component: TenantSettingsTab,
 })

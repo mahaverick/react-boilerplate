@@ -12,12 +12,14 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useForgotPassword } from '@/queries/auth.queries'
 import { forgotPasswordSchema } from '@/schemas/auth.schemas'
 
 export const Route = createFileRoute('/_auth/forgot-password')({
+  head: () => ({ meta: [{ title: pageTitle('Forgot password') }] }),
   component: ForgotPasswordPage,
 })
 

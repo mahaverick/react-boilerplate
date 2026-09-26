@@ -109,7 +109,7 @@ src/
     features/   composed, app-specific pieces (theme toggle, user menu, …)
     layouts/    the auth shell and the app shell
     ui/         vendored shadcn output — see CLAUDE.md before editing
-  constants/    routes, roles
+  constants/    routes, roles, app name
   hooks/        use-* hooks
   http/         axios client, interceptors, the single-flight session refresh
   lib/          small helpers with no app knowledge

@@ -27,6 +27,7 @@ test(
       '/dashboard',
       await entryChunk(request),
       '/theme-init.js',
+      '/favicon.svg',
       '/assets/does-not-exist.js',
     ]
     for (const path of paths) {
@@ -64,6 +65,17 @@ test(
     expect(response.headers()['cache-control']).toBe('no-store')
   }
 )
+
+test('the favicon is served as SVG and never cached', { tag: '@no-api' }, async ({ request }) => {
+  const response = await request.get('/favicon.svg')
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-type']).toBe('image/svg+xml')
+  expect(response.headers()['cache-control']).toBe('no-store')
+  expect(await response.text()).toContain('<svg')
+
+  const html = await (await request.get('/')).text()
+  expect(html).toMatch(/<link rel="icon" href="\/favicon\.svg" type="image\/svg\+xml"\s*\/?>/)
+})
 
 test(
   'the theme script is loaded by a plain, blocking script tag',
