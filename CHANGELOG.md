@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/mahaverick/react-boilerplate/compare/v1.3.0...v2.0.0) (2026-09-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* unprivileged nginx on 8080 with CSP, pinned images and read-only root (stream 5a) ([#21](https://github.com/mahaverick/react-boilerplate/issues/21))
+
+### Features
+
+* unprivileged nginx on 8080 with CSP, pinned images and read-only root (stream 5a) ([#21](https://github.com/mahaverick/react-boilerplate/issues/21)) ([5cd3888](https://github.com/mahaverick/react-boilerplate/commit/5cd3888d49bb68a91ff7945b9d39434511ad203f))
+
 ## [1.3.0](https://github.com/mahaverick/react-boilerplate/compare/v1.2.0...v1.3.0) (2026-09-25)
 
 
