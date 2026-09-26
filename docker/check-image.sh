@@ -29,7 +29,7 @@ header() {
 }
 
 # --- The container: unprivileged, on 8080 ------------------------------------
-docker run -d --name "$name" -p "127.0.0.1:$port:8080" \
+docker run -d --name "$name" -p "127.0.0.1:$port:8080" --read-only --tmpfs /tmp \
   --add-host=api:127.0.0.1 "$image" >/dev/null
 for _ in $(seq 1 30); do
   curl -sf -o /dev/null "$base/" && break
@@ -46,5 +46,15 @@ fi
 # and workers included.
 uids=$(docker exec "$name" sh -c 'cat /proc/[0-9]*/status 2>/dev/null | awk "/^Uid:/ { print \$2; print \$3 }"' | sort -u)
 [ "$uids" = 101 ] || problem "processes run as uid(s): $(echo $uids)"
+
+# --- Read-only root: the config is rendered under /tmp -----------------------
+[ "$(docker inspect -f '{{.HostConfig.ReadonlyRootfs}}' "$name")" = true ] || problem "the root filesystem is writable"
+docker exec "$name" nginx -T >"$work/nginx-T" 2>&1 || true
+grep -q '^# configuration file /tmp/nginx/conf.d/default.conf:' "$work/nginx-T" \
+  || problem "the server config was not rendered into /tmp/nginx/conf.d"
+grep -q 'location /api/ {' "$work/nginx-T" || problem "the /api/ location is not loaded"
+# Nothing listens behind /api, so the proxy itself answers 502.
+status=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/health")
+[ "$status" = 502 ] || problem "/api/ with no API behind it answered $status, not 502"
 
 exit "$fail"

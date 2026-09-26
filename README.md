@@ -151,7 +151,7 @@ checks; automating them is Phase B's Playwright gate.
 
 ```bash
 docker build -t react-boilerplate .
-docker run --rm -p 8080:8080 --add-host=api:127.0.0.1 react-boilerplate
+docker run --rm -p 8080:8080 --read-only --tmpfs /tmp --add-host=api:127.0.0.1 react-boilerplate
 ```
 
 The image builds the bundle with Node and serves `dist/` from the unprivileged
@@ -171,6 +171,13 @@ docker run --rm -p 8080:8080 -e API_UPSTREAM=http://my-api:8080 react-boilerplat
 At start the entrypoint renders `nginx.conf` as a template, and it substitutes
 `API_UPSTREAM` and nothing else, so nginx's own `$host`, `$scheme` and the
 rest are left alone.
+
+The image is built to run on a **read-only root filesystem**. Everything nginx writes
+— the rendered config, its pid file, request and proxy temp files — goes under
+`/tmp`, so give it a writable `/tmp`: `--tmpfs /tmp` as above, or an
+`emptyDir` in Kubernetes. With `--read-only` and no writable `/tmp`, the
+container stops at start rather than serving without its config. Logs go to
+stdout and stderr.
 
 The image takes no build arguments. The API prefix is baked in and fixed —
 see [The API prefix is fixed](#the-api-prefix-is-fixed) for what has to change

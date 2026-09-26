@@ -37,11 +37,18 @@ RUN pnpm build
 # images are pinned by digest, and Renovate moves each tag and digest together.
 FROM nginxinc/nginx-unprivileged:1.30.5-alpine@sha256:4714e0b1b2577eaa1a6131d07c958b67f0eb68e6d0521e90c6e5287db8cf0bc5
 COPY --from=build /app/dist /usr/share/nginx/html
+# Everything nginx writes at start or while serving goes under /tmp, so the
+# root filesystem can be mounted read-only. /tmp must be writable (a tmpfs).
+COPY docker/nginx.main.conf /etc/nginx/nginx.conf
 # nginx.conf is a template. The image's entrypoint renders it into
-# conf.d/default.conf at start; the stock file of that name goes first, so the
-# rendered template is the only server config in conf.d.
+# $NGINX_ENVSUBST_OUTPUT_DIR at start. The stock server config is not included
+# any more, and is removed so the entrypoint's IPv6 script has nothing to edit.
 RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/templates/default.conf.template
+ENV NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d
+# Runs before the stock envsubst script. --chmod because the file is owned by
+# root and the image's user cannot chmod it afterwards.
+COPY --chmod=0755 docker/05-prepare.sh /docker-entrypoint.d/05-prepare.sh
 # Where nginx proxies /api, read at container start: scheme://host:port, no
 # path (see nginx.conf's /api/ location). The default assumes a compose
 # service named `api`.
