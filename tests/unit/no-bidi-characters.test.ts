@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+// A static import, not the glob below: Vite's import.meta.glob excludes the
+// file that calls it from its own results, so this is the only way for this
+// scan to cover itself too.
+import ownSource from './no-bidi-characters.test.ts?raw'
 
 const BIDI_OVERRIDE = /[\u{202A}-\u{202E}\u{2066}-\u{2069}]/u
 
@@ -22,11 +26,16 @@ describe('raw bidi characters', () => {
   it('appear in no file under src, tests or e2e', () => {
     const paths = Object.keys(SOURCES)
     // Not vacuous: the globs really found files under each of the three
-    // directories. Vite's import.meta.glob never matches the file that calls
-    // it, so this asserts a sibling test file rather than its own path.
+    // directories.
     expect(paths).toContain('/tests/unit/schemas/safe-text.schemas.test.ts')
     expect(paths).toContain('/src/main.tsx')
-    const offenders = paths.filter((path) => BIDI_OVERRIDE.test(SOURCES[path] ?? ''))
+    const allSources: Record<string, string> = {
+      ...SOURCES,
+      'tests/unit/no-bidi-characters.test.ts': ownSource,
+    }
+    const offenders = Object.keys(allSources).filter((path) =>
+      BIDI_OVERRIDE.test(allSources[path] ?? '')
+    )
     expect(offenders).toEqual([])
   })
 })

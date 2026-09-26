@@ -188,6 +188,15 @@ describe('tenant text fields: the API safeText rule', () => {
     expect(updateTenantSchema.parse({ description: 'one\r\ntwo' }).description).toBe('one\ntwo')
   })
 
+  it('turns pasted CRLF in a description into LF before it is sent', () => {
+    const parsed = newTenantSchema.parse({
+      name: 'Acme',
+      slug: 'acme',
+      description: 'line one\r\nline two',
+    })
+    expect(parsed.description).toBe('line one\nline two')
+  })
+
   it('applies the same rule on update', () => {
     const result = updateTenantSchema.safeParse({ name: 'Acme\u{0}', website: 'x\u{202A}' })
     expect(issuesOf(result)).toEqual([
