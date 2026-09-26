@@ -165,7 +165,7 @@ real API is there). Under compose, name the API service `api` and nothing else
 is needed. To point it elsewhere, set the variable at start:
 
 ```bash
-docker run --rm -p 8080:8080 -e API_UPSTREAM=http://my-api:8080 react-boilerplate
+docker run --rm -p 8080:8080 -e API_UPSTREAM=http://my-api:8080 --read-only --tmpfs /tmp react-boilerplate
 ```
 
 `API_UPSTREAM` is checked at start: `http://` or `https://`, a host (or a
@@ -253,6 +253,10 @@ nginx sends an **enforced** policy on every response:
 - **No HSTS.** Deliberate: this server listens on `:8080` behind a TLS
   terminator. A `max-age` sent over plain HTTP is ignored by browsers and is
   actively wrong if TLS is ever absent. Set it at the edge that terminates TLS.
+- **IPv4 only.** `nginx.conf`'s `server` block declares `listen 8080;`, which
+  binds `0.0.0.0:8080` and nothing else. IPv6-only clusters need
+  `listen [::]:8080;` added to that block — which fails on hosts with IPv6
+  disabled, so it is not a change to make unconditionally.
 
 ### Upgrading to 2.0
 
@@ -264,6 +268,21 @@ nginx sends an **enforced** policy on every response:
 - **`API_UPSTREAM` is validated at start.** A value with a path or a trailing
   `/` — which never worked, because nginx rewrote every `/api/` URI to it — now
   stops the container instead of starting it broken.
+- **Extra server config goes in a template.** Add it as
+  `/etc/nginx/templates/*.conf.template` — the entrypoint strips only the
+  `.template` suffix, so the name before it has to end `.conf`, matching what
+  `docker/nginx.main.conf` includes from `/tmp/nginx/conf.d` on start (see
+  [Docker](#docker) above). A file placed directly in `/etc/nginx/conf.d` is
+  ignored: `docker/nginx.main.conf` replaces `/etc/nginx/nginx.conf` and its
+  only server-config include is `/tmp/nginx/conf.d/*.conf`.
+- **This image is built for a read-only root**, so `/tmp` has to be
+  writable — a `tmpfs` mount, as the [Docker](#docker) section's `docker run`
+  examples show. Without one, the entrypoint's render and nginx's own temp
+  paths have nowhere to write and the container fails to start.
+- **`RUN` steps in a derived image run as uid 101**, not root — the base
+  image's `USER` is never reset back to root, so it carries into every stage
+  built from it. A step that needs root privileges has to `USER root` first
+  and `USER 101` again before `CMD`.
 
 ## Deploying
 
