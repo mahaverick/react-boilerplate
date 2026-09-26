@@ -36,6 +36,11 @@
       "allowedVersions": "<25"
     },
     {
+      "description": "nginx's odd minor versions are mainline releases. Keep the unprivileged image on the stable line (even minor), which is what its stable-alpine tag tracks.",
+      "matchDepNames": ["nginxinc/nginx-unprivileged"],
+      "allowedVersions": "/^\\d+\\.\\d*[02468]\\.\\d+-alpine$/"
+    },
+    {
       "groupName": "dev tooling",
       "matchPackageNames": [
         "eslint",

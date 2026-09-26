@@ -71,10 +71,19 @@ jobs:
       - run: pnpm build
       - run: pnpm audit --prod --audit-level high
 
-  # The `fixtures` Playwright project ONLY. It drives the MSW harness in
-  # e2e/harness/, so it needs the dev server and nothing else —
-  # playwright.config.ts's `webServer` starts one, and `reuseExistingServer` is
-  # off under CI so it always gets a clean boot.
+  # Two Playwright runs.
+  #
+  # The `fixtures` project drives the MSW harness in e2e/harness/, so it needs
+  # the dev server and nothing else — playwright.config.ts's `webServer` starts
+  # one, and `reuseExistingServer` is off under CI so it always gets a clean
+  # boot.
+  #
+  # Then the `nginx` tests tagged `@no-api`, against the PRODUCTION image built
+  # here and started as it ships — read-only root, a tmpfs /tmp — with nothing
+  # listening behind /api, so every API call answers 502. They check what only
+  # the real bundle behind the real nginx.conf shows: the security headers, the
+  # enforced Content-Security-Policy and the pre-paint theme script. The rest of
+  # `nginx` needs a live API and stays local (`pnpm test:e2e:nginx`).
   #
   # `live` is deliberately NOT here. It needs a real express-boilerplate plus
   # postgres, redis and mailpit, and registers accounts through the verification
@@ -88,7 +97,7 @@ jobs:
   # those three was a real defect found by looking at a screenshot.
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -113,6 +122,24 @@ jobs:
       - run: pnpm exec playwright install-deps chromium
         if: steps.playwright-cache.outputs.cache-hit == 'true'
       - run: pnpm test:e2e
+      # `api` resolves to the container's own loopback, where nothing listens.
+      - name: Start the image with no API behind it
+        run: |
+          docker build -t react-boilerplate:e2e .
+          docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp \
+            --add-host=api:127.0.0.1 -e API_UPSTREAM=http://api:4040 react-boilerplate:e2e
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:8088/ && exit 0
+            sleep 1
+          done
+          docker logs rb-e2e
+          exit 1
+      # E2E_NGINX stops playwright.config.ts starting the dev server.
+      - run: pnpm exec playwright test --project=nginx --grep @no-api
+        env:
+          E2E_NGINX: '1'
+      - if: failure()
+        run: docker logs rb-e2e 2>&1 | tail -n 100 || true
       # Only on failure, and only for a week: the report is how you find out
       # what a red run actually saw, and it is useless once the branch moves on.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -121,12 +148,16 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+      - if: always()
+        run: docker rm -f rb-e2e >/dev/null 2>&1 || true
 
-  # The image and its nginx template are exercised by nothing else — a broken
-  # proxy_pass or a typo'd directive would otherwise surface at deploy time.
+  # The image and its nginx template, checked before deploy rather than at it —
+  # a broken proxy_pass or a typo'd directive would otherwise surface there.
   # Built, never pushed (deploy.yml does that): this job proves the image
-  # builds, the default render passes `nginx -t`, and a custom API_UPSTREAM
-  # renders without touching nginx's own variables.
+  # builds, the default render passes `nginx -t`, a custom API_UPSTREAM renders
+  # without touching nginx's own variables, and docker/check-image.sh passes:
+  # uid 101 on 8080, a read-only root, API_UPSTREAM validation, the security
+  # headers on pages, assets and a 404, and a real 404 for a missing asset.
   #
   # Plain `docker` rather than docker/build-push-action, so this adds no action
   # pins to keep current. The runner ships with docker already.
@@ -169,8 +200,19 @@ jobs:
           expect_directive 2 'proxy_pass '
           expect 2 "proxy_set_header Host \$host;"
           expect 2 "proxy_set_header X-Forwarded-Proto \$forwarded_proto;"
-          expect 1 "add_header Cache-Control \$cache_control always;"
+          expect 1 "add_header Cache-Control \$cache_control;"
+          expect 0 "add_header Cache-Control \$cache_control always;"
+          expect 1 "try_files \$uri =404;"
           expect 1 "try_files \$uri /index.html;"
           expect 0 'clobbered'
           expect 0 'API_UPSTREAM}'
+          expect_directive 1 'listen 8080;'
+          expect 1 '# configuration file /tmp/nginx/conf.d/default.conf:'
+          expect_directive 1 'include /tmp/nginx/conf\.d/\*\.conf;'
+          expect_directive 1 'server_tokens off;'
+          expect_directive 1 'add_header Content-Security-Policy '
+          expect_directive 1 'add_header Permissions-Policy '
           if [ "$fail" != 0 ]; then cat rendered.conf; exit 1; fi
+      # The image from outside, the way it ships. docker/check-image.sh says
+      # what it checks; run it locally with the same command.
+      - run: bash docker/check-image.sh react-boilerplate:ci

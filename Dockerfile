@@ -1,6 +1,6 @@
 # Build the bundle, then serve it from nginx. The build stage's node_modules
 # never reach the image.
-FROM node:24-alpine AS build
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS build
 WORKDIR /app
 
 # Corepack is installed explicitly: Node 25+ no longer bundles it, and doing
@@ -33,13 +33,22 @@ COPY . .
 # and Google sign-in were broken with nothing in any log to say so.
 RUN pnpm build
 
-FROM nginx:alpine
+# The unprivileged nginx image runs as uid 101 and listens on 8080. Both base
+# images are pinned by digest, and Renovate moves each tag and digest together.
+FROM nginxinc/nginx-unprivileged:1.30.5-alpine@sha256:4714e0b1b2577eaa1a6131d07c958b67f0eb68e6d0521e90c6e5287db8cf0bc5
 COPY --from=build /app/dist /usr/share/nginx/html
+# Everything nginx writes at start or while serving goes under /tmp, so the
+# root filesystem can be mounted read-only. /tmp must be writable (a tmpfs).
+COPY docker/nginx.main.conf /etc/nginx/nginx.conf
 # nginx.conf is a template. The image's entrypoint renders it into
-# conf.d/default.conf at start; the stock file of that name goes first, so the
-# rendered template is the only server config in conf.d.
+# $NGINX_ENVSUBST_OUTPUT_DIR at start. The stock server config is not
+# included; it is removed so the entrypoint's IPv6 script has nothing to edit.
 RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/templates/default.conf.template
+ENV NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d
+# Runs before the stock envsubst script. --chmod because the file is owned by
+# root and the image's user cannot chmod it afterwards.
+COPY --chmod=0755 docker/05-prepare.sh /docker-entrypoint.d/05-prepare.sh
 # Where nginx proxies /api, read at container start: scheme://host:port, no
 # path (see nginx.conf's /api/ location). The default assumes a compose
 # service named `api`.
@@ -47,5 +56,5 @@ ENV API_UPSTREAM=http://api:4040
 # envsubst substitutes only env names matching this, so nginx's own $host,
 # $scheme and the rest survive the render.
 ENV NGINX_ENVSUBST_FILTER='^API_UPSTREAM$'
-EXPOSE 80
+EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]

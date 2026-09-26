@@ -1,3 +1,4 @@
+import '@/lib/zod-jitless'
 import '@testing-library/jest-dom/vitest'
 import { configure } from '@testing-library/react'
 import { toHaveNoViolations } from 'jest-axe'

@@ -90,7 +90,7 @@ async function contrastOf(
   heading: string | RegExp,
   scope?: string
 ): Promise<ContrastResult> {
-  // Set BEFORE the document runs: index.html carries a pre-paint script that
+  // Set BEFORE the document runs: index.html loads a pre-paint script that
   // reads localStorage and toggles `.dark` before the bundle loads, so setting
   // the theme afterwards would measure a repaint rather than the real render.
   await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)

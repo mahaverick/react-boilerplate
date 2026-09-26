@@ -22,7 +22,7 @@ that a new project starts here rather than at `create-vite`.
 - **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ no longer ships Corepack, so this works on 24 and 26 alike)
 - `devEngines.runtime` (`onFail: "error"`) is what actually refuses a wrong Node at install — `.npmrc`'s `engine-strict` does not enforce this root project's own `engines.node` under pnpm 12.
 - The **API running on `:4040`** — see below
-- **React Boilerplate 1.3.0 needs `express-boilerplate` 3.1.0 or later.**
+- **React Boilerplate 2.0.0 needs `express-boilerplate` 3.1.0 or later.**
 
 ## Getting started
 
@@ -151,10 +151,11 @@ checks; automating them is Phase B's Playwright gate.
 
 ```bash
 docker build -t react-boilerplate .
-docker run --rm -p 8080:80 --add-host=api:127.0.0.1 react-boilerplate
+docker run --rm -p 8080:8080 --read-only --tmpfs /tmp --add-host=api:127.0.0.1 react-boilerplate
 ```
 
-The image builds the bundle with Node and serves `dist/` from nginx, proxying
+The image builds the bundle with Node and serves `dist/` from the unprivileged
+nginx image — as uid 101, on port **8080** — proxying
 `/api` to `API_UPSTREAM` — `http://api:4040` unless you set it — so by default
 the container expects an **`api` host** on the same network. nginx resolves
 the upstream's host when it loads its config, so without it the container
@@ -164,12 +165,24 @@ real API is there). Under compose, name the API service `api` and nothing else
 is needed. To point it elsewhere, set the variable at start:
 
 ```bash
-docker run --rm -p 8080:80 -e API_UPSTREAM=http://my-api:8080 react-boilerplate
+docker run --rm -p 8080:8080 -e API_UPSTREAM=http://my-api:8080 --read-only --tmpfs /tmp react-boilerplate
 ```
+
+`API_UPSTREAM` is checked at start: `http://` or `https://`, a host (or a
+bracketed IPv6 address) and an optional port — nothing else, not even a
+trailing `/`. Any other value stops the container with
+`API_UPSTREAM must be scheme://host[:port] with no path, got: …`.
 
 At start the entrypoint renders `nginx.conf` as a template, and it substitutes
 `API_UPSTREAM` and nothing else, so nginx's own `$host`, `$scheme` and the
 rest are left alone.
+
+The image is built to run on a **read-only root filesystem**. Everything nginx writes
+— the rendered config, its pid file, request and proxy temp files — goes under
+`/tmp`, so give it a writable `/tmp`: `--tmpfs /tmp` as above, or an
+`emptyDir` in Kubernetes. With `--read-only` and no writable `/tmp`, the
+container stops at start rather than serving without its config. Logs go to
+stdout and stderr.
 
 The image takes no build arguments. The API prefix is baked in and fixed —
 see [The API prefix is fixed](#the-api-prefix-is-fixed) for what has to change
@@ -202,26 +215,74 @@ short:
   `error`-level upstream detail for this one location is dropped; the access log
   still records every request and its status.
 
-Security headers (`Referrer-Policy`, `X-Content-Type-Options`,
-`X-Frame-Options`, `Cross-Origin-Opener-Policy`) are set once on the server
-block with `always`. No location declares an `add_header` of its own, because
+Security headers (`Content-Security-Policy`, `Permissions-Policy`,
+`Referrer-Policy`, `X-Content-Type-Options`, `X-Frame-Options`,
+`Cross-Origin-Opener-Policy`) are set once on the server block with `always`,
+and `server_tokens off` drops the nginx version from the `Server` header and
+error pages. No location declares an `add_header` of its own, because
 one that did would silently drop all of them — `add_header` does not inherit
 into a block that sets any header itself. Cache-Control is therefore chosen by
 a `map` rather than per-location. **Verify this with `curl -I` against a real
 asset, not by reading the config.**
 
+### Content-Security-Policy
+
+nginx sends an **enforced** policy on every response:
+
+    default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+    img-src 'self' data:; connect-src 'self'; object-src 'none';
+    base-uri 'none'; frame-ancestors 'none'; form-action 'self'
+
+- **No inline script.** The pre-paint theme script — which has to run before
+  the bundle, or every dark-mode load flashes light — is the file
+  `public/theme-init.js`, loaded by a classic, blocking `<script src>` in
+  `index.html`. Keep it a file: an inline `<script>` is blocked by
+  `script-src 'self'`, and `'unsafe-inline'` would give away what the policy is
+  for. Its name is not content-hashed, so it is served `no-store`, like
+  `index.html`.
+- **`style-src 'unsafe-inline'`** is there because sonner injects a `<style>`
+  element at runtime.
+- **`connect-src 'self'`** holds because the API is same-origin: nginx proxies
+  `/api`. Calling another origin from the browser means widening it here.
+- The `nginx` Playwright project asserts zero violations: on the sign-in page
+  and for the theme script in CI (the `@no-api` tests), and on the signed-in
+  app with a live stream and a tenant page locally (`pnpm test:e2e:nginx`).
+
 ### Known gaps
 
-- **No `Content-Security-Policy`.** `index.html` carries an inline script that
-  applies the stored theme before first paint — it has to run before the bundle
-  or every dark-mode load flashes light. `script-src 'self'` blocks it, and
-  `'unsafe-inline'` gives away most of what the header is for. The honest fix is
-  a SHA-256 hash of that exact script, regenerated by a build step whenever the
-  script changes, and emitted into the nginx config. Shipping a guessed policy
-  would be worse than shipping none. **Follow-up, tracked here.**
-- **No HSTS.** Deliberate: this server listens on `:80` behind a TLS
+- **No HSTS.** Deliberate: this server listens on `:8080` behind a TLS
   terminator. A `max-age` sent over plain HTTP is ignored by browsers and is
   actively wrong if TLS is ever absent. Set it at the edge that terminates TLS.
+- **IPv4 only.** `nginx.conf`'s `server` block declares `listen 8080;`, which
+  binds `0.0.0.0:8080` and nothing else. IPv6-only clusters need
+  `listen [::]:8080;` added to that block — which fails on hosts with IPv6
+  disabled, so it is not a change to make unconditionally.
+
+### Upgrading to 2.0
+
+- **The container listens on 8080, not 80, and runs as uid 101.** Change port
+  mappings, a Service's `targetPort` and any health check that dials `:80`.
+- **A Content-Security-Policy is enforced.** A change that adds an inline
+  script, or loads a script, style, image, font or API call from another
+  origin, has to change the policy in `nginx.conf` in the same commit.
+- **`API_UPSTREAM` is validated at start.** A value with a path or a trailing
+  `/` — which never worked, because nginx rewrote every `/api/` URI to it — now
+  stops the container instead of starting it broken.
+- **Extra server config goes in a template.** Add it as
+  `/etc/nginx/templates/*.conf.template` — the entrypoint strips only the
+  `.template` suffix, so the name before it has to end `.conf`, matching what
+  `docker/nginx.main.conf` includes from `/tmp/nginx/conf.d` on start (see
+  [Docker](#docker) above). A file placed directly in `/etc/nginx/conf.d` is
+  ignored: `docker/nginx.main.conf` replaces `/etc/nginx/nginx.conf` and its
+  only server-config include is `/tmp/nginx/conf.d/*.conf`.
+- **This image is built for a read-only root**, so `/tmp` has to be
+  writable — a `tmpfs` mount, as the [Docker](#docker) section's `docker run`
+  examples show. Without one, the entrypoint's render and nginx's own temp
+  paths have nowhere to write and the container fails to start.
+- **`RUN` steps in a derived image run as uid 101**, not root — the base
+  image's `USER` is never reset back to root, so it carries into every stage
+  built from it. A step that needs root privileges has to `USER root` first
+  and `USER 101` again before `CMD`.
 
 ## Deploying
 

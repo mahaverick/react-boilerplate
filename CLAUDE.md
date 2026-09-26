@@ -101,14 +101,31 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   anyone out. Widening this to any error is the single easiest way to log every
   user out during a deploy.
 
+## The container
+
+- **nginx enforces a Content-Security-Policy with `script-src 'self'`.** There
+  is no inline script anywhere, and there must not be one: the pre-paint theme
+  script is `public/theme-init.js`, loaded by a blocking `<script src>`. A new
+  origin for scripts, styles, images, fonts or `fetch` means changing the policy
+  in `nginx.conf` in the same commit. The README's CSP section has the reasons
+  for each directive.
+- **`src/lib/zod-jitless.ts` is the first import in `main.tsx`, `tests/setup.ts`
+  and `e2e/harness/harness.tsx`**, because Zod's JIT probe trips `script-src 'self'`;
+  never fix that by adding `'unsafe-eval'` instead.
+- **It listens on 8080 as uid 101 and is built for a read-only root.** Everything
+  it writes is under `/tmp`, so it needs a writable `/tmp` (a tmpfs);
+  `docker/check-image.sh` checks all of this from outside.
+- **No `location` declares `add_header`.** One that did would silently drop
+  every security header — `nginx.conf`'s map comment says why.
+
 ## Never install
 
 `react-hook-form`, `@hookform/resolvers`, `next-themes`,
 `@tanstack/zod-form-adapter`, `clsx`, `tailwind-merge`, any `@radix-ui/*`.
 
 Each has an in-repo replacement: TanStack Form with a Zod validator (no
-adapter package is needed in v1), `theme.store` plus the pre-paint script in
-`index.html`, the `cn` package, and Base UI through shadcn. Adding one of these
+adapter package is needed in v1), `theme.store` plus the pre-paint script
+`public/theme-init.js`, the `cn` package, and Base UI through shadcn. Adding one of these
 back gives the project two ways to do the same thing, which is how the
 inconsistency starts.
 
@@ -253,8 +270,11 @@ address**, because the login limiter is keyed `ip:email` at five attempts per fi
 and a fixed address would rate-limit every rerun.
 
 **`nginx`** runs against the PRODUCTION image — `pnpm test:e2e:nginx` builds it, runs it on
-:8088 with `--add-host=api:host-gateway`, tests, and tears it down. It exists for one test,
-and for a reason worth keeping: **the Vite dev proxy does not propagate an upstream close.**
+:8088 (container port 8080, read-only root) with `--add-host=api:host-gateway`, tests, and
+tears it down. The tests tagged `@no-api` (headers, the CSP, the theme script, the asset 404)
+need no backend and also run in CI's `e2e` job, against the image with nothing behind `/api`;
+the rest need a live API and run only locally. The project exists first for a reason worth
+keeping: **the Vite dev proxy does not propagate an upstream close.**
 A `curl -N` at it stays open after the API is killed, so the reading side of the client's
 `fetch` body stream never sees `done: true`, `parseSseStream`'s generator never returns, and
 the SSE reconnect path is unreachable from a dev-server browser. The same curl against nginx

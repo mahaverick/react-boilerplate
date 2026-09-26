@@ -70,7 +70,9 @@ export default defineConfig({
     },
     // Against the production image, not the dev server. The SSE reconnect is
     // only observable here: the Vite proxy does not propagate an upstream
-    // close, so the browser never learns the stream died. nginx does.
+    // close, so the browser never learns the stream died. nginx does. The
+    // headers and the CSP are only real here too; those tests are tagged
+    // `@no-api` and CI runs them with `--grep @no-api`.
     {
       name: 'nginx',
       testMatch: 'nginx/**/*.test.ts',
