@@ -27,8 +27,9 @@ import { queryClient, router } from '@/router'
  * the one that strands the splash forever: React never gets to clear it, so
  * nothing else on the page will ever say why. The first case has already
  * mounted whatever `finally` produced by the time it reaches this catch, but
- * would otherwise still vanish as a silent, untraceable unhandled rejection.
- * Either way, logging it is strictly better than dropping it on the floor.
+ * would otherwise have been swallowed here with no trace at all, exactly as
+ * the empty `catch(() => {})` this replaced did for both cases. Either way,
+ * logging it is strictly better than dropping it on the floor.
  */
 void router
   .load()
