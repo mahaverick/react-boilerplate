@@ -32,6 +32,51 @@ test(
   }
 )
 
+test(
+  'a lazily loaded route loads under the policy with no violation',
+  { tag: '@no-api' },
+  async ({ page, request }) => {
+    // Everything index.html loads up front; any other chunk was loaded on demand.
+    const html = await (await request.get('/')).text()
+    const upFront = new Set(html.match(/\/assets\/[\w.-]+\.js/g) ?? [])
+    const onDemand: string[] = []
+    page.on('response', (response) => {
+      const { pathname } = new URL(response.url())
+      if (/^\/assets\/[\w.-]+\.js$/.test(pathname) && !upFront.has(pathname)) {
+        onDemand.push(pathname)
+      }
+    })
+    const violations = await watchCspViolations(page)
+
+    await page.goto('/login')
+    await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
+    await page.getByRole('link', { name: 'Forgot password?' }).click()
+    await expect(
+      page.getByRole('heading', { name: 'Forgot your password?', level: 1 })
+    ).toBeVisible()
+
+    expect(onDemand).not.toEqual([])
+    await flushCspReports(page)
+    expect(violations).toEqual([])
+  }
+)
+
+test(
+  'a missing route chunk after a deploy offers a reload',
+  { tag: '@no-api' },
+  async ({ page }) => {
+    await page.goto('/login')
+    await page.route(/\/assets\/.*\.js$/, (route) =>
+      route.request().url().includes('register')
+        ? route.fulfill({ status: 404, body: '' })
+        : route.continue()
+    )
+    await page.getByRole('link', { name: /create an account|sign up|register/i }).click()
+    await expect(page.getByText('A new version is available')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible()
+  }
+)
+
 test.describe('the pre-paint theme script', () => {
   // With the bundle blocked, nothing but /theme-init.js can set the class.
   test.beforeEach(async ({ page }) => {

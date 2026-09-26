@@ -43,12 +43,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
-      // Excludes the generated route tree, the mount-only entry and the vendored
-      // shadcn files, by name: form.tsx and sonner.tsx in ui/ are ours and measured.
+      // Excludes the generated route tree, the mount-only entry, the dev-only
+      // devtools it mounts and the vendored shadcn files, by name: form.tsx and
+      // sonner.tsx in ui/ are ours and measured.
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/routeTree.gen.ts',
         'src/main.tsx',
+        'src/components/dev/devtools.tsx',
         'src/components/ui/{alert-dialog,avatar,badge,breadcrumb,button,card,combobox,dialog,dropdown-menu}.tsx',
         'src/components/ui/{input,input-group,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
         'src/components/ui/{table,tabs,textarea,tooltip}.tsx',

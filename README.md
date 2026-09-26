@@ -84,17 +84,18 @@ it: `pnpm dev` always proxies to `http://localhost:4040`.
 
 ## Scripts
 
-| Script               | What it does                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------- |
-| `pnpm dev`           | Dev server on :5173 with the `/api` proxy                                             |
-| `pnpm build`         | `tsc -b` then `vite build` → `dist/`                                                  |
-| `pnpm preview`       | Serve the built bundle locally                                                        |
-| `pnpm lint`          | eslint **and** `prettier --check` — both must pass                                    |
-| `pnpm typecheck`     | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                       |
-| `pnpm test`          | Vitest, single pass                                                                   |
-| `pnpm test:coverage` | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it |
-| `pnpm test:watch`    | Vitest in watch mode                                                                  |
-| `pnpm format`        | `prettier --write`                                                                    |
+| Script               | What it does                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`           | Dev server on :5173 with the `/api` proxy                                                               |
+| `pnpm build`         | `tsc -b` then `vite build` → `dist/`                                                                    |
+| `pnpm preview`       | Serve the built bundle locally                                                                          |
+| `pnpm lint`          | eslint **and** `prettier --check` — both must pass                                                      |
+| `pnpm typecheck`     | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                                         |
+| `pnpm test`          | Vitest, single pass                                                                                     |
+| `pnpm test:coverage` | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it                   |
+| `pnpm test:watch`    | Vitest in watch mode                                                                                    |
+| `pnpm format`        | `prettier --write`                                                                                      |
+| `pnpm check:bundle`  | Builds in memory; fails on one JS chunk, first-visit JS over budget, or devtools in a chunk. CI runs it |
 
 CI holds eslint to **zero warnings** as well as zero errors
 (`pnpm exec eslint . --max-warnings 0`).
@@ -104,6 +105,7 @@ CI holds eslint to **zero warnings** as well as zero errors
 ```
 src/
   components/
+    dev/        dev-only tools, mounted from main.tsx
     features/   composed, app-specific pieces (theme toggle, user menu, …)
     layouts/    the auth shell and the app shell
     ui/         vendored shadcn output — see CLAUDE.md before editing
@@ -117,6 +119,7 @@ src/
   states/       Zustand stores
   styles/       globals.css and the design tokens
   types/        shared API types
+scripts/        Node build checks (check-bundle)
 tests/
   unit/         Vitest suites, mirroring src/ (plus the accessibility gate)
   mocks/        MSW server and handlers

@@ -94,6 +94,13 @@ export default tseslint.config(
     },
   },
   {
+    // Node scripts. They sit outside every tsconfig, so, like the root configs
+    // above, they are linted syntactically only.
+    files: ['scripts/**/*.mjs'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: { globals: globals.node },
+  },
+  {
     // The e2e suite and its fixture harness. Typed linting rather than the
     // `disableTypeChecked` used for the root configs above: `e2e/tsconfig.json`
     // exists precisely so `projectService` can find these files, so the
