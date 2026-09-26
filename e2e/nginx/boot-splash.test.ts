@@ -48,6 +48,9 @@ test('the app replaces the splash once it renders', { tag: '@no-api' }, async ({
   await page.goto('/login')
   await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
   await expect(page.locator('.boot-splash')).toHaveCount(0)
+  // The document title the real browser sets once the bundle has run and the
+  // route's head() has applied, not merely the HTML title() served statically.
+  await expect(page).toHaveTitle('Sign in · React Boilerplate')
 })
 
 test(
@@ -73,11 +76,20 @@ test(
     // waiting on an element that isn't there yet. `#root` is looked up fresh
     // in each callback, so the empty check only starts meaning anything once
     // it exists. Keys `__sawRoutePending` on `aria-label`, not `role`,
-    // because the splash itself carries `role="status"` too.
+    // because the splash itself carries `role="status"` too. `__mutations`
+    // counts every callback invocation, so a browser where the observer never
+    // ran at all — and so never had a chance to flip either flag — fails
+    // loudly instead of passing on two flags that both stayed false by
+    // default.
     await page.addInitScript(() => {
-      const win = window as unknown as { __rootWasEmpty: boolean; __sawRoutePending: boolean }
+      const win = window as unknown as {
+        __rootWasEmpty: boolean
+        __sawRoutePending: boolean
+        __mutations: number
+      }
       win.__rootWasEmpty = false
       win.__sawRoutePending = false
+      win.__mutations = 0
 
       const isRoutePending = (node: Node) =>
         node instanceof HTMLElement &&
@@ -85,6 +97,7 @@ test(
           node.querySelector('[role="status"][aria-label="Loading"]') !== null)
 
       const observer = new MutationObserver((mutations) => {
+        win.__mutations += 1
         const root = document.getElementById('root')
         if (root && root.childElementCount === 0) win.__rootWasEmpty = true
         for (const mutation of mutations) {
@@ -100,9 +113,18 @@ test(
     await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
 
     const flags = await page.evaluate(() => {
-      const win = window as unknown as { __rootWasEmpty: boolean; __sawRoutePending: boolean }
-      return { rootWasEmpty: win.__rootWasEmpty, sawRoutePending: win.__sawRoutePending }
+      const win = window as unknown as {
+        __rootWasEmpty: boolean
+        __sawRoutePending: boolean
+        __mutations: number
+      }
+      return {
+        rootWasEmpty: win.__rootWasEmpty,
+        sawRoutePending: win.__sawRoutePending,
+        mutations: win.__mutations,
+      }
     })
+    expect(flags.mutations).toBeGreaterThan(0)
     expect(flags.rootWasEmpty).toBe(false)
     expect(flags.sawRoutePending).toBe(false)
   }
