@@ -86,8 +86,8 @@ async function rowFor(name: string) {
 }
 
 /**
- * `useIsMobile` reads `window.innerWidth` for the VALUE and only uses
- * matchMedia for the listener, so setting the width is what decides.
+ * `tests/setup.ts`'s `matchMedia` stub answers `useIsMobile`'s `max-width`
+ * query from `window.innerWidth`, so setting the width is what decides.
  */
 function setViewportWidth(width: number) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })

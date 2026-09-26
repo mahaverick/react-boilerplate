@@ -54,11 +54,16 @@ declare module 'vitest' {
 // every route, and sonner calls it UNGUARDED in an effect
 // (`window.matchMedia('(prefers-color-scheme: dark)')`), so any test that
 // mounts the real route tree renders sonner's error boundary instead of the
-// page. A permissive, always-false stub is the whole fix; a test that cares
-// about a specific query overrides it locally, as theme.store.test.ts does.
+// page. A permissive stub is the whole fix. Every query is false except a
+// `max-width` one, which answers from `window.innerWidth`, so a test picks the
+// viewport `useIsMobile` reports by setting the width. A test that cares about
+// another query overrides the stub locally, as theme.store.test.ts does.
 if (typeof window !== 'undefined' && !window.matchMedia) {
   window.matchMedia = (query: string): MediaQueryList => ({
-    matches: false,
+    get matches() {
+      const maxWidth = /max-width:\s*(\d+)px/.exec(query)
+      return maxWidth ? window.innerWidth <= Number(maxWidth[1]) : false
+    },
     media: query,
     onchange: null,
     addListener: () => {},
