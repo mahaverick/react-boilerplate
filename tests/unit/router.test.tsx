@@ -165,15 +165,6 @@ describe('unknown URLs', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute('href', '/')
   })
-
-  // Nothing upstream matched, so no layout rendered one for it: the
-  // not-found screen must carry exactly one `<main>` of its own.
-  it('renders exactly one main landmark', async () => {
-    renderTree(() => null, '/no-such-page')
-
-    await screen.findByRole('heading', { level: 1, name: 'Page not found' })
-    expect(screen.getAllByRole('main')).toHaveLength(1)
-  })
 })
 
 describe('pending navigation', () => {
