@@ -99,7 +99,8 @@ describe('the boot sequence', () => {
 
     const loaded = boot(container, router)
 
-    // Roughly the 500ms the review flagged, well past defaultPendingMs (300).
+    // Well past defaultPendingMs (300), long enough to catch a boot sequence
+    // that renders before the load resolves.
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 500))
     })

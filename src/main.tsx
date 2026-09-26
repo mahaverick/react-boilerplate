@@ -20,9 +20,12 @@ import { queryClient, router } from '@/router'
  * whole time. `finally`, not `then`: it mounts React whether `load()`
  * resolves or rejects. A `beforeLoad` or loader error instead resolves
  * `load()` normally with an error match, and the first commit renders
- * `RouteError` for it; the trailing `catch` only stops a genuine rejection
- * of `load()` itself — which `finally` re-throws after running — from
- * surfacing as an unhandled promise rejection.
+ * `RouteError` for it; the trailing `catch` covers two different failures —
+ * a genuine rejection of `load()` itself, which `finally` re-throws after
+ * running, and a synchronous throw from `createRoot(...).render(...)` inside
+ * `finally` (for example `#root` missing from the DOM). Either one leaves the
+ * static splash on screen forever, since nothing ever mounts over it, so the
+ * catch logs the error rather than swallowing it — the only way to learn why.
  */
 void router
   .load()
@@ -36,4 +39,6 @@ void router
       </StrictMode>
     )
   })
-  .catch(() => {})
+  .catch((error: unknown) => {
+    console.error(error)
+  })
