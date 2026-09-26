@@ -42,9 +42,9 @@ Nothing that touches the backend works without it — sign-in, the session
 bootstrap on page load, and the notification stream all fail immediately.
 
 That proxy is not a convenience. The API path is a **relative** one
-(`/api/v1`) because the backend sends no CORS headers, so the SPA and the API
-have to be served from one origin. In development that origin is the Vite
-proxy; in the container it is nginx.
+(`/api/v1`) because the SPA and the API are served from one origin, which is
+the only topology this app supports (see [Deploying](#deploying)). In
+development that origin is the Vite proxy; in the container it is nginx.
 
 ### The API prefix is fixed
 
@@ -302,6 +302,14 @@ another branch only pushes the sha-tagged image — the `:main` tag and the
 reviewers — before replacing the placeholder `deploy` step with a real
 deployment target. Until then, anything merged to `main` would deploy
 unreviewed the moment that step does something real.
+
+**Serve the SPA and the API from one origin.** The image's nginx proxies
+`/api` to `API_UPSTREAM`, so the browser only ever calls the origin that
+served the page. A split-origin deployment, with the SPA on one host calling
+the API on another, is not supported. The API does send CORS headers, for
+other frontends, but this app depends on same-origin: its API client uses
+relative URLs, its Content-Security-Policy allows `connect-src 'self'` only,
+and the refresh cookie is set on whichever origin answers `/api`.
 
 ## Releases
 
