@@ -49,7 +49,7 @@ test('the app replaces the splash once it renders', { tag: '@no-api' }, async ({
   await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
   await expect(page.locator('.boot-splash')).toHaveCount(0)
   // The document title the real browser sets once the bundle has run and the
-  // route's head() has applied, not merely the HTML title() served statically.
+  // route's head() has applied, not merely the <title> index.html ships.
   await expect(page).toHaveTitle('Sign in · React Boilerplate')
 })
 

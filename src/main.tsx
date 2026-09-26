@@ -23,9 +23,12 @@ import { queryClient, router } from '@/router'
  * `RouteError` for it; the trailing `catch` covers two different failures —
  * a genuine rejection of `load()` itself, which `finally` re-throws after
  * running, and a synchronous throw from `createRoot(...).render(...)` inside
- * `finally` (for example `#root` missing from the DOM). Either one leaves the
- * static splash on screen forever, since nothing ever mounts over it, so the
- * catch logs the error rather than swallowing it — the only way to learn why.
+ * `finally` (for example `#root` missing from the DOM). The second case is
+ * the one that strands the splash forever: React never gets to clear it, so
+ * nothing else on the page will ever say why. The first case has already
+ * mounted whatever `finally` produced by the time it reaches this catch, but
+ * would otherwise still vanish as a silent, untraceable unhandled rejection.
+ * Either way, logging it is strictly better than dropping it on the floor.
  */
 void router
   .load()
