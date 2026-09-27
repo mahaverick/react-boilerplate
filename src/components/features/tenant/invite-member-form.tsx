@@ -70,14 +70,19 @@ export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: Membe
         toast.success(`Invitation sent to ${input.email}.`)
         form.reset()
       } catch (error) {
-        serverErrors.capture(error)
-        // The one answer about the address itself, so it goes on that field.
-        if (codeFrom(error) === ALREADY_MEMBER) {
+        const code = codeFrom(error)
+        // The one answer about the address itself, so it goes on that field
+        // and nowhere else: `capture` would also put it at form level.
+        if (code === ALREADY_MEMBER) {
           serverErrors.setFieldError('email', [messageFrom(error)])
           return
         }
         // The hook refetches the list on a conflict, so the winner shows below.
-        toast.error(codeFrom(error) === INVITATION_CONFLICT ? RACED : messageFrom(error))
+        if (code === INVITATION_CONFLICT) {
+          serverErrors.setFormErrors([RACED])
+          return
+        }
+        serverErrors.capture(error)
       }
     },
   })

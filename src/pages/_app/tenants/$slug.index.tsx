@@ -18,23 +18,23 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
+import { formatDate } from '@/lib/format'
 import { useMyRole, useTenant, useUpdateTenant, type Tenant } from '@/queries/tenant.queries'
 import { updateTenantSchema } from '@/schemas/tenant.schemas'
 
 export const Route = createFileRoute('/_app/tenants/$slug/')({
+  head: ({ params }) => ({ meta: [{ title: pageTitle(`Overview · ${params.slug}`) }] }),
   staticData: { crumb: 'Overview' },
   component: TenantOverviewTab,
 })
 
 /** The tenant's creation date, in the reader's own locale. */
 function createdOn(createdAt: string): string {
-  const date = new Date(createdAt)
-  if (Number.isNaN(date.getTime())) return 'Unknown'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(date)
+  return formatDate(createdAt, 'long') ?? 'Unknown'
 }
 
 /** One read-only row, for a member who may not edit this tenant. */
@@ -95,7 +95,6 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
         toast.success('Tenant updated.')
       } catch (error) {
         serverErrors.capture(error)
-        toast.error(messageFrom(error))
       }
     },
   })

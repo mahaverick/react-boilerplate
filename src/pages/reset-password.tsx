@@ -1,6 +1,5 @@
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { cn } from 'cn'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { AuthLayout } from '@/components/layouts/auth-layout'
@@ -16,10 +15,11 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 import { useResetPassword } from '@/queries/auth.queries'
 import { resetPasswordSchema } from '@/schemas/auth.schemas'
 
@@ -37,6 +37,7 @@ import { resetPasswordSchema } from '@/schemas/auth.schemas'
  */
 export const Route = createFileRoute('/reset-password')({
   validateSearch: z.object({ token: z.string().optional() }),
+  head: () => ({ meta: [{ title: pageTitle('Reset password') }] }),
   component: ResetPasswordPage,
 })
 
@@ -63,7 +64,6 @@ function ResetPasswordPage() {
         await navigate({ to: ROUTES.login })
       } catch (submitError) {
         serverErrors.capture(submitError)
-        toast.error(messageFrom(submitError))
       }
     },
   })

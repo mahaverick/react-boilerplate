@@ -1,6 +1,5 @@
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { cn } from 'cn'
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -16,10 +15,11 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { pageTitle } from '@/constants/app'
 import { GOOGLE_OAUTH_PATH, ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 import { useLogin } from '@/queries/auth.queries'
 import { loginSchema } from '@/schemas/auth.schemas'
 
@@ -32,6 +32,7 @@ export const Route = createFileRoute('/_auth/login')({
     error: z.string().optional(),
     redirect: z.string().optional(),
   }),
+  head: () => ({ meta: [{ title: pageTitle('Sign in') }] }),
   component: LoginPage,
 })
 
@@ -117,7 +118,6 @@ function LoginPage() {
         await (target ? navigate({ href: target }) : navigate({ to: ROUTES.dashboard }))
       } catch (submitError) {
         serverErrors.capture(submitError)
-        toast.error(messageFrom(submitError))
       }
     },
   })

@@ -63,6 +63,17 @@ export const handlers = [
   http.post('/api/v1/auth/register', () =>
     ok(null, 'If that address can be registered, a verification email has been sent.', 202)
   ),
+  // The profile page's Security section fetches this whenever /profile mounts.
+  // A password account; a test about Google or a failed load overrides it.
+  http.get('/api/v1/auth/providers', () =>
+    ok(
+      {
+        providers: [{ provider: 'email', linkedAt: '2026-01-01T00:00:00.000Z' }],
+        hasPassword: true,
+      },
+      'Auth providers retrieved.'
+    )
+  ),
   // The notification bell lives in the app shell's header, so EVERY test that
   // mounts an authenticated route hits these two — and `onUnhandledRequest:
   // 'error'` would fail each one otherwise. Empty defaults: a test that cares

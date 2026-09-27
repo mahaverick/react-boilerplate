@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useMatches, type LinkProps } from '@tanstack
 import { Bell, Building2, LayoutDashboard } from 'lucide-react'
 import { Fragment, useEffect } from 'react'
 import { NotificationBell } from '@/components/features/notification-bell'
+import { MAIN_CONTENT_ID, SkipLink } from '@/components/features/skip-link'
 import { TenantSwitcher } from '@/components/features/tenant-switcher'
 import { ThemeToggle } from '@/components/features/theme-toggle'
 import { UserMenu } from '@/components/features/user-menu'
@@ -179,6 +180,7 @@ export function AppLayout() {
     // The store owns the open/closed state rather than the provider's own
     // useState, so anything else in the app can read or set it.
     <SidebarProvider open={!isCollapsed} onOpenChange={(open) => setCollapsed(!open)}>
+      <SkipLink />
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <TenantSwitcher />
@@ -218,7 +220,7 @@ export function AppLayout() {
           The page content therefore goes in a plain div: a second `<main>`
           nested inside it would give every page two main landmarks, which is
           an axe `landmark-no-duplicate-main` failure in Task 9. */}
-      <SidebarInset>
+      <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="outline-none">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           {/* The vendored trigger already carries a visually hidden "Toggle
               Sidebar"; the explicit aria-label pins the name so a future

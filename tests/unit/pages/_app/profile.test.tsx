@@ -3,13 +3,18 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { toast } from 'sonner'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 function renderProfile() {
   const router = createRouter({
@@ -46,9 +51,13 @@ describe('profile page', () => {
       new Date(testUser.createdAt)
     )
     expect(screen.getByText(expected)).toBeInTheDocument()
-    // Neither has an endpoint, so neither has UI.
-    expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/google/i)).not.toBeInTheDocument()
+  })
+
+  it('renders the Security section below the profile form', async () => {
+    renderProfile()
+
+    expect(await screen.findByRole('region', { name: 'Security' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Change password' })).toBeInTheDocument()
   })
 
   it('sends only the trimmed first and last name', async () => {
@@ -124,15 +133,19 @@ describe('profile page', () => {
     })
   })
 
-  it('leaves the form usable when the request fails outright', async () => {
+  it('shows an outright failure once, in the form, and leaves it usable', async () => {
+    const toastError = vi.spyOn(toast, 'error')
     server.use(http.patch('/api/v1/profile', () => fail('Something broke.', 500)))
     const user = userEvent.setup()
     renderProfile()
 
     await user.click(await screen.findByRole('button', { name: 'Save changes' }))
 
-    // Still on the page, still editable — the failure is announced by a toast,
-    // not by losing the user's typing.
+    const message = await screen.findByText('Something broke.')
+    expect(message.closest('form')).not.toBeNull()
+    expect(screen.getAllByText('Something broke.')).toHaveLength(1)
+    expect(toastError).not.toHaveBeenCalled()
+    // Still on the page, still editable: the failure costs the user none of their typing.
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled()
     })

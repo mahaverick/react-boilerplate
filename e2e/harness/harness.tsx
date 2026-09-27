@@ -111,6 +111,9 @@ const PREFERENCES = [
   { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
 ]
 
+/** The one current password the change-password handler below accepts. */
+const HARNESS_PASSWORD = 'current-password'
+
 const testUser = {
   id: 'u1',
   email: 'a@b.com',
@@ -220,6 +223,34 @@ const worker = setupWorker(
       )
   ),
   http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.')),
+  // /profile's Security section. Unmocked, it would reach the real API, 401,
+  // and sign the harness user out.
+  http.get('/api/v1/auth/providers', () =>
+    ok(
+      {
+        providers: [
+          { provider: 'email', linkedAt: '2026-01-01T00:00:00.000Z' },
+          { provider: 'google', linkedAt: '2026-01-02T00:00:00.000Z' },
+        ],
+        hasPassword: true,
+      },
+      'Auth providers retrieved.'
+    )
+  ),
+  // Any other current password gets the API's own 400.
+  http.post('/api/v1/auth/change-password', async ({ request }) => {
+    const body = (await request.json()) as { currentPassword?: unknown }
+    if (body.currentPassword === HARNESS_PASSWORD) return ok(null, 'Password has been changed.')
+    return Response.json(
+      {
+        success: false,
+        message: 'Current password is incorrect.',
+        statusCode: 400,
+        requestId: 'harness',
+      },
+      { status: 400 }
+    )
+  }),
   // Belt and braces: nothing in the fixtures suite should ever reach the real
   // backend, and a silent fall-through is how it did.
   http.post('/api/v1/auth/refresh', () =>
@@ -241,10 +272,10 @@ useAuthStore.setState({
 // Which in-app route to mount. Defaults to the members page, which is what
 // every `?state=` fixture is about — so the fixtures suite needs no changes
 // and reads exactly as it did before this parameter existed. `?path=` exists
-// for the CONTRAST suite, which needs to reach the other authenticated
-// surfaces: the handlers above already answer /profile, /notifications,
-// /notifications/preferences, /tenants, /tenants/acme and its /settings, so
-// those pages render fully without a backend and only ever lacked a way in.
+// for the contrast suite and `fixtures/security.test.ts`, which need the other
+// authenticated surfaces: the handlers above already answer /profile,
+// /auth/providers, /notifications, /notifications/preferences, /tenants,
+// /tenants/acme and its /settings, so those pages render without a backend.
 //
 // Only a same-origin absolute path is accepted. This harness is not shipped
 // (nothing in `src/` imports it, and `index.html` is the only Vite entry that

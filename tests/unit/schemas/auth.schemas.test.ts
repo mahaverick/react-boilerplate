@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { loginSchema, registerSchema, verifyEmailSchema } from '@/schemas/auth.schemas'
+import {
+  changePasswordSchema,
+  loginSchema,
+  registerSchema,
+  verifyEmailSchema,
+} from '@/schemas/auth.schemas'
 
 describe('auth schemas', () => {
   it('login requires a password but applies no policy to it', () => {
@@ -51,5 +56,58 @@ describe('auth schemas', () => {
   it('verify-email requires BOTH a token and a password', () => {
     expect(verifyEmailSchema.safeParse({ token: 't' }).success).toBe(false)
     expect(verifyEmailSchema.safeParse({ token: 't', password: 'p' }).success).toBe(true)
+  })
+
+  it('change-password verifies the current password without a policy', () => {
+    // It is compared against the stored hash, like login's.
+    const base = { newPassword: 'longenough8', confirmPassword: 'longenough8' }
+    expect(changePasswordSchema.safeParse({ ...base, currentPassword: 'x' }).success).toBe(true)
+    expect(changePasswordSchema.safeParse({ ...base, currentPassword: '' }).success).toBe(false)
+  })
+
+  it('change-password holds the new password to the registration rule', () => {
+    const parse = (newPassword: string) =>
+      changePasswordSchema.safeParse({
+        currentPassword: 'old-password',
+        newPassword,
+        confirmPassword: newPassword,
+      }).success
+    expect(parse('short7c')).toBe(false)
+    expect(parse('a'.repeat(72))).toBe(true)
+    expect(parse('a'.repeat(73))).toBe(false)
+  })
+
+  it('change-password flags a mismatched confirmation on that field', () => {
+    const result = changePasswordSchema.safeParse({
+      currentPassword: 'old-password',
+      newPassword: 'longenough8',
+      confirmPassword: 'different99',
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.path).toEqual(['confirmPassword'])
+    expect(result.error?.issues[0]?.message).toBe('Passwords do not match.')
+  })
+})
+
+describe('register names: the API safeText rule', () => {
+  const base = { email: 'a@b.com', password: 'longenough8' }
+
+  it('rejects a control or bidi character, naming the field the way the API does', () => {
+    const result = registerSchema.safeParse({
+      ...base,
+      firstName: 'a\u{1B}b',
+      lastName: 'x\u{202E}',
+    })
+    expect(result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])).toEqual([
+      ['firstName', 'First name contains characters that are not allowed'],
+      ['lastName', 'Last name contains characters that are not allowed'],
+    ])
+  })
+
+  it('accepts names in other scripts, with direction marks', () => {
+    expect(
+      registerSchema.safeParse({ ...base, firstName: 'שָׁלוֹם\u{200F}', lastName: 'Ὀδυσσεύς' })
+        .success
+    ).toBe(true)
   })
 })

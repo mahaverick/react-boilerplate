@@ -34,6 +34,54 @@ function validationFailure(): AxiosError {
   })
 }
 
+/** A refusal carrying only a message: no `errors` map at all. */
+function plainFailure(message: string, status: number): AxiosError {
+  const config = { headers: new AxiosHeaders() }
+  return new AxiosError(message, String(status), config, null, {
+    data: { success: false, message, statusCode: status, requestId: 'test-request-id' },
+    status,
+    statusText: 'Error',
+    headers: {},
+    config,
+  })
+}
+
+/** A 400 naming a field the form may not render. */
+function failureNaming(field: string): AxiosError {
+  const config = { headers: new AxiosHeaders() }
+  return new AxiosError('Validation failed.', '400', config, null, {
+    data: {
+      success: false,
+      message: 'Validation failed.',
+      statusCode: 400,
+      errors: { [field]: ['Not allowed.'] },
+      requestId: 'test-request-id',
+    },
+    status: 400,
+    statusText: 'Bad Request',
+    headers: {},
+    config,
+  })
+}
+
+/** A 400 whose detail is all field-level. */
+function fieldOnlyFailure(): AxiosError {
+  const config = { headers: new AxiosHeaders() }
+  return new AxiosError('Validation failed.', '400', config, null, {
+    data: {
+      success: false,
+      message: 'Validation failed.',
+      statusCode: 400,
+      errors: { email: ['Already taken.'] },
+      requestId: 'test-request-id',
+    },
+    status: 400,
+    statusText: 'Bad Request',
+    headers: {},
+    config,
+  })
+}
+
 /**
  * A form with nothing behind it, so the bridge itself is the subject rather
  * than a page's copy. `options` turns on the shapes that `<Form>` has to cope
@@ -43,19 +91,25 @@ function validationFailure(): AxiosError {
 function Fixture({
   withFormError = true,
   controlName,
+  failure = validationFailure,
   onChange,
   onSubmit,
 }: {
   withFormError?: boolean
   controlName?: string
+  /** What the submit fails with; `null` makes it succeed. */
+  failure?: (() => AxiosError) | null
   onChange?: () => void
   onSubmit?: () => void
 }) {
   const serverErrors = useServerErrors()
   const form = useForm({
     defaultValues: { email: '', nickname: '' },
-    onSubmit: () => {
-      serverErrors.capture(validationFailure())
+    onSubmit: async () => {
+      // A request's worth of delay, so the capture lands in a promise
+      // continuation, as it does on every page.
+      await Promise.resolve()
+      if (failure) serverErrors.capture(failure())
     },
   })
 
@@ -183,14 +237,81 @@ describe('the server-error bridge in <Form>', () => {
       expect(screen.queryByText('Already taken.')).not.toBeInTheDocument()
     })
   })
+
+  it('ties a field message to its control without making it a live region', async () => {
+    render(<Fixture />)
+    await submit()
+
+    const message = await screen.findByText('Already taken.')
+    expect(message).not.toHaveAttribute('role')
+    expect(message.id).not.toBe('')
+    const email = screen.getByLabelText('Email')
+    expect(email).toHaveAttribute('aria-describedby', message.id)
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+    // The form-level message stays the live region.
+    expect(
+      screen.getByText('Those two do not go together.').closest('[role="alert"]')
+    ).not.toBeNull()
+  })
+
+  it('warns in dev when a server error names a field the form does not render', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    render(<Fixture failure={() => failureNaming('phone')} />)
+    await submit()
+
+    await waitFor(() => {
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('phone'), ['phone'])
+    })
+  })
+
+  it('stays quiet when every field a server error names is rendered', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    render(<Fixture failure={fieldOnlyFailure} />)
+    await submit()
+
+    expect(await screen.findByText('Already taken.')).toBeInTheDocument()
+    expect(warn).not.toHaveBeenCalled()
+  })
+})
+
+describe('focus after submit', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('moves focus to the first field a server error names, described by its message', async () => {
+    // The frame fires at once: the worst case, a frame that arrives before
+    // React's own scheduled render. Only a committed error can be found then.
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 0
+    })
+    render(<Fixture failure={fieldOnlyFailure} />)
+    await submit()
+
+    const email = screen.getByLabelText('Email')
+    await waitFor(() => expect(email).toHaveFocus())
+    const message = screen.getByText('Already taken.')
+    expect(email).toHaveAttribute('aria-describedby', message.id)
+  })
+
+  it('leaves focus where it was after a successful submit', async () => {
+    render(<Fixture failure={null} />)
+    await submit()
+
+    // Two frames: the focus step runs one frame after the submit settles.
+    await act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))))
+    await act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))))
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveFocus()
+  })
 })
 
 describe('setFieldError', () => {
   it('adds to what capture set in the same tick, and clears like any other', () => {
     const { result } = renderHook(() => useServerErrors())
 
-    // The invite form does exactly this: capture the 409, then put its
-    // message on the email field, before React renders in between.
+    // A capture and a hand-set field message in one tick, before React
+    // renders in between.
     act(() => {
       result.current.capture(validationFailure())
       result.current.setFieldError('nickname', ['Taken by a member.'])
@@ -204,5 +325,55 @@ describe('setFieldError', () => {
       result.current.clearField('nickname')
     })
     expect(result.current.fieldErrors).toEqual({ email: ['Already taken.'] })
+  })
+})
+
+describe('capture', () => {
+  it('shows the message at form level when the response names no field', () => {
+    const { result } = renderHook(() => useServerErrors())
+
+    act(() => {
+      result.current.capture(plainFailure('Too many attempts. Please try again later.', 429))
+    })
+
+    expect(result.current.formErrors).toEqual(['Too many attempts. Please try again later.'])
+    expect(result.current.fieldErrors).toEqual({})
+  })
+
+  it('falls back to the generic message when no response arrived', () => {
+    const { result } = renderHook(() => useServerErrors())
+
+    act(() => {
+      result.current.capture(new Error('Network Error'))
+    })
+
+    expect(result.current.formErrors).toEqual(['Something went wrong. Please try again.'])
+  })
+
+  it('leaves the envelope message out when the response carries field detail', () => {
+    const { result } = renderHook(() => useServerErrors())
+
+    act(() => {
+      result.current.capture(fieldOnlyFailure())
+    })
+
+    expect(result.current.formErrors).toEqual([])
+    expect(result.current.fieldErrors).toEqual({ email: ['Already taken.'] })
+  })
+})
+
+describe('setFormErrors', () => {
+  it('replaces the form-level messages, and reset drops them', () => {
+    const { result } = renderHook(() => useServerErrors())
+
+    act(() => {
+      result.current.setFormErrors(['Someone got there first.'])
+    })
+    expect(result.current.formErrors).toEqual(['Someone got there first.'])
+
+    act(() => {
+      result.current.reset()
+    })
+    expect(result.current.formErrors).toEqual([])
   })
 })

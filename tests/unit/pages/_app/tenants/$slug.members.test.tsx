@@ -8,7 +8,8 @@ import {
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { toast } from 'sonner'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
 import { tenantKeys } from '@/queries/tenant.queries'
@@ -18,6 +19,10 @@ import { useAuthStore } from '@/states/auth.store'
 import { fail, ok, tenantDetail, testInvitation, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantInvitation } from '@/types/api.types'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 const TENANT = {
   id: 't1',
@@ -81,8 +86,8 @@ async function rowFor(name: string) {
 }
 
 /**
- * `useIsMobile` reads `window.innerWidth` for the VALUE and only uses
- * matchMedia for the listener, so setting the width is what decides.
+ * `tests/setup.ts`'s `matchMedia` stub answers `useIsMobile`'s `max-width`
+ * query from `window.innerWidth`, so setting the width is what decides.
  */
 function setViewportWidth(width: number) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
@@ -566,6 +571,7 @@ describe('inviting, and the pending invitations', () => {
   })
 
   it('says a racing invite won, and shows it in the refreshed list', async () => {
+    const toastError = vi.spyOn(toast, 'error')
     let listCalls = 0
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () => {
@@ -585,14 +591,17 @@ describe('inviting, and the pending invitations', () => {
     await user.type(await screen.findByLabelText('Email'), 'new@b.com')
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
 
-    expect(
-      await screen.findByText('Someone just invited this address — refresh and try again.')
-    ).toBeInTheDocument()
+    const raced = await screen.findByText(
+      'Someone just invited this address — refresh and try again.'
+    )
+    expect(raced.closest('form')).not.toBeNull()
+    expect(toastError).not.toHaveBeenCalled()
     // The winning invitation arrives with the refetch.
     expect(await screen.findByText('new@b.com', { selector: 'span' })).toBeInTheDocument()
   })
 
-  it('toasts any other refusal and leaves the field alone', async () => {
+  it('shows any other refusal in the form, once, and leaves the field alone', async () => {
+    const toastError = vi.spyOn(toast, 'error')
     server.use(
       http.post('/api/v1/tenants/acme/invitations', () =>
         fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED')
@@ -605,9 +614,10 @@ describe('inviting, and the pending invitations', () => {
     await user.type(email, 'new@b.com')
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
 
-    expect(
-      await screen.findByText('Too many attempts. Please try again later.')
-    ).toBeInTheDocument()
+    const message = await screen.findByText('Too many attempts. Please try again later.')
+    expect(message.closest('form')).not.toBeNull()
+    expect(screen.getAllByText('Too many attempts. Please try again later.')).toHaveLength(1)
+    expect(toastError).not.toHaveBeenCalled()
     expect(email).toHaveAttribute('aria-invalid', 'false')
   })
 

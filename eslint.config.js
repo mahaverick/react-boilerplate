@@ -94,6 +94,13 @@ export default tseslint.config(
     },
   },
   {
+    // Node scripts. They sit outside every tsconfig, so, like the root configs
+    // above, they are linted syntactically only.
+    files: ['scripts/**/*.mjs'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: { globals: globals.node },
+  },
+  {
     // The e2e suite and its fixture harness. Typed linting rather than the
     // `disableTypeChecked` used for the root configs above: `e2e/tsconfig.json`
     // exists precisely so `projectService` can find these files, so the
@@ -263,6 +270,18 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // One import path for the class merger in our own code. The vendored
+    // shadcn files are left as shadcn wrote them.
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
+    ignores: ['src/lib/utils.ts', 'src/components/ui/!(form|sonner).tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { paths: [{ name: 'cn', message: "Import `cn` from '@/lib/utils'." }] },
+      ],
+    },
+  },
   ...tanstackRouter.configs['flat/recommended'],
   {
     // Vendored shadcn output. Linting it churns the diff on every upstream
@@ -270,7 +289,7 @@ export default tseslint.config(
     // This block must come AFTER tailwindcss.configs.recommended: that config
     // carries its own `files` glob, so the earlier `ignores` on the settings
     // block below it does not stop its rules applying here.
-    files: ['src/components/ui/**', 'src/hooks/use-mobile.ts'],
+    files: ['src/components/ui/**'],
     rules: {
       // Vendored components export a `cva` variants object beside the
       // component (badge, button, sidebar, tabs). Restructuring upstream's
@@ -286,16 +305,6 @@ export default tseslint.config(
       'tailwindcss/no-custom-classname': 'off',
       'tailwindcss/no-unnecessary-arbitrary-value': 'off',
     },
-  },
-  {
-    // `src/hooks/use-mobile.ts` is vendored too — `shadcn add sidebar` emits it,
-    // and it lands outside `src/components/ui/` only because components.json's
-    // `hooks` alias points elsewhere. It trips `react-hooks/set-state-in-effect`
-    // (it seeds its state with a setState in the effect body). Upstream's call,
-    // not ours: patching it churns on every re-add, which is the same reason the
-    // directory above is excluded. Re-review if we ever adopt the file as ours.
-    files: ['src/hooks/use-mobile.ts'],
-    rules: { 'react-hooks/set-state-in-effect': 'off' },
   },
   {
     // TanStack Router's `redirect()` returns `Response & { options }` — a value

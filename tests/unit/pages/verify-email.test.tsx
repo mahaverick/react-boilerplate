@@ -8,13 +8,18 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { toast } from 'sonner'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { fail, ok } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 function renderAt(path: string): AnyRouter {
   const router = createRouter({
@@ -41,6 +46,21 @@ describe('verify-email page', () => {
       isBootstrapped: false,
     })
     server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
+  })
+
+  it('shows a failed verification once, in the form, with no toast', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    server.use(http.post('/api/v1/auth/verify-email', () => fail('That link has expired.', 400)))
+    renderAt('/verify-email?token=expired-token')
+
+    const user = userEvent.setup()
+    await user.type(await screen.findByLabelText('Password'), 'secret123')
+    await user.click(screen.getByRole('button', { name: 'Verify email' }))
+
+    const message = await screen.findByText('That link has expired.')
+    expect(message.closest('form')).not.toBeNull()
+    expect(screen.getAllByText('That link has expired.')).toHaveLength(1)
+    expect(toastError).not.toHaveBeenCalled()
   })
 
   /** The password is NOT optional here — the backend requires it. */

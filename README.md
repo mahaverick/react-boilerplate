@@ -42,9 +42,9 @@ Nothing that touches the backend works without it — sign-in, the session
 bootstrap on page load, and the notification stream all fail immediately.
 
 That proxy is not a convenience. The API path is a **relative** one
-(`/api/v1`) because the backend sends no CORS headers, so the SPA and the API
-have to be served from one origin. In development that origin is the Vite
-proxy; in the container it is nginx.
+(`/api/v1`) because the SPA and the API are served from one origin, which is
+the only topology this app supports (see [Deploying](#deploying)). In
+development that origin is the Vite proxy; in the container it is nginx.
 
 ### The API prefix is fixed
 
@@ -84,17 +84,18 @@ it: `pnpm dev` always proxies to `http://localhost:4040`.
 
 ## Scripts
 
-| Script               | What it does                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------- |
-| `pnpm dev`           | Dev server on :5173 with the `/api` proxy                                             |
-| `pnpm build`         | `tsc -b` then `vite build` → `dist/`                                                  |
-| `pnpm preview`       | Serve the built bundle locally                                                        |
-| `pnpm lint`          | eslint **and** `prettier --check` — both must pass                                    |
-| `pnpm typecheck`     | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                       |
-| `pnpm test`          | Vitest, single pass                                                                   |
-| `pnpm test:coverage` | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it |
-| `pnpm test:watch`    | Vitest in watch mode                                                                  |
-| `pnpm format`        | `prettier --write`                                                                    |
+| Script               | What it does                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`           | Dev server on :5173 with the `/api` proxy                                                               |
+| `pnpm build`         | `tsc -b` then `vite build` → `dist/`                                                                    |
+| `pnpm preview`       | Serve the built bundle locally                                                                          |
+| `pnpm lint`          | eslint **and** `prettier --check` — both must pass                                                      |
+| `pnpm typecheck`     | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                                         |
+| `pnpm test`          | Vitest, single pass                                                                                     |
+| `pnpm test:coverage` | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it                   |
+| `pnpm test:watch`    | Vitest in watch mode                                                                                    |
+| `pnpm format`        | `prettier --write`                                                                                      |
+| `pnpm check:bundle`  | Builds in memory; fails on one JS chunk, first-visit JS over budget, or devtools in a chunk. CI runs it |
 
 CI holds eslint to **zero warnings** as well as zero errors
 (`pnpm exec eslint . --max-warnings 0`).
@@ -104,10 +105,11 @@ CI holds eslint to **zero warnings** as well as zero errors
 ```
 src/
   components/
+    dev/        dev-only tools, mounted from main.tsx
     features/   composed, app-specific pieces (theme toggle, user menu, …)
     layouts/    the auth shell and the app shell
     ui/         vendored shadcn output — see CLAUDE.md before editing
-  constants/    routes, roles
+  constants/    routes, roles, app name
   hooks/        use-* hooks
   http/         axios client, interceptors, the single-flight session refresh
   lib/          small helpers with no app knowledge
@@ -117,6 +119,7 @@ src/
   states/       Zustand stores
   styles/       globals.css and the design tokens
   types/        shared API types
+scripts/        Node build checks (check-bundle)
 tests/
   unit/         Vitest suites, mirroring src/ (plus the accessibility gate)
   mocks/        MSW server and handlers
@@ -299,6 +302,14 @@ another branch only pushes the sha-tagged image — the `:main` tag and the
 reviewers — before replacing the placeholder `deploy` step with a real
 deployment target. Until then, anything merged to `main` would deploy
 unreviewed the moment that step does something real.
+
+**Serve the SPA and the API from one origin.** The image's nginx proxies
+`/api` to `API_UPSTREAM`, so the browser only ever calls the origin that
+served the page. A split-origin deployment, with the SPA on one host calling
+the API on another, is not supported. The API does send CORS headers, for
+other frontends, but this app depends on same-origin: its API client uses
+relative URLs, its Content-Security-Policy allows `connect-src 'self'` only,
+and the refresh cookie is set on whichever origin answers `/api`.
 
 ## Releases
 

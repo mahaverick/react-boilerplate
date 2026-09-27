@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { pageTitle } from '@/constants/app'
+import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import {
   flattenPages,
@@ -18,6 +20,7 @@ import {
 } from '@/queries/notification.queries'
 
 export const Route = createFileRoute('/_app/notifications')({
+  head: () => ({ meta: [{ title: pageTitle('Notifications') }] }),
   staticData: { crumb: 'Notifications' },
   component: NotificationsPage,
 })
@@ -40,11 +43,7 @@ const PREFERENCES_ERROR = 'We could not load your notification preferences, so n
 
 /** The notification's own timestamp, in the reader's locale. */
 function receivedAt(createdAt: string): string {
-  const date = new Date(createdAt)
-  if (Number.isNaN(date.getTime())) return 'Unknown'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
-    date
-  )
+  return formatDateTime(createdAt) ?? 'Unknown'
 }
 
 /** `verify_email` -> `Verify email`, for a label a reader can parse. */

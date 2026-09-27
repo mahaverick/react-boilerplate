@@ -1,5 +1,8 @@
 import { QueryClient } from '@tanstack/react-query'
 import { createRouter } from '@tanstack/react-router'
+import { RouteError } from '@/components/features/route-error'
+import { RouteNotFound } from '@/components/features/route-not-found'
+import { RoutePending } from '@/components/features/route-pending'
 import { ensureSession, installAuthBroadcastListener } from '@/http/session'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -35,6 +38,15 @@ export const router = createRouter({
   routeTree,
   context: { queryClient },
   defaultPreload: 'intent',
+  // Imported statically, never lazily: when the failure is a chunk that
+  // cannot be fetched, a lazily loaded error screen could not load either.
+  defaultErrorComponent: RouteError,
+  defaultNotFoundComponent: RouteNotFound,
+  defaultPendingComponent: RoutePending,
+  // Held back for 300ms, so a fast navigation never flashes it, and once
+  // shown kept for 300ms, so it never blinks.
+  defaultPendingMs: 300,
+  defaultPendingMinMs: 300,
 })
 
 declare module '@tanstack/react-router' {

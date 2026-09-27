@@ -1,6 +1,7 @@
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute } from '@tanstack/react-router'
 import { toast } from 'sonner'
+import { SecuritySection } from '@/components/features/profile/security-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -14,23 +15,23 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { pageTitle } from '@/constants/app'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
+import { formatDate } from '@/lib/format'
 import { useProfile, useUpdateProfile } from '@/queries/profile.queries'
 import { updateProfileSchema } from '@/schemas/profile.schemas'
 import type { User } from '@/types/api.types'
 
 export const Route = createFileRoute('/_app/profile')({
+  head: () => ({ meta: [{ title: pageTitle('Profile') }] }),
   staticData: { crumb: 'Profile' },
   component: ProfilePage,
 })
 
 /** The account's join date, in the reader's own locale. */
 function memberSince(createdAt: string): string {
-  const date = new Date(createdAt)
-  if (Number.isNaN(date.getTime())) return 'Unknown'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(date)
+  return formatDate(createdAt, 'long') ?? 'Unknown'
 }
 
 function ProfilePage() {
@@ -80,7 +81,6 @@ function ProfileDetails({ user }: { user: User }) {
         toast.success('Profile updated.')
       } catch (error) {
         serverErrors.capture(error)
-        toast.error(messageFrom(error))
       }
     },
   })
@@ -132,8 +132,7 @@ function ProfileDetails({ user }: { user: User }) {
       </Form>
 
       {/* Read-only, because PATCH /profile accepts firstName and lastName and
-          nothing else. There is deliberately no change-password form and no
-          auth-provider list: the API exposes an endpoint for neither. */}
+          nothing else. */}
       <dl className="mt-6 grid gap-3 border-t pt-6 text-sm">
         <div className="flex justify-between gap-4">
           <dt className="text-muted-foreground">Email</dt>
@@ -144,6 +143,8 @@ function ProfileDetails({ user }: { user: User }) {
           <dd>{memberSince(user.createdAt)}</dd>
         </div>
       </dl>
+
+      <SecuritySection />
     </>
   )
 }

@@ -4,6 +4,7 @@ import { PlatformAccessBanner } from '@/components/features/platform-access-bann
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { pageTitle } from '@/constants/app'
 import { canViewActivity, ROLE_LABELS } from '@/constants/roles'
 import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useMyRole, useTenant } from '@/queries/tenant.queries'
@@ -23,6 +24,7 @@ export const Route = createFileRoute('/_app/tenants/$slug')({
   // not-found panel below instead of the router's error boundary.
   loader: async ({ context, params }) =>
     context.queryClient.ensureQueryData(tenantQueryOptions(params.slug)),
+  head: ({ params }) => ({ meta: [{ title: pageTitle(params.slug) }] }),
   // The slug, not the tenant's name: static data is resolved before any
   // fetch, and a crumb that arrived a beat after the page would move the
   // header under the reader.

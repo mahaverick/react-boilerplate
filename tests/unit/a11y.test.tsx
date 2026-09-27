@@ -388,10 +388,9 @@ async function expectNoViolationsIn(element: HTMLElement) {
 /**
  * Picks the viewport `useIsMobile` reports.
  *
- * It reads `window.innerWidth` for the VALUE and only uses `matchMedia` for the
- * listener, so the width is what decides — but `tests/setup.ts`'s stub answers
- * every query with `matches: false`, which is fine here because nothing in this
- * file changes width while mounted.
+ * `tests/setup.ts`'s `matchMedia` stub answers a `max-width` query from
+ * `window.innerWidth`, so the width is what decides. Every test sets it before
+ * rendering, so no change event is needed.
  */
 function setViewportWidth(width: number) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
@@ -521,7 +520,7 @@ describe('signed-in pages', () => {
 
   it.each([
     ['dashboard', '/dashboard', () => screen.findByRole('heading', { name: /Welcome back/ })],
-    ['profile', '/profile', () => screen.findByRole('heading', { name: 'Profile' })],
+    ['profile', '/profile', () => screen.findByRole('button', { name: 'Change password' })],
     [
       'notifications',
       '/notifications',
@@ -862,6 +861,8 @@ describe('keyboard', () => {
     await screen.findByRole('button', { name: 'Sign in' })
 
     const expected = [
+      // Every layout's first Tab stop.
+      screen.getByRole('link', { name: 'Skip to content' }),
       screen.getByLabelText('Email'),
       screen.getByLabelText('Password'),
       screen.getByRole('button', { name: 'Sign in' }),

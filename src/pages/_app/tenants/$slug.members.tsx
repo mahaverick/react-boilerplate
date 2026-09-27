@@ -33,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { pageTitle } from '@/constants/app'
 import {
   canActorModifyTarget,
   canChangeRoles,
@@ -56,6 +57,7 @@ import {
 import { useAuthStore } from '@/states/auth.store'
 
 export const Route = createFileRoute('/_app/tenants/$slug/members')({
+  head: ({ params }) => ({ meta: [{ title: pageTitle(`Members · ${params.slug}`) }] }),
   staticData: { crumb: 'Members' },
   component: TenantMembersTab,
 })

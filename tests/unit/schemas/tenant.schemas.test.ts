@@ -156,3 +156,59 @@ describe('tenantSettingsFormSchema', () => {
     )
   })
 })
+
+describe('tenant text fields: the API safeText rule', () => {
+  const base = { name: 'Acme', slug: 'acme' }
+
+  /** Each failing field and its message, in order. */
+  function issuesOf(result: { error?: { issues: { path: PropertyKey[]; message: string }[] } }) {
+    return result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])
+  }
+
+  it("rejects a control or bidi character in each field, with the API's message", () => {
+    const result = newTenantSchema.safeParse({
+      ...base,
+      name: 'Acme\u{202E}',
+      description: 'a\rb',
+      logo: 'logo\u{85}',
+      website: 'site\u{2066}',
+    })
+    expect(issuesOf(result)).toEqual([
+      ['name', 'Name contains characters that are not allowed'],
+      ['description', 'Description contains characters that are not allowed'],
+      ['logo', 'Logo contains characters that are not allowed'],
+      ['website', 'Website contains characters that are not allowed'],
+    ])
+  })
+
+  it(String.raw`keeps \n and \t in a description, and normalises CRLF on update`, () => {
+    expect(newTenantSchema.parse({ ...base, description: 'one\ntwo\tthree' }).description).toBe(
+      'one\ntwo\tthree'
+    )
+    expect(updateTenantSchema.parse({ description: 'one\r\ntwo' }).description).toBe('one\ntwo')
+  })
+
+  it('turns pasted CRLF in a description into LF before it is sent', () => {
+    const parsed = newTenantSchema.parse({
+      name: 'Acme',
+      slug: 'acme',
+      description: 'line one\r\nline two',
+    })
+    expect(parsed.description).toBe('line one\nline two')
+  })
+
+  it('applies the same rule on update', () => {
+    const result = updateTenantSchema.safeParse({ name: 'Acme\u{0}', website: 'x\u{202A}' })
+    expect(issuesOf(result)).toEqual([
+      ['name', 'Name contains characters that are not allowed'],
+      ['website', 'Website contains characters that are not allowed'],
+    ])
+  })
+
+  it('leaves timezone and locale unchecked, as the API does', () => {
+    expect(
+      tenantSettingsFormSchema.safeParse({ timezone: 'UTC\u{1B}', locale: 'en', metadata: '' })
+        .success
+    ).toBe(true)
+  })
+})

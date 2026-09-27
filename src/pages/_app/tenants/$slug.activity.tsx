@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { pageTitle } from '@/constants/app'
 import { AUDIT_ACTION_LABELS, AUDIT_ACTIONS, isAuditAction } from '@/constants/audit-actions'
 import { canViewActivity } from '@/constants/roles'
 import { statusFrom } from '@/lib/api-error'
@@ -23,6 +24,7 @@ import {
 import { memberName, tenantKeys, useMembers, useMyRole } from '@/queries/tenant.queries'
 
 export const Route = createFileRoute('/_app/tenants/$slug/activity')({
+  head: ({ params }) => ({ meta: [{ title: pageTitle(`Activity · ${params.slug}`) }] }),
   staticData: { crumb: 'Activity' },
   component: TenantActivityTab,
 })

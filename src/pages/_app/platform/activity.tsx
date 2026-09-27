@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { pageTitle } from '@/constants/app'
 import { AUDIT_ACTION_LABELS, AUDIT_ACTIONS, isAuditAction } from '@/constants/audit-actions'
 import { canViewPlatformActivity } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG, ROUTES } from '@/constants/routes'
@@ -40,6 +41,7 @@ import { useAuthStore } from '@/states/auth.store'
 import type { PlatformTenantRow } from '@/types/api.types'
 
 export const Route = createFileRoute('/_app/platform/activity')({
+  head: () => ({ meta: [{ title: pageTitle('Platform activity') }] }),
   staticData: { crumb: 'Platform activity' },
   component: PlatformActivityPage,
 })

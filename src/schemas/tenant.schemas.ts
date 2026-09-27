@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { MEMBERSHIP_ROLES } from '@/constants/roles'
 import { emailSchema } from '@/schemas/auth.schemas'
+import { normalizeMultilineText, notAllowedMessage, safeText } from '@/schemas/safe-text.schemas'
 
 /**
  * Mirrors `tenant.validators.ts` on the server, field for field, so a form
@@ -102,6 +103,20 @@ export const slugSchema = z
   )
   .refine((slug) => !RESERVED.has(slug), 'This slug is reserved and cannot be used.')
 
+/** Which of the API's `safeText` checks a field gets. Absent means none. */
+type SafeTextMode = 'single-line' | 'multiline'
+
+/**
+ * A trimmed string capped at `max`. With `safe`, it also refuses what the
+ * API's `safeText` refuses, after turning `\r\n` into `\n` on a multiline field.
+ */
+function boundedText(max: number, label: string, safe?: SafeTextMode) {
+  const multiline = safe === 'multiline'
+  const field = multiline ? z.string().overwrite(normalizeMultilineText) : z.string()
+  const bounded = field.trim().max(max, `${label} must be at most ${max} characters.`)
+  return safe ? bounded.refine(safeText({ multiline }), notAllowedMessage(label)) : bounded
+}
+
 /**
  * An optional text field on a CREATE body: blank means "not given".
  *
@@ -110,11 +125,8 @@ export const slugSchema = z
  * `undefined` (dropping the key from the payload) rather than posted. The
  * same shape `nameSchema` in auth.schemas.ts already uses.
  */
-function optionalText(max: number, label: string) {
-  return z
-    .string()
-    .trim()
-    .max(max, `${label} must be at most ${max} characters.`)
+function optionalText(max: number, label: string, safe?: SafeTextMode) {
+  return boundedText(max, label, safe)
     .transform((value) => (value === '' ? undefined : value))
     .optional()
 }
@@ -126,11 +138,8 @@ function optionalText(max: number, label: string) {
  * "leave it as it was", and the user who emptied the box would watch their
  * old description come back.
  */
-function clearableText(max: number, label: string) {
-  return z
-    .string()
-    .trim()
-    .max(max, `${label} must be at most ${max} characters.`)
+function clearableText(max: number, label: string, safe?: SafeTextMode) {
+  return boundedText(max, label, safe)
     .transform((value) => (value === '' ? null : value))
     .nullable()
     .optional()
@@ -142,11 +151,12 @@ export const newTenantSchema = z.object({
     .string()
     .trim()
     .min(1, 'Name is required.')
-    .max(MAX_TENANT_NAME_LENGTH, `Name must be at most ${MAX_TENANT_NAME_LENGTH} characters.`),
+    .max(MAX_TENANT_NAME_LENGTH, `Name must be at most ${MAX_TENANT_NAME_LENGTH} characters.`)
+    .refine(safeText(), notAllowedMessage('Name')),
   slug: slugSchema,
-  description: optionalText(MAX_TENANT_DESCRIPTION_LENGTH, 'Description'),
-  logo: optionalText(MAX_TENANT_LOGO_LENGTH, 'Logo'),
-  website: optionalText(MAX_TENANT_WEBSITE_LENGTH, 'Website'),
+  description: optionalText(MAX_TENANT_DESCRIPTION_LENGTH, 'Description', 'multiline'),
+  logo: optionalText(MAX_TENANT_LOGO_LENGTH, 'Logo', 'single-line'),
+  website: optionalText(MAX_TENANT_WEBSITE_LENGTH, 'Website', 'single-line'),
 })
 
 export type NewTenantInput = z.infer<typeof newTenantSchema>
@@ -166,10 +176,11 @@ export const updateTenantSchema = z.object({
     .trim()
     .min(1, 'Name is required.')
     .max(MAX_TENANT_NAME_LENGTH, `Name must be at most ${MAX_TENANT_NAME_LENGTH} characters.`)
+    .refine(safeText(), notAllowedMessage('Name'))
     .optional(),
-  description: clearableText(MAX_TENANT_DESCRIPTION_LENGTH, 'Description'),
-  logo: clearableText(MAX_TENANT_LOGO_LENGTH, 'Logo'),
-  website: clearableText(MAX_TENANT_WEBSITE_LENGTH, 'Website'),
+  description: clearableText(MAX_TENANT_DESCRIPTION_LENGTH, 'Description', 'multiline'),
+  logo: clearableText(MAX_TENANT_LOGO_LENGTH, 'Logo', 'single-line'),
+  website: clearableText(MAX_TENANT_WEBSITE_LENGTH, 'Website', 'single-line'),
 })
 
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>

@@ -15,10 +15,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom } from '@/lib/api-error'
 import { useRegister, useResendVerification } from '@/queries/auth.queries'
 import { registerSchema, type RegisterInput } from '@/schemas/auth.schemas'
 
@@ -27,6 +27,7 @@ export const Route = createFileRoute('/_auth/register')({
   // invitee here with the address the invitation was sent to. `.catch`: the
   // router JSON-parses search values, so `?email=123` is a number, ignored.
   validateSearch: z.object({ email: z.string().optional().catch(undefined) }),
+  head: () => ({ meta: [{ title: pageTitle('Create an account') }] }),
   component: RegisterPage,
 })
 
@@ -65,7 +66,6 @@ function RegisterPage() {
         setRegisteredEmail(input.email)
       } catch (submitError) {
         serverErrors.capture(submitError)
-        toast.error(messageFrom(submitError))
       }
     },
   })

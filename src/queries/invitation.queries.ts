@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient, unwrap } from '@/http/client'
 import { statusFrom } from '@/lib/api-error'
+import { fullName } from '@/lib/format'
 import { refreshProfile } from '@/queries/profile.queries'
 import { tenantKeys } from '@/queries/tenant.queries'
 import type { AcceptedInvitation, ApiSuccess, InvitationPreview } from '@/types/api.types'
@@ -75,6 +76,5 @@ export function useAcceptInvitation() {
 export function inviterName(
   inviter: { firstName: string | null; lastName: string | null } | null
 ): string {
-  const full = [inviter?.firstName, inviter?.lastName].filter(Boolean).join(' ').trim()
-  return full || 'A teammate'
+  return fullName(inviter) ?? 'A teammate'
 }

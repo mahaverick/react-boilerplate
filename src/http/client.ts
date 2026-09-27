@@ -3,10 +3,11 @@ import { API_PREFIX } from '@/constants/routes'
 import { installInterceptors } from '@/http/interceptors'
 import type { ApiSuccess } from '@/types/api.types'
 
-// Relative on purpose. The API has no CORS middleware, so the SPA is served
-// same-origin behind a proxy (Vite in dev, nginx in prod). An absolute origin
-// here would be blocked by the browser AND would bypass the proxy. Spec
-// section 1.
+// Relative on purpose. The SPA is served same-origin with the API (Vite's
+// proxy in dev, nginx in prod), and that is the only topology it supports.
+// The API does send CORS headers, but nginx's CSP allows `connect-src 'self'`
+// only, and the refresh cookie is set on whichever origin answers `/api`: with
+// secure cookies and no COOKIE_DOMAIN, a host-only `__Host-` cookie.
 //
 // Read from the shared constant, not from a `VITE_API_URL` build variable.
 // That variable used to sit here and it was a trap: it moved THIS base and

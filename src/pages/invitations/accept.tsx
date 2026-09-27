@@ -1,5 +1,4 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { cn } from 'cn'
 import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -8,9 +7,11 @@ import { AuthLayout } from '@/components/layouts/auth-layout'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 import { useLogout } from '@/queries/auth.queries'
 import {
   inviterName,
@@ -31,6 +32,7 @@ export const Route = createFileRoute('/invitations/accept')({
   // `.catch`: the router JSON-parses search values, so `?token=123` is a
   // number, treated as no token.
   validateSearch: z.object({ token: z.string().optional().catch(undefined) }),
+  head: () => ({ meta: [{ title: pageTitle('Accept invitation') }] }),
   component: AcceptInvitationPage,
 })
 

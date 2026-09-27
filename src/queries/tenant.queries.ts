@@ -3,6 +3,7 @@ import type { MembershipRole } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { codeFrom, statusFrom } from '@/lib/api-error'
+import { fullName } from '@/lib/format'
 import { refreshProfile } from '@/queries/profile.queries'
 import type {
   InviteMemberInput,
@@ -347,6 +348,5 @@ export function ownerCount(members: TenantMember[] | undefined): number {
 
 /** "Ada Lovelace", or the email when the member has no name on file. */
 export function memberName(member: TenantMember): string {
-  const full = [member.user.firstName, member.user.lastName].filter(Boolean).join(' ').trim()
-  return full || member.user.email
+  return fullName(member.user) ?? member.user.email
 }

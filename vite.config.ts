@@ -11,6 +11,8 @@ export default defineConfig({
       target: 'react',
       routesDirectory: './src/pages',
       generatedRouteTree: './src/routeTree.gen.ts',
+      // Each route's component is its own chunk, fetched on first visit to it.
+      autoCodeSplitting: true,
     }),
     // `react({ compiler: true })` uses the Rust-based oxc-transform-react
     // package, which is not in the pinned dependency set. The pinned deps

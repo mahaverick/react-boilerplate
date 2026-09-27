@@ -8,13 +8,18 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { toast } from 'sonner'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { fail, ok } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 function renderAt(path: string): AnyRouter {
   const router = createRouter({
@@ -87,6 +92,40 @@ describe('reset-password page', () => {
 
     expect(await screen.findByText('Passwords do not match.')).toBeInTheDocument()
     expect(called).toBe(false)
+  })
+
+  it('shows a refused reset once, in the form, with no toast', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    server.use(
+      http.post('/api/v1/auth/reset-password', () => fail('Invalid or expired reset link.', 400))
+    )
+    renderAt('/reset-password?token=tok-123')
+
+    const user = userEvent.setup()
+    await user.type(await screen.findByLabelText('New password'), 'longenough8')
+    await user.type(screen.getByLabelText('Confirm new password'), 'longenough8')
+    await user.click(screen.getByRole('button', { name: 'Reset password' }))
+
+    const message = await screen.findByText('Invalid or expired reset link.')
+    expect(message.closest('form')).not.toBeNull()
+    expect(screen.getAllByText('Invalid or expired reset link.')).toHaveLength(1)
+    expect(toastError).not.toHaveBeenCalled()
+  })
+
+  it('focuses the first invalid field and describes it when the form is submitted empty', async () => {
+    renderAt('/reset-password?token=tok-123')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Reset password' }))
+
+    const field = screen.getByLabelText('New password')
+    await waitFor(() => expect(field).toHaveFocus())
+    const describedBy = field.getAttribute('aria-describedby') ?? ''
+    const message = describedBy
+      .split(' ')
+      .map((id) => document.getElementById(id))
+      .find((element) => element?.textContent)
+    expect(message?.textContent).toBeTruthy()
+    expect(message).not.toHaveAttribute('role', 'alert')
   })
 
   it('says so when the link carries no token, instead of showing a form', async () => {

@@ -345,6 +345,23 @@ Three details that took measuring, and that a "tidy-up" would quietly undo:
   `[aria-level=1]`, a selector jsdom rejects outright, so axe files them under
   `incomplete` — which `toHaveNoViolations` does not read. `CardTitle` renders a
   `div`, so a page's `h1` goes _inside_ it.
+- **`RouteError`, `RoutePending` and `RouteNotFound` all carry no `<main>`
+  of their own.** `defaultErrorComponent`, `defaultPendingComponent` and
+  `defaultNotFoundComponent` all render the SAME way: in place of a matched
+  route's own component, inside whichever `Outlet` that route sits in — so
+  whether the page ends up with a `<main>` depends on that route, not on the
+  fallback. For a route nested inside `_app` or `_auth`, the `Outlet` is
+  already inside the layout's `<main>` — measured with a probe tree of the
+  same shape the tenant route has (a layout carrying its own `<main>` over a
+  child route with a bare loader and no `pendingComponent`), once with that
+  loader pending and once with it throwing `notFound()` — so the page still
+  ends up with exactly one, contributed by the layout. For the router's OWN
+  top-level
+  splat route (`src/pages/$.tsx`, matched when nothing else does), there is
+  no layout ancestor to contribute one, so `$.tsx` wraps `RouteNotFound` in
+  its own `<main>` — the fallback component stays bare specifically so it
+  does not double up when it renders as `defaultNotFoundComponent` for a
+  route that already has a layout.
 - Colour contrast is **not** checked _there_. jest-axe's default — reproduced
   explicitly in that file — switches every `cat.color` rule off under jsdom,
   which has no layout. Contrast is measured separately, in a real browser, by

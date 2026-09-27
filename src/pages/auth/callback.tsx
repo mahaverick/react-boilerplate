@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { LoaderCircleIcon } from 'lucide-react'
 import { useEffect } from 'react'
+import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { useAuthStore } from '@/states/auth.store'
 
 // Outside `_auth` on purpose: this route has no guard. A guard would bounce
 // the freshly signed-in visitor before this component ever ran.
 export const Route = createFileRoute('/auth/callback')({
+  head: () => ({ meta: [{ title: pageTitle('Signing in') }] }),
   component: OAuthCallbackPage,
 })
 

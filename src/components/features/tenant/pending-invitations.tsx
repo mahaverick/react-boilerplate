@@ -17,6 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
 import { codeFrom, messageFrom } from '@/lib/api-error'
+import { formatDate } from '@/lib/format'
 import { inviterName } from '@/queries/invitation.queries'
 import { useInvitations, useResendInvitation, useRevokeInvitation } from '@/queries/tenant.queries'
 import { INVITATION_NOT_FOUND, type TenantInvitation } from '@/types/api.types'
@@ -45,9 +46,7 @@ function actionFailure(error: unknown): string {
 
 /** The expiry date, in the reader's own locale. */
 function expiresOn(expiresAt: string): string {
-  const date = new Date(expiresAt)
-  if (Number.isNaN(date.getTime())) return 'an unknown date'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date)
+  return formatDate(expiresAt, 'medium') ?? 'an unknown date'
 }
 
 function ResendInvitationButton({

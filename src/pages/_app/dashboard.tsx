@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { pageTitle } from '@/constants/app'
 import { useAuthStore } from '@/states/auth.store'
 
 export const Route = createFileRoute('/_app/dashboard')({
+  head: () => ({ meta: [{ title: pageTitle('Dashboard') }] }),
   staticData: { crumb: 'Dashboard' },
   component: DashboardPage,
 })

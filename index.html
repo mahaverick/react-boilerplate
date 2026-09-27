@@ -4,10 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>React Boilerplate</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <script src="/theme-init.js"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-splash" role="status">
+        <span class="boot-splash-spinner" aria-hidden="true"></span>
+        <span>Loading…</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

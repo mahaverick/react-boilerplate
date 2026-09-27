@@ -59,8 +59,14 @@ interface PreferencesPayload {
   preferences: NotificationPreference[]
 }
 
+/**
+ * The list and the preferences share the `all` prefix, so each list
+ * operation names `list`. `list` is not a prefix of `preferences`, so a list
+ * invalidation or cancel never reaches the preferences query.
+ */
 export const notificationKeys = {
-  list: ['notifications'] as const,
+  all: ['notifications'] as const,
+  list: ['notifications', 'list'] as const,
   preferences: ['notifications', 'preferences'] as const,
 }
 
