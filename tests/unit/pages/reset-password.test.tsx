@@ -134,4 +134,15 @@ describe('reset-password page', () => {
     expect(await screen.findByText('This link is incomplete')).toBeInTheDocument()
     expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
   })
+
+  // The router JSON-parses search values, so this token arrives as a number.
+  it('treats a numeric ?token= as no token, instead of failing the route', async () => {
+    renderAt('/reset-password?token=123')
+
+    expect(
+      await screen.findByRole('heading', { name: 'This link is incomplete', level: 1 })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
+  })
 })
