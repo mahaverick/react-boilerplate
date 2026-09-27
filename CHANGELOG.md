@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/mahaverick/react-boilerplate/compare/v2.0.0...v2.1.0) (2026-09-27)
+
+
+### Features
+
+* route states, code-splitting, account security and accessibility fixes (stream 5b) ([#23](https://github.com/mahaverick/react-boilerplate/issues/23)) ([3f082a7](https://github.com/mahaverick/react-boilerplate/commit/3f082a735b6935a3ff511c910b49e0607208a19f))
+
 ## [2.0.0](https://github.com/mahaverick/react-boilerplate/compare/v1.3.0...v2.0.0) (2026-09-26)
 
 
