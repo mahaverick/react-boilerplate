@@ -352,6 +352,40 @@ describe('TenantSwitcher', () => {
       expect(screen.getByRole('dialog', { name: 'Switch tenant' })).toBeInTheDocument()
     })
 
+    it('keeps the earlier results listed, and says it is still searching, while the next term loads', async () => {
+      let releaseGlob!: () => void
+      const globHeld = new Promise<void>((resolve) => {
+        releaseGlob = resolve
+      })
+      const seen = recordSearches(async (url) => {
+        if (url.searchParams.get('q') !== 'glob') {
+          return ok({ tenants: [GLOBEX_ROW, INITECH_ROW], nextCursor: 'c2' }, 'Tenants.')
+        }
+        await globHeld
+        return ok({ tenants: [GLOBEX_ROW], nextCursor: null }, 'Tenants.')
+      })
+      renderShell()
+      const user = await openSwitcher()
+      expect(await screen.findByRole('option', { name: 'Initech' })).toBeInTheDocument()
+
+      try {
+        await user.type(screen.getByLabelText('Search tenants'), 'glob')
+        await waitFor(() => {
+          expect(seen.at(-1)?.searchParams.get('q')).toBe('glob')
+        })
+        expect(screen.getByRole('option', { name: 'Initech' })).toBeInTheDocument()
+        expect(screen.getByText('Searching all tenants…')).toBeInTheDocument()
+        // The earlier term's next page is not this term's.
+        expect(screen.queryByRole('option', { name: 'Load more tenants' })).not.toBeInTheDocument()
+      } finally {
+        releaseGlob()
+      }
+      await waitFor(() => {
+        expect(screen.queryByRole('option', { name: 'Initech' })).not.toBeInTheDocument()
+      })
+      expect(screen.queryByText('Searching all tenants…')).not.toBeInTheDocument()
+    })
+
     // A failed page must stay retryable, not get stuck disabled — a click on
     // the same option is the retry. The query client retries once on its
     // own (`retry: 1`), so the first TWO `cursor=c2` requests are the
