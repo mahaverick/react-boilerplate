@@ -235,10 +235,11 @@ pin in `Dockerfile` and `README.md` is tracked via a custom regex manager.
 
 ## Test timing rules
 
-eslint enforces the first rule across `tests/` and `e2e/`: a `setTimeout` inside
-`new Promise`, `sleep()`, `waitForTimeout()`, `setTimeout` from `timers/promises`
-and `networkidle` all fail lint. The only exempt files are `tests/fixtures/timing.ts`
-and `e2e/timing.ts`, which implement the deliberate waits.
+Across `tests/` and `e2e/`, eslint catches the common forms of a bare sleep and of
+`networkidle`: a `setTimeout` inside `new Promise`, `sleep()`, `waitForTimeout()`,
+`setTimeout` from `timers/promises`, and a literal `networkidle`. The only exempt
+files are `tests/fixtures/timing.ts` and `e2e/timing.ts`, which implement the
+deliberate waits.
 
 1. **Wait on a condition, never on a duration.** `findBy*`, `waitFor` and
    `vi.waitFor` in `tests/`; web-first assertions and `expect.poll` in `e2e/`; fake

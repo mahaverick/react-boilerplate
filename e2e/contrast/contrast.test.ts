@@ -102,6 +102,9 @@ async function contrastOf(
   // legible page, so contrast over it would come back green while saying
   // nothing about the surface this entry names.
   await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+  // The heading renders outside each page's data conditional, so it can show
+  // while the data behind it is still a skeleton. Grade the loaded page.
+  await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
 
   // Fonts change glyph coverage, not colour, but a late swap can move text over
   // a different background. Sample only once it has reflowed.
