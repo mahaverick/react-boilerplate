@@ -1,7 +1,8 @@
 import '@/lib/zod-jitless'
 import '@testing-library/jest-dom/vitest'
-import { configure } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { toHaveNoViolations } from 'jest-axe'
+import { toast } from 'sonner'
 import { afterAll, afterEach, beforeAll, expect } from 'vitest'
 import { server } from '@/tests/mocks/server'
 
@@ -97,5 +98,14 @@ if (typeof window !== 'undefined') {
 // `onUnhandledRequest: 'error'` is deliberate: a test that hits an unmocked
 // URL should fail loudly, not silently pass against a real network.
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => server.resetHandlers())
+// Sonner's toast store is module-global and outlives each test's <Toaster>: a
+// toast still active when its Toaster unmounts is replayed into the next
+// test's Toaster for a fresh 4s. Unmount first, so no Toaster is subscribed,
+// then dismiss every active toast. RTL's own cleanup runs after this hook and
+// finds nothing left to unmount.
+afterEach(() => {
+  cleanup()
+  toast.dismiss()
+  server.resetHandlers()
+})
 afterAll(() => server.close())
