@@ -240,6 +240,49 @@ describe('platform activity page', () => {
     }
   })
 
+  // The empty state can't say a search is running when there's nothing
+  // empty about the list: the earlier results are still sitting there.
+  it('shows a searching status while the earlier results are still listed', async () => {
+    signInAs('admin')
+    mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
+    let releaseAcm!: () => void
+    const acmHeld = new Promise<void>((resolve) => {
+      releaseAcm = resolve
+    })
+    const terms = mockTenantSearch(async (q) => {
+      if (q !== 'acm') return tenantPage([ACME_ROW, GLOBEX_ROW])
+      await acmHeld
+      return tenantPage([ACME_ROW])
+    })
+    const user = userEvent.setup()
+    renderPlatformActivity()
+    await screen.findByText(/opened this tenant/)
+
+    await user.click(screen.getByLabelText('Filter by tenant'))
+    expect(await screen.findByRole('option', { name: 'Globex' })).toBeInTheDocument()
+    expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+
+    try {
+      await user.keyboard('acm')
+      await waitFor(() => {
+        expect(terms.at(-1)).toBe('acm')
+      })
+      // The `acm` answer is held, so these are still the empty-term results.
+      expect(screen.getByRole('option', { name: 'Globex' })).toBeInTheDocument()
+      expect(screen.getByText('Searching…')).toHaveAttribute('role', 'status')
+    } finally {
+      releaseAcm()
+    }
+
+    await waitFor(() => {
+      expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+    })
+    // Proves the `acm` answer actually landed, not just that Acme (in both
+    // lists) is still there.
+    expect(screen.queryByRole('option', { name: 'Globex' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Acme Corp' })).toBeInTheDocument()
+  })
+
   it('says it is searching, not that nothing matched, while the next search loads', async () => {
     signInAs('admin')
     mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
