@@ -14,6 +14,19 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
+import {
+  AUDIT_ID_1,
+  AUDIT_ID_2,
+  INVITATION_ID,
+  MEMBERSHIP_ID,
+  MEMBERSHIP_ID_2,
+  NOTIFICATION_ID,
+  NOTIFICATION_ID_2,
+  STAFF_USER_ID,
+  TENANT_ID,
+  USER_ID,
+  USER_ID_2,
+} from '@/tests/fixtures/ids'
 import { fail, ok, tenantDetail, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { AuditEntry, PlatformAuditEntry } from '@/types/api.types'
@@ -72,7 +85,7 @@ import type { AuditEntry, PlatformAuditEntry } from '@/types/api.types'
  * a page without it would gate a fragment nobody ever sees.
  */
 const TENANT = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   description: 'Anvils',
@@ -85,43 +98,43 @@ const TENANT = {
 }
 
 const SETTINGS = {
-  tenantId: 't1',
+  tenantId: TENANT_ID,
   timezone: 'Europe/London',
   locale: 'en',
   metadata: { tier: 'pro' },
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
-/** `testUser` is `u1`, so the first row is always "me". */
+/** `testUser.id` is `USER_ID`, so the first row is always "me". */
 const MEMBERS = [
   {
     membership: {
-      id: 'm-u1',
-      userId: 'u1',
+      id: MEMBERSHIP_ID,
+      userId: USER_ID,
       tenantId: TENANT.id,
       role: 'owner',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     },
-    user: { id: 'u1', email: 'a@b.com', firstName: 'A', lastName: 'B' },
+    user: { id: USER_ID, email: 'a@b.com', firstName: 'A', lastName: 'B' },
   },
   {
     membership: {
-      id: 'm-u2',
-      userId: 'u2',
+      id: MEMBERSHIP_ID_2,
+      userId: USER_ID_2,
       tenantId: TENANT.id,
       role: 'member',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     },
-    user: { id: 'u2', email: 'c@d.com', firstName: 'Cleo', lastName: 'D' },
+    user: { id: USER_ID_2, email: 'c@d.com', firstName: 'Cleo', lastName: 'D' },
   },
 ]
 
 const NOTIFICATIONS = [
   {
-    id: 'n1',
-    userId: 'u1',
+    id: NOTIFICATION_ID,
+    userId: USER_ID,
     type: 'verify_email',
     title: 'Confirm your email',
     body: 'We sent a link to a@b.com.',
@@ -130,8 +143,8 @@ const NOTIFICATIONS = [
     createdAt: '2026-01-02T09:00:00.000Z',
   },
   {
-    id: 'n2',
-    userId: 'u1',
+    id: NOTIFICATION_ID_2,
+    userId: USER_ID,
     type: 'password_changed',
     title: 'Your password changed',
     body: 'If this was not you, reset it now.',
@@ -144,10 +157,10 @@ const NOTIFICATIONS = [
 /** One pending invitation, so the members page's third card has a row to grade. */
 const INVITATIONS = [
   {
-    id: 'inv-1',
+    id: INVITATION_ID,
     email: 'invitee@b.com',
     role: 'editor',
-    invitedBy: { id: 'u1', firstName: 'A', lastName: 'B' },
+    invitedBy: { id: USER_ID, firstName: 'A', lastName: 'B' },
     expiresAt: '2026-10-01T00:00:00.000Z',
     createdAt: '2026-09-24T00:00:00.000Z',
   },
@@ -155,21 +168,21 @@ const INVITATIONS = [
 /** One member action and one staff action, so the Staff badge is graded too. */
 const AUDIT_ENTRIES: AuditEntry[] = [
   {
-    id: 'a2',
+    id: AUDIT_ID_2,
     occurredAt: '2026-09-25T10:00:00.000Z',
     action: 'tenant.settings_updated',
     access: 'platform',
-    actor: { id: 's1', name: 'Sam Staff', email: 'sam@platform.test' },
-    target: { type: 'settings', id: 't1' },
+    actor: { id: STAFF_USER_ID, name: 'Sam Staff', email: 'sam@platform.test' },
+    target: { type: 'settings', id: TENANT_ID },
     metadata: { changed: ['timezone'] },
   },
   {
-    id: 'a1',
+    id: AUDIT_ID_1,
     occurredAt: '2026-09-25T09:00:00.000Z',
     action: 'tenant.created',
     access: 'member',
-    actor: { id: 'u1', name: 'A B', email: 'a@b.com' },
-    target: { type: 'tenant', id: 't1' },
+    actor: { id: USER_ID, name: 'A B', email: 'a@b.com' },
+    target: { type: 'tenant', id: TENANT_ID },
     metadata: { name: 'Acme Corp', slug: 'acme' },
   },
 ]
@@ -577,7 +590,7 @@ describe('signed-in pages', () => {
     useAuthStore.setState({ user: { ...testUser, platformRole: 'admin' } })
     const entries: PlatformAuditEntry[] = AUDIT_ENTRIES.map((entry) => ({
       ...entry,
-      tenant: { id: 't1', name: 'Acme Corp', slug: 'acme' },
+      tenant: { id: TENANT_ID, name: 'Acme Corp', slug: 'acme' },
     }))
     server.use(
       http.get('/api/v1/platform/audit-log', () =>

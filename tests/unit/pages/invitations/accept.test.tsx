@@ -13,6 +13,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { TENANT_ID } from '@/tests/fixtures/ids'
 import {
   fail,
   ok,
@@ -24,7 +25,7 @@ import {
 import { server } from '@/tests/mocks/server'
 
 const TENANT = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   description: 'Anvils',

@@ -14,6 +14,14 @@ import { platformKeys, SEARCH_DEBOUNCE_MS } from '@/queries/platform.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import {
+  PLATFORM_TENANT_ID,
+  TENANT_ID,
+  TENANT_ID_2,
+  TENANT_ID_3,
+  TENANT_ID_4,
+  TENANT_ID_9,
+} from '@/tests/fixtures/ids'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { PlatformTenantRow } from '@/types/api.types'
@@ -34,8 +42,8 @@ function tenantRow(id: string, name: string, slug: string) {
   }
 }
 
-const ACME = tenantRow('t1', 'Acme Corp', 'acme')
-const PLATFORM = { ...tenantRow('tp', 'Platform', 'platform'), isPlatform: true }
+const ACME = tenantRow(TENANT_ID, 'Acme Corp', 'acme')
+const PLATFORM = { ...tenantRow(PLATFORM_TENANT_ID, 'Platform', 'platform'), isPlatform: true }
 
 function searchRow(id: string, name: string, slug: string): PlatformTenantRow {
   return {
@@ -48,9 +56,9 @@ function searchRow(id: string, name: string, slug: string): PlatformTenantRow {
   }
 }
 
-const ACME_ROW = searchRow('t1', 'Acme Corp', 'acme')
-const GLOBEX_ROW = searchRow('t2', 'Globex', 'globex')
-const INITECH_ROW = searchRow('t3', 'Initech', 'initech')
+const ACME_ROW = searchRow(TENANT_ID, 'Acme Corp', 'acme')
+const GLOBEX_ROW = searchRow(TENANT_ID_2, 'Globex', 'globex')
+const INITECH_ROW = searchRow(TENANT_ID_3, 'Initech', 'initech')
 
 /**
  * Driven through a real RouterProvider: the switcher reads
@@ -176,7 +184,11 @@ describe('TenantSwitcher', () => {
         ok(
           [
             { tenant: ACME, role: 'owner', isPlatform: false },
-            { tenant: tenantRow('t9', 'Umbrella', 'umbrella'), role: 'viewer', isPlatform: false },
+            {
+              tenant: tenantRow(TENANT_ID_9, 'Umbrella', 'umbrella'),
+              role: 'viewer',
+              isPlatform: false,
+            },
           ],
           'Tenants.'
         )
@@ -250,7 +262,7 @@ describe('TenantSwitcher', () => {
             tenants: [
               GLOBEX_ROW,
               { ...INITECH_ROW, lifecycleState: 'suspended' },
-              { ...searchRow('t4', 'Umbrella', 'umbrella'), lifecycleState: 'archived' },
+              { ...searchRow(TENANT_ID_4, 'Umbrella', 'umbrella'), lifecycleState: 'archived' },
             ],
             nextCursor: null,
           },
@@ -422,7 +434,7 @@ describe('TenantSwitcher', () => {
       server.use(
         http.get('/api/v1/tenants/globex', () =>
           ok(
-            tenantDetail(tenantRow('t2', 'Globex', 'globex'), 'viewer', 'platform'),
+            tenantDetail(tenantRow(TENANT_ID_2, 'Globex', 'globex'), 'viewer', 'platform'),
             'Tenant retrieved.'
           )
         )
@@ -443,7 +455,7 @@ describe('TenantSwitcher', () => {
       server.use(
         http.get('/api/v1/tenants/globex', () =>
           ok(
-            tenantDetail(tenantRow('t2', 'Globex', 'globex'), 'viewer', 'platform'),
+            tenantDetail(tenantRow(TENANT_ID_2, 'Globex', 'globex'), 'viewer', 'platform'),
             'Tenant retrieved.'
           )
         )

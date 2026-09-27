@@ -12,6 +12,7 @@ import {
 } from '@/queries/invitation.queries'
 import { tenantKeys, useTenants } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
+import { TENANT_ID } from '@/tests/fixtures/ids'
 import {
   fail,
   ok,
@@ -174,7 +175,7 @@ describe('invitation queries', () => {
       // The accept page doesn't observe the list, and an invalidation alone
       // only refetches active queries.
       let listCalls = 0
-      const joined = [{ tenant: { id: 't1', slug: 'acme' }, role: 'editor' }]
+      const joined = [{ tenant: { id: TENANT_ID, slug: 'acme' }, role: 'editor' }]
       server.use(
         http.get('/api/v1/tenants', () => {
           listCalls += 1

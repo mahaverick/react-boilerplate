@@ -6,6 +6,7 @@ import {
   auditSentence,
   isAuditAction,
 } from '@/constants/audit-actions'
+import { INVITATION_ID, USER_ID, USER_ID_2 } from '@/tests/fixtures/ids'
 
 describe('AUDIT_ACTIONS', () => {
   it('lists exactly the twelve actions the API writes', () => {
@@ -41,11 +42,15 @@ describe('auditSentence', () => {
     ['tenant.settings_updated', { changed: ['timezone'] }, 'changed the settings (timezone)'],
     [
       'member.role_changed',
-      { userId: 'u2', from: 'viewer', to: 'editor' },
+      { userId: USER_ID_2, from: 'viewer', to: 'editor' },
       'changed a member’s role from Viewer to Editor',
     ],
-    ['member.removed', { userId: 'u2', role: 'editor', self: false }, 'removed a member (Editor)'],
-    ['member.removed', { userId: 'u2', role: 'editor', self: true }, 'left the tenant'],
+    [
+      'member.removed',
+      { userId: USER_ID_2, role: 'editor', self: false },
+      'removed a member (Editor)',
+    ],
+    ['member.removed', { userId: USER_ID_2, role: 'editor', self: true }, 'left the tenant'],
     [
       'invitation.created',
       { role: 'viewer', emailDomain: 'example.com' },
@@ -63,17 +68,17 @@ describe('auditSentence', () => {
     ],
     [
       'invitation.accepted',
-      { role: 'admin', invitationId: 'inv-1' },
+      { role: 'admin', invitationId: INVITATION_ID },
       'accepted an invitation as Admin',
     ],
     [
       'platform.member.auto_joined',
-      { userId: 'u2', emailDomain: 'corp.test' },
+      { userId: USER_ID_2, emailDomain: 'corp.test' },
       'added someone at corp.test to the platform as Viewer (auto-join)',
     ],
     [
       'platform.member.granted',
-      { userId: 'u2', role: 'admin', via: 'script' },
+      { userId: USER_ID_2, role: 'admin', via: 'script' },
       'granted a platform member the Admin role',
     ],
     [
@@ -106,8 +111,10 @@ describe('auditSentence', () => {
 
 describe('actorName', () => {
   it('prefers the name, falls back to the email, and calls a null actor the system', () => {
-    expect(actorName({ id: 'u1', name: 'Ada Lovelace', email: 'ada@b.com' })).toBe('Ada Lovelace')
-    expect(actorName({ id: 'u1', name: '', email: 'ada@b.com' })).toBe('ada@b.com')
+    expect(actorName({ id: USER_ID, name: 'Ada Lovelace', email: 'ada@b.com' })).toBe(
+      'Ada Lovelace'
+    )
+    expect(actorName({ id: USER_ID, name: '', email: 'ada@b.com' })).toBe('ada@b.com')
     expect(actorName(null)).toBe('System')
   })
 })

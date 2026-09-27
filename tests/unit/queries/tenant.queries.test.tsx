@@ -14,7 +14,23 @@ import {
   useRevokeInvitation,
 } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
-import { fail, ok, tenantDetail, testInvitation, testUser } from '@/tests/mocks/handlers'
+import {
+  INVITATION_ID,
+  MEMBERSHIP_ID,
+  MEMBERSHIP_ID_2,
+  PLATFORM_TENANT_ID,
+  TENANT_ID,
+  USER_ID,
+  USER_ID_2,
+} from '@/tests/fixtures/ids'
+import {
+  fail,
+  INVITATION_SENT_MESSAGE,
+  ok,
+  tenantDetail,
+  testInvitation,
+  testUser,
+} from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 describe('tenant invitation queries', () => {
@@ -116,15 +132,15 @@ describe('tenant invitation queries', () => {
   it('resends by id and refreshes the list', async () => {
     let resent = 0
     server.use(
-      http.post('/api/v1/tenants/acme/invitations/inv-1/resend', () => {
+      http.post(`/api/v1/tenants/acme/invitations/${INVITATION_ID}/resend`, () => {
         resent += 1
-        return ok(null, 'Invitation resent.', 202)
+        return ok(null, INVITATION_SENT_MESSAGE, 202)
       })
     )
     seedCache()
 
     const { result } = renderHook(() => useResendInvitation('acme'), { wrapper })
-    result.current.mutate('inv-1')
+    result.current.mutate(INVITATION_ID)
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(resent).toBe(1)
@@ -136,15 +152,15 @@ describe('tenant invitation queries', () => {
     let body: string | undefined
     let contentType: string | null = 'unset'
     server.use(
-      http.post('/api/v1/tenants/acme/invitations/inv-1/resend', async ({ request }) => {
+      http.post(`/api/v1/tenants/acme/invitations/${INVITATION_ID}/resend`, async ({ request }) => {
         body = await request.text()
         contentType = request.headers.get('content-type')
-        return ok(null, 'Invitation resent.', 202)
+        return ok(null, INVITATION_SENT_MESSAGE, 202)
       })
     )
 
     const { result } = renderHook(() => useResendInvitation('acme'), { wrapper })
-    result.current.mutate('inv-1')
+    result.current.mutate(INVITATION_ID)
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(body).toBe('')
@@ -153,14 +169,14 @@ describe('tenant invitation queries', () => {
 
   it('refreshes the list after a resend 404, because the row is gone', async () => {
     server.use(
-      http.post('/api/v1/tenants/acme/invitations/inv-1/resend', () =>
+      http.post(`/api/v1/tenants/acme/invitations/${INVITATION_ID}/resend`, () =>
         fail('Invitation not found.', 404, 'invitation_not_found')
       )
     )
     seedCache()
 
     const { result } = renderHook(() => useResendInvitation('acme'), { wrapper })
-    result.current.mutate('inv-1')
+    result.current.mutate(INVITATION_ID)
 
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(isInvalidated(tenantKeys.invitations('acme'))).toBe(true)
@@ -169,7 +185,7 @@ describe('tenant invitation queries', () => {
   it('revokes with DELETE and refreshes the list', async () => {
     let method: string | undefined
     server.use(
-      http.delete('/api/v1/tenants/acme/invitations/inv-1', ({ request }) => {
+      http.delete(`/api/v1/tenants/acme/invitations/${INVITATION_ID}`, ({ request }) => {
         method = request.method
         return ok(null, 'Invitation revoked.')
       })
@@ -177,7 +193,7 @@ describe('tenant invitation queries', () => {
     seedCache()
 
     const { result } = renderHook(() => useRevokeInvitation('acme'), { wrapper })
-    result.current.mutate('inv-1')
+    result.current.mutate(INVITATION_ID)
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(method).toBe('DELETE')
@@ -189,14 +205,14 @@ describe('tenant invitation queries', () => {
 
   it('refreshes the list after a revoke 404, because the row is gone', async () => {
     server.use(
-      http.delete('/api/v1/tenants/acme/invitations/inv-1', () =>
+      http.delete(`/api/v1/tenants/acme/invitations/${INVITATION_ID}`, () =>
         fail('Invitation not found.', 404, 'invitation_not_found')
       )
     )
     seedCache()
 
     const { result } = renderHook(() => useRevokeInvitation('acme'), { wrapper })
-    result.current.mutate('inv-1')
+    result.current.mutate(INVITATION_ID)
 
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(isInvalidated(tenantKeys.invitations('acme'))).toBe(true)
@@ -209,7 +225,7 @@ describe('tenant invitation queries', () => {
 })
 
 const DETAIL_TENANT = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   description: null,
@@ -320,15 +336,22 @@ describe('member mutations and the caller’s own profile', () => {
   beforeEach(() => {
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     resetSessionForTests()
-    signInAs('u1')
+    signInAs(USER_ID)
   })
 
   describe('useUpdateMemberRole', () => {
     it('refreshes the profile after a SELF role change in the platform tenant', async () => {
       server.use(
-        http.patch('/api/v1/tenants/platform/members/u1', () =>
+        http.patch(`/api/v1/tenants/platform/members/${USER_ID}`, () =>
           ok(
-            { id: 'm1', userId: 'u1', tenantId: 'tp', role: 'admin', createdAt: '', updatedAt: '' },
+            {
+              id: MEMBERSHIP_ID,
+              userId: USER_ID,
+              tenantId: PLATFORM_TENANT_ID,
+              role: 'admin',
+              createdAt: '',
+              updatedAt: '',
+            },
             'Member role updated.'
           )
         ),
@@ -338,7 +361,7 @@ describe('member mutations and the caller’s own profile', () => {
       const { result } = renderHook(() => tenantQueries.useUpdateMemberRole('platform'), {
         wrapper,
       })
-      result.current.mutate({ userId: 'u1', role: 'admin' })
+      result.current.mutate({ userId: USER_ID, role: 'admin' })
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       await waitFor(() => {
@@ -349,9 +372,16 @@ describe('member mutations and the caller’s own profile', () => {
     it('does not ask for the profile on a role change to someone else', async () => {
       let profileCalls = 0
       server.use(
-        http.patch('/api/v1/tenants/platform/members/u2', () =>
+        http.patch(`/api/v1/tenants/platform/members/${USER_ID_2}`, () =>
           ok(
-            { id: 'm2', userId: 'u2', tenantId: 'tp', role: 'admin', createdAt: '', updatedAt: '' },
+            {
+              id: MEMBERSHIP_ID_2,
+              userId: USER_ID_2,
+              tenantId: PLATFORM_TENANT_ID,
+              role: 'admin',
+              createdAt: '',
+              updatedAt: '',
+            },
             'Member role updated.'
           )
         ),
@@ -364,7 +394,7 @@ describe('member mutations and the caller’s own profile', () => {
       const { result } = renderHook(() => tenantQueries.useUpdateMemberRole('platform'), {
         wrapper,
       })
-      result.current.mutate({ userId: 'u2', role: 'admin' })
+      result.current.mutate({ userId: USER_ID_2, role: 'admin' })
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(profileCalls).toBe(0)
@@ -373,9 +403,16 @@ describe('member mutations and the caller’s own profile', () => {
     it('does not ask for the profile on a SELF role change outside the platform tenant', async () => {
       let profileCalls = 0
       server.use(
-        http.patch('/api/v1/tenants/acme/members/u1', () =>
+        http.patch(`/api/v1/tenants/acme/members/${USER_ID}`, () =>
           ok(
-            { id: 'm1', userId: 'u1', tenantId: 't1', role: 'admin', createdAt: '', updatedAt: '' },
+            {
+              id: MEMBERSHIP_ID,
+              userId: USER_ID,
+              tenantId: TENANT_ID,
+              role: 'admin',
+              createdAt: '',
+              updatedAt: '',
+            },
             'Member role updated.'
           )
         ),
@@ -386,7 +423,7 @@ describe('member mutations and the caller’s own profile', () => {
       )
 
       const { result } = renderHook(() => tenantQueries.useUpdateMemberRole('acme'), { wrapper })
-      result.current.mutate({ userId: 'u1', role: 'admin' })
+      result.current.mutate({ userId: USER_ID, role: 'admin' })
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(profileCalls).toBe(0)
@@ -395,12 +432,14 @@ describe('member mutations and the caller’s own profile', () => {
 
   describe('useRemoveMember', () => {
     it('drops the whole tenant cache prefix on a self-leave', async () => {
-      client.setQueryData(tenantKeys.detail('acme'), { id: 't1' })
+      client.setQueryData(tenantKeys.detail('acme'), { id: TENANT_ID })
       client.setQueryData(tenantKeys.members('acme'), [])
-      server.use(http.delete('/api/v1/tenants/acme/members/u1', () => ok(null, 'Member removed.')))
+      server.use(
+        http.delete(`/api/v1/tenants/acme/members/${USER_ID}`, () => ok(null, 'Member removed.'))
+      )
 
       const { result } = renderHook(() => tenantQueries.useRemoveMember('acme'), { wrapper })
-      result.current.mutate('u1')
+      result.current.mutate(USER_ID)
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(client.getQueryState(tenantKeys.detail('acme'))).toBeUndefined()
@@ -408,28 +447,32 @@ describe('member mutations and the caller’s own profile', () => {
     })
 
     it('invalidates the member list, not the detail, when removing someone else', async () => {
-      client.setQueryData(tenantKeys.detail('acme'), { id: 't1' })
+      client.setQueryData(tenantKeys.detail('acme'), { id: TENANT_ID })
       client.setQueryData(tenantKeys.members('acme'), [])
-      server.use(http.delete('/api/v1/tenants/acme/members/u2', () => ok(null, 'Member removed.')))
+      server.use(
+        http.delete(`/api/v1/tenants/acme/members/${USER_ID_2}`, () => ok(null, 'Member removed.'))
+      )
 
       const { result } = renderHook(() => tenantQueries.useRemoveMember('acme'), { wrapper })
-      result.current.mutate('u2')
+      result.current.mutate(USER_ID_2)
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
-      expect(client.getQueryState(tenantKeys.detail('acme'))?.data).toEqual({ id: 't1' })
+      expect(client.getQueryState(tenantKeys.detail('acme'))?.data).toEqual({ id: TENANT_ID })
       expect(client.getQueryState(tenantKeys.members('acme'))?.isInvalidated).toBe(true)
     })
 
     it('refreshes the profile after a self-leave of the platform tenant', async () => {
-      signInAs('u1')
+      signInAs(USER_ID)
       server.use(
-        http.delete('/api/v1/tenants/platform/members/u1', () => ok(null, 'Member removed.')),
+        http.delete(`/api/v1/tenants/platform/members/${USER_ID}`, () =>
+          ok(null, 'Member removed.')
+        ),
         http.get('/api/v1/profile', () => ok({ ...testUser, platformRole: null }, 'Profile.'))
       )
-      useAuthStore.setState({ user: { ...testUser, id: 'u1', platformRole: 'viewer' } })
+      useAuthStore.setState({ user: { ...testUser, id: USER_ID, platformRole: 'viewer' } })
 
       const { result } = renderHook(() => tenantQueries.useRemoveMember('platform'), { wrapper })
-      result.current.mutate('u1')
+      result.current.mutate(USER_ID)
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       await waitFor(() => {
@@ -440,7 +483,7 @@ describe('member mutations and the caller’s own profile', () => {
     it('does not ask for the profile on a self-leave outside the platform tenant', async () => {
       let profileCalls = 0
       server.use(
-        http.delete('/api/v1/tenants/acme/members/u1', () => ok(null, 'Member removed.')),
+        http.delete(`/api/v1/tenants/acme/members/${USER_ID}`, () => ok(null, 'Member removed.')),
         http.get('/api/v1/profile', () => {
           profileCalls += 1
           return ok(testUser, 'Profile.')
@@ -448,7 +491,7 @@ describe('member mutations and the caller’s own profile', () => {
       )
 
       const { result } = renderHook(() => tenantQueries.useRemoveMember('acme'), { wrapper })
-      result.current.mutate('u1')
+      result.current.mutate(USER_ID)
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(profileCalls).toBe(0)

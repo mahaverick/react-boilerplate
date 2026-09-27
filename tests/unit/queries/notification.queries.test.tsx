@@ -14,6 +14,7 @@ import {
   useUpdatePreferences,
 } from '@/queries/notification.queries'
 import { useAuthStore } from '@/states/auth.store'
+import { NOTIFICATION_ID, USER_ID } from '@/tests/fixtures/ids'
 import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -99,8 +100,8 @@ describe('notification preference queries', () => {
  */
 describe('notification list mutations', () => {
   const UNREAD = {
-    id: 'n1',
-    userId: 'u1',
+    id: NOTIFICATION_ID,
+    userId: USER_ID,
     type: 'verify_email',
     title: 'Confirm your email',
     body: 'We sent a link to a@b.com.',
@@ -159,9 +160,12 @@ describe('notification list mutations', () => {
   })
 
   it.each([
-    ['mark-read', (hooks: ReturnType<typeof useAll>) => hooks.markRead.mutateAsync('n1')],
+    [
+      'mark-read',
+      (hooks: ReturnType<typeof useAll>) => hooks.markRead.mutateAsync(NOTIFICATION_ID),
+    ],
     ['mark-all-read', (hooks: ReturnType<typeof useAll>) => hooks.markAllRead.mutateAsync()],
-    ['delete', (hooks: ReturnType<typeof useAll>) => hooks.remove.mutateAsync('n1')],
+    ['delete', (hooks: ReturnType<typeof useAll>) => hooks.remove.mutateAsync(NOTIFICATION_ID)],
   ])('%s refetches the list and leaves the preferences alone', async (_name, run) => {
     const { result } = renderHook(() => useAll(), { wrapper })
     await waitFor(() => {

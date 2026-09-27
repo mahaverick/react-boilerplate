@@ -2,6 +2,7 @@ import type { AxiosResponse } from 'axios'
 import { http } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { apiClient, unwrap } from '@/http/client'
+import { USER_ID } from '@/tests/fixtures/ids'
 import { server } from '@/tests/mocks/server'
 import type { ApiSuccess } from '@/types/api.types'
 
@@ -55,8 +56,8 @@ describe('apiClient', () => {
 
   it('unwrap strips the success envelope', () => {
     const response = {
-      data: { success: true, message: 'OK', statusCode: 200, data: { id: 'u1' } },
+      data: { success: true, message: 'OK', statusCode: 200, data: { id: USER_ID } },
     } as AxiosResponse<ApiSuccess<{ id: string }>>
-    expect(unwrap(response)).toEqual({ id: 'u1' })
+    expect(unwrap(response)).toEqual({ id: USER_ID })
   })
 })

@@ -9,19 +9,20 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { PLATFORM_AUDIT_ID, STAFF_USER_ID, TENANT_ID, TENANT_ID_2 } from '@/tests/fixtures/ids'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { PlatformAuditEntry, PlatformTenantRow } from '@/types/api.types'
 
 const STAFF_VISIT: PlatformAuditEntry = {
-  id: 'p1',
+  id: PLATFORM_AUDIT_ID,
   occurredAt: '2026-09-25T10:00:00.000Z',
   action: 'tenant.accessed_by_platform',
   access: 'platform',
-  actor: { id: 's1', name: 'Sam Staff', email: 'sam@platform.test' },
-  target: { type: 'tenant', id: 't1' },
+  actor: { id: STAFF_USER_ID, name: 'Sam Staff', email: 'sam@platform.test' },
+  target: { type: 'tenant', id: TENANT_ID },
   metadata: { platformRole: 'viewer' },
-  tenant: { id: 't1', name: 'Acme Corp', slug: 'acme' },
+  tenant: { id: TENANT_ID, name: 'Acme Corp', slug: 'acme' },
 }
 
 function signInAs(platformRole: MembershipRole | null) {
@@ -47,14 +48,19 @@ function mockLog(respond: (url: URL) => Response) {
 }
 
 const ACME_ROW: PlatformTenantRow = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   lifecycleState: 'active',
   memberCount: 2,
   createdAt: '2026-01-01T00:00:00.000Z',
 }
-const GLOBEX_ROW: PlatformTenantRow = { ...ACME_ROW, id: 't2', name: 'Globex', slug: 'globex' }
+const GLOBEX_ROW: PlatformTenantRow = {
+  ...ACME_ROW,
+  id: TENANT_ID_2,
+  name: 'Globex',
+  slug: 'globex',
+}
 
 /** Answers the platform tenant search, recording each request's `q` in order (null when absent). */
 function mockTenantSearch(respond: (q: string | null) => Response | Promise<Response>) {
@@ -185,7 +191,7 @@ describe('platform activity page', () => {
     await user.click(await screen.findByRole('option', { name: 'Acme Corp' }))
 
     await waitFor(() => {
-      expect(seen.at(-1)?.searchParams.get('tenantId')).toBe('t1')
+      expect(seen.at(-1)?.searchParams.get('tenantId')).toBe(TENANT_ID)
     })
 
     await user.click(screen.getByRole('button', { name: 'Clear the tenant filter' }))
@@ -227,7 +233,7 @@ describe('platform activity page', () => {
       await user.click(screen.getByRole('option', { name: 'Acme Corp' }))
 
       await waitFor(() => {
-        expect(seen.at(-1)?.searchParams.get('tenantId')).toBe('t1')
+        expect(seen.at(-1)?.searchParams.get('tenantId')).toBe(TENANT_ID)
       })
     } finally {
       releaseAcm()

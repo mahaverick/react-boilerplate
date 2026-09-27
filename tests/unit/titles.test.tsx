@@ -12,6 +12,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { TENANT_ID } from '@/tests/fixtures/ids'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -42,7 +43,7 @@ function hasChildren(route: AnyRoute): boolean {
 
 /** One tenant row, as `GET /tenants/:slug` returns it before `tenantDetail` adds the role. */
 const ACME = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   description: null,

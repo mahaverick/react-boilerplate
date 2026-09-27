@@ -9,12 +9,22 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import {
+  AUDIT_ID_1,
+  AUDIT_ID_2,
+  AUDIT_ID_3,
+  MEMBERSHIP_ID,
+  STAFF_USER_ID,
+  TENANT_ID,
+  USER_ID,
+  USER_ID_9,
+} from '@/tests/fixtures/ids'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { AuditEntry, TenantAccess } from '@/types/api.types'
 
 const TENANT = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   description: null,
@@ -29,14 +39,14 @@ const TENANT = {
 const MEMBERS = [
   {
     membership: {
-      id: 'm-u1',
-      userId: 'u1',
-      tenantId: 't1',
+      id: MEMBERSHIP_ID,
+      userId: USER_ID,
+      tenantId: TENANT_ID,
       role: 'owner',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     },
-    user: { id: 'u1', email: 'a@b.com', firstName: 'A', lastName: 'B' },
+    user: { id: USER_ID, email: 'a@b.com', firstName: 'A', lastName: 'B' },
   },
 ]
 
@@ -46,33 +56,33 @@ function entry(
   return {
     occurredAt: '2026-09-25T09:00:00.000Z',
     access: 'member',
-    actor: { id: 'u1', name: 'A B', email: 'a@b.com' },
+    actor: { id: USER_ID, name: 'A B', email: 'a@b.com' },
     target: null,
     ...fields,
   }
 }
 
 const CREATED = entry({
-  id: 'a1',
+  id: AUDIT_ID_1,
   action: 'tenant.created',
   metadata: { name: 'Acme Corp', slug: 'acme' },
 })
 const STAFF_CHANGE = entry({
-  id: 'a2',
+  id: AUDIT_ID_2,
   occurredAt: '2026-09-25T10:00:00.000Z',
   action: 'tenant.settings_updated',
   access: 'platform',
-  actor: { id: 's1', name: 'Sam Staff', email: 'sam@platform.test' },
-  target: { type: 'settings', id: 't1' },
+  actor: { id: STAFF_USER_ID, name: 'Sam Staff', email: 'sam@platform.test' },
+  target: { type: 'settings', id: TENANT_ID },
   metadata: { changed: ['timezone'] },
 })
 // The API falls back to the email AS the actor's name when no name is on
 // file, so a nameless actor's `name` equals their `email` — never `''`.
 const NAMELESS = entry({
-  id: 'a3',
+  id: AUDIT_ID_3,
   occurredAt: '2026-09-25T11:00:00.000Z',
   action: 'invitation.created',
-  actor: { id: 'u9', name: 'nameless@b.com', email: 'nameless@b.com' },
+  actor: { id: USER_ID_9, name: 'nameless@b.com', email: 'nameless@b.com' },
   metadata: { role: 'viewer', emailDomain: 'b.com' },
 })
 
@@ -287,7 +297,7 @@ describe('tenant activity tab', () => {
     await user.click(await screen.findByRole('option', { name: 'A B' }))
 
     await waitFor(() => {
-      expect(seen.at(-1)?.searchParams.get('actorUserId')).toBe('u1')
+      expect(seen.at(-1)?.searchParams.get('actorUserId')).toBe(USER_ID)
     })
     expect(seen.at(-1)?.searchParams.has('access')).toBe(false)
   })
