@@ -300,7 +300,7 @@ describe('TenantSwitcher', () => {
         expect(seen.length).toBeGreaterThan(0)
       })
 
-      // Created after the fake clock exists: advanceTimers needs it.
+      // Keystroke delays run on the fake clock, so this user needs advanceTimers.
       vi.useFakeTimers({ shouldAdvanceTime: true })
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       await user.type(screen.getByLabelText('Search tenants'), '   ')

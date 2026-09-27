@@ -211,21 +211,21 @@ describe('pending navigation', () => {
     // Fakes only the clock the router reads: setTimeout and Date.now.
     // setImmediate stays real because React's async act flushes on it. While
     // setTimeout is fake, findBy*/waitFor would hang (their final drain is a
-    // setTimeout nothing advances), so this section asserts with getBy* only.
+    // setTimeout nothing advances), so this section asserts synchronously.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     router.history.push('/page')
-    await act(() => vi.advanceTimersByTimeAsync(defaultPendingMs))
+    await act(() => vi.advanceTimersByTimeAsync(defaultPendingMs - 1))
+    expect(screen.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument()
+    await act(() => vi.advanceTimersByTimeAsync(1))
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
 
-    // The loader settles the instant the pending screen appears; with
-    // defaultPendingMinMs at 0 it would swap to the page immediately, so
-    // this regresses if that floor is ever dropped.
+    // The loader settles the instant the pending screen appears; the page
+    // must still wait out the whole defaultPendingMinMs floor, to the ms.
     release()
-    await act(() => vi.advanceTimersByTimeAsync(100))
+    await act(() => vi.advanceTimersByTimeAsync(defaultPendingMinMs - 1))
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
-
-    await act(() => vi.advanceTimersByTimeAsync(defaultPendingMinMs))
-    vi.useRealTimers()
-    expect(await screen.findByRole('heading', { level: 1, name: 'Page' })).toBeInTheDocument()
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(screen.getByRole('heading', { level: 1, name: 'Page' })).toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument()
   })
 })
