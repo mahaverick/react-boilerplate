@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.2](https://github.com/mahaverick/react-boilerplate/compare/v2.1.1...v2.1.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **platform:** say it is searching while earlier tenant results are shown ([021bb38](https://github.com/mahaverick/react-boilerplate/commit/021bb38f4f6f155583e544934c533cecf0418389))
+
 ## [2.1.1](https://github.com/mahaverick/react-boilerplate/compare/v2.1.0...v2.1.1) (2026-09-27)
 
 
