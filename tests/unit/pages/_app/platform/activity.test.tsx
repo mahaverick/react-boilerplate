@@ -260,7 +260,12 @@ describe('platform activity page', () => {
 
     await user.click(screen.getByLabelText('Filter by tenant'))
     expect(await screen.findByRole('option', { name: 'Globex' })).toBeInTheDocument()
-    expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+    // The status region is mounted at rest too, with nothing to announce
+    // yet: a screen reader needs it present before there's ever anything to
+    // say, not created the first time there is.
+    const status = document.querySelector('p[role="status"]')
+    if (!status) throw new Error('no status region')
+    expect(status).toBeEmptyDOMElement()
 
     try {
       await user.keyboard('acm')
@@ -269,14 +274,17 @@ describe('platform activity page', () => {
       })
       // The `acm` answer is held, so these are still the empty-term results.
       expect(screen.getByRole('option', { name: 'Globex' })).toBeInTheDocument()
-      expect(screen.getByText('Searching…')).toHaveAttribute('role', 'status')
+      expect(status).toHaveTextContent('Searching…')
+      // The same node, not a fresh one: it never unmounted to say this.
+      expect(document.querySelector('p[role="status"]')).toBe(status)
     } finally {
       releaseAcm()
     }
 
     await waitFor(() => {
-      expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+      expect(status).toBeEmptyDOMElement()
     })
+    expect(document.querySelector('p[role="status"]')).toBe(status)
     // Proves the `acm` answer actually landed, not just that Acme (in both
     // lists) is still there.
     expect(screen.queryByRole('option', { name: 'Globex' })).not.toBeInTheDocument()
