@@ -9,22 +9,12 @@ import { server } from '@/tests/mocks/server'
 expect.extend(toHaveNoViolations)
 
 /**
- * How long `findBy*` and `waitFor` may wait. Testing Library's default is
- * ONE SECOND, and it is its own budget — vitest's `testTimeout` does not
- * govern it, so raising that alone would have changed nothing here.
- *
- * One second is not honest for this suite. It spawns a worker per test file —
- * dozens of them, at ~870ms of spawn plus jsdom environment each, both figures
- * the runner prints on every run — and a `findBy*` that starts while the machine
- * is still standing those up is racing the runner rather than the code. That
- * is measured, not supposed: three tests across `$slug.members` and
- * `tenants/index` failed on one full run in four, passed alone, and passed on
- * three reruns. CI is always cold, so it would have surfaced there.
- *
- * Five seconds, and `testTimeout` in vitest.config.ts is raised to 20s so a
- * test that genuinely hangs still fails on its own assertion rather than
- * being cut off mid-wait. Raised here rather than papered over with `retry`,
- * which would have hidden the next real race as effectively as this one.
+ * How long `findBy*` and `waitFor` may wait. Testing Library's default is one
+ * second, and vitest's `testTimeout` does not govern it. This suite spawns a
+ * worker per test file, and a `findBy*` that starts while workers are still
+ * standing up can outlast one second under full-suite contention.
+ * `testTimeout` in vitest.config.ts stays the larger, so a hung test fails
+ * on its own assertion rather than being cut off mid-wait.
  */
 configure({ asyncUtilTimeout: 5_000 })
 

@@ -24,10 +24,9 @@ export default defineConfig({
     // 20s is not a licence for a slow test; it is headroom so a test fails
     // for its own reasons rather than for the runner's.
     //
-    // It does NOT govern `findBy*`/`waitFor`, which have a separate 1s budget
-    // of their own — see `asyncUtilTimeout` in tests/setup.ts, which is
-    // the half that was actually producing the intermittent failures. Both
-    // are needed, and this one must stay comfortably the larger.
+    // It does NOT govern `findBy*`/`waitFor`, whose budget is
+    // `asyncUtilTimeout` in tests/setup.ts; this one must stay comfortably
+    // the larger.
     // Every Vitest test lives under tests/ — none in src/, which eslint
     // enforces. Explicit rather than Vitest's default `**/*.{test,spec}.*`,
     // which would also collect `e2e/**/*.test.ts` and run Playwright specs
