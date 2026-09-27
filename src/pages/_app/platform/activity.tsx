@@ -116,14 +116,14 @@ function TenantFilter({
           className="w-56"
         />
         <ComboboxContent>
-          {/* Stays mounted always, like ComboboxEmpty just below: a status
-              region that mounts and unmounts can miss its own announcement,
-              so only its children and visibility toggle. */}
+          {/* Stays mounted AND displayed always, like ComboboxEmpty just
+              below: only its text changes. An empty `<p>` with no padding
+              has zero height, so nothing shows while there's nothing to say. */}
           <p
             role="status"
             aria-live="polite"
             aria-atomic="true"
-            className={cn('px-2 py-1.5 text-sm text-muted-foreground', !isRefreshing && 'hidden')}
+            className={cn('text-sm text-muted-foreground', isRefreshing && 'px-2 py-1.5')}
           >
             {isRefreshing ? 'Searching…' : null}
           </p>
