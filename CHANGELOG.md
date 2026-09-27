@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.3](https://github.com/mahaverick/react-boilerplate/compare/v2.1.2...v2.1.3) (2026-09-27)
+
+
+### Bug Fixes
+
+* **platform:** open the activity tenant filter as a labelled dialog ([1556a99](https://github.com/mahaverick/react-boilerplate/commit/1556a9973a34c0604afe3371aff3e3c170625366))
+
 ## [2.1.2](https://github.com/mahaverick/react-boilerplate/compare/v2.1.1...v2.1.2) (2026-09-27)
 
 
