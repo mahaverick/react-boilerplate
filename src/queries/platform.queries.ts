@@ -1,4 +1,4 @@
-import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, type InfiniteData } from '@tanstack/react-query'
 import { apiClient, unwrap } from '@/http/client'
 import { statusFrom } from '@/lib/api-error'
 import type { ApiSuccess, PlatformTenantPage, PlatformTenantRow } from '@/types/api.types'
@@ -21,6 +21,10 @@ const MAX_QUERY_LENGTH = 100
  *
  * Non-staff get a 404 here, so the caller passes `enabled: false` for them
  * rather than asking. An empty term sends no `q` at all.
+ *
+ * While a new term's first page loads, `data` is the previous term's results
+ * and `isPlaceholderData` is true, so a caller that shows a searching state
+ * checks that as well as `isPending`.
  */
 export function usePlatformTenantSearch(q: string, { enabled }: { enabled: boolean }) {
   const term = q.trim().slice(0, MAX_QUERY_LENGTH)
@@ -35,6 +39,9 @@ export function usePlatformTenantSearch(q: string, { enabled }: { enabled: boole
       ),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled,
+    // The previous term's results stay listed, and pickable, while the next
+    // term loads; without it every new term empties the list first.
+    placeholderData: keepPreviousData,
     // A 404 is the API's answer about who is asking (non-staff); asking
     // again changes nothing. Same rule as `usePlatformAuditLog`.
     retry: (failureCount, error) => statusFrom(error) !== 404 && failureCount < 1,

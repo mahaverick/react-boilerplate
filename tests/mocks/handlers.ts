@@ -1,9 +1,10 @@
 import { http, HttpResponse } from 'msw'
 import type { MembershipRole } from '@/constants/roles'
+import { INVITATION_ID, USER_ID } from '@/tests/fixtures/ids'
 import type { InvitationPreview, TenantAccess, TenantInvitation, User } from '@/types/api.types'
 
 export const testUser: User = {
-  id: 'u1',
+  id: USER_ID,
   email: 'a@b.com',
   firstName: 'A',
   lastName: 'B',
@@ -14,12 +15,16 @@ export const testUser: User = {
 /** 43 characters of base64url, the shape the server mints and validates. */
 export const TEST_INVITATION_TOKEN = 'inv-token-'.padEnd(43, 'x')
 
+/** express's one answer to an invite and to a resend, whether or not the address has an account. */
+export const INVITATION_SENT_MESSAGE =
+  'If that address can be invited, an invitation has been sent.'
+
 /** One pending row, as `GET /tenants/:slug/invitations` lists it. */
 export const testInvitation: TenantInvitation = {
-  id: 'inv-1',
+  id: INVITATION_ID,
   email: 'invitee@b.com',
   role: 'editor',
-  invitedBy: { id: 'u1', firstName: 'A', lastName: 'B' },
+  invitedBy: { id: USER_ID, firstName: 'A', lastName: 'B' },
   expiresAt: '2026-10-01T00:00:00.000Z',
   createdAt: '2026-09-24T00:00:00.000Z',
 }
@@ -111,13 +116,11 @@ export const handlers = [
   // Pending invitations, empty like the list above. A test about them
   // overrides it with `server.use(...)`.
   http.get('/api/v1/tenants/:slug/invitations', () => ok([], 'Invitations retrieved.')),
-  // Invite answers 202 with `data: null` whether or not the address has an
-  // account, the same way register does.
-  http.post('/api/v1/tenants/:slug/invitations', () =>
-    ok(null, 'If that address can be invited, an invitation has been sent.', 202)
-  ),
+  // Invite and resend answer 202 with `data: null` whether or not the
+  // address has an account, the same way register does.
+  http.post('/api/v1/tenants/:slug/invitations', () => ok(null, INVITATION_SENT_MESSAGE, 202)),
   http.post('/api/v1/tenants/:slug/invitations/:id/resend', () =>
-    ok(null, 'Invitation resent.', 202)
+    ok(null, INVITATION_SENT_MESSAGE, 202)
   ),
   http.delete('/api/v1/tenants/:slug/invitations/:id', () => ok(null, 'Invitation revoked.')),
   http.post('/api/v1/invitations/preview', () =>

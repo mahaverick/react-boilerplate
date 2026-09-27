@@ -113,11 +113,11 @@ describe('profile page', () => {
           {
             success: false,
             message: 'Validation failed.',
-            statusCode: 422,
+            statusCode: 400,
             errors: { firstName: ['That name is not allowed.'] },
             requestId: 'test-request-id',
           },
-          { status: 422 }
+          { status: 400 }
         )
       )
     )

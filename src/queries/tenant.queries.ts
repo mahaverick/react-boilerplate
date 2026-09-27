@@ -227,7 +227,7 @@ export function useInvitations(slug: string) {
  * Answers 202 with `data: null` whether or not the address has an account,
  * so a success never says whether one exists. Refusals still differ: 409
  * `already_member` or `invitation_conflict`, 403 for a role the caller can't
- * grant, 422 for an invalid body.
+ * grant, 400 for an invalid body.
  */
 export function useInviteMember(slug: string) {
   const queryClient = useQueryClient()

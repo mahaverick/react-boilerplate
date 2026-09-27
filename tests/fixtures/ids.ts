@@ -1,0 +1,45 @@
+/**
+ * Fixture ids shaped like the API's own. express validates ids in paths and
+ * filters as UUIDs (an invitation's `:id`, the audit log's `tenantId`), so a
+ * non-UUID id models a request the real API would refuse with a 400.
+ *
+ * Hand-written and fixed, never generated. The first digit names the kind
+ * (1 tenant, 2 user, 3 membership, 4 invitation, 5 notification, 6 audit
+ * entry) and the last digits the ordinal; `...100` is the platform-side one.
+ */
+export const TENANT_ID = '10000000-0000-4000-8000-000000000001'
+export const TENANT_ID_2 = '10000000-0000-4000-8000-000000000002'
+export const TENANT_ID_3 = '10000000-0000-4000-8000-000000000003'
+export const TENANT_ID_4 = '10000000-0000-4000-8000-000000000004'
+export const TENANT_ID_9 = '10000000-0000-4000-8000-000000000009'
+export const PLATFORM_TENANT_ID = '10000000-0000-4000-8000-000000000100'
+
+/** `testUser.id`: the user every signed-in test signs in as. */
+export const USER_ID = '20000000-0000-4000-8000-000000000001'
+export const USER_ID_2 = '20000000-0000-4000-8000-000000000002'
+export const USER_ID_3 = '20000000-0000-4000-8000-000000000003'
+export const USER_ID_4 = '20000000-0000-4000-8000-000000000004'
+export const USER_ID_5 = '20000000-0000-4000-8000-000000000005'
+export const USER_ID_9 = '20000000-0000-4000-8000-000000000009'
+export const STAFF_USER_ID = '20000000-0000-4000-8000-000000000100'
+
+/** `MEMBERSHIP_ID_n` is `USER_ID_n`'s membership. */
+export const MEMBERSHIP_ID = '30000000-0000-4000-8000-000000000001'
+export const MEMBERSHIP_ID_2 = '30000000-0000-4000-8000-000000000002'
+export const MEMBERSHIP_ID_3 = '30000000-0000-4000-8000-000000000003'
+export const MEMBERSHIP_ID_4 = '30000000-0000-4000-8000-000000000004'
+export const MEMBERSHIP_ID_5 = '30000000-0000-4000-8000-000000000005'
+
+export const INVITATION_ID = '40000000-0000-4000-8000-000000000001'
+export const INVITATION_ID_2 = '40000000-0000-4000-8000-000000000002'
+export const INVITATION_ID_3 = '40000000-0000-4000-8000-000000000003'
+export const INVITATION_ID_9 = '40000000-0000-4000-8000-000000000009'
+
+export const NOTIFICATION_ID = '50000000-0000-4000-8000-000000000001'
+export const NOTIFICATION_ID_2 = '50000000-0000-4000-8000-000000000002'
+export const NOTIFICATION_ID_7 = '50000000-0000-4000-8000-000000000007'
+
+export const AUDIT_ID_1 = '60000000-0000-4000-8000-000000000001'
+export const AUDIT_ID_2 = '60000000-0000-4000-8000-000000000002'
+export const AUDIT_ID_3 = '60000000-0000-4000-8000-000000000003'
+export const PLATFORM_AUDIT_ID = '60000000-0000-4000-8000-000000000100'

@@ -36,7 +36,9 @@ import { resendVerificationSchema, verifyEmailSchema } from '@/schemas/auth.sche
  * renders `AuthLayout` itself — `_auth`'s layout component no longer wraps it.
  */
 export const Route = createFileRoute('/verify-email')({
-  validateSearch: z.object({ token: z.string().optional() }),
+  // `.catch`: the router JSON-parses search values, so `?token=123` is a
+  // number, treated as no token.
+  validateSearch: z.object({ token: z.string().optional().catch(undefined) }),
   head: () => ({ meta: [{ title: pageTitle('Verify email') }] }),
   component: VerifyEmailPage,
 })

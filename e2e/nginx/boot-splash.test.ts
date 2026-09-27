@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { settle } from '../timing'
 import { flushCspReports, requireServedApp, watchCspViolations } from './csp'
 
 /**
@@ -62,7 +63,7 @@ test(
     // sequence that renders before the load resolves has time to blank
     // #root and show the router's own pending screen before this settles.
     await page.route('**/api/v1/auth/refresh', async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 600))
+      await settle(600, 'injected latency: hold the root beforeLoad past defaultPendingMs (300)')
       await route.fulfill({
         status: 401,
         contentType: 'application/json',
@@ -80,7 +81,10 @@ test(
     // counts every callback invocation, so a browser where the observer never
     // ran at all — and so never had a chance to flip either flag — fails
     // loudly instead of passing on two flags that both stayed false by
-    // default.
+    // default. Emptiness is read live, once per callback, on purpose: React's
+    // first commit sets `#root.textContent = ''` and inserts the app in the
+    // same task, so a per-record check would flag every correct boot. Only an
+    // empty #root that is still empty when a callback runs can be painted.
     await page.addInitScript(() => {
       const win = window as unknown as {
         __rootWasEmpty: boolean

@@ -5,14 +5,23 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
+import { platformKeys, SEARCH_DEBOUNCE_MS } from '@/queries/platform.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import {
+  PLATFORM_TENANT_ID,
+  TENANT_ID,
+  TENANT_ID_2,
+  TENANT_ID_3,
+  TENANT_ID_4,
+  TENANT_ID_9,
+} from '@/tests/fixtures/ids'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { PlatformTenantRow } from '@/types/api.types'
@@ -33,8 +42,8 @@ function tenantRow(id: string, name: string, slug: string) {
   }
 }
 
-const ACME = tenantRow('t1', 'Acme Corp', 'acme')
-const PLATFORM = { ...tenantRow('tp', 'Platform', 'platform'), isPlatform: true }
+const ACME = tenantRow(TENANT_ID, 'Acme Corp', 'acme')
+const PLATFORM = { ...tenantRow(PLATFORM_TENANT_ID, 'Platform', 'platform'), isPlatform: true }
 
 function searchRow(id: string, name: string, slug: string): PlatformTenantRow {
   return {
@@ -47,9 +56,9 @@ function searchRow(id: string, name: string, slug: string): PlatformTenantRow {
   }
 }
 
-const ACME_ROW = searchRow('t1', 'Acme Corp', 'acme')
-const GLOBEX_ROW = searchRow('t2', 'Globex', 'globex')
-const INITECH_ROW = searchRow('t3', 'Initech', 'initech')
+const ACME_ROW = searchRow(TENANT_ID, 'Acme Corp', 'acme')
+const GLOBEX_ROW = searchRow(TENANT_ID_2, 'Globex', 'globex')
+const INITECH_ROW = searchRow(TENANT_ID_3, 'Initech', 'initech')
 
 /**
  * Driven through a real RouterProvider: the switcher reads
@@ -175,7 +184,11 @@ describe('TenantSwitcher', () => {
         ok(
           [
             { tenant: ACME, role: 'owner', isPlatform: false },
-            { tenant: tenantRow('t9', 'Umbrella', 'umbrella'), role: 'viewer', isPlatform: false },
+            {
+              tenant: tenantRow(TENANT_ID_9, 'Umbrella', 'umbrella'),
+              role: 'viewer',
+              isPlatform: false,
+            },
           ],
           'Tenants.'
         )
@@ -214,6 +227,10 @@ describe('TenantSwitcher', () => {
       signInAs('viewer')
     })
 
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
     it('adds an All tenants group, without repeating a tenant already in Your tenants', async () => {
       server.use(
         http.get('/api/v1/tenants', () =>
@@ -245,7 +262,7 @@ describe('TenantSwitcher', () => {
             tenants: [
               GLOBEX_ROW,
               { ...INITECH_ROW, lifecycleState: 'suspended' },
-              { ...searchRow('t4', 'Umbrella', 'umbrella'), lifecycleState: 'archived' },
+              { ...searchRow(TENANT_ID_4, 'Umbrella', 'umbrella'), lifecycleState: 'archived' },
             ],
             nextCursor: null,
           },
@@ -290,16 +307,24 @@ describe('TenantSwitcher', () => {
     it('sends no q for a whitespace-only search', async () => {
       const seen = recordSearches(() => ok({ tenants: [], nextCursor: null }, 'Tenants.'))
       renderShell()
-      const user = await openSwitcher()
+      await openSwitcher()
       await waitFor(() => {
         expect(seen.length).toBeGreaterThan(0)
       })
 
+      // Keystroke delays run on the fake clock, so this user needs advanceTimers.
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       await user.type(screen.getByLabelText('Search tenants'), '   ')
-      // Past the 250ms debounce: long enough for a request to have fired if
-      // the whitespace were going to produce one.
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      await act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS))
 
+      // Past the debounce, the whitespace term has rendered. Had it produced a
+      // `q`, it would have made a second query key on that render.
+      const searchKeys = queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ['platform', 'tenants'] })
+        .map((query) => query.queryKey)
+      expect(searchKeys).toEqual([platformKeys.tenants('')])
       expect(seen.every((url) => !url.searchParams.has('q'))).toBe(true)
     })
 
@@ -308,9 +333,7 @@ describe('TenantSwitcher', () => {
       renderShell()
       await openSwitcher()
 
-      expect(
-        await screen.findByText('All tenants could not be loaded', {}, { timeout: 5000 })
-      ).toBeInTheDocument()
+      expect(await screen.findByText('All tenants could not be loaded')).toBeInTheDocument()
     })
 
     // Keyboard-reachable, not scroll-only: the option sits in the arrow-key
@@ -341,6 +364,41 @@ describe('TenantSwitcher', () => {
       expect(screen.getByRole('dialog', { name: 'Switch tenant' })).toBeInTheDocument()
     })
 
+    it('keeps the earlier results listed, and says it is still searching, while the next term loads', async () => {
+      let releaseGlob!: () => void
+      const globHeld = new Promise<void>((resolve) => {
+        releaseGlob = resolve
+      })
+      const seen = recordSearches(async (url) => {
+        if (url.searchParams.get('q') !== 'glob') {
+          return ok({ tenants: [GLOBEX_ROW, INITECH_ROW], nextCursor: 'c2' }, 'Tenants.')
+        }
+        await globHeld
+        return ok({ tenants: [GLOBEX_ROW], nextCursor: null }, 'Tenants.')
+      })
+      renderShell()
+      const user = await openSwitcher()
+      expect(await screen.findByRole('option', { name: 'Initech' })).toBeInTheDocument()
+      expect(await screen.findByRole('option', { name: 'Load more tenants' })).toBeInTheDocument()
+
+      try {
+        await user.type(screen.getByLabelText('Search tenants'), 'glob')
+        await waitFor(() => {
+          expect(seen.at(-1)?.searchParams.get('q')).toBe('glob')
+        })
+        expect(screen.getByRole('option', { name: 'Initech' })).toBeInTheDocument()
+        expect(screen.getByText('Searching all tenants…')).toBeInTheDocument()
+        // The earlier term's next page is not this term's.
+        expect(screen.queryByRole('option', { name: 'Load more tenants' })).not.toBeInTheDocument()
+      } finally {
+        releaseGlob()
+      }
+      await waitFor(() => {
+        expect(screen.queryByRole('option', { name: 'Initech' })).not.toBeInTheDocument()
+      })
+      expect(screen.queryByText('Searching all tenants…')).not.toBeInTheDocument()
+    })
+
     // A failed page must stay retryable, not get stuck disabled — a click on
     // the same option is the retry. The query client retries once on its
     // own (`retry: 1`), so the first TWO `cursor=c2` requests are the
@@ -361,11 +419,7 @@ describe('TenantSwitcher', () => {
       const more = await screen.findByRole('option', { name: 'Load more tenants' })
 
       await user.click(more)
-      const failed = await screen.findByRole(
-        'option',
-        { name: 'Could not load more tenants' },
-        { timeout: 5000 }
-      )
+      const failed = await screen.findByRole('option', { name: 'Could not load more tenants' })
 
       await user.click(failed)
 
@@ -381,7 +435,7 @@ describe('TenantSwitcher', () => {
       server.use(
         http.get('/api/v1/tenants/globex', () =>
           ok(
-            tenantDetail(tenantRow('t2', 'Globex', 'globex'), 'viewer', 'platform'),
+            tenantDetail(tenantRow(TENANT_ID_2, 'Globex', 'globex'), 'viewer', 'platform'),
             'Tenant retrieved.'
           )
         )
@@ -402,7 +456,7 @@ describe('TenantSwitcher', () => {
       server.use(
         http.get('/api/v1/tenants/globex', () =>
           ok(
-            tenantDetail(tenantRow('t2', 'Globex', 'globex'), 'viewer', 'platform'),
+            tenantDetail(tenantRow(TENANT_ID_2, 'Globex', 'globex'), 'viewer', 'platform'),
             'Tenant retrieved.'
           )
         )

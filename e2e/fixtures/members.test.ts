@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../hermetic'
 
 /**
  * The checks jsdom cannot make, because it has no layout and no cascade.
@@ -39,13 +39,11 @@ test.describe('desktop', () => {
   test('offers a retry when the member list fails, rather than a stuck skeleton', async ({
     page,
   }) => {
-    // Playwright's default test timeout is 30s, which the 45s wait below
-    // cannot fit inside: the expect timeout does not raise the test's own.
-    test.setTimeout(120_000)
     await page.goto('/e2e/harness/?state=error')
-    // Generous: this has to outlast TanStack Query's retry backoff before the
-    // error state replaces the skeleton.
-    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible({ timeout: 45_000 })
+    // The list query retries once (`retry: 1`, src/router.tsx) after TanStack
+    // Query's 1s default retry delay, so the error state replaces the skeleton
+    // after about 1.5s (measured). 10s is headroom for a loaded machine.
+    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible({ timeout: 10_000 })
     // `.` rather than an apostrophe: the copy uses a typographic ’ (U+2019),
     // and an ASCII ' silently matches nothing.
     await expect(page.getByText(/could not load this tenant.s members/i)).toBeVisible()

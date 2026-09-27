@@ -9,11 +9,12 @@ import type { Notification } from '@/queries/notification.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { NOTIFICATION_ID } from '@/tests/fixtures/ids'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 const unreadRow: Notification = {
-  id: 'n1',
+  id: NOTIFICATION_ID,
   userId: testUser.id,
   type: 'verify_email',
   title: 'Verify your email',

@@ -9,6 +9,7 @@ import {
 } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
 import { NON_VERDICT_FAILURES } from '@/tests/fixtures/non-verdict-failures'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import { ACCESS_TOKEN_EXPIRED } from '@/types/api.types'
@@ -248,7 +249,7 @@ describe('across tabs', () => {
   /** Lets every already-queued channel delivery run before a negative assertion. */
   async function flushDeliveries(probe: { received: unknown[] }, count: number) {
     await vi.waitFor(() => expect(probe.received).toHaveLength(count))
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await settle(0, 'absence has no event: let every already-queued channel delivery run')
   }
 
   beforeEach(() => {
@@ -327,7 +328,10 @@ describe('across tabs', () => {
     openOtherTab().tab.postMessage({ type: 'logout' })
 
     await vi.waitFor(() => expect(assign).toHaveBeenCalled())
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await settle(
+      0,
+      'a duplicate listener would deliver in this same macrotask; absence has no event'
+    )
     expect(assign).toHaveBeenCalledTimes(1)
   })
 

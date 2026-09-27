@@ -112,7 +112,8 @@ function TenantFilter({
         />
         <ComboboxContent>
           <ComboboxEmpty>
-            {search.isPending
+            {/* Placeholder data is the previous term's answer, not this one's. */}
+            {search.isPending || search.isPlaceholderData
               ? 'Searching…'
               : search.isError
                 ? 'Tenants could not be loaded'

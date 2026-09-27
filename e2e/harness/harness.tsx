@@ -25,9 +25,22 @@ import { createRoot } from 'react-dom/client'
 import '@/styles/globals.css'
 import { queryClient, router } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
+import {
+  AUDIT_ID_1,
+  AUDIT_ID_2,
+  INVITATION_ID,
+  MEMBERSHIP_ID,
+  MEMBERSHIP_ID_2,
+  NOTIFICATION_ID,
+  NOTIFICATION_ID_2,
+  STAFF_USER_ID,
+  TENANT_ID,
+  USER_ID,
+  USER_ID_2,
+} from '../../tests/fixtures/ids'
 
 const TENANT = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   description: 'Anvils',
@@ -40,7 +53,7 @@ const TENANT = {
 }
 
 const SETTINGS = {
-  tenantId: 't1',
+  tenantId: TENANT_ID,
   timezone: 'Europe/London',
   locale: 'en',
   metadata: { tier: 'pro' },
@@ -50,34 +63,34 @@ const SETTINGS = {
 const MEMBERS = [
   {
     membership: {
-      id: 'm-u1',
-      userId: 'u1',
+      id: MEMBERSHIP_ID,
+      userId: USER_ID,
       tenantId: TENANT.id,
       role: 'owner',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     },
-    user: { id: 'u1', email: 'a@b.com', firstName: 'A', lastName: 'B' },
+    user: { id: USER_ID, email: 'a@b.com', firstName: 'A', lastName: 'B' },
   },
   {
     membership: {
-      id: 'm-u2',
-      userId: 'u2',
+      id: MEMBERSHIP_ID_2,
+      userId: USER_ID_2,
       tenantId: TENANT.id,
       role: 'member',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     },
-    user: { id: 'u2', email: 'c@d.com', firstName: 'Cleo', lastName: 'D' },
+    user: { id: USER_ID_2, email: 'c@d.com', firstName: 'Cleo', lastName: 'D' },
   },
 ]
 
 const INVITATIONS = [
   {
-    id: 'inv-1',
+    id: INVITATION_ID,
     email: 'invitee@b.com',
     role: 'editor',
-    invitedBy: { id: 'u1', firstName: 'A', lastName: 'B' },
+    invitedBy: { id: USER_ID, firstName: 'A', lastName: 'B' },
     expiresAt: '2026-10-01T00:00:00.000Z',
     createdAt: '2026-09-24T00:00:00.000Z',
   },
@@ -85,8 +98,8 @@ const INVITATIONS = [
 
 const NOTIFICATIONS = [
   {
-    id: 'n1',
-    userId: 'u1',
+    id: NOTIFICATION_ID,
+    userId: USER_ID,
     type: 'verify_email',
     title: 'Confirm your email',
     body: 'We sent a link to a@b.com.',
@@ -95,8 +108,8 @@ const NOTIFICATIONS = [
     createdAt: '2026-01-02T09:00:00.000Z',
   },
   {
-    id: 'n2',
-    userId: 'u1',
+    id: NOTIFICATION_ID_2,
+    userId: USER_ID,
     type: 'password_changed',
     title: 'Your password changed',
     body: 'If this was not you, reset it now.',
@@ -115,7 +128,7 @@ const PREFERENCES = [
 const HARNESS_PASSWORD = 'current-password'
 
 const testUser = {
-  id: 'u1',
+  id: USER_ID,
   email: 'a@b.com',
   firstName: 'A',
   lastName: 'B',
@@ -150,10 +163,7 @@ const membersHandler =
               })
           )
         : state === 'loading'
-          ? http.get('/api/v1/tenants/acme/members', async () => {
-              await new Promise((r) => setTimeout(r, 1_000_000))
-              return ok(MEMBERS, 'Members retrieved.')
-            })
+          ? http.get('/api/v1/tenants/acme/members', () => new Promise<Response>(() => {}))
           : http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
 
 const worker = setupWorker(
@@ -178,21 +188,21 @@ const worker = setupWorker(
       {
         entries: [
           {
-            id: 'a2',
+            id: AUDIT_ID_2,
             occurredAt: '2026-09-25T10:00:00.000Z',
             action: 'tenant.settings_updated',
             access: 'platform',
-            actor: { id: 's1', name: 'Sam Staff', email: 'sam@platform.test' },
-            target: { type: 'settings', id: 't1' },
+            actor: { id: STAFF_USER_ID, name: 'Sam Staff', email: 'sam@platform.test' },
+            target: { type: 'settings', id: TENANT_ID },
             metadata: { changed: ['timezone'] },
           },
           {
-            id: 'a1',
+            id: AUDIT_ID_1,
             occurredAt: '2026-09-25T09:00:00.000Z',
             action: 'tenant.created',
             access: 'member',
-            actor: { id: 'u1', name: 'A B', email: 'a@b.com' },
-            target: { type: 'tenant', id: 't1' },
+            actor: { id: USER_ID, name: 'A B', email: 'a@b.com' },
+            target: { type: 'tenant', id: TENANT_ID },
             metadata: { name: 'Acme Corp', slug: 'acme' },
           },
         ],

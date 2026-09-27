@@ -12,7 +12,8 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { fail, testUser } from '@/tests/mocks/handlers'
+import { TENANT_ID } from '@/tests/fixtures/ids'
+import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 function buildRouter(path: string) {
@@ -38,6 +39,20 @@ function hasChildren(route: AnyRoute): boolean {
   const children = route.children as unknown
   if (Array.isArray(children)) return children.length > 0
   return typeof children === 'object' && children !== null && Object.keys(children).length > 0
+}
+
+/** One tenant row, as `GET /tenants/:slug` returns it before `tenantDetail` adds the role. */
+const ACME = {
+  id: TENANT_ID,
+  name: 'Acme Corp',
+  slug: 'acme',
+  description: null,
+  logo: null,
+  website: null,
+  lifecycleState: 'active',
+  deletedAt: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
 describe('page titles', () => {
@@ -100,10 +115,25 @@ describe('page titles', () => {
     })
   })
 
+  // The tab's title, not its tenant layout's `acme · React Boilerplate`: the
+  // deepest match's head() wins when the router merges them.
   it('puts the tenant slug in a tenant tab title', async () => {
-    const route = buildRouter('/').routesById['/_app/tenants/$slug/members']
-    const head = await route.options.head?.({ params: { slug: 'acme' } } as never)
-    expect(head?.meta).toEqual([{ title: 'Members · acme · React Boilerplate' }])
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+    server.use(
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+    )
+    renderAppAt('/tenants/acme/members')
+
+    await waitFor(() => {
+      expect(document.title).toBe('Members · acme · React Boilerplate')
+    })
+    expect(document.querySelectorAll('title')).toHaveLength(1)
   })
 
   it('gives every page a title: the root has a fallback and every leaf page its own', () => {

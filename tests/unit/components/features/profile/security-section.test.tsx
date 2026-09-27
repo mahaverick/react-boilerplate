@@ -249,7 +249,7 @@ describe('security section', () => {
     const user = userEvent.setup()
     renderProfile()
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('We could not load your sign-in methods.')
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
 

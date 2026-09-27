@@ -7,9 +7,10 @@ import {
   type AnyRouter,
 } from '@tanstack/react-router'
 import { act, StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { router as appRouter } from '@/router'
+import { settle } from '@/tests/fixtures/timing'
 
 /**
  * Mirrors main.tsx's boot sequence, StrictMode included: `router.load()`
@@ -21,8 +22,12 @@ import { router as appRouter } from '@/router'
  * same sequence against a tree of its own, the way
  * `tests/unit/router.test.tsx` already does for route state.
  */
+/** Every root `boot` created, unmounted after each test before the DOM is cleared. */
+const roots: Root[] = []
+
 function boot(container: HTMLElement, router: AnyRouter) {
   const root = createRoot(container)
+  roots.push(root)
   return router.load().finally(() => {
     root.render(
       <StrictMode>
@@ -69,6 +74,9 @@ function mountSplashContainer(): HTMLElement {
 }
 
 afterEach(() => {
+  act(() => {
+    for (const root of roots.splice(0)) root.unmount()
+  })
   document.body.innerHTML = ''
 })
 
@@ -99,10 +107,11 @@ describe('the boot sequence', () => {
 
     const loaded = boot(container, router)
 
-    // Well past defaultPendingMs (300), long enough to catch a boot sequence
-    // that renders before the load resolves.
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      await settle(
+        500,
+        'past defaultPendingMs (300): a boot that rendered before the root load resolved would have replaced the splash or shown the pending screen by now'
+      )
     })
     expect(container.querySelector('.boot-splash')).not.toBeNull()
 

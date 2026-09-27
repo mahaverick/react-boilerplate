@@ -233,6 +233,49 @@ pin in `Dockerfile` and `README.md` is tracked via a custom regex manager.
 - Tests are **`.test.ts(x)`**, never `.spec.`, and never in a `__tests__/`
   folder — also linted, under `tests/` as well as `src/`.
 
+## Test timing rules
+
+Across `tests/` and `e2e/`, eslint catches the common forms of a bare sleep and of
+`networkidle`: a `setTimeout` inside `new Promise`, `sleep()`, `waitForTimeout()`,
+`setTimeout` from `timers/promises`, and a literal `networkidle`. The only exempt
+files are `tests/fixtures/timing.ts` and `e2e/timing.ts`, which implement the
+deliberate waits.
+
+1. **Wait on a condition, never on a duration.** `findBy*`, `waitFor` and
+   `vi.waitFor` in `tests/`; web-first assertions and `expect.poll` in `e2e/`; fake
+   timers when the product's own timer is what the test is about.
+2. **A deliberate wait is `settle(ms, reason)`** from `@/tests/fixtures/timing`
+   (`e2e/timing.ts` re-exports it). The reason names what can't be observed:
+   "absence has no event", "poll interval", "injected latency". A blank reason
+   rejects, and an empty literal fails typecheck. Waits inside the page are the
+   named helpers in `e2e/timing.ts`.
+3. **A wall-clock upper bound is allowed only when the bound is the claim under
+   test.** It carries a comment naming what it proves, and either references a
+   product constant by name or has at least 10× headroom over the measured p99.
+4. **No exact counts of process-wide resources.** Count only what the test created.
+5. **A negative check waits on a barrier event where one exists**, and otherwise
+   on `settle` with a reason.
+6. **Never raise a timeout to fix a flake before its mechanism is known.**
+   `asyncUtilTimeout` in `tests/setup.ts` is every `findBy*`/`waitFor` budget; a
+   `{ timeout }` that only restates it is noise.
+
+Three fake-timer traps, each read out of the installed versions:
+
+- **Without `shouldAdvanceTime`, `findBy*` and `waitFor` hang.** Testing Library
+  ends each one with a `setTimeout(0)` drain and advances fake timers only when a
+  `jest` global exists, which Vitest does not define. Under a clock that moves only
+  when told, assert with `getBy*` after `await act(() => vi.advanceTimersByTimeAsync(ms))`,
+  and restore real timers before the next `findBy*`.
+- **React's async `act` flushes on Node's `timers.setImmediate`**, which Vitest's
+  default `toFake` fakes too, so `await act(async …)` can stall under a clock nothing
+  advances. Fake only what the code under test reads, as `router.test.tsx` does with
+  `{ toFake: ['setTimeout', 'clearTimeout', 'Date'] }`.
+- **A `userEvent` that types while fake timers are on needs the `advanceTimers`
+  option**, as in `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`.
+  user-event waits a `setTimeout(delay)` after every keystroke and calls
+  `advanceTimers(delay)` alongside it, so without the option typing waits on a clock
+  that never moves.
+
 ## End-to-end tests
 
 `pnpm test:e2e` (fixtures) and `pnpm test:e2e:live` (needs a backend). Playwright, two
@@ -257,11 +300,16 @@ header. `?state=loaded|empty|error|loading|soleowner` picks the members response
 Two harness traps, both of which made tests measure the wrong thing once already: answering
 the SSE stream with `204` looks to the hook exactly like a dropped connection and sends the
 page into a refresh-then-redirect that a test will race; and **any endpoint left unmocked
-falls through to the real backend** (`onUnhandledRequest: 'bypass'`) and 401s. An unmocked
-AUTHENTICATED endpoint now signs the harness user out too — any 401 on a token-bearing request
-is a verdict (interceptors.ts) — so every authed endpoint the page under test calls must be
-mocked, not only the one being asserted on. If a fixtures test starts landing on `/login`,
-that is why.
+falls through** (`onUnhandledRequest: 'bypass'`) and 401s. Under Playwright, the `fixtures` and
+`contrast` projects take `test` from `e2e/hermetic.ts`, which answers every `/api` request that
+would leave the browser with express's 401 envelope, and fails the test at teardown if any `/api`
+response came from the proxy instead, or if it answered anything other than a signed-out page's
+bootstrap refresh — naming each. A test that fulfills an `/api` route itself stamps its response with
+`FALLBACK_HEADER` from that file, or the teardown reports it as an escape. The 401 still
+signs the harness user out — any 401 on a token-bearing request is a verdict
+(interceptors.ts) — so every authed endpoint the page under test calls must be mocked, not
+only the one being asserted on. If a fixtures test starts landing on `/login`, that is why,
+and the teardown message names the endpoint.
 
 **`live`** needs a real express-boilerplate on `:4040` and its docker services, and is skipped
 unless `E2E_LIVE=1`. Accounts are registered and verified through mailpit — login stays 401
@@ -288,7 +336,9 @@ render their "link is incomplete" branch instead), and the authenticated pages t
 harness's `?path=`. Every surface asserts a heading it alone renders BEFORE axe runs — a route
 that redirects still paints a perfectly legible page, so without that assertion a surface
 could report green while measuring something else entirely. It
-injects the axe-core already in devDependencies rather than adding a package.
+injects the axe-core already in devDependencies rather than adding a package. It needs no
+backend at all: the public pages' session bootstrap is answered by `e2e/hermetic.ts`, so an
+express on `:4040` that is restarting or hung cannot stall a run.
 
 **Opt-in and not in CI** — a deliberate cost decision, but do not read the usual justification
 for it ("contrast is a property of the palette, which moves rarely") as the whole risk model.

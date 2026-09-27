@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { afterPageTask } from '../timing'
 
 /** The policy nginx.conf sends, character for character. */
 export const CONTENT_SECURITY_POLICY =
@@ -61,5 +62,5 @@ export async function requireServedApp(): Promise<void> {
  * has reached the test. Call it before asserting on the collected list.
  */
 export async function flushCspReports(page: Page): Promise<void> {
-  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)))
+  await afterPageTask(page)
 }

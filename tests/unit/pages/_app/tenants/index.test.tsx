@@ -15,6 +15,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { TENANT_ID } from '@/tests/fixtures/ids'
 import { latestFetchStream, MockFetchStream, stubStreamFetch } from '@/tests/mocks/fetch-stream'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -26,7 +27,7 @@ afterEach(() => {
 const STREAM_URL = `${API_PREFIX}/notifications/stream`
 
 const TENANT = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   description: null,

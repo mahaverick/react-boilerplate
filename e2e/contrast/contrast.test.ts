@@ -1,5 +1,7 @@
 import { createRequire } from 'node:module'
-import { expect, test, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expect, test } from '../hermetic'
+import { afterAnimations, afterFontsAndFrames } from '../timing'
 
 /**
  * COLOUR CONTRAST, measured.
@@ -17,10 +19,20 @@ import { expect, test, type Page } from '@playwright/test'
  * Deliberately NOT in CI and not part of `pnpm test`: run it with
  * `pnpm test:contrast` when tokens or surfaces change. Contrast is a property
  * of the palette, which moves rarely and deliberately.
+ *
+ * No surface depends on a backend. `test` comes from `../hermetic`, which
+ * answers every `/api` request that would leave the browser with a 401, so the
+ * public pages' session bootstrap cannot reach whatever runs on :4040, nor hang
+ * on it while it restarts.
  */
 
 const require = createRequire(import.meta.url)
 const AXE_PATH = require.resolve('axe-core/axe.min.js')
+
+// The dev server transforms a lazily loaded route's modules on first request,
+// which took past 7s under load, and `goto` resolves on `load` before that.
+// Below the 30s test timeout, so a hang is reported by the heading assertion.
+const COLD_TRANSFORM_BUDGET_MS = 20_000
 
 /**
  * Every surface reachable without a backend, with a selector proving the page
@@ -94,18 +106,22 @@ async function contrastOf(
   // reads localStorage and toggles `.dark` before the bundle loads, so setting
   // the theme afterwards would measure a repaint rather than the real render.
   await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
-  await page.goto(url, { waitUntil: 'networkidle' })
+  await page.goto(url)
   // Prove the surface we asked for is the surface we got, BEFORE measuring it.
   // A route that redirected — an authenticated page without a session, a
   // `validateSearch` rejecting the probe token — still paints a perfectly
   // legible page, so contrast over it would come back green while saying
   // nothing about the surface this entry names.
-  await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+  await expect(page.getByRole('heading', { name: heading })).toBeVisible({
+    timeout: COLD_TRANSFORM_BUDGET_MS,
+  })
+  // The heading can render outside each page's data conditional, so it can show
+  // while the data behind it is still a skeleton. Grade the loaded page.
+  await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
 
-  await page.evaluate(() => document.fonts.ready)
   // Fonts change glyph coverage, not colour, but a late swap can move text over
-  // a different background. Settle before sampling.
-  await page.waitForTimeout(400)
+  // a different background. Sample only once it has reflowed.
+  await afterFontsAndFrames(page)
 
   await page.addScriptTag({ path: AXE_PATH })
 
@@ -229,8 +245,10 @@ for (const theme of THEMES) {
   for (const popup of POPUPS) {
     test(`${popup.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
-      await page.goto(`/e2e/harness/?path=${popup.path}`, { waitUntil: 'networkidle' })
-      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible()
+      await page.goto(`/e2e/harness/?path=${popup.path}`)
+      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
+        timeout: COLD_TRANSFORM_BUDGET_MS,
+      })
 
       await page.getByRole(popup.triggerRole, { name: popup.trigger }).click()
       const menu = page.getByRole(popup.role)
@@ -240,8 +258,8 @@ for (const theme of THEMES) {
       // for its own menu block.
       await expect(menu.getByRole(popup.itemRole).first()).toBeVisible()
 
-      await page.evaluate(() => document.fonts.ready)
-      await page.waitForTimeout(300)
+      await afterAnimations(menu)
+      await afterFontsAndFrames(page)
       await page.addScriptTag({ path: AXE_PATH })
 
       const result = await runAxe(page, `[role="${popup.role}"]`)
@@ -258,8 +276,10 @@ test.describe('popups that are not menus', () => {
       // reach it however many pages they visit.
       await page.setViewportSize({ width: 390, height: 844 })
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
-      await page.goto('/e2e/harness/?path=/dashboard', { waitUntil: 'networkidle' })
-      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible()
+      await page.goto('/e2e/harness/?path=/dashboard')
+      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
+        timeout: COLD_TRANSFORM_BUDGET_MS,
+      })
 
       await page.getByRole('button', { name: 'Toggle sidebar' }).click()
       const sheet = page.getByRole('dialog')
@@ -267,8 +287,8 @@ test.describe('popups that are not menus', () => {
       // Opened AND populated: an empty sheet grades clean and proves nothing.
       await expect(sheet.getByRole('link').first()).toBeVisible()
 
-      await page.evaluate(() => document.fonts.ready)
-      await page.waitForTimeout(300)
+      await afterAnimations(sheet)
+      await afterFontsAndFrames(page)
       await page.addScriptTag({ path: AXE_PATH })
 
       const result = await runAxe(page, '[role="dialog"]')
@@ -280,8 +300,10 @@ test.describe('popups that are not menus', () => {
       // Every other destructive control in the app sits on the page
       // background, which the page entries above already cover.
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
-      await page.goto('/e2e/harness/', { waitUntil: 'networkidle' })
-      await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible()
+      await page.goto('/e2e/harness/')
+      await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible({
+        timeout: COLD_TRANSFORM_BUDGET_MS,
+      })
 
       // Cleo is a plain member and not the last owner, so her row's control is
       // the enabled one — the same row tests/unit/a11y.test.tsx drives for the
@@ -292,8 +314,8 @@ test.describe('popups that are not menus', () => {
       await expect(confirm).toBeVisible()
       await expect(confirm.getByRole('button', { name: /Remove/ })).toBeVisible()
 
-      await page.evaluate(() => document.fonts.ready)
-      await page.waitForTimeout(300)
+      await afterAnimations(confirm)
+      await afterFontsAndFrames(page)
       await page.addScriptTag({ path: AXE_PATH })
 
       const result = await runAxe(page, '[role="alertdialog"]')
@@ -338,4 +360,21 @@ test.describe('staff surfaces', () => {
       expect(report('staff badge', theme, result), report('staff badge', theme, result)).toBe('')
     })
   }
+})
+
+/**
+ * The suite's own isolation. Without the fallback in `../hermetic` this
+ * refresh goes through the Vite proxy: `answered` stays empty, and the
+ * fixture's teardown reports the unstamped response.
+ */
+test('a public page gets its bootstrap refresh from the fallback, not the dev server proxy', async ({
+  page,
+  apiFallback,
+}) => {
+  await page.goto('/login')
+  // The root beforeLoad awaits the refresh, so the heading means it has settled.
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({
+    timeout: COLD_TRANSFORM_BUDGET_MS,
+  })
+  expect(apiFallback.answered).toContain('POST /api/v1/auth/refresh')
 })

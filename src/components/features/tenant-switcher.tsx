@@ -148,11 +148,12 @@ export function TenantSwitcher() {
     isEmpty: own.length === 0,
     staff,
   })
+  // While a new term loads, `all.data` is the previous term's results.
   const allMessage = !staff
     ? null
     : all.data === undefined && all.isError
       ? 'All tenants could not be loaded'
-      : all.data === undefined
+      : all.data === undefined || all.isPlaceholderData
         ? 'Searching all tenants…'
         : null
   const searching = tenants.isPending || (staff && all.isFetching)

@@ -123,4 +123,15 @@ describe('verify-email page', () => {
       expect(resendBody).toEqual({ email: 'ada@b.com' })
     })
   })
+
+  // The router JSON-parses search values, so this token arrives as a number.
+  it('treats a numeric ?token= as no token, leaving the token field to fill in', async () => {
+    renderAt('/verify-email?token=123')
+
+    expect(
+      await screen.findByRole('heading', { name: 'Verify your email', level: 1 })
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Verification token')).toHaveValue('')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })

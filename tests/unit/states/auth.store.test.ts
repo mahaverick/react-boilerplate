@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useAuthStore } from '@/states/auth.store'
+import { USER_ID } from '@/tests/fixtures/ids'
 import type { User } from '@/types/api.types'
 
 const user: User = {
-  id: 'u1',
+  id: USER_ID,
   email: 'a@b.com',
   firstName: 'A',
   lastName: 'B',

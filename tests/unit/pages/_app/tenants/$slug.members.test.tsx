@@ -16,7 +16,31 @@ import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { fail, ok, tenantDetail, testInvitation, testUser } from '@/tests/mocks/handlers'
+import {
+  INVITATION_ID,
+  INVITATION_ID_2,
+  INVITATION_ID_3,
+  INVITATION_ID_9,
+  MEMBERSHIP_ID,
+  MEMBERSHIP_ID_2,
+  MEMBERSHIP_ID_3,
+  MEMBERSHIP_ID_4,
+  MEMBERSHIP_ID_5,
+  TENANT_ID,
+  USER_ID,
+  USER_ID_2,
+  USER_ID_3,
+  USER_ID_4,
+  USER_ID_5,
+} from '@/tests/fixtures/ids'
+import {
+  fail,
+  INVITATION_SENT_MESSAGE,
+  ok,
+  tenantDetail,
+  testInvitation,
+  testUser,
+} from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantInvitation } from '@/types/api.types'
 
@@ -25,7 +49,7 @@ afterEach(() => {
 })
 
 const TENANT = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   description: 'Anvils',
@@ -37,11 +61,22 @@ const TENANT = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
+/** Each fixture user's membership row. */
+const MEMBERSHIP_OF: Readonly<Record<string, string>> = {
+  [USER_ID]: MEMBERSHIP_ID,
+  [USER_ID_2]: MEMBERSHIP_ID_2,
+  [USER_ID_3]: MEMBERSHIP_ID_3,
+  [USER_ID_4]: MEMBERSHIP_ID_4,
+  [USER_ID_5]: MEMBERSHIP_ID_5,
+}
+
 /** One `{ membership, user }` row, as `listByTenant` returns it. */
 function member(id: string, role: MembershipRole, firstName: string) {
+  const membershipId = MEMBERSHIP_OF[id]
+  if (membershipId === undefined) throw new Error(`no fixture membership for user ${id}`)
   return {
     membership: {
-      id: `m-${id}`,
+      id: membershipId,
       userId: id,
       tenantId: TENANT.id,
       role,
@@ -52,8 +87,8 @@ function member(id: string, role: MembershipRole, firstName: string) {
   }
 }
 
-/** `testUser` is `u1`, so this is always "me". */
-const ME = 'u1'
+/** `testUser.id` is `USER_ID`, so this is always "me". */
+const ME = USER_ID
 
 function mockTenant(myRole: MembershipRole, members: ReturnType<typeof member>[]) {
   server.use(
@@ -113,8 +148,8 @@ describe('members tab permissions', () => {
   it('lets an owner change and remove a non-owner', async () => {
     mockTenant('owner', [
       member(ME, 'owner', 'Me'),
-      member('u2', 'admin', 'Ada'),
-      member('u3', 'viewer', 'Vic'),
+      member(USER_ID_2, 'admin', 'Ada'),
+      member(USER_ID_3, 'viewer', 'Vic'),
     ])
     renderAppAt('/tenants/acme/members')
 
@@ -127,7 +162,7 @@ describe('members tab permissions', () => {
   })
 
   it('does not let an owner touch ANOTHER owner', async () => {
-    mockTenant('owner', [member(ME, 'owner', 'Me'), member('u4', 'owner', 'Otto')])
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
     renderAppAt('/tenants/acme/members')
 
     const otto = await rowFor('Otto')
@@ -141,9 +176,9 @@ describe('members tab permissions', () => {
   it('stops an ADMIN changing any role at all, a viewer’s included', async () => {
     mockTenant('admin', [
       member(ME, 'admin', 'Me'),
-      member('u3', 'viewer', 'Vic'),
-      member('u4', 'owner', 'Otto'),
-      member('u5', 'admin', 'Amy'),
+      member(USER_ID_3, 'viewer', 'Vic'),
+      member(USER_ID_4, 'owner', 'Otto'),
+      member(USER_ID_5, 'admin', 'Amy'),
     ])
     renderAppAt('/tenants/acme/members')
 
@@ -177,7 +212,7 @@ describe('members tab permissions', () => {
   })
 
   it('offers an owner every role when inviting someone', async () => {
-    mockTenant('owner', [member(ME, 'owner', 'Me'), member('u4', 'owner', 'Otto')])
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/members')
 
@@ -188,7 +223,7 @@ describe('members tab permissions', () => {
 
   it('gives a viewer no controls, no invite form and no invitations request', async () => {
     let invitationCalls = 0
-    mockTenant('viewer', [member(ME, 'viewer', 'Me'), member('u3', 'viewer', 'Vic')])
+    mockTenant('viewer', [member(ME, 'viewer', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () => {
         invitationCalls += 1
@@ -210,7 +245,7 @@ describe('members tab permissions', () => {
   })
 
   it('disables the last owner’s own controls and says why', async () => {
-    mockTenant('owner', [member(ME, 'owner', 'Me'), member('u3', 'viewer', 'Vic')])
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
     renderAppAt('/tenants/acme/members')
 
     const me = await rowFor('Me')
@@ -232,7 +267,7 @@ describe('members tab permissions', () => {
   })
 
   it('re-enables them once a second owner exists', async () => {
-    mockTenant('owner', [member(ME, 'owner', 'Me'), member('u4', 'owner', 'Otto')])
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
     renderAppAt('/tenants/acme/members')
 
     const me = await rowFor('Me')
@@ -246,7 +281,7 @@ describe('members tab permissions', () => {
     // card path is ONE render path chosen in JS, not a CSS `sm:hidden` pair:
     // two paths in the DOM would mean two role selects sharing one id.
     setViewportWidth(390)
-    mockTenant('owner', [member(ME, 'owner', 'A'), member('u2', 'viewer', 'Cleo')])
+    mockTenant('owner', [member(ME, 'owner', 'A'), member(USER_ID_2, 'viewer', 'Cleo')])
     renderAppAt('/tenants/acme/members')
 
     expect(await screen.findByText('Cleo X')).toBeInTheDocument()
@@ -277,7 +312,7 @@ describe('members tab permissions', () => {
         ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
       ),
       http.get('/api/v1/tenants/acme/members', () =>
-        ok([member(ME, 'owner', 'Me'), member('u3', 'viewer', 'Vic')], 'Members retrieved.')
+        ok([member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')], 'Members retrieved.')
       )
     )
     renderAppAt('/tenants/acme/members')
@@ -304,7 +339,7 @@ describe('members tab permissions', () => {
           : ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
       }),
       http.get('/api/v1/tenants/acme/members', () =>
-        ok([member(ME, 'owner', 'Me'), member('u4', 'owner', 'Otto')], 'Members retrieved.')
+        ok([member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')], 'Members retrieved.')
       )
     )
     const user = userEvent.setup()
@@ -316,7 +351,7 @@ describe('members tab permissions', () => {
       await queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme'), exact: true })
     })
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load your role/i)
     expect(document.querySelector('[data-slot="skeleton"]')).toBeNull()
 
@@ -328,9 +363,7 @@ describe('members tab permissions', () => {
     await waitFor(() => {
       expect(detailCalls).toBeGreaterThan(before)
     })
-    expect(
-      await screen.findByRole('combobox', { name: 'Role for Me X' }, { timeout: 5000 })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('combobox', { name: 'Role for Me X' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -356,7 +389,7 @@ describe('members tab permissions', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/members')
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load this tenant’s members/i)
     expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
 
@@ -385,7 +418,7 @@ describe('members tab permissions', () => {
       http.get('/api/v1/tenants/acme/members', () => fail('Something went wrong.', 500))
     )
     renderAppAt('/tenants/acme/members')
-    await screen.findByRole('alert', {}, { timeout: 5000 })
+    await screen.findByRole('alert')
 
     detailFails = true
     await act(async () => {
@@ -409,12 +442,12 @@ describe('members tab permissions', () => {
   })
 
   it('changes a role through the API and reports it', async () => {
-    mockTenant('owner', [member(ME, 'owner', 'Me'), member('u3', 'viewer', 'Vic')])
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
     let patched: unknown = null
     server.use(
-      http.patch('/api/v1/tenants/acme/members/u3', async ({ request }) => {
+      http.patch(`/api/v1/tenants/acme/members/${USER_ID_3}`, async ({ request }) => {
         patched = await request.json()
-        return ok(member('u3', 'editor', 'Vic').membership, 'Member role updated.')
+        return ok(member(USER_ID_3, 'editor', 'Vic').membership, 'Member role updated.')
       })
     )
     const user = userEvent.setup()
@@ -440,7 +473,7 @@ describe('the invite form role select', () => {
       isAuthenticated: true,
       isBootstrapped: true,
     })
-    mockTenant('owner', [member(ME, 'owner', 'Me'), member('u4', 'owner', 'Otto')])
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
   })
 
   it('points its label at the VISIBLE control, not at a hidden input', async () => {
@@ -464,11 +497,11 @@ describe('the invite form role select', () => {
           {
             success: false,
             message: 'Validation failed.',
-            statusCode: 422,
+            statusCode: 400,
             errors: { role: ['That role is not yours to grant.'] },
             requestId: 'test-request-id',
           },
-          { status: 422 }
+          { status: 400 }
         )
       )
     )
@@ -511,7 +544,7 @@ describe('inviting, and the pending invitations', () => {
       isAuthenticated: true,
       isBootstrapped: true,
     })
-    mockTenant('owner', [member(ME, 'owner', 'Me'), member('u3', 'viewer', 'Vic')])
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
   })
 
   it('sends an invitation, says so, and refreshes the pending list', async () => {
@@ -521,13 +554,13 @@ describe('inviting, and the pending invitations', () => {
       http.get('/api/v1/tenants/acme/invitations', () => {
         listCalls += 1
         return ok(
-          listCalls === 1 ? [] : [invitation('inv-2', 'new@b.com', { role: 'viewer' })],
+          listCalls === 1 ? [] : [invitation(INVITATION_ID_2, 'new@b.com', { role: 'viewer' })],
           'Invitations retrieved.'
         )
       }),
       http.post('/api/v1/tenants/acme/invitations', async ({ request }) => {
         body = await request.json()
-        return ok(null, 'If that address can be invited, an invitation has been sent.', 202)
+        return ok(null, INVITATION_SENT_MESSAGE, 202)
       })
     )
     const user = userEvent.setup()
@@ -577,7 +610,7 @@ describe('inviting, and the pending invitations', () => {
       http.get('/api/v1/tenants/acme/invitations', () => {
         listCalls += 1
         return ok(
-          listCalls === 1 ? [] : [invitation('inv-9', 'new@b.com')],
+          listCalls === 1 ? [] : [invitation(INVITATION_ID_9, 'new@b.com')],
           'Invitations retrieved.'
         )
       }),
@@ -625,7 +658,10 @@ describe('inviting, and the pending invitations', () => {
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () =>
         ok(
-          [testInvitation, invitation('inv-2', 'old@b.com', { role: 'viewer', invitedBy: null })],
+          [
+            testInvitation,
+            invitation(INVITATION_ID_2, 'old@b.com', { role: 'viewer', invitedBy: null }),
+          ],
           'Invitations retrieved.'
         )
       )
@@ -663,7 +699,7 @@ describe('inviting, and the pending invitations', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/members')
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load the pending invitations/i)
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
 
@@ -687,7 +723,7 @@ describe('inviting, and the pending invitations', () => {
       }),
       http.post('/api/v1/tenants/acme/invitations/:id/resend', ({ params }) => {
         resent = params.id
-        return ok(null, 'Invitation resent.', 202)
+        return ok(null, INVITATION_SENT_MESSAGE, 202)
       })
     )
     const user = userEvent.setup()
@@ -698,7 +734,7 @@ describe('inviting, and the pending invitations', () => {
     )
 
     expect(await screen.findByText('Invitation resent to invitee@b.com.')).toBeInTheDocument()
-    expect(resent).toBe('inv-1')
+    expect(resent).toBe(INVITATION_ID)
     // The expiry moved, so the list is fetched again.
     await waitFor(() => {
       expect(listCalls).toBeGreaterThan(1)
@@ -709,7 +745,10 @@ describe('inviting, and the pending invitations', () => {
     // Offered to an owner, and refused anyway: the server has the last word.
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () =>
-        ok([invitation('inv-1', 'invitee@b.com', { role: 'owner' })], 'Invitations retrieved.')
+        ok(
+          [invitation(INVITATION_ID, 'invitee@b.com', { role: 'owner' })],
+          'Invitations retrieved.'
+        )
       ),
       http.post('/api/v1/tenants/acme/invitations/:id/resend', () =>
         fail('You cannot manage an invitation for that role.', 403)
@@ -728,14 +767,14 @@ describe('inviting, and the pending invitations', () => {
   })
 
   it('switches off Resend, with the reason, for a role an admin cannot grant', async () => {
-    mockTenant('admin', [member(ME, 'admin', 'Me'), member('u3', 'viewer', 'Vic')])
+    mockTenant('admin', [member(ME, 'admin', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () =>
         ok(
           [
-            invitation('inv-1', 'owner@b.com', { role: 'owner' }),
-            invitation('inv-2', 'admin@b.com', { role: 'admin' }),
-            invitation('inv-3', 'editor@b.com', { role: 'editor' }),
+            invitation(INVITATION_ID, 'owner@b.com', { role: 'owner' }),
+            invitation(INVITATION_ID_2, 'admin@b.com', { role: 'admin' }),
+            invitation(INVITATION_ID_3, 'editor@b.com', { role: 'editor' }),
           ],
           'Invitations retrieved.'
         )
@@ -760,9 +799,9 @@ describe('inviting, and the pending invitations', () => {
       http.get('/api/v1/tenants/acme/invitations', () =>
         ok(
           [
-            invitation('inv-1', 'owner@b.com', { role: 'owner' }),
-            invitation('inv-2', 'admin@b.com', { role: 'admin' }),
-            invitation('inv-3', 'editor@b.com', { role: 'editor' }),
+            invitation(INVITATION_ID, 'owner@b.com', { role: 'owner' }),
+            invitation(INVITATION_ID_2, 'admin@b.com', { role: 'admin' }),
+            invitation(INVITATION_ID_3, 'editor@b.com', { role: 'editor' }),
           ],
           'Invitations retrieved.'
         )
@@ -855,7 +894,7 @@ describe('inviting, and the pending invitations', () => {
 
     // The toast still arrives although the refetch unmounts the row first.
     expect(await screen.findByText('Invitation to invitee@b.com revoked.')).toBeInTheDocument()
-    expect(revoked).toBe('inv-1')
+    expect(revoked).toBe(INVITATION_ID)
     expect(
       await screen.findByText('No invitations are waiting to be accepted.')
     ).toBeInTheDocument()

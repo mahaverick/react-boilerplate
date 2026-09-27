@@ -2,6 +2,7 @@ import { execFile as execFileCallback, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { expect, type Page } from '@playwright/test'
 import type { MembershipRole } from '@/constants/roles'
+import { settle } from '../timing'
 
 const execFile = promisify(execFileCallback)
 
@@ -62,25 +63,40 @@ export async function createVerifiedUser(email: string): Promise<void> {
   }
 }
 
-/** Polls mailpit for the verification link and returns its token. */
-async function verificationTokenFor(email: string): Promise<string> {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const search = await fetch(
-      `${MAILPIT_ORIGIN}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`
-    )
-    const found = (await search.json()) as { messages?: { ID: string }[] }
-    const id = found.messages?.[0]?.ID
-    if (id) {
-      const message = await fetch(`${MAILPIT_ORIGIN}/api/v1/message/${id}`)
-      const body = (await message.json()) as { Text?: string; HTML?: string }
-      const link = /[?&]token=([a-f0-9]+)/i.exec(`${body.Text ?? ''}${body.HTML ?? ''}`)
-      if (link?.[1]) return link[1]
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500))
-  }
-  throw new Error(
-    `no verification email arrived for ${email} — is mailpit up on ${MAILPIT_ORIGIN}?`
+/** The token in the newest verification email to `email`, or '' while none has arrived. */
+async function verificationTokenInMailpit(email: string): Promise<string> {
+  const search = await fetch(
+    `${MAILPIT_ORIGIN}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`
   )
+  const found = (await search.json()) as { messages?: { ID: string }[] }
+  const id = found.messages?.[0]?.ID
+  if (!id) return ''
+  const message = await fetch(`${MAILPIT_ORIGIN}/api/v1/message/${id}`)
+  const body = (await message.json()) as { Text?: string; HTML?: string }
+  return /[?&]token=([a-f0-9]+)/i.exec(`${body.Text ?? ''}${body.HTML ?? ''}`)?.[1] ?? ''
+}
+
+/**
+ * Polls mailpit for the verification link and returns its token. A mailpit
+ * that is down fails at once: `expect.poll` does not retry a callback that
+ * throws.
+ */
+async function verificationTokenFor(email: string): Promise<string> {
+  let token = ''
+  await expect
+    .poll(
+      async () => {
+        token = await verificationTokenInMailpit(email)
+        return token
+      },
+      {
+        message: `no verification email arrived for ${email} — is mailpit up on ${MAILPIT_ORIGIN}?`,
+        intervals: [500],
+        timeout: 15_000,
+      }
+    )
+    .not.toBe('')
+  return token
 }
 
 /** Whether the API answers its readiness probe. */
@@ -96,12 +112,45 @@ export async function apiIsReady(): Promise<boolean> {
 }
 
 export async function waitForApi(timeoutMs = 60_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (await apiIsReady()) return
-    await new Promise((resolve) => setTimeout(resolve, 500))
+  await expect
+    .poll(apiIsReady, {
+      message: `API at ${API_ORIGIN} did not become ready within ${timeoutMs}ms`,
+      intervals: [500],
+      timeout: timeoutMs,
+    })
+    .toBe(true)
+}
+
+/**
+ * Every pid LISTENING on `port`. `-sTCP:LISTEN` is load-bearing: without it
+ * lsof also lists CLIENTS with an open socket to this port, and the Vite dev
+ * server proxying /api is one of them. Killing that takes the whole run down.
+ */
+async function listeningPids(port: string): Promise<number[]> {
+  const { stdout } = await execFile('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN']).catch(() => ({
+    stdout: '',
+  }))
+  return stdout.split('\n').filter(Boolean).map(Number)
+}
+
+function signalAll(pids: number[], signal: NodeJS.Signals): void {
+  for (const pid of pids) {
+    try {
+      process.kill(pid, signal)
+    } catch {
+      /* already gone */
+    }
   }
-  throw new Error(`API at ${API_ORIGIN} did not become ready within ${timeoutMs}ms`)
+}
+
+/** Whether `port` has no listener within `timeoutMs`. */
+async function portFreedWithin(port: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while ((await listeningPids(port)).length > 0) {
+    if (Date.now() >= deadline) return false
+    await settle(100, 'poll interval')
+  }
+  return true
 }
 
 /**
@@ -120,35 +169,29 @@ export async function restartApi(): Promise<void> {
   // CHILD: SIGTERM to the parent's group left that child listening, the server
   // never went down, and "reconnects after a restart" was measuring a stream
   // that was never interrupted. SIGTERM first so it can close cleanly, then
-  // SIGKILL whatever is still there.
-  for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
-    // `-sTCP:LISTEN` is load-bearing: without it lsof also lists CLIENTS with
-    // an open socket to this port, and the Vite dev server proxying /api is
-    // one of them. Killing that takes the whole run down with it.
-    const { stdout } = await execFile('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN']).catch(() => ({
-      stdout: '',
-    }))
-    const pids = stdout.split('\n').filter(Boolean).map(Number)
-    if (pids.length === 0) break
-    for (const pid of pids) {
-      try {
-        process.kill(pid, signal)
-      } catch {
-        /* already gone */
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, signal === 'SIGTERM' ? 3000 : 1000))
+  // SIGKILL whatever is still there after 3s.
+  signalAll(await listeningPids(port), 'SIGTERM')
+  if (!(await portFreedWithin(port, 3000))) {
+    signalAll(await listeningPids(port), 'SIGKILL')
+    await expect
+      .poll(() => listeningPids(port), {
+        message: `something still listens on :${port} after SIGKILL`,
+        intervals: [100],
+        timeout: 5000,
+      })
+      .toEqual([])
   }
 
   // Confirm it actually went down, or "reconnects after a restart" passes
   // against a server that never stopped — which is exactly what happened the
   // first time this was written.
-  const downBy = Date.now() + 15_000
-  while (Date.now() < downBy) {
-    if (!(await apiIsReady())) break
-    await new Promise((resolve) => setTimeout(resolve, 250))
-  }
-  if (await apiIsReady()) throw new Error('API did not stop; the restart test would be vacuous')
+  await expect
+    .poll(apiIsReady, {
+      message: 'API did not stop; the restart test would be vacuous',
+      intervals: [250],
+      timeout: 15_000,
+    })
+    .toBe(false)
 
   spawn('pnpm', ['dev'], { cwd: API_DIR, detached: true, stdio: 'ignore' }).unref()
   await waitForApi()

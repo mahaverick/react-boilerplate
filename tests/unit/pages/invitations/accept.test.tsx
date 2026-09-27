@@ -13,6 +13,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { TENANT_ID } from '@/tests/fixtures/ids'
 import {
   fail,
   ok,
@@ -24,7 +25,7 @@ import {
 import { server } from '@/tests/mocks/server'
 
 const TENANT = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   description: 'Anvils',
@@ -160,7 +161,7 @@ describe('accept page: the link itself', () => {
     const user = userEvent.setup()
     renderAt(ACCEPT_PATH)
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load this invitation/i)
     expect(screen.queryByText(INVALID)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Go to the home page' })).toHaveAttribute('href', '/')

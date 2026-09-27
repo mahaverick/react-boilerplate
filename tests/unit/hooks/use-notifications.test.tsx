@@ -12,6 +12,7 @@ import {
   type Notification,
 } from '@/queries/notification.queries'
 import { useAuthStore } from '@/states/auth.store'
+import { NOTIFICATION_ID, NOTIFICATION_ID_7 } from '@/tests/fixtures/ids'
 import {
   latestFetchStream as latest,
   MockFetchStream,
@@ -38,7 +39,7 @@ const STREAM_URL = `${API_PREFIX}/notifications/stream`
  * so here keeps the fixture honest without shipping a type for it.
  */
 const streamPayload: Omit<Notification, 'userId' | 'metadata'> = {
-  id: 'n1',
+  id: NOTIFICATION_ID,
   type: 'verify_email',
   title: 'Verify your email',
   body: 'Follow the link we sent you.',
@@ -48,7 +49,7 @@ const streamPayload: Omit<Notification, 'userId' | 'metadata'> = {
 
 /** The same notification as a LIST row: it carries userId and metadata too. */
 const listRow: Notification = {
-  id: 'n1',
+  id: NOTIFICATION_ID,
   userId: testUser.id,
   type: 'verify_email',
   title: 'Verify your email',
@@ -132,7 +133,11 @@ describe('useNotificationStream', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
 
     act(() =>
-      latest().dispatch({ id: 'n7', event: 'notification', data: JSON.stringify(streamPayload) })
+      latest().dispatch({
+        id: NOTIFICATION_ID_7,
+        event: 'notification',
+        data: JSON.stringify(streamPayload),
+      })
     )
     await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1))
 
@@ -142,7 +147,7 @@ describe('useNotificationStream', () => {
     })
 
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
-    expect(latest().headers['Last-Event-ID']).toBe('n7')
+    expect(latest().headers['Last-Event-ID']).toBe(NOTIFICATION_ID_7)
   })
 
   it('tears down and rebuilds when the token changes', async () => {
@@ -180,7 +185,11 @@ describe('useNotificationStream', () => {
 
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
     act(() =>
-      latest().dispatch({ id: 'n1', event: 'notification', data: JSON.stringify(streamPayload) })
+      latest().dispatch({
+        id: NOTIFICATION_ID,
+        event: 'notification',
+        data: JSON.stringify(streamPayload),
+      })
     )
 
     await waitFor(() => expect(result.current.data?.pages[0]?.notifications).toEqual([listRow]))

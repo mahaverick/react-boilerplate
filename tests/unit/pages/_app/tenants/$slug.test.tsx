@@ -15,6 +15,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { TENANT_ID } from '@/tests/fixtures/ids'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantAccess } from '@/types/api.types'
@@ -24,7 +25,7 @@ afterEach(() => {
 })
 
 const TENANT = {
-  id: 't1',
+  id: TENANT_ID,
   name: 'Acme Corp',
   slug: 'acme',
   description: 'Anvils',
@@ -37,7 +38,7 @@ const TENANT = {
 }
 
 const SETTINGS = {
-  tenantId: 't1',
+  tenantId: TENANT_ID,
   timezone: 'Europe/London',
   locale: 'en',
   metadata: { tier: 'pro' },
@@ -296,7 +297,7 @@ describe('tenant detail', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/settings')
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load this tenant’s settings/i)
     expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
 

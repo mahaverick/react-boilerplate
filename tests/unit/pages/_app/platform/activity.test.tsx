@@ -9,19 +9,20 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { PLATFORM_AUDIT_ID, STAFF_USER_ID, TENANT_ID, TENANT_ID_2 } from '@/tests/fixtures/ids'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
-import type { PlatformAuditEntry } from '@/types/api.types'
+import type { PlatformAuditEntry, PlatformTenantRow } from '@/types/api.types'
 
 const STAFF_VISIT: PlatformAuditEntry = {
-  id: 'p1',
+  id: PLATFORM_AUDIT_ID,
   occurredAt: '2026-09-25T10:00:00.000Z',
   action: 'tenant.accessed_by_platform',
   access: 'platform',
-  actor: { id: 's1', name: 'Sam Staff', email: 'sam@platform.test' },
-  target: { type: 'tenant', id: 't1' },
+  actor: { id: STAFF_USER_ID, name: 'Sam Staff', email: 'sam@platform.test' },
+  target: { type: 'tenant', id: TENANT_ID },
   metadata: { platformRole: 'viewer' },
-  tenant: { id: 't1', name: 'Acme Corp', slug: 'acme' },
+  tenant: { id: TENANT_ID, name: 'Acme Corp', slug: 'acme' },
 }
 
 function signInAs(platformRole: MembershipRole | null) {
@@ -44,6 +45,38 @@ function mockLog(respond: (url: URL) => Response) {
     http.get('/api/v1/tenants/platform/members', () => ok([], 'Members retrieved.'))
   )
   return seen
+}
+
+const ACME_ROW: PlatformTenantRow = {
+  id: TENANT_ID,
+  name: 'Acme Corp',
+  slug: 'acme',
+  lifecycleState: 'active',
+  memberCount: 2,
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
+const GLOBEX_ROW: PlatformTenantRow = {
+  ...ACME_ROW,
+  id: TENANT_ID_2,
+  name: 'Globex',
+  slug: 'globex',
+}
+
+/** Answers the platform tenant search, recording each request's `q` in order (null when absent). */
+function mockTenantSearch(respond: (q: string | null) => Response | Promise<Response>) {
+  const terms: (string | null)[] = []
+  server.use(
+    http.get('/api/v1/platform/tenants', ({ request }) => {
+      const q = new URL(request.url).searchParams.get('q')
+      terms.push(q)
+      return respond(q)
+    })
+  )
+  return terms
+}
+
+function tenantPage(tenants: PlatformTenantRow[]) {
+  return ok({ tenants, nextCursor: null }, 'Tenants retrieved.')
 }
 
 function renderPlatformActivity() {
@@ -139,35 +172,26 @@ describe('platform activity page', () => {
   it('filters to one tenant chosen from the platform search', async () => {
     signInAs('admin')
     const seen = mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
-    server.use(
-      http.get('/api/v1/platform/tenants', () =>
-        ok(
-          {
-            tenants: [
-              {
-                id: 't1',
-                name: 'Acme Corp',
-                slug: 'acme',
-                lifecycleState: 'active',
-                memberCount: 2,
-                createdAt: '2026-01-01T00:00:00.000Z',
-              },
-            ],
-            nextCursor: null,
-          },
-          'Tenants retrieved.'
-        )
-      )
+    const terms = mockTenantSearch((q) =>
+      tenantPage(q === 'acm' ? [ACME_ROW] : [ACME_ROW, GLOBEX_ROW])
     )
     const user = userEvent.setup()
     renderPlatformActivity()
     await screen.findByText(/opened this tenant/)
 
     await user.type(screen.getByLabelText('Filter by tenant'), 'acm')
+    // Pick from the settled `acm` answer, not from the empty-term list the
+    // debounced search replaces: Globex is only in the empty-term list.
+    await waitFor(() => {
+      expect(terms.at(-1)).toBe('acm')
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('option', { name: 'Globex' })).not.toBeInTheDocument()
+    })
     await user.click(await screen.findByRole('option', { name: 'Acme Corp' }))
 
     await waitFor(() => {
-      expect(seen.at(-1)?.searchParams.get('tenantId')).toBe('t1')
+      expect(seen.at(-1)?.searchParams.get('tenantId')).toBe(TENANT_ID)
     })
 
     await user.click(screen.getByRole('button', { name: 'Clear the tenant filter' }))
@@ -176,6 +200,75 @@ describe('platform activity page', () => {
       expect(seen.at(-1)?.searchParams.has('tenantId')).toBe(false)
     })
     expect(screen.getByLabelText('Filter by tenant')).toHaveValue('')
+  })
+
+  // A pick made while the next search is in flight lands on an option that is
+  // still there: the earlier results stay listed until the new ones arrive.
+  it('keeps the earlier results pickable while the next search is in flight', async () => {
+    signInAs('admin')
+    const seen = mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
+    let releaseAcm!: () => void
+    const acmHeld = new Promise<void>((resolve) => {
+      releaseAcm = resolve
+    })
+    const terms = mockTenantSearch(async (q) => {
+      if (q !== 'acm') return tenantPage([ACME_ROW, GLOBEX_ROW])
+      await acmHeld
+      return tenantPage([ACME_ROW])
+    })
+    const user = userEvent.setup()
+    renderPlatformActivity()
+    await screen.findByText(/opened this tenant/)
+
+    await user.click(screen.getByLabelText('Filter by tenant'))
+    expect(await screen.findByRole('option', { name: 'Globex' })).toBeInTheDocument()
+
+    try {
+      await user.keyboard('acm')
+      await waitFor(() => {
+        expect(terms.at(-1)).toBe('acm')
+      })
+      // The `acm` answer is held, so these are still the empty-term results.
+      expect(screen.getByRole('option', { name: 'Globex' })).toBeInTheDocument()
+      await user.click(screen.getByRole('option', { name: 'Acme Corp' }))
+
+      await waitFor(() => {
+        expect(seen.at(-1)?.searchParams.get('tenantId')).toBe(TENANT_ID)
+      })
+    } finally {
+      releaseAcm()
+    }
+  })
+
+  it('says it is searching, not that nothing matched, while the next search loads', async () => {
+    signInAs('admin')
+    mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
+    let releaseZz!: () => void
+    const zzHeld = new Promise<void>((resolve) => {
+      releaseZz = resolve
+    })
+    const terms = mockTenantSearch(async (q) => {
+      if (q === 'zz') await zzHeld
+      return tenantPage([])
+    })
+    const user = userEvent.setup()
+    renderPlatformActivity()
+    await screen.findByText(/opened this tenant/)
+
+    await user.click(screen.getByLabelText('Filter by tenant'))
+    expect(await screen.findByText('No tenants match')).toBeInTheDocument()
+
+    try {
+      await user.keyboard('zz')
+      await waitFor(() => {
+        expect(terms.at(-1)).toBe('zz')
+      })
+      expect(screen.getByText('Searching…')).toBeInTheDocument()
+      expect(screen.queryByText('No tenants match')).not.toBeInTheDocument()
+    } finally {
+      releaseZz()
+    }
+    expect(await screen.findByText('No tenants match')).toBeInTheDocument()
   })
 
   it('says the tenant search FAILED, not that nothing matched', async () => {
@@ -188,9 +281,7 @@ describe('platform activity page', () => {
 
     await user.click(screen.getByLabelText('Filter by tenant'))
 
-    expect(
-      await screen.findByText('Tenants could not be loaded', {}, { timeout: 5000 })
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Tenants could not be loaded')).toBeInTheDocument()
     expect(screen.queryByText('No tenants match')).not.toBeInTheDocument()
   })
 
