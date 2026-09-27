@@ -637,7 +637,7 @@ describe('invitation accept states', () => {
     server.use(http.post('/api/v1/invitations/preview', () => fail('Something went wrong.', 500)))
     renderAppAt(acceptPath)
     // The preview retries a non-404 once, so the failure takes a moment.
-    await screen.findByRole('alert', {}, { timeout: 5000 })
+    await screen.findByRole('alert')
     await expectNoViolations()
   })
 

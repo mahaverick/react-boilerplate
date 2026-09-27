@@ -11,6 +11,7 @@ import userEvent from '@testing-library/user-event'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { router as appRouter } from '@/router'
+import { settle } from '@/tests/fixtures/timing'
 
 /**
  * The app router's route-state options, applied to a small tree of its own.
@@ -78,6 +79,7 @@ function watchForPending(): () => boolean {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
 })
@@ -184,7 +186,10 @@ describe('pending navigation', () => {
   })
 
   it('never shows the pending screen for a navigation faster than 300ms', async () => {
-    const router = renderTree(() => new Promise((resolve) => setTimeout(resolve, 50)), '/')
+    const router = renderTree(
+      () => settle(50, 'a loader that resolves well inside defaultPendingMs (300)'),
+      '/'
+    )
     await screen.findByRole('heading', { level: 1, name: 'Home' })
     const pendingWasShown = watchForPending()
 
@@ -195,6 +200,7 @@ describe('pending navigation', () => {
   })
 
   it('keeps the pending screen up for defaultPendingMinMs even when the loader resolves right away', async () => {
+    const { defaultPendingMs = 0, defaultPendingMinMs = 0 } = appRouter.options
     let release!: () => void
     const gate = new Promise<void>((resolve) => {
       release = resolve
@@ -202,18 +208,24 @@ describe('pending navigation', () => {
     const router = renderTree(() => gate, '/')
     await screen.findByRole('heading', { level: 1, name: 'Home' })
 
+    // Fakes only the clock the router reads: setTimeout and Date.now.
+    // setImmediate stays real because React's async act flushes on it. While
+    // setTimeout is fake, findBy*/waitFor would hang (their final drain is a
+    // setTimeout nothing advances), so this section asserts with getBy* only.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     router.history.push('/page')
-    await screen.findByRole('status', { name: 'Loading' })
+    await act(() => vi.advanceTimersByTimeAsync(defaultPendingMs))
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
+
     // The loader settles the instant the pending screen appears; with
     // defaultPendingMinMs at 0 it would swap to the page immediately, so
     // this regresses if that floor is ever dropped.
     release()
-
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    })
+    await act(() => vi.advanceTimersByTimeAsync(100))
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
 
+    await act(() => vi.advanceTimersByTimeAsync(defaultPendingMinMs))
+    vi.useRealTimers()
     expect(await screen.findByRole('heading', { level: 1, name: 'Page' })).toBeInTheDocument()
   })
 })

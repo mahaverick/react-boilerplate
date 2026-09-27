@@ -213,7 +213,7 @@ describe('tenant activity tab', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/activity')
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load the activity/i)
     expect(screen.queryByText('Nothing has happened in this tenant yet.')).not.toBeInTheDocument()
 
@@ -323,7 +323,7 @@ describe('tenant activity tab', () => {
 
     await user.click(screen.getByRole('button', { name: 'Load more activity' }))
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load more activity/i)
     expect(screen.getByText(/changed the settings/)).toBeInTheDocument()
   })
@@ -349,7 +349,7 @@ describe('tenant activity tab', () => {
     await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
     await user.click(screen.getByRole('link', { name: 'Activity' }))
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not refresh the activity/i)
     expect(screen.queryByText(/could not load more activity/i)).not.toBeInTheDocument()
     expect(screen.getByText(/changed the settings/)).toBeInTheDocument()

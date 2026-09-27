@@ -10,6 +10,7 @@ import { act, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { router as appRouter } from '@/router'
+import { settle } from '@/tests/fixtures/timing'
 
 /**
  * Mirrors main.tsx's boot sequence, StrictMode included: `router.load()`
@@ -99,10 +100,11 @@ describe('the boot sequence', () => {
 
     const loaded = boot(container, router)
 
-    // Well past defaultPendingMs (300), long enough to catch a boot sequence
-    // that renders before the load resolves.
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      await settle(
+        500,
+        'past defaultPendingMs (300): a boot that rendered before the root load resolved would have replaced the splash or shown the pending screen by now'
+      )
     })
     expect(container.querySelector('.boot-splash')).not.toBeNull()
 

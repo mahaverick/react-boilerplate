@@ -127,12 +127,10 @@ describe('NotificationBell', () => {
     renderShell()
     await openBell()
 
-    // Generous: the queryClient is `retry: 1`, so a failed load is attempted a
-    // second time (after react-query's ~1s backoff) before the error state is
-    // reached at all.
-    expect(
-      await screen.findByText('Notifications could not be loaded.', {}, { timeout: 5000 })
-    ).toBeInTheDocument()
+    // The queryClient is `retry: 1`, so a failed load is attempted a second
+    // time (after react-query's ~1s backoff) before the error state is reached
+    // at all. `asyncUtilTimeout` in tests/setup.ts has to cover both attempts.
+    expect(await screen.findByText('Notifications could not be loaded.')).toBeInTheDocument()
     expect(screen.queryByText('You have no notifications.')).not.toBeInTheDocument()
     // And the label does not announce a figure nothing established. "0 unread"
     // here would be the same lie the menu text used to tell, told to a screen

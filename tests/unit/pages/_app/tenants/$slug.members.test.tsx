@@ -316,7 +316,7 @@ describe('members tab permissions', () => {
       await queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme'), exact: true })
     })
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load your role/i)
     expect(document.querySelector('[data-slot="skeleton"]')).toBeNull()
 
@@ -328,9 +328,7 @@ describe('members tab permissions', () => {
     await waitFor(() => {
       expect(detailCalls).toBeGreaterThan(before)
     })
-    expect(
-      await screen.findByRole('combobox', { name: 'Role for Me X' }, { timeout: 5000 })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('combobox', { name: 'Role for Me X' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -356,7 +354,7 @@ describe('members tab permissions', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/members')
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load this tenant’s members/i)
     expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
 
@@ -385,7 +383,7 @@ describe('members tab permissions', () => {
       http.get('/api/v1/tenants/acme/members', () => fail('Something went wrong.', 500))
     )
     renderAppAt('/tenants/acme/members')
-    await screen.findByRole('alert', {}, { timeout: 5000 })
+    await screen.findByRole('alert')
 
     detailFails = true
     await act(async () => {
@@ -663,7 +661,7 @@ describe('inviting, and the pending invitations', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/members')
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load the pending invitations/i)
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
 

@@ -188,9 +188,7 @@ describe('platform activity page', () => {
 
     await user.click(screen.getByLabelText('Filter by tenant'))
 
-    expect(
-      await screen.findByText('Tenants could not be loaded', {}, { timeout: 5000 })
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Tenants could not be loaded')).toBeInTheDocument()
     expect(screen.queryByText('No tenants match')).not.toBeInTheDocument()
   })
 

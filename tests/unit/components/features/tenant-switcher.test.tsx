@@ -5,11 +5,12 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
+import { platformKeys, SEARCH_DEBOUNCE_MS } from '@/queries/platform.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -214,6 +215,10 @@ describe('TenantSwitcher', () => {
       signInAs('viewer')
     })
 
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
     it('adds an All tenants group, without repeating a tenant already in Your tenants', async () => {
       server.use(
         http.get('/api/v1/tenants', () =>
@@ -290,16 +295,24 @@ describe('TenantSwitcher', () => {
     it('sends no q for a whitespace-only search', async () => {
       const seen = recordSearches(() => ok({ tenants: [], nextCursor: null }, 'Tenants.'))
       renderShell()
-      const user = await openSwitcher()
+      await openSwitcher()
       await waitFor(() => {
         expect(seen.length).toBeGreaterThan(0)
       })
 
+      // Created after the fake clock exists: advanceTimers needs it.
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       await user.type(screen.getByLabelText('Search tenants'), '   ')
-      // Past the 250ms debounce: long enough for a request to have fired if
-      // the whitespace were going to produce one.
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      await act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS))
 
+      // Past the debounce, the whitespace term has rendered. Had it produced a
+      // `q`, it would have made a second query key on that render.
+      const searchKeys = queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ['platform', 'tenants'] })
+        .map((query) => query.queryKey)
+      expect(searchKeys).toEqual([platformKeys.tenants('')])
       expect(seen.every((url) => !url.searchParams.has('q'))).toBe(true)
     })
 
@@ -308,9 +321,7 @@ describe('TenantSwitcher', () => {
       renderShell()
       await openSwitcher()
 
-      expect(
-        await screen.findByText('All tenants could not be loaded', {}, { timeout: 5000 })
-      ).toBeInTheDocument()
+      expect(await screen.findByText('All tenants could not be loaded')).toBeInTheDocument()
     })
 
     // Keyboard-reachable, not scroll-only: the option sits in the arrow-key
@@ -361,11 +372,7 @@ describe('TenantSwitcher', () => {
       const more = await screen.findByRole('option', { name: 'Load more tenants' })
 
       await user.click(more)
-      const failed = await screen.findByRole(
-        'option',
-        { name: 'Could not load more tenants' },
-        { timeout: 5000 }
-      )
+      const failed = await screen.findByRole('option', { name: 'Could not load more tenants' })
 
       await user.click(failed)
 

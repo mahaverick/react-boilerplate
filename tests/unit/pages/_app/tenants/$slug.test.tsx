@@ -296,7 +296,7 @@ describe('tenant detail', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/settings')
 
-    const alert = await screen.findByRole('alert', {}, { timeout: 5000 })
+    const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load this tenant’s settings/i)
     expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
 
