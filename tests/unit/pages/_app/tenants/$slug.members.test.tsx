@@ -560,7 +560,7 @@ describe('inviting, and the pending invitations', () => {
       }),
       http.post('/api/v1/tenants/acme/invitations', async ({ request }) => {
         body = await request.json()
-        return ok(null, 'If that address can be invited, an invitation has been sent.', 202)
+        return ok(null, INVITATION_SENT_MESSAGE, 202)
       })
     )
     const user = userEvent.setup()

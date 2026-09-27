@@ -115,7 +115,7 @@ async function contrastOf(
   await expect(page.getByRole('heading', { name: heading })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
-  // The heading renders outside each page's data conditional, so it can show
+  // The heading can render outside each page's data conditional, so it can show
   // while the data behind it is still a skeleton. Grade the loaded page.
   await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
 

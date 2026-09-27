@@ -379,6 +379,7 @@ describe('TenantSwitcher', () => {
       renderShell()
       const user = await openSwitcher()
       expect(await screen.findByRole('option', { name: 'Initech' })).toBeInTheDocument()
+      expect(await screen.findByRole('option', { name: 'Load more tenants' })).toBeInTheDocument()
 
       try {
         await user.type(screen.getByLabelText('Search tenants'), 'glob')

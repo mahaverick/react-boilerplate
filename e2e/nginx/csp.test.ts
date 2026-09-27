@@ -47,8 +47,8 @@ test(
     await expect(page.locator('head style')).not.toHaveCount(0)
     // The heading means the root beforeLoad's refresh has settled and the
     // route's lazy chunk has run. A late violation can still come from the
-    // document's remaining subresources or the webfont, so wait for the fonts
-    // and one page task.
+    // webfont or a lazily loaded chunk, so wait for the fonts and one page
+    // task.
     await expect.poll(() => onDemand.length).toBeGreaterThan(0)
     await afterFontsAndFrames(page)
     await flushCspReports(page)

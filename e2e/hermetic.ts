@@ -32,13 +32,14 @@ type ApiFallback = {
 }
 
 /**
- * Playwright's `test`, with no request able to reach the dev server's `/api`
- * proxy, and so none reaching whatever runs on :4040. An `/api` request that
- * would leave the browser, the MSW service worker's pass-throughs included,
- * gets express's 401 envelope instead. A route a test adds itself is
- * registered later, so Playwright consults it first; if it fulfills the
- * request, its response must carry `FALLBACK_HEADER` or teardown counts it
- * as an escape.
+ * Playwright's `test`, extended to answer every `/api` request that would
+ * leave the browser — the MSW service worker's pass-throughs included —
+ * with express's 401 envelope. A route a test adds itself is registered
+ * later, so Playwright consults it first; if it lets the request through
+ * with `route.continue()`, that reaches the dev server's proxy and is only
+ * caught at teardown, not blocked outright. A fulfilled response must carry
+ * `FALLBACK_HEADER` or teardown counts it as an escape. The `request`
+ * fixture's own calls are never routed or observed here.
  *
  * At teardown the test fails if an `/api` response came from anywhere but
  * this fallback or the service worker, or if the fallback answered anything

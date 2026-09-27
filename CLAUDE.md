@@ -300,11 +300,11 @@ header. `?state=loaded|empty|error|loading|soleowner` picks the members response
 Two harness traps, both of which made tests measure the wrong thing once already: answering
 the SSE stream with `204` looks to the hook exactly like a dropped connection and sends the
 page into a refresh-then-redirect that a test will race; and **any endpoint left unmocked
-falls through** (`onUnhandledRequest: 'bypass'`) and 401s. Under Playwright it never reaches a
-real backend: the `fixtures` and `contrast` projects take `test` from `e2e/hermetic.ts`, which
-answers every `/api` request that would leave the browser with express's 401 envelope, and
-fails the test at teardown naming each endpoint it answered other than a signed-out page's
-bootstrap refresh. A test that fulfills an `/api` route itself stamps its response with
+falls through** (`onUnhandledRequest: 'bypass'`) and 401s. Under Playwright, the `fixtures` and
+`contrast` projects take `test` from `e2e/hermetic.ts`, which answers every `/api` request that
+would leave the browser with express's 401 envelope, and fails the test at teardown if any `/api`
+response came from the proxy instead, or if it answered anything other than a signed-out page's
+bootstrap refresh — naming each. A test that fulfills an `/api` route itself stamps its response with
 `FALLBACK_HEADER` from that file, or the teardown reports it as an escape. The 401 still
 signs the harness user out — any 401 on a token-bearing request is a verdict
 (interceptors.ts) — so every authed endpoint the page under test calls must be mocked, not
