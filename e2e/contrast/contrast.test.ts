@@ -23,6 +23,11 @@ import { afterAnimations, afterFontsAndFrames } from '../timing'
 const require = createRequire(import.meta.url)
 const AXE_PATH = require.resolve('axe-core/axe.min.js')
 
+// The dev server transforms a lazily loaded route's modules on first request,
+// which took past 7s under load, and `goto` resolves on `load` before that.
+// Below the 30s test timeout, so a hang is reported by the heading assertion.
+const COLD_TRANSFORM_BUDGET_MS = 20_000
+
 /**
  * Every surface reachable without a backend, with a selector proving the page
  * actually rendered.
@@ -101,7 +106,9 @@ async function contrastOf(
   // `validateSearch` rejecting the probe token — still paints a perfectly
   // legible page, so contrast over it would come back green while saying
   // nothing about the surface this entry names.
-  await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+  await expect(page.getByRole('heading', { name: heading })).toBeVisible({
+    timeout: COLD_TRANSFORM_BUDGET_MS,
+  })
   // The heading renders outside each page's data conditional, so it can show
   // while the data behind it is still a skeleton. Grade the loaded page.
   await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
@@ -233,7 +240,9 @@ for (const theme of THEMES) {
     test(`${popup.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
       await page.goto(`/e2e/harness/?path=${popup.path}`)
-      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
+        timeout: COLD_TRANSFORM_BUDGET_MS,
+      })
 
       await page.getByRole(popup.triggerRole, { name: popup.trigger }).click()
       const menu = page.getByRole(popup.role)
@@ -262,7 +271,9 @@ test.describe('popups that are not menus', () => {
       await page.setViewportSize({ width: 390, height: 844 })
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
       await page.goto('/e2e/harness/?path=/dashboard')
-      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
+        timeout: COLD_TRANSFORM_BUDGET_MS,
+      })
 
       await page.getByRole('button', { name: 'Toggle sidebar' }).click()
       const sheet = page.getByRole('dialog')
@@ -284,7 +295,9 @@ test.describe('popups that are not menus', () => {
       // background, which the page entries above already cover.
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
       await page.goto('/e2e/harness/')
-      await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible({
+        timeout: COLD_TRANSFORM_BUDGET_MS,
+      })
 
       // Cleo is a plain member and not the last owner, so her row's control is
       // the enabled one — the same row tests/unit/a11y.test.tsx drives for the
