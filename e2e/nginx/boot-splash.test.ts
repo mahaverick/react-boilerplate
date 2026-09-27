@@ -81,7 +81,10 @@ test(
     // counts every callback invocation, so a browser where the observer never
     // ran at all — and so never had a chance to flip either flag — fails
     // loudly instead of passing on two flags that both stayed false by
-    // default.
+    // default. Emptiness is read live, once per callback, on purpose: React's
+    // first commit sets `#root.textContent = ''` and inserts the app in the
+    // same task, so a per-record check would flag every correct boot. Only an
+    // empty #root that is still empty when a callback runs can be painted.
     await page.addInitScript(() => {
       const win = window as unknown as {
         __rootWasEmpty: boolean

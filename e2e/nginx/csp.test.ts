@@ -81,14 +81,17 @@ test(
   { tag: '@no-api' },
   async ({ page }) => {
     await page.goto('/login')
-    await page.route(/\/assets\/.*\.js$/, (route) =>
-      route.request().url().includes('register')
-        ? route.fulfill({ status: 404, body: '' })
-        : route.continue()
-    )
+    let chunk404s = 0
+    await page.route(/\/assets\/.*\.js$/, (route) => {
+      if (!route.request().url().includes('register')) return route.continue()
+      chunk404s += 1
+      return route.fulfill({ status: 404, body: '' })
+    })
     await page.getByRole('link', { name: /create an account|sign up|register/i }).click()
     await expect(page.getByText('A new version is available')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible()
+    // The reload screen came from the 404 this route served, not from some other failure.
+    expect(chunk404s).toBeGreaterThan(0)
   }
 )
 
