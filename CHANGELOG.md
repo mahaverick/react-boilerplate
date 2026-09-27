@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/mahaverick/react-boilerplate/compare/v2.1.0...v2.1.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* flake-proof tests, tenant search keeps results and token-param crash (stream 6) ([28b5f3d](https://github.com/mahaverick/react-boilerplate/commit/28b5f3dded1aabaa052db7baed4c6d722e8ebbd1))
+
 ## [2.1.0](https://github.com/mahaverick/react-boilerplate/compare/v2.0.0...v2.1.0) (2026-09-27)
 
 
