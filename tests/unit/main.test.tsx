@@ -7,7 +7,7 @@ import {
   type AnyRouter,
 } from '@tanstack/react-router'
 import { act, StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { router as appRouter } from '@/router'
 import { settle } from '@/tests/fixtures/timing'
@@ -22,8 +22,12 @@ import { settle } from '@/tests/fixtures/timing'
  * same sequence against a tree of its own, the way
  * `tests/unit/router.test.tsx` already does for route state.
  */
+/** Every root `boot` created, unmounted after each test before the DOM is cleared. */
+const roots: Root[] = []
+
 function boot(container: HTMLElement, router: AnyRouter) {
   const root = createRoot(container)
+  roots.push(root)
   return router.load().finally(() => {
     root.render(
       <StrictMode>
@@ -70,6 +74,9 @@ function mountSplashContainer(): HTMLElement {
 }
 
 afterEach(() => {
+  act(() => {
+    for (const root of roots.splice(0)) root.unmount()
+  })
   document.body.innerHTML = ''
 })
 

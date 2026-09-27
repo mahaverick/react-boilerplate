@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { act } from 'react'
+import { act, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { router as appRouter } from '@/router'
 import { settle } from '@/tests/fixtures/timing'
@@ -18,7 +18,11 @@ import { settle } from '@/tests/fixtures/timing'
  * No route in the real tree has a loader that fails on demand, and `$slug`
  * has an `errorComponent` of its own, so the defaults are driven here.
  */
-function renderTree(loader: () => unknown, initialPath: string) {
+function renderTree(
+  loader: () => unknown,
+  initialPath: string,
+  page: () => ReactNode = () => <h1>Page</h1>
+) {
   const {
     defaultErrorComponent,
     defaultNotFoundComponent,
@@ -36,7 +40,7 @@ function renderTree(loader: () => unknown, initialPath: string) {
     getParentRoute: () => rootRoute,
     path: '/page',
     loader,
-    component: () => <h1>Page</h1>,
+    component: page,
   })
   const router = createRouter({
     routeTree: rootRoute.addChildren([homeRoute, pageRoute]),
@@ -80,6 +84,7 @@ function watchForPending(): () => boolean {
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
 })
@@ -98,6 +103,30 @@ describe('route errors', () => {
       within(alert).getByRole('heading', { level: 1, name: 'Something went wrong' })
     ).toBeInTheDocument()
     expect(within(alert).getByRole('link', { name: 'Go home' })).toHaveAttribute('href', '/')
+
+    failing = false
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Page' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows the error card for a page that throws while rendering, and Try again recovers', async () => {
+    // React reports the caught render error on the console; that is expected here.
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    let failing = true
+    function Flaky() {
+      if (failing) throw new Error('render exploded')
+      return <h1>Page</h1>
+    }
+    renderTree(() => null, '/page', Flaky)
+    const user = userEvent.setup()
+
+    const alert = await screen.findByRole('alert')
+    expect(
+      within(alert).getByRole('heading', { level: 1, name: 'Something went wrong' })
+    ).toBeInTheDocument()
+    expect(alert).toHaveTextContent('render exploded')
 
     failing = false
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
