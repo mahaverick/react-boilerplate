@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module'
 import { expect, test, type Page } from '@playwright/test'
+import { afterAnimations, afterFontsAndFrames } from '../timing'
 
 /**
  * COLOUR CONTRAST, measured.
@@ -94,7 +95,7 @@ async function contrastOf(
   // reads localStorage and toggles `.dark` before the bundle loads, so setting
   // the theme afterwards would measure a repaint rather than the real render.
   await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
-  await page.goto(url, { waitUntil: 'networkidle' })
+  await page.goto(url)
   // Prove the surface we asked for is the surface we got, BEFORE measuring it.
   // A route that redirected — an authenticated page without a session, a
   // `validateSearch` rejecting the probe token — still paints a perfectly
@@ -102,10 +103,9 @@ async function contrastOf(
   // nothing about the surface this entry names.
   await expect(page.getByRole('heading', { name: heading })).toBeVisible()
 
-  await page.evaluate(() => document.fonts.ready)
   // Fonts change glyph coverage, not colour, but a late swap can move text over
-  // a different background. Settle before sampling.
-  await page.waitForTimeout(400)
+  // a different background. Sample only once it has reflowed.
+  await afterFontsAndFrames(page)
 
   await page.addScriptTag({ path: AXE_PATH })
 
@@ -229,7 +229,7 @@ for (const theme of THEMES) {
   for (const popup of POPUPS) {
     test(`${popup.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
-      await page.goto(`/e2e/harness/?path=${popup.path}`, { waitUntil: 'networkidle' })
+      await page.goto(`/e2e/harness/?path=${popup.path}`)
       await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible()
 
       await page.getByRole(popup.triggerRole, { name: popup.trigger }).click()
@@ -240,8 +240,8 @@ for (const theme of THEMES) {
       // for its own menu block.
       await expect(menu.getByRole(popup.itemRole).first()).toBeVisible()
 
-      await page.evaluate(() => document.fonts.ready)
-      await page.waitForTimeout(300)
+      await afterAnimations(menu)
+      await afterFontsAndFrames(page)
       await page.addScriptTag({ path: AXE_PATH })
 
       const result = await runAxe(page, `[role="${popup.role}"]`)
@@ -258,7 +258,7 @@ test.describe('popups that are not menus', () => {
       // reach it however many pages they visit.
       await page.setViewportSize({ width: 390, height: 844 })
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
-      await page.goto('/e2e/harness/?path=/dashboard', { waitUntil: 'networkidle' })
+      await page.goto('/e2e/harness/?path=/dashboard')
       await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible()
 
       await page.getByRole('button', { name: 'Toggle sidebar' }).click()
@@ -267,8 +267,8 @@ test.describe('popups that are not menus', () => {
       // Opened AND populated: an empty sheet grades clean and proves nothing.
       await expect(sheet.getByRole('link').first()).toBeVisible()
 
-      await page.evaluate(() => document.fonts.ready)
-      await page.waitForTimeout(300)
+      await afterAnimations(sheet)
+      await afterFontsAndFrames(page)
       await page.addScriptTag({ path: AXE_PATH })
 
       const result = await runAxe(page, '[role="dialog"]')
@@ -280,7 +280,7 @@ test.describe('popups that are not menus', () => {
       // Every other destructive control in the app sits on the page
       // background, which the page entries above already cover.
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
-      await page.goto('/e2e/harness/', { waitUntil: 'networkidle' })
+      await page.goto('/e2e/harness/')
       await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible()
 
       // Cleo is a plain member and not the last owner, so her row's control is
@@ -292,8 +292,8 @@ test.describe('popups that are not menus', () => {
       await expect(confirm).toBeVisible()
       await expect(confirm.getByRole('button', { name: /Remove/ })).toBeVisible()
 
-      await page.evaluate(() => document.fonts.ready)
-      await page.waitForTimeout(300)
+      await afterAnimations(confirm)
+      await afterFontsAndFrames(page)
       await page.addScriptTag({ path: AXE_PATH })
 
       const result = await runAxe(page, '[role="alertdialog"]')

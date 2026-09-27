@@ -8,6 +8,11 @@ import tailwindcss from 'eslint-plugin-tailwindcss'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
+const SLEEP_MESSAGE =
+  'Wait on a condition, not a duration: findBy*/waitFor/vi.waitFor, expect.poll or a web-first assertion in e2e, fake timers, or settle(ms, reason) from @/tests/fixtures/timing (e2e: ./timing) when nothing can be observed.'
+const NETWORKIDLE_MESSAGE =
+  "networkidle waits on every request the page makes, including ones this test does not care about. Assert what the page renders (a heading's toBeVisible) or wait for the one response that matters."
+
 export default tseslint.config(
   {
     ignores: [
@@ -279,6 +284,47 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         { paths: [{ name: 'cn', message: "Import `cn` from '@/lib/utils'." }] },
+      ],
+    },
+  },
+  {
+    // Test timing rules (CLAUDE.md): a test waits on a condition, never on a
+    // duration. The two timing.ts files are exempt because they implement the
+    // deliberate waits. `no-restricted-imports` repeats the `cn` entry above:
+    // a later block's options replace an earlier block's, they do not merge.
+    files: ['tests/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
+    ignores: ['tests/fixtures/timing.ts', 'e2e/timing.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Promise'] CallExpression[callee.name='setTimeout']",
+          message: SLEEP_MESSAGE,
+        },
+        { selector: "CallExpression[callee.name='sleep']", message: SLEEP_MESSAGE },
+        {
+          selector: "CallExpression[callee.property.name='waitForTimeout']",
+          message: SLEEP_MESSAGE,
+        },
+        {
+          selector: "Property[key.name='waitUntil'][value.value='networkidle']",
+          message: NETWORKIDLE_MESSAGE,
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='waitForLoadState'] > Literal[value='networkidle']",
+          message: NETWORKIDLE_MESSAGE,
+        },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            { name: 'cn', message: "Import `cn` from '@/lib/utils'." },
+            { name: 'node:timers/promises', importNames: ['setTimeout'], message: SLEEP_MESSAGE },
+            { name: 'timers/promises', importNames: ['setTimeout'], message: SLEEP_MESSAGE },
+          ],
+        },
       ],
     },
   },

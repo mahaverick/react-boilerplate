@@ -233,6 +233,48 @@ pin in `Dockerfile` and `README.md` is tracked via a custom regex manager.
 - Tests are **`.test.ts(x)`**, never `.spec.`, and never in a `__tests__/`
   folder — also linted, under `tests/` as well as `src/`.
 
+## Test timing rules
+
+eslint enforces the first rule across `tests/` and `e2e/`: a `setTimeout` inside
+`new Promise`, `sleep()`, `waitForTimeout()`, `setTimeout` from `timers/promises`
+and `networkidle` all fail lint. The only exempt files are `tests/fixtures/timing.ts`
+and `e2e/timing.ts`, which implement the deliberate waits.
+
+1. **Wait on a condition, never on a duration.** `findBy*`, `waitFor` and
+   `vi.waitFor` in `tests/`; web-first assertions and `expect.poll` in `e2e/`; fake
+   timers when the product's own timer is what the test is about.
+2. **A deliberate wait is `settle(ms, reason)`** from `@/tests/fixtures/timing`
+   (`e2e/timing.ts` re-exports it). The reason names what can't be observed:
+   "absence has no event", "poll interval", "injected latency". A blank reason
+   rejects, and an empty literal fails typecheck. Waits inside the page are the
+   named helpers in `e2e/timing.ts`.
+3. **A wall-clock upper bound is allowed only when the bound is the claim under
+   test.** It carries a comment naming what it proves, and either references a
+   product constant by name or has at least 10× headroom over the measured p99.
+4. **No exact counts of process-wide resources.** Count only what the test created.
+5. **A negative check waits on a barrier event where one exists**, and otherwise
+   on `settle` with a reason.
+6. **Never raise a timeout to fix a flake before its mechanism is known.**
+   `asyncUtilTimeout` in `tests/setup.ts` is every `findBy*`/`waitFor` budget; a
+   `{ timeout }` that only restates it is noise.
+
+Three fake-timer traps, each read out of the installed versions:
+
+- **Without `shouldAdvanceTime`, `findBy*` and `waitFor` hang.** Testing Library
+  ends each one with a `setTimeout(0)` drain and advances fake timers only when a
+  `jest` global exists, which Vitest does not define. Under a clock that moves only
+  when told, assert with `getBy*` after `await act(() => vi.advanceTimersByTimeAsync(ms))`,
+  and restore real timers before the next `findBy*`.
+- **React's async `act` flushes on Node's `timers.setImmediate`**, which Vitest's
+  default `toFake` fakes too, so `await act(async …)` can stall under a clock nothing
+  advances. Fake only what the code under test reads, as `router.test.tsx` does with
+  `{ toFake: ['setTimeout', 'clearTimeout', 'Date'] }`.
+- **A `userEvent` that types while fake timers are on needs the `advanceTimers`
+  option**, as in `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`.
+  user-event waits a `setTimeout(delay)` after every keystroke and calls
+  `advanceTimers(delay)` alongside it, so without the option typing waits on a clock
+  that never moves.
+
 ## End-to-end tests
 
 `pnpm test:e2e` (fixtures) and `pnpm test:e2e:live` (needs a backend). Playwright, two

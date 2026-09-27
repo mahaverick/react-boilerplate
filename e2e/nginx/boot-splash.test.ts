@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { settle } from '../timing'
 import { flushCspReports, requireServedApp, watchCspViolations } from './csp'
 
 /**
@@ -62,7 +63,7 @@ test(
     // sequence that renders before the load resolves has time to blank
     // #root and show the router's own pending screen before this settles.
     await page.route('**/api/v1/auth/refresh', async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 600))
+      await settle(600, 'injected latency: hold the root beforeLoad past defaultPendingMs (300)')
       await route.fulfill({
         status: 401,
         contentType: 'application/json',

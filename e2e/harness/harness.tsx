@@ -150,10 +150,7 @@ const membersHandler =
               })
           )
         : state === 'loading'
-          ? http.get('/api/v1/tenants/acme/members', async () => {
-              await new Promise((r) => setTimeout(r, 1_000_000))
-              return ok(MEMBERS, 'Members retrieved.')
-            })
+          ? http.get('/api/v1/tenants/acme/members', () => new Promise<Response>(() => {}))
           : http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
 
 const worker = setupWorker(

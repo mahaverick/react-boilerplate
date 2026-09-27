@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { afterFontsAndFrames } from '../timing'
 import {
   CONTENT_SECURITY_POLICY,
   flushCspReports,
@@ -16,17 +17,41 @@ import {
 
 test.beforeAll(requireServedApp)
 
+/**
+ * Records, from now on, every script chunk `page` fetches that index.html
+ * does not load up front: the chunks the router loads on demand.
+ */
+async function recordOnDemandChunks(page: Page, request: APIRequestContext): Promise<string[]> {
+  const html = await (await request.get('/')).text()
+  const upFront = new Set(html.match(/\/assets\/[\w.-]+\.js/g) ?? [])
+  const onDemand: string[] = []
+  page.on('response', (response) => {
+    const { pathname } = new URL(response.url())
+    if (/^\/assets\/[\w.-]+\.js$/.test(pathname) && !upFront.has(pathname)) {
+      onDemand.push(pathname)
+    }
+  })
+  return onDemand
+}
+
 test(
   'the sign-in page renders under the policy with no violation',
   { tag: '@no-api' },
-  async ({ page }) => {
+  async ({ page, request }) => {
+    const onDemand = await recordOnDemandChunks(page, request)
     const violations = await watchCspViolations(page)
     const response = await page.goto('/login')
     expect(response?.headers()['content-security-policy']).toBe(CONTENT_SECURITY_POLICY)
     await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
     // sonner injects a <style> element: the page really exercised style-src.
     await expect(page.locator('head style')).not.toHaveCount(0)
-    await page.waitForLoadState('networkidle')
+    // The heading means the root beforeLoad's refresh has settled and the
+    // route's lazy chunk has run. A late violation can still come from the
+    // document's remaining subresources or the webfont, so wait for load, the
+    // fonts and one page task.
+    await page.waitForLoadState('load')
+    await expect.poll(() => onDemand.length).toBeGreaterThan(0)
+    await afterFontsAndFrames(page)
     await flushCspReports(page)
     expect(violations).toEqual([])
   }
@@ -36,16 +61,7 @@ test(
   'a lazily loaded route loads under the policy with no violation',
   { tag: '@no-api' },
   async ({ page, request }) => {
-    // Everything index.html loads up front; any other chunk was loaded on demand.
-    const html = await (await request.get('/')).text()
-    const upFront = new Set(html.match(/\/assets\/[\w.-]+\.js/g) ?? [])
-    const onDemand: string[] = []
-    page.on('response', (response) => {
-      const { pathname } = new URL(response.url())
-      if (/^\/assets\/[\w.-]+\.js$/.test(pathname) && !upFront.has(pathname)) {
-        onDemand.push(pathname)
-      }
-    })
+    const onDemand = await recordOnDemandChunks(page, request)
     const violations = await watchCspViolations(page)
 
     await page.goto('/login')
