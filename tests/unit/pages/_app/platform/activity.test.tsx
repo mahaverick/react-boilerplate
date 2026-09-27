@@ -240,6 +240,57 @@ describe('platform activity page', () => {
     }
   })
 
+  // The empty state can't say a search is running when there's nothing
+  // empty about the list: the earlier results are still sitting there.
+  it('shows a searching status while the earlier results are still listed', async () => {
+    signInAs('admin')
+    mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
+    let releaseAcm!: () => void
+    const acmHeld = new Promise<void>((resolve) => {
+      releaseAcm = resolve
+    })
+    const terms = mockTenantSearch(async (q) => {
+      if (q !== 'acm') return tenantPage([ACME_ROW, GLOBEX_ROW])
+      await acmHeld
+      return tenantPage([ACME_ROW])
+    })
+    const user = userEvent.setup()
+    renderPlatformActivity()
+    await screen.findByText(/opened this tenant/)
+
+    await user.click(screen.getByLabelText('Filter by tenant'))
+    expect(await screen.findByRole('option', { name: 'Globex' })).toBeInTheDocument()
+    // The status region is mounted at rest too, with nothing to announce
+    // yet: a screen reader needs it present before there's ever anything to
+    // say, not created the first time there is.
+    const status = document.querySelector('p[role="status"]')
+    if (!status) throw new Error('no status region')
+    expect(status).toBeEmptyDOMElement()
+
+    try {
+      await user.keyboard('acm')
+      await waitFor(() => {
+        expect(terms.at(-1)).toBe('acm')
+      })
+      // The `acm` answer is held, so these are still the empty-term results.
+      expect(screen.getByRole('option', { name: 'Globex' })).toBeInTheDocument()
+      expect(status).toHaveTextContent('Searching…')
+      // The same node, not a fresh one: it never unmounted to say this.
+      expect(document.querySelector('p[role="status"]')).toBe(status)
+    } finally {
+      releaseAcm()
+    }
+
+    await waitFor(() => {
+      expect(status).toBeEmptyDOMElement()
+    })
+    expect(document.querySelector('p[role="status"]')).toBe(status)
+    // Proves the `acm` answer actually landed, not just that Acme (in both
+    // lists) is still there.
+    expect(screen.queryByRole('option', { name: 'Globex' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Acme Corp' })).toBeInTheDocument()
+  })
+
   it('says it is searching, not that nothing matched, while the next search loads', async () => {
     signInAs('admin')
     mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))

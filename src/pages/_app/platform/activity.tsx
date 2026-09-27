@@ -26,6 +26,7 @@ import { canViewPlatformActivity } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG, ROUTES } from '@/constants/routes'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { statusFrom } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 import {
   flattenAuditPages,
   usePlatformAuditLog,
@@ -87,11 +88,15 @@ function TenantFilter({
   // Only while open: a closed popup has nothing to show, the same reason the
   // tenant switcher gates its own search this way.
   const search = usePlatformTenantSearch(term, { enabled: open })
+  const items = flattenTenantPages(search.data)
+  // Placeholder data with items already listed: a new search is running, but
+  // ComboboxEmpty stays hidden while there's something to show.
+  const isRefreshing = search.isPlaceholderData && items.length > 0
 
   return (
     <div className="flex items-center gap-1">
       <Combobox<PlatformTenantRow>
-        items={flattenTenantPages(search.data)}
+        items={items}
         filter={null}
         value={value}
         open={open}
@@ -111,6 +116,17 @@ function TenantFilter({
           className="w-56"
         />
         <ComboboxContent>
+          {/* Stays mounted AND displayed always, like ComboboxEmpty just
+              below: only its text changes. An empty `<p>` with no padding
+              has zero height, so nothing shows while there's nothing to say. */}
+          <p
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className={cn('text-sm text-muted-foreground', isRefreshing && 'px-2 py-1.5')}
+          >
+            {isRefreshing ? 'Searching…' : null}
+          </p>
           <ComboboxEmpty>
             {/* Placeholder data is the previous term's answer, not this one's. */}
             {search.isPending || search.isPlaceholderData
