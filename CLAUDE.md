@@ -300,11 +300,16 @@ header. `?state=loaded|empty|error|loading|soleowner` picks the members response
 Two harness traps, both of which made tests measure the wrong thing once already: answering
 the SSE stream with `204` looks to the hook exactly like a dropped connection and sends the
 page into a refresh-then-redirect that a test will race; and **any endpoint left unmocked
-falls through to the real backend** (`onUnhandledRequest: 'bypass'`) and 401s. An unmocked
-AUTHENTICATED endpoint now signs the harness user out too — any 401 on a token-bearing request
-is a verdict (interceptors.ts) — so every authed endpoint the page under test calls must be
-mocked, not only the one being asserted on. If a fixtures test starts landing on `/login`,
-that is why.
+falls through** (`onUnhandledRequest: 'bypass'`) and 401s. Under Playwright it never reaches a
+real backend: the `fixtures` and `contrast` projects take `test` from `e2e/hermetic.ts`, which
+answers every `/api` request that would leave the browser with express's 401 envelope, and
+fails the test at teardown naming each endpoint it answered other than a signed-out page's
+bootstrap refresh. A test that fulfills an `/api` route itself stamps its response with
+`FALLBACK_HEADER` from that file, or the teardown reports it as an escape. The 401 still
+signs the harness user out — any 401 on a token-bearing request is a verdict
+(interceptors.ts) — so every authed endpoint the page under test calls must be mocked, not
+only the one being asserted on. If a fixtures test starts landing on `/login`, that is why,
+and the teardown message names the endpoint.
 
 **`live`** needs a real express-boilerplate on `:4040` and its docker services, and is skipped
 unless `E2E_LIVE=1`. Accounts are registered and verified through mailpit — login stays 401
@@ -331,7 +336,9 @@ render their "link is incomplete" branch instead), and the authenticated pages t
 harness's `?path=`. Every surface asserts a heading it alone renders BEFORE axe runs — a route
 that redirects still paints a perfectly legible page, so without that assertion a surface
 could report green while measuring something else entirely. It
-injects the axe-core already in devDependencies rather than adding a package.
+injects the axe-core already in devDependencies rather than adding a package. It needs no
+backend at all: the public pages' session bootstrap is answered by `e2e/hermetic.ts`, so an
+express on `:4040` that is restarting or hung cannot stall a run.
 
 **Opt-in and not in CI** — a deliberate cost decision, but do not read the usual justification
 for it ("contrast is a property of the palette, which moves rarely") as the whole risk model.

@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module'
-import { expect, test, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expect, test } from '../hermetic'
 import { afterAnimations, afterFontsAndFrames } from '../timing'
 
 /**
@@ -18,6 +19,11 @@ import { afterAnimations, afterFontsAndFrames } from '../timing'
  * Deliberately NOT in CI and not part of `pnpm test`: run it with
  * `pnpm test:contrast` when tokens or surfaces change. Contrast is a property
  * of the palette, which moves rarely and deliberately.
+ *
+ * No surface depends on a backend. `test` comes from `../hermetic`, which
+ * answers every `/api` request that would leave the browser with a 401, so the
+ * public pages' session bootstrap cannot reach whatever runs on :4040, nor hang
+ * on it while it restarts.
  */
 
 const require = createRequire(import.meta.url)
@@ -354,4 +360,21 @@ test.describe('staff surfaces', () => {
       expect(report('staff badge', theme, result), report('staff badge', theme, result)).toBe('')
     })
   }
+})
+
+/**
+ * The suite's own isolation. Without the fallback in `../hermetic` this
+ * refresh goes through the Vite proxy: `answered` stays empty, and the
+ * fixture's teardown reports the unstamped response.
+ */
+test('a public page gets its bootstrap refresh from the fallback, not the dev server proxy', async ({
+  page,
+  apiFallback,
+}) => {
+  await page.goto('/login')
+  // The root beforeLoad awaits the refresh, so the heading means it has settled.
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({
+    timeout: COLD_TRANSFORM_BUDGET_MS,
+  })
+  expect(apiFallback.answered).toContain('POST /api/v1/auth/refresh')
 })

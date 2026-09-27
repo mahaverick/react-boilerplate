@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../hermetic'
 
 /**
  * The Security section on /profile, through the harness. The harness accepts

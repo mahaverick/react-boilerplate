@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../hermetic'
 
 /**
  * The checks jsdom cannot make, because it has no layout and no cascade.
