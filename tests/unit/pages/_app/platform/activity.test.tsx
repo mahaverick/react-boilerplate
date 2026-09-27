@@ -92,6 +92,18 @@ function renderPlatformActivity() {
   )
 }
 
+/** The tenant filter's trigger; the search box lives in the popup it opens. */
+function tenantFilterTrigger() {
+  return screen.getByRole('combobox', { name: /^Filter by tenant/ })
+}
+
+/** Opens the tenant filter and returns the popup's search box. */
+async function openTenantFilter(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(tenantFilterTrigger())
+  const popup = await screen.findByRole('dialog', { name: 'Filter by tenant' })
+  return within(popup).getByRole('combobox', { name: 'Search tenants' })
+}
+
 describe('platform activity page', () => {
   beforeEach(() => {
     resetSessionForTests()
@@ -179,7 +191,7 @@ describe('platform activity page', () => {
     renderPlatformActivity()
     await screen.findByText(/opened this tenant/)
 
-    await user.type(screen.getByLabelText('Filter by tenant'), 'acm')
+    await user.type(await openTenantFilter(user), 'acm')
     // Pick from the settled `acm` answer, not from the empty-term list the
     // debounced search replaces: Globex is only in the empty-term list.
     await waitFor(() => {
@@ -193,13 +205,15 @@ describe('platform activity page', () => {
     await waitFor(() => {
       expect(seen.at(-1)?.searchParams.get('tenantId')).toBe(TENANT_ID)
     })
+    expect(tenantFilterTrigger()).toHaveAccessibleName('Filter by tenant. Current: Acme Corp')
 
     await user.click(screen.getByRole('button', { name: 'Clear the tenant filter' }))
 
     await waitFor(() => {
       expect(seen.at(-1)?.searchParams.has('tenantId')).toBe(false)
     })
-    expect(screen.getByLabelText('Filter by tenant')).toHaveValue('')
+    expect(tenantFilterTrigger()).toHaveAccessibleName('Filter by tenant. Current: Any tenant')
+    expect(await openTenantFilter(user)).toHaveValue('')
   })
 
   // A pick made while the next search is in flight lands on an option that is
@@ -220,11 +234,11 @@ describe('platform activity page', () => {
     renderPlatformActivity()
     await screen.findByText(/opened this tenant/)
 
-    await user.click(screen.getByLabelText('Filter by tenant'))
+    const searchBox = await openTenantFilter(user)
     expect(await screen.findByRole('option', { name: 'Globex' })).toBeInTheDocument()
 
     try {
-      await user.keyboard('acm')
+      await user.type(searchBox, 'acm')
       await waitFor(() => {
         expect(terms.at(-1)).toBe('acm')
       })
@@ -258,7 +272,7 @@ describe('platform activity page', () => {
     renderPlatformActivity()
     await screen.findByText(/opened this tenant/)
 
-    await user.click(screen.getByLabelText('Filter by tenant'))
+    const searchBox = await openTenantFilter(user)
     expect(await screen.findByRole('option', { name: 'Globex' })).toBeInTheDocument()
     // The status region is mounted at rest too, with nothing to announce
     // yet: a screen reader needs it present before there's ever anything to
@@ -268,7 +282,7 @@ describe('platform activity page', () => {
     expect(status).toBeEmptyDOMElement()
 
     try {
-      await user.keyboard('acm')
+      await user.type(searchBox, 'acm')
       await waitFor(() => {
         expect(terms.at(-1)).toBe('acm')
       })
@@ -306,11 +320,11 @@ describe('platform activity page', () => {
     renderPlatformActivity()
     await screen.findByText(/opened this tenant/)
 
-    await user.click(screen.getByLabelText('Filter by tenant'))
+    const searchBox = await openTenantFilter(user)
     expect(await screen.findByText('No tenants match')).toBeInTheDocument()
 
     try {
-      await user.keyboard('zz')
+      await user.type(searchBox, 'zz')
       await waitFor(() => {
         expect(terms.at(-1)).toBe('zz')
       })
@@ -330,7 +344,7 @@ describe('platform activity page', () => {
     renderPlatformActivity()
     await screen.findByText(/opened this tenant/)
 
-    await user.click(screen.getByLabelText('Filter by tenant'))
+    await openTenantFilter(user)
 
     expect(await screen.findByText('Tenants could not be loaded')).toBeInTheDocument()
     expect(screen.queryByText('No tenants match')).not.toBeInTheDocument()
@@ -352,10 +366,70 @@ describe('platform activity page', () => {
 
     expect(seen).toHaveLength(0)
 
-    await user.click(screen.getByLabelText('Filter by tenant'))
+    await openTenantFilter(user)
 
     await waitFor(() => {
       expect(seen.length).toBeGreaterThan(0)
     })
+  })
+  // Closed, nothing shows the term, and the trigger still says "Any tenant":
+  // reopening must not bring back a filtered list nobody can see the reason for.
+  // Base UI clears an input that sits inside the popup when the popup closes;
+  // this pins that, so moving the input or swapping the primitive keeps it.
+  it('clears an unpicked search when the filter closes', async () => {
+    signInAs('admin')
+    mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
+    const terms = mockTenantSearch((q) =>
+      tenantPage(q === 'glob' ? [GLOBEX_ROW] : [ACME_ROW, GLOBEX_ROW])
+    )
+    const user = userEvent.setup()
+    renderPlatformActivity()
+    await screen.findByText(/opened this tenant/)
+
+    await user.type(await openTenantFilter(user), 'glob')
+    await waitFor(() => {
+      expect(terms.at(-1)).toBe('glob')
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('option', { name: 'Acme Corp' })).not.toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('heading', { name: 'Platform activity', level: 1 }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    expect(tenantFilterTrigger()).toHaveAccessibleName('Filter by tenant. Current: Any tenant')
+
+    expect(await openTenantFilter(user)).toHaveValue('')
+    expect(await screen.findByRole('option', { name: 'Acme Corp' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Globex' })).toBeInTheDocument()
+  })
+
+  it('picks a tenant by keyboard', async () => {
+    signInAs('admin')
+    const seen = mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
+    const terms = mockTenantSearch((q) =>
+      tenantPage(q === 'glob' ? [GLOBEX_ROW] : [ACME_ROW, GLOBEX_ROW])
+    )
+    const user = userEvent.setup()
+    renderPlatformActivity()
+    await screen.findByText(/opened this tenant/)
+
+    const searchBox = await openTenantFilter(user)
+    await user.type(searchBox, 'glob')
+    await waitFor(() => {
+      expect(terms.at(-1)).toBe('glob')
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('option', { name: 'Acme Corp' })).not.toBeInTheDocument()
+    })
+    const globex = screen.getByRole('option', { name: 'Globex' })
+    await user.keyboard('{ArrowDown}')
+    expect(searchBox).toHaveAttribute('aria-activedescendant', globex.id)
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => {
+      expect(seen.at(-1)?.searchParams.get('tenantId')).toBe(TENANT_ID_2)
+    })
+    expect(tenantFilterTrigger()).toHaveAccessibleName('Filter by tenant. Current: Globex')
   })
 })

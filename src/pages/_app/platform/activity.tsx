@@ -10,6 +10,7 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
+  ComboboxTrigger,
 } from '@/components/ui/combobox'
 import { Label } from '@/components/ui/label'
 import {
@@ -107,15 +108,27 @@ function TenantFilter({
         itemToStringLabel={(tenant) => tenant.name}
         isItemEqualToValue={(a, b) => a.id === b.id}
       >
-        {/* No trigger or clear icon buttons: the vendored ones carry no
-            accessible name. The Clear button beside this has one. */}
-        <ComboboxInput
-          showTrigger={false}
-          aria-label="Filter by tenant"
-          placeholder="Any tenant"
-          className="w-56"
-        />
-        <ComboboxContent>
+        <ComboboxTrigger
+          render={
+            <Button
+              variant="outline"
+              className="w-56 justify-between font-normal"
+              aria-label={`Filter by tenant. Current: ${value?.name ?? 'Any tenant'}`}
+            />
+          }
+        >
+          <span className="truncate">{value?.name ?? 'Any tenant'}</span>
+        </ComboboxTrigger>
+        {/* Named, with the search box inside it: Base UI then makes the popup
+            a `dialog`, which axe's `region` rule exempts. */}
+        <ComboboxContent aria-label="Filter by tenant">
+          {/* No trigger or clear icon buttons: the vendored ones carry no
+              accessible name. The Clear button beside the trigger has one. */}
+          <ComboboxInput
+            showTrigger={false}
+            aria-label="Search tenants"
+            placeholder="Search tenants"
+          />
           {/* Stays mounted AND displayed always, like ComboboxEmpty just
               below: only its text changes. An empty `<p>` with no padding
               has zero height, so nothing shows while there's nothing to say. */}
