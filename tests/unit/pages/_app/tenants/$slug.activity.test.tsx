@@ -76,8 +76,7 @@ const STAFF_CHANGE = entry({
   target: { type: 'settings', id: TENANT_ID },
   metadata: { changed: ['timezone'] },
 })
-// The API falls back to the email AS the actor's name when no name is on
-// file, so a nameless actor's `name` equals their `email` — never `''`.
+// The API falls back to the email AS the actor's name when no name is on file, so a nameless actor's `name` equals their `email` — never `''`.
 const NAMELESS = entry({
   id: AUDIT_ID_3,
   occurredAt: '2026-09-25T11:00:00.000Z',
@@ -200,8 +199,7 @@ describe('tenant activity tab', () => {
     })
     renderAppAt('/tenants/acme/activity')
 
-    // The log's own request is out (so the role skeleton is gone), and
-    // nothing has answered it.
+    // The log's own request is out (so the role skeleton is gone), and nothing has answered it.
     await waitFor(() => {
       expect(seen).toHaveLength(1)
     })
@@ -338,9 +336,11 @@ describe('tenant activity tab', () => {
     expect(screen.getByText(/changed the settings/)).toBeInTheDocument()
   })
 
-  // A REFRESH failure is a different event from a "Load more" failure: no new
-  // page was being appended, so what's on screen is not necessarily complete,
-  // but nothing said it was incomplete either.
+  /**
+   * A REFRESH failure is a different event from a "Load more" failure: no
+   * new page was being appended, so what's on screen is not necessarily
+   * complete, but nothing said it was incomplete either.
+   */
   it('shows a refresh failure separately from a "Load more" failure, and retries with a fresh fetch', async () => {
     mockTenant('owner')
     let attempt = 0
@@ -352,9 +352,7 @@ describe('tenant activity tab', () => {
     renderAppAt('/tenants/acme/activity')
     await screen.findByText(/changed the settings/)
 
-    // Leaving the tab and returning unmounts and remounts the log's own
-    // query. `staleTime: 0` means the remount refetches on its own — a
-    // REFRESH, never a "Load more" (there is no next page here to load).
+    // Leaving the tab and returning unmounts and remounts the log's own query. `staleTime: 0` means the remount refetches on its own — a REFRESH, never a "Load more" (there is no next page here to load).
     await user.click(screen.getByRole('link', { name: 'Overview' }))
     await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
     await user.click(screen.getByRole('link', { name: 'Activity' }))
@@ -371,8 +369,7 @@ describe('tenant activity tab', () => {
     })
   })
 
-  // The route's role check already passed on cached data; a fresh 403 means
-  // the effective role changed server-side since then.
+  // The route's role check already passed on cached data; a fresh 403 means the effective role changed server-side since then.
   it('says the tenant’s activity is owners-and-admins only when the log answers 403, and does not retry', async () => {
     mockTenant('owner')
     const seen = mockLog(() => fail('Forbidden', 403))
@@ -384,9 +381,12 @@ describe('tenant activity tab', () => {
     expect(seen).toHaveLength(1)
   })
 
-  // A 403 here means the cached role is stale, so the tab gate (`useMyRole`,
-  // reading the same `tenantKeys.detail` key) must refetch too — otherwise
-  // the tab keeps rendering on the role that no longer holds.
+  /**
+   * A 403 here means the cached role is stale, so the tab gate
+   * (`useMyRole`, reading the same `tenantKeys.detail` key) must refetch
+   * too — otherwise the tab keeps rendering on the role that no longer
+   * holds.
+   */
   it('invalidates the tenant detail when the log answers 403, so the tab gate refreshes', async () => {
     let detailCalls = 0
     server.use(
@@ -400,8 +400,7 @@ describe('tenant activity tab', () => {
     renderAppAt('/tenants/acme/activity')
     await screen.findByText('Only this tenant’s owners and admins can see its activity.')
 
-    // The initial load is one request; a second means the effect fired,
-    // whether or not it landed before this text appeared.
+    // The initial load is one request; a second means the effect fired, whether or not it landed before this text appeared.
     await waitFor(() => {
       expect(detailCalls).toBeGreaterThan(1)
     })

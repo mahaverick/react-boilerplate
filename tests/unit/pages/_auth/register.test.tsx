@@ -60,8 +60,7 @@ async function fillAndSubmit(email: string, password: string) {
 describe('register page', () => {
   beforeEach(arriveSignedOut)
 
-  // The API answers 202 with `data: null` for every address, so the page must
-  // not read a user off the response.
+  // The API answers 202 with `data: null` for every address, so the page must not read a user off the response.
   it('shows "Check your email" with the address after a 202 carrying data: null', async () => {
     renderRegisterAt('/register')
     await fillAndSubmit('ada@b.com', 'secret123')

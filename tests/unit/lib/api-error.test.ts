@@ -18,8 +18,7 @@ const VALIDATION_FAILURE = axiosErrorWith({
   success: false,
   message: 'Validation failed.',
   statusCode: 422,
-  // Exactly the shape the backend builds from z.flattenError:
-  // {...fieldErrors, ...(formErrors.length > 0 && { formErrors })}.
+  // Exactly the shape the backend builds from z.flattenError: {...fieldErrors, ...(formErrors.length > 0 && { formErrors })}.
   errors: {
     email: ['Enter a valid email address.'],
     formErrors: ['Passwords do not match.'],
@@ -38,9 +37,11 @@ describe('api-error', () => {
   })
 
   it('keeps the reserved formErrors key out of the field errors', () => {
-    // The load-bearing assertion: `formErrors` is the ONE key in `errors`
-    // that is not a field name. Left in, it would render an error against an
-    // input called "formErrors", which no form has.
+    /**
+     * The load-bearing assertion: `formErrors` is the ONE key in `errors`
+     * that is not a field name. Left in, it would render an error against
+     * an input called "formErrors", which no form has.
+     */
     expect(fieldErrorsFrom(VALIDATION_FAILURE)).toEqual({
       email: ['Enter a valid email address.'],
     })
@@ -52,8 +53,7 @@ describe('api-error', () => {
   })
 
   it('reports the response status, and undefined when there was no response', () => {
-    // `useTenant` turns a 404 into a not-found VALUE; a network failure must
-    // stay an error, or a dropped connection would render "no such tenant".
+    // `useTenant` turns a 404 into a not-found VALUE; a network failure must stay an error, or a dropped connection would render "no such tenant".
     expect(statusFrom(VALIDATION_FAILURE)).toBe(422)
     expect(statusFrom(new AxiosError('Network Error'))).toBeUndefined()
     expect(statusFrom(new Error('boom'))).toBeUndefined()

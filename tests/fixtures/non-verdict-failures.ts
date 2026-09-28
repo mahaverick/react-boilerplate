@@ -13,11 +13,10 @@ import { fail } from '@/tests/mocks/handlers'
  * interceptor is signed out just the same, only through a different door, so
  * the two halves have to stay in step.
  *
- * It lives here rather than in either test file because it was duplicated
- * once already: two identical literals, one per file, which meant adding a
- * status to whichever file you happened to be in left the OTHER half
- * unpinned, with a green suite either way. That is the drift path this file
- * exists to close. Add a case here and both sides gain a test.
+ * It lives here rather than in either test file so a new status is pinned
+ * on both sides at once: two separate literals would let a status added to
+ * only one file leave the other half unpinned, with a green suite either
+ * way. Add a case here and both sides gain a test.
  *
  * Why each entry is not a verdict:
  * - **502 / 503**: nginx through a rolling restart or a dead upstream. The
@@ -28,8 +27,9 @@ import { fail } from '@/tests/mocks/handlers'
  *   our own retry policy can manufacture the 429 that would end the session.
  * - **A 200 carrying HTML**: `rejectMalformedJsonResponse`
  *   (`src/http/interceptors.ts`) throws an `AxiosError` that CARRIES a
- *   response, so a poisoned cache entry or a misrouted proxy response looked
- *   exactly like an auth verdict under the old `response !== undefined` test.
+ *   response, so a poisoned cache entry or a misrouted proxy response would
+ *   look exactly like an auth verdict to any predicate that only checks
+ *   `response !== undefined`.
  */
 export const NON_VERDICT_FAILURES: [string, () => Response][] = [
   ['a 502 from an upstream gateway mid-deploy', () => fail('Bad Gateway', 502)],

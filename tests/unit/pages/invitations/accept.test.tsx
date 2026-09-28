@@ -250,8 +250,7 @@ describe('accept page, signed in', () => {
   it('lands an existing member on the tenant, without claiming the invited role', async () => {
     signIn()
     mockTenantRoute()
-    // Invited as editor, already an admin: the server keeps the admin role and
-    // answers with it.
+    // Invited as editor, already an admin: the server keeps the admin role and answers with it.
     server.use(
       http.post('/api/v1/invitations/accept', () =>
         ok({ tenant: { name: 'Acme Corp', slug: 'acme' }, role: 'admin' }, 'Accepted.')

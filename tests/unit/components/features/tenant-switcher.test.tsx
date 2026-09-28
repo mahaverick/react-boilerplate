@@ -129,9 +129,11 @@ describe('TenantSwitcher', () => {
     expect(within(mine).getByRole('option', { name: 'Acme Corp' })).toBeInTheDocument()
   })
 
-  // The platform tenant is a membership like any other, and the list carries
-  // it. It is linked from the user menu instead, never switched to as if it
-  // were a customer.
+  /**
+   * The platform tenant is a membership like any other, and the list
+   * carries it. It is linked from the user menu instead, never switched to
+   * as if it were a customer.
+   */
   it('leaves the platform tenant out of Your tenants', async () => {
     signInAs('viewer')
     server.use(
@@ -247,9 +249,11 @@ describe('TenantSwitcher', () => {
       expect(screen.getAllByRole('option', { name: 'Acme Corp' })).toHaveLength(1)
     })
 
-    // resolveTenant only opens active tenants, so a suspended or archived row
-    // would 404 the moment it was chosen. Leaving them out is simplest: there
-    // is nowhere for choosing one to go.
+    /**
+     * resolveTenant only opens active tenants, so a suspended or archived
+     * row would 404 the moment it was chosen. Leaving them out is
+     * simplest: there is nowhere for choosing one to go.
+     */
     it('leaves suspended and archived tenants out of All tenants, since neither can be opened', async () => {
       server.use(
         http.get('/api/v1/tenants', () =>
@@ -278,8 +282,7 @@ describe('TenantSwitcher', () => {
       expect(within(all).queryByRole('option', { name: 'Umbrella' })).not.toBeInTheDocument()
     })
 
-    // Four keystrokes inside the 250ms window: one request for the word, not
-    // one per letter.
+    // Four keystrokes inside the 250ms window: one request for the word, not one per letter.
     it('debounces the search, sending one request for a burst of typing', async () => {
       const seen = recordSearches((url) =>
         ok(
@@ -302,8 +305,7 @@ describe('TenantSwitcher', () => {
       expect(terms).toEqual(['glob'])
     })
 
-    // `q.trim()` happens inside the hook, so three spaces is the same empty
-    // term as never having typed anything — never sent, past the debounce.
+    // `q.trim()` happens inside the hook, so three spaces is the same empty term as never having typed anything — never sent, past the debounce.
     it('sends no q for a whitespace-only search', async () => {
       const seen = recordSearches(() => ok({ tenants: [], nextCursor: null }, 'Tenants.'))
       renderShell()
@@ -318,8 +320,7 @@ describe('TenantSwitcher', () => {
       await user.type(screen.getByLabelText('Search tenants'), '   ')
       await act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS))
 
-      // Past the debounce, the whitespace term has rendered. Had it produced a
-      // `q`, it would have made a second query key on that render.
+      // Past the debounce, the whitespace term has rendered. Had it produced a `q`, it would have made a second query key on that render.
       const searchKeys = queryClient
         .getQueryCache()
         .findAll({ queryKey: ['platform', 'tenants'] })
@@ -336,8 +337,7 @@ describe('TenantSwitcher', () => {
       expect(await screen.findByText('All tenants could not be loaded')).toBeInTheDocument()
     })
 
-    // Keyboard-reachable, not scroll-only: the option sits in the arrow-key
-    // order, and Enter on it loads the next page and keeps the popup open.
+    // Keyboard-reachable, not scroll-only: the option sits in the arrow-key order, and Enter on it loads the next page and keeps the popup open.
     it('loads the next page from a Load more option chosen by keyboard', async () => {
       const seen = recordSearches((url) =>
         url.searchParams.get('cursor') === 'c2'
@@ -399,10 +399,13 @@ describe('TenantSwitcher', () => {
       expect(screen.queryByText('Searching all tenants…')).not.toBeInTheDocument()
     })
 
-    // A failed page must stay retryable, not get stuck disabled — a click on
-    // the same option is the retry. The query client retries once on its
-    // own (`retry: 1`), so the first TWO `cursor=c2` requests are the
-    // automatic attempt and its retry; only the third is the user's click.
+    /**
+     * A failed page must stay retryable, not get stuck disabled — a click
+     * on the same option is the retry. The query client retries once on
+     * its own (`retry: 1`), so the first TWO `cursor=c2` requests are the
+     * automatic attempt and its retry; only the third is the user's
+     * click.
+     */
     it('shows a retryable message when Load more fails, and a retry succeeds', async () => {
       let attempt = 0
       const seen = recordSearches((url) => {
@@ -450,8 +453,7 @@ describe('TenantSwitcher', () => {
       })
     })
 
-    // Staff have no list row for a tenant they reached by platform access, so
-    // the label comes from the tenant the route has already loaded.
+    // Staff have no list row for a tenant they reached by platform access, so the label comes from the tenant the route has already loaded.
     it('names a tenant opened by platform access in the trigger', async () => {
       server.use(
         http.get('/api/v1/tenants/globex', () =>

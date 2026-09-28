@@ -22,8 +22,7 @@ function makeClient() {
 }
 
 describe('rejectMalformedJsonResponse', () => {
-  // Mirrors interceptors.test.ts's reset so these tests don't depend on
-  // auth/session state left over from another file.
+  // Mirrors interceptors.test.ts's reset so these tests don't depend on auth/session state left over from another file.
   beforeEach(() => {
     resetSessionForTests()
     useAuthStore.setState({

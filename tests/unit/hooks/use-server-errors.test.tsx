@@ -106,8 +106,7 @@ function Fixture({
   const form = useForm({
     defaultValues: { email: '', nickname: '' },
     onSubmit: async () => {
-      // A request's worth of delay, so the capture lands in a promise
-      // continuation, as it does on every page.
+      // A request's worth of delay, so the capture lands in a promise continuation, as it does on every page.
       await Promise.resolve()
       if (failure) serverErrors.capture(failure())
     },
@@ -210,8 +209,7 @@ describe('the server-error bridge in <Form>', () => {
     const user = await submit()
 
     expect(await screen.findByText('Already taken.')).toBeInTheDocument()
-    // Left to itself, the change event would carry name="explicit" and clear
-    // nothing — the error would sit there while the user retyped the address.
+    // Left to itself, the change event would carry name="explicit" and clear nothing — the error would sit there while the user retyped the address.
     expect(screen.getByLabelText('Email')).toHaveAttribute('name', 'email')
     await user.type(screen.getByLabelText('Email'), 'a')
     await waitFor(() => {
@@ -226,8 +224,7 @@ describe('the server-error bridge in <Form>', () => {
     render(<Fixture onChange={onChange} onSubmit={onSubmit} />)
     const user = await submit()
 
-    // Both of the bridge's jobs still happen: submission ran (it is what
-    // captured the error) and clearing still works.
+    // Both of the bridge's jobs still happen: submission ran (it is what captured the error) and clearing still works.
     expect(onSubmit).toHaveBeenCalled()
     expect(await screen.findByText('Already taken.')).toBeInTheDocument()
 
@@ -280,8 +277,7 @@ describe('focus after submit', () => {
   })
 
   it('moves focus to the first field a server error names, described by its message', async () => {
-    // The frame fires at once: the worst case, a frame that arrives before
-    // React's own scheduled render. Only a committed error can be found then.
+    // The frame fires at once: the worst case, a frame that arrives before React's own scheduled render. Only a committed error can be found then.
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       callback(0)
       return 0
@@ -310,8 +306,7 @@ describe('setFieldError', () => {
   it('adds to what capture set in the same tick, and clears like any other', () => {
     const { result } = renderHook(() => useServerErrors())
 
-    // A capture and a hand-set field message in one tick, before React
-    // renders in between.
+    // A capture and a hand-set field message in one tick, before React renders in between.
     act(() => {
       result.current.capture(validationFailure())
       result.current.setFieldError('nickname', ['Taken by a member.'])
