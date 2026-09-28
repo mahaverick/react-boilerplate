@@ -366,14 +366,14 @@ export default tseslint.config(
   },
   {
     /**
-     * The comment-style rule, off by default; run it with `--rule`. The `.d.mts`
-     * files under scripts/ are listed separately because the brace glob does not
-     * reach them, and their JSDoc must be checked too.
+     * Comment style is enforced; see CLAUDE.md. The `.d.mts` files under
+     * scripts/ are listed separately because the brace glob does not reach
+     * them, and their JSDoc must be checked too.
      */
     files: ['**/*.{ts,tsx,js,mjs}', 'scripts/**/*.d.mts'],
     ignores: ['src/components/ui/**'],
     plugins: { local: { rules: { 'comment-style': commentStyleRule } } },
-    rules: { 'local/comment-style': 'off' },
+    rules: { 'local/comment-style': 'error' },
   },
   prettier
 )

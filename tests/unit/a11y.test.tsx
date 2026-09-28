@@ -766,7 +766,7 @@ describe('open overlays', () => {
   })
 
   /**
-   * The switcher is a combobox now, not a menu: the popup is a `dialog`
+   * The switcher is a combobox: the popup is a `dialog`
    * holding the search box and a `listbox`. Base UI portals it, and axe
    * exempts `role="dialog"` from `region` (as it does for the sheet), so this
    * one is graded at DOCUMENT scope with nothing narrowed.
