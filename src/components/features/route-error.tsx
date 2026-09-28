@@ -14,9 +14,11 @@ import { isChunkLoadError } from '@/lib/chunk-load-error'
 
 /**
  * The router-wide error screen, for any route without its own `errorComponent`.
- *
- * The error's own message is shown in development only: in production it can
- * carry server or stack detail that means nothing to the reader.
+ * A chunk that failed to load offers a reload, since only a reload picks up a
+ * new deploy's file names. Try again calls `router.invalidate()`, which re-runs
+ * the loaders and replaces the failed match, then `reset()`. The error's own
+ * message is shown in development only: in production it can carry server or
+ * stack detail that means nothing to the reader.
  */
 export function RouteError({ error, reset }: ErrorComponentProps) {
   const router = useRouter()
@@ -32,8 +34,6 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
     )
   }
 
-  // invalidate() re-runs the loaders and replaces the failed match, which on
-  // its own resets this boundary; reset() clears it explicitly as well.
   async function retry() {
     await router.invalidate()
     reset()
@@ -46,7 +46,6 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
       detail={import.meta.env.DEV && error instanceof Error ? error.message : undefined}
     >
       <Button onClick={() => void retry()}>Try again</Button>
-      {/* A link, not a button: it navigates. */}
       <Link to={ROUTES.home} className={buttonVariants({ variant: 'outline' })}>
         Go home
       </Link>

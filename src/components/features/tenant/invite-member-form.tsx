@@ -37,22 +37,22 @@ import { ALREADY_MEMBER, INVITATION_CONFLICT } from '@/types/api.types'
 const RACED = 'Someone just invited this address — refresh and try again.'
 
 /**
- * Invite someone by email.
+ * Invite someone by email. Shown to owners and admins (`canManageTenant`); the
+ * roles offered come from `canActorGrantRole`, so an admin cannot invite an
+ * admin or owner.
  *
- * Reachable for owner and admin (`canManageTenant`), but the roles OFFERED
- * come from `canActorGrantRole` — a third rule, separate from the
- * actor→target matrix, because a person who is not yet a member has no
- * current role to compare against. Without it an admin could invite a
- * brand-new `admin` (or `owner`), which is a larger grant than the matrix
- * lets that same admin apply to an EXISTING admin.
+ * `already_member` goes on the email field alone, and `invitation_conflict`
+ * at form level (the list refetches, so the winning invite shows below).
+ * The role select clears its own server error, since Base UI's selection does
+ * not bubble a change event to the form; `FormControl`'s id lands on the
+ * visible trigger, so the label points at something a pointer can reach.
  */
 export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: MembershipRole }) {
   const inviteMember = useInviteMember(slug)
   const serverErrors = useServerErrors()
   const grantable = MEMBERSHIP_ROLES.filter((role) => canActorGrantRole(myRole, role))
 
-  // The schema's own input type, so `role` stays a MembershipRole rather than
-  // widening to `string` — the same annotation register.tsx makes.
+  /** The schema's input type, so `role` stays a MembershipRole rather than widening to `string`. */
   const defaultValues: z.input<typeof inviteMemberSchema> = {
     email: '',
     role: DEFAULT_MEMBER_ROLE,
@@ -64,20 +64,16 @@ export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: Membe
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        // The 202 carries `data: null`, so the toast names what was sent.
         const input = inviteMemberSchema.parse(value)
         await inviteMember.mutateAsync(input)
         toast.success(`Invitation sent to ${input.email}.`)
         form.reset()
       } catch (error) {
         const code = codeFrom(error)
-        // The one answer about the address itself, so it goes on that field
-        // and nowhere else: `capture` would also put it at form level.
         if (code === ALREADY_MEMBER) {
           serverErrors.setFieldError('email', [messageFrom(error)])
           return
         }
-        // The hook refetches the list on a conflict, so the winner shows below.
         if (code === INVITATION_CONFLICT) {
           serverErrors.setFormErrors([RACED])
           return
@@ -111,15 +107,11 @@ export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: Membe
         {(field) => (
           <FormItem>
             <FormLabel>Role</FormLabel>
-            {/* `FormControl`'s id lands on the visible trigger button, so the
-                label points at something a pointer can reach. */}
             <Select
               value={fieldValue(field.state.value)}
               onValueChange={(value: string | null) => {
                 if (value === null) return
                 field.handleChange(value)
-                // Base UI's selection does NOT bubble a change event to the
-                // <form>, so <Form>'s own clearing rule never sees this.
                 serverErrors.clearField('role')
               }}
             >

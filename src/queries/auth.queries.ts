@@ -47,10 +47,10 @@ export function useForgotPassword() {
   })
 }
 
+/** Resets the password with the emailed token; `confirmPassword` stays client-side. */
 export function useResetPassword() {
   return useMutation({
     mutationFn: async (input: ResetPasswordInput) =>
-      // confirmPassword is a client-side concern; the API does not accept it.
       apiClient.post<ApiSuccess<unknown>>('/auth/reset-password', {
         token: input.token,
         password: input.password,
@@ -80,11 +80,13 @@ export function useAuthProviders() {
   })
 }
 
-/** Changes the caller's password. The API keeps this session and revokes every other one. */
+/**
+ * Changes the caller's password; `confirmPassword` stays client-side. The API
+ * keeps this session and revokes every other one.
+ */
 export function useChangePassword() {
   return useMutation({
     mutationFn: async (input: ChangePasswordInput) =>
-      // confirmPassword is a client-side concern; the API does not accept it.
       apiClient.post<ApiSuccess<null>>('/auth/change-password', {
         currentPassword: input.currentPassword,
         newPassword: input.newPassword,
@@ -106,13 +108,12 @@ export function useLogout({ returnTo = ROUTES.login }: { returnTo?: string } = {
     window.location.assign(returnTo)
   }
   return useMutation({
-    // skipAuthRetry: a 401 here is handled below, not by the interceptor's verdict path.
+    // skipAuthRetry: onError below alone decides what a failed logout means.
     mutationFn: async () =>
       apiClient.post<ApiSuccess<unknown>>('/auth/logout', undefined, { skipAuthRetry: true }),
     onSuccess: endSession,
     onError: (error) => {
-      // 401: the server already considers the session over. Anything else (no
-      // response, 5xx, 429) left it alive server-side, so it stays alive here.
+      // A 401 is taken as the session already over; no response, 5xx or 429 leave it alive.
       if (statusFrom(error) === 401) {
         endSession()
         return

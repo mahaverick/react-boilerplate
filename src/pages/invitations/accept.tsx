@@ -23,14 +23,13 @@ import { useAuthStore } from '@/states/auth.store'
 import { INVITATION_EMAIL_UNVERIFIED, type InvitationPreview } from '@/types/api.types'
 
 /**
- * Top level on purpose, under neither `_auth` nor `_app`: the link is opened
- * signed out and signed in alike, and each guard would bounce one of them.
- * The backend mails `${WEB_URL}/invitations/accept?token=`, so the path is
- * fixed. This page renders `AuthLayout` itself, like reset-password.tsx.
+ * The invitation landing page. Top level, under neither `_auth` nor `_app`:
+ * the link is opened signed out and signed in alike, and each guard would
+ * bounce one of them. The API mails links to this fixed path. It renders
+ * `AuthLayout` itself, like reset-password.tsx. `.catch` treats a non-string
+ * `?token=` as none, since the router JSON-parses search values.
  */
 export const Route = createFileRoute('/invitations/accept')({
-  // `.catch`: the router JSON-parses search values, so `?token=123` is a
-  // number, treated as no token.
   validateSearch: z.object({ token: z.string().optional().catch(undefined) }),
   head: () => ({ meta: [{ title: pageTitle('Accept invitation') }] }),
   component: AcceptInvitationPage,
@@ -66,7 +65,6 @@ function InvitationCard({
     <AuthLayout>
       <Card>
         <CardHeader>
-          {/* CardTitle renders a div, so the page's h1 goes inside it. */}
           <CardTitle>
             <h1>{title}</h1>
           </CardTitle>
@@ -94,6 +92,7 @@ function InvalidInvitation({ message }: { message: string }) {
   )
 }
 
+/** Signed out: log in (returning here) or create an account with the invited address. */
 function SignedOut({ token, invitation }: { token: string; invitation: InvitationPreview }) {
   return (
     <InvitationCard
@@ -101,7 +100,6 @@ function SignedOut({ token, invitation }: { token: string; invitation: Invitatio
       description={invitationSentence(invitation)}
     >
       <div className="grid gap-3">
-        {/* Links styled as buttons: both navigate. */}
         <Link
           to={ROUTES.login}
           search={{ redirect: acceptHref(token) }}
@@ -125,6 +123,11 @@ function SignedOut({ token, invitation }: { token: string; invitation: Invitatio
   )
 }
 
+/**
+ * Signed in as a different address. Signing out returns here signed out, the
+ * state that offers "Log in". The home link is a way out that is not signing
+ * out, and the state's only link, which axe's `bypass` rule needs.
+ */
 function WrongAccount({
   token,
   invitation,
@@ -134,7 +137,6 @@ function WrongAccount({
   invitation: InvitationPreview
   currentEmail: string
 }) {
-  // Back to this page, signed out, which is the state that offers "Log in".
   const logout = useLogout({ returnTo: acceptHref(token) })
 
   return (
@@ -149,31 +151,31 @@ function WrongAccount({
         <Button className="w-full" disabled={logout.isPending} onClick={() => logout.mutate()}>
           {logout.isPending ? 'Signing out…' : 'Sign out'}
         </Button>
-        {/* A way out that isn't signing out; also the state's only link, without
-            which axe's `bypass` rule has nothing to apply to. */}
         <HomeLink />
       </div>
     </InvitationCard>
   )
 }
 
+/**
+ * The accept button for the invited account. The API's 403 is kept as a
+ * refusal (with the verify hint when the email is unverified), and its 404
+ * (revoked, expired or used since the preview) replaces the panel. A repeat
+ * accept by the same member also succeeds. The success toast names no role,
+ * because the response carries the member's current role, which for an
+ * existing member is not the one offered. The home link is a way out that is
+ * not accepting, and the state's only link, which axe's `bypass` rule needs.
+ */
 function AcceptPanel({ token, invitation }: { token: string; invitation: InvitationPreview }) {
   const accept = useAcceptInvitation()
   const navigate = useNavigate()
-  // The server's 403: unverified (the verify hint applies) or, despite the
-  // local match, a different address (its message alone).
   const [refusal, setRefusal] = useState<{ message: string; unverified: boolean } | null>(null)
-  // The server's 404: revoked, expired or used since the preview loaded.
   const [gone, setGone] = useState<string | null>(null)
 
   async function onAccept() {
     setRefusal(null)
     try {
-      // A repeat accept by the same member also succeeds, so "already a
-      // member" lands here too.
       const { tenant } = await accept.mutateAsync(token)
-      // No role here: the response carries the member's CURRENT role, which
-      // for an existing member is not the one this invitation offered.
       toast.success(`You joined ${tenant.name}.`)
       await navigate({ to: '/tenants/$slug', params: { slug: tenant.slug } })
     } catch (error) {
@@ -214,14 +216,17 @@ function AcceptPanel({ token, invitation }: { token: string; invitation: Invitat
         <Button className="w-full" disabled={accept.isPending} onClick={() => void onAccept()}>
           {accept.isPending ? 'Accepting…' : 'Accept invitation'}
         </Button>
-        {/* A way out that isn't accepting; also the state's only link, without
-            which axe's `bypass` rule has nothing to apply to. */}
         <HomeLink />
       </div>
     </InvitationCard>
   )
 }
 
+/**
+ * The page for a well-formed token: the preview, then the state for who is
+ * signed in. Only a 404 marks the invitation unusable; any other preview
+ * failure is a failed request, with a retry.
+ */
 function InvitationForToken({ token }: { token: string }) {
   const preview = useInvitationPreview(token)
   const user = useAuthStore((state) => state.user)
@@ -238,8 +243,6 @@ function InvitationForToken({ token }: { token: string }) {
   }
 
   if (preview.isError) {
-    // Only a 404 means the invitation is unusable. Anything else is a failed
-    // request, and saying "invalid" about it would be a claim we cannot make.
     if (statusFrom(preview.error) === 404) {
       return <InvalidInvitation message={messageFrom(preview.error)} />
     }
@@ -255,8 +258,7 @@ function InvitationForToken({ token }: { token: string }) {
 
   const invitation = preview.data
   if (!user) return <SignedOut token={token} invitation={invitation} />
-  // Case-insensitive: both sides are stored lowercased, and neither is
-  // trusted to stay that way. A mismatch never reaches the server.
+  // Case-insensitive, and a mismatch never reaches the server.
   if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
     return <WrongAccount token={token} invitation={invitation} currentEmail={user.email} />
   }

@@ -16,11 +16,9 @@ import { useLogout } from '@/queries/auth.queries'
 import type { User } from '@/types/api.types'
 
 /**
- * "Ada Lovelace", or the email when the profile carries no name yet.
- *
- * Module-private on purpose: `react-refresh/only-export-components` is a
- * warning and the gate runs `--max-warnings 0`, so a non-component export
- * beside a component here would fail lint.
+ * "Ada Lovelace", or the email when the profile carries no name yet. Not
+ * exported: `react-refresh/only-export-components` fails lint under
+ * `--max-warnings 0`.
  */
 function displayName(user: User | null): string {
   return fullName(user) ?? user?.email ?? 'Account'
@@ -31,6 +29,14 @@ function initials(user: User | null): string {
   return (letters || user?.email?.[0] || '?').toUpperCase()
 }
 
+/**
+ * The account menu in the sidebar footer. Below `md` its trigger collapses to
+ * the avatar, so the aria-label names it (Base UI's Tooltip emits no
+ * role="tooltip" or aria-describedby); the label is on the rendered element,
+ * whose own props win under useRender. For staff it links the platform tenant,
+ * which the switcher leaves out: its Members and Invitations pages are staff
+ * management.
+ */
 export function UserMenu({ user }: { user: User | null }) {
   const logout = useLogout()
   const name = displayName(user)
@@ -40,12 +46,6 @@ export function UserMenu({ user }: { user: User | null }) {
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
-          {/* The trigger collapses to just the avatar below `md`, so it is an
-              icon-only control there. Base UI's Tooltip emits no role="tooltip"
-              and no aria-describedby, so a tooltip would NOT name it — the
-              aria-label is what Task 9's axe `button-name` check reads. It is on
-              the rendered element because useRender lets that element's own
-              props win over the trigger's. */}
           <DropdownMenuTrigger
             render={<SidebarMenuButton size="lg" aria-label={`Account menu for ${name}`} />}
           >
@@ -59,8 +59,6 @@ export function UserMenu({ user }: { user: User | null }) {
               <UserIcon className="mr-2 size-4" />
               Profile
             </DropdownMenuItem>
-            {/* The platform tenant is left out of the switcher; this is its
-                door. Its Members and Invitations pages ARE staff management. */}
             {staff && (
               <DropdownMenuItem
                 render={<Link to="/tenants/$slug" params={{ slug: PLATFORM_TENANT_SLUG }} />}

@@ -6,19 +6,17 @@ import { ACCESS_TOKEN_EXPIRED, type ApiErrorBody } from '@/types/api.types'
 declare module 'axios' {
   interface AxiosRequestConfig {
     /**
-     * Opts a request out of the 401 retry path AND the 401 verdict path
-     * entirely. Set on the two requests refreshSession() makes itself, and on
-     * POST /auth/logout, whose 401 useLogout handles. Without it, a 401 carrying
-     * ACCESS_TOKEN_EXPIRED on either of them sends the response interceptor
-     * into ensureSession(), which returns the promise that is awaiting that
-     * very request — a self-wait that never settles and never logs out.
+     * Opts a request out of both the 401 retry path and the 401 verdict path.
+     * Set on the two requests refreshSession() makes itself, and on POST
+     * /auth/logout so that useLogout alone handles its failure. Without it, a
+     * 401 carrying ACCESS_TOKEN_EXPIRED on a refresh request sends the response
+     * interceptor into ensureSession(), which returns the promise awaiting that
+     * very request: a self-wait that never settles and never logs out.
      *
-     * /profile is behind requireAuth and auth.middleware.ts does emit that
-     * code, so this is reachable whenever a freshly minted token is judged
-     * expired: clock skew, a near-zero TTL, a key-rotation race. /auth/refresh
-     * cannot currently emit the code, but it is marked too — it is rate
-     * limited, so recursing into it is wrong regardless, and the invariant
-     * should not rest on a backend property neither side tests.
+     * /profile is behind requireAuth, which emits that code, so this is
+     * reachable when a freshly minted token is judged expired (clock skew, a
+     * near-zero TTL). /auth/refresh does not emit it, but is marked too: it is
+     * rate limited, so recursing into it is wrong regardless.
      */
     skipAuthRetry?: boolean
     /** Set by the response interceptor so a request is replayed at most once. */
@@ -29,25 +27,22 @@ declare module 'axios' {
 /**
  * Rejects a 2xx response whose body is not the JSON object every endpoint
  * promises. Axios parses JSON silently: a 200 carrying an empty body or an
- * HTML error page (a poisoned browser-cache entry, a misrouted proxy
- * response) resolves successfully with `response.data` as a raw string, and
- * `unwrap()`'s `response.data.data` then yields `undefined` — a failure that
- * surfaces far away, naming no request. Registered as a SECOND response
- * interceptor so silent-refresh replays pass through it too.
+ * HTML page (a poisoned cache entry, a misrouted proxy response) resolves with
+ * `response.data` as a raw string, and `unwrap()` then yields `undefined` far
+ * from the request. Registered as the second response interceptor, so
+ * silent-refresh replays pass through it too. A responseType other than
+ * `json` opts out, and an empty body under a non-JSON content-type passes as
+ * a no-content response.
  */
 export function rejectMalformedJsonResponse(response: AxiosResponse): AxiosResponse {
-  // Blob/text/arraybuffer consumers opt out by setting responseType.
   const responseType = response.config.responseType
   if (responseType && responseType !== 'json') return response
 
-  // Parsed to an object — the JSON body every endpoint promises.
   if (typeof response.data === 'object' && response.data !== null) return response
 
   const contentType = String(response.headers['content-type'] ?? '')
   const declaresJson = contentType.includes('json')
 
-  // An empty body under a non-JSON (or absent) content-type is a legitimate
-  // no-content response (204-style), not corruption.
   if (!declaresJson && (response.data === '' || response.data === undefined)) return response
 
   const method = response.config.method?.toUpperCase() ?? 'GET'
@@ -64,22 +59,26 @@ export function rejectMalformedJsonResponse(response: AxiosResponse): AxiosRespo
   )
 }
 
+/**
+ * Installs the bearer-token request interceptor, the 401 handling and
+ * `rejectMalformedJsonResponse` on `client`.
+ *
+ * An Authorization header already on a request wins over the store's token:
+ * refreshSession() sets one on its /profile call while the store still holds
+ * the stale token, and the replay relies on the same precedence. So anything
+ * that sets a default Authorization header (either case) shadows the store's
+ * token on every request; the store is the only source of the bearer token.
+ *
+ * A non-expiry 401 on a request that carried a token is the server's verdict
+ * on it and signs every tab out. An ACCESS_TOKEN_EXPIRED 401 refreshes once
+ * and replays. When that refresh fails, the user is sent to /login only on an
+ * auth verdict (`isAuthVerdict`): any other refresh failure leaves the session
+ * intact, and the replay sits outside the catch so its own failure rejects
+ * with its own error.
+ */
 export function installInterceptors(client: AxiosInstance): void {
   client.interceptors.request.use((config) => {
     const { accessToken } = useAuthStore.getState()
-    // An Authorization header already on the config wins. refreshSession()
-    // sets one explicitly on its /profile call because the store still holds
-    // the STALE token at that point; overwriting it here would make /profile
-    // 401 with ACCESS_TOKEN_EXPIRED. The replay below relies on the same
-    // precedence.
-    //
-    // The flip side: anything that sets a DEFAULT Authorization header —
-    // `apiClient.defaults.headers.common.Authorization`, or a per-request
-    // header on any caller — permanently shadows the store's token, silently,
-    // because that default is already on the config by the time this runs.
-    // AxiosHeaders.has() is case-insensitive, so a lowercase `authorization`
-    // shadows it too. The store is the only source of the bearer token; do
-    // not set the header anywhere else.
     if (accessToken && !config.headers.has('Authorization')) {
       config.headers.set('Authorization', `Bearer ${accessToken}`)
     }
@@ -91,10 +90,7 @@ export function installInterceptors(client: AxiosInstance): void {
     async (error: AxiosError<ApiErrorBody>) => {
       const config = error.config
 
-      // Checked before anything else: a request refreshSession() made itself
-      // must fail as a plain rejection, so ensureSession() rejects — and
-      // decides for itself whether that warrants a logout — instead of
-      // awaiting itself forever.
+      // First: a refresh-internal request must reject plainly, or ensureSession() awaits itself.
       if (config?.skipAuthRetry) {
         return Promise.reject(error)
       }
@@ -102,8 +98,7 @@ export function installInterceptors(client: AxiosInstance): void {
       const isUnauthorized = error.response?.status === 401
       const isExpired = isUnauthorized && error.response?.data?.code === ACCESS_TOKEN_EXPIRED
 
-      // A non-expiry 401 on a request that carried a token is the server's verdict on
-      // it (revoked/deactivated/invalid); with no token (the login form) it judged a password.
+      // With no token (the login form), a 401 judged a password, not a session.
       if (isUnauthorized && !isExpired && config?.headers.has('Authorization')) {
         useAuthStore.getState().logout()
         broadcastLogout()
@@ -111,8 +106,7 @@ export function installInterceptors(client: AxiosInstance): void {
         return Promise.reject(error)
       }
 
-      // Only an EXPIRED token is retriable. `_retried` stops an endpoint that
-      // 401s unconditionally from looping.
+      // `_retried` stops an endpoint that 401s unconditionally from looping.
       if (!isExpired || !config || config._retried) {
         return Promise.reject(error)
       }
@@ -123,30 +117,10 @@ export function installInterceptors(client: AxiosInstance): void {
       try {
         accessToken = await ensureSession()
       } catch (refreshError) {
-        // Only a failed REFRESH reaches here — the replay below is
-        // deliberately outside this catch, so an ordinary failure of the
-        // retried request (404, 500, a second 401) rejects with its own error
-        // instead of bouncing a still-valid session to the login page.
-        //
-        // `isAuthVerdict` is the SAME gate session.ts uses to decide whether
-        // to log out, and it has to be applied here too: ensureSession leaves
-        // the session intact whenever the refresh failed for any reason other
-        // than a 401 — a deploy's 502, the refresh rate limiter's 429, a
-        // poisoned 200, an unreachable API — and navigating to /login anyway
-        // would undo that from the other side, throwing the user out of a
-        // session that is still perfectly valid. Redirect only when the store
-        // was actually cleared.
-        //
-        // `redirectToLogin` rather than a bare assign to ROUTES.login: it is
-        // the routine the SSE path calls too, and it carries the caller's
-        // location into `?redirect=` so signing back in returns them to the
-        // page they were forced off. See session.ts.
+        // The same gate refreshSession() logs out on, so a 502 or 429 never bounces a live session.
         if (isAuthVerdict(refreshError)) {
           redirectToLogin()
         }
-        // `throw` rather than Promise.reject: identical in an async function,
-        // and refreshError is `unknown`, which prefer-promise-reject-errors
-        // rightly refuses to let through Promise.reject.
         throw refreshError
       }
 

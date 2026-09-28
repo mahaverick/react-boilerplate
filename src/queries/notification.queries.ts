@@ -9,14 +9,9 @@ import { apiClient, unwrap } from '@/http/client'
 import type { ApiSuccess } from '@/types/api.types'
 
 /**
- * One row of `GET /api/v1/notifications` — a whole `notifications` row, as
- * `NotificationRepository.list` returns it (`db.select()` with no projection).
- *
- * `body` is `text().notNull()` on the model, so it is `string`, never null.
- * `metadata` is nullable `jsonb` with no shape of its own — the server calls
- * it "opaque to this repository, never queried on" — so it stays `unknown`
- * values rather than being given a structure this client would then have to
- * keep in step with whatever a future producer writes.
+ * One row of `GET /api/v1/notifications`: a whole `notifications` row, with no
+ * projection. `body` is NOT NULL. `metadata` is nullable `jsonb` with no shape
+ * of its own on the server, so its values stay `unknown` here.
  */
 export interface Notification {
   id: string
@@ -31,12 +26,8 @@ export interface Notification {
 }
 
 /**
- * A page of the inbox.
- *
- * `notifications`, not `items` — and `nextCursor` is OMITTED, not null, when
- * no further page exists: the repository builds the object conditionally for
- * its own `exactOptionalPropertyTypes`, so `undefined` is the only "no more
- * pages" value that ever reaches this client.
+ * A page of the inbox. `nextCursor` is omitted, never null, when no further
+ * page exists, which is what useInfiniteQuery reads as "no next page".
  */
 export interface NotificationPage {
   notifications: Notification[]
@@ -44,9 +35,9 @@ export interface NotificationPage {
 }
 
 /**
- * One notification type's resolved channel preferences — an entry of the
- * server's `PreferenceMatrix`, which always lists EVERY known type with
- * defaults already filled in, not just the ones the user has a row for.
+ * One notification type's resolved channel preferences: an entry of the
+ * server's `PreferenceMatrix`, which lists every known type once, with
+ * defaults filled in for types the user has no row for.
  */
 export interface NotificationPreference {
   notificationType: string
@@ -70,7 +61,8 @@ export const notificationKeys = {
   preferences: ['notifications', 'preferences'] as const,
 }
 
-const PAGE_SIZE = 20 // the backend's own default; its hard cap is 100
+/** The API's own default page size; its cap is 100. */
+const PAGE_SIZE = 20
 
 export function useNotifications() {
   return useInfiniteQuery({
@@ -82,9 +74,6 @@ export function useNotifications() {
           params: { limit: PAGE_SIZE, cursor: pageParam },
         })
       ),
-    // No `?? undefined`: see NotificationPage — the key is absent, never null,
-    // so the value here is already `string | undefined`, which is exactly what
-    // useInfiniteQuery reads as "there is no next page".
     getNextPageParam: (lastPage) => lastPage.nextCursor,
   })
 }
@@ -95,25 +84,17 @@ export function flattenPages(data: InfiniteData<NotificationPage> | undefined): 
 }
 
 /**
- * How many loaded notifications are unread.
- *
- * Derived from the pages already in the cache rather than fetched, because
- * this API exposes no unread-count endpoint (notification.routes.ts has
- * exactly list, mark-read, mark-all-read, delete and the two preference
- * routes). A user with more unread notifications than the loaded pages hold
- * therefore sees the count of what is loaded, not a true total.
+ * How many loaded notifications are unread, derived from the cached pages
+ * because the API has no unread-count endpoint. It counts what is loaded, not
+ * a true total.
  */
 export function unreadCount(data: InfiniteData<NotificationPage> | undefined): number {
   return flattenPages(data).filter((notification) => notification.readAt === null).length
 }
 
 /**
- * Rewrite every loaded page through `update`, and hand back the snapshot that
- * was replaced so `onError` can put it straight back.
- *
- * Shared by mark-read and delete: both mutate rows that may sit on any loaded
- * page, and both need the *whole* previous cache entry as their rollback — not
- * just the page they touched — because react-query replaces the entry wholesale.
+ * Rewrite every loaded page through `update`, and return the whole previous
+ * cache entry, which `onError` restores: the row may sit on any loaded page.
  */
 function optimisticallyUpdatePages(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -140,8 +121,7 @@ export function useMarkRead() {
     mutationFn: async (id: string) =>
       unwrap(await apiClient.patch<ApiSuccess<Notification>>(`/notifications/${id}/read`)),
     onMutate: async (id) => {
-      // An in-flight list refetch that started before this mutation would
-      // otherwise land after it and overwrite the optimistic row.
+      // Cancelled so an earlier in-flight refetch cannot land after this and overwrite the row.
       await queryClient.cancelQueries({ queryKey: notificationKeys.list })
       const readAt = new Date().toISOString()
       const snapshot = optimisticallyUpdatePages(queryClient, (notifications) =>
@@ -197,23 +177,14 @@ export function usePreferences() {
 }
 
 /**
- * Upsert one type's channel preferences.
+ * Upsert one type's channel preferences. The body is `{ preferences: [entry] }`,
+ * an array of whole entries, with both channel booleans, as the API requires.
  *
- * The body is `{ preferences: [entry] }` — an ARRAY of whole entries, with
- * `min(1)` — not a flat `Record<string, boolean>`, and both channel booleans
- * travel together because `updatePreferencesSchema` requires both.
- *
- * DELIBERATELY UNUSED BY THE UI, and kept anyway. Every notification type is
- * currently non-configurable server-side, so this call answers 400 for all of
- * them today and the preferences card renders read-only rather than shipping
- * a switch that always fails. The thing to watch is
- * `CONFIGURABLE_NOTIFICATION_TYPES` in the API's
- * `src/validators/notification.validators.ts`: it is `NOTIFICATION_TYPES`
- * minus the types whose email channel may never be disabled, and it is empty
- * only because those two sets happen to be identical right now. The day a
- * genuinely disableable type ships, that list becomes non-empty and a derived
- * project turns the control back on in `pages/_app/notifications.tsx` alone —
- * this mutation, its wire shape and its test are already correct.
+ * Unused by the UI: the API's `CONFIGURABLE_NOTIFICATION_TYPES` (every type
+ * minus those whose email may never be disabled) is empty, so this answers
+ * 400 for every type and the preferences card renders read-only. When a
+ * disableable type exists, `pages/_app/notifications.tsx` can offer the
+ * control with this mutation as it is.
  */
 export function useUpdatePreferences() {
   const queryClient = useQueryClient()

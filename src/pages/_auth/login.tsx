@@ -23,11 +23,12 @@ import { cn } from '@/lib/utils'
 import { useLogin } from '@/queries/auth.queries'
 import { loginSchema } from '@/schemas/auth.schemas'
 
+/**
+ * The sign-in page. `validateSearch` is a schema so both keys are optional on
+ * the input side, which lets both `_app`'s `redirect({ search: { redirect } })`
+ * and `index`'s bare `redirect()` type-check against this route.
+ */
 export const Route = createFileRoute('/_auth/login')({
-  // A schema, not a hand-written function: it makes both keys OPTIONAL on the
-  // input side, which is what keeps `_app`'s `redirect({ to: ROUTES.login,
-  // search: { redirect } })` and `index`'s bare `redirect({ to: ROUTES.login })`
-  // both type-checking against this route.
   validateSearch: z.object({
     error: z.string().optional(),
     redirect: z.string().optional(),
@@ -36,7 +37,7 @@ export const Route = createFileRoute('/_auth/login')({
   component: LoginPage,
 })
 
-// Keyed by the `?error=` codes the API's Google callback redirects with.
+/** Keyed by the `?error=` codes the API's Google callback redirects with. */
 const OAUTH_ERRORS: Record<string, string> = {
   google_auth_failed: 'Google sign-in failed. Please try again.',
   email_not_verified:
@@ -46,56 +47,54 @@ const OAUTH_ERRORS: Record<string, string> = {
 }
 
 /**
- * Where to go after a successful sign-in.
+ * Where to go after a successful sign-in, or `null` to use the dashboard.
  *
- * `?redirect=` is written by `_app`'s guard, but it arrives from the URL bar
- * and is therefore attacker-controlled: an absolute URL there would make this
- * page an open redirect.
+ * `?redirect=` is written by `_app`'s guard and `redirectToLogin`, but it
+ * arrives from the URL bar and is attacker-controlled: an absolute URL there
+ * would make this page an open redirect. So the value must start with `/`
+ * (which keeps out a bare relative value and a `javascript:` scheme), and is
+ * then resolved by the URL parser rather than matched by a pattern, since
+ * both cases below pass a `^/(?![/\\])`-style test. `/\t/evil.example` loses
+ * its control character and resolves off this origin, which the origin check
+ * refuses. `/..//evil.example` resolves same-origin to the pathname
+ * `//evil.example`, protocol-relative once assigned, which the re-check for a
+ * leading `//` refuses. A value the parser cannot resolve is refused.
  *
- * Resolved by the URL parser rather than matched by a pattern, because the
- * URL standard is what actually decides where a string points and it is not
- * the shape the string has. `/\t/evil.example`, `/\n/evil.example` and
- * `/\r/evil.example` are stripped of the control character and become
- * protocol-relative; `/..//evil.example`, `/.//evil.example` and
- * `/a/../..//evil.example` collapse their dot segments to the same thing.
- * Every one of them starts with a single slash and passes a
- * `^/(?![/\\])`-style test while resolving OFF this origin. Only the parser's
- * own verdict is trustworthy, so ask it.
- *
- * The whole same-origin path is returned — `pathname + search + hash` — not
- * just the pathname, or `?redirect=/dashboard?next=1` would lose its query.
+ * The whole same-origin `pathname + search + hash` is returned, so a query
+ * survives.
  */
 export function safeRedirect(value: string | undefined): string | null {
-  // Keeps a bare relative value ("dashboard") and a scheme
-  // ("javascript:alert(1)") out before the parser is asked anything.
   if (!value || !value.startsWith('/')) return null
   try {
     const resolved = new URL(value, window.location.origin)
     if (resolved.origin !== window.location.origin) return null
     const path = `${resolved.pathname}${resolved.search}${resolved.hash}`
-    // The origin check alone is NOT enough. "/..//evil.example" resolves
-    // same-origin, but its dot segments collapse to a PATHNAME of
-    // "//evil.example" — hand that to location.assign and it is
-    // protocol-relative again. Re-check the string actually being returned.
+    // Same origin is not enough: "/..//evil.example" resolves to the pathname "//evil.example".
     return path.startsWith('/') && !path.startsWith('//') ? path : null
   } catch {
-    // `new URL` throws on inputs it cannot resolve at all. Unresolvable is
-    // not navigable.
     return null
   }
 }
 
+/**
+ * The sign-in form, plus the Google sign-in link.
+ *
+ * An OAuth failure arrives as `?error=<code>` and is toasted once per distinct
+ * code: StrictMode runs effects twice in dev and sonner does not dedupe. The
+ * value is parsed before posting, so the schema's trimming and lowercasing
+ * reach the wire.
+ *
+ * "Continue with Google" is a plain anchor with `buttonVariants` classes, a
+ * top-level navigation to a same-origin API route. It stays a link (the
+ * keyboard test pins `role="link"`): Base UI's Button with `render={<a/>}`
+ * warns, and its `nativeButton={false}` fix would add `role="button"`.
+ */
 function LoginPage() {
   const { error, redirect } = Route.useSearch()
   const navigate = useNavigate()
   const login = useLogin()
   const serverErrors = useServerErrors()
 
-  // The backend redirects here with ?error=<code> when OAuth fails.
-  //
-  // The ref is not belt-and-braces: `main.tsx` mounts the app in StrictMode,
-  // which runs every effect twice in dev, and sonner does not dedupe — the
-  // same failure would be announced twice. One toast per distinct code.
   const toastedError = useRef<string | null>(null)
   useEffect(() => {
     if (!error || toastedError.current === error) return
@@ -109,10 +108,6 @@ function LoginPage() {
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        // Parsed, not posted raw: TanStack hands `value` straight from form
-        // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
-        // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
-        // what makes the schema the wire contract it looks like.
         await login.mutateAsync(loginSchema.parse(value))
         const target = safeRedirect(redirect)
         await (target ? navigate({ href: target }) : navigate({ to: ROUTES.dashboard }))
@@ -125,7 +120,6 @@ function LoginPage() {
   return (
     <Card>
       <CardHeader>
-        {/* CardTitle renders a div, so the page's h1 goes inside it. */}
         <CardTitle>
           <h1>Sign in</h1>
         </CardTitle>
@@ -176,21 +170,6 @@ function LoginPage() {
           </Button>
         </Form>
 
-        {/* A plain anchor, not an axios call: this is a top-level navigation
-            to a same-origin API route. Base UI's Button composes through
-            `render`, where Radix used `asChild`.
-
-            `buttonVariants` for the styling rather than `<Button render={<a/>}>`
-            for the whole thing, and the distinction is semantic, not stylistic.
-            This element NAVIGATES, so it is a link and must stay one — the
-            keyboard test below pins `role="link"`, and a screen-reader user who
-            hears "button" does not expect the page to change under them.
-
-            Base UI's Button warns on `render={<a/>}` because its `nativeButton`
-            prop defaults true and it is not getting a native button. Setting
-            that prop false clears the warning by applying `role="button"` — the
-            wrong answer here, since it would relabel a navigation as a button.
-            Taking the class names alone keeps the anchor an anchor. */}
         <a
           href={GOOGLE_OAUTH_PATH}
           className={cn(buttonVariants({ variant: 'outline' }), 'mt-3 w-full')}

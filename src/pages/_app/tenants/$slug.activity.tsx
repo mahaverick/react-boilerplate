@@ -47,7 +47,10 @@ function actionLabel(value: string): string {
 
 /**
  * The log and its filters. Its own component so the member list behind the
- * actor filter is only requested once the role check has passed.
+ * actor filter is only requested once the role check has passed. A 403 means
+ * the cached role that passed the gate no longer qualifies, so the detail
+ * query `useMyRole` reads is invalidated (`exact`, or the log under the same
+ * prefix would refetch and 403 again) and the gate re-checks.
  */
 function TenantActivity({ slug }: { slug: string }) {
   const queryClient = useQueryClient()
@@ -61,15 +64,9 @@ function TenantActivity({ slug }: { slug: string }) {
   }
   const log = useTenantAuditLog(slug, filters, { enabled: true })
   const isFiltered = action !== ANY || actor !== ANY
-  // A stale cached role: the tab rendered on a role that passed
-  // `canViewActivity`, but the log itself says that role no longer qualifies.
   const forbidden = log.isError && statusFrom(log.error) === 403
 
   useEffect(() => {
-    // `useMyRole` (the tab gate) reads this same key, so invalidating it
-    // makes the gate re-check the role rather than keep trusting the stale
-    // cached one that got this far. `exact`, or the audit log query under
-    // this same prefix would also refetch and 403 again for nothing.
     if (forbidden) {
       void queryClient.invalidateQueries({ queryKey: tenantKeys.detail(slug), exact: true })
     }

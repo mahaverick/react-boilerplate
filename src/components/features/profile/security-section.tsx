@@ -30,8 +30,8 @@ const GOOGLE_ONLY =
 const PROVIDER_LABELS: Record<string, string> = { google: 'Google' }
 
 /**
- * The API's 400s about one field. They carry no `errors` map and no `code`,
- * so the message is the key; these are `changePassword`'s in express's auth.service.ts.
+ * The API's change-password 400s about one field. They carry no `errors` map
+ * and no `code`, so the message is the key (express auth.service.ts).
  */
 const FIELD_FOR_MESSAGE = new Map<string, keyof ChangePasswordInput>([
   ['Current password is incorrect.', 'currentPassword'],
@@ -69,10 +69,12 @@ export function SecuritySection() {
   )
 }
 
-/** Read-only: the API has no endpoint to unlink a method. */
+/**
+ * Read-only: the API has no endpoint to unlink a method. A Google sign-up has
+ * an 'email' row too, so `hasPassword` alone decides whether "Email &
+ * password" is listed.
+ */
 function SignInMethods({ providers, hasPassword }: AuthProviders) {
-  // A Google sign-up has an 'email' row too, so `hasPassword` alone decides
-  // whether "Email & password" is listed.
   const linked = providers.filter((link) => link.provider !== 'email')
 
   return (

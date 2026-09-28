@@ -5,8 +5,12 @@ import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { useAuthStore } from '@/states/auth.store'
 
-// Outside `_auth` on purpose: this route has no guard. A guard would bounce
-// the freshly signed-in visitor before this component ever ran.
+/**
+ * Where the API's Google callback lands. Outside `_auth`, with no guard, which
+ * would bounce the freshly signed-in visitor before this ran. It makes no
+ * refresh call: `__root`'s beforeLoad already awaited bootstrapSession(),
+ * which used the cookie the API just set, so the store is settled.
+ */
 export const Route = createFileRoute('/auth/callback')({
   head: () => ({ meta: [{ title: pageTitle('Signing in') }] }),
   component: OAuthCallbackPage,
@@ -16,9 +20,6 @@ function OAuthCallbackPage() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // No /auth/refresh call here: `__root`'s beforeLoad already awaited
-    // bootstrapSession(), which consumed the cookie the backend just set.
-    // Reading the store is therefore reading a settled result.
     const { isAuthenticated } = useAuthStore.getState()
     void navigate(
       isAuthenticated
@@ -29,8 +30,6 @@ function OAuthCallbackPage() {
 
   return (
     <div role="status" className="flex min-h-svh items-center justify-center gap-3">
-      {/* aria-hidden on the icon and a visible-to-screen-readers label:
-          Base UI emits no accessible name of its own here. */}
       <LoaderCircleIcon className="size-5 animate-spin" aria-hidden="true" />
       <span className="sr-only">Completing sign-in…</span>
     </div>
