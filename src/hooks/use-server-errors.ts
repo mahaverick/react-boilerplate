@@ -61,6 +61,7 @@ export function useServerErrors(): ServerErrors {
   }, [])
 
   const setFieldError = React.useCallback((name: string, messages: string[]) => {
+    // An updater, so it composes with a `capture` made in the same tick.
     flushSync(() => {
       setFieldErrors((current) => ({ ...current, [name]: messages }))
     })

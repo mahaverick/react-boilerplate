@@ -33,8 +33,7 @@ const TENANT_LOAD_ERROR =
 
 /**
  * The route's error boundary. Retry is `router.invalidate()`, which re-runs
- * the loader; `ensureQueryData` finds no data and fetches again. Not exported:
- * `react-refresh/only-export-components` fails lint under `--max-warnings 0`.
+ * the loader; `ensureQueryData` finds no data and fetches again.
  */
 function TenantLoadFailed() {
   const router = useRouter()

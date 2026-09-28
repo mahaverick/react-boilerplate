@@ -72,6 +72,7 @@ function parseFrame(frame: string): SseEvent | undefined {
   const data: string[] = []
 
   for (const line of frame.split(/\r?\n/)) {
+    // A comment line: the server's `:ping` heartbeat keeps proxies from reaping an idle socket.
     if (line.startsWith(':')) continue
     if (line.startsWith('id:')) id = line.slice(3).trim()
     else if (line.startsWith('event:')) event = line.slice(6).trim()

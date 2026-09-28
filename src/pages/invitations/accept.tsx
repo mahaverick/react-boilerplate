@@ -258,7 +258,7 @@ function InvitationForToken({ token }: { token: string }) {
 
   const invitation = preview.data
   if (!user) return <SignedOut token={token} invitation={invitation} />
-  // Case-insensitive, and a mismatch never reaches the server.
+  // Case-insensitive: neither side is trusted to stay lowercased. A mismatch never reaches the server.
   if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
     return <WrongAccount token={token} invitation={invitation} currentEmail={user.email} />
   }

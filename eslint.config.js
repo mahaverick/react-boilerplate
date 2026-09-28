@@ -48,11 +48,12 @@ export default tseslint.config(
   },
   {
     /**
-     * Root-level configs sit outside every tsconfig include, so typed rules throw
-     * on them: they are linted syntactically only, and listed by name so this
-     * block never covers a file under src/. The tailwind rules are off because
-     * the plugin's own `files` glob matches them, and without `cssConfigPath`
-     * (scoped to src/) it falls back to 'src/style.css' and throws ENOENT.
+     * Root-level configs get no type information (only the src/, tests/ and e2e/
+     * blocks set typed parser options), so typed rules throw on them: they are
+     * linted syntactically only, and listed by name so this block never covers
+     * a file under src/. The tailwind rules are off because the plugin's own
+     * `files` glob matches them, and without `cssConfigPath` (scoped to src/)
+     * it falls back to 'src/style.css' and throws ENOENT.
      */
     files: [
       'eslint.config.js',

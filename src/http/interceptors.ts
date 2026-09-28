@@ -9,9 +9,10 @@ declare module 'axios' {
      * Opts a request out of both the 401 retry path and the 401 verdict path.
      * Set on the two requests refreshSession() makes itself, and on POST
      * /auth/logout so that useLogout alone handles its failure. Without it, a
-     * 401 carrying ACCESS_TOKEN_EXPIRED on a refresh request sends the response
-     * interceptor into ensureSession(), which returns the promise awaiting that
-     * very request: a self-wait that never settles and never logs out.
+     * 401 carrying ACCESS_TOKEN_EXPIRED on one of refreshSession()'s requests
+     * sends the response interceptor into ensureSession(), which returns the
+     * promise awaiting that very request: a self-wait that never settles and
+     * never logs out.
      *
      * /profile is behind requireAuth, which emits that code, so this is
      * reachable when a freshly minted token is judged expired (clock skew, a

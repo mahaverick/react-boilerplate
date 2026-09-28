@@ -143,6 +143,7 @@ async function refreshSession(): Promise<string> {
     return accessToken
   } catch (error) {
     if (isAuthVerdict(error)) {
+      // Read before logout(): a never-signed-in tab must not broadcast and sign out a sibling that just logged in.
       const wasAuthed = useAuthStore.getState().isAuthenticated
       useAuthStore.getState().logout()
       // The cookie is shared, so a verdict from an authed tab holds for every tab.

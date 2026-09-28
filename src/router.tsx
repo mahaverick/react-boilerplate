@@ -24,7 +24,7 @@ export async function bootstrapSession(): Promise<void> {
   try {
     await ensureSession()
   } catch {
-    // No usable refresh cookie: staying signed out is the correct outcome.
+    // Any refresh failure leaves this load signed out; only an auth verdict also clears the store (see refreshSession).
   } finally {
     useAuthStore.getState().setBootstrapped()
   }
