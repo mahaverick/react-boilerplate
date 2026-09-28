@@ -54,8 +54,7 @@ test('a staff viewer finds a tenant by search, is told so, and cannot change it'
   const { name, slug } = await ownerWithTenant()
   const staff = await staffSignedIn(page, 'viewer')
 
-  // The All tenants group only exists for staff, which proves `platformRole`
-  // reached the SPA with the sign-in itself (no reload happened).
+  // The All tenants group only exists for staff, which proves `platformRole` reached the SPA with the sign-in itself (no reload happened).
   await page.getByRole('combobox', { name: /^Switch tenant/ }).click()
   await page.getByLabel('Search tenants').fill(slug)
   const all = page.getByRole('group', { name: 'All tenants' })

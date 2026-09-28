@@ -45,10 +45,12 @@ test(
     await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
     // sonner injects a <style> element: the page really exercised style-src.
     await expect(page.locator('head style')).not.toHaveCount(0)
-    // The heading means the root beforeLoad's refresh has settled and the
-    // route's lazy chunk has run. A late violation can still come from the
-    // webfont or a lazily loaded chunk, so wait for the fonts and one page
-    // task.
+    /**
+     * The heading means the root beforeLoad's refresh has settled and the
+     * route's lazy chunk has run. A late violation can still come from the
+     * webfont or a lazily loaded chunk, so wait for the fonts and one page
+     * task.
+     */
     await expect.poll(() => onDemand.length).toBeGreaterThan(0)
     await afterFontsAndFrames(page)
     await flushCspReports(page)
