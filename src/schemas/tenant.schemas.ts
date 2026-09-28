@@ -19,11 +19,9 @@ const MIN_SLUG_LENGTH = 3
 const MAX_SLUG_LENGTH = 100
 
 /**
- * Slugs no tenant may register: the API's `RESERVED_SLUGS`
- * (tenant.constants.ts) except `platform`, which the API also reserves, so a
- * `platform` slug passes here and is refused there. Each collides with a
- * plausible route segment, would mislead as an organization's identifier, or
- * masquerades as another value.
+ * Slugs no tenant may register, mirroring the API's `RESERVED_SLUGS`
+ * (tenant.constants.ts). Each collides with a plausible route segment, would
+ * mislead as an organization's identifier, or masquerades as another value.
  */
 export const RESERVED_SLUGS = [
   'admin',
@@ -77,6 +75,7 @@ export const RESERVED_SLUGS = [
   'staging',
   'dev',
   'localhost',
+  'platform',
 ] as const
 
 /** A Set, because the tuple's `.includes` rejects a plain `string` argument. */
