@@ -76,8 +76,9 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   same — so an absolute URL fails at runtime in a way no test catches. Do not add an
   environment variable for it: one that moves only the axios base leaves the
   stream's URL, the Google OAuth anchor and nginx's SSE `location` on the old
-  prefix. Moving the prefix means changing `API_PREFIX`, `nginx.conf` and
-  `vite.config.ts` together. **The backend is not actually CORS-blind** — its
+  prefix. Moving the prefix means changing `API_PREFIX` and `nginx.conf`'s SSE
+  `location` together; `vite.config.ts` proxies all of `/api`, so it changes
+  only for a prefix outside `/api`. **The backend is not actually CORS-blind** — its
   `src/configs/cors.config.ts` (express-boilerplate) answers a cross-origin
   caller, and its `allowedHeaders` entry for `Last-Event-ID` is the only reason
   a second, cross-origin frontend's stream can replay on reconnect at all —

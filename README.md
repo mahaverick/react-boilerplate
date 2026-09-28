@@ -54,16 +54,17 @@ and everything on the JavaScript side derives from it: the axios base
 (`src/hooks/use-notifications.ts`, which ignores axios entirely), and the
 Google OAuth anchor (`GOOGLE_OAUTH_PATH`).
 
-Two things outside JavaScript hardcode it as well, and they are why it is
-fixed rather than a knob: `nginx.conf` routes
-`location /api/v1/notifications/stream` — its SSE buffering and its
+`nginx.conf` hardcodes it as well, which is why it is fixed rather than a
+knob: `location /api/v1/notifications/stream` — its SSE buffering and its
 query-stripping log format (defence in depth: the token travels in a header)
-hang off that exact prefix — and `vite.config.ts`
-proxies `/api` in development.
+hang off that exact prefix. `nginx.conf`'s `location /api/` and the Vite dev
+proxy in `vite.config.ts` match only the `/api` segment.
 
-Moving the API to another prefix therefore means changing `API_PREFIX`,
-`nginx.conf` and the Vite proxy together, in one change. Moving only one of
-them breaks Google sign-in and every notification with nothing to say so.
+Moving the API to another prefix under `/api` therefore means changing
+`API_PREFIX` and that SSE `location` together, in one change; a prefix outside
+`/api` also moves `location /api/` and the Vite proxy. Changing `API_PREFIX`
+alone sends the notification stream through the buffered `location /api/`,
+which stalls it with nothing to say so.
 
 ### Environment
 

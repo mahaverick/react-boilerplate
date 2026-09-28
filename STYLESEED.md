@@ -10,7 +10,7 @@ Upgrades go through `/ss-update` and are reviewed as a diff.
 method, rules and review — never components. Its 32 Radix primitives and its Vite 6 / React 18
 scaffold are not used and must not be introduced. Do not reopen without new evidence.
 
-This was the question that blocked Phase B. It is settled: the gate chain references neither
+The gate chain references neither
 Radix nor `engine/components`, `ss-component` reads the project's own primitives, and the 19
 `@radix-ui/*` packages live only in a fresh-project scaffold that does not apply here.
 
@@ -129,17 +129,14 @@ the bundle, the manifest and the palette, so commit those together.
 
 ## Visual verification
 
-`ss-verify` was run on 2026-09-22 with Playwright 1.63.0 at 1440×900 and 390×844,
-`deviceScaleFactor: 2`. **Visual score 85/100, against a code score of 93** — the eight-point
-gap is what source cannot show.
+`ss-verify` renders with Playwright at 1440×900 and 390×844, `deviceScaleFactor: 2`, and
+scores what source cannot show. The visual score is **95/100**.
 
-Playwright now has a committed consumer: the e2e suite in `e2e/`, run with `pnpm test:e2e`.
+The e2e suite in `e2e/`, run with `pnpm test:e2e`, is Playwright's committed consumer.
 Its `fixtures` project turns the visual gate's findings into standing assertions — webfont
 loaded, nothing overflowing at 390px, the empty and error states rendering as more than a bare
 header — so a regression fails a test rather than waiting for the next screenshot. See
 CLAUDE.md's end-to-end section for the conventions.
-
-All four findings the visual gate produced have since been fixed; re-scored **95/100**.
 
 ## Accessibility
 
