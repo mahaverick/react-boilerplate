@@ -47,20 +47,13 @@ export default tseslint.config(
     rules: { 'tailwindcss/classnames-order': 'off' },
   },
   {
-    // Root-level flat configs (eslint.config.js, prettier.config.js,
-    // vite.config.ts, vitest.config.ts, commitlint.config.js) sit outside
-    // tsconfig.app.json's "src" include, so the type-aware project cannot
-    // parse them and every typed rule from recommendedTypeChecked throws
-    // "parserOptions set to generate type information" on them. Lint them
-    // syntactically only. Listed explicitly rather than widened, so this
-    // never accidentally covers a file under src/.
-    //
-    // tailwindcss.configs.recommended's own `files` glob
-    // ("**/*.ts"/"**/*.js"/...) also matches these same root files, and
-    // without the `cssConfigPath` set below (deliberately scoped to
-    // src/**/*.{ts,tsx} only) the plugin falls back to its default
-    // 'src/style.css' path and throws ENOENT. Its rules are turned off here
-    // for the same reason the type-checked rules are.
+    /**
+     * Root-level configs sit outside every tsconfig include, so typed rules throw
+     * on them: they are linted syntactically only, and listed by name so this
+     * block never covers a file under src/. The tailwind rules are off because
+     * the plugin's own `files` glob matches them, and without `cssConfigPath`
+     * (scoped to src/) it falls back to 'src/style.css' and throws ENOENT.
+     */
     files: [
       'eslint.config.js',
       'prettier.config.js',
@@ -82,9 +75,11 @@ export default tseslint.config(
     },
   },
   {
-    // The pre-paint theme script: a classic browser script served as-is from
-    // public/, outside every tsconfig, so it is linted syntactically only.
-    // The tailwind rules are off for the reason given on the e2e block below.
+    /**
+     * The pre-paint theme script: a classic browser script served as-is from
+     * public/, outside every tsconfig, so it is linted syntactically only. The
+     * tailwind rules are off for the reason given on the root-config block.
+     */
     files: ['public/theme-init.js'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: { globals: globals.browser, sourceType: 'script' },
@@ -100,29 +95,17 @@ export default tseslint.config(
     },
   },
   {
-    // Node scripts. They sit outside every tsconfig, so, like the root configs
-    // above, they are linted syntactically only.
+    /** Node scripts sit outside every tsconfig, so they are linted syntactically only. */
     files: ['scripts/**/*.mjs', 'scripts/**/*.d.mts'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: { globals: globals.node },
   },
   {
-    // The e2e suite and its fixture harness. Typed linting rather than the
-    // `disableTypeChecked` used for the root configs above: `e2e/tsconfig.json`
-    // exists precisely so `projectService` can find these files, so the
-    // type-aware rules work here and there is no reason to give them up.
-    //
-    // The tailwind rules are off for the same reason they are off on the root
-    // configs: the plugin's own `files` glob matches `**/*.ts`, and
-    // `cssConfigPath` is scoped to `src/**/*.{ts,tsx}`, so without this the
-    // plugin falls back to its default 'src/style.css' and throws ENOENT.
-    //
-    // `check-file`'s rules below are all scoped to `src/**`, so nothing here
-    // needs exempting from them — but note Playwright's default spec glob is
-    // `*.spec.ts`, which `filename-blocklist` would reject. `playwright.config.ts`
-    // sets `testMatch: '**/*.test.ts'` to stay inside the repo's convention.
-    // That config file itself is a root-level flat config and is linted with
-    // the others above, not here.
+    /**
+     * The e2e suite and its fixture harness, with typed linting: e2e/tsconfig.json
+     * lets `projectService` find these files. The tailwind rules are off for the
+     * reason given on the root-config block.
+     */
     files: ['e2e/**/*.{ts,tsx}'],
     languageOptions: {
       globals: globals.browser,
@@ -139,19 +122,16 @@ export default tseslint.config(
       'tailwindcss/no-unnecessary-arbitrary-value': 'off',
     },
   },
-  // File/folder naming, placement and test-file conventions. `src/pages/**`
-  // is exempt everywhere below via the `!(pages)` glob segment — TanStack
-  // Router's file-based routing requires names like `__root.tsx`, `_auth.tsx`
-  // and `$slug.members.tsx`, which violate kebab-case by design. Task 4
-  // creates that directory; these rules must not error before it exists and
-  // must not flag its contents once it does.
   {
+    /**
+     * File and folder naming and placement. `src/pages/**` is exempt through the
+     * `!(pages)` glob segment: TanStack Router's file routes need names like
+     * `__root.tsx`, `_auth.tsx` and `$slug.members.tsx`, which are not kebab-case.
+     */
     files: ['src/!(pages)/**/*.{ts,tsx}', 'src/*.{ts,tsx}'],
     plugins: { 'check-file': checkFile },
     rules: {
-      // ignoreMiddleExtensions: true so a suffixed file like `auth.store.ts`
-      // validates the base word `auth` here, not `auth.store` (which would
-      // fail KEBAB_CASE on the dot). The suffix itself is checked below.
+      /** `ignoreMiddleExtensions` checks `auth` in `auth.store.ts`; the suffix block checks the rest. */
       'check-file/filename-naming-convention': [
         'error',
         {
@@ -161,7 +141,7 @@ export default tseslint.config(
         { ignoreMiddleExtensions: true },
       ],
       'check-file/folder-naming-convention': ['error', { 'src/!(pages)/**/': 'KEBAB_CASE' }],
-      // Placement: a suffixed file can only live in its matching directory.
+      /** A suffixed file can only live in its matching directory. */
       'check-file/folder-match-with-fex': [
         'error',
         {
@@ -174,16 +154,13 @@ export default tseslint.config(
     },
   },
   {
-    // Test placement. No test file lives under src/: unit tests go in
-    // tests/unit/, mirroring the src/ path of their subject
-    // (src/http/session.ts → tests/unit/http/session.test.ts); cross-cutting
-    // suites (a11y) sit at tests/unit/ and support code in tests/{mocks,fixtures}.
-    // Keeps src/ to shipped code only, matches express-boilerplate's layout,
-    // and keeps test files out of TanStack Router's src/pages/ routes directory.
-    //
-    // Covers src/pages/ too, unlike the naming rules above. A custom
-    // `errorMessage` is required: without it, check-file validates the map's
-    // VALUES as glob patterns too (see its README), and free text fails that.
+    /**
+     * No test file lives under src/, including src/pages/: unit tests go in
+     * tests/unit/, mirroring the src/ path of their subject, so src/ holds
+     * shipped code only and no test lands in the router's routes directory. The
+     * custom `errorMessage` is required: without it, check-file validates the
+     * map's values as glob patterns, and free text fails that.
+     */
     files: ['src/**/*.{ts,tsx}'],
     plugins: { 'check-file': checkFile },
     rules: {
@@ -202,10 +179,12 @@ export default tseslint.config(
     },
   },
   {
-    // The Vitest suite under tests/. Typed linting via projectService —
-    // tsconfig.app.json includes tests/ — with the same react-hooks rules as
-    // src/ (tests render components and call hooks). Tailwind rules are off
-    // for the reason given on the e2e block above.
+    /**
+     * The Vitest suite, with typed linting (tsconfig.app.json includes tests/)
+     * and the same react-hooks rules as src/, since tests render components and
+     * call hooks. The tailwind rules are off for the reason given on the
+     * root-config block.
+     */
     files: ['tests/**/*.{ts,tsx}'],
     languageOptions: {
       globals: globals.browser,
@@ -222,7 +201,7 @@ export default tseslint.config(
       'tailwindcss/no-custom-classname': 'off',
       'tailwindcss/no-contradicting-classname': 'off',
       'tailwindcss/no-unnecessary-arbitrary-value': 'off',
-      // `.test.`, never `.spec.`, and no `__tests__/` folders.
+      /** `.test.`, never `.spec.`, and no `__tests__/` folders. */
       'check-file/filename-blocklist': [
         'error',
         {
@@ -237,24 +216,14 @@ export default tseslint.config(
     },
   },
   {
-    // The suffix itself, checked separately from the base KEBAB_CASE rule
-    // above (a second, more specific `filename-naming-convention` block, per
-    // the naming-conventions table). No `ignoreMiddleExtensions` here: only
-    // the outer `.ts`/`.tsx` extension is stripped, so `auth.store.ts` is
-    // checked as `auth.store` against the pattern below.
-    //
-    // The prefix is the plugin's own KEBAB_CASE body
-    // (`+([a-z])*([a-z0-9])*(-+([a-z0-9]))`, from
-    // node_modules/eslint-plugin-check-file/dist/index.cjs), not a bare
-    // `+([a-z0-9-])` charset class. A charset class allows a leading digit,
-    // a leading/trailing hyphen and doubled hyphens — `123`, `-auth`,
-    // `auth-` and `au--th` are all valid `+([a-z0-9-])` but none is
-    // KEBAB_CASE. Fix-round-1 finding: `pnpm exec eslint src/states` exited
-    // 0 on `123.store.ts`, `-auth.store.ts`, `auth-.store.ts` and
-    // `au--th.store.ts` before this change, because block 2 REPLACES block
-    // 1's filename-naming-convention entry for these directories rather
-    // than merging with it (same rule key, last matching config object
-    // wins), so block 1's real KEBAB_CASE check never ran on them either.
+    /**
+     * The suffix of a suffixed file. No `ignoreMiddleExtensions`, so
+     * `auth.store.ts` is checked as `auth.store`. This block replaces the naming
+     * block's `filename-naming-convention` for these directories (the last
+     * matching config wins; options do not merge), so each prefix is the
+     * plugin's own KEBAB_CASE body, not a `+([a-z0-9-])` class, which would pass
+     * `123`, `-auth`, `auth-` and `au--th`.
+     */
     files: [
       'src/states/**/*.ts',
       'src/queries/**/*.ts',
@@ -277,8 +246,7 @@ export default tseslint.config(
     },
   },
   {
-    // One import path for the class merger in our own code. The vendored
-    // shadcn files are left as shadcn wrote them.
+    /** One import path for the class merger in our own code; vendored shadcn files keep theirs. */
     files: ['src/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
     ignores: ['src/lib/utils.ts', 'src/components/ui/!(form|sonner).tsx'],
     rules: {
@@ -289,10 +257,12 @@ export default tseslint.config(
     },
   },
   {
-    // Test timing rules (CLAUDE.md): a test waits on a condition, never on a
-    // duration. The two timing.ts files are exempt because they implement the
-    // deliberate waits. `no-restricted-imports` repeats the `cn` entry above:
-    // a later block's options replace an earlier block's, they do not merge.
+    /**
+     * A test waits on a condition, never on a duration (see CLAUDE.md). The two
+     * timing.ts files are exempt because they implement the deliberate waits.
+     * `no-restricted-imports` repeats the `cn` entry: a later block's options
+     * replace an earlier block's, they do not merge.
+     */
     files: ['tests/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
     ignores: ['tests/fixtures/timing.ts', 'e2e/timing.ts'],
     rules: {
@@ -331,16 +301,15 @@ export default tseslint.config(
   },
   ...tanstackRouter.configs['flat/recommended'],
   {
-    // Vendored shadcn output. Linting it churns the diff on every upstream
-    // re-add, and its class strings are upstream's to own, not ours.
-    // This block must come AFTER tailwindcss.configs.recommended: that config
-    // carries its own `files` glob, so the earlier `ignores` on the settings
-    // block below it does not stop its rules applying here.
+    /**
+     * Vendored shadcn output: linting it churns the diff on every upstream
+     * re-add, and its class strings are upstream's. This block must come after
+     * tailwindcss.configs.recommended, whose own `files` glob is not stopped by
+     * the `ignores` on the settings block.
+     */
     files: ['src/components/ui/**'],
     rules: {
-      // Vendored components export a `cva` variants object beside the
-      // component (badge, button, sidebar, tabs). Restructuring upstream's
-      // files to satisfy a dev-server ergonomics rule is not worth the churn.
+      /** Vendored components export a `cva` variants object beside the component. */
       'react-refresh/only-export-components': 'off',
       'tailwindcss/classnames-order': 'off',
       'tailwindcss/enforces-canonical-classname': 'off',
@@ -354,17 +323,14 @@ export default tseslint.config(
     },
   },
   {
-    // TanStack Router's `redirect()` returns `Response & { options }` — a value
-    // the router is designed to have THROWN out of a `beforeLoad`, which is how
-    // every guard in src/pages works. `only-throw-error` sees a non-Error and
-    // objects. Allowing the lib `Response` type keeps the rule's real job (a
-    // thrown string or plain object still errors) while permitting the one
-    // framework idiom the guards are built on.
+    /**
+     * Route files. TanStack Router's `redirect()` returns a `Response` that a
+     * `beforeLoad` guard throws, so `only-throw-error` allows the lib `Response`
+     * type; a thrown string or plain object still errors.
+     */
     files: ['src/pages/**/*.{ts,tsx}'],
     rules: {
-      // Every TanStack file route exports both `Route` and its component from
-      // one file — that IS the file-route contract, so the rule is a false
-      // positive on every route file this project will ever have.
+      /** A file route exports both `Route` and its component, by the router's contract. */
       'react-refresh/only-export-components': 'off',
       '@typescript-eslint/only-throw-error': [
         'error',
@@ -373,17 +339,15 @@ export default tseslint.config(
     },
   },
   {
-    // The files under src/components/ui/ that are OURS, not upstream's:
-    // sonner.tsx (hand-written, because the registry one imports next-themes)
-    // and form.tsx (hand-written in Task 5). The vendored block above turns
-    // these rules off for the whole directory; this turns them back on for our
-    // two files, at the severities eslint-plugin-tailwindcss's own recommended
-    // config uses. `classnames-order` stays off to match the rest of src/ --
-    // prettier-plugin-tailwindcss owns ordering. `settings` is repeated because
-    // the block that sets cssConfigPath deliberately ignores this directory,
-    // and without it the plugin falls back to 'src/style.css' and throws ENOENT.
-    // form.tsx is listed before it exists so Task 5's file is covered the
-    // moment it lands rather than silently escaping.
+    /**
+     * The two hand-written files under src/components/ui/: sonner.tsx (the
+     * registry one imports next-themes) and form.tsx. The rules the vendored
+     * block turns off come back on at the plugin's recommended severities;
+     * `classnames-order` stays off because prettier-plugin-tailwindcss owns
+     * ordering. `settings` is repeated because the block that sets
+     * `cssConfigPath` ignores this directory, and without it the plugin throws
+     * ENOENT on 'src/style.css'.
+     */
     files: ['src/components/ui/sonner.tsx', 'src/components/ui/form.tsx'],
     settings: { tailwindcss: { cssConfigPath: './src/styles/globals.css' } },
     rules: {
@@ -394,17 +358,17 @@ export default tseslint.config(
       'tailwindcss/important-modifier-suffix': 'warn',
       'tailwindcss/no-arbitrary-value': 'off',
       'tailwindcss/no-contradicting-classname': 'error',
-      // `toaster` is sonner's OWN class, the hook its stylesheet targets — a
-      // real third-party classname, which is exactly what this option is for.
+      /** `toaster` is sonner's own class, the hook its stylesheet targets. */
       'tailwindcss/no-custom-classname': ['warn', { whitelist: ['toaster'] }],
       'tailwindcss/no-unnecessary-arbitrary-value': 'warn',
     },
   },
   {
-    // Switched to 'error' at the stream gate; lanes run it with --rule until then.
-    // scripts/**/*.d.mts is listed separately: '.d.mts' isn't reachable by the
-    // brace glob above, and the shared scripts' declaration files carry JSDoc
-    // this rule must see too.
+    /**
+     * The comment-style rule, off by default; run it with `--rule`. The `.d.mts`
+     * files under scripts/ are listed separately because the brace glob does not
+     * reach them, and their JSDoc must be checked too.
+     */
     files: ['**/*.{ts,tsx,js,mjs}', 'scripts/**/*.d.mts'],
     ignores: ['src/components/ui/**'],
     plugins: { local: { rules: { 'comment-style': commentStyleRule } } },
