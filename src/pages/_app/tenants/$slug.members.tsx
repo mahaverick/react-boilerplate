@@ -1,3 +1,7 @@
+/**
+ * @file The members tab of a tenant: the member list with role and removal
+ * controls, and, for owners and admins, the invite form and pending invitations.
+ */
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -66,22 +70,28 @@ export const Route = createFileRoute('/_app/tenants/$slug/members')({
 const LAST_OWNER_REASON = 'A tenant must always have an owner. Add another owner first.'
 
 /**
- * What this tab says when the MEMBER LIST itself failed, as opposed to the
- * role lookup.
- *
- * Its own message and, below, its own `refetch`, because the two are separate
- * requests. Folding them into `ROLE_ERROR` + `useMyRole`'s retry — which this
- * tab did until it was measured — produced the worst of both: a members 500
- * was reported as "we could not load your role in this tenant", about a query
- * that had SUCCEEDED, under a Try again that refetched the tenant LIST and
- * issued no further members request at all. A retry that cannot retry is
- * worse than no retry, because `LoadError` promises the reader their next
- * move is in front of them.
+ * What this tab says when the member list request failed. Kept apart from
+ * `ROLE_ERROR`, with its own `refetch`, because the member list and the role
+ * lookup are separate requests: each error names its own request, and each Try
+ * again retries that request.
  */
 const MEMBERS_ERROR =
   'We could not load this tenant’s members, so none are listed here. This is not a sign that it has none.'
 
-/** The role cell: a select for an owner, plain text for everyone else. */
+/**
+ * The role cell: a select when the actor may change this member's role, plain
+ * text otherwise. That takes two predicates: `canChangeRoles`, because the
+ * PATCH members route is owner-only, and `canActorModifyTarget` for which
+ * target this actor may touch. Removal uses a different pair (see `MemberRow`).
+ *
+ * The select's accessible name includes the member's name, since there is one
+ * select per row. When `isLastOwner`, this cell renders the row's one
+ * last-owner explanation, with id `reasonId`, as visible text: a disabled
+ * control receives no pointer events, so a tooltip on it would never open, and
+ * Base UI's Tooltip sets no `role="tooltip"`. `isLastOwner` is only true for an
+ * owner acting on their own membership, which the predicates always leave as a
+ * select, so the explanation always renders when it is needed.
+ */
 function RoleCell({
   slug,
   member,
@@ -102,11 +112,6 @@ function RoleCell({
   const targetRole = member.membership.role
   const name = memberName(member)
 
-  // TWO predicates, deliberately. `canChangeRoles` is the route's own gate —
-  // PATCH /tenants/:slug/members/:userId is `requireRole('owner')`, so an
-  // admin cannot change ANY role, a viewer's included. The matrix then says
-  // which TARGET this actor may touch. Removal uses a different pair, which
-  // is exactly why these are not one function.
   if (!canChangeRoles(myRole) || !canActorModifyTarget(myRole, targetRole, isSelf)) {
     return <span>{ROLE_LABELS[targetRole]}</span>
   }
@@ -128,8 +133,6 @@ function RoleCell({
           )
         }}
       >
-        {/* Icon-free and label-free in the table, so the accessible name has
-            to name the ROW too — there is one of these per member. */}
         <SelectTrigger
           aria-label={`Role for ${name}`}
           aria-describedby={isLastOwner ? reasonId : undefined}
@@ -147,16 +150,6 @@ function RoleCell({
           ))}
         </SelectContent>
       </Select>
-      {/* The row's ONE copy of the explanation, rendered here because the
-          role select is the first control it applies to; the Leave button
-          points at this same id rather than repeating the sentence.
-          Visible text, not a tooltip: a disabled control receives no pointer
-          events, so a tooltip on it never opens — and Base UI's Tooltip emits
-          no role="tooltip" for a screen reader either.
-
-          Always rendered when `isLastOwner`, because that implies an owner
-          acting on their own membership, which is exactly the case where the
-          matrix above leaves this select in place. */}
       {isLastOwner && (
         <p id={reasonId} className="text-xs text-muted-foreground">
           {LAST_OWNER_REASON}
@@ -166,6 +159,13 @@ function RoleCell({
   )
 }
 
+/**
+ * The Remove control, or Leave on your own row, behind a confirm dialog. For
+ * the last owner it is a disabled Leave button described by the row's
+ * explanation in `RoleCell` (`isLastOwner` implies `isSelf`). After leaving,
+ * the page navigates to `/tenants`, because the tenant's routes answer 404 to
+ * a caller with neither a membership nor a platform role.
+ */
 function RemoveMemberButton({
   slug,
   member,
@@ -186,13 +186,8 @@ function RemoveMemberButton({
   const name = memberName(member)
 
   if (isLastOwner) {
-    // Described BY the row's existing explanation, not by a second copy of
-    // it: an `id` reference reaches across cells, and the reader does not
-    // need the same sentence told to them twice in one row.
     return (
       <Button variant="outline" size="sm" disabled aria-describedby={reasonId}>
-        {/* `isLastOwner` is only ever true when `isSelf` is, so this reads
-            "Leave" — the same word the enabled control uses. */}
         {isSelf ? 'Leave' : 'Remove'}
       </Button>
     )
@@ -226,11 +221,6 @@ function RemoveMemberButton({
                 onSuccess: () => {
                   setIsOpen(false)
                   toast.success(isSelf ? 'You left this tenant.' : `${name} removed.`)
-                  // Removing YOURSELF makes every request on this page a 404
-                  // a moment later — this tenant is no longer one of yours.
-                  // Leave before that happens rather than after. `void`
-                  // because react-query's callback wants a void return, not a
-                  // promise it would never await.
                   if (isSelf) void navigate({ to: '/tenants' })
                 },
                 onError: (error) => {
@@ -248,6 +238,13 @@ function RemoveMemberButton({
   )
 }
 
+/**
+ * One member, as a table row or, with `asCard`, a stacked card. Removal needs
+ * `canManageTenant` (owner or admin, as the DELETE members route requires)
+ * and `canActorModifyTarget`, a different pair from the role-change gate in
+ * `RoleCell`. `reasonId` is one id per row: the last-owner explanation renders
+ * once, in the role cell, and every control the guard disables points at it.
+ */
 function MemberRow({
   slug,
   member,
@@ -261,17 +258,13 @@ function MemberRow({
   myRole: MembershipRole
   myUserId: string | undefined
   owners: number
-  /** Stacked card instead of a table row. See the list below for why. */
+  /** Render a stacked card instead of a table row, for phones. */
   asCard?: boolean
 }) {
   const targetRole = member.membership.role
   const isSelf = member.user.id === myUserId
   const isLastOwner = isLastOwnerBlocked({ targetRole, isSelf, ownerCount: owners })
-  // Removal is owner+admin (`canManageTenant`) narrowed by the matrix — a
-  // different pair from the role-change gate in RoleCell.
   const canRemove = canManageTenant(myRole) && canActorModifyTarget(myRole, targetRole, isSelf)
-  // One id per ROW: the explanation is rendered once, by the role cell, and
-  // every control the guard disables points at it.
   const reasonId = `last-owner-${member.membership.id}`
 
   const role = (
@@ -323,6 +316,27 @@ function MemberRow({
   )
 }
 
+/**
+ * The members tab. Its states, in order:
+ *
+ * - An error: the member list and the role lookup are independent queries that
+ *   can fail alone, so each failure shows its own `LoadError` retrying its own
+ *   request, both when both fail. A failed request never shows a skeleton,
+ *   which would wait for ever with no retry.
+ * - A skeleton while either query is pending.
+ * - The empty message, only after the error branch, because a failed load and
+ *   an empty tenant both give `[]` (the same order as `notifications.tsx`).
+ * - Cards on a phone, otherwise the table. The layout is picked in JS with
+ *   `useIsMobile`, the hook the sidebar uses, because rendering both layouts
+ *   and hiding one with CSS would put two role selects per member and two
+ *   elements with one `reasonId` in the DOM. The table is `min-w-2xl`, so the
+ *   vendored Table's `overflow-x-auto` wrapper scrolls instead of crushing
+ *   four columns.
+ *
+ * The invite form and pending invitations mount only for owners and admins,
+ * the roles the tenant invitation routes require; `PendingInvitations` requests
+ * the list only once mounted.
+ */
 function TenantMembersTab() {
   const { slug } = Route.useParams()
   const members = useMembers(slug)
@@ -342,16 +356,6 @@ function TenantMembersTab() {
         </CardHeader>
         <CardContent>
           {members.isError || isRoleError || (!isRolePending && !myRole) ? (
-            // NOT a skeleton. The request has already failed, so nothing is on
-            // its way — a skeleton here would spin for ever with no error and
-            // no retry.
-            //
-            // STACKED, not chained: these are two independent queries and
-            // either can fail alone. Picking one branch would mean picking a
-            // winner whose retry cannot fix the loser, which is precisely the
-            // defect this replaces. When both fail the reader gets both
-            // sentences and both controls; in the ordinary case only one of
-            // these renders.
             <div className="grid gap-3">
               {members.isError && (
                 <LoadError message={MEMBERS_ERROR} onRetry={() => void members.refetch()} />
@@ -366,31 +370,10 @@ function TenantMembersTab() {
               <Skeleton className="h-10 w-full" />
             </div>
           ) : (members.data ?? []).length === 0 ? (
-            // AFTER the error branch, never before it: `[]` is what a failed
-            // load and an empty tenant both look like, and saying "no one has
-            // access" on the strength of a request that never answered is a
-            // statement about the tenant we have not earned. Same ordering,
-            // and the same reason, as `notifications.tsx`.
-            //
-            // A bare `Name / Email / Role / Actions` header over nothing was
-            // what rendered here before; the visual gate caught it.
             <p className="text-sm text-muted-foreground">
               No one has access to this tenant yet. Invite someone below.
             </p>
           ) : isMobile ? (
-            // CARDS ON A PHONE. The table below is `min-w-2xl` so it scrolls
-            // rather than crushing four columns into 320px, and that scroll
-            // works — but it put the Actions column and the last-owner
-            // explanation past the right edge, where a reader has no reason
-            // to look. Measured at 390px: scrollWidth 672 against clientWidth
-            // 326.
-            //
-            // Chosen in JS rather than with `hidden md:table` / `md:hidden`
-            // because a CSS pair renders BOTH paths into the DOM: two role
-            // selects per member, two copies of one `reasonId`, and a
-            // duplicate-id accessibility failure that looks like a
-            // regression. `useIsMobile` is the same hook the sidebar sheet
-            // uses, so "phone" means one thing across the app.
             <ul className="grid gap-3">
               {(members.data ?? []).map((member) => (
                 <MemberRow
@@ -405,9 +388,6 @@ function TenantMembersTab() {
               ))}
             </ul>
           ) : (
-            // The vendored Table already wraps itself in an overflow-x-auto
-            // container; `min-w-2xl` is what makes that container actually
-            // scroll on a phone instead of crushing four columns into 320px.
             <Table className="min-w-2xl">
               <TableHeader>
                 <TableRow>
@@ -434,9 +414,6 @@ function TenantMembersTab() {
         </CardContent>
       </Card>
 
-      {/* Owner and admin only: all four invitation routes are
-          `requireRole('owner', 'admin')`, and PendingInvitations issues its
-          request only once mounted. */}
       {myRole && canManageTenant(myRole) && (
         <>
           <Card>
