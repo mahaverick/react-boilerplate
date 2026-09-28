@@ -3,7 +3,10 @@ import { buttonVariants } from '@/components/ui/button'
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { ROUTES } from '@/constants/routes'
 
-/** The router-wide screen for a URL that matches no route. */
+/**
+ * The router-wide screen for a URL that matches no route. Go home links `/`,
+ * which sends a signed-in reader to the dashboard and anyone else to sign-in.
+ */
 export function RouteNotFound() {
   return (
     <div className="flex justify-center px-4 py-16">
@@ -17,7 +20,6 @@ export function RouteNotFound() {
           </CardDescription>
         </CardHeader>
         <CardFooter>
-          {/* `/` sends a signed-in reader to the dashboard and anyone else to sign-in. */}
           <Link to={ROUTES.home} className={buttonVariants({ variant: 'outline' })}>
             Go home
           </Link>

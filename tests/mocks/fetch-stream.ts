@@ -32,12 +32,11 @@ export function queueConnectRefusal(refusal: ConnectRefusal): void {
  * Enough of a `fetch` streaming response to drive `useNotificationStream`
  * over its fetch transport, and no more.
  *
- * Modeled on the `MockEventSource` this replaced: one instance per
- * `connect()` call, captured
- * on `instances` so a test can inspect what was actually sent (the URL, the
- * `Authorization` and `Last-Event-ID` headers) and control what comes back —
- * a frame, a clean end, a mid-stream failure, or (via `queueConnectRefusal`)
- * a non-ok CONNECT response — without a real network call or a real server.
+ * One instance per `connect()` call, captured on `instances` so a test can
+ * inspect what was actually sent (the URL, the `Authorization` and
+ * `Last-Event-ID` headers) and control what comes back — a frame, a clean
+ * end, a mid-stream failure, or (via `queueConnectRefusal`) a non-ok
+ * CONNECT response — without a real network call or a real server.
  */
 export class MockFetchStream {
   static instances: MockFetchStream[] = []
@@ -57,9 +56,7 @@ export class MockFetchStream {
       this.aborted = true
     })
 
-    // Consumed once: only the very next connect is refused. Every later
-    // reconnect — including the one this same failure schedules — gets the
-    // ordinary streaming 200 below, unless the test queues another refusal.
+    // Consumed once: only the very next connect is refused. Every later reconnect — including the one this same failure schedules — gets the ordinary streaming 200 below, unless the test queues another refusal.
     const refusal = queuedConnectRefusal
     queuedConnectRefusal = null
     if (refusal) {
@@ -143,8 +140,7 @@ export function latestFetchStream(): MockFetchStream {
  * test's own stack.
  */
 export function stubStreamFetch(matchUrl: string): void {
-  // Reset here, not left to bleed from a previous test: this is the one
-  // function every test in this suite already calls from `beforeEach`.
+  // Reset here, not left to bleed from a previous test: this is the one function every test in this suite already calls from `beforeEach`.
   queuedConnectRefusal = null
   vi.stubGlobal(
     'fetch',

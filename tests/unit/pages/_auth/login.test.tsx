@@ -87,8 +87,7 @@ describe('login page', () => {
     await fillAndSubmit('nope', 'secret123')
 
     expect(await screen.findByText('Enter a valid email address.')).toBeInTheDocument()
-    // Spec section 9: the control itself must say it is invalid and point at
-    // the message, not merely have a message rendered somewhere near it.
+    // The control itself must say it is invalid and point at the message, not merely have a message rendered somewhere near it.
     const email = screen.getByLabelText('Email')
     expect(email).toHaveAttribute('aria-invalid', 'true')
     expect(email).toHaveAccessibleDescription('Enter a valid email address.')
@@ -123,9 +122,7 @@ describe('login page', () => {
     renderLoginAt('/login')
     await fillAndSubmit('  ADA@B.COM  ', 'secret123')
 
-    // The schema trims and lower-cases, but TanStack hands `onSubmit` the raw
-    // form state — only parsing the value before posting puts the transform on
-    // the wire. Without that this arrives as "  ADA@B.COM  ".
+    // The schema trims and lower-cases, but TanStack hands `onSubmit` the raw form state — only parsing the value before posting puts the transform on the wire. Without that this arrives as "  ADA@B.COM  ".
     await waitFor(() => {
       expect(body).toEqual({ email: 'ada@b.com', password: 'secret123' })
     })
@@ -154,8 +151,7 @@ describe('login page', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/dashboard')
     })
-    // The discriminating part: `next=1` can only have come from the redirect
-    // param, since the fallback target carries no search at all.
+    // The discriminating part: `next=1` can only have come from the redirect param, since the fallback target carries no search at all.
     expect(router.state.location.searchStr).toContain('next=1')
   })
 
@@ -259,8 +255,7 @@ describe('server-side validation errors', () => {
     await waitFor(() => {
       expect(screen.queryByText('That address is not registered.')).not.toBeInTheDocument()
     })
-    // The load-bearing half: the user has not touched the password, so what
-    // the server said about it is still true and must still be on screen.
+    // The load-bearing half: the user has not touched the password, so what the server said about it is still true and must still be on screen.
     expect(screen.getByText('Password is too short.')).toBeInTheDocument()
     expect(screen.getByLabelText('Password')).toHaveAccessibleDescription('Password is too short.')
   })
@@ -283,8 +278,7 @@ describe('server-side validation errors', () => {
 
     const message = await screen.findByText('These credentials are not valid together.')
     expect(message.closest('[role="alert"]')).not.toBeNull()
-    // It names no field, so it must not be wired to one — an input called
-    // "formErrors" does not exist.
+    // It names no field, so it must not be wired to one — an input called "formErrors" does not exist.
     expect(screen.getByLabelText('Email')).not.toHaveAccessibleDescription(
       'These credentials are not valid together.'
     )
@@ -348,8 +342,7 @@ describe('safeRedirect', () => {
     // `?redirect=` comes off the URL bar, so every one of these is reachable.
     expect(safeRedirect('https://evil.example')).toBeNull()
     expect(safeRedirect('//evil.example')).toBeNull()
-    // Browsers normalise a backslash here to a slash, making it
-    // protocol-relative.
+    // Browsers normalise a backslash here to a slash, making it protocol-relative.
     expect(safeRedirect('/\\evil.example')).toBeNull()
     expect(safeRedirect('javascript:alert(1)')).toBeNull()
     expect(safeRedirect('dashboard')).toBeNull()

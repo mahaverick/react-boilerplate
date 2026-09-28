@@ -37,14 +37,9 @@ export const Route = createFileRoute('/_app/tenants/$slug/settings')({
 })
 
 /**
- * What this tab says when the SETTINGS row itself failed, as opposed to the
- * role lookup.
- *
- * Its own message and its own `refetch`, for the reason spelled out on
- * `MEMBERS_ERROR` in the members tab: `useMyRole`'s retry refetches the tenant
- * itself, so handing it to a settings failure would produce a Try again that
- * issued no further settings request, under a sentence about a query that had
- * succeeded.
+ * What this tab says when the settings request failed, as opposed to the role
+ * lookup. It has its own `refetch`, since `useMyRole`'s retry refetches the
+ * tenant and would never re-issue the settings request.
  */
 const SETTINGS_ERROR =
   'We could not load this tenant’s settings, so none are shown here. This is not a sign that it has none.'
@@ -54,12 +49,15 @@ function metadataText(metadata: Record<string, unknown> | null): string {
   return metadata === null ? '' : JSON.stringify(metadata, null, 2)
 }
 
+/**
+ * The settings form for owners and admins. Its schema's output is the PATCH
+ * body: the metadata textarea parses to an object, or `null` to clear it.
+ */
 function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettings }) {
   const updateSettings = useUpdateTenantSettings(slug)
   const serverErrors = useServerErrors()
 
-  // The schema's INPUT type: `timezone` and `locale` are optional there, and
-  // TanStack needs the validator's input assignable to the form's values.
+  /** The schema's input type: TanStack needs the validator's input assignable to the form values. */
   const defaultValues: z.input<typeof tenantSettingsFormSchema> = {
     timezone: settings.timezone,
     locale: settings.locale,
@@ -72,9 +70,6 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        // The form schema's output IS the PATCH body: it parses the metadata
-        // textarea into an object (or `null`, which clears the column) so
-        // this page never posts a string where the API wants JSON.
         await updateSettings.mutateAsync(tenantSettingsFormSchema.parse(value))
         toast.success('Settings updated.')
       } catch (error) {
@@ -181,6 +176,11 @@ function SettingsDetails({ settings }: { settings: TenantSettings }) {
   )
 }
 
+/**
+ * The settings tab. A settings failure and a role failure render as stacked
+ * errors, each retrying its own request, since either can fail alone. The form
+ * is keyed on the row's `updatedAt`, so its defaults come from loaded data.
+ */
 function TenantSettingsTab() {
   const { slug } = Route.useParams()
   const settings = useTenantSettings(slug)
@@ -200,9 +200,6 @@ function TenantSettingsTab() {
       </CardHeader>
       <CardContent>
         {settings.isError || isRoleError || (!isRolePending && !role) ? (
-          // STACKED, not chained — see the members tab: two independent
-          // queries, either of which can fail alone, and a single branch would
-          // offer a retry that cannot reach the query that actually failed.
           <div className="grid gap-3">
             {settings.isError && (
               <LoadError message={SETTINGS_ERROR} onRetry={() => void settings.refetch()} />
@@ -218,8 +215,6 @@ function TenantSettingsTab() {
             <Skeleton className="h-24 w-full" />
           </div>
         ) : canManageTenant(role) ? (
-          // Keyed so the defaults come from the loaded row, not from the
-          // placeholder that rendered first.
           <SettingsForm key={settings.data.updatedAt} slug={slug} settings={settings.data} />
         ) : (
           <SettingsDetails settings={settings.data} />

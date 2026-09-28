@@ -13,8 +13,7 @@ describe('useIsMobile', () => {
     isPhone = false
     listeners = new Set()
     originalMatchMedia = window.matchMedia.bind(window)
-    // Answers only the hook's own query, and keeps its listeners so a test can
-    // fire a viewport change.
+    // Answers only the hook's own query, and keeps its listeners so a test can fire a viewport change.
     window.matchMedia = ((query: string) => ({
       get matches() {
         return query === MOBILE_QUERY && isPhone

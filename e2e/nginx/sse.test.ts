@@ -2,21 +2,22 @@ import { expect, test } from '@playwright/test'
 import { API_ORIGIN, apiIsReady, freshEmail, restartApi, signIn } from '../live/helpers'
 
 /**
- * The last of open-items §1: **the SSE stream reconnects after a real backend
- * restart.**
+ * **The SSE stream reconnects after a real backend restart.**
  *
- * This could not be tested against the dev server, and the reason is worth
- * keeping. A `curl -N` at the Vite proxy stays open after the API is killed —
- * the proxy never propagates the upstream close — so the reading side of the
- * client's `fetch` body stream never sees `done: true`, `parseSseStream`'s
- * generator never returns, and the reconnect path is simply unreachable.
- * Measured from the page side too: no stream request, no `/auth/refresh`, no
- * console error. The tab never learned it had been disconnected.
+ * This cannot be tested against the dev server, and the reason is worth
+ * keeping. A `curl -N` at the Vite proxy stays open after the API is
+ * killed — the proxy never propagates the upstream close — so the reading
+ * side of the client's `fetch` body stream never sees `done: true`,
+ * `parseSseStream`'s generator never returns, and the reconnect path is
+ * simply unreachable. Measured from the page side too: no stream request,
+ * no `/auth/refresh`, no console error. The tab never learns it has been
+ * disconnected.
  *
- * nginx does propagate it. The same curl against the container exited on the
- * exact second the API was killed. So this suite runs against the PRODUCTION
- * image — the real bundle, the real `nginx.conf`, the real
- * `proxy_buffering off` — which is the path the behaviour actually ships on.
+ * nginx does propagate it: the same curl against the container exits on
+ * the exact second the API is killed. So this suite runs against the
+ * PRODUCTION image — the real bundle, the real `nginx.conf`, the real
+ * `proxy_buffering off` — which is the path the behaviour actually ships
+ * on.
  *
  * Needs the container and a live API. `pnpm test:e2e:nginx` does the whole
  * thing; `beforeAll` says so if something is missing.
@@ -40,10 +41,31 @@ test.beforeAll(async () => {
   }
 })
 
+/**
+ * Stopping the API, confirming it is really down and waiting for a new one
+ * to be ready is ~20s before the reconnect window even opens, and the
+ * hook's backoff doubles to a 30s ceiling — Playwright's default 30s
+ * cannot hold it, hence the extended test timeout.
+ *
+ * A real restart: the process is killed and a new one started — not
+ * `MockFetchStream.end()`/`.fail()` (fetch-stream.ts), which close or
+ * error a `ReadableStream` built by hand rather than a stream that closes
+ * because a real server process actually died.
+ *
+ * `restartApi` throws if it could not stop the server, but the elapsed
+ * time is asserted too: a restart that took no time did not happen, and
+ * this test would then be measuring a stream that was never interrupted.
+ *
+ * The reconnect is asserted TIMESTAMPED, not counted:
+ * `toBeGreaterThan(before)` would be satisfied by a connection opened
+ * during sign-in that merely landed late — the reconnect has to be a
+ * connection made AFTER the new server was up.
+ *
+ * Reopening is not the same as working. The session has to survive it:
+ * the reconnect runs through ensureSession(), and a wrong verdict there
+ * would sign the reader out rather than reconnect them.
+ */
 test('the notification stream reconnects after the backend really restarts', async ({ page }) => {
-  // Stopping the API, confirming it is really down and waiting for a new one
-  // to be ready is ~20s before the reconnect window even opens, and the hook's
-  // backoff doubles to a 30s ceiling. Playwright's default 30s cannot hold it.
   test.setTimeout(240_000)
 
   const streamOpens: number[] = []
@@ -55,24 +77,12 @@ test('the notification stream reconnects after the backend really restarts', asy
   await page.goto('/dashboard')
   await expect.poll(() => streamOpens.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1)
 
-  // A real restart: the process is killed and a new one started. Not
-  // `MockFetchStream.end()` or `.fail()` (fetch-stream.ts) — those close or
-  // error a `ReadableStream` a test built by hand, so until now this path
-  // had only ever run against a mock of the thing being tested, never a
-  // stream that closed because a real server process actually died.
   const killedAt = Date.now()
   await restartApi()
   const readyAt = Date.now()
 
-  // The API really went down and really came back. restartApi throws if it
-  // could not stop the server, but assert the elapsed time too: a restart that
-  // took no time did not happen, and this test would then be measuring a
-  // stream that was never interrupted.
   expect(readyAt - killedAt).toBeGreaterThan(2000)
 
-  // TIMESTAMPED, not counted. `toBeGreaterThan(before)` would be satisfied by
-  // a connection opened during sign-in that merely landed late — the reconnect
-  // has to be a connection made AFTER the new server was up.
   await expect
     .poll(() => streamOpens.filter((at) => at > readyAt).length, {
       timeout: 120_000,
@@ -80,9 +90,6 @@ test('the notification stream reconnects after the backend really restarts', asy
     })
     .toBeGreaterThan(0)
 
-  // Reopening is not the same as working. The session has to survive it: the
-  // reconnect runs through ensureSession(), and a wrong verdict there would
-  // sign the reader out rather than reconnect them.
   await expect(page).not.toHaveURL(/login/)
   await expect(page.getByRole('button', { name: /notifications/i })).toBeVisible()
 })

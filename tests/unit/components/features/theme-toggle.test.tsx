@@ -24,8 +24,7 @@ describe('ThemeToggle', () => {
   it('names its icon-only trigger, since a Base UI tooltip would not', () => {
     render(<ThemeToggle />)
 
-    // Base UI's Tooltip emits neither role="tooltip" nor aria-describedby, so
-    // the only accessible name this control can have is the one it carries.
+    // Base UI's Tooltip emits neither role="tooltip" nor aria-describedby, so the only accessible name this control can have is the one it carries.
     expect(screen.getByRole('button', { name: 'Theme: system. Change theme' })).toBeInTheDocument()
   })
 
@@ -34,8 +33,7 @@ describe('ThemeToggle', () => {
     render(<ThemeToggle />)
 
     await user.click(screen.getByRole('button', { name: 'Theme: system. Change theme' }))
-    // Base UI's Menu.Item has no `onSelect` (that is Radix's API), so the
-    // items are wired with `onClick`. This is what proves that works.
+    // Base UI's Menu.Item has no `onSelect` (that is Radix's API), so the items are wired with `onClick`. This is what proves that works.
     await user.click(await screen.findByRole('menuitem', { name: 'Dark' }))
 
     expect(useThemeStore.getState().theme).toBe('dark')

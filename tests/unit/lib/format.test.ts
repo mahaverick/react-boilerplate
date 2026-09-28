@@ -7,8 +7,7 @@ const date = new Date(NOON_UTC)
 
 describe('formatDate', () => {
   it('formats in the reader locale, at the style the caller asks for', () => {
-    // The expected strings come from the same options the pages used before,
-    // so this pins the options without hard-coding one locale's output.
+    // The expected strings come from the same options the pages use, so this pins the options without hard-coding one locale's output.
     expect(formatDate(NOON_UTC, 'long')).toBe(
       new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(date)
     )

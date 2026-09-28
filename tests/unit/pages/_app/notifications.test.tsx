@@ -54,11 +54,14 @@ describe('notifications page', () => {
     )
   })
 
-  // Both cards state the FAILURE rather than the absence. `rows` is `[]` and
-  // `preferences.data` is undefined for a failed load exactly as they are for
-  // an empty one, so the page used to answer a 500 with "You have no
-  // notifications." and "This account has no notification types yet." — two
-  // claims about the account, neither of which the request established.
+  /**
+   * Both cards state the FAILURE rather than the absence. `rows` is `[]`
+   * and `preferences.data` is undefined for a failed load exactly as they
+   * are for an empty one, so without this the page would answer a 500 with
+   * "You have no notifications." and "This account has no notification
+   * types yet." — two claims about the account, neither of which the
+   * request established.
+   */
   it('shows a retry, not an empty inbox, when the list fails to load', async () => {
     server.use(http.get('/api/v1/notifications', () => fail('Something went wrong', 500)))
     renderNotifications()
@@ -96,8 +99,7 @@ describe('notifications page', () => {
   it('names the bell with its unread count, since a badge is not a name', async () => {
     renderNotifications()
 
-    // Base UI's Tooltip emits no role="tooltip" and no aria-describedby, so
-    // this label is the only accessible name Task 9's axe run can read.
+    // Base UI's Tooltip emits no role="tooltip" and no aria-describedby, so this label is the only accessible name an axe run can read.
     expect(await screen.findByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible()
   })
 
@@ -106,8 +108,7 @@ describe('notifications page', () => {
     renderNotifications()
     await screen.findByText(unreadRow.title)
 
-    // Never resolves: anything the UI shows after the click is therefore the
-    // optimistic cache write, not a server round trip.
+    // Never resolves: anything the UI shows after the click is therefore the optimistic cache write, not a server round trip.
     server.use(http.patch('/api/v1/notifications/:id/read', () => delay('infinite')))
 
     await user.click(screen.getByRole('button', { name: `Mark "${unreadRow.title}" as read` }))
@@ -122,9 +123,7 @@ describe('notifications page', () => {
 
     server.use(
       http.patch('/api/v1/notifications/:id/read', () => fail('Notification not found', 404)),
-      // The rollback is what has to put the Unread badge back: onSettled's
-      // invalidation fires too, and a refetch that answered would hide
-      // whether onError restored anything.
+      // The rollback is what has to put the Unread badge back: onSettled's invalidation fires too, and a refetch that answered would hide whether onError restored anything.
       http.get('/api/v1/notifications', () => delay('infinite'))
     )
 
@@ -143,9 +142,7 @@ describe('notifications page', () => {
 
     server.use(
       http.delete('/api/v1/notifications/:id', () => fail('Notification not found', 404)),
-      // The rollback is what has to put this row back: onSettled's
-      // invalidation fires too, and a refetch that answered would hide
-      // whether onError restored anything.
+      // The rollback is what has to put this row back: onSettled's invalidation fires too, and a refetch that answered would hide whether onError restored anything.
       http.get('/api/v1/notifications', () => delay('infinite'))
     )
 
@@ -176,8 +173,7 @@ describe('notifications page', () => {
     expect(within(main).getByText('In-app: Off')).toBeInTheDocument()
     expect(within(main).getByText(/not configurable yet/i)).toBeInTheDocument()
 
-    // Every configurable type is currently rejected by the server, so a switch
-    // here could only ever produce a 400 toast.
+    // Every configurable type is currently rejected by the server, so a switch here could only ever produce a 400 toast.
     expect(within(main).queryAllByRole('switch')).toHaveLength(0)
   })
 

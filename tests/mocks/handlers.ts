@@ -68,8 +68,7 @@ export const handlers = [
   http.post('/api/v1/auth/register', () =>
     ok(null, 'If that address can be registered, a verification email has been sent.', 202)
   ),
-  // The profile page's Security section fetches this whenever /profile mounts.
-  // A password account; a test about Google or a failed load overrides it.
+  // The profile page's Security section fetches this whenever /profile mounts. A password account; a test about Google or a failed load overrides it.
   http.get('/api/v1/auth/providers', () =>
     ok(
       {
@@ -79,45 +78,49 @@ export const handlers = [
       'Auth providers retrieved.'
     )
   ),
-  // The notification bell lives in the app shell's header, so EVERY test that
-  // mounts an authenticated route hits these two — and `onUnhandledRequest:
-  // 'error'` would fail each one otherwise. Empty defaults: a test that cares
-  // about notification content overrides them with `server.use(...)`.
-  //
-  // `notifications`, not `items`, and `nextCursor` absent rather than null —
-  // the same shape NotificationRepository.list actually returns.
+  /**
+   * The notification bell lives in the app shell's header, so EVERY test
+   * that mounts an authenticated route hits these two — and
+   * `onUnhandledRequest: 'error'` would fail each one otherwise. Empty
+   * defaults: a test that cares about notification content overrides them
+   * with `server.use(...)`.
+   *
+   * `notifications`, not `items`, and `nextCursor` absent rather than null
+   * — the same shape NotificationRepository.list actually returns.
+   */
   http.get('/api/v1/notifications', () => ok({ notifications: [] }, 'Notifications retrieved.')),
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: [] }, 'Notification preferences retrieved.')
   ),
-  // `useNotificationStream` reads this over `fetch`, not `EventSource` — so
-  // it is real traffic as far as msw is concerned, and `AppLayout` opens it
-  // on every authenticated render, same reason as the two defaults above.
-  // A body that never enqueues and never closes is the fetch-transport
-  // equivalent of the idle `EventSource` stub this replaced: `response.ok`
-  // resolves, the hook's `for await` parks on a read that never settles, and
-  // nothing here ever needs to look like a real notification. A test that
-  // DOES care about the stream's frames overrides `fetch` itself with
-  // `stubStreamFetch` (`tests/mocks/fetch-stream.ts`), which bypasses this
-  // handler entirely.
+  /**
+   * `useNotificationStream` reads this over `fetch`, not `EventSource` — so
+   * it is real traffic as far as msw is concerned, and `AppLayout` opens it
+   * on every authenticated render, same reason as the two defaults above. A
+   * body that never enqueues and never closes answers every read with a
+   * pending promise: `response.ok` resolves, the hook's `for await` parks
+   * on a read that never settles, and nothing here ever needs to look like
+   * a real notification. A test that DOES care about the stream's frames
+   * overrides `fetch` itself with `stubStreamFetch`
+   * (`tests/mocks/fetch-stream.ts`), which bypasses this handler entirely.
+   */
   http.get(
     '/api/v1/notifications/stream',
     () =>
       new HttpResponse(new ReadableStream(), { headers: { 'Content-Type': 'text/event-stream' } })
   ),
-  // The tenant switcher lives in the app shell's sidebar, so every test that
-  // mounts an authenticated route hits this one too — same reason as the two
-  // notification defaults above. An empty list: a test about tenants
-  // overrides it with `server.use(...)`.
-  //
-  // `[{ tenant, role }]`, not bare tenants — `TenantRepository.listForUser`
-  // selects the tenant row and the caller's membership role side by side.
+  /**
+   * The tenant switcher lives in the app shell's sidebar, so every test
+   * that mounts an authenticated route hits this one too — same reason as
+   * the two notification defaults above. An empty list: a test about
+   * tenants overrides it with `server.use(...)`.
+   *
+   * `[{ tenant, role }]`, not bare tenants — `TenantRepository.listForUser`
+   * selects the tenant row and the caller's membership role side by side.
+   */
   http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
-  // Pending invitations, empty like the list above. A test about them
-  // overrides it with `server.use(...)`.
+  // Pending invitations, empty like the list above. A test about them overrides it with `server.use(...)`.
   http.get('/api/v1/tenants/:slug/invitations', () => ok([], 'Invitations retrieved.')),
-  // Invite and resend answer 202 with `data: null` whether or not the
-  // address has an account, the same way register does.
+  // Invite and resend answer 202 with `data: null` whether or not the address has an account, the same way register does.
   http.post('/api/v1/tenants/:slug/invitations', () => ok(null, INVITATION_SENT_MESSAGE, 202)),
   http.post('/api/v1/tenants/:slug/invitations/:id/resend', () =>
     ok(null, INVITATION_SENT_MESSAGE, 202)

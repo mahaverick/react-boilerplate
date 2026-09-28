@@ -4,7 +4,7 @@ Guidance for Claude Code (and any other agent) working in this repository.
 
 This file is not a tour of the codebase — the code says what it does, and the
 comments in it say why. What follows is the set of decisions that look wrong
-until you know the reason, and that cost fix rounds to get right. Changing one
+until you know the reason. Changing one
 of these is a deliberate act, not a tidy-up.
 
 ## What this is
@@ -34,13 +34,12 @@ eslint half exits 0 on warnings.
 - **Tracked in `.husky/`, executable.** pre-commit: lockfile drift, lint-staged
   (eslint `--fix --max-warnings 0` + prettier on staged files), `vitest --changed`.
   commit-msg: commitlint (conventional commits). pre-push: the full lint gate,
-  typecheck and unit tests — **no e2e**, on purpose: long pre-push hooks have
-  dropped SSH pushes in this workspace. CI runs e2e.
+  typecheck and unit tests — **no e2e**, on purpose: a long pre-push hook can
+  outlast the SSH connection and drop the push. CI runs e2e.
 - **Hooks call `pnpm exec`, never `npx`** — `npx` on a fresh machine downloads
   whatever version is newest, not the one this repo tested against.
-- **Before this, `.husky/` held only husky's generated `_/` directory** — `prepare`
-  ran, but no hook was ever committed, so nothing ran locally. If `git ls-files
-.husky` is ever empty again, that is the bug.
+- **The hooks must stay committed.** `prepare` generates only husky's `_/`
+  directory, so if `git ls-files .husky` is ever empty, no hook runs locally.
 
 ## CI and deploy
 
@@ -74,16 +73,16 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
 - **The API prefix is fixed and relative** (`/api/v1`), written once as
   `API_PREFIX` in `src/constants/routes.ts`. This SPA's own traffic is same-origin
   by design — the dev server proxies `/api`, and the container's nginx does the
-  same — so an absolute URL fails at runtime in a way no test catches. There is
-  no environment variable for it, and there was: `VITE_API_URL` moved the axios
-  base alone while the stream's URL, the Google OAuth anchor and nginx's SSE
-  `location` kept the old prefix. Moving the prefix means changing
-  `API_PREFIX`, `nginx.conf` and `vite.config.ts` together. **The backend is
-  not actually CORS-blind** — `cors.config.ts` (express-boilerplate) answers a
-  cross-origin caller, and its `allowedHeaders` entry for `Last-Event-ID` is
-  the only reason a second, cross-origin frontend's stream can replay on
-  reconnect at all (see `docs/superpowers/specs/2026-09-23-sse-auth-and-multi-frontend-design.md`,
-  express-boilerplate) — same-origin is simply what this particular SPA ships as.
+  same — so an absolute URL fails at runtime in a way no test catches. Do not add an
+  environment variable for it: one that moves only the axios base leaves the
+  stream's URL, the Google OAuth anchor and nginx's SSE `location` on the old
+  prefix. Moving the prefix means changing `API_PREFIX` and `nginx.conf`'s SSE
+  `location` together; `vite.config.ts` proxies all of `/api`, so it changes
+  only for a prefix outside `/api`. **The backend is not actually CORS-blind** — its
+  `src/configs/cors.config.ts` (express-boilerplate) answers a cross-origin
+  caller, and its `allowedHeaders` entry for `Last-Event-ID` is the only reason
+  a second, cross-origin frontend's stream can replay on reconnect at all —
+  same-origin is simply what this particular SPA ships as.
 - **The access token is memory-only.** It lives in `auth.store` and nowhere
   else. Never write it to `localStorage`, `sessionStorage`, a cookie or a query
   string, and never add a `persist` middleware to that store. The refresh token
@@ -143,22 +142,28 @@ otherwise churn the diff on every `shadcn add`:
 
 - **prettier skips it entirely** (`.prettierignore`) — shadcn emits semicolons
   and double quotes, and reformatting them fights the registry on every re-add.
-- **eslint excludes only the Tailwind rules and `react-refresh/only-export-components`**
-  (`eslint.config.js`, the `src/components/ui/**` block). Everything else still
+- **eslint excludes only the Tailwind rules, `react-refresh/only-export-components`
+  and `local/comment-style`** (`eslint.config.js`, the `src/components/ui/**`
+  block and the comment-style block). Everything else still
   applies. Do not read this as "eslint skips the directory" — print the config
   for a file in there and count: 507 rules, 113 of them enabled, including
   type-aware ones like `@typescript-eslint/no-unsafe-call` at **error**. A type
   error in there fails CI like anywhere else. Settle this with
-  `eslint --print-config` rather than by reading the config file: the `ignores`
-  at `eslint.config.js:30` is scoped to the Tailwind _settings_ block, which is
+  `eslint --print-config` rather than by reading the config file: the
+  `ignores: ['src/components/ui/**']` on the Tailwind _settings_ block is
   exactly what makes it easy to misread.
 
 **`form.tsx` and `sonner.tsx` are ours, not upstream's.** Both are fully linted
-and formatted, and both are named explicitly in `eslint.config.js` and
+and formatted, and both are named explicitly in four lists: in
+`eslint.config.js`, the block that re-enables the Tailwind and
+`react-refresh` rules (`files: ['src/components/ui/sonner.tsx', 'src/components/ui/form.tsx']`)
+and the `ignores` of the `cn` import-restriction and comment-style blocks
+(`src/components/ui/!(form|sonner).tsx`); and the `!` negations in
 `.prettierignore`. If you add a third hand-written file to that directory, add
-it to both lists in the same change or it will sit there unchecked. The third
-list, `coverage.exclude` in `vitest.config.ts`, is the inverse: it names the
-vendored files, so a new vendored one goes there and a hand-written one stays out.
+it to all four in the same change or it will sit there unchecked.
+`coverage.exclude` in `vitest.config.ts` does not name them: it is the inverse
+list, naming the vendored files, so a new vendored one goes there and a
+hand-written one stays out.
 
 ## Forms
 
@@ -176,20 +181,15 @@ vendored files, so a new vendored one goes there and a hand-written one stays ou
 
 ## Versions
 
-**TypeScript stays at `~6.0.3`.** typescript-eslint peers
-`typescript: ">=4.8.4 <6.1.0"`, which excludes all of 7.x — checked against
-8.70.1, the latest, on 2026-09-23. Bumping ahead of that breaks the type-aware
+**TypeScript stays at `~6.0.3`.** typescript-eslint 8.70.1 peers
+`typescript: ">=4.8.4 <6.1.0"`, which excludes all of 7.x. Bumping ahead of that breaks the type-aware
 lint rules, which are most of the lint config. Re-check that peer range before
 assuming the block still holds; it is the whole of the constraint.
 
-**`@types/node` is NOT part of that constraint, and this file used to say it
-was.** It read "TypeScript stays at ~6.0.3 and `@types/node` at 24.x until
-typescript-eslint supports TS 7", which was wrong twice over: express-boilerplate
-has been running `@types/node` 26 on the identical `typescript ~6.0.3` for some
-time, and bumping this repo 24.13.6 → 26.6.2 on 2026-09-23 left eslint
-(type-aware rules included), `tsc`, 262 unit tests, the e2e fixtures and
-`pnpm build` all green. The two versions were pinned in one sentence and only
-one of them had a reason.
+**`@types/node` is NOT part of that constraint.** It is on 26.x with
+`typescript ~6.0.3`, and eslint (type-aware rules included), `tsc`, the unit
+tests, the e2e fixtures and `pnpm build` are green on that pair. Do not pin it
+to TypeScript's hold.
 
 **The pnpm version lives in one place: `packageManager` in package.json.** The
 Dockerfile runs `corepack install` and CI's `pnpm/action-setup` reads the same
@@ -232,6 +232,11 @@ pin in `Dockerfile` and `README.md` is tracked via a custom regex manager.
   TanStack Router never sees a test file in its routes directory.
 - Tests are **`.test.ts(x)`**, never `.spec.`, and never in a `__tests__/`
   folder — also linted, under `tests/` as well as `src/`.
+- **Comments.** Every comment is one of three kinds: a declaration JSDoc (the
+  contract), a `/** @file … */` of 1–3 sentences, or a one-line `//` why, used
+  only for security, concurrency, a timing budget or a named external bug. A
+  JSX comment is one line and only for those same reasons. No history;
+  `local/comment-style` checks the form.
 
 ## Test timing rules
 
@@ -278,8 +283,8 @@ Three fake-timer traps, each read out of the installed versions:
 
 ## End-to-end tests
 
-`pnpm test:e2e` (fixtures) and `pnpm test:e2e:live` (needs a backend). Playwright, two
-projects, and three conventions that are load-bearing rather than taste:
+`pnpm test:e2e` (fixtures) and `pnpm test:e2e:live` (needs a backend). Playwright, four
+projects (`fixtures`, `live`, `contrast`, `nginx`), and three conventions that are load-bearing rather than taste:
 
 - **Tests are `*.test.ts`, never Playwright's default `*.spec.ts`** —
   the rest of the repo uses `.test.` (`check-file/filename-blocklist` rejects `.spec.` in
@@ -297,7 +302,7 @@ checks jsdom cannot make, because jsdom has no layout: whether the webfont actua
 whether anything overflows the viewport at 390px, whether a state renders as more than a bare
 header. `?state=loaded|empty|error|loading|soleowner` picks the members response.
 
-Two harness traps, both of which made tests measure the wrong thing once already: answering
+Two harness traps that make a test measure the wrong thing: answering
 the SSE stream with `204` looks to the hook exactly like a dropped connection and sends the
 page into a refresh-then-redirect that a test will race; and **any endpoint left unmocked
 falls through** (`onUnhandledRequest: 'bypass'`) and 401s. Under Playwright, the `fixtures` and
@@ -306,7 +311,7 @@ would leave the browser with express's 401 envelope, and fails the test at teard
 response came from the proxy instead, or if it answered anything other than a signed-out page's
 bootstrap refresh — naming each. A test that fulfills an `/api` route itself stamps its response with
 `FALLBACK_HEADER` from that file, or the teardown reports it as an escape. The 401 still
-signs the harness user out — any 401 on a token-bearing request is a verdict
+signs the harness user out — any non-expiry 401 on a token-bearing request is a verdict
 (interceptors.ts) — so every authed endpoint the page under test calls must be mocked, not
 only the one being asserted on. If a fixtures test starts landing on `/login`, that is why,
 and the teardown message names the endpoint.
@@ -319,7 +324,7 @@ and a fixed address would rate-limit every rerun.
 
 **`nginx`** runs against the PRODUCTION image — `pnpm test:e2e:nginx` builds it, runs it on
 :8088 (container port 8080, read-only root) with `--add-host=api:host-gateway`, tests, and
-tears it down. The tests tagged `@no-api` (headers, the CSP, the theme script, the asset 404)
+tears it down. The tests tagged `@no-api` (headers, the CSP, the theme script, the asset 404, the boot splash)
 need no backend and also run in CI's `e2e` job, against the image with nothing behind `/api`;
 the rest need a live API and run only locally. The project exists first for a reason worth
 keeping: **the Vite dev proxy does not propagate an upstream close.**
@@ -331,8 +336,9 @@ be tested here, not against `pnpm dev`.
 
 **`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom
 cannot compute at all — over every surface reachable without a backend, in **both themes**:
-the four public auth pages, `reset-password`/`verify-email` (both need a `?token=`, or they
-render their "link is incomplete" branch instead), and the authenticated pages through the
+the sign-in, register and forgot-password pages, `reset-password`/`verify-email` (both loaded with a `?token=`:
+without one, `reset-password` renders its "This link is incomplete" branch instead, while
+`verify-email` renders its normal form with an empty token field), and the authenticated pages through the
 harness's `?path=`. Every surface asserts a heading it alone renders BEFORE axe runs — a route
 that redirects still paints a perfectly legible page, so without that assertion a surface
 could report green while measuring something else entirely. It
@@ -340,18 +346,11 @@ injects the axe-core already in devDependencies rather than adding a package. It
 backend at all: the public pages' session bootstrap is answered by `e2e/hermetic.ts`, so an
 express on `:4040` that is restarting or hung cannot stall a run.
 
-**Opt-in and not in CI** — a deliberate cost decision, but do not read the usual justification
-for it ("contrast is a property of the palette, which moves rarely") as the whole risk model.
-The paragraph below disproves it: the one real failure this suite has found was a COMPONENT
-fault, not a palette change. `--muted-foreground` was fine; the avatar fallback put it on a
-muted surface. Component composition breaks contrast, and that changes on every feature — so
-run this before merging UI work, not only when a token moves.
-
-It earned itself immediately. `--muted-foreground` measured **4.35:1** on `--muted` in light
-theme (`#737373` on `#f5f5f5`) — under the 4.5:1 AA floor wherever muted text sits on a muted
-surface, which the avatar fallback did. Fixed at both levels: the token moved to
-`oklch(0.53)` (4.82 on muted, 5.25 on white) and the fallback now uses `text-foreground`.
-**Do not eyeball a contrast change — run the script.**
+**Opt-in and not in CI** — a deliberate cost decision, but do not read "contrast is a property
+of the palette, which moves rarely" as the whole risk model. Component composition breaks
+contrast too — which token a component puts on which surface decides the ratio, not the palette
+alone — and composition changes on every feature, so run this before merging UI work, not only when a
+token moves. **Do not eyeball a contrast change — run the script.**
 
 `restartApi()` kills by port with `-sTCP:LISTEN` and escalates SIGTERM→SIGKILL. Both details
 are load-bearing: `pnpm dev` is `tsx watch`, whose CHILD holds the port and survives a
@@ -380,7 +379,7 @@ not taken: the triggers live in the sidebar and header, so `<main>` would be the
 wrong home for their menus, and dropping the portal risks real clipping and
 stacking regressions to satisfy a rule that is not describing a real barrier.
 
-Three details that took measuring, and that a "tidy-up" would quietly undo:
+Four details that a "tidy-up" would quietly undo:
 
 - It runs **axe-core over `document`**, not jest-axe's `axe()` over a fragment.
   Axe reports its page-level rules (`page-has-heading-one`, `landmark-one-main`,
@@ -388,8 +387,8 @@ Three details that took measuring, and that a "tidy-up" would quietly undo:
   smaller than the document, so a fragment run grades far less than it looks
   like it does. The context is **pinned by an assertion**, not by this comment:
   the gate asserts `html-has-lang`, `document-title` and `bypass` are in
-  `results.passes`, so narrowing the context back to `document.body` fails 14
-  tests instead of silently passing all 17.
+  `results.passes`, so narrowing the context back to `document.body` fails the
+  gate instead of silently passing it.
 - **Every page needs exactly one `<main>` and exactly one `<h1>`**, and the test
   asserts both by hand. It has to: axe's own rules for them query
   `[aria-level=1]`, a selector jsdom rejects outright, so axe files them under
@@ -401,13 +400,9 @@ Three details that took measuring, and that a "tidy-up" would quietly undo:
   route's own component, inside whichever `Outlet` that route sits in — so
   whether the page ends up with a `<main>` depends on that route, not on the
   fallback. For a route nested inside `_app` or `_auth`, the `Outlet` is
-  already inside the layout's `<main>` — measured with a probe tree of the
-  same shape the tenant route has (a layout carrying its own `<main>` over a
-  child route with a bare loader and no `pendingComponent`), once with that
-  loader pending and once with it throwing `notFound()` — so the page still
-  ends up with exactly one, contributed by the layout. For the router's OWN
-  top-level
-  splat route (`src/pages/$.tsx`, matched when nothing else does), there is
+  already inside the layout's `<main>`, pending or throwing `notFound()`
+  alike, so the page still ends up with exactly one, contributed by the
+  layout. For the router's OWN top-level splat route (`src/pages/$.tsx`, matched when nothing else does), there is
   no layout ancestor to contribute one, so `$.tsx` wraps `RouteNotFound` in
   its own `<main>` — the fallback component stays bare specifically so it
   does not double up when it renders as `defaultNotFoundComponent` for a
@@ -415,5 +410,6 @@ Three details that took measuring, and that a "tidy-up" would quietly undo:
 - Colour contrast is **not** checked _there_. jest-axe's default — reproduced
   explicitly in that file — switches every `cat.color` rule off under jsdom,
   which has no layout. Contrast is measured separately, in a real browser, by
-  `pnpm test:contrast`; focus rings and the member table's horizontal scroll
-  are covered by the e2e suites.
+  `pnpm test:contrast`; viewport overflow at 390px by the `fixtures` e2e
+  project. Focus rings are checked only as a `focus-visible:` class (the tab
+  panel test in `a11y.test.tsx`), not in a browser.

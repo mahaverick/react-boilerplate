@@ -24,20 +24,14 @@ import { useResetPassword } from '@/queries/auth.queries'
 import { resetPasswordSchema } from '@/schemas/auth.schemas'
 
 /**
- * Top level on purpose, NOT under `_auth`.
- *
- * `_auth`'s guard sends an authenticated visitor to /dashboard, which would
- * bounce a signed-in user who clicks the link in their inbox before the token
- * was ever consumed. The URL must not change either: the backend builds
- * `${WEB_URL}/reset-password?token=` in
- * express-boilerplate/src/utilities/verification-link.utilities.ts, with no
- * `/auth/` prefix, and links already sent point at that path. A top-level file
- * route keeps the path identical while sitting outside the guard, so this page
- * renders `AuthLayout` itself — `_auth`'s layout component no longer wraps it.
+ * The password-reset page. Top level, not under `_auth`, whose guard would
+ * bounce a signed-in user who opens the link before the token is used. The
+ * API mails `${WEB_URL}/reset-password?token=` (express verification.service.ts),
+ * so the path is fixed, and this page renders `AuthLayout` itself. `.catch`
+ * treats a non-string `?token=` as none, since the router JSON-parses search
+ * values.
  */
 export const Route = createFileRoute('/reset-password')({
-  // `.catch`: the router JSON-parses search values, so `?token=123` is a
-  // number, treated as no token.
   validateSearch: z.object({ token: z.string().optional().catch(undefined) }),
   head: () => ({ meta: [{ title: pageTitle('Reset password') }] }),
   component: ResetPasswordPage,
@@ -50,17 +44,12 @@ function ResetPasswordPage() {
   const serverErrors = useServerErrors()
 
   const form = useForm({
-    // The token rides in the form values so the schema validates it in one
-    // place; the field itself is never rendered.
+    /** The token rides in the form values, unrendered, so the schema validates it. */
     defaultValues: { token: token ?? '', password: '', confirmPassword: '' },
     validators: { onSubmit: resetPasswordSchema },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        // Parsed, not posted raw: TanStack hands `value` straight from form
-        // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
-        // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
-        // what makes the schema the wire contract it looks like.
         await resetPassword.mutateAsync(resetPasswordSchema.parse(value))
         toast.success('Your password has been reset. Sign in with it.')
         await navigate({ to: ROUTES.login })
@@ -75,7 +64,6 @@ function ResetPasswordPage() {
       <AuthLayout>
         <Card>
           <CardHeader>
-            {/* CardTitle renders a div, so the page's h1 goes inside it. */}
             <CardTitle>
               <h1>This link is incomplete</h1>
             </CardTitle>
@@ -84,9 +72,6 @@ function ResetPasswordPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Styled as a button, but a <Link>, because it navigates — see
-                login.tsx's "Continue with Google" for the full reasoning on
-                why `<Button render={<Link/>}>` is the wrong shape here. */}
             <Link
               to={ROUTES.forgotPassword}
               className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
@@ -103,7 +88,6 @@ function ResetPasswordPage() {
     <AuthLayout>
       <Card>
         <CardHeader>
-          {/* CardTitle renders a div, so the page's h1 goes inside it. */}
           <CardTitle>
             <h1>Choose a new password</h1>
           </CardTitle>

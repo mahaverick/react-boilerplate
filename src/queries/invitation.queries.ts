@@ -12,12 +12,14 @@ export const invitationKeys = {
 
 /**
  * What an invite link opens onto. Public, and asked as a stranger even when
- * someone is signed in: no bearer token is sent, and `skipAuthRetry` keeps a
- * 401 here from ever being read as a verdict on the session. A POST with the
- * token in the body, so it stays out of URLs and access logs.
+ * someone is signed in: no bearer token is sent (a `false` header makes the
+ * request interceptor skip it, and axios drops it from the wire), and
+ * `skipAuthRetry` keeps a 401 here from being read as a verdict on the
+ * session. A POST with the token in the body, so it stays out of URLs and
+ * access logs.
  *
- * A 404 is the answer ("invalid or expired"), not a failure, so it is not
- * retried. Anything else is retried once, as the router's client does.
+ * A 404 is the answer ("invalid or expired"), so it is not retried; anything
+ * else is retried once, as the app's query client does.
  */
 export function useInvitationPreview(token: string | undefined) {
   return useQuery({
@@ -28,8 +30,6 @@ export function useInvitationPreview(token: string | undefined) {
           '/invitations/preview',
           { token },
           {
-            // `false` makes the request interceptor skip the header, and axios
-            // drops a `false` header from the wire.
             headers: { Authorization: false },
             skipAuthRetry: true,
           }
@@ -44,6 +44,12 @@ export function useInvitationPreview(token: string | undefined) {
  * Accepts as the signed-in user. Expected refusals are 403 (wrong or
  * unverified email) and 404 (no longer valid); a 401 here is a real session
  * verdict, handled by the interceptor like any other.
+ *
+ * On success the tenant's detail is removed, not invalidated, because the
+ * route loader's `ensureQueryData` would return a cached 404 `null`. The list
+ * refetches with `refetchType: 'all'`, since the accept page does not observe
+ * it, and the profile refreshes, since accepting into the platform tenant
+ * changes the stored user's platformRole.
  */
 export function useAcceptInvitation() {
   const queryClient = useQueryClient()
@@ -53,20 +59,12 @@ export function useAcceptInvitation() {
         await apiClient.post<ApiSuccess<AcceptedInvitation>>('/invitations/accept', { token })
       ),
     onSuccess: async ({ tenant }) => {
-      // Removed, not invalidated: the tenant route's loader uses
-      // `ensureQueryData`, which hands back a cached pre-membership `null`
-      // (a 404 from before) without refetching. The prefix also drops this
-      // tenant's invitations list. `refetchType: 'all'`: nothing on the accept
-      // page observes the list, and a plain invalidation refetches only active queries.
       queryClient.removeQueries({ queryKey: tenantKeys.detail(tenant.slug) })
       await queryClient.invalidateQueries({
         queryKey: tenantKeys.list,
         exact: true,
         refetchType: 'all',
       })
-      // Accepting can change the caller's platformRole (the platform tenant
-      // is a tenant like any other) — always refresh, rather than special-case
-      // it, so `useAuthStore`'s copy is never stale until reload.
       await refreshProfile(queryClient)
     },
   })

@@ -24,20 +24,14 @@ import { useResendVerification, useVerifyEmail } from '@/queries/auth.queries'
 import { resendVerificationSchema, verifyEmailSchema } from '@/schemas/auth.schemas'
 
 /**
- * Top level on purpose, NOT under `_auth`.
- *
- * `_auth`'s guard sends an authenticated visitor to /dashboard, which would
- * bounce a signed-in user who clicks the link in their inbox before the token
- * was ever consumed. The URL must not change either: the backend builds
- * `${WEB_URL}/verify-email?token=` in
- * express-boilerplate/src/utilities/verification-link.utilities.ts, with no
- * `/auth/` prefix, and links already sent point at that path. A top-level file
- * route keeps the path identical while sitting outside the guard, so this page
- * renders `AuthLayout` itself — `_auth`'s layout component no longer wraps it.
+ * The email-verification page. Top level, not under `_auth`, whose guard would
+ * bounce a signed-in user who opens the link before the token is used. The
+ * API mails `${WEB_URL}/verify-email?token=` (express verification.service.ts),
+ * so the path is fixed, and this page renders `AuthLayout` itself. `.catch`
+ * treats a non-string `?token=` as none, since the router JSON-parses search
+ * values.
  */
 export const Route = createFileRoute('/verify-email')({
-  // `.catch`: the router JSON-parses search values, so `?token=123` is a
-  // number, treated as no token.
   validateSearch: z.object({ token: z.string().optional().catch(undefined) }),
   head: () => ({ meta: [{ title: pageTitle('Verify email') }] }),
   component: VerifyEmailPage,
@@ -52,17 +46,11 @@ function VerifyEmailPage() {
   const serverErrors = useServerErrors()
 
   const form = useForm({
-    // The account password is required by the backend here — it is not
-    // optional, so the form collects it rather than sending the token alone.
     defaultValues: { token: token ?? '', password: '' },
     validators: { onSubmit: verifyEmailSchema },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        // Parsed, not posted raw: TanStack hands `value` straight from form
-        // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
-        // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
-        // what makes the schema the wire contract it looks like.
         await verifyEmail.mutateAsync(verifyEmailSchema.parse(value))
         setFailed(false)
         toast.success('Your email is verified. Sign in to continue.')
@@ -81,8 +69,7 @@ function VerifyEmailPage() {
       try {
         await resend.mutateAsync(resendVerificationSchema.parse(value))
       } catch {
-        // Same message either way: whether an address needs verifying is not
-        // ours to leak.
+        // The same message either way, so it never reveals whether the address needs verifying.
       }
       toast.success('If that address needs verifying, a new email is on its way.')
     },
@@ -92,7 +79,6 @@ function VerifyEmailPage() {
     <AuthLayout>
       <Card>
         <CardHeader>
-          {/* CardTitle renders a div, so the page's h1 goes inside it. */}
           <CardTitle>
             <h1>Verify your email</h1>
           </CardTitle>

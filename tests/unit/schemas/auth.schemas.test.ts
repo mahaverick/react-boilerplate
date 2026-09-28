@@ -8,8 +8,7 @@ import {
 
 describe('auth schemas', () => {
   it('login requires a password but applies no policy to it', () => {
-    // Login compares against a stored hash. A policy here would reject a
-    // password that was legal when it was set and is not now.
+    // Login compares against a stored hash. A policy here would reject a password that was legal when it was set and is not now.
     expect(loginSchema.safeParse({ email: 'a@b.com', password: 'x' }).success).toBe(true)
     expect(loginSchema.safeParse({ email: 'a@b.com', password: '' }).success).toBe(false)
   })
@@ -26,12 +25,10 @@ describe('auth schemas', () => {
 
   it("register refuses a password past bcrypt's 72-byte ceiling", () => {
     const base = { email: 'a@b.com', firstName: 'A', lastName: 'B' }
-    // bcrypt hashes 72 BYTES and ignores the rest, so the backend refuses
-    // anything longer rather than silently truncating it.
+    // bcrypt hashes 72 BYTES and ignores the rest, so the backend refuses anything longer rather than silently truncating it.
     expect(registerSchema.safeParse({ ...base, password: 'a'.repeat(72) }).success).toBe(true)
     expect(registerSchema.safeParse({ ...base, password: 'a'.repeat(73) }).success).toBe(false)
-    // Counted in bytes, not characters: 18 four-byte emoji are 72 bytes, 19
-    // are 76.
+    // Counted in bytes, not characters: 18 four-byte emoji are 72 bytes, 19 are 76.
     expect(registerSchema.safeParse({ ...base, password: '😀'.repeat(18) }).success).toBe(true)
     expect(registerSchema.safeParse({ ...base, password: '😀'.repeat(19) }).success).toBe(false)
   })
@@ -39,8 +36,7 @@ describe('auth schemas', () => {
   it('register treats the names as optional, exactly as the backend does', () => {
     const base = { email: 'a@b.com', password: 'longenough8' }
     expect(registerSchema.safeParse(base).success).toBe(true)
-    // An empty control means "not given", and is dropped rather than posted
-    // as an empty string.
+    // An empty control means "not given", and is dropped rather than posted as an empty string.
     const parsed = registerSchema.parse({ ...base, firstName: '  ', lastName: '' })
     expect(parsed.firstName).toBeUndefined()
     expect(parsed.lastName).toBeUndefined()
@@ -48,8 +44,7 @@ describe('auth schemas', () => {
   })
 
   it('normalises the email it is given', () => {
-    // The transforms only reach the wire if the page parses the value before
-    // posting it — see the login page's onSubmit.
+    // The transforms only reach the wire if the page parses the value before posting it — see the login page's onSubmit.
     expect(loginSchema.parse({ email: '  ADA@B.COM  ', password: 'x' }).email).toBe('ada@b.com')
   })
 

@@ -10,52 +10,30 @@ import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useMyRole, useTenant } from '@/queries/tenant.queries'
 
 /**
- * The tenant shell: header, tab bar, `<Outlet />`.
+ * The tenant shell: header, tab bar, `<Outlet />`. A layout route whose tabs
+ * are real child routes, so each is linkable and survives a reload.
  *
- * A LAYOUT route, not a leaf. The tabs are real child routes
- * (`$slug.index.tsx`, `$slug.members.tsx`, `$slug.settings.tsx`,
- * `$slug.activity.tsx`), so each one is linkable, bookmarkable and survives a
- * reload — which a `<Tabs>` widget holding its own panel state would not.
+ * The loader warms the detail query for every tab. `tenantQueryOptions`
+ * resolves a 404 to `null`, so a missing or inaccessible tenant reaches the
+ * not-found panel, and any other failure reaches `errorComponent`. The crumb
+ * is the slug, not the name, because static data resolves before any fetch.
  */
 export const Route = createFileRoute('/_app/tenants/$slug')({
-  // Warms the cache once for every tab. `tenantQueryOptions` resolves a
-  // 404 to `null` rather than rejecting, so this never throws and a tenant
-  // that does not exist — or that this user is not a member of — reaches the
-  // not-found panel below instead of the router's error boundary.
   loader: async ({ context, params }) =>
     context.queryClient.ensureQueryData(tenantQueryOptions(params.slug)),
   head: ({ params }) => ({ meta: [{ title: pageTitle(params.slug) }] }),
-  // The slug, not the tenant's name: static data is resolved before any
-  // fetch, and a crumb that arrived a beat after the page would move the
-  // header under the reader.
   staticData: { crumb: (params) => params.slug ?? 'Tenant' },
   component: TenantLayout,
-  // The other half of `tenantQueryOptions`' contract. That query resolves a
-  // 404 to `null` precisely so a missing tenant does NOT come here — but it
-  // says in the same breath that "every OTHER failure still rejects and still
-  // reaches the boundary", and until now there was no boundary to reach. A
-  // 500 or a dropped connection hit TanStack's bare built-in fallback: the
-  // raw error text, no retry, and none of the app's chrome. Configuring this
-  // is what makes that sentence true.
   errorComponent: TenantLoadFailed,
 })
 
-/**
- * Said of the request, not of the tenant. `TenantNotFound` below is the
- * 404 — "it does not exist, or it is not yours" — and this must not be
- * confused with it: the tenant may be perfectly fine and simply unreachable.
- */
+/** Said of the request, not of the tenant: unlike `TenantNotFound`, the tenant may be fine. */
 const TENANT_LOAD_ERROR =
   'We could not load this tenant. The request failed, which is not the same as the tenant being gone.'
 
 /**
- * The route's error boundary.
- *
- * Retry is `router.invalidate()`, which re-runs the loader; the loader's
- * `ensureQueryData` finds the detail query holding no data (it rejected) and
- * fetches again, so one control both clears this boundary and re-issues the
- * request. Not exported — `react-refresh/only-export-components` is a warning
- * and `--max-warnings 0` makes every warning fatal.
+ * The route's error boundary. Retry is `router.invalidate()`, which re-runs
+ * the loader; `ensureQueryData` finds no data and fetches again.
  */
 function TenantLoadFailed() {
   const router = useRouter()
@@ -71,15 +49,9 @@ const TABS = [
 /** Owner and admin only, the same bar as the audit-log route it reads. */
 const ACTIVITY_TAB = { to: '/tenants/$slug/activity', label: 'Activity', exact: false } as const
 
-/**
- * The tab bar.
- *
- * A `nav` of real links rather than a Base UI `Tabs`: these tabs are routes.
- * A tab widget would own the panel state, and reloading on the Members tab
- * would put the reader back on Overview.
- */
+/** The tab bar: a `nav` of real links, since the tabs are routes, not widget panels. */
 function TenantTabs({ slug, showActivity }: { slug: string; showActivity: boolean }) {
-  // Annotated: `.map` over a union of two array types is not callable.
+  /** Annotated: `.map` over a union of two array types is not callable. */
   const tabs: readonly ((typeof TABS)[number] | typeof ACTIVITY_TAB)[] = showActivity
     ? [...TABS, ACTIVITY_TAB]
     : TABS
@@ -108,12 +80,9 @@ function TenantTabs({ slug, showActivity }: { slug: string; showActivity: boolea
 }
 
 /**
- * What a 404 looks like.
- *
- * `GET /tenants/:slug` answers the SAME 404 for "no such tenant" and "you are
- * not a member" (Ruling G), and this copy deliberately does not guess between
- * them: saying "you are not a member of acme" to someone who is not would
- * confirm that acme exists.
+ * What a 404 looks like. `GET /tenants/:slug` answers the same 404 for "no such
+ * tenant" and "no access", and this copy does not guess between them: "you are
+ * not a member of acme" would confirm that acme exists.
  */
 function TenantNotFound({ slug }: { slug: string }) {
   return (
@@ -151,13 +120,10 @@ function TenantLayout() {
     )
   }
 
-  // `null` is the not-found VALUE the query resolves a 404 to — not an error,
-  // and not an empty cache.
   if (!tenant.data) return <TenantNotFound slug={slug} />
 
   return (
     <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
-      {/* Above the header, and in the LAYOUT, so every tab carries it. */}
       {tenant.data.access === 'platform' && (
         <PlatformAccessBanner tenantName={tenant.data.name} role={tenant.data.role} />
       )}

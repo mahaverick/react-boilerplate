@@ -140,8 +140,7 @@ function ok<T>(data: T, message = 'OK', statusCode = 200) {
   return Response.json({ success: true, message, statusCode, data })
 }
 
-// `?state=` picks which variant to render, so the empty and error states get
-// screenshots too rather than only the happy path.
+// `?state=` picks which variant to render, so the empty and error states get screenshots too rather than only the happy path.
 const state = new URLSearchParams(location.search).get('state') ?? 'loaded'
 const asStaff = new URLSearchParams(location.search).get('access') === 'platform'
 if (asStaff) testUser.platformRole = 'viewer'
@@ -179,8 +178,7 @@ const worker = setupWorker(
     )
   ),
   membersHandler,
-  // The members page lists pending invitations for an owner. Unmocked, this
-  // would reach the real API, 401, and sign the harness user out.
+  // The members page lists pending invitations for an owner. Unmocked, this would reach the real API, 401, and sign the harness user out.
   http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
   http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
   http.get('/api/v1/tenants/acme/audit-log', () =>
@@ -217,11 +215,13 @@ const worker = setupWorker(
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: PREFERENCES }, 'Notification preferences retrieved.')
   ),
-  // A stream that STAYS OPEN. Answering 204 looks to the hook exactly like a
-  // dropped connection: it fires `error`, calls ensureSession(), and that
-  // request — unmocked — used to fall through to the real API, come back 401
-  // and redirect the harness to /login mid-test. A test that is racing a
-  // redirect is not testing what it says it is.
+  /**
+   * A stream that STAYS OPEN. Answering 204 looks to the hook exactly like
+   * a dropped connection: it fires `error`, calls ensureSession(), and an
+   * unmocked refresh request would fall through to the real API, come back
+   * 401 and redirect the harness to /login mid-test. A test that is racing
+   * a redirect is not testing what it says it is.
+   */
   http.get(
     '/api/v1/notifications/stream',
     () =>
@@ -233,8 +233,7 @@ const worker = setupWorker(
       )
   ),
   http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.')),
-  // /profile's Security section. Unmocked, it would reach the real API, 401,
-  // and sign the harness user out.
+  // /profile's Security section. Unmocked, it would reach the real API, 401, and sign the harness user out.
   http.get('/api/v1/auth/providers', () =>
     ok(
       {
@@ -261,8 +260,7 @@ const worker = setupWorker(
       { status: 400 }
     )
   }),
-  // Belt and braces: nothing in the fixtures suite should ever reach the real
-  // backend, and a silent fall-through is how it did.
+  // Belt and braces: nothing in the fixtures suite should ever reach the real backend, and a silent fall-through is how it would.
   http.post('/api/v1/auth/refresh', () =>
     ok({ accessToken: 'harness-token', user: testUser }, 'Session refreshed.')
   )
@@ -270,8 +268,7 @@ const worker = setupWorker(
 
 await worker.start({ onUnhandledRequest: 'bypass', quiet: true })
 
-// The real store state a signed-in user has. `isBootstrapped` skips the
-// refresh round trip the root route would otherwise wait on.
+// The real store state a signed-in user has. `isBootstrapped` skips the refresh round trip the root route would otherwise wait on.
 useAuthStore.setState({
   accessToken: 'harness-token',
   user: testUser,
@@ -279,27 +276,33 @@ useAuthStore.setState({
   isBootstrapped: true,
 })
 
-// Which in-app route to mount. Defaults to the members page, which is what
-// every `?state=` fixture is about — so the fixtures suite needs no changes
-// and reads exactly as it did before this parameter existed. `?path=` exists
-// for the contrast suite and `fixtures/security.test.ts`, which need the other
-// authenticated surfaces: the handlers above already answer /profile,
-// /auth/providers, /notifications, /notifications/preferences, /tenants,
-// /tenants/acme and its /settings, so those pages render without a backend.
-//
-// Only a same-origin absolute path is accepted. This harness is not shipped
-// (nothing in `src/` imports it, and `index.html` is the only Vite entry that
-// builds), but it does run against a real browser with a signed-in store, and
-// a query parameter that reached `replaceState` unchecked would be an
-// open-redirect shape worth never writing down in the first place.
+/**
+ * Which in-app route to mount. Defaults to the members page, which is what
+ * every `?state=` fixture is about, so the fixtures suite needs no
+ * changes. `?path=` exists for the contrast suite and
+ * `fixtures/security.test.ts`, which need the other authenticated
+ * surfaces: the handlers above already answer /profile, /auth/providers,
+ * /notifications, /notifications/preferences, /tenants, /tenants/acme and
+ * its /settings, so those pages render without a backend.
+ *
+ * Only a same-origin absolute path is accepted. This harness is not
+ * shipped (nothing in `src/` imports it, and `index.html` is the only Vite
+ * entry that builds), but it does run against a real browser with a
+ * signed-in store, and a query parameter that reached `replaceState`
+ * unchecked would be an open-redirect shape worth never writing down in
+ * the first place.
+ */
 const requestedPath = new URLSearchParams(location.search).get('path')
 const targetPath =
   requestedPath && /^\/[^/\\]/.test(requestedPath) ? requestedPath : '/tenants/acme/members'
 
-// replaceState, NOT router.navigate: navigate before the router mounts does a
-// real navigation, and the dev server then answers /tenants/acme/members with
-// the SPA fallback (index.html -> main.tsx), so the harness never runs. The
-// router reads location on mount, so setting it first is enough.
+/**
+ * replaceState, NOT router.navigate: navigate before the router mounts
+ * does a real navigation, and the dev server then answers
+ * /tenants/acme/members with the SPA fallback (index.html -> main.tsx), so
+ * the harness never runs. The router reads location on mount, so setting
+ * it first is enough.
+ */
 history.replaceState(null, '', targetPath + location.search)
 
 createRoot(document.getElementById('root')!).render(

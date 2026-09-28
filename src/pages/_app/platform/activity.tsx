@@ -75,7 +75,15 @@ function PlatformNotFound() {
   )
 }
 
-/** A tenant picker over the platform search, the same one the switcher uses. */
+/**
+ * A tenant picker over the platform search, the same one the switcher uses,
+ * run only while open. The popup is named and holds the search box, so Base UI
+ * makes it a `dialog`, which axe's `region` rule exempts. The vendored trigger
+ * and clear icon buttons are off because they carry no accessible name; the
+ * Clear button beside the trigger has one. The status line stays mounted and
+ * only its text changes, so the live region announces it; while a new term
+ * loads over listed results it says "Searching…".
+ */
 function TenantFilter({
   value,
   onChange,
@@ -86,12 +94,8 @@ function TenantFilter({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const term = useDebouncedValue(query, SEARCH_DEBOUNCE_MS)
-  // Only while open: a closed popup has nothing to show, the same reason the
-  // tenant switcher gates its own search this way.
   const search = usePlatformTenantSearch(term, { enabled: open })
   const items = flattenTenantPages(search.data)
-  // Placeholder data with items already listed: a new search is running, but
-  // ComboboxEmpty stays hidden while there's something to show.
   const isRefreshing = search.isPlaceholderData && items.length > 0
 
   return (
@@ -119,19 +123,12 @@ function TenantFilter({
         >
           <span className="truncate">{value?.name ?? 'Any tenant'}</span>
         </ComboboxTrigger>
-        {/* Named, with the search box inside it: Base UI then makes the popup
-            a `dialog`, which axe's `region` rule exempts. */}
         <ComboboxContent aria-label="Filter by tenant">
-          {/* No trigger or clear icon buttons: the vendored ones carry no
-              accessible name. The Clear button beside the trigger has one. */}
           <ComboboxInput
             showTrigger={false}
             aria-label="Search tenants"
             placeholder="Search tenants"
           />
-          {/* Stays mounted AND displayed always, like ComboboxEmpty just
-              below: only its text changes. An empty `<p>` with no padding
-              has zero height, so nothing shows while there's nothing to say. */}
           <p
             role="status"
             aria-live="polite"
@@ -141,7 +138,6 @@ function TenantFilter({
             {isRefreshing ? 'Searching…' : null}
           </p>
           <ComboboxEmpty>
-            {/* Placeholder data is the previous term's answer, not this one's. */}
             {search.isPending || search.isPlaceholderData
               ? 'Searching…'
               : search.isError
@@ -174,13 +170,17 @@ function TenantFilter({
   )
 }
 
+/**
+ * Every tenant's activity, with tenant, action, actor and staff-only filters;
+ * the actor filter offers the platform tenant's members. A 404 from the log
+ * (the viewer was demoted since the profile loaded) gets the not-found panel.
+ */
 function PlatformActivity() {
   const staffOnlyId = useId()
   const [tenant, setTenant] = useState<PlatformTenantRow | null>(null)
   const [action, setAction] = useState(ANY)
   const [actor, setActor] = useState(ANY)
   const [staffOnly, setStaffOnly] = useState(false)
-  // The actor filter offers staff: the platform tenant's members.
   const staff = useMembers(PLATFORM_TENANT_SLUG)
   const filters: PlatformAuditFilters = {
     tenantId: tenant?.id,
@@ -197,7 +197,6 @@ function PlatformActivity() {
     return match ? memberName(match) : 'A staff member'
   }
 
-  // Demoted since the profile loaded: the API's 404 gets the same panel.
   if (log.isError && statusFrom(log.error) === 404) return <PlatformNotFound />
 
   return (
@@ -286,8 +285,8 @@ function PlatformActivity() {
   )
 }
 
+/** Below platform admin the API answers 404, so the page says the same without asking. */
 function PlatformActivityPage() {
   const platformRole = useAuthStore((state) => state.user?.platformRole)
-  // Below platform admin the API answers 404; say the same without asking.
   return canViewPlatformActivity(platformRole) ? <PlatformActivity /> : <PlatformNotFound />
 }

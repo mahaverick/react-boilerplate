@@ -49,10 +49,12 @@ export async function createVerifiedUser(email: string): Promise<void> {
 
   const token = await verificationTokenFor(email)
 
-  // BOTH fields. `verifyEmailSchema` requires `token` AND `password`, and the
-  // controller deliberately rethrows a validation failure as the same
-  // "Invalid or expired verification token" a bad token gets — so omitting
-  // the password looks exactly like a dead token and tells you nothing.
+  /**
+   * BOTH fields. `verifyEmailSchema` requires `token` AND `password`, and
+   * the controller deliberately rethrows a validation failure as the same
+   * "Invalid or expired verification token" a bad token gets — so omitting
+   * the password looks exactly like a dead token and tells you nothing.
+   */
   const verified = await json(`${API_ORIGIN}/api/v1/auth/verify-email`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -164,12 +166,15 @@ async function portFreedWithin(port: string, timeoutMs: number): Promise<boolean
 export async function restartApi(): Promise<void> {
   const port = new URL(API_ORIGIN).port || '80'
 
-  // Kill EVERY pid holding the port, not just the process group of the one we
-  // find first. `pnpm dev` is `tsx watch`, which spawns the real server as a
-  // CHILD: SIGTERM to the parent's group left that child listening, the server
-  // never went down, and "reconnects after a restart" was measuring a stream
-  // that was never interrupted. SIGTERM first so it can close cleanly, then
-  // SIGKILL whatever is still there after 3s.
+  /**
+   * Kill EVERY pid holding the port, not just the process group of the one
+   * we find first. `pnpm dev` is `tsx watch`, which spawns the real server
+   * as a CHILD: SIGTERM to only the parent's group would leave that child
+   * listening, the server would never go down, and "reconnects after a
+   * restart" would measure a stream that was never interrupted. SIGTERM
+   * first so it can close cleanly, then SIGKILL whatever is still there
+   * after 3s.
+   */
   signalAll(await listeningPids(port), 'SIGTERM')
   if (!(await portFreedWithin(port, 3000))) {
     signalAll(await listeningPids(port), 'SIGKILL')
@@ -182,9 +187,7 @@ export async function restartApi(): Promise<void> {
       .toEqual([])
   }
 
-  // Confirm it actually went down, or "reconnects after a restart" passes
-  // against a server that never stopped — which is exactly what happened the
-  // first time this was written.
+  // Confirm it actually went down, or "reconnects after a restart" passes against a server that never stopped.
   await expect
     .poll(apiIsReady, {
       message: 'API did not stop; the restart test would be vacuous',

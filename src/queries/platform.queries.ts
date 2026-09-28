@@ -39,11 +39,9 @@ export function usePlatformTenantSearch(q: string, { enabled }: { enabled: boole
       ),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled,
-    // The previous term's results stay listed, and pickable, while the next
-    // term loads; without it every new term empties the list first.
+    /** The previous term's results stay listed, and pickable, while the next term loads. */
     placeholderData: keepPreviousData,
-    // A 404 is the API's answer about who is asking (non-staff); asking
-    // again changes nothing. Same rule as `usePlatformAuditLog`.
+    /** A 404 answers who is asking (non-staff), so a retry changes nothing. */
     retry: (failureCount, error) => statusFrom(error) !== 404 && failureCount < 1,
   })
 }

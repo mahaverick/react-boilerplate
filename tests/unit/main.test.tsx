@@ -1,3 +1,9 @@
+/**
+ * @file Mirrors main.tsx's boot sequence, StrictMode included, against a
+ * router tree of its own — this suite cannot import main.tsx directly,
+ * since that module renders the real app router into the real `document`
+ * as an import side effect.
+ */
 import {
   createMemoryHistory,
   createRootRoute,
@@ -12,16 +18,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { router as appRouter } from '@/router'
 import { settle } from '@/tests/fixtures/timing'
 
-/**
- * Mirrors main.tsx's boot sequence, StrictMode included: `router.load()`
- * resolves (or fails) the first match set before React ever touches
- * `#root`, so the static splash index.html ships there stays up as one
- * piece of markup until there is a real match to show instead. It cannot
- * import `main.tsx` directly — that module renders the real app router into
- * the real `document` as an import side effect — so it reconstructs the
- * same sequence against a tree of its own, the way
- * `tests/unit/router.test.tsx` already does for route state.
- */
 /** Every root `boot` created, unmounted after each test before the DOM is cleared. */
 const roots: Root[] = []
 

@@ -3,13 +3,13 @@ import { notAllowedMessage, safeText } from '@/schemas/safe-text.schemas'
 
 const MAX_NAME_LENGTH = 100
 
-// The API validates both names with one shared field, so its message names neither.
+/** The API validates both names with one shared field, so its message names neither. */
 const SHARED_NAME_MESSAGE = notAllowedMessage('This field')
 
 /**
- * Mirrors the backend's updateProfileSchema exactly: two fields, and it
- * rejects everything else. email, password and every other user column are
- * deliberately absent — PATCH /profile will reject them.
+ * The two fields the API's updateProfileSchema accepts; it strips any other
+ * key, so email and every other user column cannot change here. Both are
+ * required on this form, where the API also takes them as optional or `null`.
  */
 export const updateProfileSchema = z.object({
   firstName: z

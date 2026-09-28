@@ -82,10 +82,12 @@ describe('tenant detail', () => {
     })
   })
 
-  // `tenantQueryOptions` says a 404 becomes `null` and that "every OTHER
-  // failure still rejects and still reaches the boundary". No boundary was
-  // configured, so a 500 reached TanStack's bare default instead: the raw
-  // error text, no retry, none of the app's chrome.
+  /**
+   * `tenantQueryOptions` says a 404 becomes `null` and that every OTHER
+   * failure still rejects and still reaches the boundary. Without a
+   * configured boundary, a 500 would reach TanStack's bare default
+   * instead: the raw error text, no retry, none of the app's chrome.
+   */
   it('renders the route error boundary, with a retry, for a non-404 failure', async () => {
     server.use(
       http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
@@ -131,9 +133,7 @@ describe('tenant detail', () => {
 
     const heading = await screen.findByRole('heading', { name: 'Tenant not available' })
     expect(heading).toBeInTheDocument()
-    // Ruling G: the API answers the SAME 404 for "no such tenant" and "you
-    // are not a member", and this page must not guess between them — saying
-    // "you are not a member of ghost" would confirm that ghost exists.
+    // The API answers the SAME 404 for "no such tenant" and "you are not a member", and this page must not guess between them — saying "you are not a member of ghost" would confirm that ghost exists.
     expect(screen.queryByText(/not a member/i)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Back to your tenants' })).toBeInTheDocument()
   })
@@ -176,8 +176,7 @@ describe('tenant detail', () => {
     mockTenant('viewer')
     renderAppAt('/tenants/acme')
 
-    // Awaited: the role arrives with the tenant detail, and until then
-    // the tab shows a skeleton rather than guessing read-only.
+    // Awaited: the role arrives with the tenant detail, and until then the tab shows a skeleton rather than guessing read-only.
     expect(await screen.findByText('Anvils')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
   })
@@ -225,8 +224,7 @@ describe('tenant detail', () => {
     await waitFor(() => {
       expect(patched).not.toBeNull()
     })
-    // `null` CLEARS the column. `undefined` would mean "leave it alone" and
-    // the description the user just deleted would come straight back.
+    // `null` CLEARS the column. `undefined` would mean "leave it alone" and the description the user just deleted would come straight back.
     expect(patched).toMatchObject({ description: null })
   })
 
@@ -275,10 +273,10 @@ describe('tenant detail', () => {
   })
 
   /**
-   * The settings twin of the members-tab retry test. A settings failure has
-   * its own retry, which must reach the SETTINGS query and leave the tenant
-   * detail alone. The detail is the role's source, and refetching it instead
-   * was the defect the members-tab test was written for.
+   * The settings twin of the members-tab retry test: a settings failure
+   * has its own retry, which must reach the SETTINGS query and leave the
+   * tenant detail alone. The detail is the role's source, and refetching
+   * it instead would risk silently changing the role mid-retry.
    */
   it('retries the SETTINGS, not the tenant detail, when the settings are what failed', async () => {
     let settingsCalls = 0

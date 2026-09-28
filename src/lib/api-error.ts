@@ -1,6 +1,7 @@
 import { AxiosError } from 'axios'
 import type { ApiErrorBody } from '@/types/api.types'
 
+/** The envelope's `message`, or a generic retry prompt when the failure carried none. */
 export function messageFrom(error: unknown): string {
   if (error instanceof AxiosError) {
     const body = error.response?.data as ApiErrorBody | undefined
@@ -11,12 +12,9 @@ export function messageFrom(error: unknown): string {
 
 /**
  * The HTTP status a failed request answered with, or `undefined` when the
- * request never reached a response at all (a network failure, a timeout, or
- * a rejection that is not an axios error).
- *
- * The distinction matters: "the server said 404" and "there was no server"
- * are different outcomes, and a caller that treats the second as the first
- * renders "not found" for a dropped connection.
+ * request never reached a response (a network failure, a timeout, or a
+ * rejection that is not an axios error), so a dropped connection never reads
+ * as a 404.
  */
 export function statusFrom(error: unknown): number | undefined {
   return error instanceof AxiosError ? error.response?.status : undefined
@@ -34,18 +32,14 @@ export function codeFrom(error: unknown): string | undefined {
   return undefined
 }
 
-/** The one key in `errors` that is NOT a field name. See below. */
+/** The one key in `errors` that is not a field name. */
 const FORM_ERRORS_KEY = 'formErrors'
 
 /**
- * Field-level validator detail, for mapping onto form inputs.
- *
- * The backend builds this from `z.flattenError` as `{...fieldErrors,
- * ...(formErrors.length > 0 && {formErrors})}`, so every key is a field
- * name EXCEPT the reserved `formErrors` — schema-level issues that name no
- * single field. Those are split out by `formErrorsFrom` below; attaching
- * them to an input called "formErrors" would render an error against a
- * field that does not exist.
+ * Field-level validator detail, for mapping onto form inputs. The backend
+ * spreads `z.flattenError`'s field errors into `errors` beside a reserved
+ * `formErrors` key for schema-level issues, which is left out here and read
+ * by `formErrorsFrom`.
  */
 export function fieldErrorsFrom(error: unknown): Record<string, string[]> {
   return Object.fromEntries(

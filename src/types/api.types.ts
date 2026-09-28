@@ -73,7 +73,7 @@ export interface InvitationPreview {
 /** `POST /invitations/accept`: the tenant the caller is now a member of. */
 export interface AcceptedInvitation {
   tenant: { name: string; slug: string }
-  /** The caller's CURRENT role there: an existing member keeps theirs, so not necessarily the invited one. */
+  /** The caller's current role there: an existing member keeps theirs, so not necessarily the invited one. */
   role: MembershipRole
 }
 
@@ -117,7 +117,7 @@ export interface PlatformTenantPage {
 /** How an audit entry's actor reached the tenant. `system` is a script, with no actor. */
 export type AuditAccess = 'member' | 'platform' | 'system'
 
-/** The actor on an audit entry. Staff are shown with their email too. */
+/** The actor on an audit entry. `name` is the email when the actor has no name on file. */
 export interface AuditActor {
   id: string
   name: string

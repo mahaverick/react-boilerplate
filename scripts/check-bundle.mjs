@@ -1,20 +1,19 @@
-// Builds the app in memory and checks the chunks it would ship:
-//   - there is more than one JS chunk, so routes load on demand;
-//   - the JS a first visit must fetch (the entry chunk and everything it
-//     imports statically, which index.html modulepreloads) is under budget;
-//   - no chunk contains a devtools module.
-// The devtools check reads each chunk's module list rather than its code: in
-// production both devtools packages export a stub that returns null, so a
-// leaked chunk carries none of the package's name.
-//
-// Usage: pnpm check:bundle
+/**
+ * @file Builds the app in memory and checks the chunks it would ship: more than
+ * one JS chunk, first-visit JS (the entry chunk and its static imports) under
+ * budget, and no devtools module in any chunk. Run with `pnpm check:bundle`.
+ */
 import path from 'node:path'
 import { build } from 'vite'
 
-// The measured first-visit JS plus 10%. Raise it only with a measured reason.
+/** The measured first-visit JS plus 10%. Raise it only with a measured reason. */
 const ENTRY_BUDGET_BYTES = 628_790
 
-// A module inside one of the devtools packages, by its node_modules path.
+/**
+ * A module inside one of the devtools packages, by its node_modules path. Module
+ * ids, not code: in production both packages export a stub that returns null,
+ * so a leaked chunk's code carries none of the package's name.
+ */
 const DEVTOOLS_MODULE =
   /[\\/]@tanstack[\\/](react-query-devtools|query-devtools|react-router-devtools|router-devtools-core)[\\/]/
 

@@ -70,8 +70,7 @@ describe('AppLayout', () => {
     resetSessionForTests()
     queryClient.clear()
     useSidebarStore.setState({ isCollapsed: false })
-    // Already bootstrapped, so __root's beforeLoad returns immediately and
-    // _app's guard lets the layout render.
+    // Already bootstrapped, so __root's beforeLoad returns immediately and _app's guard lets the layout render.
     useAuthStore.setState({
       accessToken: 'access-token',
       user: testUser,
@@ -91,8 +90,7 @@ describe('AppLayout', () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
 
-    // SidebarInset already IS a <main>. A second <main> around the Outlet
-    // would be an axe `landmark-no-duplicate-main` failure.
+    // SidebarInset already IS a <main>. A second <main> around the Outlet would be an axe `landmark-no-duplicate-main` failure.
     expect(screen.getAllByRole('main')).toHaveLength(1)
   })
 
@@ -123,6 +121,12 @@ describe('AppLayout', () => {
     expect(within(breadcrumb).queryByText('Dashboard')).not.toBeInTheDocument()
   })
 
+  /**
+   * All three breadcrumb parts, in order: `Tenants` is synthesised by the
+   * builder (no match produces it, because the list route is a sibling of
+   * the detail route), `acme` comes from the dynamic route's own crumb
+   * function, `Members` from the leaf.
+   */
   it('shows a breadcrumb trail on a DYNAMIC route', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
@@ -134,16 +138,6 @@ describe('AppLayout', () => {
     renderAppAt('/tenants/acme/members')
     const breadcrumb = await screen.findByRole('navigation', { name: 'breadcrumb' })
 
-    // The regression this guards: the old lookup compared a literal `to`
-    // against `match.pathname`, so `/tenants/$slug` — which resolves to
-    // `/tenants/acme` — matched nothing, and `/tenants` is a SIBLING of it
-    // rather than an ancestor, so nothing covered for it. Every tenant page
-    // rendered an empty breadcrumb bar.
-    //
-    // All THREE parts, in order: `Tenants` is synthesised by the builder
-    // (no match produces it, because the list route is a sibling of the
-    // detail route), `acme` comes from the dynamic route's own crumb
-    // function, `Members` from the leaf.
     const trail = within(breadcrumb)
       .getAllByRole('listitem')
       .map((item) => item.textContent?.trim())
@@ -168,20 +162,22 @@ describe('AppLayout', () => {
     expect(trail).toEqual(['Tenants'])
   })
 
+  /**
+   * The header's whole content sits inside `TenantSwitcher`'s own
+   * `<nav aria-label="Tenant">` landmark, which is why axe's `region` rule
+   * passes over it (see tenant-switcher.tsx). This asserts a narrower
+   * invariant on top of that: every text node here is ALSO inside a button
+   * or a link, so nothing renders as bare text sitting next to the widget it
+   * belongs to. Every TEXT node, not every element: an ancestor `ul`
+   * legitimately "contains" text that belongs to a button several levels
+   * down.
+   */
   it('keeps every piece of sidebar-header content inside a widget', async () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
 
     const header = document.querySelector('[data-slot="sidebar-header"]')
     expect(header).not.toBeNull()
-    // The header's whole content sits inside `TenantSwitcher`'s own
-    // `<nav aria-label="Tenant">` landmark, which is why axe's `region` rule
-    // passes over it (see tenant-switcher.tsx). This asserts a narrower
-    // invariant on top of that: every text node here is ALSO inside a button
-    // or a link, so nothing renders as bare text sitting next to the widget
-    // it belongs to.
-    // Every TEXT node, not every element: an ancestor `ul` legitimately
-    // "contains" text that belongs to a button several levels down.
     const walker = document.createTreeWalker(header as Node, NodeFilter.SHOW_TEXT)
     for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
       if (!node.textContent?.trim()) continue
@@ -204,11 +200,13 @@ describe('AppLayout', () => {
     })
   })
 
+  /**
+   * `window.location.assign` is non-configurable in jsdom, so vi.spyOn on it
+   * throws "Cannot redefine property". Replacing the whole `location` object
+   * is the way in; `afterEach` puts the real one back.
+   */
   it('signs out from the account menu', async () => {
     server.use(http.post('/api/v1/auth/logout', () => ok(null, 'Signed out.')))
-    // `window.location.assign` is non-configurable in jsdom, so vi.spyOn on it
-    // throws "Cannot redefine property". Replacing the whole `location` object
-    // is the way in; `afterEach` puts the real one back.
     const assign = vi.fn()
     Object.defineProperty(window, 'location', {
       configurable: true,
@@ -243,8 +241,7 @@ describe('AppLayout', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
   }
 
-  // The server never revoked the session, so clearing it here would leave a
-  // live refresh cookie behind a UI that claims the user signed out.
+  // The server never revoked the session, so clearing it here would leave a live refresh cookie behind a UI that claims the user signed out.
   it.each(LOGOUT_FAILURES)(
     'keeps the session and says so when sign-out fails on %s',
     async (_label, respond) => {
@@ -303,8 +300,7 @@ describe('AppLayout', () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
 
-    // The provider is controlled by the store, so a collapsed store means a
-    // collapsed sidebar on first paint rather than after a click.
+    // The provider is controlled by the store, so a collapsed store means a collapsed sidebar on first paint rather than after a click.
     expect(document.querySelector('[data-state="collapsed"]')).not.toBeNull()
   })
 
@@ -377,8 +373,8 @@ describe('AppLayout system theme', () => {
   let originalMatchMedia: typeof window.matchMedia
 
   /**
-   * A `matchMedia` stub whose listeners actually fire, unlike Task 2's and
-   * unlike `tests/setup.ts`'s. It also answers the `(max-width: …)` query that
+   * A `matchMedia` stub whose listeners actually fire, unlike
+   * `tests/setup.ts`'s. It also answers the `(max-width: …)` query that
    * `useIsMobile` asks, so setting `innerWidth` is enough to pick a viewport.
    */
   function installMatchMedia() {
@@ -429,8 +425,7 @@ describe('AppLayout system theme', () => {
     useThemeStore.setState({ theme: 'system' })
     darkListeners = new Set()
     prefersDark = false
-    // Bound, because `@typescript-eslint/unbound-method` rightly objects to
-    // lifting a method off its object — and restoring it is all it is for.
+    // Bound, because `@typescript-eslint/unbound-method` rightly objects to lifting a method off its object — and restoring it is all it is for.
     originalMatchMedia = window.matchMedia.bind(window)
     installMatchMedia()
   })
@@ -461,9 +456,7 @@ describe('AppLayout system theme', () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
 
-    // The premise, asserted rather than assumed: below `md` the closed drawer
-    // means no ThemeToggle in the document at all. If this ever starts
-    // failing, the listener could go back down into the control.
+    // The premise, asserted rather than assumed: below `md` the closed drawer means no ThemeToggle in the document at all. If this ever starts failing, the listener could go back down into the control.
     expect(screen.queryByRole('button', { name: /Change theme/ })).not.toBeInTheDocument()
 
     osSwitchesTo(true)
@@ -488,8 +481,7 @@ describe('AppLayout system theme', () => {
 
     unmount()
     document.documentElement.classList.remove('dark')
-    // Asserted by behaviour rather than by counting listeners: sonner's
-    // <Toaster> registers on the same query, so the count is never just ours.
+    // Asserted by behaviour rather than by counting listeners: sonner's <Toaster> registers on the same query, so the count is never just ours.
     osSwitchesTo(true)
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })

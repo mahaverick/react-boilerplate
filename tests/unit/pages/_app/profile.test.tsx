@@ -45,8 +45,7 @@ describe('profile page', () => {
     renderProfile()
 
     expect(await screen.findByText(testUser.email)).toBeInTheDocument()
-    // Computed with the same formatter rather than hard-coded: a UTC midnight
-    // renders as the previous day in a US-timezone runner.
+    // Computed with the same formatter rather than hard-coded: a UTC midnight renders as the previous day in a US-timezone runner.
     const expected = new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(
       new Date(testUser.createdAt)
     )

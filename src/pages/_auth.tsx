@@ -5,8 +5,7 @@ import { useAuthStore } from '@/states/auth.store'
 
 export const Route = createFileRoute('/_auth')({
   beforeLoad: () => {
-    // __root's beforeLoad has already awaited bootstrapSession(), so the
-    // store is settled by the time this runs.
+    // __root's beforeLoad has awaited bootstrapSession(), so the store is settled.
     if (useAuthStore.getState().isAuthenticated) {
       throw redirect({ to: ROUTES.dashboard })
     }

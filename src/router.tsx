@@ -12,15 +12,11 @@ export const queryClient = new QueryClient({
 })
 
 /**
- * Restore the session once per page load.
- *
- * The access token is memory-only, so every reload starts signed out.
- * Without this, `_app` would bounce a signed-in user to /login and
- * `_auth` would let them sit on /login while their cookie was still good.
- *
- * ensureSession() already dedupes concurrent callers and already calls
- * logout() on failure, so this only has to flip isBootstrapped — and start
- * listening for a logout from another tab (idempotent).
+ * Restore the session once per page load. The access token is memory-only, so
+ * every reload starts signed out; without this, `_app` would bounce a
+ * signed-in user to /login. ensureSession() dedupes concurrent callers and
+ * signs the store out on an auth verdict, so this only starts the cross-tab
+ * logout listener and flips isBootstrapped, whether or not the refresh worked.
  */
 export async function bootstrapSession(): Promise<void> {
   if (useAuthStore.getState().isBootstrapped) return
@@ -28,7 +24,7 @@ export async function bootstrapSession(): Promise<void> {
   try {
     await ensureSession()
   } catch {
-    /* no valid refresh cookie: staying signed out is the correct outcome */
+    // Any refresh failure leaves this load signed out; only an auth verdict also clears the store (see refreshSession).
   } finally {
     useAuthStore.getState().setBootstrapped()
   }
@@ -38,13 +34,11 @@ export const router = createRouter({
   routeTree,
   context: { queryClient },
   defaultPreload: 'intent',
-  // Imported statically, never lazily: when the failure is a chunk that
-  // cannot be fetched, a lazily loaded error screen could not load either.
+  /** Imported statically: when a chunk cannot be fetched, a lazy error screen could not load either. */
   defaultErrorComponent: RouteError,
   defaultNotFoundComponent: RouteNotFound,
   defaultPendingComponent: RoutePending,
-  // Held back for 300ms, so a fast navigation never flashes it, and once
-  // shown kept for 300ms, so it never blinks.
+  /** Held back 300ms so a fast navigation never flashes it, then kept 300ms so it never blinks. */
   defaultPendingMs: 300,
   defaultPendingMinMs: 300,
 })
@@ -55,18 +49,10 @@ declare module '@tanstack/react-router' {
   }
 
   /**
-   * Breadcrumb labels live on the ROUTE, not in a table keyed by pathname.
-   *
-   * The lookup they replaced matched a literal `to` against
-   * `match.pathname`, which cannot work for a dynamic route: `/tenants/$slug`
-   * resolves to `/tenants/acme` and matches no literal, and there is no
-   * `/tenants` ancestor match to fall back on either (the list page and the
-   * detail page are siblings, not parent and child). Declaring the crumb
-   * where the route is declared makes every match self-describing, dynamic
-   * segments included.
-   *
-   * A function receives the match's path params, so a detail route can name
-   * itself after what it is showing rather than carrying a fixed word.
+   * A route's breadcrumb label, declared on the route so that dynamic routes
+   * (`/tenants/$slug` resolves to `/tenants/acme`) describe themselves. A
+   * function receives the match's path params, so a detail route can name
+   * itself after what it shows.
    */
   interface StaticDataRouteOption {
     crumb?: string | ((params: Record<string, string>) => string)

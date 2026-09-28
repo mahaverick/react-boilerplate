@@ -69,9 +69,10 @@ function loadMoreLabel({
 }
 
 /**
- * What the popup says about the caller's OWN tenants when it has no rows to
+ * What the popup says about the caller's own tenants when it has no rows to
  * show for them. The list's three states stay apart: in flight, failed, and
- * genuinely empty. A cached list keeps rendering through a background refetch.
+ * empty. A cached list keeps rendering through a background refetch, and staff
+ * with no memberships get no empty message, since the platform list follows.
  */
 function ownTenantsMessage({
   hasData,
@@ -85,39 +86,40 @@ function ownTenantsMessage({
   staff: boolean
 }): string | null {
   if (!hasData) return isPending ? 'Loading tenants…' : 'Tenants could not be loaded'
-  // Staff with no memberships still have the whole platform below.
   return isEmpty && !staff ? 'No tenants yet' : null
 }
 
 /**
- * A NAVIGATION combobox, and nothing else.
- *
- * Tenant scope is the URL: the API resolves the tenant from the `:slug` path
- * param alone, with no tenant header and no "current tenant" cookie, so there
- * is nothing to switch but the address. Choosing an option navigates to
- * `/tenants/$slug`; the current tenant is whatever the URL says.
+ * A navigation combobox, and nothing else. Tenant scope is the URL: the API
+ * resolves the tenant from the `:slug` path param alone, so choosing an option
+ * navigates to `/tenants/$slug`.
  *
  * "Your tenants" is the caller's memberships, minus the platform tenant (the
  * user menu links that). Staff also get "All tenants": a server-side search,
- * de-duplicated against "Your tenants", paged by a Load more option, and
- * leaving out any tenant that is not active. `resolveTenant` only opens an
- * active tenant, so a suspended or archived row would 404 the moment it was
- * chosen — there is nowhere for picking one to go.
+ * run only while the popup is open, de-duplicated against "Your tenants",
+ * paged by a Load more option, and leaving out any tenant that is not active,
+ * which `resolveTenant` would answer with a 404.
+ *
+ * The Load more option stays selectable after a failed page, since clicking
+ * it again is the retry, and its click handler replaces Base UI's (which
+ * would select and close); Enter on a highlighted option clicks it too.
+ *
+ * It sits in its own `nav` landmark: axe's `region` rule exempts a bare
+ * button but not one whose role is `combobox`, so the trigger's text would
+ * otherwise sit in no landmark. It reads `$slug` with `strict: false`, since
+ * the app shell renders it on routes without one, and filters nothing itself
+ * (`filter={null}`): the API filters "All tenants", and "Your tenants" is
+ * filtered before rendering.
  */
 export function TenantSwitcher() {
   const navigate = useNavigate()
   const tenants = useTenants()
   const staff = useAuthStore((state) => isStaff(state.user?.platformRole))
-  // `strict: false` because this renders in the app shell, on every
-  // authenticated route, most of which have no `$slug` at all.
   const { slug } = useParams({ strict: false })
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const term = useDebouncedValue(query, SEARCH_DEBOUNCE_MS)
-  // Only staff, and only while open: nobody else may call it, and a closed
-  // popup has nothing to show.
   const all = usePlatformTenantSearch(term, { enabled: staff && open })
-  // The `$slug` loader's own key, so on a tenant page this is a cache read.
   const current = useQuery({ ...tenantQueryOptions(slug ?? ''), enabled: slug !== undefined })
 
   const own = (tenants.data ?? [])
@@ -148,7 +150,6 @@ export function TenantSwitcher() {
     isEmpty: own.length === 0,
     staff,
   })
-  // While a new term loads, `all.data` is the previous term's results.
   const allMessage = !staff
     ? null
     : all.data === undefined && all.isError
@@ -160,17 +161,11 @@ export function TenantSwitcher() {
   const noMatches = query.trim() !== '' && !searching && ownMessage === null && allMessage === null
 
   return (
-    // A real `nav` landmark, distinct from the sidebar's "Main" one: axe's
-    // `region` rule exempts a bare `<button>` from needing one, but not a
-    // trigger whose role is overridden to `combobox`, which this one's is.
-    // Without this wrapper the trigger's own text — "Tenants" or the current
-    // tenant's name — sits in no landmark at all on every authenticated page.
     <nav aria-label="Tenant">
       <SidebarMenu>
         <SidebarMenuItem>
           <Combobox<SwitcherOption>
             items={groups}
-            // The API filters "All tenants"; "Your tenants" is filtered above.
             filter={null}
             value={null}
             open={open}
@@ -228,13 +223,7 @@ export function TenantSwitcher() {
                           <ComboboxItem
                             key="load-more"
                             value={option}
-                            // NOT disabled on `isFetchNextPageError`: clicking
-                            // it again is the retry, so it must stay
-                            // selectable rather than get stuck failed.
                             disabled={all.isFetchingNextPage}
-                            // Enter on a highlighted option clicks it, so this
-                            // one handler serves pointer and keyboard alike.
-                            // Base UI's own handler would select and close.
                             onClick={(event) => {
                               event.preventBaseUIHandler()
                               void all.fetchNextPage()

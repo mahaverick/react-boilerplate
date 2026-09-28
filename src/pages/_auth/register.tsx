@@ -22,27 +22,31 @@ import { useServerErrors } from '@/hooks/use-server-errors'
 import { useRegister, useResendVerification } from '@/queries/auth.queries'
 import { registerSchema, type RegisterInput } from '@/schemas/auth.schemas'
 
+/**
+ * The registration page. `?email=` prefills the address, as an invitation's
+ * "Create account" sends it; `.catch` ignores a non-string, since the router
+ * JSON-parses search values and `?email=123` arrives as a number.
+ */
 export const Route = createFileRoute('/_auth/register')({
-  // `?email=` prefills the address: an invitation's "Create account" sends the
-  // invitee here with the address the invitation was sent to. `.catch`: the
-  // router JSON-parses search values, so `?email=123` is a number, ignored.
   validateSearch: z.object({ email: z.string().optional().catch(undefined) }),
   head: () => ({ meta: [{ title: pageTitle('Create an account') }] }),
   component: RegisterPage,
 })
 
+/**
+ * The registration form, then a "check your email" card with a resend control
+ * for the address just registered. The value is parsed before posting, so the
+ * schema's trimming and lowercasing reach the wire; the API answers with no
+ * user, so the card shows the submitted, normalised address.
+ */
 function RegisterPage() {
   const { email: invitedEmail } = Route.useSearch()
-  // Set once the API accepts the registration. The address is kept so the
-  // resend control below can use it without asking for it a second time.
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
   const register = useRegister()
   const resend = useResendVerification()
   const serverErrors = useServerErrors()
 
-  // Annotated rather than inferred: the names are OPTIONAL in the schema (as
-  // they are on the backend), and an inferred `{ firstName: string }` from the
-  // literal below would not match the validator's input type.
+  /** Annotated: the names are optional in the schema, and an inferred `string` would not match. */
   const defaultValues: RegisterInput = {
     email: invitedEmail ?? '',
     password: '',
@@ -56,12 +60,7 @@ function RegisterPage() {
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        // Parsed, not posted raw: TanStack hands `value` straight from form
-        // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
-        // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
-        // what makes the schema the wire contract it looks like.
         const input = registerSchema.parse(value)
-        // The response carries no user (`data: null`), so show what was submitted, normalised.
         await register.mutateAsync(input)
         setRegisteredEmail(input.email)
       } catch (submitError) {
@@ -74,7 +73,6 @@ function RegisterPage() {
     return (
       <Card>
         <CardHeader>
-          {/* CardTitle renders a div, so the page's h1 goes inside it. */}
           <CardTitle>
             <h1>Check your email</h1>
           </CardTitle>
@@ -92,8 +90,7 @@ function RegisterPage() {
               resend.mutate(
                 { email: registeredEmail },
                 {
-                  // Deliberately the same message either way: whether an
-                  // address has a pending verification is not ours to leak.
+                  // The same message either way, so it never reveals whether the address is pending.
                   onSettled: () =>
                     toast.success('If that address needs verifying, a new email is on its way.'),
                 }
@@ -115,7 +112,6 @@ function RegisterPage() {
   return (
     <Card>
       <CardHeader>
-        {/* CardTitle renders a div, so the page's h1 goes inside it. */}
         <CardTitle>
           <h1>Create an account</h1>
         </CardTitle>

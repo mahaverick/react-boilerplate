@@ -30,8 +30,7 @@ describe('invitation queries', () => {
   }
 
   beforeEach(() => {
-    // `retry: 1` like the router's client, with no delay, so the preview's
-    // own retry rule is what decides.
+    // `retry: 1` like the router's client, with no delay, so the preview's own retry rule is what decides.
     client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } })
     resetSessionForTests()
     useAuthStore.setState({
@@ -156,8 +155,7 @@ describe('invitation queries', () => {
     })
 
     it('drops the cached pre-membership tenant and refreshes the tenant list', async () => {
-      // A 404 from before the caller was a member caches the detail as null,
-      // and the tenant route's loader would hand that straight back.
+      // A 404 for a non-member caches the detail as null, and the tenant route's loader would hand that straight back.
       client.setQueryData(tenantKeys.detail('acme'), null)
       client.setQueryData(tenantKeys.invitations('acme'), [])
       client.setQueryData(tenantKeys.list, [])
@@ -172,8 +170,7 @@ describe('invitation queries', () => {
     })
 
     it('refetches a cached tenant list that nothing is observing', async () => {
-      // The accept page doesn't observe the list, and an invalidation alone
-      // only refetches active queries.
+      // The accept page doesn't observe the list, and an invalidation alone only refetches active queries.
       let listCalls = 0
       const joined = [{ tenant: { id: TENANT_ID, slug: 'acme' }, role: 'editor' }]
       server.use(
@@ -182,8 +179,7 @@ describe('invitation queries', () => {
           return ok(listCalls === 1 ? [] : joined, 'Tenants retrieved.')
         })
       )
-      // Loaded earlier by a page that has since unmounted, as when the reader
-      // visited /tenants before opening the link.
+      // Loaded earlier by a page that has since unmounted, as when the reader visited /tenants before opening the link.
       const tenants = renderHook(() => useTenants(), { wrapper })
       await waitFor(() => expect(tenants.result.current.isSuccess).toBe(true))
       tenants.unmount()

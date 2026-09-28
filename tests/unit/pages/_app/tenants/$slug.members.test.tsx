@@ -166,8 +166,7 @@ describe('members tab permissions', () => {
     renderAppAt('/tenants/acme/members')
 
     const otto = await rowFor('Otto')
-    // The matrix's one "self only" cell: an owner may act on an owner only
-    // when that owner is themselves.
+    // The matrix's one "self only" cell: an owner may act on an owner only when that owner is themselves.
     expect(otto.queryByRole('combobox')).not.toBeInTheDocument()
     expect(otto.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
     expect(otto.getByText('Owner')).toBeInTheDocument()
@@ -183,8 +182,7 @@ describe('members tab permissions', () => {
     renderAppAt('/tenants/acme/members')
 
     const vic = await rowFor('Vic')
-    // Role CHANGE is owner-only — the route is gated requireRole('owner') —
-    // even though the matrix lets this admin REMOVE the same viewer.
+    // Role CHANGE is owner-only — the route is gated requireRole('owner') — even though the matrix lets this admin REMOVE the same viewer.
     expect(vic.queryByRole('combobox')).not.toBeInTheDocument()
     expect(vic.getByRole('button', { name: 'Remove' })).toBeEnabled()
 
@@ -194,8 +192,7 @@ describe('members tab permissions', () => {
     const amy = await rowFor('Amy')
     expect(amy.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
 
-    // Not even their own admin membership: the matrix answers "no" for an
-    // admin target however `isSelf` reads.
+    // Not even their own admin membership: the matrix answers "no" for an admin target however `isSelf` reads.
     const me = await rowFor('Me')
     expect(me.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
   })
@@ -233,8 +230,7 @@ describe('members tab permissions', () => {
     renderAppAt('/tenants/acme/members')
 
     await rowFor('Vic')
-    // Scoped to `main`: the sidebar's tenant switcher is a combobox too, on
-    // every authenticated page, and is not what this test is about.
+    // Scoped to `main`: the sidebar's tenant switcher is a combobox too, on every authenticated page, and is not what this test is about.
     const main = within(screen.getByRole('main'))
     expect(main.queryByRole('combobox')).not.toBeInTheDocument()
     expect(main.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
@@ -252,9 +248,7 @@ describe('members tab permissions', () => {
     // The backend answers 409 here. The UI must not invite that error.
     expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeDisabled()
     expect(me.getByRole('button', { name: 'Leave' })).toBeDisabled()
-    // ONCE per row, not once per disabled control: the Leave button points at
-    // the role cell's copy through aria-describedby rather than repeating the
-    // same sentence underneath itself.
+    // ONCE per row, not once per disabled control: the Leave button points at the role cell's copy through aria-describedby rather than repeating the same sentence underneath itself.
     expect(
       me.getAllByText('A tenant must always have an owner. Add another owner first.')
     ).toHaveLength(1)
@@ -275,11 +269,13 @@ describe('members tab permissions', () => {
     expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
   })
 
+  /**
+   * At 390px the four-column table scrolls horizontally and puts both the
+   * Actions column and the last-owner explanation past the right edge. The
+   * card path is ONE render path chosen in JS, not a CSS `sm:hidden` pair:
+   * two paths in the DOM would mean two role selects sharing one id.
+   */
   it('stacks members as cards on a phone, so no control sits off-screen', async () => {
-    // At 390px the four-column table scrolled horizontally and put both the
-    // Actions column and the last-owner explanation past the right edge. The
-    // card path is ONE render path chosen in JS, not a CSS `sm:hidden` pair:
-    // two paths in the DOM would mean two role selects sharing one id.
     setViewportWidth(390)
     mockTenant('owner', [member(ME, 'owner', 'A'), member(USER_ID_2, 'viewer', 'Cleo')])
     renderAppAt('/tenants/acme/members')
@@ -291,10 +287,12 @@ describe('members tab permissions', () => {
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
   })
 
+  /**
+   * A header row over nothing is the "blank void for no data" tell. The
+   * error branch above still runs FIRST: [] means "no members" only once
+   * we know the request answered.
+   */
   it('says the list is empty rather than showing a bare table header', async () => {
-    // A header row over nothing is the "blank void for no data" tell, and it
-    // is what the visual gate caught. The error branch above still runs
-    // FIRST: [] means "no members" only once we know the request answered.
     mockTenant('owner', [])
     renderAppAt('/tenants/acme/members')
 
@@ -302,9 +300,7 @@ describe('members tab permissions', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
-  // The role used to be read off the tenant LIST, so a failed list hid every
-  // control on this tab. It now comes from the tenant itself, and a list
-  // failure (the switcher's problem) must not take the tab's controls with it.
+  // The role comes from the tenant detail, not the tenant LIST, so a list failure (the switcher's problem) must not take the tab's controls with it.
   it('keeps the role-gated controls when the tenant LIST fails', async () => {
     server.use(
       http.get('/api/v1/tenants', () => fail('Something went wrong.', 500)),
@@ -323,7 +319,7 @@ describe('members tab permissions', () => {
   })
 
   /**
-   * The role's error state, and the only way to reach it now. A FIRST load
+   * The role's error state, reachable only through a failed refetch. A FIRST load
    * that fails is the layout's error boundary, so the tab never mounts. A
    * REFETCH that fails keeps the cached row, the layout keeps rendering, and
    * the tab has to say what it no longer knows instead of spinning a skeleton.
@@ -425,8 +421,7 @@ describe('members tab permissions', () => {
       await queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme'), exact: true })
     })
 
-    // Stacked rather than chained: picking one branch would mean picking a
-    // winner whose retry cannot fix the loser.
+    // Stacked rather than chained: picking one branch would mean picking a winner whose retry cannot fix the loser.
     await waitFor(() => {
       expect(screen.getAllByRole('alert')).toHaveLength(2)
     })
@@ -481,17 +476,14 @@ describe('the invite form role select', () => {
 
     const trigger = await screen.findByRole('combobox', { name: 'Role' })
     const label = screen.getByText('Role', { selector: 'label' })
-    // Measured, not assumed: `FormControl`'s id lands on the Select's trigger
-    // BUTTON. (A Base UI Checkbox is the opposite — there the id goes to the
-    // hidden input, and a label would point at something invisible.)
+    // `FormControl`'s id lands on the Select's trigger BUTTON, so the label points at a visible control.
     expect(label).toHaveAttribute('for', trigger.id)
     expect(trigger.tagName).toBe('BUTTON')
   })
 
   it('clears the server’s verdict on the role when the select changes', async () => {
     server.use(
-      // A field-level verdict on `role`, which is what the clearing rule is
-      // about. `fail()` carries no `errors` map, so this one is built here.
+      // A field-level verdict on `role`, which is what the clearing rule is about. `fail()` carries no `errors` map, so this one is built here.
       http.post('/api/v1/tenants/acme/invitations', () =>
         HttpResponse.json(
           {
@@ -512,10 +504,12 @@ describe('the invite form role select', () => {
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
     await screen.findByText('That role is not yours to grant.')
 
-    // Base UI's selection does NOT bubble a change event to the <form>, so
-    // <Form>'s own clearing rule never fires for this control — the page
-    // calls clearField by hand. Without that line this message would sit
-    // there while the user changed the very field it is about.
+    /**
+     * Base UI's selection does NOT bubble a change event to the <form>, so
+     * <Form>'s own clearing rule never fires for this control — the page
+     * calls clearField by hand. Without that line this message would sit
+     * there while the user changed the very field it is about.
+     */
     await user.click(screen.getByRole('combobox', { name: 'Role' }))
     await user.click(await screen.findByRole('option', { name: 'Editor' }))
 

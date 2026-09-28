@@ -37,8 +37,7 @@ describe('the catch-all route', () => {
     server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
   })
 
-  // Nothing upstream matched, so no `_app`/`_auth` layout rendered a `<main>`
-  // for it: this route supplies its own.
+  // Nothing upstream matched, so no `_app`/`_auth` layout rendered a `<main>` for it: this route supplies its own.
   it('renders exactly one main landmark for an unknown URL', async () => {
     renderAppAt('/definitely-not-a-page')
 

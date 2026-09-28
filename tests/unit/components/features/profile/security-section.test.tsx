@@ -277,8 +277,7 @@ describe('security section', () => {
     // The next request still succeeds.
     await act(() => queryClient.refetchQueries({ queryKey: authKeys.providers }))
     expect(queryClient.getQueryState(authKeys.providers)?.status).toBe('success')
-    // A successful password change keeps this device's own access token; it
-    // must never trigger a refresh to get there.
+    // A successful password change keeps this device's own access token; it must never trigger a refresh to get there.
     expect(refreshCalls).toBe(0)
   })
 })

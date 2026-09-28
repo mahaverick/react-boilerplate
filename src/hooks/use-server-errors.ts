@@ -3,12 +3,10 @@ import { flushSync } from 'react-dom'
 import { fieldErrorsFrom, formErrorsFrom, messageFrom } from '@/lib/api-error'
 
 /**
- * The backend's validator detail, held for as long as it is still true.
- *
- * Spec section 9 requires inline errors under each field, mapped from the
- * envelope's `errors`. That map has one reserved key — `formErrors` — whose
- * messages name no field, so they are kept apart here and rendered by
- * `<FormError>` at form level. `@/lib/api-error` does the splitting.
+ * The backend's validator detail, held for as long as it is still true: inline
+ * errors under each field, mapped from the envelope's `errors`. Its reserved
+ * `formErrors` key names no field, so those messages are kept apart and
+ * rendered by `<FormError>` at form level. `@/lib/api-error` does the splitting.
  */
 export interface ServerErrors {
   /** Per-field messages, keyed by field name. Never holds `formErrors`. */
@@ -33,11 +31,13 @@ export interface ServerErrors {
   reset: () => void
 }
 
-/*
- * `capture`, `setFieldError` and `setFormErrors` commit through `flushSync`.
- * They run in a submit's promise continuation, and `<Form>` focuses the first
- * `aria-invalid` control once that submit settles: the error has to be in the
- * DOM by then, not in a render React has merely scheduled.
+/**
+ * Server errors for one form. `capture`, `setFieldError` and `setFormErrors`
+ * commit through `flushSync`: they run in a submit's promise continuation, and
+ * `<Form>` focuses the first `aria-invalid` control once that submit settles,
+ * so the error must already be in the DOM. With no detail at all (a 401, 429,
+ * 500 or no response), `capture` shows the response's message at form level.
+ * `clearField` drops only that field's messages; a sibling's still stands.
  */
 export function useServerErrors(): ServerErrors {
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string[]>>({})
@@ -46,8 +46,6 @@ export function useServerErrors(): ServerErrors {
   const capture = React.useCallback((error: unknown) => {
     const fields = fieldErrorsFrom(error)
     const formLevel = formErrorsFrom(error)
-    // No detail at all (a 401, a 429, a 500, no response): the message is the
-    // only account of the failure, so it is shown at form level.
     const hasDetail = Object.keys(fields).length > 0 || formLevel.length > 0
     flushSync(() => {
       setFieldErrors(fields)
@@ -58,8 +56,6 @@ export function useServerErrors(): ServerErrors {
   const clearField = React.useCallback((name: string) => {
     setFieldErrors((current) => {
       if (!(name in current)) return current
-      // Only this field's verdict. A sibling's still stands: the user has not
-      // touched it, so nothing the server said about it has changed.
       return Object.fromEntries(Object.entries(current).filter(([key]) => key !== name))
     })
   }, [])

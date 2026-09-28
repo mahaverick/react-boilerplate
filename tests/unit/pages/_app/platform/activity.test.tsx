@@ -165,8 +165,7 @@ describe('platform activity page', () => {
     })
   })
 
-  // A visible label is part of the control, not a decoration next to it:
-  // clicking the WORDS must toggle the switch too.
+  // A visible label is part of the control, not a decoration next to it: clicking the WORDS must toggle the switch too.
   it('toggles the Staff only switch by clicking its label text', async () => {
     signInAs('owner')
     const seen = mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
@@ -192,8 +191,7 @@ describe('platform activity page', () => {
     await screen.findByText(/opened this tenant/)
 
     await user.type(await openTenantFilter(user), 'acm')
-    // Pick from the settled `acm` answer, not from the empty-term list the
-    // debounced search replaces: Globex is only in the empty-term list.
+    // Pick from the settled `acm` answer, not from the empty-term list the debounced search replaces: Globex is only in the empty-term list.
     await waitFor(() => {
       expect(terms.at(-1)).toBe('acm')
     })
@@ -216,8 +214,7 @@ describe('platform activity page', () => {
     expect(await openTenantFilter(user)).toHaveValue('')
   })
 
-  // A pick made while the next search is in flight lands on an option that is
-  // still there: the earlier results stay listed until the new ones arrive.
+  // A pick made while the next search is in flight lands on an option that is still there: the earlier results stay listed until the new ones arrive.
   it('keeps the earlier results pickable while the next search is in flight', async () => {
     signInAs('admin')
     const seen = mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
@@ -254,8 +251,7 @@ describe('platform activity page', () => {
     }
   })
 
-  // The empty state can't say a search is running when there's nothing
-  // empty about the list: the earlier results are still sitting there.
+  // The empty state can't say a search is running when there's nothing empty about the list: the earlier results are still sitting there.
   it('shows a searching status while the earlier results are still listed', async () => {
     signInAs('admin')
     mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
@@ -274,9 +270,7 @@ describe('platform activity page', () => {
 
     const searchBox = await openTenantFilter(user)
     expect(await screen.findByRole('option', { name: 'Globex' })).toBeInTheDocument()
-    // The status region is mounted at rest too, with nothing to announce
-    // yet: a screen reader needs it present before there's ever anything to
-    // say, not created the first time there is.
+    // The status region is mounted at rest too, with nothing to announce yet: a screen reader needs it present before there's ever anything to say, not created the first time there is.
     const status = document.querySelector('p[role="status"]')
     if (!status) throw new Error('no status region')
     expect(status).toBeEmptyDOMElement()
@@ -299,8 +293,7 @@ describe('platform activity page', () => {
       expect(status).toBeEmptyDOMElement()
     })
     expect(document.querySelector('p[role="status"]')).toBe(status)
-    // Proves the `acm` answer actually landed, not just that Acme (in both
-    // lists) is still there.
+    // Proves the `acm` answer actually landed, not just that Acme (in both lists) is still there.
     expect(screen.queryByRole('option', { name: 'Globex' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Acme Corp' })).toBeInTheDocument()
   })
@@ -372,10 +365,13 @@ describe('platform activity page', () => {
       expect(seen.length).toBeGreaterThan(0)
     })
   })
-  // Closed, nothing shows the term, and the trigger still says "Any tenant":
-  // reopening must not bring back a filtered list nobody can see the reason for.
-  // Base UI clears an input that sits inside the popup when the popup closes;
-  // this pins that, so moving the input or swapping the primitive keeps it.
+  /**
+   * Closed, nothing shows the term, and the trigger still says "Any
+   * tenant": reopening must not bring back a filtered list nobody can see
+   * the reason for. Base UI clears an input that sits inside the popup
+   * when the popup closes; this pins that, so moving the input or
+   * swapping the primitive keeps it.
+   */
   it('clears an unpicked search when the filter closes', async () => {
     signInAs('admin')
     mockLog(() => ok({ entries: [STAFF_VISIT], nextCursor: null }, 'Audit log.'))
