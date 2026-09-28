@@ -24,6 +24,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . && prettier --check \"**/*.{ts,tsx,js,jsx,mjs,css,json,md,html}\"",
+    "lint:docs": "node scripts/lint-docs.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && pnpm typecheck:e2e",
     "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,css,json,md,html}\"",

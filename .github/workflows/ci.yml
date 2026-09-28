@@ -52,6 +52,7 @@ jobs:
       # eslint half is held to.
       - run: pnpm exec eslint . --max-warnings 0
       - run: pnpm lint
+      - run: pnpm lint:docs
       - run: pnpm typecheck
 
   test:

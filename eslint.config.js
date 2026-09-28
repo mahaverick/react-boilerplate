@@ -7,6 +7,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tailwindcss from 'eslint-plugin-tailwindcss'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
+import { commentStyleRule } from './scripts/comment-style.mjs'
 
 const SLEEP_MESSAGE =
   'Wait on a condition, not a duration: findBy*/waitFor/vi.waitFor, expect.poll or a web-first assertion in e2e, fake timers, or settle(ms, reason) from @/tests/fixtures/timing (e2e: ./timing) when nothing can be observed.'
@@ -101,9 +102,36 @@ export default tseslint.config(
   {
     // Node scripts. They sit outside every tsconfig, so, like the root configs
     // above, they are linted syntactically only.
-    files: ['scripts/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'scripts/**/*.d.mts'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: { globals: globals.node },
+  },
+  {
+    // Placeholders so the scripts shared byte-for-byte with express-boilerplate lint here; react runs neither plugin.
+    files: ['scripts/**/*.{mjs,d.mts}', 'tests/unit/lint-docs.test.ts'],
+    linterOptions: { reportUnusedDisableDirectives: 'off' },
+    plugins: {
+      unicorn: {
+        rules: Object.fromEntries(
+          [
+            'name-replacements',
+            'consistent-boolean-name',
+            'no-null',
+            'no-exports-in-scripts',
+            'prefer-string-replace-all',
+            'no-useless-concat',
+          ].map((name) => [name, { create: () => ({}) }])
+        ),
+      },
+      sonarjs: {
+        rules: Object.fromEntries(
+          ['regex-complexity', 'super-linear-regex', 'no-os-command-from-path'].map((name) => [
+            name,
+            { create: () => ({}) },
+          ])
+        ),
+      },
+    },
   },
   {
     // The e2e suite and its fixture harness. Typed linting rather than the
@@ -398,6 +426,16 @@ export default tseslint.config(
       'tailwindcss/no-custom-classname': ['warn', { whitelist: ['toaster'] }],
       'tailwindcss/no-unnecessary-arbitrary-value': 'warn',
     },
+  },
+  {
+    // Switched to 'error' at the stream gate; lanes run it with --rule until then.
+    // scripts/**/*.d.mts is listed separately: '.d.mts' isn't reachable by the
+    // brace glob above, and the shared scripts' declaration files carry JSDoc
+    // this rule must see too.
+    files: ['**/*.{ts,tsx,js,mjs}', 'scripts/**/*.d.mts'],
+    ignores: ['src/components/ui/**'],
+    plugins: { local: { rules: { 'comment-style': commentStyleRule } } },
+    rules: { 'local/comment-style': 'off' },
   },
   prettier
 )
