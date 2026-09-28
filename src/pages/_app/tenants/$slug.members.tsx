@@ -86,11 +86,12 @@ const MEMBERS_ERROR =
  *
  * The select's accessible name includes the member's name, since there is one
  * select per row. When `isLastOwner`, this cell renders the row's one
- * last-owner explanation, with id `reasonId`, as visible text: a disabled
- * control receives no pointer events, so a tooltip on it would never open, and
- * Base UI's Tooltip sets no `role="tooltip"`. `isLastOwner` is only true for an
- * owner acting on their own membership, which the predicates always leave as a
- * select, so the explanation always renders when it is needed.
+ * last-owner explanation, with id `reasonId`, as visible text rather than a
+ * tooltip: the disabled Leave button has `pointer-events: none`, so a tooltip
+ * on it would never open, and Base UI's Tooltip sets no `role="tooltip"`.
+ * `isLastOwner` is only true for an owner acting on their own membership,
+ * which the predicates always leave as a select, so the explanation always
+ * renders when it is needed.
  */
 function RoleCell({
   slug,
@@ -258,7 +259,10 @@ function MemberRow({
   myRole: MembershipRole
   myUserId: string | undefined
   owners: number
-  /** Render a stacked card instead of a table row, for phones. */
+  /**
+   * Render a stacked card instead of a table row, for phones, where the
+   * scrolling table puts the Actions column off-screen.
+   */
   asCard?: boolean
 }) {
   const targetRole = member.membership.role
@@ -319,19 +323,20 @@ function MemberRow({
 /**
  * The members tab. Its states, in order:
  *
- * - An error: the member list and the role lookup are independent queries that
- *   can fail alone, so each failure shows its own `LoadError` retrying its own
- *   request, both when both fail. A failed request never shows a skeleton,
- *   which would wait for ever with no retry.
+ * - An error, or no role: the member list and the role lookup are independent
+ *   queries that can fail alone, so each failure shows its own `LoadError`
+ *   retrying its own request; when both fail, both render. A failed request
+ *   never shows a skeleton, which would wait forever with no retry.
  * - A skeleton while either query is pending.
  * - The empty message, only after the error branch, because a failed load and
  *   an empty tenant both give `[]` (the same order as `notifications.tsx`).
- * - Cards on a phone, otherwise the table. The layout is picked in JS with
- *   `useIsMobile`, the hook the sidebar uses, because rendering both layouts
- *   and hiding one with CSS would put two role selects per member and two
- *   elements with one `reasonId` in the DOM. The table is `min-w-2xl`, so the
- *   vendored Table's `overflow-x-auto` wrapper scrolls instead of crushing
- *   four columns.
+ * - Cards on a phone, because the scrolling table puts the Actions column and
+ *   the last-owner explanation off-screen; otherwise the table. The layout is
+ *   picked in JS with `useIsMobile`, the hook the sidebar uses, because
+ *   rendering both layouts and hiding one with CSS would put two role selects
+ *   per member and two elements with one `reasonId` in the DOM. The table is
+ *   `min-w-2xl`, so the vendored Table's `overflow-x-auto` wrapper scrolls
+ *   instead of crushing four columns.
  *
  * The invite form and pending invitations mount only for owners and admins,
  * the roles the tenant invitation routes require; `PendingInvitations` requests
