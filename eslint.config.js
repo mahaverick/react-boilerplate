@@ -107,33 +107,6 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
-    // Placeholders so the scripts shared byte-for-byte with express-boilerplate lint here; react runs neither plugin.
-    files: ['scripts/**/*.{mjs,d.mts}', 'tests/unit/lint-docs.test.ts'],
-    linterOptions: { reportUnusedDisableDirectives: 'off' },
-    plugins: {
-      unicorn: {
-        rules: Object.fromEntries(
-          [
-            'name-replacements',
-            'consistent-boolean-name',
-            'no-null',
-            'no-exports-in-scripts',
-            'prefer-string-replace-all',
-            'no-useless-concat',
-          ].map((name) => [name, { create: () => ({}) }])
-        ),
-      },
-      sonarjs: {
-        rules: Object.fromEntries(
-          ['regex-complexity', 'super-linear-regex', 'no-os-command-from-path'].map((name) => [
-            name,
-            { create: () => ({}) },
-          ])
-        ),
-      },
-    },
-  },
-  {
     // The e2e suite and its fixture harness. Typed linting rather than the
     // `disableTypeChecked` used for the root configs above: `e2e/tsconfig.json`
     // exists precisely so `projectService` can find these files, so the
