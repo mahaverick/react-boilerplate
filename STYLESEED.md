@@ -74,7 +74,7 @@ Rounding any of the SS002 values to the nearest scale step changes how the contr
 - **The scanner is registry-bound.** It scans only artifacts registered in
   `.styleseed/artifacts/`, never the whole repo. Adding a route means adding an artifact.
 - **An artifact only sees what it declares.** `SS004` (motion without a reduced-motion path)
-  fired until `src/styles` was added to `sourceRoots`, because the app's only
+  fires unless `src/styles` is in `sourceRoots`, because the app's only
   `prefers-reduced-motion` block lives in `globals.css`. Listing a file in `tokenFiles`
   does **not** put it in the scanned inventory — it must also sit under a `sourceRoot`. An
   under-declared artifact produces confident, wrong findings.
@@ -129,8 +129,8 @@ the bundle, the manifest and the palette, so commit those together.
 
 ## Visual verification
 
-`ss-verify` renders with Playwright at 1440×900 and 390×844, `deviceScaleFactor: 2`, and
-scores what source cannot show. The visual score is **95/100**.
+`ss-verify` renders with Playwright at 1440×900 and 390×844 (the `members` artifact's
+`requiredRenders`) and scores what source cannot show; re-run it for a current visual score.
 
 The e2e suite in `e2e/`, run with `pnpm test:e2e`, is Playwright's committed consumer.
 Its `fixtures` project turns the visual gate's findings into standing assertions — webfont

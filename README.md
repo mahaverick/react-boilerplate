@@ -15,7 +15,7 @@ that a new project starts here rather than at `create-vite`.
 | Forms   | TanStack Form + Zod v4 schemas                            |
 | State   | Zustand (`src/states/`)                                   |
 | UI      | Tailwind v4, shadcn components on Base UI, lucide, sonner |
-| Tests   | Vitest, Testing Library, MSW, jest-axe                    |
+| Tests   | Vitest, Testing Library, MSW, jest-axe, Playwright        |
 
 ## Prerequisites
 
@@ -63,8 +63,9 @@ proxy in `vite.config.ts` match only the `/api` segment.
 Moving the API to another prefix under `/api` therefore means changing
 `API_PREFIX` and that SSE `location` together, in one change; a prefix outside
 `/api` also moves `location /api/` and the Vite proxy. Changing `API_PREFIX`
-alone sends the notification stream through the buffered `location /api/`,
-which stalls it with nothing to say so.
+alone sends the notification stream through the general `location /api/`,
+which lacks the SSE location's 24h read timeout, its `crit` error log, its
+query-stripping access log and its empty `Connection` header.
 
 ### Environment
 
@@ -208,8 +209,8 @@ together if it ever moves.
 
 ### What `nginx.conf` is doing
 
-Three things in there are load-bearing and fail **silently** if edited away,
-and a fourth is defence in depth. `nginx.conf` explains each at the line; in
+Two things in there are load-bearing and fail **silently** if edited away,
+and the SSE location's settings are defence in depth. `nginx.conf` explains each at the line; in
 short:
 
 - `proxy_pass ${API_UPSTREAM};` carries **no trailing path**, and
@@ -219,9 +220,11 @@ short:
 - The TLS terminator's `X-Forwarded-Proto` is passed through to express. express
   needs `TRUST_PROXY` set for express-session to see HTTPS and set the Secure
   `oauth.sid` cookie.
-- The SSE location sets `proxy_buffering off` (plus HTTP/1.1, an empty
-  `Connection` header and a long read timeout). nginx buffers by default, which
-  stalls an event stream indefinitely.
+- The SSE location sets `proxy_buffering off`, an empty `Connection` header
+  and a 24h read timeout. express already turns buffering off per response
+  (`X-Accel-Buffering: no`) and sends a `:ping` every 30s by default, inside
+  nginx's default 60s read timeout, so these keep the stream open even if
+  either of those changes.
 - That same location logs with a `stream_nolog` format that records `$uri`
   instead of `$request`, and raises its `error_log` level to `crit`. The access
   token is not in the query string there: the client sends an
