@@ -40,11 +40,9 @@ describe('auth interceptors', () => {
   /**
    * jsdom's window.location is unforgeable, so assign() cannot be spied on.
    *
-   * `pathname`/`search`/`hash` are set EXPLICITLY rather than left to the
-   * spread: they are prototype accessors on jsdom's Location, so `{...}`
-   * copies none of them; `href` is restated for the same reason.
-   * `redirectToLogin` reads all three to build `?redirect=`, and a
-   * spread-only stub would have it encode `undefined`.
+   * The spread copies the real location's fields; `href`, `pathname`,
+   * `search` and `hash` are then set explicitly so the stub carries the
+   * test's own URL, which `redirectToLogin` reads to build `?redirect=`.
    */
   function stubLocation(pathname = '/widgets', search = '', hash = '') {
     const assign = vi.fn()

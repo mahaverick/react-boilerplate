@@ -476,7 +476,7 @@ describe('the invite form role select', () => {
 
     const trigger = await screen.findByRole('combobox', { name: 'Role' })
     const label = screen.getByText('Role', { selector: 'label' })
-    // Measured, not assumed: `FormControl`'s id lands on the Select's trigger BUTTON. (A Base UI Checkbox is the opposite — there the id goes to the hidden input, and a label would point at something invisible.)
+    // `FormControl`'s id lands on the Select's trigger BUTTON, so the label points at a visible control.
     expect(label).toHaveAttribute('for', trigger.id)
     expect(trigger.tagName).toBe('BUTTON')
   })

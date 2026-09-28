@@ -59,9 +59,10 @@ const RenderedFieldsContext = React.createContext<RenderedFields | null>(null)
  * about.
  *
  * **Any non-native control must call `serverErrors.clearField('<its name>')`
- * itself, in its own change handler.** `src/pages/_app/tenants/$slug.members.tsx`
- * is the worked example: the add-member role Select calls it inside
- * `onValueChange`, and a test fails if that line is removed.
+ * itself, in its own change handler.**
+ * `src/components/features/tenant/invite-member-form.tsx` is the worked
+ * example: the add-member role Select calls it inside `onValueChange`, and a
+ * test fails if that line is removed.
  *
  * Base UI's CHECKBOX IS UNVERIFIED: nothing in this project wires one into a
  * form, and it is NOT safe to assume it behaves like the Select or like a
@@ -247,6 +248,11 @@ export function FormField({
   })
 }
 
+/**
+ * Puts one field's name, ids and errors into `FormFieldContext`. Client issues
+ * come first, since they describe what is in the control right now; the
+ * server's verdict follows and survives until this field changes.
+ */
 function FieldProvider({
   name,
   field,
@@ -265,7 +271,6 @@ function FieldProvider({
   const value = React.useMemo<FormFieldContextValue>(
     () => ({
       name,
-      // Client issues first; the server's verdict survives until this field changes.
       errors: serverMessages ? [...errors, ...serverMessages] : errors,
       formItemId: `${id}-item`,
       formMessageId: `${id}-message`,
@@ -304,7 +309,7 @@ export function FormLabel({ className, ...props }: React.ComponentProps<typeof L
  * - Base UI **Select**: wrap this around `SelectTrigger` (inside `Select.Root`,
  *   which carries the `name`) and the id lands on the VISIBLE
  *   `button[role="combobox"]`. Measured, and asserted in
- *   `src/pages/_app/tenants/$slug.members.tsx`'s test.
+ *   `tests/unit/pages/_app/tenants/$slug.members.test.tsx`.
  * - Base UI **Checkbox**: unmeasured, since nothing in this project wires a
  *   Checkbox into a form. If the id lands on the HIDDEN input rather than the
  *   visible `role="checkbox"` element, the label points at a control nobody

@@ -154,13 +154,16 @@ otherwise churn the diff on every `shadcn add`:
   exactly what makes it easy to misread.
 
 **`form.tsx` and `sonner.tsx` are ours, not upstream's.** Both are fully linted
-and formatted, and both are named explicitly in three lists: the `cn`
-import-restriction and comment-style blocks' `ignores` in `eslint.config.js`
-(`src/components/ui/!(form|sonner).tsx`), and the negations in
+and formatted, and both are named explicitly in four lists: in
+`eslint.config.js`, the block that re-enables the Tailwind and
+`react-refresh` rules (`files: ['src/components/ui/sonner.tsx', 'src/components/ui/form.tsx']`)
+and the `ignores` of the `cn` import-restriction and comment-style blocks
+(`src/components/ui/!(form|sonner).tsx`); and the `!` negations in
 `.prettierignore`. If you add a third hand-written file to that directory, add
-it to all three in the same change or it will sit there unchecked. The fourth
-list, `coverage.exclude` in `vitest.config.ts`, is the inverse: it names the
-vendored files, so a new vendored one goes there and a hand-written one stays out.
+it to all four in the same change or it will sit there unchecked.
+`coverage.exclude` in `vitest.config.ts` does not name them: it is the inverse
+list, naming the vendored files, so a new vendored one goes there and a
+hand-written one stays out.
 
 ## Forms
 
