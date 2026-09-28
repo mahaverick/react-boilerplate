@@ -1,7 +1,4 @@
 allowBuilds:
   msw: true
-# Minutes (3 days). Matches renovate.json; the excludes below are exceptions to it.
+# Minutes (3 days). Matches renovate.json.
 minimumReleaseAge: 4320
-minimumReleaseAgeExclude:
-  - 'cn@0.4.0'
-  - 'jsdom@30.1.1'

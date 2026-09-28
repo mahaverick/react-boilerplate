@@ -71,6 +71,15 @@ describe('newTenantSchema', () => {
     )
     expect(newTenantSchema.safeParse({ ...base, description: 'a'.repeat(1000) }).success).toBe(true)
   })
+
+  it('rejects the platform slug, the same as any other reserved slug', () => {
+    const platform = newTenantSchema.safeParse({ name: 'Acme', slug: 'platform' })
+    const admin = newTenantSchema.safeParse({ name: 'Acme', slug: 'admin' })
+
+    expect(platform.success).toBe(false)
+    expect(platform.error?.issues[0]?.path).toEqual(['slug'])
+    expect(platform.error?.issues[0]?.message).toBe(admin.error?.issues[0]?.message)
+  })
 })
 
 describe('updateTenantSchema', () => {
