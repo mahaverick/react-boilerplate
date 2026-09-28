@@ -61,20 +61,17 @@ function TenantDetails({ tenant }: { tenant: Tenant }) {
 }
 
 /**
- * The edit form. Owner and admin only — `PATCH /tenants/:slug` is gated
- * `requireRole('owner', 'admin')`.
- *
- * There is no slug field: the API's own `updateTenantSchema` omits it, so
- * the slug is immutable through this endpoint. An input that always 400s is
- * worse than no input.
+ * The edit form. Owner and admin only: `PATCH /tenants/:slug` is gated
+ * `requireRole('owner', 'admin')`. There is no slug field, since the API's
+ * `updateTenantSchema` omits it. The value is parsed before posting, so an
+ * emptied box goes over as `null` and clears the column: `''` would be a 400,
+ * and an omitted key would keep the old value.
  */
 function EditTenantForm({ tenant }: { tenant: Tenant }) {
   const updateTenant = useUpdateTenant(tenant.slug)
   const serverErrors = useServerErrors()
 
-  // The schema's INPUT type, not the literal's: every field is optional on a
-  // PATCH body, and TanStack needs the validator's input assignable to the
-  // form's values (register.tsx's `RegisterInput` annotation, same reason).
+  /** The schema's input type: TanStack needs the validator's input assignable to the form values. */
   const defaultValues: z.input<typeof updateTenantSchema> = {
     name: tenant.name,
     description: tenant.description ?? '',
@@ -88,9 +85,6 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        // Parsed, so an emptied box goes over as `null` — which CLEARS the
-        // column. Posting `''` would be a 400; omitting the key would leave
-        // the old value in place and quietly undo the edit.
         await updateTenant.mutateAsync(updateTenantSchema.parse(value))
         toast.success('Tenant updated.')
       } catch (error) {
@@ -175,13 +169,18 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
   )
 }
 
+/**
+ * The overview tab: the edit form for owners and admins, the read-only details
+ * otherwise. An unknown role renders a skeleton, not the read-only view, which
+ * would flash an owner's form away; a failed role lookup renders an error with
+ * a retry. The form is keyed on the row, so its defaults come from real data.
+ * With no tenant data the layout has already rendered its not-found panel.
+ */
 function TenantOverviewTab() {
   const { slug } = Route.useParams()
   const tenant = useTenant(slug)
   const { role, isPending: isRolePending, isError: isRoleError, retry } = useMyRole(slug)
 
-  // The layout route above has already rendered the not-found panel in this
-  // case; this tab simply has nothing to show.
   if (!tenant.data) return null
 
   return (
@@ -197,10 +196,6 @@ function TenantOverviewTab() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Role unknown is LOADING, not "read-only": rendering the read-only
-            view first would flash an owner's own form away from them. A
-            FAILED role lookup is neither — it gets an error with a retry,
-            because a skeleton there would spin for ever. */}
         {isRoleError || (!isRolePending && !role) ? (
           <LoadError message={ROLE_ERROR} onRetry={retry} />
         ) : isRolePending || !role ? (
@@ -209,8 +204,6 @@ function TenantOverviewTab() {
             <Skeleton className="h-9 w-full" />
           </div>
         ) : canManageTenant(role) ? (
-          // Keyed on the row, so the form's defaults are captured from real
-          // data rather than from whatever arrived first.
           <EditTenantForm key={tenant.data.id} tenant={tenant.data} />
         ) : (
           <TenantDetails tenant={tenant.data} />

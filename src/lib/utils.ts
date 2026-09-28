@@ -1,7 +1,6 @@
-// A re-export, not an implementation. All 20 vendored shadcn components import
-// `cn` from the npm package of the same name (shadcn's own drop-in replacement
-// for clsx + tailwind-merge), so a second, hand-rolled merger here would mean
-// two mergers resolving conflicting Tailwind classes differently in one app.
-// This keeps `@/lib/utils` as the import path our own code uses while there is
-// exactly one merge implementation behind it.
+/**
+ * @file Re-exports `cn` from the npm package the vendored shadcn components
+ * import, so our code's `@/lib/utils` path and theirs share one class merger.
+ */
+
 export { cn } from 'cn'

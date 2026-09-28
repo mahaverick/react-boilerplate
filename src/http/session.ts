@@ -5,79 +5,51 @@ import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 
 /**
- * Whether a failed refresh was the server JUDGING the credentials — the only
- * refresh failure that may end a session (other requests: interceptors.ts).
+ * Whether a failed refresh was the server judging the credentials: a 401, and
+ * nothing else. It is the only refresh failure that may end a session (other
+ * requests: interceptors.ts).
  *
- * **A 401, and nothing else.** Not "the server answered": that is a strictly
- * wider set, and every extra member of it is a way to sign out a user whose
- * session is perfectly good.
+ * The API's refresh answers 401 when the cookie is missing, when rotation
+ * rejects the token (unknown, reused outside the grace window, expired, or
+ * past the session's absolute lifetime), and when the account is gone or
+ * inactive. Every other failure judges nobody, and treating it as a verdict
+ * signs out a user whose session is good:
  *
- * Verified against the API rather than assumed. `auth.controller.ts`'s refresh
- * handler throws `HttpError(..., 401)` exactly twice — 'Missing refresh token'
- * and 'Account no longer exists or is inactive' — and otherwise answers 200.
- * Every other status on that path comes from something that is not judging
- * anybody:
+ * - **5xx**: nginx answers 502/503 through a rolling restart, and the SSE
+ *   stream reconnects through `ensureSession()`, so every open tab would sign
+ *   out on every deploy.
+ * - **429**: `/auth/refresh` is rate limited, and the stream calls
+ *   `ensureSession()` on a schedule across every tab.
+ * - **A malformed 200**: `rejectMalformedJsonResponse` throws an `AxiosError`
+ *   that carries a response.
+ * - **No response**: a network error, DNS failure, axios timeout or abort.
+ * - **A non-Axios throw**, such as a bug in this module.
  *
- * - **5xx.** nginx answers 502/503 through any rolling restart. The SSE
- *   stream errors, as it must, `useNotificationStream` reconnects through
- *   `ensureSession()`, and under an "answered" test that logs out and
- *   redirects — signing out every user with a tab open, on every deploy.
- * - **429.** `/auth/refresh` is rate limited (`auth.routes.ts`), and this hook
- *   calls `ensureSession()` on a schedule across every open tab, so a flapping
- *   network can manufacture the very 429 that would then end the session.
- * - **A malformed 200.** `rejectMalformedJsonResponse` (interceptors.ts)
- *   throws an `AxiosError` that CARRIES a response — a poisoned cache entry or
- *   a misrouted proxy response would otherwise count as an auth verdict.
- * - **No response at all**: a network error, DNS failure, axios timeout or
- *   abort. Nobody said anything about the credentials; the caller simply could
- *   not ask.
- * - **A non-Axios throw** (a bug in this module, say) — same reasoning.
- *
- * Getting this wrong is not hypothetical, and it is not hypothetical in one
- * direction only: this predicate has been too wide twice. Widen it again only
- * with a status the API's own refresh handler actually produces as a judgment
- * on the caller's credentials.
+ * Widen it only with a status the API's refresh produces as a judgment on the
+ * caller's credentials.
  */
 export function isAuthVerdict(error: unknown): boolean {
   return isAxiosError(error) && error.response?.status === 401
 }
 
 /**
- * Move the browser to /login after a session has ENDED — the one place that
- * navigation is written, called by every path that can end one.
+ * Move the browser to /login after a session has ended: the one place that
+ * navigation is written, for the 401 interceptor (interceptors.ts), the SSE
+ * reconnect (`useNotificationStream`) and a logout broadcast from another tab.
+ * `_app.beforeLoad` runs only on navigation, so without this a signed-out tab
+ * would stay where it was, showing cached data.
  *
- * There are two such paths and they must not diverge. The 401 interceptor
- * (interceptors.ts) is one. The SSE reconnect (`useNotificationStream`) is
- * the other, and it used to have NO navigation at all: `refreshSession()`
- * cleared the store and then nothing moved the user, because there is no
- * `errorComponent`, no store subscription and no `router.invalidate`
- * anywhere, and `_app.beforeLoad` only runs on navigation. The tab simply
- * sat where it was, signed out, showing cached data.
+ * The caller's `pathname + search + hash` goes into `?redirect=`, as `_app`'s
+ * guard does, and `login.tsx` reads it back through `safeRedirect`, which
+ * re-validates it. On /login itself there is no redirect target, or signing in
+ * would return the user to the login page.
  *
- * **The caller's location is preserved**, because `_app`'s guard already
- * writes `?redirect=` on the navigations it blocks and `login.tsx` already
- * consumes it through `safeRedirect`; a forced logout that dropped it would
- * be the one door into /login that forgets where the user was.
- *
- * `pathname + search + hash`, not just the pathname — `/tenants?page=2` must
- * come back with its query. `safeRedirect` re-validates the value on the way
- * out, because by then it has been through the URL bar.
- *
- * **The `/login` guard is not belt-and-braces.** Without it, a bounce that
- * lands here while already on /login writes /login into its own redirect
- * target, and signing in then "returns" the user to the login page.
- *
- * A full-page `assign`, not a router navigation, and deliberately so: its
- * callers run outside React's render, with no router to hand, and a dead
- * session is exactly the moment to discard every piece of in-memory state
- * rather than carry it across.
- *
- * NOT called from `refreshSession()` itself, even though that is where
- * `logout()` happens. `bootstrapSession()` also drives a 401 through there on
- * every cold load with a dead refresh cookie, and navigating from inside
- * would replace the router guard's clean client-side redirect with a second
- * full page load — and on /login itself, with a reload loop. The callers that
- * have no other way to move the user are the ones that call this.
+ * A full-page `assign`, not a router navigation: its callers run outside
+ * render with no router to hand, and a dead session is the moment to discard
+ * all in-memory state. `refreshSession()` does not call it, because
+ * `bootstrapSession()` drives a 401 through there on every cold load with a
+ * dead cookie, and navigating from there would replace the router guard's
+ * client-side redirect with a full page load, and on /login loop.
  */
 export function redirectToLogin(): void {
   if (typeof window === 'undefined') return
@@ -98,8 +70,7 @@ interface AuthMessage {
   type?: string
 }
 
-// ONE channel per tab, for posting and listening alike: a channel never
-// receives its own posts, but a second instance in the same tab would.
+/** One channel per tab, for posting and listening alike: a second instance would hear this tab's own posts. */
 let channel: BroadcastChannel | null = null
 let uninstallListener: (() => void) | null = null
 
@@ -135,20 +106,27 @@ export function installAuthBroadcastListener(): () => void {
 }
 
 /**
- * The single in-flight refresh. Every caller — bootstrap, the 401
- * interceptor, and the SSE reconnect path — awaits this same promise.
- *
- * This is not an optimisation. POST /auth/refresh ROTATES the refresh
- * cookie, so a second concurrent call presents an already-consumed token
- * and the backend ends the session. One promise is what prevents that.
+ * The single in-flight refresh. Every caller (bootstrap, the 401 interceptor,
+ * the SSE reconnect) awaits this same promise, because POST /auth/refresh
+ * rotates the refresh cookie and a second call presents the rotated token.
+ * The API answers that with a sibling token within its 10s reuse grace window,
+ * and revokes the whole session after it.
  */
 let inFlight: Promise<string> | null = null
 
+/**
+ * Refreshes the access token and loads the profile into the store: /auth/refresh
+ * returns only an access token, so the user comes from /profile. Only an
+ * auth verdict (`isAuthVerdict`) signs the store out; any other failure
+ * rejects with the store untouched, so the next attempt can succeed. A tab
+ * that was never signed in does not broadcast the logout, or it would sign out
+ * a sibling tab that just logged in.
+ * @returns The new access token.
+ * @throws The failure of either request, rethrown.
+ */
 async function refreshSession(): Promise<string> {
   try {
-    // `skipAuthRetry` on both calls below: a 401 on a request made from
-    // inside this function must reject, never re-enter ensureSession() — that
-    // would await the promise this function is settling. See interceptors.ts.
+    // skipAuthRetry on both calls: re-entering ensureSession() here would await this very promise.
     const refreshResponse = await apiClient.post<ApiSuccess<{ accessToken: string }>>(
       '/auth/refresh',
       undefined,
@@ -156,8 +134,6 @@ async function refreshSession(): Promise<string> {
     )
     const { accessToken } = unwrap(refreshResponse)
 
-    // /auth/refresh returns ONLY an access token — no user. The profile
-    // call is therefore not optional if the store is to be usable.
     const profileResponse = await apiClient.get<ApiSuccess<User>>('/profile', {
       headers: { Authorization: `Bearer ${accessToken}` },
       skipAuthRetry: true,
@@ -166,17 +142,8 @@ async function refreshSession(): Promise<string> {
     useAuthStore.getState().login(accessToken, unwrap(profileResponse))
     return accessToken
   } catch (error) {
-    // ONLY a 401 ends the session. Everything else — 5xx, 429, a malformed
-    // 200, no response at all — rejects, so every caller still learns the
-    // refresh did not happen, while leaving the store untouched so the next
-    // attempt can simply succeed. `inFlight` is cleared by ensureSession's
-    // `.finally` either way, so a rejected attempt never wedges the next one.
-    // See isAuthVerdict for why this is 401 and not "the server answered".
     if (isAuthVerdict(error)) {
-      // Captured before logout(): a tab that was never signed in (bootstrap
-      // with a dead/absent cookie) has no session to announce the end of —
-      // broadcasting anyway would sign out a sibling tab that just logged in
-      // before this tab's own refresh had a chance to see the new cookie.
+      // Read before logout(): a never-signed-in tab must not broadcast and sign out a sibling that just logged in.
       const wasAuthed = useAuthStore.getState().isAuthenticated
       useAuthStore.getState().logout()
       // The cookie is shared, so a verdict from an authed tab holds for every tab.
@@ -186,8 +153,11 @@ async function refreshSession(): Promise<string> {
   }
 }
 
-// `inFlight` dedupes callers in a tab; the Web Lock queues tabs, as each refresh rotates the shared
-// cookie. Without locks (insecure context, old browser) the server's reuse grace window covers it.
+/**
+ * Runs the refresh under a Web Lock, so tabs queue: each refresh rotates the
+ * shared cookie. Without Web Locks (an insecure context, an old browser) the
+ * API's reuse grace window covers concurrent tabs.
+ */
 function refreshAcrossTabs(): Promise<string> {
   if (typeof navigator !== 'undefined' && 'locks' in navigator) {
     return navigator.locks.request(REFRESH_LOCK, () => refreshSession())
@@ -195,6 +165,12 @@ function refreshAcrossTabs(): Promise<string> {
   return refreshSession()
 }
 
+/**
+ * Refreshes the session, sharing one in-flight attempt among callers in this
+ * tab; the attempt is cleared when it settles, so a rejection never wedges the
+ * next one.
+ * @returns The new access token.
+ */
 export function ensureSession(): Promise<string> {
   inFlight ??= refreshAcrossTabs().finally(() => {
     inFlight = null

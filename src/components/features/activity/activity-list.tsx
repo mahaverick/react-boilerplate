@@ -28,7 +28,7 @@ export interface ActivityListProps<T extends AuditEntry> {
   onRetry: () => void
   hasNextPage: boolean
   isFetchingNextPage: boolean
-  /** True only when the FAILED fetch was a next-page one, not a refetch of an already-loaded page. */
+  /** True only when the failed fetch was a next-page one, not a refetch of an already-loaded page. */
   isFetchNextPageError: boolean
   onLoadMore: () => void
   /** Filters decide whether "nothing has happened" is true, so the page says it. */
@@ -37,6 +37,12 @@ export interface ActivityListProps<T extends AuditEntry> {
   renderTenant?: (entry: T) => ReactNode
 }
 
+/**
+ * One audit entry. The actor's email line is left out when it equals their
+ * name, which the API sets to the email when no name is on file. Base UI's
+ * Tooltip is not announced, so the absolute time is also in the trigger's own
+ * text, visually hidden.
+ */
 function ActivityRow<T extends AuditEntry>({
   entry,
   renderTenant,
@@ -54,14 +60,9 @@ function ActivityRow<T extends AuditEntry>({
       </div>
       <p className="text-sm">{auditSentence(entry)}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        {/* The API falls back to the email AS the name when there is none on
-            file, so a nameless actor's `name` equals their `email` rather
-            than being `''` — this line would otherwise repeat it. */}
         {entry.actor && entry.actor.name !== entry.actor.email && (
           <span className="break-all">{entry.actor.email}</span>
         )}
-        {/* Base UI's Tooltip is not announced, so the absolute time is also
-            in the trigger's own text, visually hidden. */}
         <Tooltip>
           <TooltipTrigger className="cursor-default underline decoration-dotted underline-offset-2">
             <time dateTime={entry.occurredAt}>{relativeTime(entry.occurredAt)}</time>
@@ -77,7 +78,8 @@ function ActivityRow<T extends AuditEntry>({
 /**
  * An audit log, newest first: one tenant's (the Activity tab) or every
  * tenant's (the platform page). The same states as every list here: in
- * flight, failed, empty, and loaded with a keyboard-reachable Load more.
+ * flight, failed, empty, and loaded with a keyboard-reachable Load more. The
+ * error is checked before the empty state, since `[]` is what both look like.
  */
 export function ActivityList<T extends AuditEntry>({
   entries,
@@ -100,7 +102,6 @@ export function ActivityList<T extends AuditEntry>({
     )
   }
 
-  // The error branch BEFORE the empty one: `[]` is what both look like.
   if (entries.length === 0) {
     return isError ? (
       <LoadError message={ACTIVITY_ERROR} onRetry={onRetry} />

@@ -37,7 +37,7 @@ export const useThemeStore = create<ThemeState>()((set) => ({
     try {
       localStorage.setItem(STORAGE_KEY, theme)
     } catch {
-      /* private mode: apply for this session only */
+      // private mode: apply for this session only
     }
     applyTheme(theme)
     set({ theme })

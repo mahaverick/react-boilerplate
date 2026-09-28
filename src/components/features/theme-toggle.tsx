@@ -14,22 +14,18 @@ const OPTIONS: { value: Theme; label: string; Icon: typeof Sun }[] = [
   { value: 'system', label: 'System', Icon: Monitor },
 ]
 
+/**
+ * The theme menu. The listener that makes `theme: 'system'` follow the OS is
+ * in AppLayout, because this unmounts below `md`. Icon-only, and Base UI's
+ * Tooltip is no accessible name, so the aria-label names it, on the rendered
+ * element, whose own props win under useRender.
+ */
 export function ThemeToggle() {
   const theme = useThemeStore((s) => s.theme)
   const setTheme = useThemeStore((s) => s.setTheme)
 
-  // The listener that keeps `theme: 'system'` following the OS is NOT here.
-  // It lives in AppLayout — see the comment on it there. This component
-  // unmounts below `md`, which would have silently taken the listener with it.
-
   return (
     <DropdownMenu>
-      {/* An icon-only control, and Base UI's Tooltip emits neither
-          role="tooltip" nor aria-describedby — a tooltip is not an accessible
-          name here the way it is under Radix. The aria-label is what Task 9's
-          axe `button-name` check reads. It sits on the rendered element rather
-          than on the Trigger because useRender lets the rendered element's own
-          props win. */}
       <DropdownMenuTrigger
         render={<Button variant="ghost" size="icon" aria-label={`Theme: ${theme}. Change theme`} />}
       >

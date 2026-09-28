@@ -15,8 +15,6 @@ function DashboardPage() {
   return (
     <Card>
       <CardHeader>
-        {/* CardTitle renders a div, so the page would otherwise have no
-            heading at all — axe's `page-has-heading-one` is on by default. */}
         <CardTitle>
           <h1>Welcome back, {name}</h1>
         </CardTitle>

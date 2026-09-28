@@ -34,13 +34,13 @@ function memberSince(createdAt: string): string {
   return formatDate(createdAt, 'long') ?? 'Unknown'
 }
 
+/** The profile page; the details are keyed on the user, so the form's defaults come from real data. */
 function ProfilePage() {
   const profile = useProfile()
 
   return (
     <Card className="max-w-2xl">
       <CardHeader>
-        {/* CardTitle renders a div, so the heading is nested inside it. */}
         <CardTitle>
           <h1>Profile</h1>
         </CardTitle>
@@ -49,9 +49,6 @@ function ProfilePage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Keyed on the user so the form's defaultValues are captured from
-            real data rather than from an empty placeholder that arrived
-            first. */}
         {profile.data ? (
           <ProfileDetails key={profile.data.id} user={profile.data} />
         ) : (
@@ -65,6 +62,12 @@ function ProfilePage() {
   )
 }
 
+/**
+ * The name form and the read-only email and join date; PATCH /profile changes
+ * the names alone. The value is parsed before posting, so trimming reaches the
+ * wire, and `<FormError />` shows schema-level server messages, which `<Form>`
+ * does not render itself.
+ */
 function ProfileDetails({ user }: { user: User }) {
   const updateProfile = useUpdateProfile()
   const serverErrors = useServerErrors()
@@ -75,8 +78,6 @@ function ProfileDetails({ user }: { user: User }) {
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        // Parsed rather than posted raw, so the schema's `.trim()` reaches
-        // the wire — TanStack hands `value` straight from form state.
         await updateProfile.mutateAsync(updateProfileSchema.parse(value))
         toast.success('Profile updated.')
       } catch (error) {
@@ -122,8 +123,6 @@ function ProfileDetails({ user }: { user: User }) {
           )}
         </FormField>
 
-        {/* Placed by hand: <Form> does not render this itself, and without it
-            the server's schema-level messages would never be shown. */}
         <FormError />
 
         <Button type="submit" disabled={updateProfile.isPending}>
@@ -131,8 +130,6 @@ function ProfileDetails({ user }: { user: User }) {
         </Button>
       </Form>
 
-      {/* Read-only, because PATCH /profile accepts firstName and lastName and
-          nothing else. */}
       <dl className="mt-6 grid gap-3 border-t pt-6 text-sm">
         <div className="flex justify-between gap-4">
           <dt className="text-muted-foreground">Email</dt>

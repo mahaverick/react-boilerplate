@@ -3,11 +3,8 @@ import { notAllowedMessage, safeText } from '@/schemas/safe-text.schemas'
 
 const MIN_PASSWORD_LENGTH = 8
 /**
- * bcrypt hashes at most 72 BYTES and silently ignores the rest, so the
- * backend's registrationPasswordSchema refuses anything longer
- * (`.refine(Buffer.byteLength(v) <= 72)`). Mirrored here so an over-long
- * password fails inline instead of round-tripping to a 400 — and counted in
- * bytes, not characters: one emoji is four of them.
+ * bcrypt hashes at most 72 bytes and ignores the rest, so the API refuses a
+ * longer password. Counted in bytes, not characters: one emoji is four.
  */
 const MAX_PASSWORD_BYTES = 72
 const MAX_EMAIL_LENGTH = 320
@@ -32,9 +29,8 @@ export const newPasswordSchema = z
   )
 
 /**
- * Optional, matching the backend, where firstName and lastName are
- * `.optional()`. An empty control therefore means "not given" rather than
- * "invalid", and is dropped from the payload instead of posting `''`.
+ * An optional name, as on the API: an empty control means "not given" and is
+ * dropped from the payload rather than posting `''`, which the API rejects.
  */
 function nameSchema(label: string) {
   return z
@@ -48,8 +44,7 @@ function nameSchema(label: string) {
 
 export const loginSchema = z.object({
   email: emailSchema,
-  // Deliberately policy-free: this is a comparison against a stored hash,
-  // exactly like the backend's loginSchema.
+  /** No policy: this is compared against a stored hash, as on the API. */
   password: z.string().min(1, 'Password is required.'),
 })
 
@@ -75,8 +70,7 @@ export const resetPasswordSchema = z
 
 export const verifyEmailSchema = z.object({
   token: z.string().min(1, 'Token is required.'),
-  // The backend requires the account password here and does not treat it
-  // as optional. No policy applied, for the same reason as login.
+  /** Required by the API; no policy, since it is compared against a stored hash. */
   password: z.string().min(1, 'Password is required.'),
 })
 

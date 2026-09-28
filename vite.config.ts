@@ -11,25 +11,24 @@ export default defineConfig({
       target: 'react',
       routesDirectory: './src/pages',
       generatedRouteTree: './src/routeTree.gen.ts',
-      // Each route's component is its own chunk, fetched on first visit to it.
+      /** Each route's component is its own chunk, fetched on first visit to it. */
       autoCodeSplitting: true,
     }),
-    // `react({ compiler: true })` uses the Rust-based oxc-transform-react
-    // package, which is not in the pinned dependency set. The pinned deps
-    // (babel-plugin-react-compiler + @rolldown/plugin-babel) are for the
-    // Babel React Compiler path instead, wired exactly as
-    // @vitejs/plugin-react's own README documents it.
+    /**
+     * The React Compiler through Babel (babel-plugin-react-compiler and
+     * @rolldown/plugin-babel), as @vitejs/plugin-react's README wires it.
+     * `react({ compiler: true })` would need oxc-transform-react, which is not
+     * a dependency.
+     */
     react(),
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
-    // MSW's worker has to sit in `public/` so the dev server serves it from
-    // the root scope a service worker needs — but `public/` is copied verbatim
-    // into `dist/`, which shipped a request-intercepting service worker to
-    // production. It is inert there (nothing in the built app registers it),
-    // and it still has no business being in the bundle.
-    //
-    // Deleted at the end of the build rather than moved, because moving it
-    // breaks the scope that makes the e2e fixture harness work at all.
+    /**
+     * Removes MSW's worker from `dist/`. It sits in `public/` so the dev server
+     * serves it from the root scope a service worker needs, and `public/` is
+     * copied verbatim into `dist/`. Deleted after the build rather than moved,
+     * because moving it breaks the scope the e2e fixture harness relies on.
+     */
     {
       name: 'drop-msw-worker-from-build',
       apply: 'build',

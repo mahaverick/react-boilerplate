@@ -32,21 +32,14 @@ export const Route = createFileRoute('/_app/tenants/')({
   component: TenantsPage,
 })
 
-/**
- * What the list says when it could not be loaded.
- *
- * It states the failure rather than the absence, because those two are the
- * same rendered shape and only one of them is true. "You belong to none" is a
- * claim about the account; this is a claim about the request.
- */
+/** What the list says when it could not be loaded: a claim about the request, not the account. */
 const TENANTS_ERROR =
   'We could not load your tenants, so none are listed here. This is not a sign that you have none.'
 
+/** One tenant: the whole row is one link, and the role badge states the role in words. */
 function TenantRow({ entry }: { entry: TenantWithRole }) {
   return (
     <li>
-      {/* The whole row is one link, so the tenant's name IS the link text —
-          no "view" affordance beside a bare label. */}
       <Link
         to="/tenants/$slug"
         params={{ slug: entry.tenant.slug }}
@@ -56,37 +49,33 @@ function TenantRow({ entry }: { entry: TenantWithRole }) {
           <span className="block font-medium">{entry.tenant.name}</span>
           <span className="block text-sm text-muted-foreground">/{entry.tenant.slug}</span>
         </span>
-        {/* The role in words, not a colour: the badge is the only place this
-            page states it. */}
         <Badge variant="secondary">{ROLE_LABELS[entry.role]}</Badge>
       </Link>
     </li>
   )
 }
 
+/**
+ * The create-tenant form. The whole schema validates on submit only, so typing
+ * in one field never blames another; the slug alone validates live, since its
+ * shape is not one a reader can guess. The value is parsed before posting, so
+ * the schema's trimming reaches the wire and a blank description is dropped
+ * rather than sent as `''`, which the API refuses. `<FormError />` shows
+ * schema-level server errors, which `<Form>` does not render itself.
+ */
 function CreateTenantCard() {
   const createTenant = useCreateTenant()
   const serverErrors = useServerErrors()
 
-  // Annotated with the schema's INPUT type, not inferred from the literal:
-  // the optional fields are `string | undefined` there, and TanStack requires
-  // a validator whose input type is assignable to the form's values. Same
-  // reasoning as `RegisterInput` in register.tsx.
+  /** The schema's input type: TanStack needs the validator's input assignable to the form values. */
   const defaultValues: z.input<typeof newTenantSchema> = { name: '', slug: '', description: '' }
 
   const form = useForm({
     defaultValues,
-    // Whole-schema validation on SUBMIT only. Live feedback is per-field (see
-    // the slug field below): a form-level `onChange` schema validates every
-    // field on every keystroke, so typing one character into Slug rendered
-    // "Name is required." under a Name the reader had not reached yet.
     validators: { onSubmit: newTenantSchema },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        // Parsed, not posted raw: TanStack hands `value` straight out of form
-        // state, so without this the schema's `.trim()` never reaches the wire
-        // and a blank description goes over as `''`, which the API refuses.
         const tenant = await createTenant.mutateAsync(newTenantSchema.parse(value))
         toast.success(`${tenant.name} created.`)
         form.reset()
@@ -122,10 +111,6 @@ function CreateTenantCard() {
             )}
           </FormField>
 
-          {/* The one field that earns live validation: its shape — lowercase,
-              hyphenated, 3-100, not reserved — is not one a reader can guess,
-              and finding out at submit time is finding out too late. Scoped
-              to this field, so it blames nothing else. */}
           <FormField form={form} name="slug" validators={{ onChange: slugSchema }}>
             {(field) => (
               <FormItem>
@@ -164,8 +149,6 @@ function CreateTenantCard() {
             )}
           </FormField>
 
-          {/* <Form> does not render this itself: schema-level server errors
-              would go unseen without it. */}
           <FormError />
 
           <Button type="submit" disabled={createTenant.isPending}>
@@ -177,6 +160,11 @@ function CreateTenantCard() {
   )
 }
 
+/**
+ * The tenant list and the create form. The error branch comes before the empty
+ * one, since a failed load and an account with no tenants render alike, and an
+ * empty state would invite the reader to create a duplicate.
+ */
 function TenantsPage() {
   const tenants = useTenants()
 
@@ -184,7 +172,6 @@ function TenantsPage() {
     <div className="grid max-w-3xl gap-6">
       <Card>
         <CardHeader>
-          {/* CardTitle renders a div, so the page's h1 is nested inside it. */}
           <CardTitle>
             <h1>Tenants</h1>
           </CardTitle>
@@ -197,14 +184,6 @@ function TenantsPage() {
               <Skeleton className="h-14 w-full" />
             </div>
           ) : tenants.isError ? (
-            // BEFORE the empty state, and that order is the whole point. A
-            // failed load leaves `data` undefined, which is indistinguishable
-            // from an account that genuinely belongs to nothing — so without
-            // this branch a 500, or a 401 after the session ended underneath
-            // this tab, rendered "You do not belong to any tenants yet.
-            // Create one below." to someone who belongs to several, and
-            // invited them to create a duplicate. See LoadError's own doc
-            // comment: a screen must say what failed and offer a way back.
             <LoadError message={TENANTS_ERROR} onRetry={() => void tenants.refetch()} />
           ) : tenants.data && tenants.data.length > 0 ? (
             <ul className="grid gap-2">

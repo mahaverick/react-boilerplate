@@ -5,39 +5,25 @@ export interface SseEvent {
   data: string
 }
 
-// A frame that never completes — no blank line ever arrives — would
-// otherwise grow `buffer` forever. `EventSource` parsed line-by-line and had
-// no such property; this replacement does, because it has to buffer until it
-// sees a frame boundary. ~1 MiB is far past any real notification payload
-// (see `NotificationStreamPayload`, notification-stream.controller.ts) and
-// small enough that hitting it costs nothing worse than one reconnect.
+/**
+ * The most a never-completing frame may buffer before the parser throws. Far
+ * past any real notification payload, and small enough that hitting it costs
+ * one reconnect.
+ */
 const MAX_BUFFER_LENGTH = 1024 * 1024
 
 /**
- * Parse SSE frames out of a `fetch` response body.
+ * Parse SSE frames out of a `fetch` response body. The stream is read with
+ * `fetch` because `EventSource` cannot send an `Authorization` header, so this
+ * does the framing `EventSource` would.
  *
- * Ported from Consequential's `pulse/src/http/sse.http.ts`, which exists for
- * the same reason this does: `EventSource` cannot send an `Authorization`
- * header, so the stream is read from `fetch` instead — and then something
- * has to do the framing `EventSource` was doing for us.
- *
- * The buffer OUTLIVES each read deliberately. A frame is not guaranteed to
- * arrive whole in one chunk, and splitting per chunk drops the boundary case
- * silently.
- *
- * Frame and line separators both tolerate a `\r` before the `\n`. Nothing in
- * this stack emits CRLF today — `notification-stream.controller.ts` writes
- * literal `\n` at every call site, and nginx passes body bytes through
- * unmodified — but CRLF is legal SSE, and the failure mode if this tolerance
- * were dropped would be silent for a while: a CRLF frame would sit in
- * `buffer` unmatched by a bare `\n\n` split, until `MAX_BUFFER_LENGTH` below
- * eventually throws. A regex here is cheaper than that risk.
- *
- * `MAX_BUFFER_LENGTH` covers the OTHER way a frame can fail to complete: a
- * server that never sends the blank line at all. Exceeding it throws, which
- * lands in the caller's `catch` (`useNotificationStream`) and reconnects —
- * this function does not handle that case itself, only refuses to run away
- * on it.
+ * The buffer outlives each read, because a frame may arrive split across
+ * chunks. Separators tolerate a `\r` before the `\n`: CRLF is legal SSE, and
+ * a CRLF frame would otherwise sit unmatched until the buffer limit throws.
+ * The limit is checked after the split and after yielding, against the
+ * retained tail only, so a large burst of complete frames is delivered rather
+ * than tripping it. The throw lands in the caller's `catch`
+ * (`useNotificationStream`), which reconnects.
  * @param body - The response body stream.
  * @yields Each complete frame, in order.
  * @throws {Error} When `buffer` exceeds `MAX_BUFFER_LENGTH` without ever completing a frame.
@@ -56,7 +42,6 @@ export async function* parseSseStream(
       buffer += decoder.decode(value, { stream: true })
 
       const frames = buffer.split(/\r?\n\r?\n/)
-      // The last element is an incomplete frame, or ''. Keep it for next read.
       buffer = frames.pop() ?? ''
 
       for (const frame of frames) {
@@ -64,13 +49,6 @@ export async function* parseSseStream(
         if (parsed) yield parsed
       }
 
-      // Checked AFTER the split and AFTER yielding, against what is actually
-      // RETAINED. Two things would go wrong checking the pre-split buffer:
-      // it measures the incomplete tail plus every complete frame that
-      // arrived in the same chunk, so a large burst of perfectly good frames
-      // trips a limit whose message says no frame ever completed; and it
-      // discards those frames instead of delivering them. Here, whatever
-      // completed is already out, and only a genuinely unbounded tail throws.
       if (buffer.length > MAX_BUFFER_LENGTH) {
         throw new Error(
           `SSE buffer exceeded ${String(MAX_BUFFER_LENGTH)} bytes without a complete frame`
@@ -78,9 +56,7 @@ export async function* parseSseStream(
       }
     }
   } finally {
-    // Harmless today — the sole consumer's `for await` never `break`s early
-    // — but this is permanent infrastructure with one job, and a future
-    // consumer that does break early would otherwise leak the lock.
+    // Releases the reader's lock when a consumer breaks out of `for await` early.
     reader.releaseLock()
   }
 }
@@ -96,8 +72,7 @@ function parseFrame(frame: string): SseEvent | undefined {
   const data: string[] = []
 
   for (const line of frame.split(/\r?\n/)) {
-    // A comment. The server's heartbeat is `:ping`, and it must not surface
-    // as an event — it exists to keep proxies from reaping an idle socket.
+    // A comment line: the server's `:ping` heartbeat keeps proxies from reaping an idle socket.
     if (line.startsWith(':')) continue
     if (line.startsWith('id:')) id = line.slice(3).trim()
     else if (line.startsWith('event:')) event = line.slice(6).trim()

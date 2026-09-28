@@ -24,11 +24,10 @@ export const Route = createFileRoute('/_auth/forgot-password')({
 })
 
 /**
- * One message, whatever happened.
- *
- * The backend answers a known and an unknown address identically (Ruling G),
- * so showing a failure here — or a different message on success — would hand
- * an attacker the account-enumeration oracle the backend refuses to be.
+ * One message, whatever happened. The API answers a known and an unknown
+ * address identically, so a failure message here, or a different success
+ * message, would be an account-enumeration oracle. This form shows no server
+ * errors for the same reason.
  */
 const SENT_MESSAGE = 'If that address has an account, a reset email has been sent.'
 
@@ -41,16 +40,9 @@ function ForgotPasswordPage() {
     validators: { onSubmit: forgotPasswordSchema },
     onSubmit: async ({ value }) => {
       try {
-        // Parsed, not posted raw: TanStack hands `value` straight from form
-        // state, so the schema's `.trim()`/`.toLowerCase()` would never reach
-        // the wire and "  ADA@B.COM  " would go over verbatim. Parsing here is
-        // what makes the schema the wire contract it looks like.
         await forgotPassword.mutateAsync(forgotPasswordSchema.parse(value))
       } catch {
-        // Swallowed on purpose — see SENT_MESSAGE. This is the one form that
-        // does NOT wire `useServerErrors`: rendering the backend's field-level
-        // detail here would reintroduce exactly the enumeration oracle the
-        // single message exists to close.
+        // Swallowed: any failure message would be an enumeration oracle (see SENT_MESSAGE).
       }
       setSubmitted(true)
     },
@@ -59,7 +51,6 @@ function ForgotPasswordPage() {
   return (
     <Card>
       <CardHeader>
-        {/* CardTitle renders a div, so the page's h1 goes inside it. */}
         <CardTitle>
           <h1>Forgot your password?</h1>
         </CardTitle>

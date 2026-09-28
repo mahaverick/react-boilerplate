@@ -26,16 +26,9 @@ export const Route = createFileRoute('/_app/notifications')({
 })
 
 /**
- * What each card says when its query FAILED, as opposed to came back empty.
- *
- * Two messages, not one: the inbox and the preference matrix are separate
- * requests and either can fail on its own, so a single shared string would
- * make the page claim both were unavailable when only one was.
- *
- * They exist because "failed" and "empty" render identically otherwise —
- * `data` is undefined in both cases — and an inbox that says "You have no
- * notifications." after a 500 is a screen that lies rather than one that
- * failed.
+ * What each card says when its query failed, as opposed to came back empty.
+ * Two messages, because the inbox and the preference matrix are separate
+ * requests and either can fail alone.
  */
 const NOTIFICATIONS_ERROR =
   'We could not load your notifications, so none are listed here. This is not a sign that you have none.'
@@ -52,6 +45,12 @@ function humanize(type: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
 
+/**
+ * One notification. The Unread badge is decoration on a state the row's text
+ * already carries. The icon-only buttons are named by their aria-labels (Base
+ * UI's Tooltip emits no role="tooltip" or aria-describedby), which name the
+ * notification, since the page renders many.
+ */
 function NotificationRow({ notification }: { notification: Notification }) {
   const markRead = useMarkRead()
   const remove = useDeleteNotification()
@@ -62,8 +61,6 @@ function NotificationRow({ notification }: { notification: Notification }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="font-medium">{notification.title}</h3>
-          {/* The badge is decoration on top of a name the row already has in
-              text; it is never the only thing that says "unread". */}
           {isUnread && <Badge variant="secondary">Unread</Badge>}
         </div>
         <p className="text-sm text-muted-foreground">{notification.body}</p>
@@ -72,9 +69,6 @@ function NotificationRow({ notification }: { notification: Notification }) {
         </p>
       </div>
       {isUnread && (
-        // Icon-only: Base UI's Tooltip emits no role="tooltip" and no
-        // aria-describedby, so only this aria-label names the control — and it
-        // names WHICH notification, since the page renders many of these.
         <Button
           variant="ghost"
           size="icon"
@@ -99,19 +93,11 @@ function NotificationRow({ notification }: { notification: Notification }) {
 }
 
 /**
- * One notification type's resolved channel state — READ-ONLY, deliberately.
- *
- * There are no switches here because there is nothing the server would
- * accept: `CONFIGURABLE_NOTIFICATION_TYPES` (notification.validators.ts) is
- * `NOTIFICATION_TYPES` minus the types whose email channel may never be
- * disabled, and today those two sets are identical — so the configurable list
- * is empty and every `PUT /notifications/preferences` answers 400. A control
- * that always fails reads as broken and teaches the wrong pattern, and the
- * client cannot infer which types ARE configurable because that list is
- * module-private on the server.
- *
- * `useUpdatePreferences` stays exported and tested for the day that changes;
- * turning this back into a control is then a change to this component alone.
+ * One notification type's resolved channel state, read-only. The API's
+ * `CONFIGURABLE_NOTIFICATION_TYPES` (notification.validators.ts) is empty, so
+ * every `PUT /notifications/preferences` answers 400, and the API has no
+ * endpoint that lists the configurable types. `useUpdatePreferences` is ready
+ * for when that changes; making this a control is then a change here alone.
  */
 function PreferenceRow({ preference }: { preference: NotificationPreference }) {
   return (
@@ -160,6 +146,11 @@ function PreferencesCard() {
   )
 }
 
+/**
+ * The inbox and the read-only preferences. The inbox's error branch comes
+ * before its empty state: `rows` is `[]` for a failed load and an empty inbox
+ * alike.
+ */
 function NotificationsPage() {
   const notifications = useNotifications()
   const markAllRead = useMarkAllRead()
@@ -170,8 +161,6 @@ function NotificationsPage() {
     <div className="grid max-w-3xl gap-6">
       <Card>
         <CardHeader>
-          {/* CardTitle renders a div, so the page would otherwise have no
-              heading at all — axe's `page-has-heading-one` is on by default. */}
           <CardTitle>
             <h1>Notifications</h1>
           </CardTitle>
@@ -197,10 +186,6 @@ function NotificationsPage() {
               <Skeleton className="h-16 w-full" />
             </div>
           ) : notifications.isError ? (
-            // Ahead of the empty state: `rows` is `[]` for a failed load and
-            // for an empty inbox alike, so without this a 500 rendered "You
-            // have no notifications." — a statement about the account, made
-            // on the strength of a request that never answered.
             <LoadError message={NOTIFICATIONS_ERROR} onRetry={() => void notifications.refetch()} />
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">You have no notifications.</p>

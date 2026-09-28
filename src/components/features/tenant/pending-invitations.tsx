@@ -49,6 +49,14 @@ function expiresOn(expiresAt: string): string {
   return formatDate(expiresAt, 'medium') ?? 'an unknown date'
 }
 
+/**
+ * Resend for one row, named after the invitee since there is one per row.
+ * When the actor may not grant the invitation's role, the button is disabled
+ * with the reason as visible text: a disabled button has `pointer-events:
+ * none`, so a tooltip on it would never open. It uses `mutateAsync`, because
+ * the list refetch can unmount this row first and `mutate`'s callbacks skip
+ * an unmounted observer.
+ */
 function ResendInvitationButton({
   slug,
   invitation,
@@ -62,7 +70,6 @@ function ResendInvitationButton({
   const reasonId = `resend-reason-${invitation.id}`
 
   if (!canActorGrantRole(myRole, invitation.role)) {
-    // Visible text, not a tooltip: a disabled control gets no pointer events.
     return (
       <div className="grid gap-1">
         <Button
@@ -86,12 +93,8 @@ function ResendInvitationButton({
       variant="outline"
       size="sm"
       disabled={resend.isPending}
-      // One of these per row, so the name has to say which row.
       aria-label={`Resend invitation to ${invitation.email}`}
       onClick={() => {
-        // `mutateAsync`, not `mutate` with callbacks: the list refetch can
-        // unmount this row first, and `mutate`'s callbacks skip an unmounted
-        // observer.
         resend.mutateAsync(invitation.id).then(
           () => toast.success(`Invitation resent to ${invitation.email}.`),
           (error: unknown) => toast.error(actionFailure(error))
@@ -103,6 +106,7 @@ function ResendInvitationButton({
   )
 }
 
+/** Revoke for one row, behind a confirmation; `mutateAsync` for the same reason as resend. */
 function RevokeInvitationButton({
   slug,
   invitation,
@@ -140,8 +144,6 @@ function RevokeInvitationButton({
             variant="destructive"
             disabled={revoke.isPending}
             onClick={() => {
-              // `mutateAsync` for the same reason as resend: on success the
-              // refetched list drops this row, and this component with it.
               revoke.mutateAsync(invitation.id).then(
                 () => {
                   setIsOpen(false)
@@ -222,8 +224,6 @@ export function PendingInvitations({ slug, myRole }: { slug: string; myRole: Mem
             <Skeleton className="h-10 w-full" />
           </div>
         ) : invitations.data.length === 0 ? (
-          // After the error branch: `[]` means "none pending" only once the
-          // request has answered.
           <p className="text-sm text-muted-foreground">
             No invitations are waiting to be accepted.
           </p>
