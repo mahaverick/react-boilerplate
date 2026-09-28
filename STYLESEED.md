@@ -4,9 +4,6 @@ StyleSeed is pinned to **v4.2.0, commit `44475742e96ffa66d869274b0643042f5c6b47e
 (`github.com/bitjaru/styleseed`). Rules move; an unpinned adoption would change under us.
 Upgrades go through `/ss-update` and are reviewed as a diff.
 
-Design spec: `docs/superpowers/specs/2026-09-22-phase-b-styleseed-design.md`
-Implementation plan: `docs/superpowers/plans/2026-09-22-phase-b-styleseed.md`
-
 ## Ownership
 
 **Base UI (`@base-ui/react`) owns `src/components/ui/` permanently.** StyleSeed contributes
@@ -78,13 +75,12 @@ Rounding any of the SS002 values to the nearest scale step changes how the contr
   `.styleseed/artifacts/`, never the whole repo. Adding a route means adding an artifact.
 - **An artifact only sees what it declares.** `SS004` (motion without a reduced-motion path)
   fired until `src/styles` was added to `sourceRoots`, because the app's only
-  `prefers-reduced-motion` block lives in `globals.css:140`. Listing a file in `tokenFiles`
+  `prefers-reduced-motion` block lives in `globals.css`. Listing a file in `tokenFiles`
   does **not** put it in the scanned inventory — it must also sit under a `sourceRoot`. An
   under-declared artifact produces confident, wrong findings.
 - **`requiredRenders` must not be empty.** The contract rejects `[]`, so `members` declares a
-  desktop and a mobile loaded state. Both were rendered on 2026-09-22 with Playwright; see
-  `docs/superpowers/decisions/2026-09-22-phase-b-evidence.md`. Colour contrast is still
-  unmeasured — seeing a render is not measuring it.
+  desktop and a mobile loaded state. Both are rendered with Playwright. A render does not
+  measure colour contrast; `pnpm test:contrast` does.
 
 ## Generated files that are not our tokens
 
@@ -135,8 +131,7 @@ the bundle, the manifest and the palette, so commit those together.
 
 `ss-verify` was run on 2026-09-22 with Playwright 1.63.0 at 1440×900 and 390×844,
 `deviceScaleFactor: 2`. **Visual score 85/100, against a code score of 93** — the eight-point
-gap is what source cannot show. Renders and findings:
-`docs/superpowers/decisions/2026-09-22-phase-b-evidence.md`.
+gap is what source cannot show.
 
 Playwright now has a committed consumer: the e2e suite in `e2e/`, run with `pnpm test:e2e`.
 Its `fixtures` project turns the visual gate's findings into standing assertions — webfont

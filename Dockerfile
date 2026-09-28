@@ -3,8 +3,8 @@
 FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS build
 WORKDIR /app
 
-# Corepack is installed explicitly: Node 25+ no longer bundles it, and doing
-# it now makes the Node 26 move a version bump only. The pnpm version comes
+# Corepack is installed explicitly: Node 25+ does not bundle it, so the
+# Node 26 move is a version bump only. The pnpm version comes
 # from package.json's packageManager field (corepack install, below) — the
 # one place it is written. It must be pnpm 12: pnpm-workspace.yaml uses
 # allowBuilds and minimumReleaseAgeExclude, which older pnpm ignores in
@@ -12,8 +12,8 @@ WORKDIR /app
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN npm i -g corepack@0.36.0 && corepack enable
 # `husky` is package.json's `prepare` script. There is no .git in the build
-# context (see .dockerignore), and husky exits cleanly without one — this just
-# says so out loud.
+# context (see .dockerignore); husky exits cleanly without one, and this makes
+# that explicit.
 ENV HUSKY=0
 
 # pnpm-workspace.yaml is copied WITH the manifest and the lockfile: it carries
@@ -27,10 +27,10 @@ COPY . .
 
 # No build ARGs, deliberately. The API prefix is FIXED at /api/v1 — it lives in
 # src/constants/routes.ts as API_PREFIX, and nginx.conf's SSE location, the
-# notification stream's `fetch` URL and the Google OAuth anchor all hardcode it
-# too. The `--build-arg VITE_API_URL=/api/v2` this file used to accept moved the
-# axios base and nothing else, so it shipped an image whose notification stream
-# and Google sign-in were broken with nothing in any log to say so.
+# notification stream's `fetch` URL and the Google OAuth anchor all derive
+# from or hardcode it. A build arg that moved only the axios base would ship
+# an image whose notification stream and Google sign-in are broken with
+# nothing in any log to say so.
 RUN pnpm build
 
 # The unprivileged nginx image runs as uid 101 and listens on 8080. Both base
