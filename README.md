@@ -64,8 +64,8 @@ Moving the API to another prefix under `/api` therefore means changing
 `API_PREFIX` and that SSE `location` together, in one change; a prefix outside
 `/api` also moves `location /api/` and the Vite proxy. Changing `API_PREFIX`
 alone sends the notification stream through the general `location /api/`,
-which lacks the SSE location's 24h read timeout, its `crit` error log, its
-query-stripping access log and its empty `Connection` header.
+which lacks the SSE location's 24h read timeout, its `crit` error log and its
+empty `Connection` header.
 
 ### Environment
 
@@ -122,7 +122,7 @@ src/
   states/       Zustand stores
   styles/       globals.css and the design tokens
   types/        shared API types
-scripts/        Node build checks (check-bundle)
+scripts/        Node build and lint checks (check-bundle, comment-style, history-patterns, lint-docs)
 tests/
   unit/         Vitest suites, mirroring src/ (plus the accessibility gate)
   mocks/        MSW server and handlers

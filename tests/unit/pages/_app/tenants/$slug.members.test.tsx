@@ -319,7 +319,7 @@ describe('members tab permissions', () => {
   })
 
   /**
-   * The role's error state, and the only way to reach it now. A FIRST load
+   * The role's error state, reachable only through a failed refetch. A FIRST load
    * that fails is the layout's error boundary, so the tab never mounts. A
    * REFETCH that fails keeps the cached row, the layout keeps rendering, and
    * the tab has to say what it no longer knows instead of spinning a skeleton.

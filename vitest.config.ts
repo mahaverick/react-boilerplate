@@ -45,7 +45,7 @@ export default defineConfig({
         'src/components/ui/{input,input-group,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
         'src/components/ui/{table,tabs,textarea,tooltip}.tsx',
       ],
-      /** A few points under the measured baseline, so a drop fails CI. */
+      /** About seven points under the measured baseline, so a drop fails CI. */
       thresholds: { statements: 88, branches: 82, functions: 86, lines: 89 },
     },
   },

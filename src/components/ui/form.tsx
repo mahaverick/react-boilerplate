@@ -1,3 +1,10 @@
+/**
+ * @file The shadcn `form` component, rewritten against TanStack Form because
+ * the registry entry is built on react-hook-form, which this project does not
+ * install. The export surface is upstream's, and server-side validator detail
+ * is handled here once: pass `useServerErrors()` to `<Form>` and every field
+ * picks up its own messages.
+ */
 import { useRender } from '@base-ui/react/use-render'
 import type { AnyFieldApi, AnyFormApi } from '@tanstack/react-form'
 import * as React from 'react'
@@ -7,26 +14,12 @@ import { ServerErrorsContext, type ServerErrors } from '@/hooks/use-server-error
 import { cn } from '@/lib/utils'
 
 /**
- * The shadcn `form` component, rewritten against TanStack Form.
- *
- * The registry entry cannot be used: it is built on react-hook-form, which
- * this project does not install. The export surface is the same, so call
- * sites read exactly like upstream's.
- *
- * `useFormField` and `FormFieldContext` live in `@/hooks/use-form-field`
- * because this file is linted and `react-refresh/only-export-components`
- * rejects a non-component export beside components — a re-export included.
- *
- * Server-side validator detail is handled here too, once, rather than in each
- * page: pass `useServerErrors()` to `<Form>` and every field picks up its own
- * messages. See `@/hooks/use-server-errors`.
- */
-
-/**
  * Tracks whether a `<FormError>` is mounted inside this form, so `<Form>` can
  * say something in dev when form-level errors would otherwise go unrendered.
- * Deliberately not exported: this file is linted, and a non-component export
- * here trips `react-refresh/only-export-components`.
+ * Deliberately not exported: `react-refresh/only-export-components` rejects a
+ * non-component export beside components (a re-export included), which is
+ * also why `useFormField` and `FormFieldContext` live in
+ * `@/hooks/use-form-field`.
  */
 interface FormErrorSlot {
   /** Called by a mounted `<FormError>`; returns its own deregistration. */
@@ -59,29 +52,34 @@ const RenderedFieldsContext = React.createContext<RenderedFields | null>(null)
  * siblings, whose verdicts are still true, and not on blur, which is not the
  * user changing anything.
  *
- * THE RULE DOES NOT COVER A BASE UI SELECT, and that is measured, not
- * suspected. Base UI's Select sets its hidden input programmatically, so
- * choosing an option emits NO change event that reaches this handler — a probe
- * watching `clearField` saw a plain `<input>` in the same form call it
- * immediately and the Select never call it at all, while the selection itself
- * plainly worked (the hidden input's value and the trigger's text both
- * changed). A server error on such a field would therefore sit there,
- * unchallenged, while the user changes the very control it is about.
+ * THE RULE DOES NOT COVER A BASE UI SELECT. Base UI's Select sets its hidden
+ * input programmatically, so choosing an option emits NO change event that
+ * reaches this handler, while the selection itself works. A server error on
+ * such a field would sit there while the user changes the very control it is
+ * about.
  *
  * **Any non-native control must call `serverErrors.clearField('<its name>')`
  * itself, in its own change handler.** `src/pages/_app/tenants/$slug.members.tsx`
  * is the worked example: the add-member role Select calls it inside
  * `onValueChange`, and a test fails if that line is removed.
  *
- * Base UI's CHECKBOX IS UNVERIFIED. Nothing in this project wires one into a
- * form yet, so it was never probed, and it is NOT safe to assume it behaves
- * like the Select or like a native input — measure it before relying on either
- * answer. (What IS known about the Checkbox is a separate problem, recorded on
- * `FormControl` below: its `id` lands on the hidden input.)
+ * Base UI's CHECKBOX IS UNVERIFIED: nothing in this project wires one into a
+ * form, and it is NOT safe to assume it behaves like the Select or like a
+ * native input. Measure it before relying on either answer.
  *
  * A caller's own `onChange`/`onSubmit` is pulled out of `props` and called
  * AFTER ours rather than spread over them: `{...props}` last would let a page
  * silently turn off either the clearing rule or submission itself.
+ *
+ * The error slot is a pair of functions over a closure variable, not a mutable
+ * object: a consumer may not modify a value it got from useContext
+ * (`react-hooks/immutability`), but it may call one. Rendered fields are
+ * counted per name, because two fields may share one and unmounting one must
+ * not make the other disappear.
+ *
+ * On submit, once every submit settles, the first invalid control takes focus
+ * so its described-by message is read. Client errors are committed by then,
+ * and so are server errors: the hook commits them with flushSync.
  */
 export function Form({
   form,
@@ -92,9 +90,6 @@ export function Form({
   onSubmit,
   ...props
 }: React.ComponentProps<'form'> & { form: AnyFormApi; serverErrors?: ServerErrors }) {
-  // A pair of functions over a closure variable, not a mutable object: a
-  // consumer may not modify a value it got from useContext
-  // (`react-hooks/immutability`), but it may call one.
   const [errorSlot] = React.useState<FormErrorSlot>(() => {
     let mounted = false
     return {
@@ -108,8 +103,6 @@ export function Form({
     }
   })
   const [renderedFields] = React.useState<RenderedFields>(() => {
-    // A count per name: two fields may share one, and unmounting one of them
-    // must not make the other disappear.
     const counts = new Map<string, number>()
     return {
       register: (name) => {
@@ -129,8 +122,7 @@ export function Form({
   React.useEffect(() => {
     if (!import.meta.env.DEV) return
     if (!formErrors || formErrors.length === 0 || errorSlot.isMounted()) return
-    // Child effects run before parent effects, so a mounted <FormError> has
-    // already registered by now.
+    // Child effects run before parent effects, so a mounted <FormError> has registered.
     console.warn(
       "<Form> was given form-level server errors (the `errors` map's reserved " +
         '`formErrors` key, or the message of a failure that named no field) but ' +
@@ -166,10 +158,6 @@ export function Form({
         event.preventDefault()
         event.stopPropagation()
         const formElement = event.currentTarget
-        // Once every submit settles, the first invalid control, if any, takes
-        // focus, so its described-by message is read. Client errors are
-        // committed by then, and server errors are too: the hook commits them
-        // with flushSync.
         void form
           .handleSubmit()
           .finally(() =>
@@ -277,8 +265,7 @@ function FieldProvider({
   const value = React.useMemo<FormFieldContextValue>(
     () => ({
       name,
-      // Client issues first: they describe what is in the control right now.
-      // The server's verdict follows it and survives until this field changes.
+      // Client issues first; the server's verdict survives until this field changes.
       errors: serverMessages ? [...errors, ...serverMessages] : errors,
       formItemId: `${id}-item`,
       formMessageId: `${id}-message`,
@@ -318,15 +305,22 @@ export function FormLabel({ className, ...props }: React.ComponentProps<typeof L
  *   which carries the `name`) and the id lands on the VISIBLE
  *   `button[role="combobox"]`. Measured, and asserted in
  *   `src/pages/_app/tenants/$slug.members.tsx`'s test.
- * - Base UI **Checkbox**: reported to land on the HIDDEN input rather than the
- *   visible `role="checkbox"` element, which would leave the label pointing at
- *   a control nobody can click. Carried from an earlier review and NOT
- *   re-measured here — nothing in this project wires a Checkbox into a form.
- *   Measure it before trusting it in either direction.
+ * - Base UI **Checkbox**: unmeasured, since nothing in this project wires a
+ *   Checkbox into a form. If the id lands on the HIDDEN input rather than the
+ *   visible `role="checkbox"` element, the label points at a control nobody
+ *   can click, so measure it before relying on it.
  *
  * Separately, see `<Form>` above for which controls the server-error CLEARING
  * rule reaches: a Base UI Select's change does not bubble, so such a control
  * must clear its own field.
+ *
+ * The child is cloned so the injected name WINS: useRender lets the rendered
+ * element's own props override the ones passed to it, which would hand the
+ * clearing rule a name that belongs to no field. The clone is unconditional,
+ * because `<Input name={undefined} />` still carries the key and would
+ * override the injected name with nothing. `name` in the passed props is not
+ * decoration either: `<Form>`'s change handler reads it to know which field's
+ * server error to drop.
  */
 export function FormControl({ children }: { children: React.ReactElement<{ name?: string }> }) {
   const { name, errors, formItemId, formMessageId } = useFormField()
@@ -342,19 +336,12 @@ export function FormControl({ children }: { children: React.ReactElement<{ name?
     )
   }
 
-  // Cloned so the injected name WINS. useRender lets the rendered element's
-  // own props override the ones passed below, which would otherwise hand the
-  // clearing rule a name that belongs to no field. Cloned UNCONDITIONALLY:
-  // `<Input name={undefined} />` still carries the key, and it overrides the
-  // injected name with nothing, which is the same bug wearing a disguise.
   const control = React.cloneElement(children, { name })
 
   return useRender({
     render: control,
     props: {
       id: formItemId,
-      // Not decoration: `<Form>`'s change handler reads this to know which
-      // field's server error to drop.
       name,
       'aria-describedby': hasError ? formMessageId : undefined,
       'aria-invalid': hasError,
@@ -385,14 +372,14 @@ function issueText(issue: unknown): string {
  * the response's own message when it carried no field detail.
  *
  * Rendered above the submit button, and the one place a submit failure is
- * announced: pages raise no toast for it.
+ * announced: pages raise no toast for it. It registers whether or not there
+ * is anything to show, so `<Form>`'s dev warning fires only when this
+ * component is absent.
  */
 export function FormError({ className, ...props }: React.ComponentProps<'div'>) {
   const serverErrors = React.useContext(ServerErrorsContext)
   const slot = React.useContext(FormErrorSlotContext)
 
-  // Registered whether or not there is anything to show, so <Form>'s dev
-  // warning fires only when this component is genuinely absent.
   React.useEffect(() => slot?.register(), [slot])
 
   const messages = serverErrors?.formErrors ?? []

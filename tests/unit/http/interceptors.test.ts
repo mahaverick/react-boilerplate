@@ -42,8 +42,8 @@ describe('auth interceptors', () => {
    *
    * `pathname`/`search`/`hash` are set EXPLICITLY rather than left to the
    * spread: they are prototype accessors on jsdom's Location, so `{...}`
-   * copies none of them — which is why `href` was already being restated
-   * here. `redirectToLogin` reads all three to build `?redirect=`, and a
+   * copies none of them; `href` is restated for the same reason.
+   * `redirectToLogin` reads all three to build `?redirect=`, and a
    * spread-only stub would have it encode `undefined`.
    */
   function stubLocation(pathname = '/widgets', search = '', hash = '') {

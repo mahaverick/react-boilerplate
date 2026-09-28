@@ -34,8 +34,8 @@ eslint half exits 0 on warnings.
 - **Tracked in `.husky/`, executable.** pre-commit: lockfile drift, lint-staged
   (eslint `--fix --max-warnings 0` + prettier on staged files), `vitest --changed`.
   commit-msg: commitlint (conventional commits). pre-push: the full lint gate,
-  typecheck and unit tests — **no e2e**, on purpose: long pre-push hooks have
-  dropped SSH pushes in this workspace. CI runs e2e.
+  typecheck and unit tests — **no e2e**, on purpose: a long pre-push hook can
+  outlast the SSH connection and drop the push. CI runs e2e.
 - **Hooks call `pnpm exec`, never `npx`** — `npx` on a fresh machine downloads
   whatever version is newest, not the one this repo tested against.
 - **The hooks must stay committed.** `prepare` generates only husky's `_/`
@@ -142,8 +142,9 @@ otherwise churn the diff on every `shadcn add`:
 
 - **prettier skips it entirely** (`.prettierignore`) — shadcn emits semicolons
   and double quotes, and reformatting them fights the registry on every re-add.
-- **eslint excludes only the Tailwind rules and `react-refresh/only-export-components`**
-  (`eslint.config.js`, the `src/components/ui/**` block). Everything else still
+- **eslint excludes only the Tailwind rules, `react-refresh/only-export-components`
+  and `local/comment-style`** (`eslint.config.js`, the `src/components/ui/**`
+  block and the comment-style block). Everything else still
   applies. Do not read this as "eslint skips the directory" — print the config
   for a file in there and count: 507 rules, 113 of them enabled, including
   type-aware ones like `@typescript-eslint/no-unsafe-call` at **error**. A type
@@ -153,9 +154,11 @@ otherwise churn the diff on every `shadcn add`:
   exactly what makes it easy to misread.
 
 **`form.tsx` and `sonner.tsx` are ours, not upstream's.** Both are fully linted
-and formatted, and both are named explicitly in `eslint.config.js` and
+and formatted, and both are named explicitly in three lists: the `cn`
+import-restriction and comment-style blocks' `ignores` in `eslint.config.js`
+(`src/components/ui/!(form|sonner).tsx`), and the negations in
 `.prettierignore`. If you add a third hand-written file to that directory, add
-it to both lists in the same change or it will sit there unchecked. The third
+it to all three in the same change or it will sit there unchecked. The fourth
 list, `coverage.exclude` in `vitest.config.ts`, is the inverse: it names the
 vendored files, so a new vendored one goes there and a hand-written one stays out.
 
@@ -226,6 +229,11 @@ pin in `Dockerfile` and `README.md` is tracked via a custom regex manager.
   TanStack Router never sees a test file in its routes directory.
 - Tests are **`.test.ts(x)`**, never `.spec.`, and never in a `__tests__/`
   folder — also linted, under `tests/` as well as `src/`.
+- **Comments.** Every comment is one of three kinds: a declaration JSDoc (the
+  contract), a `/** @file … */` of 1–3 sentences, or a one-line `//` why, used
+  only for security, concurrency, a timing budget or a named external bug. A
+  JSX comment is one line and only for those same reasons. No history;
+  `local/comment-style` checks the form.
 
 ## Test timing rules
 
@@ -272,8 +280,8 @@ Three fake-timer traps, each read out of the installed versions:
 
 ## End-to-end tests
 
-`pnpm test:e2e` (fixtures) and `pnpm test:e2e:live` (needs a backend). Playwright, two
-projects, and three conventions that are load-bearing rather than taste:
+`pnpm test:e2e` (fixtures) and `pnpm test:e2e:live` (needs a backend). Playwright, four
+projects (`fixtures`, `live`, `contrast`, `nginx`), and three conventions that are load-bearing rather than taste:
 
 - **Tests are `*.test.ts`, never Playwright's default `*.spec.ts`** —
   the rest of the repo uses `.test.` (`check-file/filename-blocklist` rejects `.spec.` in
@@ -313,7 +321,7 @@ and a fixed address would rate-limit every rerun.
 
 **`nginx`** runs against the PRODUCTION image — `pnpm test:e2e:nginx` builds it, runs it on
 :8088 (container port 8080, read-only root) with `--add-host=api:host-gateway`, tests, and
-tears it down. The tests tagged `@no-api` (headers, the CSP, the theme script, the asset 404)
+tears it down. The tests tagged `@no-api` (headers, the CSP, the theme script, the asset 404, the boot splash)
 need no backend and also run in CI's `e2e` job, against the image with nothing behind `/api`;
 the rest need a live API and run only locally. The project exists first for a reason worth
 keeping: **the Vite dev proxy does not propagate an upstream close.**

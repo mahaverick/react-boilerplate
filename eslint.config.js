@@ -371,7 +371,7 @@ export default tseslint.config(
      * them, and their JSDoc must be checked too.
      */
     files: ['**/*.{ts,tsx,js,mjs}', 'scripts/**/*.d.mts'],
-    ignores: ['src/components/ui/**'],
+    ignores: ['src/components/ui/!(form|sonner).tsx'],
     plugins: { local: { rules: { 'comment-style': commentStyleRule } } },
     rules: { 'local/comment-style': 'error' },
   },

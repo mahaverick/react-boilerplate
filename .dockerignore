@@ -20,7 +20,6 @@ playwright-report
 *.tsbuildinfo
 .tanstack
 # Docs, specs and CI config: none of them change the bundle.
-docs
 .superpowers
 .github
 .husky
