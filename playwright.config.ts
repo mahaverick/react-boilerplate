@@ -57,7 +57,9 @@ export default defineConfig({
     },
     /**
      * Colour contrast, which jsdom cannot compute (no layout, no cascade), so the
-     * unit a11y gate disables every colour rule. Opt-in: the palette moves rarely.
+     * unit a11y gate disables every colour rule. Opt-in and not run in CI: run
+     * `pnpm test:contrast` before merging UI work, since component composition
+     * can break contrast as well as a palette change.
      */
     {
       name: 'contrast',
