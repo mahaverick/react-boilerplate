@@ -15,14 +15,13 @@ that a new project starts here rather than at `create-vite`.
 | Forms   | TanStack Form + Zod v4 schemas                            |
 | State   | Zustand (`src/states/`)                                   |
 | UI      | Tailwind v4, shadcn components on Base UI, lucide, sonner |
-| Tests   | Vitest, Testing Library, MSW, jest-axe                    |
+| Tests   | Vitest, Testing Library, MSW, jest-axe, Playwright        |
 
 ## Prerequisites
 
-- **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ no longer ships Corepack, so this works on 24 and 26 alike)
-- `devEngines.runtime` (`onFail: "error"`) is what actually refuses a wrong Node at install — `.npmrc`'s `engine-strict` does not enforce this root project's own `engines.node` under pnpm 12.
+- **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ does not ship Corepack, so this works on 24 and 26 alike). `pnpm install` refuses an older Node.
 - The **API running on `:4040`** — see below
-- **React Boilerplate 2.0.0 needs `express-boilerplate` 3.1.0 or later.**
+- **react 1.x works with express 1.x.**
 
 ## Getting started
 
@@ -32,7 +31,7 @@ pnpm dev
 ```
 
 The dev server listens on <http://localhost:5173>. There is no `.env` step:
-nothing in the app reads a `VITE_*` variable today, and `.env.example` holds
+nothing in the app reads a `VITE_*` variable, and `.env.example` holds
 only the comments explaining why — see [Environment](#environment).
 
 ### The API must be running on :4040
@@ -55,19 +54,18 @@ and everything on the JavaScript side derives from it: the axios base
 (`src/hooks/use-notifications.ts`, which ignores axios entirely), and the
 Google OAuth anchor (`GOOGLE_OAUTH_PATH`).
 
-Two things outside JavaScript hardcode it as well, and they are why it is
-fixed rather than a knob: `nginx.conf` routes
-`location /api/v1/notifications/stream` — its SSE buffering and its
-query-stripping log format (defence in depth now that the token travels in a
-header) hang off that exact prefix — and `vite.config.ts`
-proxies `/api` in development.
+`nginx.conf` hardcodes it as well, which is why it is fixed rather than a
+knob: `location /api/v1/notifications/stream` — its SSE buffering and its
+query-stripping log format (defence in depth: the token travels in a header)
+hang off that exact prefix. `nginx.conf`'s `location /api/` and the Vite dev
+proxy in `vite.config.ts` match only the `/api` segment.
 
-Moving the API to another prefix therefore means changing `API_PREFIX`,
-`nginx.conf` and the Vite proxy together, in one change. An earlier
-`VITE_API_URL` build variable is gone precisely because it did not: it moved
-the axios base alone and left the stream, the OAuth anchor and nginx pointing
-at the old path, producing a build in which Google sign-in and every
-notification were broken with nothing to say so.
+Moving the API to another prefix under `/api` therefore means changing
+`API_PREFIX` and that SSE `location` together, in one change; a prefix outside
+`/api` also moves `location /api/` and the Vite proxy. Changing `API_PREFIX`
+alone sends the notification stream through the general `location /api/`,
+which lacks the SSE location's 24h read timeout, its `crit` error log, its
+query-stripping access log and its empty `Connection` header.
 
 ### Environment
 
@@ -84,18 +82,23 @@ it: `pnpm dev` always proxies to `http://localhost:4040`.
 
 ## Scripts
 
-| Script               | What it does                                                                                            |
-| -------------------- | ------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`           | Dev server on :5173 with the `/api` proxy                                                               |
-| `pnpm build`         | `tsc -b` then `vite build` → `dist/`                                                                    |
-| `pnpm preview`       | Serve the built bundle locally                                                                          |
-| `pnpm lint`          | eslint **and** `prettier --check` — both must pass                                                      |
-| `pnpm typecheck`     | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                                         |
-| `pnpm test`          | Vitest, single pass                                                                                     |
-| `pnpm test:coverage` | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it                   |
-| `pnpm test:watch`    | Vitest in watch mode                                                                                    |
-| `pnpm format`        | `prettier --write`                                                                                      |
-| `pnpm check:bundle`  | Builds in memory; fails on one JS chunk, first-visit JS over budget, or devtools in a chunk. CI runs it |
+| Script                | What it does                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm dev`            | Dev server on :5173 with the `/api` proxy                                                                                            |
+| `pnpm build`          | `tsc -b` then `vite build` → `dist/`                                                                                                 |
+| `pnpm preview`        | Serve the built bundle locally                                                                                                       |
+| `pnpm lint`           | eslint **and** `prettier --check` — both must pass                                                                                   |
+| `pnpm typecheck`      | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                                                                      |
+| `pnpm test`           | Vitest, single pass                                                                                                                  |
+| `pnpm test:coverage`  | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it                                                |
+| `pnpm test:watch`     | Vitest in watch mode                                                                                                                 |
+| `pnpm format`         | `prettier --write`                                                                                                                   |
+| `pnpm check:bundle`   | Builds in memory; fails on one JS chunk, first-visit JS over budget, or devtools in a chunk. CI runs it                              |
+| `pnpm lint:docs`      | History phrasing and broken links in markdown and config comments. CI runs it                                                        |
+| `pnpm test:e2e`       | Playwright `fixtures` project against the MSW harness; no backend needed. CI runs it                                                 |
+| `pnpm test:e2e:live`  | Playwright `live` project; needs express-boilerplate on :4040                                                                        |
+| `pnpm test:e2e:nginx` | Builds the production image and runs the Playwright `nginx` project against it on :8088; all but the `@no-api` tests need a live API |
+| `pnpm test:contrast`  | axe colour contrast in a real browser, both themes; no backend needed                                                                |
 
 CI holds eslint to **zero warnings** as well as zero errors
 (`pnpm exec eslint . --max-warnings 0`).
@@ -147,8 +150,9 @@ engine stops axe evaluating those two rules at all.
 
 It does **not** check colour contrast. Those rules are switched off under jsdom,
 which has no layout and no cascade, so a green run says nothing about them.
-Contrast, focus rings and the member table's horizontal scroll are browser
-checks; automating them is Phase B's Playwright gate.
+Contrast is measured in a real browser by `pnpm test:contrast`, and the
+`fixtures` e2e project checks layout jsdom cannot see, such as nothing
+overflowing the viewport at 390px. See CLAUDE.md's end-to-end section.
 
 ## Docker
 
@@ -187,14 +191,26 @@ The image is built to run on a **read-only root filesystem**. Everything nginx w
 container stops at start rather than serving without its config. Logs go to
 stdout and stderr.
 
+Extra server config goes in a template: add it as
+`/etc/nginx/templates/*.conf.template`. The entrypoint strips only the
+`.template` suffix, so the name before it has to end `.conf`, matching what
+`docker/nginx.main.conf` includes from `/tmp/nginx/conf.d` on start. A file
+placed directly in `/etc/nginx/conf.d` is ignored: `docker/nginx.main.conf`
+replaces `/etc/nginx/nginx.conf` and its only server-config include is
+`/tmp/nginx/conf.d/*.conf`.
+
+`RUN` steps in an image derived from this one run as uid 101, not root: the
+`Dockerfile` never resets the unprivileged base image's `USER`. A step that needs root
+privileges has to `USER root` first and `USER 101` again before `CMD`.
+
 The image takes no build arguments. The API prefix is baked in and fixed —
 see [The API prefix is fixed](#the-api-prefix-is-fixed) for what has to change
 together if it ever moves.
 
 ### What `nginx.conf` is doing
 
-Three things in there are load-bearing and fail **silently** if edited away,
-and a fourth is defence in depth. `nginx.conf` explains each at the line; in
+Two things in there are load-bearing and fail **silently** if edited away,
+and the SSE location's settings are defence in depth. `nginx.conf` explains each at the line; in
 short:
 
 - `proxy_pass ${API_UPSTREAM};` carries **no trailing path**, and
@@ -204,9 +220,11 @@ short:
 - The TLS terminator's `X-Forwarded-Proto` is passed through to express. express
   needs `TRUST_PROXY` set for express-session to see HTTPS and set the Secure
   `oauth.sid` cookie.
-- The SSE location sets `proxy_buffering off` (plus HTTP/1.1, an empty
-  `Connection` header and a long read timeout). nginx buffers by default, which
-  stalls an event stream indefinitely.
+- The SSE location sets `proxy_buffering off`, an empty `Connection` header
+  and a 24h read timeout. express already turns buffering off per response
+  (`X-Accel-Buffering: no`) and sends a `:ping` every 30s by default, inside
+  nginx's default 60s read timeout, so these keep the stream open even if
+  either of those changes.
 - That same location logs with a `stream_nolog` format that records `$uri`
   instead of `$request`, and raises its `error_log` level to `crit`. The access
   token is not in the query string there: the client sends an
@@ -260,32 +278,6 @@ nginx sends an **enforced** policy on every response:
   binds `0.0.0.0:8080` and nothing else. IPv6-only clusters need
   `listen [::]:8080;` added to that block — which fails on hosts with IPv6
   disabled, so it is not a change to make unconditionally.
-
-### Upgrading to 2.0
-
-- **The container listens on 8080, not 80, and runs as uid 101.** Change port
-  mappings, a Service's `targetPort` and any health check that dials `:80`.
-- **A Content-Security-Policy is enforced.** A change that adds an inline
-  script, or loads a script, style, image, font or API call from another
-  origin, has to change the policy in `nginx.conf` in the same commit.
-- **`API_UPSTREAM` is validated at start.** A value with a path or a trailing
-  `/` — which never worked, because nginx rewrote every `/api/` URI to it — now
-  stops the container instead of starting it broken.
-- **Extra server config goes in a template.** Add it as
-  `/etc/nginx/templates/*.conf.template` — the entrypoint strips only the
-  `.template` suffix, so the name before it has to end `.conf`, matching what
-  `docker/nginx.main.conf` includes from `/tmp/nginx/conf.d` on start (see
-  [Docker](#docker) above). A file placed directly in `/etc/nginx/conf.d` is
-  ignored: `docker/nginx.main.conf` replaces `/etc/nginx/nginx.conf` and its
-  only server-config include is `/tmp/nginx/conf.d/*.conf`.
-- **This image is built for a read-only root**, so `/tmp` has to be
-  writable — a `tmpfs` mount, as the [Docker](#docker) section's `docker run`
-  examples show. Without one, the entrypoint's render and nginx's own temp
-  paths have nowhere to write and the container fails to start.
-- **`RUN` steps in a derived image run as uid 101**, not root — the base
-  image's `USER` is never reset back to root, so it carries into every stage
-  built from it. A step that needs root privileges has to `USER root` first
-  and `USER 101` again before `CMD`.
 
 ## Deploying
 
@@ -354,7 +346,4 @@ conventional commits for release-please to read them correctly.
 
 ## Conventions
 
-`CLAUDE.md` is the short list of decisions that are easy to undo by accident —
-what must never be installed, why the access token is memory-only, which
-directory is vendored, and which rules the linter enforces. Read it before
-changing dependencies or adding files.
+Read [CLAUDE.md](CLAUDE.md) before changing dependencies or adding files.

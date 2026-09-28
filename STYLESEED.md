@@ -4,16 +4,13 @@ StyleSeed is pinned to **v4.2.0, commit `44475742e96ffa66d869274b0643042f5c6b47e
 (`github.com/bitjaru/styleseed`). Rules move; an unpinned adoption would change under us.
 Upgrades go through `/ss-update` and are reviewed as a diff.
 
-Design spec: `docs/superpowers/specs/2026-09-22-phase-b-styleseed-design.md`
-Implementation plan: `docs/superpowers/plans/2026-09-22-phase-b-styleseed.md`
-
 ## Ownership
 
 **Base UI (`@base-ui/react`) owns `src/components/ui/` permanently.** StyleSeed contributes
 method, rules and review — never components. Its 32 Radix primitives and its Vite 6 / React 18
 scaffold are not used and must not be introduced. Do not reopen without new evidence.
 
-This was the question that blocked Phase B. It is settled: the gate chain references neither
+The gate chain references neither
 Radix nor `engine/components`, `ss-component` reads the project's own primitives, and the 19
 `@radix-ui/*` packages live only in a fresh-project scaffold that does not apply here.
 
@@ -77,14 +74,13 @@ Rounding any of the SS002 values to the nearest scale step changes how the contr
 - **The scanner is registry-bound.** It scans only artifacts registered in
   `.styleseed/artifacts/`, never the whole repo. Adding a route means adding an artifact.
 - **An artifact only sees what it declares.** `SS004` (motion without a reduced-motion path)
-  fired until `src/styles` was added to `sourceRoots`, because the app's only
-  `prefers-reduced-motion` block lives in `globals.css:140`. Listing a file in `tokenFiles`
+  fires unless `src/styles` is in `sourceRoots`, because the app's only
+  `prefers-reduced-motion` block lives in `globals.css`. Listing a file in `tokenFiles`
   does **not** put it in the scanned inventory — it must also sit under a `sourceRoot`. An
   under-declared artifact produces confident, wrong findings.
 - **`requiredRenders` must not be empty.** The contract rejects `[]`, so `members` declares a
-  desktop and a mobile loaded state. Both were rendered on 2026-09-22 with Playwright; see
-  `docs/superpowers/decisions/2026-09-22-phase-b-evidence.md`. Colour contrast is still
-  unmeasured — seeing a render is not measuring it.
+  desktop and a mobile loaded state. Both are rendered with Playwright. A render does not
+  measure colour contrast; `pnpm test:contrast` does.
 
 ## Generated files that are not our tokens
 
@@ -133,18 +129,14 @@ the bundle, the manifest and the palette, so commit those together.
 
 ## Visual verification
 
-`ss-verify` was run on 2026-09-22 with Playwright 1.63.0 at 1440×900 and 390×844,
-`deviceScaleFactor: 2`. **Visual score 85/100, against a code score of 93** — the eight-point
-gap is what source cannot show. Renders and findings:
-`docs/superpowers/decisions/2026-09-22-phase-b-evidence.md`.
+`ss-verify` renders with Playwright at 1440×900 and 390×844 (the `members` artifact's
+`requiredRenders`) and scores what source cannot show; re-run it for a current visual score.
 
-Playwright now has a committed consumer: the e2e suite in `e2e/`, run with `pnpm test:e2e`.
+The e2e suite in `e2e/`, run with `pnpm test:e2e`, is Playwright's committed consumer.
 Its `fixtures` project turns the visual gate's findings into standing assertions — webfont
 loaded, nothing overflowing at 390px, the empty and error states rendering as more than a bare
 header — so a regression fails a test rather than waiting for the next screenshot. See
 CLAUDE.md's end-to-end section for the conventions.
-
-All four findings the visual gate produced have since been fixed; re-scored **95/100**.
 
 ## Accessibility
 
