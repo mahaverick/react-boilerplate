@@ -38,8 +38,7 @@ describe('session bootstrap', () => {
     await bootstrapSession()
     const s = useAuthStore.getState()
     expect(s.isAuthenticated).toBe(false)
-    // The critical assertion: bootstrapped must be TRUE even on failure, or
-    // a guard waiting on it would hang forever instead of redirecting.
+    // The critical assertion: bootstrapped must be TRUE even on failure, or a guard waiting on it would hang forever instead of redirecting.
     expect(s.isBootstrapped).toBe(true)
   })
 
@@ -116,10 +115,12 @@ describe('route guards', () => {
       isAuthenticated: false,
       isBootstrapped: false,
     })
-    // Record what the store looked like on every read. The LAST read of a
-    // navigation is always a guard's — bootstrapSession() runs first and the
-    // guards run after it — so asserting on it proves no guard observed a
-    // half-restored store.
+    /**
+     * Record what the store looked like on every read. The LAST read of a
+     * navigation is always a guard's — bootstrapSession() runs first and
+     * the guards run after it — so asserting on it proves no guard
+     * observed a half-restored store.
+     */
     snapshots = []
     getState = useAuthStore.getState.bind(useAuthStore)
     vi.spyOn(useAuthStore, 'getState').mockImplementation(() => {
@@ -164,9 +165,7 @@ describe('route guards', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/login')
     })
-    // Asserted by VALUE, not merely by presence. Nothing consumes this param
-    // until Task 5's login page, so this assertion is the only thing holding
-    // it in place.
+    // Asserted by VALUE, not merely by presence. Nothing consumes this param until the login page, so this assertion is the only thing holding it in place.
     expect(router.state.location.search).toEqual({ redirect: '/dashboard' })
     expectGuardSawSettledStore()
   })
@@ -253,8 +252,7 @@ describe('token routes outside the auth guard', () => {
     const router = renderAt('/reset-password?token=reset-token')
 
     expect(await screen.findByText('Choose a new password')).toBeInTheDocument()
-    // Vacuous unless they really are signed in — that is the case `_auth`
-    // would have redirected.
+    // Vacuous unless they really are signed in — that is the case `_auth` would have redirected.
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
     expect(router.state.location.pathname).toBe('/reset-password')
   })

@@ -255,8 +255,7 @@ describe('useMyRole', () => {
     })
   })
 
-  // Under platform access the caller has no membership, so the tenant LIST
-  // does not carry this tenant at all: the role has to come from the detail.
+  // Under platform access the caller has no membership, so the tenant LIST does not carry this tenant at all: the role has to come from the detail.
   it('reads the effective role and the access path from GET /tenants/:slug', async () => {
     let listCalls = 0
     server.use(

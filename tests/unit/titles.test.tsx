@@ -115,8 +115,7 @@ describe('page titles', () => {
     })
   })
 
-  // The tab's title, not its tenant layout's `acme · React Boilerplate`: the
-  // deepest match's head() wins when the router merges them.
+  // The tab's title, not its tenant layout's `acme · React Boilerplate`: the deepest match's head() wins when the router merges them.
   it('puts the tenant slug in a tenant tab title', async () => {
     useAuthStore.setState({
       accessToken: 'access-token',

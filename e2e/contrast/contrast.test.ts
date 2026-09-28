@@ -29,9 +29,12 @@ import { afterAnimations, afterFontsAndFrames } from '../timing'
 const require = createRequire(import.meta.url)
 const AXE_PATH = require.resolve('axe-core/axe.min.js')
 
-// The dev server transforms a lazily loaded route's modules on first request,
-// which took past 7s under load, and `goto` resolves on `load` before that.
-// Below the 30s test timeout, so a hang is reported by the heading assertion.
+/**
+ * The dev server transforms a lazily loaded route's modules on first
+ * request, which has taken past 7s under load, and `goto` resolves on
+ * `load` before that. Below the 30s test timeout, so a hang is reported by
+ * the heading assertion.
+ */
 const COLD_TRANSFORM_BUDGET_MS = 20_000
 
 /**
@@ -55,10 +58,7 @@ const SURFACES = [
   { name: 'sign-in', url: '/login', heading: 'Sign in' },
   { name: 'register', url: '/register', heading: 'Create an account' },
   { name: 'forgot-password', url: '/forgot-password', heading: 'Forgot your password?' },
-  // Both of these routes read a token out of the query. Without one,
-  // reset-password renders its "This link is incomplete" branch instead —
-  // a real surface, but not the one worth measuring, and the heading
-  // assertion is what keeps that swap from passing unnoticed.
+  // Both of these routes read a token out of the query. Without one, reset-password renders its "This link is incomplete" branch instead — a real surface, but not the one worth measuring, and the heading assertion is what keeps that swap from passing unnoticed.
   {
     name: 'reset-password',
     url: '/reset-password?token=contrast-probe',
@@ -95,6 +95,18 @@ type ContrastResult = {
   incomplete: { id: string; nodes: { target: string[]; failureSummary?: string }[] }[]
 }
 
+/**
+ * The theme must be set BEFORE the document runs: index.html loads a
+ * pre-paint script that reads localStorage and toggles `.dark` before the
+ * bundle loads, so setting it afterwards would measure a repaint rather
+ * than the real render.
+ *
+ * Loading the surface is proved, not assumed, BEFORE measuring it: a route
+ * that redirected — an authenticated page without a session, a
+ * `validateSearch` rejecting the probe token — still paints a perfectly
+ * legible page, so contrast over it would come back green while saying
+ * nothing about the surface this entry names.
+ */
 async function contrastOf(
   page: Page,
   url: string,
@@ -102,25 +114,15 @@ async function contrastOf(
   heading: string | RegExp,
   scope?: string
 ): Promise<ContrastResult> {
-  // Set BEFORE the document runs: index.html loads a pre-paint script that
-  // reads localStorage and toggles `.dark` before the bundle loads, so setting
-  // the theme afterwards would measure a repaint rather than the real render.
   await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
   await page.goto(url)
-  // Prove the surface we asked for is the surface we got, BEFORE measuring it.
-  // A route that redirected — an authenticated page without a session, a
-  // `validateSearch` rejecting the probe token — still paints a perfectly
-  // legible page, so contrast over it would come back green while saying
-  // nothing about the surface this entry names.
   await expect(page.getByRole('heading', { name: heading })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
-  // The heading can render outside each page's data conditional, so it can show
-  // while the data behind it is still a skeleton. Grade the loaded page.
+  // The heading can render outside each page's data conditional, so it can show while the data behind it is still a skeleton. Grade the loaded page.
   await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
 
-  // Fonts change glyph coverage, not colour, but a late swap can move text over
-  // a different background. Sample only once it has reflowed.
+  // Fonts change glyph coverage, not colour, but a late swap can move text over a different background. Sample only once it has reflowed.
   await afterFontsAndFrames(page)
 
   await page.addScriptTag({ path: AXE_PATH })
@@ -141,9 +143,7 @@ async function contrastOf(
  */
 async function runAxe(page: Page, scope?: string): Promise<ContrastResult> {
   return page.evaluate(async (selector) => {
-    // `color-contrast` ONLY. Everything else about these pages is already
-    // gated by tests/unit/a11y.test.tsx, and re-running it here would mean two
-    // sources of truth for the same finding.
+    // `color-contrast` ONLY. Everything else about these pages is already gated by tests/unit/a11y.test.tsx, and re-running it here would mean two sources of truth for the same finding.
     const results = await (
       window as unknown as {
         axe: { run: (ctx: Document | Element, opts: unknown) => Promise<ContrastResult> }
@@ -184,10 +184,13 @@ for (const theme of THEMES) {
     test(`${surface.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
       const result = await contrastOf(page, surface.url, theme, surface.heading)
 
-      // `incomplete` is not a pass. axe files a node here when it cannot
-      // resolve the background — a gradient, an image, an overlapped element —
-      // and those are exactly the cases a human has to look at. Surfaced
-      // rather than asserted, because a false alarm here should not block.
+      /**
+       * `incomplete` is not a pass. axe files a node here when it cannot
+       * resolve the background — a gradient, an image, an overlapped
+       * element — and those are exactly the cases a human has to look at.
+       * Surfaced rather than asserted, because a false alarm here should
+       * not block.
+       */
       if (result.incomplete.length > 0) {
         const targets = result.incomplete.flatMap((i) => i.nodes.map((n) => n.target.join(' ')))
         console.warn(
@@ -253,9 +256,7 @@ for (const theme of THEMES) {
       await page.getByRole(popup.triggerRole, { name: popup.trigger }).click()
       const menu = page.getByRole(popup.role)
       await expect(menu).toBeVisible()
-      // A menu that opened EMPTY would grade clean while saying nothing about
-      // the items this test exists for — the same guard the a11y gate states
-      // for its own menu block.
+      // A menu that opened EMPTY would grade clean while saying nothing about the items this test exists for — the same guard the a11y gate states for its own menu block.
       await expect(menu.getByRole(popup.itemRole).first()).toBeVisible()
 
       await afterAnimations(menu)
@@ -271,9 +272,7 @@ for (const theme of THEMES) {
 test.describe('popups that are not menus', () => {
   for (const theme of THEMES) {
     test(`the mobile navigation sheet meets WCAG AA contrast in ${theme}`, async ({ page }) => {
-      // The sheet carries its own background token, and it only exists below
-      // the desktop breakpoint — so the desktop shell tests above can never
-      // reach it however many pages they visit.
+      // The sheet carries its own background token, and it only exists below the desktop breakpoint — so the desktop shell tests above can never reach it however many pages they visit.
       await page.setViewportSize({ width: 390, height: 844 })
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
       await page.goto('/e2e/harness/?path=/dashboard')
@@ -296,18 +295,14 @@ test.describe('popups that are not menus', () => {
     })
 
     test(`the remove-member confirm meets WCAG AA contrast in ${theme}`, async ({ page }) => {
-      // The one place a `destructive` foreground lands on a raised surface.
-      // Every other destructive control in the app sits on the page
-      // background, which the page entries above already cover.
+      // The one place a `destructive` foreground lands on a raised surface. Every other destructive control in the app sits on the page background, which the page entries above already cover.
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
       await page.goto('/e2e/harness/')
       await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible({
         timeout: COLD_TRANSFORM_BUDGET_MS,
       })
 
-      // Cleo is a plain member and not the last owner, so her row's control is
-      // the enabled one — the same row tests/unit/a11y.test.tsx drives for the
-      // same reason.
+      // Cleo is a plain member and not the last owner, so her row's control is the enabled one — the same row tests/unit/a11y.test.tsx drives for the same reason.
       const row = page.getByRole('row').filter({ hasText: 'Cleo' })
       await row.getByRole('button', { name: 'Remove' }).click()
       const confirm = page.getByRole('alertdialog')

@@ -21,9 +21,9 @@ import { server } from '@/tests/mocks/server'
 /**
  * The preferences card is read-only today, because every notification type is
  * non-configurable server-side. These tests are what keep the WIRE SHAPE
- * honest in the meantime: the endpoints are nothing like the flat
+ * honest regardless: the endpoints are nothing like the flat
  * `Record<string, boolean>` they are easy to assume, and nothing in the UI
- * exercises them any more. See useUpdatePreferences' own comment.
+ * exercises them directly. See useUpdatePreferences' own comment.
  */
 describe('notification preference queries', () => {
   let client: QueryClient
@@ -44,9 +44,11 @@ describe('notification preference queries', () => {
   })
 
   it('unwraps the matrix out of its `preferences` key', async () => {
-    // GET answers `{ preferences: [...] }`, not a bare array — and the matrix
-    // always lists EVERY known type with defaults resolved, not just the rows
-    // this user has explicitly set.
+    /**
+     * GET answers `{ preferences: [...] }`, not a bare array — and the
+     * matrix always lists EVERY known type with defaults resolved, not
+     * just the rows this user has explicitly set.
+     */
     server.use(
       http.get('/api/v1/notifications/preferences', () =>
         ok(
@@ -69,8 +71,7 @@ describe('notification preference queries', () => {
   })
 
   it('PUTs a whole entry inside a `preferences` array', async () => {
-    // `updatePreferencesSchema` requires an array (min 1) of entries carrying
-    // BOTH channel booleans. A flat body, or one channel on its own, is a 400.
+    // `updatePreferencesSchema` requires an array (min 1) of entries carrying BOTH channel booleans. A flat body, or one channel on its own, is a 400.
     let body: unknown
     server.use(
       http.put('/api/v1/notifications/preferences', async ({ request }) => {

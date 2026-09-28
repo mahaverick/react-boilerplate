@@ -44,8 +44,7 @@ test.beforeAll(async () => {
 })
 
 test('preflights the SSE stream promptly, rather than holding it open', async ({ request }) => {
-  // That location carries `proxy_buffering off` and `proxy_read_timeout 24h`.
-  // A preflight must still be answered by Express and returned at once.
+  // That location carries `proxy_buffering off` and `proxy_read_timeout 24h`. A preflight must still be answered by Express and returned at once.
   const started = Date.now()
   const response = await request.fetch(`${APP_ORIGIN}/api/v1/notifications/stream`, {
     method: 'OPTIONS',

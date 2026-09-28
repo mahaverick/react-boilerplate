@@ -15,8 +15,7 @@ describe('slugSchema', () => {
   })
 
   it('REJECTS mixed case rather than lowercasing it', () => {
-    // The slug is a routing identifier. Rewriting "MyOrg" to "myorg" would
-    // address a different tenant than the one the user typed.
+    // The slug is a routing identifier. Rewriting "MyOrg" to "myorg" would address a different tenant than the one the user typed.
     const result = slugSchema.safeParse('MyOrg')
     expect(result.success).toBe(false)
   })
@@ -47,8 +46,7 @@ describe('slugSchema', () => {
 
 describe('newTenantSchema', () => {
   it('drops blank optional fields instead of posting an empty string', () => {
-    // The backend's own `.min(1)` refuses '', and an untouched input submits
-    // exactly that.
+    // The backend's own `.min(1)` refuses '', and an untouched input submits exactly that.
     const parsed = newTenantSchema.parse({
       name: '  Acme  ',
       slug: 'acme',
@@ -57,10 +55,7 @@ describe('newTenantSchema', () => {
       website: '',
     })
     expect(parsed).toEqual({ name: 'Acme', slug: 'acme' })
-    // Asserted through JSON, which is what actually goes over the wire: Zod
-    // keeps the key present with an `undefined` value, and `JSON.stringify`
-    // (axios' serializer) is what drops it. `''` reaching the API would be a
-    // 400 on a field the user never filled in.
+    // Asserted through JSON, which is what actually goes over the wire: Zod keeps the key present with an `undefined` value, and `JSON.stringify` (axios' serializer) is what drops it. `''` reaching the API would be a 400 on a field the user never filled in.
     expect(JSON.parse(JSON.stringify(parsed))).toEqual({ name: 'Acme', slug: 'acme' })
   })
 
@@ -86,8 +81,7 @@ describe('updateTenantSchema', () => {
   })
 
   it('sends null, not undefined, for a cleared field', () => {
-    // null CLEARS the column; undefined would mean "leave it alone", and the
-    // old value the user just deleted would come straight back.
+    // null CLEARS the column; undefined would mean "leave it alone", and the old value the user just deleted would come straight back.
     expect(updateTenantSchema.parse({ description: '' })).toEqual({ description: null })
   })
 })
@@ -138,9 +132,7 @@ describe('tenantSettingsFormSchema', () => {
   })
 
   it('refuses a blank timezone or locale instead of dropping the key', () => {
-    // Both columns are NOT NULL with a default and the form always shows the
-    // current value, so an emptied box cannot mean "clear it" — and dropping
-    // it from the payload would report success while the old value came back.
+    // Both columns are NOT NULL with a default and the form always shows the current value, so an emptied box cannot mean "clear it" — and dropping it from the payload would report success while the old value came back.
     const base = { timezone: 'UTC', locale: 'en', metadata: '' }
     expect(tenantSettingsFormSchema.safeParse({ ...base, timezone: '  ' }).success).toBe(false)
     expect(tenantSettingsFormSchema.safeParse({ ...base, locale: '' }).success).toBe(false)

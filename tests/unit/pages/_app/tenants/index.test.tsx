@@ -87,8 +87,7 @@ describe('tenants list', () => {
     renderAppAt('/tenants')
 
     await user.type(await screen.findByLabelText('Slug'), 'MyOrg')
-    // The slug is a routing identifier: silently rewriting "MyOrg" to "myorg"
-    // would address a different tenant than the one the user typed.
+    // The slug is a routing identifier: silently rewriting "MyOrg" to "myorg" would address a different tenant than the one the user typed.
     expect(await screen.findByText(/must be lowercase letters/i)).toBeInTheDocument()
   })
 
@@ -97,9 +96,7 @@ describe('tenants list', () => {
     renderAppAt('/tenants')
 
     await user.type(await screen.findByLabelText('Slug'), 'a')
-    // Live validation is scoped to the field being edited. Running the whole
-    // schema on change put "Name is required." under an untouched Name as
-    // soon as the first character of the slug was typed.
+    // Live validation is scoped to the field being edited: running the whole schema on change would put "Name is required." under an untouched Name as soon as the first character of the slug is typed.
     expect(screen.queryByText('Name is required.')).not.toBeInTheDocument()
     // And the slug's own live feedback still works: 'a' is too short.
     expect(await screen.findByText(/at least 3 characters/i)).toBeInTheDocument()
@@ -111,8 +108,7 @@ describe('tenants list', () => {
 
     await user.type(await screen.findByLabelText('Slug'), 'acme')
     await user.click(screen.getByRole('button', { name: 'Create tenant' }))
-    // The whole schema still has the last word on submit — nothing escapes
-    // by being untouched.
+    // The whole schema still has the last word on submit — nothing escapes by being untouched.
     expect(await screen.findByText('Name is required.')).toBeInTheDocument()
   })
 
@@ -124,11 +120,14 @@ describe('tenants list', () => {
     expect(await screen.findByText('This slug is reserved and cannot be used.')).toBeInTheDocument()
   })
 
-  // A FAILED load and an account that belongs to nothing render the same
-  // shape — `data` is undefined in both — so the page used to answer a 500
-  // with "You do not belong to any tenants yet. Create one below.", which is
-  // a claim about the account made on the strength of a request that failed,
-  // and an invitation to create a tenant the user may already own.
+  /**
+   * A FAILED load and an account that belongs to nothing render the same
+   * shape — `data` is undefined in both — so without this the page would
+   * answer a 500 with "You do not belong to any tenants yet. Create one
+   * below.", a claim about the account made on the strength of a request
+   * that failed, and an invitation to create a tenant the user may already
+   * own.
+   */
   it('shows a retry, not the empty state, when the list fails to load', async () => {
     server.use(http.get('/api/v1/tenants', () => fail('Something went wrong', 500)))
     renderAppAt('/tenants')
@@ -176,8 +175,7 @@ describe('tenants list', () => {
     await waitFor(() => {
       expect(posted).not.toBeNull()
     })
-    // Trimmed by the schema, and the untouched description is ABSENT rather
-    // than posted as '' — which the API's own `.min(1)` would refuse.
+    // Trimmed by the schema, and the untouched description is ABSENT rather than posted as '' — which the API's own `.min(1)` would refuse.
     expect(posted).toEqual({ name: 'Acme Corp', slug: 'acme' })
   })
 
@@ -199,15 +197,13 @@ describe('tenants list', () => {
 })
 
 /**
- * Where findings 1 and 2 meet.
- *
- * Neither bug is this one on its own. The SSE path ended the session without
- * moving anybody, and the list answered a failed load with its empty state —
- * and composed, they put a user whose session has just died in front of a
- * page telling them they belong to no organizations and offering to create
- * one. Two separately-plausible behaviours producing a screen that lies.
- *
- * This is why the fixes ship together, and it is what this test pins.
+ * A session that dies on the SSE path while the tenant list is still
+ * loading must both move the user to /login AND, until that navigation
+ * completes, show the list's request as failed — not empty. The two
+ * behaviours compose: a failed load and "belongs to no tenants" render
+ * identically, so without the failed-request state a session that just
+ * died would show a page inviting the user to create an organization they
+ * may already own.
  */
 describe('a session that ends on the SSE path, while the tenant list is loading', () => {
   let assign: ReturnType<typeof vi.fn>
@@ -217,8 +213,7 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
     queryClient.clear()
     MockFetchStream.instances = []
     stubStreamFetch(STREAM_URL)
-    // jsdom's location is unforgeable, and a real `assign` here would only
-    // log "Not implemented: navigation" — asserting nothing.
+    // jsdom's location is unforgeable, and a real `assign` here would only log "Not implemented: navigation" — asserting nothing.
     assign = vi.fn()
     vi.stubGlobal('location', {
       ...window.location,
@@ -237,24 +232,23 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
   })
 
   afterEach(() => {
-    // Puts back whatever fetch setup.ts's own globals had before this
-    // test's stub, and the real location — NOT `undefined`, which the next
-    // file would inherit.
+    // Puts back whatever fetch setup.ts's own globals had before this test's stub, and the real location — NOT `undefined`, which the next file would inherit.
     vi.unstubAllGlobals()
   })
 
+  /**
+   * The list is held open until the session has died, then answers a
+   * plain 401. Plain, not ACCESS_TOKEN_EXPIRED: the interceptor does not
+   * retry it (it is a verdict, ending a session that is already over),
+   * which is exactly what leaves the query with no data.
+   */
   it('redirects to /login and shows the failure, never the empty state', async () => {
-    // The list is held open until the session has died, then answers a plain
-    // 401. Plain, not ACCESS_TOKEN_EXPIRED: the interceptor does not retry it
-    // (it is a verdict, ending a session that is already over), which is
-    // exactly what leaves the query with no data.
     let release: (() => void) | undefined
     let attempt = 0
     server.use(
       http.get('/api/v1/tenants', async () => {
         attempt += 1
-        // Only the first attempt waits; the queryClient's `retry: 1` sends a
-        // second, and it must not hang the test.
+        // Only the first attempt waits; the queryClient's `retry: 1` sends a second, and it must not hang the test.
         if (attempt === 1) await new Promise<void>((resolve) => (release = resolve))
         return fail('Unauthorized', 401)
       }),
@@ -269,15 +263,13 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
     // The stream drops, the reconnect refreshes, and the refresh is judged.
     latestFetchStream().fail()
 
-    // Finding 1: the session ends AND the user is actually moved, carrying
-    // where they were so signing back in returns them to /tenants.
+    // The session ends AND the user is actually moved, carrying where they were so signing back in returns them to /tenants.
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false))
     await waitFor(() =>
       expect(assign).toHaveBeenCalledWith(`/login?redirect=${encodeURIComponent('/tenants')}`)
     )
 
-    // Finding 2: and until that navigation completes, the page it is leaving
-    // says the request failed — not that this account owns nothing.
+    // And until that navigation completes, the page it is leaving says the request failed — not that this account owns nothing.
     release?.()
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not load your tenants/i)
     expect(screen.queryByText(/do not belong to any tenants/i)).not.toBeInTheDocument()

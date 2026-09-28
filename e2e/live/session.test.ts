@@ -10,10 +10,9 @@ import {
 } from './helpers'
 
 /**
- * The three behaviours `docs/superpowers/decisions/2026-09-22-open-items.md`
- * §1 records as NEVER HAVING BEEN EXECUTED. Each is unit-tested and was
- * inferred end to end; each needs a real server, a real cookie jar and a real
- * reload, which is exactly what the test harness did not have.
+ * Session behaviours that need a real server, a real cookie jar and a real
+ * reload to verify — each is also unit-tested, but a real reload is
+ * something no unit-test harness can provide.
  *
  * Requires a live express-boilerplate on :4040 plus its docker services, so
  * the whole file is skipped unless `E2E_LIVE=1`. Run it with
@@ -30,13 +29,16 @@ test.beforeAll(async () => {
   }
 })
 
+/**
+ * The access token is memory-only by design (CLAUDE.md), so a reload starts
+ * unauthenticated and the root route's beforeLoad has to restore the
+ * session from the refresh cookie before any guard runs. If that ordering
+ * is wrong the reader is bounced to /login, which is the whole risk this
+ * pins.
+ */
 test('a reload keeps you signed in, and refreshes exactly once', async ({ page }) => {
   await signIn(page, freshEmail())
 
-  // The access token is memory-only by design (CLAUDE.md), so a reload starts
-  // unauthenticated and the root route's beforeLoad has to restore the session
-  // from the refresh cookie before any guard runs. If that ordering is wrong
-  // the reader is bounced to /login, which is the whole risk this pins.
   const refreshes: string[] = []
   page.on('request', (request) => {
     if (request.url().includes('/auth/refresh')) refreshes.push(request.url())
@@ -45,15 +47,9 @@ test('a reload keeps you signed in, and refreshes exactly once', async ({ page }
   await page.reload()
   await expect(page).not.toHaveURL(/login/, { timeout: 15_000 })
 
-  // EXACTLY one. `ensureSession()` is documented as the only caller of
-  // /auth/refresh, and its single-flight wrapper is what makes N concurrent
-  // 401s produce one refresh. Nothing had ever asserted the count.
+  // EXACTLY one: `ensureSession()` is the only caller of /auth/refresh, and its single-flight wrapper is what makes N concurrent 401s produce one refresh.
   expect(refreshes).toHaveLength(1)
 })
-
-// The SSE reconnect used to sit here as `fixme`. It now lives in
-// `e2e/nginx/sse.test.ts` and PASSES: it needed the production nginx, whose
-// proxy propagates the upstream close that the Vite dev proxy swallows.
 
 test('the refresh cookie is scoped and flagged as the SPA assumes', async ({ request }) => {
   const email = freshEmail()
@@ -67,26 +63,25 @@ test('the refresh cookie is scoped and flagged as the SPA assumes', async ({ req
   const cookie = response.headersArray().find((h) => h.name.toLowerCase() === 'set-cookie')?.value
   expect(cookie).toBeTruthy()
 
-  // Each of these was "inferred" per open-items §1 — asserted here against a
-  // real Set-Cookie for the first time. Path is the one the SPA depends on
-  // surviving the proxy.
+  // Path is the one the SPA depends on surviving the proxy.
   expect(cookie).toMatch(/refreshToken=/)
   expect(cookie).toMatch(/Path=\/api\/v1\/auth/)
   expect(cookie).toMatch(/HttpOnly/i)
   expect(cookie).toMatch(/SameSite=Strict/i)
 
-  // OPEN-ITEMS §1.3 IS MIS-STATED, and this is what corrects it.
-  //
-  // It claims `X-Forwarded-Proto` drives the cookie's Secure flag. For this
-  // cookie it does not. express's `isCookieSecure(env)` (env.config.ts) returns
-  // `COOKIE_SECURE ?? APP_ENV !== 'local'` and never reads `req.secure`, so no
-  // request header can change it. Sending the header changes nothing, which is
-  // what this asserts.
-  //
-  // TRUST_PROXY decides how much of X-Forwarded-For to believe for `req.ip`,
-  // which the IP-keyed rate limiters consume. With X-Forwarded-Proto it also
-  // decides `req.secure`, which only the OAuth session cookie depends on:
-  // express-session silently skips a Secure cookie on a non-HTTPS request.
+  /**
+   * `X-Forwarded-Proto` does NOT drive this cookie's Secure flag: express's
+   * `isCookieSecure(env)` (env.config.ts) returns
+   * `COOKIE_SECURE ?? APP_ENV !== 'local'` and never reads `req.secure`, so
+   * no request header can change it. Sending the header changes nothing,
+   * which is what this asserts.
+   *
+   * TRUST_PROXY decides how much of X-Forwarded-For to believe for
+   * `req.ip`, which the IP-keyed rate limiters consume. With
+   * X-Forwarded-Proto it also decides `req.secure`, which only the OAuth
+   * session cookie depends on: express-session silently skips a Secure
+   * cookie on a non-HTTPS request.
+   */
   const forwarded = await request.post(`${API_ORIGIN}/api/v1/auth/login`, {
     headers: { 'X-Forwarded-Proto': 'https' },
     data: { email, password: PASSWORD },
@@ -97,9 +92,6 @@ test('the refresh cookie is scoped and flagged as the SPA assumes', async ({ req
     .find((h) => h.name.toLowerCase() === 'set-cookie')?.value
   expect(forwardedCookie).not.toMatch(/;\s*Secure/i)
 
-  // And neither cookie is Secure under APP_ENV=local with COOKIE_SECURE unset,
-  // which is how express's .env.example sets the live backend up. That is
-  // deliberate: a browser refuses a Secure cookie over http://, so a
-  // hard-coded true would make local cookie login impossible.
+  // And neither cookie is Secure under APP_ENV=local with COOKIE_SECURE unset, which is how express's .env.example sets the live backend up. That is deliberate: a browser refuses a Secure cookie over http://, so a hard-coded true would make local cookie login impossible.
   expect(cookie).not.toMatch(/;\s*Secure/i)
 })

@@ -6,11 +6,9 @@ import { expect, test } from '../hermetic'
  * Everything here runs against the MSW harness in `e2e/harness/`, so it needs
  * no backend. `?state=` picks which answer the members endpoint gives.
  *
- * These are the assertions behind
- * `docs/superpowers/decisions/2026-09-22-phase-b-evidence.md` — written after
- * screenshots caught two things 249 unit tests did not: an empty state that
- * rendered a bare table header, and a table whose controls sat off-screen on a
- * phone.
+ * These assertions cover what a layout-blind unit suite cannot see: an
+ * empty state that renders a bare table header, and a table whose controls
+ * sit off-screen on a phone.
  */
 
 const DESKTOP = { width: 1440, height: 900 }
@@ -23,9 +21,7 @@ test.describe('desktop', () => {
     await page.goto('/e2e/harness/')
     await expect(page.getByRole('row')).toHaveCount(3) // header + two members
 
-    // A silent webfont failure is the classic "looks cheap" tell and is
-    // invisible to every code-reading check: the class is still there, the
-    // family still resolves, and the glyphs are Times.
+    // A silent webfont failure is the classic "looks cheap" tell and is invisible to every code-reading check: the class is still there, the family still resolves, and the glyphs are Times.
     const geist = await page.evaluate(() => document.fonts.check('16px "Geist Variable"'))
     expect(geist).toBe(true)
   })
@@ -40,12 +36,9 @@ test.describe('desktop', () => {
     page,
   }) => {
     await page.goto('/e2e/harness/?state=error')
-    // The list query retries once (`retry: 1`, src/router.tsx) after TanStack
-    // Query's 1s default retry delay, so the error state replaces the skeleton
-    // after about 1.5s (measured). 10s is headroom for a loaded machine.
+    // The list query retries once (`retry: 1`, src/router.tsx) after TanStack Query's 1s default retry delay, so the error state replaces the skeleton after about 1.5s; 10s is headroom for a loaded machine.
     await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible({ timeout: 10_000 })
-    // `.` rather than an apostrophe: the copy uses a typographic ’ (U+2019),
-    // and an ASCII ' silently matches nothing.
+    // `.` rather than an apostrophe: the copy uses a typographic ’ (U+2019), and an ASCII ' silently matches nothing.
     await expect(page.getByText(/could not load this tenant.s members/i)).toBeVisible()
   })
 })
@@ -57,15 +50,13 @@ test.describe('mobile', () => {
     await page.goto('/e2e/harness/')
     await expect(page.getByText('Cleo D')).toBeVisible()
 
-    // The table is what pushed Actions and the last-owner explanation past the
-    // right edge; the card path exists so nothing needs horizontal scroll.
+    // The table is what pushes Actions and the last-owner explanation past the right edge; the card path exists so nothing needs horizontal scroll.
     await expect(page.getByRole('table')).toHaveCount(0)
 
     const remove = page.getByRole('button', { name: 'Remove' })
     await expect(remove).toBeInViewport()
 
-    // Nothing may overflow the viewport. This is the assertion that would
-    // catch a card layout regressing back into a wide row.
+    // Nothing may overflow the viewport. This is the assertion that would catch a card layout regressing back into a wide row.
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
     )
@@ -73,8 +64,7 @@ test.describe('mobile', () => {
   })
 
   test('shows the whole last-owner explanation, not a clipped half of it', async ({ page }) => {
-    // The sole owner is the case that renders it, and on the table path this
-    // sentence was cut mid-way at the scroll boundary.
+    // The sole owner is the case that renders it, and on the table path this sentence would be cut mid-way at the scroll boundary.
     await page.goto('/e2e/harness/?state=soleowner')
     const reason = page.getByText(/a tenant must always have an owner/i)
     await expect(reason).toBeVisible()

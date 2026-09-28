@@ -17,8 +17,7 @@ describe('usePlatformTenantSearch', () => {
   }
 
   beforeEach(() => {
-    // `retry: 1` like the router's client, with no delay, so the hook's own
-    // retry rule is what decides.
+    // `retry: 1` like the router's client, with no delay, so the hook's own retry rule is what decides.
     client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } })
     resetSessionForTests()
     useAuthStore.setState({
@@ -29,8 +28,7 @@ describe('usePlatformTenantSearch', () => {
     })
   })
 
-  // A non-staff caller gets a 404 here; asking again changes nothing, the
-  // same reason `usePlatformAuditLog` does not retry one either.
+  // A non-staff caller gets a 404 here; asking again changes nothing, the same reason `usePlatformAuditLog` does not retry one either.
   it('does not retry a 404', async () => {
     let calls = 0
     server.use(
