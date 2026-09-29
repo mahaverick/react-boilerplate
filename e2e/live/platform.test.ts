@@ -48,17 +48,17 @@ async function staffSignedIn(page: Page, role: 'viewer' | 'admin'): Promise<stri
   return staff
 }
 
-test('a staff viewer finds a tenant by search, is told so, and cannot change it', async ({
-  page,
-}) => {
+test('a staff viewer opens a tenant by URL, is told so, and cannot change it', async ({ page }) => {
   const { name, slug } = await ownerWithTenant()
   const staff = await staffSignedIn(page, 'viewer')
 
-  // The All tenants group only exists for staff, which proves `platformRole` reached the SPA with the sign-in itself (no reload happened).
-  await page.getByRole('combobox', { name: /^Switch tenant/ }).click()
-  await page.getByLabel('Search tenants').fill(slug)
-  const all = page.getByRole('group', { name: 'All tenants' })
-  await all.getByRole('option', { name }).click()
+  // Proves platformRole reached the SPA from the login response, before any reload.
+  await page.getByRole('button', { name: /^Account menu for/ }).click()
+  await expect(page.getByRole('menuitem', { name: 'Platform' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  // Staff find tenants in Apex; here they arrive by URL, as an Apex link would send them.
+  await page.goto(`/tenants/${slug}`)
 
   await expect(page).toHaveURL(new RegExp(`/tenants/${slug}$`))
   const banner = page.getByRole('status').filter({ hasText: 'as platform staff' })

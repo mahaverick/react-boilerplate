@@ -29,7 +29,7 @@ import {
 } from '@/tests/fixtures/ids'
 import { fail, ok, tenantDetail, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
-import type { AuditEntry, PlatformAuditEntry } from '@/types/api.types'
+import type { AuditEntry } from '@/types/api.types'
 
 /**
  * THE ACCESSIBILITY GATE. Spec section 9's criteria, made enforceable.
@@ -588,23 +588,6 @@ describe('signed-in pages', () => {
     await screen.findByText(/as platform staff/)
     await expectNoViolations()
   })
-
-  it('platform activity has no axe violations', async () => {
-    useAuthStore.setState({ user: { ...testUser, platformRole: 'admin' } })
-    const entries: PlatformAuditEntry[] = AUDIT_ENTRIES.map((entry) => ({
-      ...entry,
-      tenant: { id: TENANT_ID, name: 'Acme Corp', slug: 'acme' },
-    }))
-    server.use(
-      http.get('/api/v1/platform/audit-log', () =>
-        ok({ entries, nextCursor: null }, 'Audit log retrieved.')
-      ),
-      http.get('/api/v1/tenants/platform/members', () => ok(MEMBERS, 'Members retrieved.'))
-    )
-    renderAppAt('/platform/activity')
-    await screen.findByText('changed the settings (timezone)')
-    await expectNoViolations()
-  })
 })
 
 /**
@@ -792,47 +775,6 @@ describe('open overlays', () => {
     }
 
     await expectNoViolations()
-  })
-
-  /**
-   * The same shape as the switcher, on a page: the search box lives inside
-   * the popup, so Base UI makes the popup a named `dialog` and the portaled
-   * list is not page content outside every landmark. Graded at DOCUMENT scope.
-   */
-  it('has no violations with the platform activity tenant filter open', async () => {
-    useAuthStore.setState({ user: { ...testUser, platformRole: 'admin' } })
-    server.use(
-      http.get('/api/v1/platform/tenants', () =>
-        ok(
-          {
-            tenants: [
-              {
-                id: TENANT_ID,
-                name: 'Acme Corp',
-                slug: 'acme',
-                lifecycleState: 'active',
-                memberCount: 2,
-                createdAt: '2026-01-01T00:00:00.000Z',
-              },
-            ],
-            nextCursor: null,
-          },
-          'Tenants retrieved.'
-        )
-      ),
-      http.get('/api/v1/tenants/platform/members', () => ok(MEMBERS, 'Members retrieved.'))
-    )
-    const user = userEvent.setup()
-    renderAppAt('/platform/activity')
-    await screen.findByRole('heading', { name: 'Platform activity', level: 1 })
-
-    await user.click(screen.getByRole('combobox', { name: /filter by tenant/i }))
-
-    // A popup that opened empty would pass axe while grading no list at all.
-    expect(await screen.findByRole('option', { name: 'Acme Corp' })).toBeInTheDocument()
-    await expectNoViolations()
-    const popup = screen.getByRole('dialog', { name: 'Filter by tenant' })
-    expect(within(popup).getByRole('listbox')).toBeInTheDocument()
   })
 
   it('has no violations with the staff user menu open', async () => {

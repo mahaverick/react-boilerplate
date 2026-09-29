@@ -135,15 +135,8 @@ export const handlers = [
       'Invitation accepted.'
     )
   ),
-  // Staff-only search. The switcher asks only for staff, only while open.
-  http.get('/api/v1/platform/tenants', () =>
-    ok({ tenants: [], nextCursor: null }, 'Tenants retrieved.')
-  ),
-  // Both audit logs, empty. A test about activity overrides them.
+  // Tenant audit log, empty. A test about activity overrides it.
   http.get('/api/v1/tenants/:slug/audit-log', () =>
-    ok({ entries: [], nextCursor: null }, 'Audit log retrieved.')
-  ),
-  http.get('/api/v1/platform/audit-log', () =>
     ok({ entries: [], nextCursor: null }, 'Audit log retrieved.')
   ),
 ]

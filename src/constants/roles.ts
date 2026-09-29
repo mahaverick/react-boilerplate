@@ -107,8 +107,3 @@ export function canViewActivity(role: MembershipRole): boolean {
 export function isStaff(platformRole: MembershipRole | null | undefined): boolean {
   return platformRole !== null && platformRole !== undefined
 }
-
-/** `GET /platform/audit-log` and its page: platform owner or admin. */
-export function canViewPlatformActivity(platformRole: MembershipRole | null | undefined): boolean {
-  return platformRole === 'owner' || platformRole === 'admin'
-}

@@ -5,26 +5,18 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http } from 'msw'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
-import { platformKeys, SEARCH_DEBOUNCE_MS } from '@/queries/platform.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import {
-  PLATFORM_TENANT_ID,
-  TENANT_ID,
-  TENANT_ID_2,
-  TENANT_ID_3,
-  TENANT_ID_4,
-  TENANT_ID_9,
-} from '@/tests/fixtures/ids'
+import { PLATFORM_TENANT_ID, TENANT_ID, TENANT_ID_2, TENANT_ID_9 } from '@/tests/fixtures/ids'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
-import type { PlatformTenantRow } from '@/types/api.types'
 
 function tenantRow(id: string, name: string, slug: string) {
   return {
@@ -44,21 +36,6 @@ function tenantRow(id: string, name: string, slug: string) {
 
 const ACME = tenantRow(TENANT_ID, 'Acme Corp', 'acme')
 const PLATFORM = { ...tenantRow(PLATFORM_TENANT_ID, 'Platform', 'platform'), isPlatform: true }
-
-function searchRow(id: string, name: string, slug: string): PlatformTenantRow {
-  return {
-    id,
-    name,
-    slug,
-    lifecycleState: 'active',
-    memberCount: 3,
-    createdAt: '2026-01-01T00:00:00.000Z',
-  }
-}
-
-const ACME_ROW = searchRow(TENANT_ID, 'Acme Corp', 'acme')
-const GLOBEX_ROW = searchRow(TENANT_ID_2, 'Globex', 'globex')
-const INITECH_ROW = searchRow(TENANT_ID_3, 'Initech', 'initech')
 
 /**
  * Driven through a real RouterProvider: the switcher reads
@@ -94,19 +71,6 @@ function signInAs(platformRole: 'viewer' | null) {
     isAuthenticated: true,
     isBootstrapped: true,
   })
-}
-
-/** Every `/platform/tenants` request's query string, in order. */
-function recordSearches(respond: (url: URL) => Response | Promise<Response>) {
-  const seen: URL[] = []
-  server.use(
-    http.get('/api/v1/platform/tenants', ({ request }) => {
-      const url = new URL(request.url)
-      seen.push(url)
-      return respond(url)
-    })
-  )
-  return seen
 }
 
 describe('TenantSwitcher', () => {
@@ -152,6 +116,20 @@ describe('TenantSwitcher', () => {
 
     await screen.findByRole('option', { name: 'Acme Corp' })
     expect(screen.queryByRole('option', { name: 'Platform' })).not.toBeInTheDocument()
+  })
+
+  it('says No tenants yet, with no All tenants group, for staff whose only membership is the platform tenant', async () => {
+    signInAs('viewer')
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: PLATFORM, role: 'viewer', isPlatform: true }], 'Tenants.')
+      )
+    )
+    renderShell()
+    await openSwitcher()
+
+    expect(await screen.findByText('No tenants yet')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'All tenants' })).not.toBeInTheDocument()
   })
 
   it('says the account has no tenants when the list really is empty', async () => {
@@ -206,268 +184,67 @@ describe('TenantSwitcher', () => {
     expect(screen.queryByRole('option', { name: 'Acme Corp' })).not.toBeInTheDocument()
   })
 
-  // A non-staff caller gets a 404 there, and asking would only prove it.
-  it('never asks for all tenants when the user is not staff', async () => {
+  it.each([null, 'viewer', 'owner'] as const)(
+    'never asks for all tenants (platformRole %s): staff search lives in Apex',
+    async (platformRole) => {
+      useAuthStore.setState({ user: { ...testUser, platformRole } })
+      let platformCalls = 0
+      server.use(
+        http.get('/api/v1/platform/tenants', () => {
+          platformCalls += 1
+          return ok({ tenants: [], nextCursor: null }, 'Tenants retrieved.')
+        })
+      )
+      const user = userEvent.setup()
+      renderShell()
+
+      await user.click(await screen.findByRole('combobox', { name: /^Switch tenant/ }))
+      await user.keyboard('acme')
+      await screen.findByRole('dialog', { name: 'Switch tenant' })
+
+      await settle(300, 'absence has no event: the removed search was debounced 250 ms')
+      expect(platformCalls).toBe(0)
+      expect(screen.queryByRole('group', { name: 'All tenants' })).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Search tenants')).toHaveAttribute(
+        'placeholder',
+        'Search your tenants…'
+      )
+    }
+  )
+
+  it('navigates to the chosen tenant', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
+      ),
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(ACME, 'owner', 'member'), 'Tenant retrieved.')
       )
     )
-    const seen = recordSearches(() => ok({ tenants: [], nextCursor: null }, 'Tenants.'))
-    renderShell()
+    const router = renderShell()
     const user = await openSwitcher()
-    await screen.findByRole('option', { name: 'Acme Corp' })
-    await user.type(screen.getByLabelText('Search tenants'), 'zzz')
 
-    await screen.findByText('No tenants match your search')
-    expect(seen).toHaveLength(0)
-    expect(screen.queryByRole('group', { name: 'All tenants' })).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('option', { name: 'Acme Corp' }))
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/tenants/acme')
+    })
   })
 
-  describe('as staff', () => {
-    beforeEach(() => {
-      signInAs('viewer')
-    })
-
-    afterEach(() => {
-      vi.useRealTimers()
-    })
-
-    it('adds an All tenants group, without repeating a tenant already in Your tenants', async () => {
-      server.use(
-        http.get('/api/v1/tenants', () =>
-          ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
-        )
-      )
-      recordSearches(() => ok({ tenants: [ACME_ROW, GLOBEX_ROW], nextCursor: null }, 'Tenants.'))
-      renderShell()
-      await openSwitcher()
-
-      const all = await screen.findByRole('group', { name: 'All tenants' })
-      expect(within(all).getByRole('option', { name: 'Globex' })).toBeInTheDocument()
-      expect(within(all).queryByRole('option', { name: 'Acme Corp' })).not.toBeInTheDocument()
-      expect(screen.getAllByRole('option', { name: 'Acme Corp' })).toHaveLength(1)
-    })
-
-    /**
-     * resolveTenant only opens active tenants, so a suspended or archived
-     * row would 404 the moment it was chosen. Leaving them out is
-     * simplest: there is nowhere for choosing one to go.
-     */
-    it('leaves suspended and archived tenants out of All tenants, since neither can be opened', async () => {
-      server.use(
-        http.get('/api/v1/tenants', () =>
-          ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
-        )
-      )
-      recordSearches(() =>
+  // Staff have no list row for a tenant they reached by platform access, so the label comes from the tenant the route has already loaded.
+  it('names a tenant opened by platform access in the trigger', async () => {
+    server.use(
+      http.get('/api/v1/tenants/globex', () =>
         ok(
-          {
-            tenants: [
-              GLOBEX_ROW,
-              { ...INITECH_ROW, lifecycleState: 'suspended' },
-              { ...searchRow(TENANT_ID_4, 'Umbrella', 'umbrella'), lifecycleState: 'archived' },
-            ],
-            nextCursor: null,
-          },
-          'Tenants.'
+          tenantDetail(tenantRow(TENANT_ID_2, 'Globex', 'globex'), 'viewer', 'platform'),
+          'Tenant retrieved.'
         )
       )
-      renderShell()
-      await openSwitcher()
+    )
+    renderShell('/tenants/globex')
 
-      const all = await screen.findByRole('group', { name: 'All tenants' })
-      expect(within(all).getByRole('option', { name: 'Globex' })).toBeInTheDocument()
-      expect(within(all).queryByRole('option', { name: 'Initech' })).not.toBeInTheDocument()
-      expect(within(all).queryByRole('option', { name: 'Umbrella' })).not.toBeInTheDocument()
-    })
-
-    // Four keystrokes inside the 250ms window: one request for the word, not one per letter.
-    it('debounces the search, sending one request for a burst of typing', async () => {
-      const seen = recordSearches((url) =>
-        ok(
-          { tenants: url.searchParams.get('q') === 'glob' ? [GLOBEX_ROW] : [], nextCursor: null },
-          'Tenants.'
-        )
-      )
-      renderShell()
-      const user = await openSwitcher()
-      await waitFor(() => {
-        expect(seen).toHaveLength(1)
-      })
-      // An empty box is no `q` at all: the API refuses a zero-length term.
-      expect(seen[0]?.searchParams.has('q')).toBe(false)
-
-      await user.type(screen.getByLabelText('Search tenants'), 'glob')
-
-      expect(await screen.findByRole('option', { name: 'Globex' })).toBeInTheDocument()
-      const terms = seen.map((url) => url.searchParams.get('q')).filter((q) => q !== null)
-      expect(terms).toEqual(['glob'])
-    })
-
-    // `q.trim()` happens inside the hook, so three spaces is the same empty term as never having typed anything — never sent, past the debounce.
-    it('sends no q for a whitespace-only search', async () => {
-      const seen = recordSearches(() => ok({ tenants: [], nextCursor: null }, 'Tenants.'))
-      renderShell()
-      await openSwitcher()
-      await waitFor(() => {
-        expect(seen.length).toBeGreaterThan(0)
-      })
-
-      // Keystroke delays run on the fake clock, so this user needs advanceTimers.
-      vi.useFakeTimers({ shouldAdvanceTime: true })
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-      await user.type(screen.getByLabelText('Search tenants'), '   ')
-      await act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS))
-
-      // Past the debounce, the whitespace term has rendered. Had it produced a `q`, it would have made a second query key on that render.
-      const searchKeys = queryClient
-        .getQueryCache()
-        .findAll({ queryKey: ['platform', 'tenants'] })
-        .map((query) => query.queryKey)
-      expect(searchKeys).toEqual([platformKeys.tenants('')])
-      expect(seen.every((url) => !url.searchParams.has('q'))).toBe(true)
-    })
-
-    it('says the search FAILED rather than that nothing matched', async () => {
-      recordSearches(() => fail('Something went wrong', 500))
-      renderShell()
-      await openSwitcher()
-
-      expect(await screen.findByText('All tenants could not be loaded')).toBeInTheDocument()
-    })
-
-    // Keyboard-reachable, not scroll-only: the option sits in the arrow-key order, and Enter on it loads the next page and keeps the popup open.
-    it('loads the next page from a Load more option chosen by keyboard', async () => {
-      const seen = recordSearches((url) =>
-        url.searchParams.get('cursor') === 'c2'
-          ? ok({ tenants: [INITECH_ROW], nextCursor: null }, 'Tenants.')
-          : ok({ tenants: [GLOBEX_ROW], nextCursor: 'c2' }, 'Tenants.')
-      )
-      renderShell()
-      const user = await openSwitcher()
-      const input = screen.getByLabelText('Search tenants')
-      const more = await screen.findByRole('option', { name: 'Load more tenants' })
-
-      await user.click(input)
-      for (let step = 0; step < 5; step += 1) {
-        if (input.getAttribute('aria-activedescendant') === more.id) break
-        await user.keyboard('{ArrowDown}')
-      }
-      expect(input).toHaveAttribute('aria-activedescendant', more.id)
-      await user.keyboard('{Enter}')
-
-      expect(await screen.findByRole('option', { name: 'Initech' })).toBeInTheDocument()
-      expect(seen.at(-1)?.searchParams.get('cursor')).toBe('c2')
-      expect(screen.getByRole('option', { name: 'Globex' })).toBeInTheDocument()
-      expect(screen.queryByRole('option', { name: 'Load more tenants' })).not.toBeInTheDocument()
-      expect(screen.getByRole('dialog', { name: 'Switch tenant' })).toBeInTheDocument()
-    })
-
-    it('keeps the earlier results listed, and says it is still searching, while the next term loads', async () => {
-      let releaseGlob!: () => void
-      const globHeld = new Promise<void>((resolve) => {
-        releaseGlob = resolve
-      })
-      const seen = recordSearches(async (url) => {
-        if (url.searchParams.get('q') !== 'glob') {
-          return ok({ tenants: [GLOBEX_ROW, INITECH_ROW], nextCursor: 'c2' }, 'Tenants.')
-        }
-        await globHeld
-        return ok({ tenants: [GLOBEX_ROW], nextCursor: null }, 'Tenants.')
-      })
-      renderShell()
-      const user = await openSwitcher()
-      expect(await screen.findByRole('option', { name: 'Initech' })).toBeInTheDocument()
-      expect(await screen.findByRole('option', { name: 'Load more tenants' })).toBeInTheDocument()
-
-      try {
-        await user.type(screen.getByLabelText('Search tenants'), 'glob')
-        await waitFor(() => {
-          expect(seen.at(-1)?.searchParams.get('q')).toBe('glob')
-        })
-        expect(screen.getByRole('option', { name: 'Initech' })).toBeInTheDocument()
-        expect(screen.getByText('Searching all tenants…')).toBeInTheDocument()
-        // The earlier term's next page is not this term's.
-        expect(screen.queryByRole('option', { name: 'Load more tenants' })).not.toBeInTheDocument()
-      } finally {
-        releaseGlob()
-      }
-      await waitFor(() => {
-        expect(screen.queryByRole('option', { name: 'Initech' })).not.toBeInTheDocument()
-      })
-      expect(screen.queryByText('Searching all tenants…')).not.toBeInTheDocument()
-    })
-
-    /**
-     * A failed page must stay retryable, not get stuck disabled — a click
-     * on the same option is the retry. The query client retries once on
-     * its own (`retry: 1`), so the first TWO `cursor=c2` requests are the
-     * automatic attempt and its retry; only the third is the user's
-     * click.
-     */
-    it('shows a retryable message when Load more fails, and a retry succeeds', async () => {
-      let attempt = 0
-      const seen = recordSearches((url) => {
-        if (url.searchParams.get('cursor') !== 'c2') {
-          return ok({ tenants: [GLOBEX_ROW], nextCursor: 'c2' }, 'Tenants.')
-        }
-        attempt += 1
-        return attempt <= 2
-          ? fail('Something went wrong', 500)
-          : ok({ tenants: [INITECH_ROW], nextCursor: null }, 'Tenants.')
-      })
-      renderShell()
-      const user = await openSwitcher()
-      const more = await screen.findByRole('option', { name: 'Load more tenants' })
-
-      await user.click(more)
-      const failed = await screen.findByRole('option', { name: 'Could not load more tenants' })
-
-      await user.click(failed)
-
-      expect(await screen.findByRole('option', { name: 'Initech' })).toBeInTheDocument()
-      expect(
-        screen.queryByRole('option', { name: 'Could not load more tenants' })
-      ).not.toBeInTheDocument()
-      expect(seen.filter((url) => url.searchParams.get('cursor') === 'c2')).toHaveLength(3)
-    })
-
-    it('navigates to the chosen tenant', async () => {
-      recordSearches(() => ok({ tenants: [GLOBEX_ROW], nextCursor: null }, 'Tenants.'))
-      server.use(
-        http.get('/api/v1/tenants/globex', () =>
-          ok(
-            tenantDetail(tenantRow(TENANT_ID_2, 'Globex', 'globex'), 'viewer', 'platform'),
-            'Tenant retrieved.'
-          )
-        )
-      )
-      const router = renderShell()
-      const user = await openSwitcher()
-
-      await user.click(await screen.findByRole('option', { name: 'Globex' }))
-
-      await waitFor(() => {
-        expect(router.state.location.pathname).toBe('/tenants/globex')
-      })
-    })
-
-    // Staff have no list row for a tenant they reached by platform access, so the label comes from the tenant the route has already loaded.
-    it('names a tenant opened by platform access in the trigger', async () => {
-      server.use(
-        http.get('/api/v1/tenants/globex', () =>
-          ok(
-            tenantDetail(tenantRow(TENANT_ID_2, 'Globex', 'globex'), 'viewer', 'platform'),
-            'Tenant retrieved.'
-          )
-        )
-      )
-      renderShell('/tenants/globex')
-
-      expect(
-        await screen.findByRole('combobox', { name: 'Switch tenant. Current: Globex' })
-      ).toBeInTheDocument()
-    })
+    expect(
+      await screen.findByRole('combobox', { name: 'Switch tenant. Current: Globex' })
+    ).toBeInTheDocument()
   })
 })

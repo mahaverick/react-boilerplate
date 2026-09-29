@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { History, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react'
+import { LogOut, ShieldCheck, User as UserIcon } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
-import { canViewPlatformActivity, isStaff } from '@/constants/roles'
+import { isStaff } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG, ROUTES } from '@/constants/routes'
 import { fullName } from '@/lib/format'
 import { useLogout } from '@/queries/auth.queries'
@@ -34,8 +34,8 @@ function initials(user: User | null): string {
  * the avatar, so the aria-label names it (Base UI's Tooltip emits no
  * role="tooltip" or aria-describedby); the label is on the rendered element,
  * whose own props win under useRender. For staff it links the platform tenant,
- * which the switcher leaves out: its Members and Invitations pages are staff
- * management.
+ * whose Members and Invitations pages are staff management; everything else
+ * for staff is in Apex.
  */
 export function UserMenu({ user }: { user: User | null }) {
   const logout = useLogout()
@@ -65,12 +65,6 @@ export function UserMenu({ user }: { user: User | null }) {
               >
                 <ShieldCheck className="mr-2 size-4" />
                 Platform
-              </DropdownMenuItem>
-            )}
-            {canViewPlatformActivity(user?.platformRole) && (
-              <DropdownMenuItem render={<Link to={ROUTES.platformActivity} />}>
-                <History className="mr-2 size-4" />
-                Platform activity
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
