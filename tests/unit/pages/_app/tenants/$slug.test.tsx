@@ -16,6 +16,7 @@ import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantAccess } from '@/types/api.types'
@@ -88,6 +89,20 @@ describe('tenant detail', () => {
    * configured boundary, a 500 would reach TanStack's bare default
    * instead: the raw error text, no retry, none of the app's chrome.
    */
+  it('renders the route error boundary, with a retry, for a non-404 failure', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+      http.get('/api/v1/tenants/acme', () => fail('Something went wrong', 500))
+    )
+    renderAppAt('/tenants/acme')
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/could not load this tenant/i)
+    expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    // Not the 404 panel: the tenant may be perfectly fine and unreachable.
+    expect(screen.queryByText(/Tenant not available/i)).not.toBeInTheDocument()
+  })
+
   it('says a suspended tenant is suspended, not that it is missing', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
@@ -103,18 +118,43 @@ describe('tenant detail', () => {
     expect(screen.queryByText(/not one of yours/)).not.toBeInTheDocument()
   })
 
-  it('renders the route error boundary, with a retry, for a non-404 failure', async () => {
+  it('shows no not-found text while the tenant list is still loading, then the suspended panel', async () => {
     server.use(
-      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
-      http.get('/api/v1/tenants/acme', () => fail('Something went wrong', 500))
+      http.get('/api/v1/tenants', async () => {
+        await settle(150, 'delays the list so the loader resolves first')
+        return ok(
+          [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
+          'Tenants.'
+        )
+      }),
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+    )
+    renderAppAt('/tenants/acme')
+
+    const seen: boolean[] = []
+    const observer = new MutationObserver(() =>
+      seen.push(/not one of yours|Tenant not available/.test(document.body.textContent))
+    )
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    try {
+      await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
+    } finally {
+      observer.disconnect()
+    }
+    expect(seen).not.toContain(true)
+  })
+
+  it('claims neither suspended nor missing when the tenant list fails', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () => fail('Something went wrong', 500)),
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
     )
     renderAppAt('/tenants/acme')
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load this tenant/i)
-    expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
-    // Not the 404 panel: the tenant may be perfectly fine and unreachable.
-    expect(screen.queryByText(/Tenant not available/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/not one of yours/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Tenant suspended/)).not.toBeInTheDocument()
   })
 
   it('re-runs the loader from that retry, and renders the tenant when it returns', async () => {

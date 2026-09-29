@@ -15,6 +15,7 @@ import {
   ComboboxTrigger,
 } from '@/components/ui/combobox'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
+import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useTenants } from '@/queries/tenant.queries'
 
 interface TenantOption {
@@ -143,10 +144,17 @@ export function TenantSwitcher() {
                     <ComboboxLabel>{group.label}</ComboboxLabel>
                     <ComboboxCollection>
                       {(option: TenantOption) => (
-                        <ComboboxItem key={option.id} value={option} disabled={option.suspended}>
-                          <span className="truncate">{option.name}</span>
+                        <ComboboxItem
+                          key={option.id}
+                          value={option}
+                          disabled={option.suspended}
+                          className="data-disabled:opacity-100"
+                        >
+                          <span className={cn('truncate', option.suspended && 'opacity-50')}>
+                            {option.name}
+                          </span>
                           {option.suspended && (
-                            <span className="ml-auto text-xs text-muted-foreground">Suspended</span>
+                            <span className="ml-auto text-xs font-medium">Suspended</span>
                           )}
                         </ComboboxItem>
                       )}

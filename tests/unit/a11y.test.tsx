@@ -578,6 +578,29 @@ describe('signed-in pages', () => {
     await expectNoViolations()
   })
 
+  it('tenants list with a suspended row has no axe violations', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+      )
+    )
+    renderAppAt('/tenants')
+    await screen.findByText('Suspended')
+    await expectNoViolations()
+  })
+
+  it('suspended tenant page has no axe violations', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+      ),
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+    )
+    renderAppAt('/tenants/acme')
+    await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
+    await expectNoViolations()
+  })
+
   it('tenant overview under platform access has no axe violations', async () => {
     server.use(
       http.get('/api/v1/tenants/acme', () =>

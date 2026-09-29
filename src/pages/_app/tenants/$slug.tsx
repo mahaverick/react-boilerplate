@@ -136,9 +136,11 @@ function TenantLayout() {
   const { slug } = Route.useParams()
   const tenant = useTenant(slug)
   const { role } = useMyRole(slug)
-  const listed = useTenants().data?.find((entry) => entry.tenant.slug === slug)
+  const tenants = useTenants()
+  const listed = tenants.data?.find((entry) => entry.tenant.slug === slug)
 
-  if (tenant.isPending) {
+  // With no tenant, the list decides between suspended and not found, so wait for it.
+  if (tenant.isPending || (!tenant.data && tenants.isPending)) {
     return (
       <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
         <Skeleton className="h-10 w-64" />
@@ -149,6 +151,10 @@ function TenantLayout() {
   }
 
   if (!tenant.data) {
+    // A failed list cannot tell suspended from missing, so it claims neither.
+    if (tenants.isError) {
+      return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void tenants.refetch()} />
+    }
     return listed?.tenant.lifecycleState === 'suspended' ? (
       <TenantSuspended name={listed.tenant.name} />
     ) : (

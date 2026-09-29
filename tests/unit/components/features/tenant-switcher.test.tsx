@@ -35,6 +35,7 @@ function tenantRow(id: string, name: string, slug: string) {
 }
 
 const ACME = tenantRow(TENANT_ID, 'Acme Corp', 'acme')
+const BETA = tenantRow(TENANT_ID_2, 'Beta Inc', 'beta')
 const PLATFORM = { ...tenantRow(PLATFORM_TENANT_ID, 'Platform', 'platform'), isPlatform: true }
 
 /**
@@ -107,6 +108,28 @@ describe('TenantSwitcher', () => {
     const option = await screen.findByRole('option', { name: /Acme Corp/ })
     expect(option).toHaveAttribute('aria-disabled', 'true')
     expect(option).toHaveTextContent('Suspended')
+  })
+
+  it('does not navigate when Enter is pressed on a suspended option', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok(
+          [
+            { tenant: { ...ACME, lifecycleState: 'suspended' }, role: 'owner', isPlatform: false },
+            { tenant: BETA, role: 'owner', isPlatform: false },
+          ],
+          'Tenants.'
+        )
+      )
+    )
+    const router = renderShell()
+    const user = await openSwitcher()
+    await screen.findByRole('option', { name: /Acme Corp/ })
+
+    await user.keyboard('{ArrowDown}{Enter}')
+
+    expect(router.state.location.pathname).toBe('/dashboard')
+    expect(screen.getByRole('option', { name: /Acme Corp/ })).toBeInTheDocument()
   })
 
   /**
