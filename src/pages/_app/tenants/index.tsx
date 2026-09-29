@@ -36,21 +36,39 @@ export const Route = createFileRoute('/_app/tenants/')({
 const TENANTS_ERROR =
   'We could not load your tenants, so none are listed here. This is not a sign that you have none.'
 
-/** One tenant: the whole row is one link, and the role badge states the role in words. */
+/**
+ * One tenant: the whole row is one link, and the role badge states the role in
+ * words. A suspended tenant's own routes answer 404, so its row is not a link:
+ * it says "Suspended" instead of leading to a dead end.
+ */
 function TenantRow({ entry }: { entry: TenantWithRole }) {
+  const suspended = entry.tenant.lifecycleState === 'suspended'
+  const content = (
+    <>
+      <span className="min-w-0">
+        <span className="block font-medium">{entry.tenant.name}</span>
+        <span className="block text-sm text-muted-foreground">/{entry.tenant.slug}</span>
+      </span>
+      <span className="flex items-center gap-2">
+        {suspended && <Badge variant="outline">Suspended</Badge>}
+        <Badge variant="secondary">{ROLE_LABELS[entry.role]}</Badge>
+      </span>
+    </>
+  )
+  const rowClass = 'flex flex-wrap items-center justify-between gap-2 rounded-md border p-3'
   return (
     <li>
-      <Link
-        to="/tenants/$slug"
-        params={{ slug: entry.tenant.slug }}
-        className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 hover:bg-muted/50"
-      >
-        <span className="min-w-0">
-          <span className="block font-medium">{entry.tenant.name}</span>
-          <span className="block text-sm text-muted-foreground">/{entry.tenant.slug}</span>
-        </span>
-        <Badge variant="secondary">{ROLE_LABELS[entry.role]}</Badge>
-      </Link>
+      {suspended ? (
+        <div className={`${rowClass} text-muted-foreground`}>{content}</div>
+      ) : (
+        <Link
+          to="/tenants/$slug"
+          params={{ slug: entry.tenant.slug }}
+          className={`${rowClass} hover:bg-muted/50`}
+        >
+          {content}
+        </Link>
+      )}
     </li>
   )
 }

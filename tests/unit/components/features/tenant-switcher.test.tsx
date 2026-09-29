@@ -93,6 +93,22 @@ describe('TenantSwitcher', () => {
     expect(within(mine).getByRole('option', { name: 'Acme Corp' })).toBeInTheDocument()
   })
 
+  it('lists a suspended tenant as a disabled option marked Suspended', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok(
+          [{ tenant: { ...ACME, lifecycleState: 'suspended' }, role: 'owner', isPlatform: false }],
+          'Tenants.'
+        )
+      )
+    )
+    renderShell()
+    await openSwitcher()
+    const option = await screen.findByRole('option', { name: /Acme Corp/ })
+    expect(option).toHaveAttribute('aria-disabled', 'true')
+    expect(option).toHaveTextContent('Suspended')
+  })
+
   /**
    * The platform tenant is a membership like any other, and the list
    * carries it. It is linked from the user menu instead, never switched to

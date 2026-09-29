@@ -88,6 +88,21 @@ describe('tenant detail', () => {
    * configured boundary, a 500 would reach TanStack's bare default
    * instead: the raw error text, no retry, none of the app's chrome.
    */
+  it('says a suspended tenant is suspended, not that it is missing', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+      ),
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+    )
+    renderAppAt('/tenants/acme')
+    expect(
+      await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
+    ).toBeInTheDocument()
+    expect(screen.getByText('This tenant is suspended. Contact support.')).toBeInTheDocument()
+    expect(screen.queryByText(/not one of yours/)).not.toBeInTheDocument()
+  })
+
   it('renders the route error boundary, with a retry, for a non-404 failure', async () => {
     server.use(
       http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
