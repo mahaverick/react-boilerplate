@@ -6,9 +6,10 @@ import { installInterceptors } from '@/http/interceptors'
 import { resetSessionForTests } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
 import { NON_VERDICT_FAILURES } from '@/tests/fixtures/non-verdict-failures'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
-import { ACCESS_TOKEN_EXPIRED, type ApiSuccess } from '@/types/api.types'
+import { ACCESS_TOKEN_EXPIRED, REAUTH_REQUIRED, type ApiSuccess } from '@/types/api.types'
 
 /**
  * Handlers below that 401 unconditionally stop after this many attempts. If
@@ -373,6 +374,46 @@ describe('auth interceptors', () => {
       await vi.waitFor(() => expect(received).toEqual([{ type: 'logout' }]))
     } finally {
       otherTab.close()
+    }
+  })
+
+  it('rejects a REAUTH_REQUIRED 401 plainly: no refresh, no sign-out, no navigation', async () => {
+    useAuthStore.getState().login('tok', testUser)
+    const assign = stubLocation()
+    let refreshes = 0
+    let attempts = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => {
+        refreshes += 1
+        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      }),
+      http.post('/api/v1/widgets', () => {
+        attempts += 1
+        return fail('Recent sign-in required', 401, REAUTH_REQUIRED)
+      })
+    )
+    const channel = new BroadcastChannel('auth')
+    const broadcasts: unknown[] = []
+    channel.addEventListener('message', (event: MessageEvent<unknown>) =>
+      broadcasts.push(event.data)
+    )
+
+    try {
+      const error: unknown = await makeClient()
+        .post('/widgets', {})
+        .catch((caught: unknown) => caught)
+
+      expect(axios.isAxiosError(error) && error.response?.data).toMatchObject({
+        code: REAUTH_REQUIRED,
+      })
+      expect(attempts).toBe(1)
+      expect(refreshes).toBe(0)
+      expect(useAuthStore.getState()).toMatchObject({ accessToken: 'tok', isAuthenticated: true })
+      expect(assign).not.toHaveBeenCalled()
+      await settle(0, 'a BroadcastChannel logout is a task away and has no event to await')
+      expect(broadcasts).toEqual([])
+    } finally {
+      channel.close()
     }
   })
 })
