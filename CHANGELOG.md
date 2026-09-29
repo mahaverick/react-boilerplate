@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/mahaverick/react-boilerplate/compare/v1.0.1...v1.1.0) (2026-09-29)
+
+
+### Features
+
+* hand staff screens to Apex ([#36](https://github.com/mahaverick/react-boilerplate/issues/36)) ([74048d5](https://github.com/mahaverick/react-boilerplate/commit/74048d5d47b534eca0d7be52f34cdc78665efe3c))
+
 ## [1.0.1](https://github.com/mahaverick/react-boilerplate/compare/v1.0.0...v1.0.1) (2026-09-28)
 
 
