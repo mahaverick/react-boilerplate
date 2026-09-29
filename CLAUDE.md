@@ -13,6 +13,27 @@ A React 19 + TypeScript SPA that talks to the `express-boilerplate` API. Vite,
 TanStack Router (file-based), TanStack Query, TanStack Form, Zustand, Tailwind
 v4, Base UI via shadcn, axios, Zod v4, Vitest + Testing Library + MSW.
 
+## Sibling sync
+
+`apex-boilerplate` (the staff dashboard) started as a copy of this repo. These
+paths hold the same behaviour in both; a change to one here means checking the
+other in the same PR, and the PR description says what happened there
+("ported in apex#N", or "not applicable because …").
+
+| Path                                                              | Why it must stay in step                                           |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `src/http/*`                                                      | Session refresh single-flight, 401-verdict sign-out, SSE transport |
+| `src/lib/api-error.ts`                                            | Error envelope parsing                                             |
+| `src/schemas/auth.schemas.ts`, `src/schemas/safe-text.schemas.ts` | Mirror the backend validators                                      |
+| `src/components/ui/form.tsx`, `src/components/ui/sonner.tsx`      | Hand-written, shared behaviour                                     |
+| `nginx.conf` security headers and CSP                             | Same threat model                                                  |
+| `public/theme-init.js`, `src/lib/zod-jitless.ts`                  | CSP compatibility                                                  |
+| `eslint.config.js` rule set (not its file lists)                  | Same conventions                                                   |
+
+Staff screens live in Apex. This app keeps only the platform-access banner, the
+per-tenant Activity tab, and the **Platform** menu item (the platform tenant's
+Members and Invitations pages) until Apex's directory work replaces it.
+
 ## Commands
 
 | Command              | What it does                                                                                       |
