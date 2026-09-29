@@ -98,22 +98,6 @@ export const INVITATION_EMAIL_MISMATCH = 'invitation_email_mismatch'
 /** 403 on accept: the signed-in account is the invited one, but its email is unverified. */
 export const INVITATION_EMAIL_UNVERIFIED = 'invitation_email_unverified'
 
-/** One row of `GET /platform/tenants`: staff search across every tenant. */
-export interface PlatformTenantRow {
-  id: string
-  name: string
-  slug: string
-  lifecycleState: 'active' | 'suspended' | 'archived'
-  memberCount: number
-  createdAt: string
-}
-
-/** A keyset page of `GET /platform/tenants`. `nextCursor` is opaque; send it back as-is. */
-export interface PlatformTenantPage {
-  tenants: PlatformTenantRow[]
-  nextCursor: string | null
-}
-
 /** How an audit entry's actor reached the tenant. `system` is a script, with no actor. */
 export type AuditAccess = 'member' | 'platform' | 'system'
 
@@ -140,11 +124,6 @@ export interface AuditEntry {
   target: AuditTarget | null
   /** Per-action; never a full email address or a token. */
   metadata: Record<string, unknown>
-}
-
-/** One row of `GET /platform/audit-log`: the same entry, plus where it happened. */
-export interface PlatformAuditEntry extends AuditEntry {
-  tenant: { id: string; name: string; slug: string }
 }
 
 /** A keyset page of either audit log. `nextCursor` is opaque. */

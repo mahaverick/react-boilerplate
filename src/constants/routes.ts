@@ -17,7 +17,6 @@ export const ROUTES = {
   profile: '/profile',
   notifications: '/notifications',
   tenants: '/tenants',
-  platformActivity: '/platform/activity',
   invitationAccept: '/invitations/accept',
 } as const
 

@@ -23,7 +23,6 @@ import { Route as AuthLoginRouteImport } from './pages/_auth/login'
 import { Route as AuthRegisterRouteImport } from './pages/_auth/register'
 import { Route as AuthCallbackRouteImport } from './pages/auth/callback'
 import { Route as InvitationsAcceptRouteImport } from './pages/invitations/accept'
-import { Route as AppPlatformActivityRouteImport } from './pages/_app/platform/activity'
 import { Route as AppTenantsIndexRouteImport } from './pages/_app/tenants/index'
 import { Route as AppTenantsSlugRouteImport } from './pages/_app/tenants/$slug'
 import { Route as AppTenantsSlugIndexRouteImport } from './pages/_app/tenants/$slug.index'
@@ -99,11 +98,6 @@ const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
   path: '/invitations/accept',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppPlatformActivityRoute = AppPlatformActivityRouteImport.update({
-  id: '/platform/activity',
-  path: '/platform/activity',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppTenantsIndexRoute = AppTenantsIndexRouteImport.update({
   id: '/tenants/',
   path: '/tenants/',
@@ -148,7 +142,6 @@ export interface FileRoutesByFullPath {
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
-  '/platform/activity': typeof AppPlatformActivityRoute
   '/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/tenants/': typeof AppTenantsIndexRoute
   '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
@@ -169,7 +162,6 @@ export interface FileRoutesByTo {
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
-  '/platform/activity': typeof AppPlatformActivityRoute
   '/tenants': typeof AppTenantsIndexRoute
   '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
@@ -192,7 +184,6 @@ export interface FileRoutesById {
   '/_auth/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
-  '/_app/platform/activity': typeof AppPlatformActivityRoute
   '/_app/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/_app/tenants/': typeof AppTenantsIndexRoute
   '/_app/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
@@ -215,7 +206,6 @@ export interface FileRouteTypes {
     | '/register'
     | '/auth/callback'
     | '/invitations/accept'
-    | '/platform/activity'
     | '/tenants/$slug'
     | '/tenants/'
     | '/tenants/$slug/activity'
@@ -236,7 +226,6 @@ export interface FileRouteTypes {
     | '/register'
     | '/auth/callback'
     | '/invitations/accept'
-    | '/platform/activity'
     | '/tenants'
     | '/tenants/$slug/activity'
     | '/tenants/$slug/members'
@@ -258,7 +247,6 @@ export interface FileRouteTypes {
     | '/_auth/register'
     | '/auth/callback'
     | '/invitations/accept'
-    | '/_app/platform/activity'
     | '/_app/tenants/$slug'
     | '/_app/tenants/'
     | '/_app/tenants/$slug/activity'
@@ -378,13 +366,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InvitationsAcceptRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/platform/activity': {
-      id: '/_app/platform/activity'
-      path: '/platform/activity'
-      fullPath: '/platform/activity'
-      preLoaderRoute: typeof AppPlatformActivityRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/tenants/': {
       id: '/_app/tenants/'
       path: '/tenants'
@@ -452,7 +433,6 @@ interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppProfileRoute: typeof AppProfileRoute
-  AppPlatformActivityRoute: typeof AppPlatformActivityRoute
   AppTenantsSlugRoute: typeof AppTenantsSlugRouteWithChildren
   AppTenantsIndexRoute: typeof AppTenantsIndexRoute
 }
@@ -461,7 +441,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppProfileRoute: AppProfileRoute,
-  AppPlatformActivityRoute: AppPlatformActivityRoute,
   AppTenantsSlugRoute: AppTenantsSlugRouteWithChildren,
   AppTenantsIndexRoute: AppTenantsIndexRoute,
 }
