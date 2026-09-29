@@ -42,7 +42,7 @@ import {
   testUser,
 } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
-import type { TenantInvitation } from '@/types/api.types'
+import { REAUTH_REQUIRED, type TenantInvitation } from '@/types/api.types'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -922,5 +922,82 @@ describe('inviting, and the pending invitations', () => {
     expect(
       await screen.findByText('No invitations are waiting to be accepted.')
     ).toBeInTheDocument()
+  })
+})
+
+describe('a stale sign-in on a platform-tenant write', () => {
+  const SIGN_IN_AGAIN = 'For your security, sign out and sign in again before making this change.'
+  const stale = () => fail('Confirm your identity to continue', 401, REAUTH_REQUIRED)
+
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
+  })
+
+  it('tells the reader to sign in again when a role change is refused', async () => {
+    server.use(http.patch(`/api/v1/tenants/acme/members/${USER_ID_3}`, stale))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const vic = await rowFor('Vic')
+    await user.click(vic.getByRole('combobox', { name: 'Role for Vic X' }))
+    await user.click(await screen.findByRole('option', { name: 'Editor' }))
+
+    expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
+    expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
+  })
+
+  it('tells the reader to sign in again when a removal is refused', async () => {
+    server.use(http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, stale))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const vic = await rowFor('Vic')
+    await user.click(vic.getByRole('button', { name: 'Remove' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Remove' }))
+
+    expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
+    expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
+  })
+
+  it('tells the reader to sign in again when an invitation is refused', async () => {
+    server.use(http.post('/api/v1/tenants/acme/invitations', stale))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
+    expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
+  })
+
+  it('tells the reader to sign in again when a resend is refused', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok(
+          [invitation(INVITATION_ID, 'invitee@b.com', { role: 'admin' })],
+          'Invitations retrieved.'
+        )
+      ),
+      http.post('/api/v1/tenants/acme/invitations/:id/resend', stale)
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+    )
+
+    expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
+    expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
   })
 })

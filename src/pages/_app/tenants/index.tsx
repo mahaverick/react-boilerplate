@@ -59,7 +59,7 @@ function TenantRow({ entry }: { entry: TenantWithRole }) {
   return (
     <li>
       {suspended ? (
-        <div className={`${rowClass} text-muted-foreground`}>{content}</div>
+        <div className={rowClass}>{content}</div>
       ) : (
         <Link
           to="/tenants/$slug"

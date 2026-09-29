@@ -144,6 +144,8 @@ function ok<T>(data: T, message = 'OK', statusCode = 200) {
 const state = new URLSearchParams(location.search).get('state') ?? 'loaded'
 const asStaff = new URLSearchParams(location.search).get('access') === 'platform'
 if (asStaff) testUser.platformRole = 'viewer'
+// `?state=suspended` lists the tenant as suspended, and its own detail 404s, as the API does.
+const suspended = state === 'suspended'
 
 const SOLE_OWNER = [MEMBERS[0]]
 
@@ -167,15 +169,30 @@ const membersHandler =
 
 const worker = setupWorker(
   http.get('/api/v1/tenants', () =>
-    ok(asStaff ? [] : [{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
-  ),
-  http.get('/api/v1/tenants/acme', () =>
     ok(
       asStaff
-        ? { ...TENANT, isPlatform: false, role: 'viewer', access: 'platform' }
-        : { ...TENANT, isPlatform: false, role: 'owner', access: 'member' },
-      'Tenant retrieved.'
+        ? []
+        : [
+            {
+              tenant: suspended ? { ...TENANT, lifecycleState: 'suspended' } : TENANT,
+              role: 'owner',
+            },
+          ],
+      'Tenants retrieved.'
     )
+  ),
+  http.get('/api/v1/tenants/acme', () =>
+    suspended
+      ? Response.json(
+          { success: false, message: 'Tenant not found', statusCode: 404 },
+          { status: 404 }
+        )
+      : ok(
+          asStaff
+            ? { ...TENANT, isPlatform: false, role: 'viewer', access: 'platform' }
+            : { ...TENANT, isPlatform: false, role: 'owner', access: 'member' },
+          'Tenant retrieved.'
+        )
   ),
   membersHandler,
   // The members page lists pending invitations for an owner. Unmocked, this would reach the real API, 401, and sign the harness user out.

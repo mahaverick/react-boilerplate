@@ -41,7 +41,9 @@ export const ACCESS_TOKEN_EXPIRED = 'ACCESS_TOKEN_EXPIRED'
 /**
  * 401 on a destructive staff route whose session last authenticated too long
  * ago (express `requireRecentAuth`). Not a verdict on the session: the
- * interceptor passes it through untouched, for the caller to handle.
+ * interceptor passes it through untouched. This app has no step-up flow, so
+ * `writeFailureMessage` (`@/lib/write-failure`) turns it into a prompt to sign
+ * in again on the platform-tenant member and invitation writes.
  */
 export const REAUTH_REQUIRED = 'REAUTH_REQUIRED'
 

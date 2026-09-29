@@ -14,9 +14,11 @@ import { tenantQueryOptions, useMyRole, useTenant, useTenants } from '@/queries/
  * are real child routes, so each is linkable and survives a reload.
  *
  * The loader warms the detail query for every tab. `tenantQueryOptions`
- * resolves a 404 to `null`, so a missing or inaccessible tenant reaches the
- * not-found panel, and any other failure reaches `errorComponent`. The crumb
- * is the slug, not the name, because static data resolves before any fetch.
+ * resolves a 404 to `null`, so a tenant with no detail reaches the layout,
+ * which reads the tenant list to choose between the suspended panel (a member
+ * of a suspended tenant) and the not-found panel; any other failure reaches
+ * `errorComponent`. The crumb is the slug, not the name, because static data
+ * resolves before any fetch.
  */
 export const Route = createFileRoute('/_app/tenants/$slug')({
   loader: async ({ context, params }) =>
@@ -140,7 +142,7 @@ function TenantLayout() {
   const listed = tenants.data?.find((entry) => entry.tenant.slug === slug)
 
   // With no tenant, the list decides between suspended and not found, so wait for it.
-  if (tenant.isPending || (!tenant.data && tenants.isPending)) {
+  if (tenant.isPending || (!tenant.data && (tenants.isPending || tenants.isFetching))) {
     return (
       <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
         <Skeleton className="h-10 w-64" />
@@ -151,15 +153,14 @@ function TenantLayout() {
   }
 
   if (!tenant.data) {
+    if (listed?.tenant.lifecycleState === 'suspended') {
+      return <TenantSuspended name={listed.tenant.name} />
+    }
     // A failed list cannot tell suspended from missing, so it claims neither.
     if (tenants.isError) {
       return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void tenants.refetch()} />
     }
-    return listed?.tenant.lifecycleState === 'suspended' ? (
-      <TenantSuspended name={listed.tenant.name} />
-    ) : (
-      <TenantNotFound slug={slug} />
-    )
+    return <TenantNotFound slug={slug} />
   }
 
   return (
