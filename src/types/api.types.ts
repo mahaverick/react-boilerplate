@@ -126,7 +126,7 @@ export interface AuditEntry {
   metadata: Record<string, unknown>
 }
 
-/** A keyset page of either audit log. `nextCursor` is opaque. */
+/** A keyset page of a tenant's audit log. `nextCursor` is opaque. */
 export interface AuditPage<T extends AuditEntry> {
   entries: T[]
   nextCursor: string | null

@@ -118,6 +118,20 @@ describe('TenantSwitcher', () => {
     expect(screen.queryByRole('option', { name: 'Platform' })).not.toBeInTheDocument()
   })
 
+  it('says No tenants yet, with no All tenants group, for staff whose only membership is the platform tenant', async () => {
+    signInAs('viewer')
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: PLATFORM, role: 'viewer', isPlatform: true }], 'Tenants.')
+      )
+    )
+    renderShell()
+    await openSwitcher()
+
+    expect(await screen.findByText('No tenants yet')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'All tenants' })).not.toBeInTheDocument()
+  })
+
   it('says the account has no tenants when the list really is empty', async () => {
     renderShell()
     await openSwitcher()

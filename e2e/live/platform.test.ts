@@ -52,6 +52,11 @@ test('a staff viewer opens a tenant by URL, is told so, and cannot change it', a
   const { name, slug } = await ownerWithTenant()
   const staff = await staffSignedIn(page, 'viewer')
 
+  // Proves platformRole reached the SPA from the login response, before any reload.
+  await page.getByRole('button', { name: /^Account menu for/ }).click()
+  await expect(page.getByRole('menuitem', { name: 'Platform' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
   // Staff find tenants in Apex; here they arrive by URL, as an Apex link would send them.
   await page.goto(`/tenants/${slug}`)
 

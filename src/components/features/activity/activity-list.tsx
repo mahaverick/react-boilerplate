@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { LoadError } from '@/components/features/load-error'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -33,8 +32,6 @@ export interface ActivityListProps<T extends AuditEntry> {
   onLoadMore: () => void
   /** Filters decide whether "nothing has happened" is true, so the page says it. */
   emptyMessage: string
-  /** The tenant, for the platform-wide view. Omitted inside a tenant. */
-  renderTenant?: (entry: T) => ReactNode
 }
 
 /**
@@ -43,20 +40,13 @@ export interface ActivityListProps<T extends AuditEntry> {
  * Tooltip is not announced, so the absolute time is also in the trigger's own
  * text, visually hidden.
  */
-function ActivityRow<T extends AuditEntry>({
-  entry,
-  renderTenant,
-}: {
-  entry: T
-  renderTenant?: (entry: T) => ReactNode
-}) {
+function ActivityRow<T extends AuditEntry>({ entry }: { entry: T }) {
   const absolute = absoluteTime(entry.occurredAt)
   return (
     <li className="grid gap-1 py-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-medium">{actorName(entry.actor)}</span>
         {entry.access === 'platform' && <Badge variant="outline">Staff</Badge>}
-        {renderTenant && <span>in {renderTenant(entry)}</span>}
       </div>
       <p className="text-sm">{auditSentence(entry)}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -76,8 +66,7 @@ function ActivityRow<T extends AuditEntry>({
 }
 
 /**
- * An audit log, newest first: one tenant's (the Activity tab) or every
- * tenant's (the platform page). The same states as every list here: in
+ * A tenant's audit log, newest first (the Activity tab). The same states as every list here: in
  * flight, failed, empty, and loaded with a keyboard-reachable Load more. The
  * error is checked before the empty state, since `[]` is what both look like.
  */
@@ -91,7 +80,6 @@ export function ActivityList<T extends AuditEntry>({
   isFetchNextPageError,
   onLoadMore,
   emptyMessage,
-  renderTenant,
 }: ActivityListProps<T>) {
   if (isPending) {
     return (
@@ -114,7 +102,7 @@ export function ActivityList<T extends AuditEntry>({
     <div className="grid gap-3">
       <ul aria-label="Activity" className="divide-y">
         {entries.map((entry) => (
-          <ActivityRow key={entry.id} entry={entry} renderTenant={renderTenant} />
+          <ActivityRow key={entry.id} entry={entry} />
         ))}
       </ul>
       {isFetchNextPageError ? (

@@ -30,9 +30,10 @@ other in the same PR, and the PR description says what happened there
 | `public/theme-init.js`, `src/lib/zod-jitless.ts`                  | CSP compatibility                                                  |
 | `eslint.config.js` rule set (not its file lists)                  | Same conventions                                                   |
 
-Staff screens live in Apex. This app keeps only the platform-access banner, the
-per-tenant Activity tab, and the **Platform** menu item (the platform tenant's
-Members and Invitations pages) until Apex's directory work replaces it.
+Staff screens live in Apex. This app keeps the staff paths that live on tenant
+pages — the platform-access banner, the Staff filter on each tenant's Activity
+tab — and the **Platform** menu item (the platform tenant's Members and
+Invitations pages) until Apex's directory work replaces that item.
 
 ## Commands
 
