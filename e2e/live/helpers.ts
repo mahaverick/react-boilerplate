@@ -203,11 +203,17 @@ export async function restartApi(): Promise<void> {
 /**
  * Signs an EXISTING, verified account in through the real UI, leaving the
  * browser with a real session and a real refresh cookie.
+ *
+ * The fields are matched by their EXACT label, never `/email/i`: with the
+ * TanStack Router devtools open the dev server also renders route-match
+ * buttons labelled "Open match details for /verify-email" (and, for
+ * `/password/i`, forgot-password and reset-password), so a loose pattern
+ * hits several elements and Playwright's strict mode throws.
  */
 export async function logIn(page: Page, email: string): Promise<void> {
   await page.goto('/login')
-  await page.getByLabel(/email/i).fill(email)
-  await page.getByLabel(/password/i).fill(PASSWORD)
+  await page.getByRole('textbox', { name: 'Email', exact: true }).fill(email)
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
   await page.getByRole('button', { name: /sign in|log in/i }).click()
   await expect(page).not.toHaveURL(/login/, { timeout: 15_000 })
 }
