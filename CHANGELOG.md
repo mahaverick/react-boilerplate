@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/mahaverick/react-boilerplate/compare/v1.1.0...v1.1.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* keep staff signed in on step-up and show suspended tenants ([#39](https://github.com/mahaverick/react-boilerplate/issues/39)) ([953600a](https://github.com/mahaverick/react-boilerplate/commit/953600aaf3fdf3c3c45fffc8211116d33eeac7f4))
+
 ## [1.1.0](https://github.com/mahaverick/react-boilerplate/compare/v1.0.1...v1.1.0) (2026-09-29)
 
 
