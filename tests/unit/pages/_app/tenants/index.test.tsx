@@ -82,6 +82,18 @@ describe('tenants list', () => {
     expect(link).toHaveTextContent('Admin')
   })
 
+  it('shows a suspended tenant with a badge, and not as a link', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'admin' }], 'Tenants.')
+      )
+    )
+    renderAppAt('/tenants')
+    expect(await screen.findByText('Suspended')).toBeInTheDocument()
+    expect(screen.getByText('Acme Corp')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Acme Corp/ })).not.toBeInTheDocument()
+  })
+
   it('rejects a mixed-case slug while typing rather than lowercasing it', async () => {
     const user = userEvent.setup()
     renderAppAt('/tenants')

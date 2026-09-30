@@ -48,7 +48,7 @@ import {
   type MembershipRole,
 } from '@/constants/roles'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { messageFrom } from '@/lib/api-error'
+import { writeFailureMessage } from '@/lib/write-failure'
 import {
   memberName,
   ownerCount,
@@ -129,7 +129,7 @@ function RoleCell({
             {
               onSuccess: () =>
                 toast.success(`${name} is now ${ROLE_LABELS[value as MembershipRole]}.`),
-              onError: (error) => toast.error(messageFrom(error)),
+              onError: (error) => toast.error(writeFailureMessage(error)),
             }
           )
         }}
@@ -226,7 +226,7 @@ function RemoveMemberButton({
                 },
                 onError: (error) => {
                   setIsOpen(false)
-                  toast.error(messageFrom(error))
+                  toast.error(writeFailureMessage(error))
                 },
               })
             }}

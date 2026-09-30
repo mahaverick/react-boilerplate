@@ -7,16 +7,18 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { canViewActivity, ROLE_LABELS } from '@/constants/roles'
 import { cn } from '@/lib/utils'
-import { tenantQueryOptions, useMyRole, useTenant } from '@/queries/tenant.queries'
+import { tenantQueryOptions, useMyRole, useTenant, useTenants } from '@/queries/tenant.queries'
 
 /**
  * The tenant shell: header, tab bar, `<Outlet />`. A layout route whose tabs
  * are real child routes, so each is linkable and survives a reload.
  *
  * The loader warms the detail query for every tab. `tenantQueryOptions`
- * resolves a 404 to `null`, so a missing or inaccessible tenant reaches the
- * not-found panel, and any other failure reaches `errorComponent`. The crumb
- * is the slug, not the name, because static data resolves before any fetch.
+ * resolves a 404 to `null`, so a tenant with no detail reaches the layout,
+ * which reads the tenant list to choose between the suspended panel (a member
+ * of a suspended tenant) and the not-found panel; any other failure reaches
+ * `errorComponent`. The crumb is the slug, not the name, because static data
+ * resolves before any fetch.
  */
 export const Route = createFileRoute('/_app/tenants/$slug')({
   loader: async ({ context, params }) =>
@@ -105,12 +107,42 @@ function TenantNotFound({ slug }: { slug: string }) {
   )
 }
 
+/**
+ * A tenant the caller belongs to but that staff have suspended. Its own
+ * routes answer 404 like a missing tenant, so the tenant list (which still
+ * carries it, with its state) is what tells the two apart. Only the caller's
+ * own memberships reach this, so it confirms nothing about other tenants.
+ */
+function TenantSuspended({ name }: { name: string }) {
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle>
+          <h1>Tenant suspended</h1>
+        </CardTitle>
+        <CardDescription>
+          <span className="font-medium">{name}</span> is unavailable right now.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <p className="text-sm">This tenant is suspended. Contact support.</p>
+        <Link to="/tenants" className="text-sm underline underline-offset-4">
+          Back to your tenants
+        </Link>
+      </CardContent>
+    </Card>
+  )
+}
+
 function TenantLayout() {
   const { slug } = Route.useParams()
   const tenant = useTenant(slug)
   const { role } = useMyRole(slug)
+  const tenants = useTenants()
+  const listed = tenants.data?.find((entry) => entry.tenant.slug === slug)
 
-  if (tenant.isPending) {
+  // With no tenant, the list decides between suspended and not found, so wait for it.
+  if (tenant.isPending || (!tenant.data && (tenants.isPending || tenants.isFetching))) {
     return (
       <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
         <Skeleton className="h-10 w-64" />
@@ -120,7 +152,16 @@ function TenantLayout() {
     )
   }
 
-  if (!tenant.data) return <TenantNotFound slug={slug} />
+  if (!tenant.data) {
+    if (listed?.tenant.lifecycleState === 'suspended') {
+      return <TenantSuspended name={listed.tenant.name} />
+    }
+    // A failed list cannot tell suspended from missing, so it claims neither.
+    if (tenants.isError) {
+      return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void tenants.refetch()} />
+    }
+    return <TenantNotFound slug={slug} />
+  }
 
   return (
     <div className="grid max-w-4xl gap-4 xl:max-w-6xl">

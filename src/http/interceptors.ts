@@ -1,7 +1,7 @@
 import { AxiosError, type AxiosInstance, type AxiosResponse } from 'axios'
 import { broadcastLogout, ensureSession, isAuthVerdict, redirectToLogin } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
-import { ACCESS_TOKEN_EXPIRED, type ApiErrorBody } from '@/types/api.types'
+import { ACCESS_TOKEN_EXPIRED, REAUTH_REQUIRED, type ApiErrorBody } from '@/types/api.types'
 
 declare module 'axios' {
   interface AxiosRequestConfig {
@@ -76,6 +76,10 @@ export function rejectMalformedJsonResponse(response: AxiosResponse): AxiosRespo
  * auth verdict (`isAuthVerdict`): any other refresh failure leaves the session
  * intact, and the replay sits outside the catch so its own failure rejects
  * with its own error.
+ *
+ * A REAUTH_REQUIRED 401 is neither a verdict nor an expiry: the session is
+ * fine but signed in too long ago for a destructive staff action, so it
+ * rejects untouched, with no refresh and no sign-out, for the caller to handle.
  */
 export function installInterceptors(client: AxiosInstance): void {
   client.interceptors.request.use((config) => {
@@ -93,6 +97,11 @@ export function installInterceptors(client: AxiosInstance): void {
 
       // First: a refresh-internal request must reject plainly, or ensureSession() awaits itself.
       if (config?.skipAuthRetry) {
+        return Promise.reject(error)
+      }
+
+      // A stale step-up judges the sign-in's age, not the session: no refresh, no sign-out.
+      if (error.response?.status === 401 && error.response.data?.code === REAUTH_REQUIRED) {
         return Promise.reject(error)
       }
 

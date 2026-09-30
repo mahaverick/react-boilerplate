@@ -16,8 +16,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
-import { codeFrom, messageFrom } from '@/lib/api-error'
+import { codeFrom } from '@/lib/api-error'
 import { formatDate } from '@/lib/format'
+import { writeFailureMessage } from '@/lib/write-failure'
 import { inviterName } from '@/queries/invitation.queries'
 import { useInvitations, useResendInvitation, useRevokeInvitation } from '@/queries/tenant.queries'
 import { INVITATION_NOT_FOUND, type TenantInvitation } from '@/types/api.types'
@@ -41,7 +42,7 @@ const NO_LONGER_PENDING = 'That invitation is no longer pending.'
  * The list refetches either way (the hooks' `onSettled`).
  */
 function actionFailure(error: unknown): string {
-  return codeFrom(error) === INVITATION_NOT_FOUND ? NO_LONGER_PENDING : messageFrom(error)
+  return codeFrom(error) === INVITATION_NOT_FOUND ? NO_LONGER_PENDING : writeFailureMessage(error)
 }
 
 /** The expiry date, in the reader's own locale. */

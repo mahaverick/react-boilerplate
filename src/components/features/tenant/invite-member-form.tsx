@@ -29,9 +29,10 @@ import {
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { codeFrom, messageFrom } from '@/lib/api-error'
+import { SIGN_IN_AGAIN } from '@/lib/write-failure'
 import { useInviteMember } from '@/queries/tenant.queries'
 import { inviteMemberSchema } from '@/schemas/tenant.schemas'
-import { ALREADY_MEMBER, INVITATION_CONFLICT } from '@/types/api.types'
+import { ALREADY_MEMBER, INVITATION_CONFLICT, REAUTH_REQUIRED } from '@/types/api.types'
 
 /** A 409 `invitation_conflict`: another invite for this address just won the race. */
 const RACED = 'Someone just invited this address — refresh and try again.'
@@ -76,6 +77,10 @@ export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: Membe
         }
         if (code === INVITATION_CONFLICT) {
           serverErrors.setFormErrors([RACED])
+          return
+        }
+        if (code === REAUTH_REQUIRED) {
+          serverErrors.setFormErrors([SIGN_IN_AGAIN])
           return
         }
         serverErrors.capture(error)

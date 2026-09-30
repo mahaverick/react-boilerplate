@@ -12,10 +12,12 @@ import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
+import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantAccess } from '@/types/api.types'
@@ -88,6 +90,46 @@ describe('tenant detail', () => {
    * configured boundary, a 500 would reach TanStack's bare default
    * instead: the raw error text, no retry, none of the app's chrome.
    */
+  it('ends on the suspended panel when the cached list still says active', async () => {
+    let listFetches = 0
+    queryClient.setQueryData(tenantKeys.list, [{ tenant: TENANT, role: 'owner' }])
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        listFetches += 1
+        return ok(
+          [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
+          'Tenants.'
+        )
+      }),
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+    )
+    renderAppAt('/tenants/acme')
+
+    const seen: boolean[] = []
+    const observer = new MutationObserver(() =>
+      seen.push(/not one of yours|Tenant not available/.test(document.body.textContent))
+    )
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    try {
+      await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
+    } finally {
+      observer.disconnect()
+    }
+    expect(seen).not.toContain(true)
+    await settle(200, 'a refetch loop has no event to await')
+    expect(listFetches).toBeLessThanOrEqual(2)
+  })
+
+  it('still says not found for a tenant the refreshed list does not carry', async () => {
+    queryClient.setQueryData(tenantKeys.list, [{ tenant: TENANT, role: 'owner' }])
+    server.use(
+      http.get('/api/v1/tenants', () => ok([], 'Tenants.')),
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+    )
+    renderAppAt('/tenants/acme')
+    expect(await screen.findByText(/not one of yours/)).toBeInTheDocument()
+  })
+
   it('renders the route error boundary, with a retry, for a non-404 failure', async () => {
     server.use(
       http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
@@ -100,6 +142,60 @@ describe('tenant detail', () => {
     expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     // Not the 404 panel: the tenant may be perfectly fine and unreachable.
     expect(screen.queryByText(/Tenant not available/i)).not.toBeInTheDocument()
+  })
+
+  it('says a suspended tenant is suspended, not that it is missing', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+      ),
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+    )
+    renderAppAt('/tenants/acme')
+    expect(
+      await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
+    ).toBeInTheDocument()
+    expect(screen.getByText('This tenant is suspended. Contact support.')).toBeInTheDocument()
+    expect(screen.queryByText(/not one of yours/)).not.toBeInTheDocument()
+  })
+
+  it('shows no not-found text while the tenant list is still loading, then the suspended panel', async () => {
+    server.use(
+      http.get('/api/v1/tenants', async () => {
+        await settle(150, 'delays the list so the loader resolves first')
+        return ok(
+          [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
+          'Tenants.'
+        )
+      }),
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+    )
+    renderAppAt('/tenants/acme')
+
+    const seen: boolean[] = []
+    const observer = new MutationObserver(() =>
+      seen.push(/not one of yours|Tenant not available/.test(document.body.textContent))
+    )
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    try {
+      await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
+    } finally {
+      observer.disconnect()
+    }
+    expect(seen).not.toContain(true)
+  })
+
+  it('claims neither suspended nor missing when the tenant list fails', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () => fail('Something went wrong', 500)),
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+    )
+    renderAppAt('/tenants/acme')
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/could not load this tenant/i)
+    expect(screen.queryByText(/not one of yours/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Tenant suspended/)).not.toBeInTheDocument()
   })
 
   it('re-runs the loader from that retry, and renders the tenant when it returns', async () => {

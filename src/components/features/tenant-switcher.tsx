@@ -15,12 +15,14 @@ import {
   ComboboxTrigger,
 } from '@/components/ui/combobox'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
+import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useTenants } from '@/queries/tenant.queries'
 
 interface TenantOption {
   id: string
   name: string
   slug: string
+  suspended: boolean
 }
 
 interface OptionGroup {
@@ -57,7 +59,8 @@ function ownTenantsMessage({
  * navigates to `/tenants/$slug`.
  *
  * It lists the caller's memberships, minus the platform tenant (the user menu
- * links that). Staff search every tenant in Apex, not here.
+ * links that). Staff search every tenant in Apex, not here. A suspended tenant
+ * is listed but disabled: its routes answer 404 until staff reactivate it.
  *
  * It sits in its own `nav` landmark: axe's `region` rule exempts a bare
  * button but not one whose role is `combobox`, so the trigger's text would
@@ -79,6 +82,7 @@ export function TenantSwitcher() {
       id: entry.tenant.id,
       name: entry.tenant.name,
       slug: entry.tenant.slug,
+      suspended: entry.tenant.lifecycleState === 'suspended',
     }))
   const ownMatches = own.filter((option) => matches(option, query))
   const groups: OptionGroup[] =
@@ -110,7 +114,7 @@ export function TenantSwitcher() {
             itemToStringLabel={(option) => option.name}
             isItemEqualToValue={(a, b) => a.id === b.id}
             onValueChange={(option) => {
-              if (!option) return
+              if (!option || option.suspended) return
               setOpen(false)
               setQuery('')
               void navigate({ to: '/tenants/$slug', params: { slug: option.slug } })
@@ -140,8 +144,18 @@ export function TenantSwitcher() {
                     <ComboboxLabel>{group.label}</ComboboxLabel>
                     <ComboboxCollection>
                       {(option: TenantOption) => (
-                        <ComboboxItem key={option.id} value={option}>
-                          <span className="truncate">{option.name}</span>
+                        <ComboboxItem
+                          key={option.id}
+                          value={option}
+                          disabled={option.suspended}
+                          className="data-disabled:opacity-100"
+                        >
+                          <span className={cn('truncate', option.suspended && 'opacity-50')}>
+                            {option.name}
+                          </span>
+                          {option.suspended && (
+                            <span className="ml-auto text-xs font-medium">Suspended</span>
+                          )}
                         </ComboboxItem>
                       )}
                     </ComboboxCollection>

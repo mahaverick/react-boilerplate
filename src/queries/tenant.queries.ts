@@ -112,16 +112,22 @@ export function useTenants() {
  * access", and the route renders both as one not-found panel. A rejection
  * would be retried (the query client's `retry: 1`), refetched on mount, and
  * thrown by `ensureQueryData` in `$slug.tsx`'s loader into the error boundary.
- * Every other failure still rejects and reaches the boundary.
+ * Every other failure still rejects and reaches the boundary. A 404 also
+ * invalidates the tenant list (exact key only, so the detail is not refetched),
+ * because the page reads the list to tell a suspended tenant from a missing one.
  */
 export function tenantQueryOptions(slug: string) {
   return queryOptions({
     queryKey: tenantKeys.detail(slug),
-    queryFn: async () => {
+    queryFn: async ({ client }) => {
       try {
         return unwrap(await apiClient.get<ApiSuccess<TenantDetail>>(`/tenants/${slug}`))
       } catch (error) {
-        if (statusFrom(error) === 404) return null
+        if (statusFrom(error) === 404) {
+          // A suspended tenant answers 404 too; the list is what tells it apart, and may be stale.
+          void client.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+          return null
+        }
         throw error
       }
     },

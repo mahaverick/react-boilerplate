@@ -77,6 +77,16 @@ const SURFACES = [
   { name: 'profile', url: '/e2e/harness/?path=/profile', heading: 'Sign-in methods' },
   { name: 'tenants', url: '/e2e/harness/?path=/tenants', heading: 'Tenants' },
   {
+    name: 'tenants (suspended row)',
+    url: '/e2e/harness/?path=/tenants&state=suspended',
+    heading: 'Tenants',
+  },
+  {
+    name: 'tenant suspended panel',
+    url: '/e2e/harness/?path=/tenants/acme&state=suspended',
+    heading: 'Tenant suspended',
+  },
+  {
     name: 'tenant settings',
     url: '/e2e/harness/?path=/tenants/acme/settings',
     heading: 'Settings',
