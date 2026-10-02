@@ -337,7 +337,7 @@ test.describe('analytics against a fake PostHog', () => {
   )
 
   test(
-    'each pageview carries the tenant of its own page: a switch, a non-tenant page, a reload',
+    'each pageview carries the tenant of its own page: a switch, a non-tenant page, a full load',
     { tag: '@no-api' },
     async ({ page }) => {
       test.setTimeout(90_000)
@@ -368,8 +368,11 @@ test.describe('analytics against a fake PostHog', () => {
       expect(tenantOf(profile)).toBeUndefined()
       expect(profile?.properties).not.toHaveProperty('tenant_access')
 
-      // A reload starts from storage the last tenant page wrote; its first pageview must not carry it.
-      await page.reload()
+      // A full load straight from a tenant page starts from the storage that page wrote; its first pageview must not carry it.
+      await page.goto('/tenants/acme')
+      await expect(page.getByRole('heading', { name: 'Acme Corp', level: 1 })).toBeVisible()
+      await expect.poll(() => pageviewsOf(fake, '/tenants/acme').length, poll).toBe(2)
+      await page.goto('/profile')
       await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible()
       await expect.poll(() => pageviewsOf(fake, '/profile').length, poll).toBe(2)
       expect(tenantOf(pageviewsOf(fake, '/profile')[1])).toBeUndefined()

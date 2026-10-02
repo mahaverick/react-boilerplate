@@ -19,6 +19,7 @@ export {
   setAnalyticsOptOut,
   setTenantGroup,
   subscribeAnalyticsConsent,
+  subscribeIdentitySuperseded,
   track,
 } from './analytics'
 export {

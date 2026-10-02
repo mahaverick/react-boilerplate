@@ -82,8 +82,8 @@ describe('installRouteAnalytics', () => {
   it('groups the first page’s tenant before its pageview, queued until the SDK loads', async () => {
     await start('/tenants/acme/members')
     expect(attributionCalls()).toEqual([
-      'group("tenant", "tenant-acme")',
       MEMBER,
+      'group("tenant", "tenant-acme")',
       'capture("$pageview", {})',
     ])
   })
@@ -93,8 +93,8 @@ describe('installRouteAnalytics', () => {
     sdk.calls = []
     await router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } })
     expect(sdk.calls).toEqual([
-      'group("tenant", "tenant-globex")',
       MEMBER,
+      'group("tenant", "tenant-globex")',
       'capture("tenant_switched", {})',
       'capture("$pageview", {})',
     ])
@@ -122,8 +122,8 @@ describe('installRouteAnalytics', () => {
   it('marks a tenant reached through platform access, and a member tenant after it', async () => {
     const router = await start('/tenants/initech')
     expect(attributionCalls()).toEqual([
-      'group("tenant", "tenant-initech")',
       PLATFORM,
+      'group("tenant", "tenant-initech")',
       'capture("$pageview", {})',
     ])
     sdk.calls = []

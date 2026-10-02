@@ -437,8 +437,17 @@ call into `src/observability/analytics` is a no-op.
   call `identify`, `alias`, `reset` or `group`
   ([docs/analytics-handoff.md](docs/analytics-handoff.md)). The app defends
   itself anyway: while a user is signed in, an event under any other distinct
-  id is dropped and the user identified again, and `app`, `environment` and
-  the tenant group are put back on events a sibling's reset stripped.
+  id is dropped and, 250 ms later if the change still stands, the user is
+  identified again; `app`, `environment` and the tenant group are put back on
+  events a sibling's reset stripped. Another tab of this app is not a
+  sibling to fight: a person it signed in is announced to the other tabs, and
+  a tab whose user it replaced drops its events and signs itself out (its
+  next refresh returns the other person), leaving that tab signed in. A
+  sign-out broadcast landing within the 250 ms cancels the repair.
+- **The consent banner and page views.** Answering the banner captures the
+  page on screen (cookieless after a decline), since its router page view was
+  dropped while consent was pending; turning analytics back on in the profile
+  does the same.
 - **Consent.** In `opt_out` mode the profile's "Share usage analytics" switch
   (`PATCH /profile { analyticsOptOut }`) stops browser capture for that user;
   the API's own events continue. In `required` mode the banner decides and

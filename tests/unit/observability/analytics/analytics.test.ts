@@ -1,5 +1,5 @@
 import type { CaptureResult } from 'posthog-js'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   capturePageview,
   clearTenantGroup,
@@ -10,6 +10,7 @@ import {
   getAnalyticsSessionIdFor,
   grantAnalyticsConsent,
   identifyUser,
+  IDENTITY_REPAIR_DELAY_MS,
   initAnalytics,
   MAX_QUEUED_COMMANDS,
   resetAnalytics,
@@ -17,6 +18,7 @@ import {
   setAnalyticsOptOut,
   setTenantGroup,
   subscribeAnalyticsConsent,
+  subscribeIdentitySuperseded,
   track,
 } from '@/observability/analytics/analytics'
 import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/analytics/config'
@@ -99,8 +101,8 @@ describe('initAnalytics', () => {
     expect(sdk.calls).toEqual([
       REGISTER,
       'identify("user-a")',
-      'group("tenant", "tenant-1")',
       MEMBER,
+      'group("tenant", "tenant-1")',
       'capture("onboarding_checklist_opened", {"required_done":1,"required_total":2})',
     ])
   })
@@ -261,10 +263,10 @@ describe('setTenantGroup', () => {
     setTenantGroup('tenant-1')
     setTenantGroup('tenant-2')
     expect(sdk.calls).toEqual([
+      MEMBER,
       'group("tenant", "tenant-1")',
       MEMBER,
       'group("tenant", "tenant-2")',
-      MEMBER,
       'capture("tenant_switched", {})',
     ])
   })
@@ -274,12 +276,12 @@ describe('setTenantGroup', () => {
     resetAnalytics()
     setTenantGroup('tenant-2')
     expect(sdk.calls).toEqual([
-      'group("tenant", "tenant-1")',
       MEMBER,
+      'group("tenant", "tenant-1")',
       'reset()',
       REGISTER,
-      'group("tenant", "tenant-2")',
       MEMBER,
+      'group("tenant", "tenant-2")',
     ])
   })
 
@@ -289,12 +291,12 @@ describe('setTenantGroup', () => {
     clearTenantGroup()
     setTenantGroup('tenant-b')
     expect(sdk.calls).toEqual([
-      'group("tenant", "tenant-a")',
       MEMBER,
+      'group("tenant", "tenant-a")',
       'resetGroups()',
       'unregister("tenant_access")',
-      'group("tenant", "tenant-b")',
       MEMBER,
+      'group("tenant", "tenant-b")',
       'capture("tenant_switched", {})',
     ])
   })
@@ -314,10 +316,10 @@ describe('setTenantGroup', () => {
     setTenantGroup('tenant-a', 'platform')
     setTenantGroup('tenant-a', 'member')
     expect(sdk.calls).toEqual([
-      'group("tenant", "tenant-a")',
       PLATFORM,
       'group("tenant", "tenant-a")',
       MEMBER,
+      'group("tenant", "tenant-a")',
     ])
   })
 
@@ -330,8 +332,8 @@ describe('setTenantGroup', () => {
     expect(sdk.calls).toEqual([
       'reset()',
       REGISTER,
-      'group("tenant", "tenant-a")',
       MEMBER,
+      'group("tenant", "tenant-a")',
       'identify("user-b")',
     ])
   })
@@ -346,8 +348,8 @@ describe('pageviews and the tenant group', () => {
     await initAnalytics(OPT_OUT)
     expect(sdk.calls).toEqual([
       REGISTER,
-      'group("tenant", "tenant-b")',
       PLATFORM,
+      'group("tenant", "tenant-b")',
       'capture("$pageview", {})',
       'resetGroups()',
       'unregister("tenant_access")',
@@ -407,11 +409,29 @@ function eventOf(name: string, properties: Record<string, unknown>): CaptureResu
 
 const SIGNED_IN = { app: ANALYTICS_APP, environment: 'test', distinct_id: 'user-a' }
 
+/** Another tab of this app, as the facade hears it on the identity channel. */
+async function siblingTabIdentified(distinctId: string): Promise<void> {
+  const received: unknown[] = []
+  const listener = new BroadcastChannel('analytics-identity')
+  listener.addEventListener('message', (event: MessageEvent<unknown>) => received.push(event.data))
+  const sibling = new BroadcastChannel('analytics-identity')
+  sibling.postMessage({ type: 'identified', distinctId })
+  // The facade's own channel and this listener receive it in the same delivery round.
+  await vi.waitFor(() => expect(received).toHaveLength(1))
+  listener.close()
+  sibling.close()
+}
+
 describe('the event guard', () => {
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     await initAnalytics(OPT_OUT)
     identifyUser('user-a')
     sdk.calls = []
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('sends a signed-in user’s own event unchanged, and repairs nothing', async () => {
@@ -430,17 +450,18 @@ describe('the event guard', () => {
       beforeSend(eventOf('$autocapture', { ...SIGNED_IN, distinct_id: 'lead-123' }))
     ).toBeNull()
     expect(beforeSend(eventOf('$snapshot', { distinct_id: 'lead-123' }))).toBeNull()
-    expect(sdk.calls).toEqual([])
     await Promise.resolve()
+    expect(sdk.calls).toEqual([])
+    vi.advanceTimersByTime(IDENTITY_REPAIR_DELAY_MS)
     expect(sdk.calls).toEqual([
       'reset()',
       REGISTER,
-      'group("tenant", "tenant-a")',
       MEMBER,
+      'group("tenant", "tenant-a")',
       'identify("user-a")',
       REGISTER,
-      'group("tenant", "tenant-a")',
       MEMBER,
+      'group("tenant", "tenant-a")',
     ])
     expect(sdk.distinctId).toBe('user-a')
     const event = eventOf('$pageview', {
@@ -451,22 +472,22 @@ describe('the event guard', () => {
     expect(beforeSend(event)).toEqual(event)
   })
 
-  it('after a sibling reset, drops the anonymous event and identifies the user again without a reset', async () => {
+  it('after a sibling reset, drops the anonymous event and identifies the user again without a reset', () => {
     sdk.distinctId = 'anon-sibling'
     sdk.userState = 'anonymous'
     sdk.properties = {}
     expect(beforeSend(eventOf('$pageview', { distinct_id: 'anon-sibling' }))).toBeNull()
-    await Promise.resolve()
+    vi.advanceTimersByTime(IDENTITY_REPAIR_DELAY_MS)
     expect(sdk.calls).toEqual(['identify("user-a")', REGISTER])
   })
 
-  it('repairs a burst of events with one repair', async () => {
+  it('repairs a burst of events with one repair', () => {
     sdk.distinctId = 'lead-123'
     sdk.userState = 'identified'
     for (let index = 0; index < 5; index += 1) {
       beforeSend(eventOf('$autocapture', { ...SIGNED_IN, distinct_id: 'lead-123' }))
     }
-    await Promise.resolve()
+    vi.advanceTimersByTime(IDENTITY_REPAIR_DELAY_MS)
     expect(sdk.calls.filter((call) => call.startsWith('identify('))).toEqual(['identify("user-a")'])
   })
 
@@ -484,7 +505,7 @@ describe('the event guard', () => {
       tenant_access: 'platform',
     })
     await Promise.resolve()
-    expect(sdk.calls).toEqual([REGISTER, 'group("tenant", "tenant-a")', PLATFORM])
+    expect(sdk.calls).toEqual([REGISTER, PLATFORM, 'group("tenant", "tenant-a")'])
   })
 
   it('strips a tenant group the tab is not on', () => {
@@ -506,6 +527,63 @@ describe('the event guard', () => {
       $cookieless_mode: true,
     })
     expect(beforeSend(cookieless)).toEqual(cookieless)
+  })
+
+  it('a sign-out landing before the repair is due cancels it: no /login event goes to the signed-out user', () => {
+    sdk.distinctId = 'anon-other-tab'
+    sdk.userState = 'anonymous'
+    expect(beforeSend(eventOf('$pageview', { distinct_id: 'anon-other-tab' }))).toBeNull()
+    resetAnalytics()
+    vi.advanceTimersByTime(IDENTITY_REPAIR_DELAY_MS)
+    expect(sdk.calls.filter((call) => call.startsWith('identify('))).toEqual([])
+    expect(sdk.distinctId).not.toBe('user-a')
+  })
+
+  it('another tab of this app signing someone else in supersedes this tab instead of being fought', async () => {
+    const superseded = vi.fn()
+    subscribeIdentitySuperseded(superseded)
+    await siblingTabIdentified('user-b')
+    sdk.distinctId = 'user-b'
+    sdk.userState = 'identified'
+    expect(beforeSend(eventOf('$pageview', { ...SIGNED_IN, distinct_id: 'user-b' }))).toBeNull()
+    expect(beforeSend(eventOf('$pageview', SIGNED_IN))).toBeNull()
+    vi.advanceTimersByTime(IDENTITY_REPAIR_DELAY_MS)
+    expect(superseded).toHaveBeenCalledTimes(1)
+    expect(sdk.calls).toEqual([])
+
+    // This tab's sign-out forgets its own state and leaves the other tab's person in place.
+    resetAnalytics()
+    expect(sdk.calls).not.toContain('reset()')
+    expect(sdk.distinctId).toBe('user-b')
+    const next = eventOf('$pageview', {
+      app: ANALYTICS_APP,
+      environment: 'test',
+      distinct_id: 'user-b',
+    })
+    expect(beforeSend(next)).toEqual(next)
+  })
+
+  it('a sibling-tab sign-in announced after the drop but before the repair is due also supersedes', async () => {
+    const superseded = vi.fn()
+    subscribeIdentitySuperseded(superseded)
+    sdk.distinctId = 'user-b'
+    sdk.userState = 'identified'
+    expect(beforeSend(eventOf('$pageview', { ...SIGNED_IN, distinct_id: 'user-b' }))).toBeNull()
+    await siblingTabIdentified('user-b')
+    vi.advanceTimersByTime(IDENTITY_REPAIR_DELAY_MS)
+    expect(superseded).toHaveBeenCalledTimes(1)
+    expect(sdk.calls.filter((call) => call.startsWith('identify('))).toEqual([])
+  })
+
+  it('tells the app’s other tabs whom it identified', async () => {
+    const received: unknown[] = []
+    const otherTab = new BroadcastChannel('analytics-identity')
+    otherTab.addEventListener('message', (event: MessageEvent<unknown>) =>
+      received.push(event.data)
+    )
+    identifyUser('user-c')
+    await vi.waitFor(() => expect(received).toEqual([{ type: 'identified', distinctId: 'user-c' }]))
+    otherTab.close()
   })
 
   it('stops guarding once the user signs out', async () => {
@@ -542,7 +620,46 @@ describe('consent', () => {
     setAnalyticsOptOut(true)
     setAnalyticsOptOut(false)
     setAnalyticsOptOut(false)
-    expect(sdk.calls).toEqual(['opt_out_capturing()', 'opt_in_capturing()'])
+    expect(sdk.calls).toEqual([
+      'opt_out_capturing()',
+      'opt_in_capturing()',
+      'capture("$pageview", {})',
+    ])
+  })
+
+  it('opt_out mode: opting back in before the SDK loads adds no pageview to the router’s', async () => {
+    setAnalyticsOptOut(true)
+    setAnalyticsOptOut(false)
+    capturePageview()
+    sdk.consent = 'denied'
+    await initAnalytics(OPT_OUT)
+    expect(sdk.calls.filter((call) => call.includes('$pageview'))).toHaveLength(1)
+  })
+
+  it.each([
+    ['accept', grantAnalyticsConsent],
+    ['decline', denyAnalyticsConsent],
+  ])('required mode: the banner’s %s captures the page on screen, once', async (_case, answer) => {
+    await initAnalytics(REQUIRED)
+    sdk.calls = []
+    answer()
+    answer()
+    expect(sdk.calls.filter((call) => call.includes('$pageview'))).toEqual([
+      'capture("$pageview", {})',
+    ])
+  })
+
+  it('required mode: accepting while signed in identifies the user before $opt_in', async () => {
+    await initAnalytics(REQUIRED)
+    identifyUser('user-a')
+    sdk.distinctId = 'anon-fresh'
+    sdk.userState = 'anonymous'
+    sdk.calls = []
+    grantAnalyticsConsent()
+    const identify = sdk.calls.indexOf('identify("user-a")')
+    const optIn = sdk.calls.indexOf('capture("$opt_in", {})')
+    expect(identify).toBeGreaterThan(-1)
+    expect(optIn).toBeGreaterThan(identify)
   })
 
   it('required mode: the profile can opt out but never stands in for consent', async () => {

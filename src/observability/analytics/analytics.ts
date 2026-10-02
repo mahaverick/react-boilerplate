@@ -7,7 +7,7 @@
  * is a no-op. A throwing SDK call is swallowed: analytics never fails a user
  * action.
  */
-import type { CaptureResult, PostHogInterface } from 'posthog-js'
+import type { CaptureResult, PostHog, PostHogInterface } from 'posthog-js'
 import {
   ANALYTICS_APP,
   ANALYTICS_CROSS_SUBDOMAIN_COOKIE,
@@ -40,6 +40,20 @@ export const TENANT_ACCESS_PROPERTY = 'tenant_access'
 
 /** posthog-js's marker on an event sent cookieless (`required` mode, consent refused). */
 const COOKIELESS_FLAG_PROPERTY = '$cookieless_mode'
+
+/**
+ * How long the event guard waits before identifying the signed-in user again
+ * after something else changed the identity cookie. Long enough for this
+ * app's own cross-tab messages (a sign-out broadcast, another tab's sign-in)
+ * to land first, so the guard never fights a legitimate change.
+ */
+export const IDENTITY_REPAIR_DELAY_MS = 250
+
+/** The channel on which this app's tabs announce the person each one identified. */
+const IDENTITY_CHANNEL = 'analytics-identity'
+
+/** How many identities announced by this app's other tabs are remembered. */
+const MAX_SIBLING_IDENTITIES = 20
 
 type Command = (client: PostHogInterface) => void
 
@@ -80,7 +94,18 @@ let lastTenantId: string | null = null
  */
 let signedInUserId: string | null = null
 let isRepairScheduled = false
+let identityRepair: ReturnType<typeof setTimeout> | null = null
+/** Distinct ids this app's other tabs identified: a cookie change to one of them is theirs, not a website's. */
+let siblingIdentities: string[] = []
+/**
+ * Set once another tab of this app identified someone else under this tab's
+ * signed-in user. Every event is dropped until this tab signs out or in
+ * again, and the SDK is never reset under the other tab's person.
+ */
+let isSuperseded = false
+let identityChannel: BroadcastChannel | null = null
 const consentListeners = new Set<() => void>()
+const supersededListeners = new Set<() => void>()
 
 function notifyConsent(): void {
   for (const listener of consentListeners) listener()
@@ -108,6 +133,35 @@ function run(command: Command, isDroppable = false): void {
   queue.push({ command, isDroppable })
 }
 
+/** Opens this tab's identity channel, once; a no-op without BroadcastChannel. */
+function openIdentityChannel(): void {
+  if (identityChannel || typeof BroadcastChannel === 'undefined') return
+  identityChannel = new BroadcastChannel(IDENTITY_CHANNEL)
+  identityChannel.addEventListener('message', (event: MessageEvent<unknown>) => {
+    const data = event.data as { type?: unknown; distinctId?: unknown } | null
+    if (data?.type !== 'identified' || typeof data.distinctId !== 'string') return
+    siblingIdentities = [
+      ...siblingIdentities.filter((id) => id !== data.distinctId),
+      data.distinctId,
+    ].slice(-MAX_SIBLING_IDENTITIES)
+  })
+}
+
+function announceIdentity(distinctId: string): void {
+  try {
+    identityChannel?.postMessage({ type: 'identified', distinctId })
+  } catch {
+    // Analytics never fails a user action.
+  }
+}
+
+/** Marks this tab superseded by another tab's sign-in and tells the app, once. */
+function supersede(): void {
+  if (isSuperseded) return
+  isSuperseded = true
+  for (const listener of supersededListeners) listener()
+}
+
 function becomeInert(): void {
   status = 'inert'
   queue = []
@@ -121,8 +175,9 @@ function registerSuperProperties(ph: PostHogInterface): void {
 /** Puts the SDK's tenant group and `tenant_access` in line with `appliedTenant`. */
 function applyTenant(ph: PostHogInterface): void {
   if (appliedTenant) {
-    ph.group('tenant', appliedTenant.id)
+    // Registered before group(), whose `$groupidentify` must already carry it.
     ph.register({ [TENANT_ACCESS_PROPERTY]: appliedTenant.access })
+    ph.group('tenant', appliedTenant.id)
     return
   }
   const groups = ph.get_property('$groups') as Record<string, unknown> | undefined
@@ -165,21 +220,25 @@ function resetKeepingConsent(ph: PostHogInterface): void {
   if (consent === 'denied') ph.opt_out_capturing()
 }
 
-/** Identifies `userId`, first resetting a different person this browser still holds. */
+/**
+ * Identifies `userId`, first resetting a different person this browser still
+ * holds, and tells this app's other tabs it did.
+ */
 function applyIdentity(ph: PostHogInterface, userId: string): void {
   if (ph.get_property('$user_state') === 'identified' && ph.get_distinct_id() !== userId) {
     resetKeepingConsent(ph)
   }
   ph.identify(userId)
   signedInUserId = userId
+  isSuperseded = false
+  announceIdentity(userId)
 }
 
 /**
- * Puts back what something else changed under this tab: a sibling site or
- * tab sharing the identity cookie that identified, reset or aliased. The
- * signed-in user is identified again, and the super properties and tenant
- * group are set again. Runs in a microtask, never inside the event that
- * found the change, and at most once per task.
+ * Puts back the super properties and tenant group something else cleared
+ * under this tab (a reset by a sibling sharing the identity cookie). Runs in
+ * a microtask, never inside the event that found the change, and at most
+ * once per task.
  */
 function scheduleRepair(): void {
   if (isRepairScheduled) return
@@ -187,12 +246,40 @@ function scheduleRepair(): void {
   queueMicrotask(() => {
     isRepairScheduled = false
     run((ph) => {
-      const userId = signedInUserId
-      if (userId !== null && ph.get_distinct_id() !== userId) applyIdentity(ph, userId)
       registerSuperProperties(ph)
       applyTenant(ph)
     })
   })
+}
+
+/**
+ * Identifies the signed-in user again after something else changed the
+ * identity cookie, `IDENTITY_REPAIR_DELAY_MS` later, and only if the change
+ * still stands then and is foreign. A sign-out in this tab (another tab's
+ * logout broadcast landing) cancels it. A change to a person another tab of
+ * this app identified is that tab's legitimate sign-in: this tab is then
+ * superseded instead, and the app signs it out, never fighting the other tab.
+ * Only a foreign identity, such as one a website sharing the cookie set, is
+ * repaired.
+ */
+function scheduleIdentityRepair(): void {
+  if (identityRepair !== null) return
+  identityRepair = setTimeout(() => {
+    identityRepair = null
+    run((ph) => {
+      const userId = signedInUserId
+      if (userId === null || isSuperseded) return
+      const current = ph.get_distinct_id()
+      if (current === userId) return
+      if (siblingIdentities.includes(current)) {
+        supersede()
+        return
+      }
+      applyIdentity(ph, userId)
+      registerSuperProperties(ph)
+      applyTenant(ph)
+    })
+  }, IDENTITY_REPAIR_DELAY_MS)
 }
 
 /**
@@ -223,19 +310,30 @@ function repairedProperties(properties: Record<string, unknown>): Record<string,
 /**
  * Runs on every event before it is sanitised and sent. While a user is
  * signed in, an event carrying any other distinct id is dropped: a sibling
- * sharing the identity cookie re-attributed it. An event missing this tab's
- * app, environment or tenant group (a sibling's reset clears them) gets them
- * back. Either way the SDK is repaired for the next event. Cookieless events
- * carry a placeholder id and are left alone, as is replay (`$snapshot`),
- * which carries no super properties.
+ * sharing the identity cookie re-attributed it. If another tab of this app
+ * identified that person, this tab is superseded (see
+ * `subscribeIdentitySuperseded`); otherwise the user is identified again
+ * after `IDENTITY_REPAIR_DELAY_MS`. An event missing this tab's app,
+ * environment or tenant group (a sibling's reset clears them) gets them back,
+ * and the SDK is repaired for the next event. Cookieless events carry a
+ * placeholder id and are left alone, as is replay (`$snapshot`), which
+ * carries no super properties.
  * @param event - The event posthog-js is about to send.
  * @returns The event to send, or null to drop it.
  */
 function guardEvent(event: CaptureResult): CaptureResult | null {
   const properties = (event.properties ?? {}) as Record<string, unknown>
   if (properties[COOKIELESS_FLAG_PROPERTY] === true) return event
+  if (isSuperseded) return null
   if (signedInUserId !== null && properties.distinct_id !== signedInUserId) {
-    scheduleRepair()
+    if (
+      typeof properties.distinct_id === 'string' &&
+      siblingIdentities.includes(properties.distinct_id)
+    ) {
+      supersede()
+    } else {
+      scheduleIdentityRepair()
+    }
     return null
   }
   if (event.event === '$snapshot') return event
@@ -256,6 +354,7 @@ export async function initAnalytics(config: AnalyticsConfig = getAnalyticsConfig
   if (status !== 'idle') return
   activeConfig = config
   status = 'loading'
+  openIdentityChannel()
   try {
     const key = config.key
     const handoff =
@@ -364,44 +463,99 @@ export function clearTenantGroup(): void {
   })
 }
 
-/** Forgets the person and the tenant: sign-out, forced or chosen. The consent answer survives. */
+/**
+ * Forgets the person and the tenant: sign-out, forced or chosen. The consent
+ * answer survives. A tab superseded by another tab's sign-in forgets its own
+ * state only: resetting the SDK would sign that other tab's person out of
+ * the shared identity too.
+ */
 export function resetAnalytics(): void {
   run((ph) => {
     appliedTenant = null
     lastTenantId = null
+    if (identityRepair !== null) {
+      clearTimeout(identityRepair)
+      identityRepair = null
+    }
+    if (isSuperseded) {
+      isSuperseded = false
+      signedInUserId = null
+      registerSuperProperties(ph)
+      applyTenant(ph)
+      return
+    }
     resetKeepingConsent(ph)
   })
 }
 
 /**
+ * Subscribes to this tab being superseded: another tab of this app signed a
+ * different person in under this tab's signed-in user, on the shared session
+ * cookie. Until the tab signs out or in again its events are dropped; the
+ * app should end its session (the next refresh returns the other person).
+ * @param listener - Called once per supersession.
+ * @returns The unsubscribe.
+ */
+export function subscribeIdentitySuperseded(listener: () => void): () => void {
+  supersededListeners.add(listener)
+  return () => {
+    supersededListeners.delete(listener)
+  }
+}
+
+/**
  * Applies the signed-in user's own preference. Opting out stops capture in
  * every mode. Opting back in resumes capture in `opt_out` mode only: in
- * `required` mode consent is the banner's answer, not the profile's.
+ * `required` mode consent is the banner's answer, not the profile's. Opting
+ * back in on a loaded page captures that page's `$pageview`, which was
+ * dropped while opted out.
  * @param isOptedOut - The profile's `analyticsOptOut`.
  */
 export function setAnalyticsOptOut(isOptedOut: boolean): void {
+  // Queued before load, the router's own pageview follows and must not be doubled.
+  const isOnScreen = status === 'ready'
   run((ph) => {
     if (isOptedOut) {
       if (!ph.has_opted_out_capturing()) ph.opt_out_capturing()
     } else if (activeConfig?.consentMode === 'opt_out' && ph.has_opted_out_capturing()) {
       ph.opt_in_capturing()
+      if (isOnScreen) ph.capture('$pageview', {})
     }
     notifyConsent()
   })
 }
 
-/** The banner's accept, and the profile switch turned on in `required` mode. */
+/**
+ * The banner's accept, and the profile switch turned on in `required` mode.
+ * A signed-in user is identified again before `$opt_in` is captured:
+ * leaving cookieless mode gives posthog-js a fresh anonymous id. The page on
+ * screen gets its `$pageview` when consent was pending: every pageview the
+ * router captured until now was dropped, and posthog-js's own are off.
+ */
 export function grantAnalyticsConsent(): void {
   run((ph) => {
-    ph.opt_in_capturing()
+    const wasPending = ph.get_explicit_consent_status() === 'pending'
+    // PostHogInterface types it with no options; the PostHog class it is takes them.
+    ;(ph as PostHog).opt_in_capturing({ captureEventName: false })
+    const userId = signedInUserId
+    if (userId !== null && ph.get_distinct_id() !== userId) applyIdentity(ph, userId)
+    registerSuperProperties(ph)
+    applyTenant(ph)
+    ph.capture('$opt_in', {}, { send_instantly: true })
+    if (wasPending) ph.capture('$pageview', {})
     notifyConsent()
   })
 }
 
-/** The banner's decline. */
+/**
+ * The banner's decline. The page on screen gets its `$pageview` when consent
+ * was pending, sent cookieless as every later one is.
+ */
 export function denyAnalyticsConsent(): void {
   run((ph) => {
+    const wasPending = ph.get_explicit_consent_status() === 'pending'
     ph.opt_out_capturing()
+    if (wasPending) ph.capture('$pageview', {})
     notifyConsent()
   })
 }
@@ -485,5 +639,12 @@ export function resetAnalyticsForTests(): void {
   lastTenantId = null
   signedInUserId = null
   isRepairScheduled = false
+  if (identityRepair !== null) clearTimeout(identityRepair)
+  identityRepair = null
+  siblingIdentities = []
+  isSuperseded = false
+  identityChannel?.close()
+  identityChannel = null
   consentListeners.clear()
+  supersededListeners.clear()
 }

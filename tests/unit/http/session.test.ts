@@ -393,7 +393,7 @@ describe('across tabs', () => {
     await vi.waitFor(() => expect(probe.received).toEqual([{ type: 'logout' }]))
   })
 
-  it('refresh returning a different user signs out, tells other tabs, and rejects as a verdict', async () => {
+  it('refresh returning a different user signs this tab out, rejects as a verdict, and leaves the other tab signed in', async () => {
     useAuthStore.getState().login('stale', testUser)
     const probe = openOtherTab()
     server.use(
@@ -411,7 +411,9 @@ describe('across tabs', () => {
       accessToken: null,
       isAuthenticated: false,
     })
-    await vi.waitFor(() => expect(probe.received).toEqual([{ type: 'logout' }]))
+    openOtherTab().tab.postMessage({ type: 'sentinel' })
+    await flushDeliveries(probe, 1)
+    expect(probe.received).toEqual([{ type: 'sentinel' }])
   })
 
   it('a restore on a tab nobody was signed in to takes whoever the cookie belongs to', async () => {

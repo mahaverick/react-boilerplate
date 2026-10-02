@@ -1,15 +1,21 @@
 import { isAxiosError } from 'axios'
 import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
-import { identifyUser, resetAnalytics, setAnalyticsOptOut } from '@/observability/analytics'
+import {
+  identifyUser,
+  resetAnalytics,
+  setAnalyticsOptOut,
+  subscribeIdentitySuperseded,
+} from '@/observability/analytics'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 
 /**
  * The refresh handed back a different person than this tab was signed in as:
  * another tab signed someone else in on the shared refresh cookie. It is an
- * auth verdict (`isAuthVerdict`): the tab signs out, and nothing it started
- * is replayed as the new person.
+ * auth verdict (`isAuthVerdict`): this tab signs out, and nothing it started
+ * is replayed as the new person. It is not broadcast: the cookie is the other
+ * tab's valid session.
  */
 export class SessionIdentityChangedError extends Error {
   constructor() {
@@ -129,8 +135,10 @@ let uninstallAnalyticsIdentity: (() => void) | null = null
  * another tab, or a refresh that failed with one. A different user, or none,
  * resets first, so the next person's events never carry the last one's
  * distinct id; a user is then identified by id alone after their own opt-out
- * is applied, so an opted-out user's identify is never captured. Idempotent;
- * returns the cleanup.
+ * is applied, so an opted-out user's identify is never captured. When
+ * analytics reports that another tab signed a different person in under this
+ * one, the session is refreshed: the refresh returns that person, which signs
+ * this tab out (`SessionIdentityChangedError`). Idempotent; returns the cleanup.
  */
 export function installAnalyticsIdentity(): () => void {
   if (uninstallAnalyticsIdentity) return uninstallAnalyticsIdentity
@@ -144,8 +152,14 @@ export function installAnalyticsIdentity(): () => void {
   const unsubscribe = useAuthStore.subscribe((state, previousState) => {
     if (state.user !== previousState.user) apply(state.user, previousState.user)
   })
+  const unsubscribeSuperseded = subscribeIdentitySuperseded(() => {
+    ensureSession().catch((error: unknown) => {
+      if (isAuthVerdict(error)) redirectToLogin()
+    })
+  })
   uninstallAnalyticsIdentity = () => {
     unsubscribe()
+    unsubscribeSuperseded()
     uninstallAnalyticsIdentity = null
   }
   return uninstallAnalyticsIdentity
@@ -167,7 +181,8 @@ let inFlight: Promise<string> | null = null
  * rejects with the store untouched, so the next attempt can succeed. A tab
  * that was never signed in does not broadcast the logout, or it would sign out
  * a sibling tab that just logged in. A signed-in tab whose refresh comes back
- * as someone else signs out and broadcasts it, rather than carry on as them.
+ * as someone else signs itself out, rather than carry on as them, and leaves
+ * the other tab signed in.
  * @returns The new access token.
  * @throws The failure of either request, rethrown.
  */
@@ -198,8 +213,8 @@ async function refreshSession(): Promise<string> {
       // Read before logout(): a never-signed-in tab must not broadcast and sign out a sibling that just logged in.
       const wasAuthed = useAuthStore.getState().isAuthenticated
       useAuthStore.getState().logout()
-      // The cookie is shared, so a verdict from an authed tab holds for every tab.
-      if (wasAuthed) broadcastLogout()
+      // The cookie is shared, so a 401 from an authed tab holds for every tab; a different user means the cookie is another tab's valid session.
+      if (wasAuthed && !(error instanceof SessionIdentityChangedError)) broadcastLogout()
     }
     throw error
   }

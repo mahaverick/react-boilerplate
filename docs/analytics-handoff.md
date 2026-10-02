@@ -100,7 +100,10 @@ function decorateAppLinks(appUrl) {
     if (isAnonymous) window.posthog.reset()
   }
   document.addEventListener('click', handOff)
-  document.addEventListener('auxclick', handOff)
+  // A middle click opens the link; a right click (which some browsers also report) does not.
+  document.addEventListener('auxclick', (event) => {
+    if (event.button === 1) handOff(event)
+  })
 }
 
 decorateAppLinks('https://app.example.com')

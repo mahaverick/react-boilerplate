@@ -158,7 +158,10 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
 - **While a user is signed in, the facade drops any event under another
   distinct id** (`guardEvent` in `analytics.ts`) and identifies the user again:
   posthog-js adopts the identity cookie a sibling-subdomain website shares
-  before every event. Never loosen it to log-and-send.
+  before every event. Never loosen it to log-and-send. It repairs only
+  foreign identities: a person another tab of this app identified (announced
+  on the `analytics-identity` channel) supersedes this tab, which signs itself
+  out and never resets the SDK under the other tab.
 - **posthog-js minors wait for a human** (`renovate.json`). Before taking
   one, run the tests that pin its internals: `url-sanitizer.test.ts`,
   `handoff.test.ts` and `analytics.sdk.test.ts` (all run the real SDK) and

@@ -151,6 +151,35 @@ describe('analytics identity follows the session', () => {
     expect(seen).toEqual([sdk.sessionId, sdk.sessionId])
   })
 
+  it('another tab signing someone else in signs this tab out, alone, without resetting their person', async () => {
+    useAuthStore.getState().login('token', userA)
+    const assign = vi.fn()
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign })
+    server.use(http.get('/api/v1/profile', () => ok(userB, 'Profile retrieved.')))
+    const announced: unknown[] = []
+    const listener = new BroadcastChannel('analytics-identity')
+    listener.addEventListener('message', (event: MessageEvent<unknown>) =>
+      announced.push(event.data)
+    )
+    const otherTab = new BroadcastChannel('analytics-identity')
+    otherTab.postMessage({ type: 'identified', distinctId: USER_ID_2 })
+    await vi.waitFor(() => expect(announced).toHaveLength(1))
+    listener.close()
+    otherTab.close()
+    sdk.distinctId = USER_ID_2
+    sdk.calls = []
+
+    const beforeSend = sdk.initOptions?.before_send as (event: unknown) => unknown
+    expect(
+      beforeSend({ uuid: 'u', event: '$pageview', properties: { distinct_id: USER_ID_2 } })
+    ).toBeNull()
+
+    await vi.waitFor(() => expect(useAuthStore.getState().user).toBeNull())
+    await vi.waitFor(() => expect(assign).toHaveBeenCalled())
+    expect(sdk.calls).not.toContain('reset()')
+    expect(sdk.distinctId).toBe(USER_ID_2)
+  })
+
   it('is installed once however often it is called', () => {
     installAnalyticsIdentity()
     useAuthStore.getState().login('token', userA)
