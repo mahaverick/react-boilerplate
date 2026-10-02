@@ -1,7 +1,14 @@
 import { http, HttpResponse } from 'msw'
 import type { MembershipRole } from '@/constants/roles'
 import { INVITATION_ID, USER_ID } from '@/tests/fixtures/ids'
-import type { InvitationPreview, TenantAccess, TenantInvitation, User } from '@/types/api.types'
+import type {
+  InvitationPreview,
+  OnboardingStepView,
+  TenantAccess,
+  TenantInvitation,
+  TenantOnboarding,
+  User,
+} from '@/types/api.types'
 
 export const testUser: User = {
   id: USER_ID,
@@ -35,6 +42,75 @@ export const testInvitationPreview: InvitationPreview = {
   role: 'editor',
   invitedBy: { firstName: 'Ada', lastName: 'Lovelace' },
   email: testUser.email,
+}
+
+/** The four default registry steps express serves, in its order, none done. */
+export const TEST_ONBOARDING_STEPS: readonly OnboardingStepView[] = [
+  {
+    key: 'configure_settings',
+    title: 'Configure your settings',
+    description: 'Set the timezone and locale your team works in.',
+    scope: 'tenant',
+    kind: 'auto',
+    required: true,
+    completedAt: null,
+    source: null,
+  },
+  {
+    key: 'invite_teammate',
+    title: 'Invite a teammate',
+    description: 'Bring someone else into this tenant.',
+    scope: 'tenant',
+    kind: 'auto',
+    required: true,
+    completedAt: null,
+    source: null,
+  },
+  {
+    key: 'teammate_joined',
+    title: 'A teammate joins',
+    description: 'Someone you invited accepts.',
+    scope: 'tenant',
+    kind: 'auto',
+    required: false,
+    completedAt: null,
+    source: null,
+  },
+  {
+    key: 'read_getting_started',
+    title: 'Read the getting started guide',
+    description: 'Each member marks this for themselves.',
+    scope: 'member',
+    kind: 'manual',
+    required: false,
+    completedAt: null,
+    source: null,
+  },
+]
+
+/**
+ * `GET /tenants/:slug/onboarding` for a tenant created after onboarding
+ * tracking began: in progress, nothing done. `overrides.steps` replaces the
+ * list; `doneKeys` marks those default steps done instead.
+ */
+export function testOnboarding(
+  overrides: Partial<TenantOnboarding> = {},
+  doneKeys: readonly string[] = []
+): TenantOnboarding {
+  const steps = TEST_ONBOARDING_STEPS.map((step) =>
+    doneKeys.includes(step.key)
+      ? { ...step, completedAt: '2026-09-30T09:00:00.000Z', source: 'auto' as const }
+      : step
+  )
+  return {
+    state: 'in_progress',
+    steps,
+    requiredDone: steps.filter((step) => step.required && step.completedAt !== null).length,
+    requiredTotal: steps.filter((step) => step.required).length,
+    completedAt: null,
+    dismissedAt: null,
+    ...overrides,
+  }
 }
 
 export function ok<T>(data: T, message = 'OK', statusCode = 200) {
@@ -134,6 +210,20 @@ export const handlers = [
       { tenant: testInvitationPreview.tenant, role: testInvitationPreview.role },
       'Invitation accepted.'
     )
+  ),
+  // Every tenant overview mounts the Getting started card. In progress, nothing done; a test about another state overrides it.
+  http.get('/api/v1/tenants/:slug/onboarding', () => ok(testOnboarding(), 'Onboarding retrieved.')),
+  http.post('/api/v1/tenants/:slug/onboarding/steps/:key/complete', () =>
+    ok(testOnboarding(), 'Onboarding step completed.')
+  ),
+  http.post('/api/v1/tenants/:slug/onboarding/dismiss', () =>
+    ok(
+      testOnboarding({ state: 'dismissed', dismissedAt: '2026-10-01T09:00:00.000Z' }),
+      'Onboarding dismissed.'
+    )
+  ),
+  http.post('/api/v1/tenants/:slug/onboarding/undismiss', () =>
+    ok(testOnboarding(), 'Onboarding restored.')
   ),
   // Tenant audit log, empty. A test about activity overrides it.
   http.get('/api/v1/tenants/:slug/audit-log', () =>

@@ -97,6 +97,8 @@ export const tenantKeys = {
   members: (slug: string) => ['tenants', slug, 'members'] as const,
   settings: (slug: string) => ['tenants', slug, 'settings'] as const,
   invitations: (slug: string) => ['tenants', slug, 'invitations'] as const,
+  /** Under the tenant prefix, so a self-removal or an invitation accept drops it with the rest. */
+  onboarding: (slug: string) => ['tenants', slug, 'onboarding'] as const,
 }
 
 export function useTenants() {
@@ -219,11 +221,15 @@ export function useInviteMember(slug: string) {
   return useMutation({
     mutationFn: async (input: InviteMemberInput) =>
       unwrap(await apiClient.post<ApiSuccess<null>>(`/tenants/${slug}/invitations`, input)),
-    /** A conflict means another invite for this address just landed, so the list is stale. */
-    onSettled: (_data, error) =>
-      !error || codeFrom(error) === INVITATION_CONFLICT
-        ? queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) })
-        : undefined,
+    /**
+     * A conflict means another invite for this address just landed, so the list
+     * is stale; either invite completes the invite-a-teammate onboarding step.
+     */
+    onSettled: async (_data, error) => {
+      if (error && codeFrom(error) !== INVITATION_CONFLICT) return
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) })
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.onboarding(slug) })
+    },
   })
 }
 
@@ -318,7 +324,11 @@ export function useUpdateTenantSettings(slug: string) {
   return useMutation({
     mutationFn: async (input: UpdateTenantSettingsInput) =>
       unwrap(await apiClient.patch<ApiSuccess<TenantSettings>>(`/tenants/${slug}/settings`, input)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: tenantKeys.settings(slug) }),
+    /** A saved change completes the configure-settings onboarding step, so its card refetches too. */
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.settings(slug) })
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.onboarding(slug) })
+    },
   })
 }
 

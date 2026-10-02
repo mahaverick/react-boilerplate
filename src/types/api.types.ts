@@ -157,3 +157,35 @@ export interface AuthProviders {
   providers: AuthProviderLink[]
   hasPassword: boolean
 }
+
+/** Where a tenant is in onboarding, as a member sees it; `stuck` reads `in_progress` and `awaiting_owner` reads `not_tracked`. */
+export type TenantOnboardingState = 'in_progress' | 'complete' | 'dismissed' | 'not_tracked'
+
+/** Who completed a step: the server from an event, a member, or platform staff. */
+export type OnboardingSource = 'auto' | 'customer' | 'staff'
+
+/**
+ * One step of `GET /tenants/:slug/onboarding`, in the server registry's order.
+ * A `member` step carries the caller's own completion, and `null` for a staff reader.
+ */
+export interface OnboardingStepView {
+  key: string
+  title: string
+  description: string
+  scope: 'tenant' | 'member'
+  kind: 'auto' | 'manual'
+  required: boolean
+  completedAt: string | null
+  source: OnboardingSource | null
+}
+
+/** `GET /tenants/:slug/onboarding`: the steps the server registry serves, and the tenant's progress through them. */
+export interface TenantOnboarding {
+  state: TenantOnboardingState
+  steps: OnboardingStepView[]
+  requiredDone: number
+  requiredTotal: number
+  /** When the last required step completed; `null` until then. */
+  completedAt: string | null
+  dismissedAt: string | null
+}

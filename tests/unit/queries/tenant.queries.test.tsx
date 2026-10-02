@@ -12,6 +12,7 @@ import {
   useMyRole,
   useResendInvitation,
   useRevokeInvitation,
+  useUpdateTenantSettings,
 } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 import {
@@ -29,6 +30,7 @@ import {
   ok,
   tenantDetail,
   testInvitation,
+  testOnboarding,
   testUser,
 } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -40,11 +42,12 @@ describe('tenant invitation queries', () => {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
 
-  /** Seeds the three keys a mutation might touch, so each test can see which one it did. */
+  /** Seeds the four keys a mutation might touch, so each test can see which one it did. */
   function seedCache() {
     client.setQueryData(tenantKeys.invitations('acme'), [testInvitation])
     client.setQueryData(tenantKeys.members('acme'), [])
     client.setQueryData(tenantKeys.list, [])
+    client.setQueryData(tenantKeys.onboarding('acme'), testOnboarding())
   }
 
   function isInvalidated(key: readonly unknown[]) {
@@ -76,7 +79,7 @@ describe('tenant invitation queries', () => {
     expect(tenantKeys.invitations('acme')).toEqual(['tenants', 'acme', 'invitations'])
   })
 
-  it('posts the invite body and invalidates the invitations list alone', async () => {
+  it('posts the invite body and invalidates the invitations list and the checklist', async () => {
     let body: unknown
     server.use(
       http.post('/api/v1/tenants/acme/invitations', async ({ request }) => {
@@ -94,6 +97,8 @@ describe('tenant invitation queries', () => {
     // The 202 is `data: null` for every address: nothing to hand back.
     expect(result.current.data).toBeNull()
     expect(isInvalidated(tenantKeys.invitations('acme'))).toBe(true)
+    // An invite completes the invite-a-teammate step, so the Getting started card refetches.
+    expect(isInvalidated(tenantKeys.onboarding('acme'))).toBe(true)
     expect(isInvalidated(tenantKeys.members('acme'))).toBe(false)
     expect(isInvalidated(tenantKeys.list)).toBe(false)
   })
@@ -111,6 +116,7 @@ describe('tenant invitation queries', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(isInvalidated(tenantKeys.invitations('acme'))).toBe(true)
+    expect(isInvalidated(tenantKeys.onboarding('acme'))).toBe(true)
     expect(isInvalidated(tenantKeys.members('acme'))).toBe(false)
   })
 
@@ -127,6 +133,43 @@ describe('tenant invitation queries', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(isInvalidated(tenantKeys.invitations('acme'))).toBe(false)
+    expect(isInvalidated(tenantKeys.onboarding('acme'))).toBe(false)
+  })
+
+  it('refreshes the settings and the checklist after a settings save, and nothing on a refusal', async () => {
+    let shouldFail = false
+    server.use(
+      http.patch('/api/v1/tenants/acme/settings', () =>
+        shouldFail
+          ? fail('Validation failed', 400)
+          : ok(
+              {
+                tenantId: TENANT_ID,
+                timezone: 'Europe/London',
+                locale: 'en',
+                metadata: null,
+                updatedAt: '2026-10-01T00:00:00.000Z',
+              },
+              'Settings updated.'
+            )
+      )
+    )
+    seedCache()
+    client.setQueryData(tenantKeys.settings('acme'), {})
+
+    const { result } = renderHook(() => useUpdateTenantSettings('acme'), { wrapper })
+    result.current.mutate({ timezone: 'Europe/London' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(isInvalidated(tenantKeys.settings('acme'))).toBe(true)
+    expect(isInvalidated(tenantKeys.onboarding('acme'))).toBe(true)
+    expect(isInvalidated(tenantKeys.members('acme'))).toBe(false)
+
+    shouldFail = true
+    client.setQueryData(tenantKeys.onboarding('acme'), testOnboarding())
+    result.current.mutate({ timezone: 'Nowhere/Else' })
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(isInvalidated(tenantKeys.onboarding('acme'))).toBe(false)
   })
 
   it('resends by id and refreshes the list', async () => {
