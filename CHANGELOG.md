@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/mahaverick/react-boilerplate/compare/v1.2.0...v1.2.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* keep keyboard focus when an action replaces its button ([#43](https://github.com/mahaverick/react-boilerplate/issues/43)) ([e490e4b](https://github.com/mahaverick/react-boilerplate/commit/e490e4b8062b9d45b26fc8f0d53d08a70b1eba9f))
+
 ## [1.2.0](https://github.com/mahaverick/react-boilerplate/compare/v1.1.1...v1.2.0) (2026-10-02)
 
 
