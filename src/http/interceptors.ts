@@ -1,5 +1,13 @@
-import { AxiosError, type AxiosInstance, type AxiosResponse } from 'axios'
+import {
+  AxiosError,
+  type AxiosInstance,
+  type AxiosResponse,
+  type InternalAxiosRequestConfig,
+} from 'axios'
+import { API_PREFIX } from '@/constants/routes'
 import { broadcastLogout, ensureSession, isAuthVerdict, redirectToLogin } from '@/http/session'
+import { createTraceparent } from '@/http/traceparent'
+import { getAnalyticsSessionId } from '@/observability/analytics'
 import { useAuthStore } from '@/states/auth.store'
 import { ACCESS_TOKEN_EXPIRED, REAUTH_REQUIRED, type ApiErrorBody } from '@/types/api.types'
 
@@ -61,7 +69,37 @@ export function rejectMalformedJsonResponse(response: AxiosResponse): AxiosRespo
 }
 
 /**
- * Installs the bearer-token request interceptor, the 401 handling and
+ * Whether `config` is a call to this app's own API: same origin, under
+ * `API_PREFIX`. Only those carry the trace and session headers; an absolute
+ * URL to anywhere else never does.
+ */
+function isApiRequest(client: AxiosInstance, config: InternalAxiosRequestConfig): boolean {
+  try {
+    const url = new URL(client.getUri(config), window.location.origin)
+    return url.origin === window.location.origin && url.pathname.startsWith(`${API_PREFIX}/`)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Sets `traceparent` on every API request that has none (a replay keeps its
+ * original), and `X-POSTHOG-SESSION-ID` when analytics has a session to link,
+ * so the server's span and its analytics events join the browser's replay.
+ */
+export function addTraceHeaders(
+  client: AxiosInstance,
+  config: InternalAxiosRequestConfig
+): InternalAxiosRequestConfig {
+  if (!isApiRequest(client, config)) return config
+  if (!config.headers.has('traceparent')) config.headers.set('traceparent', createTraceparent())
+  const sessionId = getAnalyticsSessionId()
+  if (sessionId) config.headers.set('X-POSTHOG-SESSION-ID', sessionId)
+  return config
+}
+
+/**
+ * Installs `addTraceHeaders`, the bearer-token request interceptor, the 401 handling and
  * `rejectMalformedJsonResponse` on `client`.
  *
  * An Authorization header already on a request wins over the store's token:
@@ -82,6 +120,7 @@ export function rejectMalformedJsonResponse(response: AxiosResponse): AxiosRespo
  * rejects untouched, with no refresh and no sign-out, for the caller to handle.
  */
 export function installInterceptors(client: AxiosInstance): void {
+  client.interceptors.request.use((config) => addTraceHeaders(client, config))
   client.interceptors.request.use((config) => {
     const { accessToken } = useAuthStore.getState()
     if (accessToken && !config.headers.has('Authorization')) {

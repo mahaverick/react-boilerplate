@@ -1,7 +1,8 @@
 /**
  * @file Builds the app in memory and checks the chunks it would ship: more than
  * one JS chunk, first-visit JS (the entry chunk and its static imports) under
- * budget, and no devtools module in any chunk. Run with `pnpm check:bundle`.
+ * budget and free of posthog-js, and no devtools module in any chunk. Run with
+ * `pnpm check:bundle`.
  */
 import path from 'node:path'
 import { build } from 'vite'
@@ -16,6 +17,12 @@ const ENTRY_BUDGET_BYTES = 628_790
  */
 const DEVTOOLS_MODULE =
   /[\\/]@tanstack[\\/](react-query-devtools|query-devtools|react-router-devtools|router-devtools-core)[\\/]/
+
+/**
+ * A posthog-js module, by its node_modules path. The analytics facade imports
+ * it with a dynamic `import()`, so it must sit in a lazy chunk of its own.
+ */
+const POSTHOG_MODULE = /[\\/]posthog-js[\\/]/
 
 const output = await build({
   root: path.resolve(import.meta.dirname, '..'),
@@ -54,6 +61,15 @@ if (entries.length !== 1) {
   if (bytes > ENTRY_BUDGET_BYTES) {
     failures.push(`first-visit JS is ${bytes} bytes, over the ${ENTRY_BUDGET_BYTES}-byte budget`)
   }
+  for (const fileName of initial) {
+    if (byFile.get(fileName)?.moduleIds.some((id) => POSTHOG_MODULE.test(id))) {
+      failures.push(`first-visit chunk ${fileName} contains posthog-js, which must load on demand`)
+    }
+  }
+}
+
+if (!chunks.some((chunk) => chunk.moduleIds.some((id) => POSTHOG_MODULE.test(id)))) {
+  failures.push('no chunk contains posthog-js: the lazy-load check above proved nothing')
 }
 
 for (const chunk of chunks) {

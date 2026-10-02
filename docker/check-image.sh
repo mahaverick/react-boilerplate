@@ -13,7 +13,7 @@ work=$(mktemp -d)
 fail=0
 
 cleanup() {
-  docker rm -f "$name" >/dev/null 2>&1 || true
+  docker rm -f "$name" "$name-bad" >/dev/null 2>&1 || true
   rm -rf "$work"
 }
 trap cleanup EXIT
@@ -48,9 +48,41 @@ for bad in 'http://api:4040/' 'http://api:4040/v1' 'api:4040' '' 'http://$host' 
   esac
 done
 
+# --- The run-time configuration is validated before nginx starts -------------
+# A bad value stops the container: started detached, exactly as it ships, it
+# must exit non-zero, and its log must name the variable without showing the
+# value. The probe value is unique, so finding it anywhere in the log fails,
+# and it matches none of the patterns (uppercase, underscores, no scheme).
+probe='PII_PROBE_VALUE'
+for var in POSTHOG_KEY POSTHOG_UI_HOST ANALYTICS_CONSENT_MODE ANALYTICS_HANDOFF_ORIGINS APP_ENVIRONMENT; do
+  docker run -d --name "$name-bad" --read-only --tmpfs /tmp --add-host=api:127.0.0.1 \
+    -e "$var=$probe" "$image" >/dev/null
+  # Polled rather than `docker wait`, which would hang on a container that started.
+  for _ in $(seq 1 30); do
+    [ "$(docker inspect -f '{{.State.Running}}' "$name-bad")" = false ] && break
+    sleep 1
+  done
+  state=$(docker inspect -f '{{.State.Running}} {{.State.ExitCode}}' "$name-bad")
+  logs=$(docker logs "$name-bad" 2>&1)
+  docker rm -f "$name-bad" >/dev/null
+  case $state in
+    'false 0' | true*) problem "started with an invalid $var ($state)" ;;
+  esac
+  case $logs in
+    *"10-runtime-config.sh: $var must be"*) ;;
+    *) problem "no validation message for an invalid $var: $logs" ;;
+  esac
+  case $logs in
+    *"$probe"*) problem "the log of an invalid $var shows its value" ;;
+  esac
+done
+
 # --- The container: unprivileged, on 8080 ------------------------------------
+# Started with run-time settings, passed the way every deployment passes
+# them: plain environment variables.
 docker run -d --name "$name" -p "127.0.0.1:$port:8080" --read-only --tmpfs /tmp \
-  --add-host=api:127.0.0.1 "$image" >/dev/null
+  --add-host=api:127.0.0.1 -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=check \
+  -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test "$image" >/dev/null
 for _ in $(seq 1 30); do
   curl -sf -o /dev/null "$base/" && break
   sleep 1
@@ -81,7 +113,7 @@ status=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/health")
 asset=$({ curl -sf "$base/" || true; } | { grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' || true; } | head -n 1)
 [ -n "$asset" ] || problem "index.html names no /assets/index-*.js entry chunk"
 csp="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
-for path in / /dashboard "$asset" /theme-init.js /assets/does-not-exist.js; do
+for path in / /dashboard "$asset" /theme-init.js /runtime-config.js /assets/does-not-exist.js; do
   curl -s -D "$work/headers" -o /dev/null "$base$path"
   while IFS='|' read -r field value; do
     got=$(header "$field" "$work/headers")
@@ -99,6 +131,27 @@ done
 curl -s -D "$work/headers" -o /dev/null "$base/theme-init.js"
 [ "$(header Content-Type "$work/headers")" = application/javascript ] || problem "/theme-init.js is not served as JavaScript"
 [ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/theme-init.js is not no-store"
+
+# --- The run-time configuration, written at start under /tmp -----------------
+curl -s -D "$work/headers" -o "$work/body" "$base/runtime-config.js"
+[ "$(header Content-Type "$work/headers")" = application/javascript ] \
+  || problem "/runtime-config.js is not served as JavaScript"
+[ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/runtime-config.js is not no-store"
+cat >"$work/expected" <<'EOF'
+window.__APP_CONFIG__ = Object.freeze({
+  "POSTHOG_KEY": "phc_test_key_not_real",
+  "POSTHOG_UI_HOST": "",
+  "ANALYTICS_CONSENT_MODE": "",
+  "ANALYTICS_HANDOFF_ORIGINS": "https://www.example.test",
+  "APP_ENVIRONMENT": "check"
+})
+EOF
+cmp -s "$work/expected" "$work/body" \
+  || problem "/runtime-config.js is not what the container was started with: $(cat "$work/body")"
+case $(curl -sf "$base/" || true) in
+  *'<script src="/runtime-config.js"'*) ;;
+  *) problem "index.html does not load /runtime-config.js" ;;
+esac
 
 # --- A missing asset is a 404 that no cache keeps ----------------------------
 status=$(curl -s -D "$work/headers" -o "$work/body" -w '%{http_code}' "$base/assets/does-not-exist.js")

@@ -71,6 +71,12 @@
       "description": "The pinned toolchain always waits for a human.",
       "matchDepNames": ["node", "typescript"],
       "automerge": false
+    },
+    {
+      "description": "posthog-js stays on the minor the analytics module was probed against (its `defaults` date, bot filter and replay masking hooks); a new minor waits for a human to re-run those probes. After the automerge rule, which it overrides.",
+      "matchPackageNames": ["posthog-js"],
+      "matchUpdateTypes": ["minor", "major"],
+      "automerge": false
     }
   ]
 }

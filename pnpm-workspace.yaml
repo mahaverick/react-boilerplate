@@ -1,4 +1,13 @@
 allowBuilds:
+  core-js: false
   msw: true
 # Minutes (3 days). Matches renovate.json.
 minimumReleaseAge: 4320
+# posthog-js 1.435.6 is the version the analytics module was probed against; it
+# and its own @posthog packages were under 3 days old when it was pinned.
+# Remove these entries after 2026-10-05.
+minimumReleaseAgeExclude:
+  - posthog-js@1.435.6
+  - '@posthog/browser-common@0.9.1'
+  - '@posthog/core@1.55.3'
+  - '@posthog/types@1.413.0'
