@@ -5,9 +5,12 @@ import {
   broadcastLogout,
   ensureSession,
   installAuthBroadcastListener,
+  isAuthVerdict,
   resetSessionForTests,
+  SessionIdentityChangedError,
 } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
+import { USER_ID_2 } from '@/tests/fixtures/ids'
 import { NON_VERDICT_FAILURES } from '@/tests/fixtures/non-verdict-failures'
 import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
@@ -388,6 +391,37 @@ describe('across tabs', () => {
     await expect(ensureSession()).rejects.toThrow()
 
     await vi.waitFor(() => expect(probe.received).toEqual([{ type: 'logout' }]))
+  })
+
+  it('refresh returning a different user signs out, tells other tabs, and rejects as a verdict', async () => {
+    useAuthStore.getState().login('stale', testUser)
+    const probe = openOtherTab()
+    server.use(
+      http.get('/api/v1/profile', () =>
+        ok({ ...testUser, id: USER_ID_2, email: 'b@b.com' }, 'Profile retrieved.')
+      )
+    )
+
+    const error: unknown = await ensureSession().catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(SessionIdentityChangedError)
+    expect(isAuthVerdict(error)).toBe(true)
+    expect(useAuthStore.getState()).toMatchObject({
+      user: null,
+      accessToken: null,
+      isAuthenticated: false,
+    })
+    await vi.waitFor(() => expect(probe.received).toEqual([{ type: 'logout' }]))
+  })
+
+  it('a restore on a tab nobody was signed in to takes whoever the cookie belongs to', async () => {
+    server.use(
+      http.get('/api/v1/profile', () =>
+        ok({ ...testUser, id: USER_ID_2, email: 'b@b.com' }, 'Profile retrieved.')
+      )
+    )
+    await expect(ensureSession()).resolves.toBe('fresh-token')
+    expect(useAuthStore.getState().user?.id).toBe(USER_ID_2)
   })
 
   // A failed refresh that is not a verdict left the session alive everywhere.

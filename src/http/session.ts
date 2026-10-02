@@ -6,7 +6,21 @@ import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 
 /**
- * Whether a failed refresh was the server judging the credentials: a 401, and
+ * The refresh handed back a different person than this tab was signed in as:
+ * another tab signed someone else in on the shared refresh cookie. It is an
+ * auth verdict (`isAuthVerdict`): the tab signs out, and nothing it started
+ * is replayed as the new person.
+ */
+export class SessionIdentityChangedError extends Error {
+  constructor() {
+    super('The refreshed session belongs to a different user.')
+    this.name = 'SessionIdentityChangedError'
+  }
+}
+
+/**
+ * Whether a failed refresh was the server judging the credentials: a 401, or
+ * the refresh returning a different user (`SessionIdentityChangedError`), and
  * nothing else. It is the only refresh failure that may end a session (other
  * requests: interceptors.ts).
  *
@@ -30,6 +44,7 @@ import type { ApiSuccess, User } from '@/types/api.types'
  * caller's credentials.
  */
 export function isAuthVerdict(error: unknown): boolean {
+  if (error instanceof SessionIdentityChangedError) return true
   return isAxiosError(error) && error.response?.status === 401
 }
 
@@ -151,7 +166,8 @@ let inFlight: Promise<string> | null = null
  * auth verdict (`isAuthVerdict`) signs the store out; any other failure
  * rejects with the store untouched, so the next attempt can succeed. A tab
  * that was never signed in does not broadcast the logout, or it would sign out
- * a sibling tab that just logged in.
+ * a sibling tab that just logged in. A signed-in tab whose refresh comes back
+ * as someone else signs out and broadcasts it, rather than carry on as them.
  * @returns The new access token.
  * @throws The failure of either request, rethrown.
  */
@@ -170,7 +186,12 @@ async function refreshSession(): Promise<string> {
       skipAuthRetry: true,
     })
 
-    useAuthStore.getState().login(accessToken, unwrap(profileResponse))
+    const profile = unwrap(profileResponse)
+    const current = useAuthStore.getState().user
+    // The catch below signs out and broadcasts; the 401 interceptor then redirects instead of replaying as them.
+    if (current && current.id !== profile.id) throw new SessionIdentityChangedError()
+
+    useAuthStore.getState().login(accessToken, profile)
     return accessToken
   } catch (error) {
     if (isAuthVerdict(error)) {
