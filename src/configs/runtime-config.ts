@@ -90,6 +90,20 @@ function validValues(raw: Readonly<Record<string, unknown>>): {
 }
 
 /**
+ * Each configured origin in the canonical form `new URL(referrer).origin`
+ * produces: a lowercase host, no default port.
+ * @param list - A comma-separated list that already matched the origin pattern.
+ * @returns The canonical origins, or undefined when one is not a URL (a port above 65535).
+ */
+function canonicalOrigins(list: string): string[] | undefined {
+  try {
+    return list.split(',').map((origin) => new URL(origin).origin)
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Builds the configuration from raw values keyed by container name. An
  * invalid value is treated as unset, except a consent mode, which fails
  * closed: an unrecognised one turns analytics `off` rather than falling back
@@ -102,6 +116,10 @@ export function parseRuntimeConfig(raw: Readonly<Record<string, unknown>>): {
   invalid: RuntimeConfigKey[]
 } {
   const { values, invalid } = validValues(raw)
+  const handoffOrigins = values.ANALYTICS_HANDOFF_ORIGINS
+    ? canonicalOrigins(values.ANALYTICS_HANDOFF_ORIGINS)
+    : []
+  if (handoffOrigins === undefined) invalid.push('ANALYTICS_HANDOFF_ORIGINS')
   const isConsentInvalid = invalid.includes('ANALYTICS_CONSENT_MODE')
   return {
     config: {
@@ -110,7 +128,7 @@ export function parseRuntimeConfig(raw: Readonly<Record<string, unknown>>): {
       analyticsConsentMode: isConsentInvalid
         ? 'off'
         : ((values.ANALYTICS_CONSENT_MODE as AnalyticsConsentMode | undefined) ?? 'opt_out'),
-      analyticsHandoffOrigins: values.ANALYTICS_HANDOFF_ORIGINS?.split(',') ?? [],
+      analyticsHandoffOrigins: handoffOrigins ?? [],
       appEnvironment: values.APP_ENVIRONMENT ?? DEFAULT_ENVIRONMENT,
     },
     invalid,

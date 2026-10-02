@@ -5,6 +5,7 @@ import {
   rawFromViteEnv,
   resetRuntimeConfigForTests,
 } from '@/configs/runtime-config'
+import { readHandoff } from '@/observability/analytics/handoff'
 
 const KEY = 'phc_test_key_not_real'
 
@@ -94,6 +95,34 @@ describe('rawFromViteEnv', () => {
       ANALYTICS_HANDOFF_ORIGINS: undefined,
       APP_ENVIRONMENT: 'dev',
     })
+  })
+})
+
+describe('handoff origin normalisation', () => {
+  it('canonicalises case and the default port so a referrer origin matches', () => {
+    const { config, invalid } = parseRuntimeConfig({
+      ANALYTICS_HANDOFF_ORIGINS: 'https://WWW.Example.com,https://x.com:443,https://y.com:8443',
+    })
+    expect(invalid).toEqual([])
+    expect(config.analyticsHandoffOrigins).toEqual([
+      'https://www.example.com',
+      'https://x.com',
+      'https://y.com:8443',
+    ])
+    const did = '01a0fc35-b7ee-7b93-b550-d8a7f98e30be'
+    for (const referrer of ['https://www.example.com/blog', 'https://x.com/']) {
+      expect(
+        readHandoff({ search: `?ph_did=${did}` }, referrer, config.analyticsHandoffOrigins, false)
+      ).toEqual({ bootstrap: { distinctID: did } })
+    }
+  })
+
+  it('refuses a list with a port no URL can carry, as unset', () => {
+    const { config, invalid } = parseRuntimeConfig({
+      ANALYTICS_HANDOFF_ORIGINS: 'https://x.com:99999',
+    })
+    expect(invalid).toEqual(['ANALYTICS_HANDOFF_ORIGINS'])
+    expect(config.analyticsHandoffOrigins).toEqual([])
   })
 })
 
