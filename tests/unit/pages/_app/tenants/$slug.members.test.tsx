@@ -1103,4 +1103,44 @@ describe('keyboard focus after a row action succeeds', () => {
       expect(screen.getByRole('heading', { name: 'Members', level: 2 })).toHaveFocus()
     })
   })
+
+  it('keeps focus on the Remove button when a removal fails and the row stays', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
+    server.use(
+      http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, () =>
+        fail('Something went wrong.', 500, 'internal_error')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const vic = await rowFor('Vic')
+    await user.click(vic.getByRole('button', { name: 'Remove' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' })
+    )
+
+    expect(await screen.findByText('Something went wrong.')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+    expect(vic.getByRole('button', { name: 'Remove' })).toHaveFocus()
+    expect(screen.getByRole('heading', { name: 'Members', level: 2 })).not.toHaveFocus()
+  })
+
+  it('does not move focus to the Members heading when you leave the tenant', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'owner', 'Vic')])
+    server.use(http.delete(`/api/v1/tenants/acme/members/${ME}`, () => ok(null, 'Left.')))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const me = await rowFor('Me')
+    await user.click(me.getByRole('button', { name: 'Leave' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
+    )
+
+    expect(await screen.findByText('You left this tenant.')).toBeInTheDocument()
+    expect(document.activeElement?.tagName).not.toBe('H2')
+  })
 })

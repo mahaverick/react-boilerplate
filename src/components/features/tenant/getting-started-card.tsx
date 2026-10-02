@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CircleCheckIcon, CircleIcon } from 'lucide-react'
 import { useState } from 'react'
@@ -27,6 +28,7 @@ import { canManageTenant, type MembershipRole } from '@/constants/roles'
 import { useFocusAfter, type FocusAfter } from '@/hooks/use-focus-after'
 import { messageFrom } from '@/lib/api-error'
 import {
+  tenantOnboardingQueryOptions,
   useCompleteOnboardingStep,
   useDismissOnboarding,
   useTenantOnboarding,
@@ -50,7 +52,7 @@ const STEP_LINKS: ReadonlyMap<
 ])
 
 /** The focus targets this card moves between when an action replaces its own button. */
-type CardFocusKey = 'card' | 'show' | `step:${string}`
+type CardFocusKey = 'card' | 'all-set' | 'show' | `step:${string}`
 type CardFocus = FocusAfter<CardFocusKey>
 
 /** What the viewer may do here: staff through platform access may read, never act. */
@@ -96,7 +98,11 @@ function StepMarker({ isDone }: { isDone: boolean }) {
 /**
  * Mark done for a manual step. `mutateAsync`, because the refetch on settle
  * replaces this button with the done marker, and `mutate`'s callbacks skip an
- * unmounted observer.
+ * unmounted observer. Focus goes to the step's title while the checklist is
+ * still in progress; when this was the last required step the checklist is
+ * replaced by "You're all set", so it goes to that card's heading instead (and
+ * nowhere when that card renders nothing, which takes a `completedAt` over a
+ * day old).
  */
 function MarkDoneButton({
   slug,
@@ -108,6 +114,7 @@ function MarkDoneButton({
   focus: CardFocus
 }) {
   const complete = useCompleteOnboardingStep(slug)
+  const queryClient = useQueryClient()
   return (
     <Button
       variant="outline"
@@ -118,7 +125,11 @@ function MarkDoneButton({
       onClick={() => {
         complete.mutateAsync(step.key).then(
           () => {
-            focus.focusAfter(`step:${step.key}`)
+            // The refetch has settled, so the cache says which card the step led to.
+            const state = queryClient.getQueryData(
+              tenantOnboardingQueryOptions(slug).queryKey
+            )?.state
+            focus.focusAfter(state === 'in_progress' ? `step:${step.key}` : 'all-set')
             toast.success(`“${step.title}” marked done.`)
           },
           (error: unknown) => toast.error(messageFrom(error))
@@ -278,12 +289,14 @@ function ShowGettingStarted({ slug, focus }: { slug: string; focus: CardFocus })
   )
 }
 
-function AllSetCard() {
+function AllSetCard({ focus }: { focus: CardFocus }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>You’re all set</h2>
+          <h2 ref={focus.target('all-set')} tabIndex={-1} className="outline-none">
+            You’re all set
+          </h2>
         </CardTitle>
         <CardDescription>Every required getting started step is done.</CardDescription>
       </CardHeader>
@@ -363,7 +376,7 @@ export function GettingStartedCard({
         <ChecklistCard slug={slug} onboarding={onboarding.data} viewer={viewer} focus={focus} />
       )
     case 'complete':
-      return isRecentlyComplete(onboarding.data, mountedAt) ? <AllSetCard /> : null
+      return isRecentlyComplete(onboarding.data, mountedAt) ? <AllSetCard focus={focus} /> : null
     case 'dismissed':
       return viewer.isOwner ? <ShowGettingStarted slug={slug} focus={focus} /> : null
     case 'not_tracked':

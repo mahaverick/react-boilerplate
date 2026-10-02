@@ -19,8 +19,18 @@ export interface FocusAfter<Key extends string> {
  * (a section heading) or may not exist until the refetch renders it (the
  * control that replaces the button); both orders work, with no timer.
  *
- * Call `focusAfter` on success only. On failure the button is still there and
- * the confirm dialog returns focus to it.
+ * Call `focusAfter` on success only, with a target that exists in the state
+ * the action leads to (a target about to unmount is no target). On failure
+ * nothing calls it: the button is still there, and focus stays on it (Mark
+ * done) or returns to it from the confirm dialog (Dismiss, Revoke, Remove).
+ *
+ * Focus is never stolen. It moves only if, when the target is ready, focus is
+ * on `<body>` or still on the element that was active when `focusAfter` was
+ * called; a user who has moved on meanwhile is left where they are.
+ *
+ * A target that has not mounted stays pending only until the owner's next
+ * commit, or the next `focusAfter` call, whichever comes first, so a later
+ * unrelated mount cannot grab focus.
  *
  * Where focus goes, one rule everywhere: the control that takes the button's
  * place when there is one; otherwise the title of the item that held the
@@ -30,37 +40,54 @@ export interface FocusAfter<Key extends string> {
  */
 export function useFocusAfter<Key extends string>(): FocusAfter<Key> {
   const mounted = React.useRef(new Map<Key, HTMLElement>())
-  const pending = React.useRef<Key | null>(null)
+  const pending = React.useRef<{ key: Key; origin: Element | null } | null>(null)
   const refs = React.useRef(new Map<Key, (element: HTMLElement | null) => void>())
 
-  const target = React.useCallback((key: Key) => {
-    let ref = refs.current.get(key)
-    if (!ref) {
-      ref = (element) => {
-        if (!element) {
-          mounted.current.delete(key)
-          return
-        }
-        mounted.current.set(key, element)
-        if (pending.current === key) {
-          pending.current = null
-          element.focus()
-        }
-      }
-      refs.current.set(key, ref)
-    }
-    return ref
+  const moveTo = React.useCallback((element: HTMLElement, origin: Element | null) => {
+    const active = document.activeElement
+    if (active === null || active === document.body || active === origin) element.focus()
   }, [])
 
-  const focusAfter = React.useCallback((key: Key) => {
-    const element = mounted.current.get(key)
-    if (element) {
-      pending.current = null
-      element.focus()
-    } else {
-      pending.current = key
-    }
-  }, [])
+  React.useEffect(() => {
+    pending.current = null
+  })
+
+  const target = React.useCallback(
+    (key: Key) => {
+      let ref = refs.current.get(key)
+      if (!ref) {
+        ref = (element) => {
+          if (!element) {
+            mounted.current.delete(key)
+            return
+          }
+          mounted.current.set(key, element)
+          const request = pending.current
+          if (request?.key === key) {
+            pending.current = null
+            moveTo(element, request.origin)
+          }
+        }
+        refs.current.set(key, ref)
+      }
+      return ref
+    },
+    [moveTo]
+  )
+
+  const focusAfter = React.useCallback(
+    (key: Key) => {
+      const origin = document.activeElement
+      const element = mounted.current.get(key)
+      if (element) {
+        pending.current = null
+        moveTo(element, origin)
+      } else {
+        pending.current = { key, origin }
+      }
+    },
+    [moveTo]
+  )
 
   return React.useMemo(() => ({ target, focusAfter }), [target, focusAfter])
 }

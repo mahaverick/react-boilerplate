@@ -267,7 +267,7 @@ function MemberRow({
   myRole: MembershipRole
   myUserId: string | undefined
   owners: number
-  /** Called once removing this member has succeeded. */
+  /** Called once removing another member has succeeded. */
   onRemoved: () => void
   /**
    * Render a stacked card instead of a table row, for phones, where the

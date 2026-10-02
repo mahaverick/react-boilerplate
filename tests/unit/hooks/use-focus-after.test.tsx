@@ -63,4 +63,46 @@ describe('useFocusAfter', () => {
     })
     expect(document.body).toHaveFocus()
   })
+
+  it('leaves focus alone when the user moved elsewhere before the target mounted', () => {
+    const { rerender } = render(
+      <>
+        <input aria-label="elsewhere" />
+        <Harness showA showB={false} onFocus={take} />
+      </>
+    )
+    screen.getByRole('button', { name: 'A' }).focus()
+    act(() => {
+      focus.focusAfter('b')
+    })
+    screen.getByRole('textbox', { name: 'elsewhere' }).focus()
+
+    rerender(
+      <>
+        <input aria-label="elsewhere" />
+        <Harness showA showB onFocus={take} />
+      </>
+    )
+    expect(screen.getByRole('textbox', { name: 'elsewhere' })).toHaveFocus()
+  })
+
+  it('moves focus from the element that was active when it was asked', () => {
+    const { rerender } = render(<Harness showA showB={false} onFocus={take} />)
+    screen.getByRole('button', { name: 'A' }).focus()
+    act(() => {
+      focus.focusAfter('b')
+    })
+    rerender(<Harness showA showB onFocus={take} />)
+    expect(screen.getByRole('button', { name: 'B' })).toHaveFocus()
+  })
+
+  it('drops a pending request at the next commit, so a later mount cannot take focus', () => {
+    const { rerender } = render(<Harness showA showB={false} onFocus={take} />)
+    act(() => {
+      focus.focusAfter('b')
+    })
+    rerender(<Harness showA={false} showB={false} onFocus={take} />)
+    rerender(<Harness showA={false} showB onFocus={take} />)
+    expect(document.body).toHaveFocus()
+  })
 })
