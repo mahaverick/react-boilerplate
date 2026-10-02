@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
+import { GettingStartedCard } from '@/components/features/tenant/getting-started-card'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -170,45 +171,49 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
 }
 
 /**
- * The overview tab: the edit form for owners and admins, the read-only details
- * otherwise. An unknown role renders a skeleton, not the read-only view, which
- * would flash an owner's form away; a failed role lookup renders an error with
- * a retry. The form is keyed on the row, so its defaults come from real data.
- * With no tenant data the layout has already rendered its not-found panel.
+ * The overview tab: the Getting started checklist, then the edit form for
+ * owners and admins, the read-only details otherwise. An unknown role renders
+ * a skeleton, not the read-only view, which would flash an owner's form away;
+ * a failed role lookup renders an error with a retry. The form is keyed on the
+ * row, so its defaults come from real data. With no tenant data the layout has
+ * already rendered its not-found panel.
  */
 function TenantOverviewTab() {
   const { slug } = Route.useParams()
   const tenant = useTenant(slug)
-  const { role, isPending: isRolePending, isError: isRoleError, retry } = useMyRole(slug)
+  const { role, access, isPending: isRolePending, isError: isRoleError, retry } = useMyRole(slug)
 
   if (!tenant.data) return null
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2>Overview</h2>
-        </CardTitle>
-        <CardDescription>
-          {role && canManageTenant(role)
-            ? 'Update this tenant. Its slug is fixed and cannot be changed.'
-            : 'These details are managed by the tenant’s owners and admins.'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isRoleError || (!isRolePending && !role) ? (
-          <LoadError message={ROLE_ERROR} onRetry={retry} />
-        ) : isRolePending || !role ? (
-          <div className="grid gap-4">
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
-          </div>
-        ) : canManageTenant(role) ? (
-          <EditTenantForm key={tenant.data.id} tenant={tenant.data} />
-        ) : (
-          <TenantDetails tenant={tenant.data} />
-        )}
-      </CardContent>
-    </Card>
+    <div className="grid gap-4">
+      {role && access && <GettingStartedCard slug={slug} role={role} access={access} />}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2>Overview</h2>
+          </CardTitle>
+          <CardDescription>
+            {role && canManageTenant(role)
+              ? 'Update this tenant. Its slug is fixed and cannot be changed.'
+              : 'These details are managed by the tenant’s owners and admins.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isRoleError || (!isRolePending && !role) ? (
+            <LoadError message={ROLE_ERROR} onRetry={retry} />
+          ) : isRolePending || !role ? (
+            <div className="grid gap-4">
+              <Skeleton className="h-9 w-full" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+          ) : canManageTenant(role) ? (
+            <EditTenantForm key={tenant.data.id} tenant={tenant.data} />
+          ) : (
+            <TenantDetails tenant={tenant.data} />
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }

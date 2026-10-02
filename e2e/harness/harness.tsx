@@ -124,6 +124,62 @@ const PREFERENCES = [
   { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
 ]
 
+/**
+ * The Getting started checklist in progress, one required step done, so the
+ * done and pending markers, the Optional badge, the links and Mark done are
+ * all on the page. The member step's `completedAt` is the caller's own, so
+ * staff (no membership) read it as null, as here.
+ */
+const ONBOARDING = {
+  state: 'in_progress',
+  steps: [
+    {
+      key: 'configure_settings',
+      title: 'Configure your settings',
+      description: 'Set the timezone and locale your team works in.',
+      scope: 'tenant',
+      kind: 'auto',
+      required: true,
+      completedAt: '2026-09-30T09:00:00.000Z',
+      source: 'auto',
+    },
+    {
+      key: 'invite_teammate',
+      title: 'Invite a teammate',
+      description: 'Bring someone else into this tenant.',
+      scope: 'tenant',
+      kind: 'auto',
+      required: true,
+      completedAt: null,
+      source: null,
+    },
+    {
+      key: 'teammate_joined',
+      title: 'A teammate joins',
+      description: 'Someone you invited accepts.',
+      scope: 'tenant',
+      kind: 'auto',
+      required: false,
+      completedAt: null,
+      source: null,
+    },
+    {
+      key: 'read_getting_started',
+      title: 'Read the getting started guide',
+      description: 'Each member marks this for themselves.',
+      scope: 'member',
+      kind: 'manual',
+      required: false,
+      completedAt: null,
+      source: null,
+    },
+  ],
+  requiredDone: 1,
+  requiredTotal: 2,
+  completedAt: null,
+  dismissedAt: null,
+}
+
 /** The one current password the change-password handler below accepts. */
 const HARNESS_PASSWORD = 'current-password'
 
@@ -198,6 +254,8 @@ const worker = setupWorker(
   // The members page lists pending invitations for an owner. Unmocked, this would reach the real API, 401, and sign the harness user out.
   http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
   http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
+  // Every overview mounts the Getting started card, staff's included. Unmocked, it would reach the real API, 401, and sign the harness user out.
+  http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
   http.get('/api/v1/tenants/acme/audit-log', () =>
     ok(
       {
@@ -300,7 +358,7 @@ useAuthStore.setState({
  * `fixtures/security.test.ts`, which need the other authenticated
  * surfaces: the handlers above already answer /profile, /auth/providers,
  * /notifications, /notifications/preferences, /tenants, /tenants/acme and
- * its /settings, so those pages render without a backend.
+ * its /settings and /onboarding, so those pages render without a backend.
  *
  * Only a same-origin absolute path is accepted. This harness is not
  * shipped (nothing in `src/` imports it, and `index.html` is the only Vite

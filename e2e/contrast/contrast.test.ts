@@ -86,6 +86,12 @@ const SURFACES = [
     url: '/e2e/harness/?path=/tenants/acme&state=suspended',
     heading: 'Tenant suspended',
   },
+  // A member's overview: the Getting started checklist above the Overview card, as the harness's owner sees it.
+  {
+    name: 'tenant overview (getting started)',
+    url: '/e2e/harness/?path=/tenants/acme',
+    heading: 'Getting started',
+  },
   {
     name: 'tenant settings',
     url: '/e2e/harness/?path=/tenants/acme/settings',

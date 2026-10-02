@@ -27,7 +27,14 @@ import {
   USER_ID,
   USER_ID_2,
 } from '@/tests/fixtures/ids'
-import { fail, ok, tenantDetail, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
+import {
+  fail,
+  ok,
+  tenantDetail,
+  TEST_INVITATION_TOKEN,
+  testOnboarding,
+  testUser,
+} from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { AuditEntry } from '@/types/api.types'
 
@@ -546,7 +553,11 @@ describe('signed-in pages', () => {
     [
       'tenant overview',
       '/tenants/acme',
-      () => screen.findByRole('heading', { name: 'Acme Corp', level: 1 }),
+      // The Getting started card loads after the page, so wait for it: the checklist is the surface worth grading.
+      async () => {
+        await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
+        return screen.findByRole('button', { name: 'Mark “Read the getting started guide” done' })
+      },
     ],
     [
       'tenant members',
@@ -609,8 +620,35 @@ describe('signed-in pages', () => {
     )
     renderAppAt('/tenants/acme')
     await screen.findByText(/as platform staff/)
+    await screen.findByRole('heading', { name: 'Getting started', level: 2 })
     await expectNoViolations()
   })
+
+  it.each([
+    [
+      'dismissed, as its owner',
+      testOnboarding({ state: 'dismissed', dismissedAt: '2026-10-01T09:00:00.000Z' }),
+      () => screen.findByRole('button', { name: 'Show getting started' }),
+    ],
+    [
+      'just completed',
+      testOnboarding(
+        { state: 'complete', completedAt: new Date(Date.now() - 60_000).toISOString() },
+        ['configure_settings', 'invite_teammate']
+      ),
+      () => screen.findByRole('heading', { name: 'You’re all set', level: 2 }),
+    ],
+  ])(
+    'tenant overview with getting started %s has no axe violations',
+    async (_name, onboarding, ready) => {
+      server.use(
+        http.get('/api/v1/tenants/acme/onboarding', () => ok(onboarding, 'Onboarding retrieved.'))
+      )
+      renderAppAt('/tenants/acme')
+      await ready()
+      await expectNoViolations()
+    }
+  )
 })
 
 /**
@@ -720,6 +758,17 @@ describe('open overlays', () => {
 
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveAccessibleName('Revoke the invitation to invitee@b.com?')
+    await expectNoViolations()
+  })
+
+  it('has no violations with the dismiss-getting-started dialog open, and the dialog is named', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    await user.click(await screen.findByRole('button', { name: 'Dismiss' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveAccessibleName('Dismiss getting started?')
     await expectNoViolations()
   })
 
