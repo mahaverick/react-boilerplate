@@ -16,6 +16,8 @@ describe('maskReplayAttribute', () => {
     ['href', ' TEL:+15555550123'],
     ['src', '/avatars/1.png?token=probe-token'],
     ['srcset', '/a.png?token=probe-token 1x, /b.png 2x'],
+    ['srcdoc', '<p>Pii Probe</p>'],
+    ['SRCDOC', '<p>Pii Probe</p>'],
   ])('masks %s="%s"', (name, value) => {
     expect(maskReplayAttribute(name, value)).toBe('***')
   })
