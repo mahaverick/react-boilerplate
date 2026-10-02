@@ -127,8 +127,8 @@ const PREFERENCES = [
 /**
  * The Getting started checklist in progress, one required step done, so the
  * done and pending markers, the Optional badge, the links and Mark done are
- * all on the page. The member step's `completedAt` is the caller's own, so
- * staff (no membership) read it as null, as here.
+ * all on the page. The member step's `completedAt` is the caller's own, and
+ * the harness user has not marked it yet.
  */
 const ONBOARDING = {
   state: 'in_progress',

@@ -556,7 +556,7 @@ describe('signed-in pages', () => {
       // The Getting started card loads after the page, so wait for it: the checklist is the surface worth grading.
       async () => {
         await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
-        return screen.findByRole('button', { name: 'Mark “Read the getting started guide” done' })
+        return screen.findByRole('button', { name: 'Mark done: Read the getting started guide' })
       },
     ],
     [

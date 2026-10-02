@@ -192,10 +192,47 @@ describe('Getting started card', () => {
       ).toBeNull()
       // Their own member step is still theirs to mark.
       expect(
-        within(card).getByRole('button', { name: 'Mark “Read the getting started guide” done' })
+        within(card).getByRole('button', { name: 'Mark done: Read the getting started guide' })
       ).toBeInTheDocument()
     }
   )
+
+  describe('a manual step scoped to the tenant', () => {
+    const TENANT_STEP = {
+      key: 'review_billing',
+      title: 'Review billing',
+      description: 'Check the plan.',
+      scope: 'tenant' as const,
+      kind: 'manual' as const,
+      required: false,
+      completedAt: null,
+      source: null,
+    }
+
+    it.each(['manager', 'editor', 'viewer'] as const)(
+      'tells a %s who can mark it, with no button',
+      async (role) => {
+        mockTenant(role, 'member', testOnboarding({ steps: [TENANT_STEP] }))
+        renderOverview()
+
+        const card = await findCard()
+        expect(
+          within(stepRow(card, 'Review billing')).getByText('An owner or admin can do this')
+        ).toBeInTheDocument()
+        expect(within(card).queryByRole('button', { name: /^Mark done/ })).toBeNull()
+      }
+    )
+
+    it('lets an admin mark it', async () => {
+      mockTenant('admin', 'member', testOnboarding({ steps: [TENANT_STEP] }))
+      renderOverview()
+
+      const card = await findCard()
+      expect(
+        within(card).getByRole('button', { name: 'Mark done: Review billing' })
+      ).toBeInTheDocument()
+    })
+  })
 
   it('marks the viewer’s own member step done, and shows it done after the refetch', async () => {
     let served = testOnboarding()
@@ -214,7 +251,7 @@ describe('Getting started card', () => {
 
     const card = await findCard()
     await user.click(
-      within(card).getByRole('button', { name: 'Mark “Read the getting started guide” done' })
+      within(card).getByRole('button', { name: 'Mark done: Read the getting started guide' })
     )
 
     await waitFor(() => {
@@ -279,6 +316,7 @@ describe('Getting started card', () => {
     await user.click(show)
     await findCard()
     expect(posted).toEqual(['dismiss', 'undismiss'])
+    expect(await screen.findByText('Getting started shown.')).toBeVisible()
   })
 
   it('closes the confirmation and shows the server’s copy when a dismissal is refused', async () => {

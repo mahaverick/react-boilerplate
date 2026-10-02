@@ -158,7 +158,7 @@ export interface AuthProviders {
   hasPassword: boolean
 }
 
-/** Where a tenant is in onboarding, as a member sees it; `stuck` and `awaiting_owner` read `in_progress`. */
+/** Where a tenant is in onboarding, as a member sees it; `stuck` reads `in_progress` and `awaiting_owner` reads `not_tracked`. */
 export type TenantOnboardingState = 'in_progress' | 'complete' | 'dismissed' | 'not_tracked'
 
 /** Who completed a step: the server from an event, a member, or platform staff. */

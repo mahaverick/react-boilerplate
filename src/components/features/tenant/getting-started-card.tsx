@@ -101,7 +101,7 @@ function MarkDoneButton({ slug, step }: { slug: string; step: OnboardingStepView
       size="sm"
       className="justify-self-start"
       disabled={complete.isPending}
-      aria-label={`Mark “${step.title}” done`}
+      aria-label={`Mark done: ${step.title}`}
       onClick={() => {
         complete.mutateAsync(step.key).then(
           () => toast.success(`“${step.title}” marked done.`),
@@ -129,7 +129,13 @@ function StepAction({
   viewer: Viewer
 }) {
   if (step.completedAt !== null || !viewer.isMember) return null
-  if (step.kind === 'manual') return <MarkDoneButton slug={slug} step={step} />
+  if (step.kind === 'manual') {
+    // A tenant-scoped manual step changes the tenant for everyone, so the API wants an owner or admin.
+    if (step.scope === 'tenant' && !viewer.canManage) {
+      return <p className="text-sm text-muted-foreground">{OWNER_OR_ADMIN}</p>
+    }
+    return <MarkDoneButton slug={slug} step={step} />
+  }
   const link = STEP_LINKS.get(step.key)
   if (!link) return null
   if (!viewer.canManage) return <p className="text-sm text-muted-foreground">{OWNER_OR_ADMIN}</p>
@@ -177,7 +183,7 @@ function DismissButton({ slug }: { slug: string }) {
     <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
       <AlertDialogTrigger
         render={
-          <Button variant="ghost" size="sm" disabled={dismiss.isPending}>
+          <Button variant="ghost" size="sm">
             Dismiss
           </Button>
         }
@@ -230,7 +236,7 @@ function ShowGettingStarted({ slug }: { slug: string }) {
         disabled={undismiss.isPending}
         onClick={() => {
           undismiss.mutateAsync().then(
-            () => undefined,
+            () => toast.success('Getting started shown.'),
             (error: unknown) => toast.error(messageFrom(error))
           )
         }}
