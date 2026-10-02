@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
+import { useFocusAfter } from '@/hooks/use-focus-after'
 import { codeFrom } from '@/lib/api-error'
 import { formatDate } from '@/lib/format'
 import { writeFailureMessage } from '@/lib/write-failure'
@@ -111,9 +112,12 @@ function ResendInvitationButton({
 function RevokeInvitationButton({
   slug,
   invitation,
+  onRevoked,
 }: {
   slug: string
   invitation: TenantInvitation
+  /** Called once the revoke has succeeded and the list has refetched. */
+  onRevoked: () => void
 }) {
   const revoke = useRevokeInvitation(slug)
   const [isOpen, setIsOpen] = useState(false)
@@ -148,6 +152,7 @@ function RevokeInvitationButton({
               revoke.mutateAsync(invitation.id).then(
                 () => {
                   setIsOpen(false)
+                  onRevoked()
                   toast.success(`Invitation to ${invitation.email} revoked.`)
                 },
                 (error: unknown) => {
@@ -176,10 +181,12 @@ function InvitationItem({
   slug,
   invitation,
   myRole,
+  onRevoked,
 }: {
   slug: string
   invitation: TenantInvitation
   myRole: MembershipRole
+  onRevoked: () => void
 }) {
   return (
     <li className="grid gap-3 rounded-lg border p-4 sm:flex sm:items-center sm:justify-between">
@@ -194,7 +201,7 @@ function InvitationItem({
       </div>
       <div className="flex gap-2">
         <ResendInvitationButton slug={slug} invitation={invitation} myRole={myRole} />
-        <RevokeInvitationButton slug={slug} invitation={invitation} />
+        <RevokeInvitationButton slug={slug} invitation={invitation} onRevoked={onRevoked} />
       </div>
     </li>
   )
@@ -203,16 +210,20 @@ function InvitationItem({
 /**
  * Invitations sent and not yet accepted. Mount it for owners and admins
  * only: the list endpoint is `requireRole('owner', 'admin')`, and mounting it
- * is what issues the request.
+ * is what issues the request. A successful revoke moves focus to this heading,
+ * since the row that held the button is gone.
  */
 export function PendingInvitations({ slug, myRole }: { slug: string; myRole: MembershipRole }) {
   const invitations = useInvitations(slug)
+  const focus = useFocusAfter<'heading'>()
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>Pending invitations</h2>
+          <h2 ref={focus.target('heading')} tabIndex={-1} className="outline-none">
+            Pending invitations
+          </h2>
         </CardTitle>
         <CardDescription>Sent, and not yet accepted.</CardDescription>
       </CardHeader>
@@ -236,6 +247,9 @@ export function PendingInvitations({ slug, myRole }: { slug: string; myRole: Mem
                 slug={slug}
                 invitation={invitation}
                 myRole={myRole}
+                onRevoked={() => {
+                  focus.focusAfter('heading')
+                }}
               />
             ))}
           </ul>
