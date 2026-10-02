@@ -9,7 +9,7 @@ import {
 import { INVITATION_ID, USER_ID, USER_ID_2 } from '@/tests/fixtures/ids'
 
 describe('AUDIT_ACTIONS', () => {
-  it('lists exactly the twelve actions the API writes', () => {
+  it('lists exactly the sixteen actions the API writes', () => {
     expect([...AUDIT_ACTIONS].sort()).toEqual(
       [
         'invitation.accepted',
@@ -18,6 +18,10 @@ describe('AUDIT_ACTIONS', () => {
         'invitation.revoked',
         'member.removed',
         'member.role_changed',
+        'onboarding.dismissed',
+        'onboarding.reminder_sent',
+        'onboarding.step_completed',
+        'onboarding.undismissed',
         'platform.member.auto_joined',
         'platform.member.granted',
         'tenant.accessed_by_platform',
@@ -86,6 +90,28 @@ describe('auditSentence', () => {
       { platformRole: 'viewer' },
       'opened this tenant as platform staff (Viewer)',
     ],
+    ['onboarding.dismissed', {}, 'hid the getting started checklist'],
+    ['onboarding.undismissed', {}, 'showed the getting started checklist again'],
+    [
+      'onboarding.step_completed',
+      { reason: 'Customer asked on a call', stepKey: 'configure_settings' },
+      'marked the “configure settings” step complete',
+    ],
+    [
+      'onboarding.reminder_sent',
+      {
+        reason: 'Stuck for a week',
+        recipientCount: 2,
+        emailDomains: ['acme.test'],
+        messageIds: [],
+      },
+      'sent an onboarding reminder to 2 owners',
+    ],
+    [
+      'onboarding.reminder_sent',
+      { reason: 'Stuck', recipientCount: 1, emailDomains: ['acme.test'], messageIds: [] },
+      'sent an onboarding reminder to 1 owner',
+    ],
   ])('%s reads as a sentence', (action, metadata, sentence) => {
     expect(auditSentence({ action, metadata })).toBe(sentence)
   })
@@ -106,6 +132,12 @@ describe('auditSentence', () => {
         metadata: { role: 'viewer', emailDomain: null },
       })
     ).toBe('invited someone at an unknown domain as Viewer')
+    expect(auditSentence({ action: 'onboarding.step_completed', metadata: {} })).toBe(
+      'marked an onboarding step complete'
+    )
+    expect(
+      auditSentence({ action: 'onboarding.reminder_sent', metadata: { recipientCount: '2' } })
+    ).toBe('sent an onboarding reminder to the owners')
   })
 })
 

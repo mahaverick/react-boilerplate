@@ -14,6 +14,10 @@ export const AUDIT_ACTIONS = [
   'platform.member.auto_joined',
   'platform.member.granted',
   'tenant.accessed_by_platform',
+  'onboarding.dismissed',
+  'onboarding.undismissed',
+  'onboarding.step_completed',
+  'onboarding.reminder_sent',
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
@@ -35,6 +39,10 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'platform.member.auto_joined': 'Staff auto-joined',
   'platform.member.granted': 'Staff role granted',
   'tenant.accessed_by_platform': 'Staff visit',
+  'onboarding.dismissed': 'Getting started hidden',
+  'onboarding.undismissed': 'Getting started shown',
+  'onboarding.step_completed': 'Onboarding step completed',
+  'onboarding.reminder_sent': 'Onboarding reminder sent',
 }
 
 type Metadata = Record<string, unknown>
@@ -68,6 +76,22 @@ function domain(metadata: Metadata): string {
   return text(metadata, 'emailDomain') ?? 'an unknown domain'
 }
 
+/**
+ * The step's key as words ("configure settings"): the registry lives on the
+ * server, and this app does not mirror its titles.
+ */
+function stepName(metadata: Metadata): string {
+  const key = text(metadata, 'stepKey')
+  return key === undefined ? 'an onboarding step' : `the “${key.replaceAll('_', ' ')}” step`
+}
+
+/** "2 owners", "1 owner", or "the owners" when the count is missing. */
+function recipients(metadata: Metadata): string {
+  const count = metadata.recipientCount
+  if (typeof count !== 'number') return 'the owners'
+  return count === 1 ? '1 owner' : `${String(count)} owners`
+}
+
 const SENTENCES: Record<AuditAction, (metadata: Metadata) => string> = {
   'tenant.created': (m) => `created the tenant “${text(m, 'name') ?? 'unnamed'}”`,
   'tenant.updated': (m) => `updated the tenant${changedFields(m)}`,
@@ -85,6 +109,10 @@ const SENTENCES: Record<AuditAction, (metadata: Metadata) => string> = {
   'platform.member.granted': (m) => `granted a platform member the ${roleLabel(m, 'role')} role`,
   'tenant.accessed_by_platform': (m) =>
     `opened this tenant as platform staff (${roleLabel(m, 'platformRole')})`,
+  'onboarding.dismissed': () => 'hid the getting started checklist',
+  'onboarding.undismissed': () => 'showed the getting started checklist again',
+  'onboarding.step_completed': (m) => `marked ${stepName(m)} complete`,
+  'onboarding.reminder_sent': (m) => `sent an onboarding reminder to ${recipients(m)}`,
 }
 
 /**
