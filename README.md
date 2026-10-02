@@ -406,7 +406,9 @@ call into `src/observability/analytics` is a no-op.
   are container environment, read at start
   ([Run-time configuration](#run-time-configuration)); one PostHog project per
   environment is one value per deployment, on the same image. The project is
-  the one express's `POSTHOG_PROJECT_KEY` names.
+  the one express's `POSTHOG_PROJECT_KEY` names. Set `POSTHOG_KEY` only once
+  the API runs express 1.5.0 or later: on an older API the opt-out switch
+  cannot persist and `/api/v1/collect` answers 404.
 - **Transport.** Everything goes through the API's `/api/v1/collect` proxy
   (express 1.5.0+), so the browser never talks to PostHog and the CSP is
   unchanged. Each call through the axios client carries a fresh `traceparent`
@@ -415,8 +417,11 @@ call into `src/observability/analytics` is a no-op.
 - **Identity.** The signed-in user is identified by id alone, after the
   session restore and on every sign-in; sign-out, forced or chosen, resets
   first. Person properties (`is_staff`, `platform_role`, …) and the tenant
-  group's name are set only by the server. The tenant in the URL is the
-  analytics group; moving between tenants sends `tenant_switched`.
+  group's name are set only by the server. Visiting a tenant page puts
+  the following events in that tenant's group, and the group stays until
+  sign-out resets it or another tenant page replaces it, so a later non-tenant
+  page (the profile, say) is still grouped under the last tenant visited;
+  moving from one tenant to another sends `tenant_switched`.
 - **Consent.** In `opt_out` mode the profile's "Share usage analytics" switch
   (`PATCH /profile { analyticsOptOut }`) stops browser capture for that user;
   the API's own events continue. In `required` mode the banner decides and
@@ -427,6 +432,10 @@ call into `src/observability/analytics` is a no-op.
   `data-*` and query-carrying hrefs are masked in replay and never reach
   autocapture; captured URLs keep only the `tab` query key. Typed events
   (`track`) accept fixed keys, numbers and booleans, never a free string.
+  The tenant slug is not masked: it appears in the browser's `$current_url`
+  and `$pathname` and in the title `$pageview` carries. Staff browsing a
+  customer's tenant group their browser events under that tenant; separate
+  them by the server-set `is_staff`.
 - **Guards.** `e2e/fixtures/pii.test.ts` (CI) checks every probe name and
   address on the main pages sits inside `<Pii>`. `e2e/nginx/analytics.test.ts`
   searches everything that reached a fake PostHog, decoded, after a route walk
