@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import { PII_CLASS_NAME } from '@/observability/analytics'
 
 /** The elements `<Pii>` can render as. */
-type PiiElement = 'span' | 'div' | 'p' | 'dd' | 'li'
+type PiiElement = 'span' | 'div' | 'p' | 'pre' | 'dd' | 'li'
 
 /**
  * Marks a person's name, email address, initials or an invitation address so

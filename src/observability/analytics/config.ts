@@ -1,7 +1,7 @@
 /**
  * @file The analytics configuration, taken from the app's run-time
- * configuration (`getRuntimeConfig`). The three constants at the top are the
- * only lines that differ between the apps that share this module.
+ * configuration (`getRuntimeConfig`). The constants at the top are the only
+ * lines that differ between the apps that share this module.
  */
 import {
   getRuntimeConfig,
@@ -22,6 +22,31 @@ export const ANALYTICS_URL_QUERY_ALLOWLIST: readonly string[] = ['tab']
 
 /** Whether `ANALYTICS_CONSENT_MODE` is honoured; an app that says no always runs `opt_out`. */
 export const SUPPORTS_CONSENT_MODES = true
+
+/**
+ * Whether a website's anonymous id may be handed off into this app
+ * (`ANALYTICS_HANDOFF_ORIGINS`): yes, so a visit that starts on the marketing
+ * site keeps its history. The handoff parameters are removed from the address
+ * bar either way.
+ */
+export const SUPPORTS_HANDOFF = true
+
+/**
+ * The posthog-js `persistence_name`: the browser storage key (and cookie name)
+ * holding the anonymous id, session id and user state is `ph_` plus this. Set
+ * it where two apps share one PostHog project key and sit on sibling
+ * subdomains, so each keeps its own identity; `undefined` keeps posthog-js's
+ * default, `ph_<project key>_posthog`, which a website on a sibling subdomain
+ * shares with this app.
+ */
+export const ANALYTICS_PERSISTENCE_NAME: string | undefined = undefined
+
+/**
+ * Whether the identity cookie is shared across the registrable domain's
+ * subdomains (posthog-js `cross_subdomain_cookie`): yes, so a website on a
+ * sibling subdomain and this app see one visitor.
+ */
+export const ANALYTICS_CROSS_SUBDOMAIN_COOKIE = true
 
 export type { AnalyticsConsentMode }
 

@@ -14,7 +14,7 @@ import {
   subscribeAnalyticsConsent,
   track,
 } from '@/observability/analytics/analytics'
-import { ANALYTICS_APP } from '@/observability/analytics/config'
+import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/analytics/config'
 import {
   analyticsConfigFor,
   instance,
@@ -29,6 +29,9 @@ vi.mock('posthog-js', async () => {
 })
 
 const KEY = 'phc_test_key_not_real'
+const STORAGE_NAME = ANALYTICS_PERSISTENCE_NAME
+  ? `ph_${ANALYTICS_PERSISTENCE_NAME}`
+  : `ph_${KEY}_posthog`
 const OPT_OUT = analyticsConfigFor({ POSTHOG_KEY: KEY, APP_ENVIRONMENT: 'test' })
 /** Built directly: an app without consent modes maps `required` to `opt_out`, and the facade is shared. */
 const REQUIRED = {
@@ -117,7 +120,7 @@ describe('initAnalytics', () => {
   })
 
   it('ignores a handoff when this browser already holds an identified person', async () => {
-    window.localStorage.setItem(`ph_${KEY}_posthog`, JSON.stringify({ $user_state: 'identified' }))
+    window.localStorage.setItem(STORAGE_NAME, JSON.stringify({ $user_state: 'identified' }))
     window.history.replaceState(null, '', `/register?ph_did=${DID}`)
     Object.defineProperty(document, 'referrer', {
       value: 'https://www.example.com/pricing',

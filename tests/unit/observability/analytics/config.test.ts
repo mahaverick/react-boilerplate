@@ -2,10 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseRuntimeConfig, resetRuntimeConfigForTests } from '@/configs/runtime-config'
 import {
   ANALYTICS_APP,
+  ANALYTICS_CROSS_SUBDOMAIN_COOKIE,
+  ANALYTICS_PERSISTENCE_NAME,
   ANALYTICS_URL_QUERY_ALLOWLIST,
   analyticsConfigFrom,
   getAnalyticsConfig,
   isAnalyticsAvailable,
+  SUPPORTS_HANDOFF,
 } from '@/observability/analytics/config'
 import { analyticsConfigFor } from '@/tests/mocks/posthog'
 
@@ -70,5 +73,11 @@ describe('the app constants', () => {
   it('names this app and keeps only `tab` in URLs', () => {
     expect(ANALYTICS_APP).toBe('react')
     expect(ANALYTICS_URL_QUERY_ALLOWLIST).toEqual(['tab'])
+  })
+
+  it('accepts a handoff and shares its identity with a sibling-subdomain website', () => {
+    expect(SUPPORTS_HANDOFF).toBe(true)
+    expect(ANALYTICS_PERSISTENCE_NAME).toBeUndefined()
+    expect(ANALYTICS_CROSS_SUBDOMAIN_COOKIE).toBe(true)
   })
 })

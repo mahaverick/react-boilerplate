@@ -47,6 +47,10 @@ export interface PosthogOptionsInput {
   uiHost: string
   consentMode: 'opt_out' | 'required'
   urlAllowlist: readonly string[]
+  /** posthog-js `persistence_name`; unset keeps its default storage key. */
+  persistenceName?: string | undefined
+  /** posthog-js `cross_subdomain_cookie`. */
+  crossSubdomainCookie: boolean
   bootstrap?: HandoffBootstrap
   /** Runs once the SDK has loaded, before its first `$pageview`. */
   onLoaded: (instance: PostHogInterface) => void
@@ -57,6 +61,8 @@ export interface PosthogOptionsInput {
  * banner is answered nothing is captured, and a refusal leaves only
  * cookieless, server-hashed counts. posthog-js 1.435 has no `cookie_domain`
  * option; `cross_subdomain_cookie` finds the registrable domain itself.
+ * `persistence_name` and `cross_subdomain_cookie` decide whether this app
+ * shares its browser identity with a sibling app on the same project key.
  * @param input - See `PosthogOptionsInput`.
  * @returns A partial `PostHogConfig` for `posthog.init`.
  */
@@ -71,7 +77,8 @@ export function buildPosthogOptions(input: PosthogOptionsInput): Partial<PostHog
     mask_personal_data_properties: true,
     custom_personal_data_properties: [...CUSTOM_PERSONAL_DATA_PROPERTIES],
     persistence: 'localStorage+cookie',
-    cross_subdomain_cookie: true,
+    cross_subdomain_cookie: input.crossSubdomainCookie,
+    ...(input.persistenceName ? { persistence_name: input.persistenceName } : {}),
     session_recording: {
       maskAllInputs: true,
       maskTextSelector: MASK_TEXT_SELECTOR,

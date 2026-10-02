@@ -10,6 +10,12 @@ describe('<Pii>', () => {
     expect(element).toHaveClass('ph-sensitive', 'ph-mask')
   })
 
+  it('renders as a preformatted block', () => {
+    render(<Pii as="pre">Hi Pii Probe</Pii>)
+    expect(screen.getByText('Hi Pii Probe').tagName).toBe('PRE')
+    expect(screen.getByText('Hi Pii Probe')).toHaveClass('ph-sensitive', 'ph-mask')
+  })
+
   it('renders as another element and keeps its own classes', () => {
     render(
       <dl>

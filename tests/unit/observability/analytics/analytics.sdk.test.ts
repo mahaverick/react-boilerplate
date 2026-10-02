@@ -7,7 +7,8 @@ import {
   resetAnalytics,
   resetAnalyticsForTests,
 } from '@/observability/analytics/analytics'
-import { ANALYTICS_APP } from '@/observability/analytics/config'
+import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/analytics/config'
+import { isPersistedIdentified } from '@/observability/analytics/handoff'
 import { analyticsConfigFor } from '@/tests/mocks/posthog'
 import { server } from '@/tests/mocks/server'
 
@@ -30,7 +31,14 @@ describe('the facade over the pinned posthog-js', () => {
     )
     await expect.poll((): unknown => posthog.get_property('app')).toBe(ANALYTICS_APP)
 
+    // The storage name the facade configures is the one the handoff guard reads.
+    const key = 'phc_test_key_not_real'
+    const stored = ANALYTICS_PERSISTENCE_NAME
+      ? `ph_${ANALYTICS_PERSISTENCE_NAME}`
+      : `ph_${key}_posthog`
+    expect(window.localStorage.getItem(stored)).not.toBeNull()
     identifyUser('user-a')
+    await expect.poll(() => isPersistedIdentified(key, ANALYTICS_PERSISTENCE_NAME)).toBe(true)
     resetAnalytics()
     expect(posthog.get_property('app')).toBe(ANALYTICS_APP)
     expect(posthog.get_property('environment')).toBe('test')

@@ -124,6 +124,18 @@ describe('isPersistedIdentified, against the pinned posthog-js', () => {
     expect(isPersistedIdentified('phc_test_key_not_real')).toBe(true)
   })
 
+  it('reads the configured persistence name instead of the key-derived one', () => {
+    window.localStorage.setItem('ph_ph_apex', JSON.stringify({ $user_state: 'identified' }))
+    expect(isPersistedIdentified('phc_test_key_not_real', 'ph_apex')).toBe(true)
+    expect(isPersistedIdentified('phc_test_key_not_real')).toBe(false)
+    window.localStorage.clear()
+    window.localStorage.setItem(
+      'ph_phc_test_key_not_real_posthog',
+      JSON.stringify({ $user_state: 'identified' })
+    )
+    expect(isPersistedIdentified('phc_test_key_not_real', 'ph_apex')).toBe(false)
+  })
+
   it('is false for unreadable stored state', () => {
     window.localStorage.setItem('ph_phc_test_key_not_real_posthog', '{not json')
     expect(isPersistedIdentified('phc_test_key_not_real')).toBe(false)

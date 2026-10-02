@@ -30,9 +30,11 @@ describe('an inert analytics module never imports posthog-js', () => {
 
   it('in consent mode off', async () => {
     resetAnalyticsForTests()
-    await initAnalytics(
-      analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real', ANALYTICS_CONSENT_MODE: 'off' })
-    )
+    // Built directly: an app without consent modes maps `off` to `opt_out`, and the facade is shared.
+    await initAnalytics({
+      ...analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real' }),
+      consentMode: 'off',
+    })
     expect(factoryRan).not.toHaveBeenCalled()
   })
 })

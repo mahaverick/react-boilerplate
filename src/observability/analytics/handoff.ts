@@ -79,8 +79,12 @@ export function stripHandoffParams(): void {
   }
 }
 
-/** posthog-js's persistence name for a project key (`ph_<key>_posthog`, with `+`, `/` and `=` escaped). */
-function persistenceName(key: string): string {
+/**
+ * posthog-js's storage name: `ph_` plus its `persistence_name` option, else
+ * `ph_<key>_posthog` with `+`, `/` and `=` escaped.
+ */
+function persistenceName(key: string, configuredName?: string): string {
+  if (configuredName) return `ph_${configuredName}`
   return `ph_${key.replace(/\+/g, 'PL').replace(/\//g, 'SL').replace(/=/g, 'EQ')}_posthog`
 }
 
@@ -99,10 +103,11 @@ function userStateIn(serialized: string | null | undefined): unknown {
  * distinct id with the handed-off anonymous one. posthog-js keeps `$user_state`
  * in both its localStorage entry and its cookie; either saying `identified` counts.
  * @param key - The project key.
+ * @param configuredName - The `persistence_name` passed to posthog-js, if any.
  * @returns False when nothing is persisted or storage is unreadable.
  */
-export function isPersistedIdentified(key: string): boolean {
-  const name = persistenceName(key)
+export function isPersistedIdentified(key: string, configuredName?: string): boolean {
+  const name = persistenceName(key, configuredName)
   let stored: string | null
   try {
     stored = window.localStorage.getItem(name)
