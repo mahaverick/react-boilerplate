@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/mahaverick/react-boilerplate/compare/v1.1.1...v1.2.0) (2026-10-02)
+
+
+### Features
+
+* getting started checklist on the tenant overview (Apex SP4) ([#41](https://github.com/mahaverick/react-boilerplate/issues/41)) ([e6be0a1](https://github.com/mahaverick/react-boilerplate/commit/e6be0a151041a1fe8bb4d72d9acb07c7c878f7cc))
+
 ## [1.1.1](https://github.com/mahaverick/react-boilerplate/compare/v1.1.0...v1.1.1) (2026-09-30)
 
 
