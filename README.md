@@ -412,20 +412,41 @@ call into `src/observability/analytics` is a no-op.
 - **Transport.** Everything goes through the API's `/api/v1/collect` proxy
   (express 1.5.0+), so the browser never talks to PostHog and the CSP is
   unchanged. Each call through the axios client carries a fresh `traceparent`
-  and, while capture is on, `X-POSTHOG-SESSION-ID`, so server events link to
-  the replay.
+  and, while capture is on and PostHog holds either nobody or the signed-in
+  user, `X-POSTHOG-SESSION-ID`, so server events link to that person's replay
+  and never to someone else's.
 - **Identity.** The signed-in user is identified by id alone, after the
   session restore and on every sign-in; sign-out, forced or chosen, resets
-  first. Person properties (`is_staff`, `platform_role`, …) and the tenant
-  group's name are set only by the server. Visiting a tenant page puts
-  the following events in that tenant's group, and the group stays until
-  sign-out resets it or another tenant page replaces it, so a later non-tenant
-  page (the profile, say) is still grouped under the last tenant visited;
-  moving from one tenant to another sends `tenant_switched`.
+  first. A page load whose session restore ends signed out forgets any person
+  an earlier visit left in the browser, before its first page view. A token
+  refresh that comes back as a different user (another tab signed someone
+  else in) signs the tab out instead of carrying on, or replaying a request,
+  as them. Person properties (`is_staff`, `platform_role`, …) and the tenant
+  group's name are set only by the server.
+- **Page views and the tenant group.** posthog-js's own history page views are
+  off; the router captures `$pageview` once each navigation has resolved,
+  after putting the events in the tenant's group on a tenant page and taking
+  them out of any group on every other page, so a page view never carries the
+  previous page's tenant. A reload or a new tab starts with no group: one left
+  in storage by another tab is dropped at load. Reaching a different tenant
+  than the last one since sign-in sends `tenant_switched`, even with other
+  pages in between. On tenant pages the `tenant_access` super property says
+  `member` or `platform` (staff through platform access).
+- **A website sharing the cookie.** posthog-js adopts the shared identity
+  cookie before every event, so a website on a sibling subdomain must never
+  call `identify`, `alias`, `reset` or `group`
+  ([docs/analytics-handoff.md](docs/analytics-handoff.md)). The app defends
+  itself anyway: while a user is signed in, an event under any other distinct
+  id is dropped and the user identified again, and `app`, `environment` and
+  the tenant group are put back on events a sibling's reset stripped.
 - **Consent.** In `opt_out` mode the profile's "Share usage analytics" switch
   (`PATCH /profile { analyticsOptOut }`) stops browser capture for that user;
   the API's own events continue. In `required` mode the banner decides and
-  the switch can only opt out, or count as consent when turned on.
+  the switch can only opt out, or count as consent when turned on. The banner's
+  answer belongs to the browser, not the person: consent is per device, so it
+  survives sign-out and the next person on a shared browser starts with it.
+  Each signed-in user's own opt-out is applied before they are identified, and
+  the profile switch or the banner changes it for that browser.
 - **Masking.** Inputs are masked in replay; every rendered name, address,
   avatar initial and invitation address is wrapped in `<Pii>`
   (`ph-sensitive ph-mask`); `aria-label`, `title`, `alt`, `placeholder`,
@@ -434,8 +455,10 @@ call into `src/observability/analytics` is a no-op.
   (`track`) accept fixed keys, numbers and booleans, never a free string.
   The tenant slug is not masked: it appears in the browser's `$current_url`
   and `$pathname` and in the title `$pageview` carries. Staff browsing a
-  customer's tenant group their browser events under that tenant; separate
-  them by the server-set `is_staff`.
+  customer's tenant through platform access put their browser events in that
+  tenant's group with `tenant_access = platform`: filter group insights on
+  `tenant_access = member` to count customers only (server events carry
+  `access: 'platform'`).
 - **Guards.** `e2e/fixtures/pii.test.ts` (CI) checks every probe name and
   address on the main pages sits inside `<Pii>`. `e2e/nginx/analytics.test.ts`
   searches everything that reached a fake PostHog, decoded, after a route walk

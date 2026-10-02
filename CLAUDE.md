@@ -148,6 +148,16 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   `resetAnalytics` and `identifyUser` go through `resetKeepingConsent`, which
   registers `app` and `environment` again and re-applies the consent; never
   call the SDK's `reset()` around it.
+- **Page views come from the router, not posthog-js.** `capture_pageview` is
+  off; `installRouteAnalytics` (registered in `router.tsx` before the first
+  load) sets or clears the tenant group from the resolved route's loader data
+  and only then captures `$pageview`. Turning the SDK's history page views
+  back on, or grouping from a component effect, files every page view under
+  the previous page's tenant.
+- **While a user is signed in, the facade drops any event under another
+  distinct id** (`guardEvent` in `analytics.ts`) and identifies the user again:
+  posthog-js adopts the identity cookie a sibling-subdomain website shares
+  before every event. Never loosen it to log-and-send.
 - **posthog-js minors wait for a human** (`renovate.json`). Before taking
   one, run the tests that pin its internals: `url-sanitizer.test.ts`,
   `handoff.test.ts` and `analytics.sdk.test.ts` (all run the real SDK) and
