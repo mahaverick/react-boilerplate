@@ -81,6 +81,90 @@ function sawPageview(fake: FakePosthog, pathname: string): boolean {
     .some((event) => event.event === '$pageview' && event.properties.$pathname === pathname)
 }
 
+/** Two tenants the signed-in stub user belongs to, as `GET /tenants/:slug` answers them. */
+const STUB_TENANTS = {
+  acme: { id: '01a0fc35-0000-7000-8000-000000000a0e', name: 'Acme Corp' },
+  globex: { id: '01a0fc35-0000-7000-8000-000000000910', name: 'Globex Inc' },
+} as const
+
+/**
+ * Answers the API for a signed-in user with two tenants, with nothing behind
+ * `/api`: the restore, the profile, the tenant list and each tenant's detail;
+ * every other API call gets a 404, which no page treats as a sign-out.
+ * `/api/v1/collect` falls through to the fake PostHog.
+ */
+async function stubSignedInApi(page: Page): Promise<void> {
+  const envelope = (data: unknown, status = 200) => ({
+    status,
+    contentType: 'application/json',
+    body: JSON.stringify(
+      status === 200
+        ? { success: true, message: 'OK', statusCode: 200, data }
+        : { success: false, message: 'Not found', statusCode: status }
+    ),
+  })
+  const tenantRow = (slug: keyof typeof STUB_TENANTS) => ({
+    ...STUB_TENANTS[slug],
+    slug,
+    description: null,
+    logo: null,
+    website: null,
+    lifecycleState: 'active',
+    deletedAt: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    isPlatform: false,
+  })
+  await page.route('**/api/v1/**', async (route) => {
+    const { pathname } = new URL(route.request().url())
+    if (pathname.startsWith('/api/v1/collect')) return route.fallback()
+    if (pathname === '/api/v1/auth/refresh') {
+      return route.fulfill(envelope({ accessToken: 'stub-access-token' }))
+    }
+    if (pathname === '/api/v1/profile') {
+      return route.fulfill(
+        envelope({
+          id: '01a0fc35-0000-7000-8000-0000000005e1',
+          email: 'stub@example.test',
+          firstName: 'Stub',
+          lastName: 'User',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          platformRole: null,
+          analyticsOptOut: false,
+        })
+      )
+    }
+    if (pathname === '/api/v1/tenants') {
+      return route.fulfill(
+        envelope(
+          (['acme', 'globex'] as const).map((slug) => ({
+            tenant: tenantRow(slug),
+            role: 'owner',
+            isPlatform: false,
+          }))
+        )
+      )
+    }
+    const detail = /^\/api\/v1\/tenants\/(acme|globex)$/.exec(pathname)?.[1]
+    if (detail === 'acme' || detail === 'globex') {
+      return route.fulfill(envelope({ ...tenantRow(detail), role: 'owner', access: 'member' }))
+    }
+    return route.fulfill(envelope(null, 404))
+  })
+}
+
+/** The browser's `$pageview`s of `pathname` that the fake has received. */
+function pageviewsOf(fake: FakePosthog, pathname: string): FakePosthogEvent[] {
+  return fake
+    .events()
+    .filter((event) => event.event === '$pageview' && event.properties.$pathname === pathname)
+}
+
+/** The tenant group an event was sent in, if any. */
+function tenantOf(event: FakePosthogEvent | undefined): unknown {
+  return (event?.properties.$groups as Record<string, unknown> | undefined)?.tenant
+}
+
 async function probeAccount(request: APIRequestContext, suffix: string) {
   const email = `pii-probe-${suffix}-${Date.now()}@example.test`
   await createVerifiedUser(email)
@@ -248,6 +332,59 @@ test.describe('analytics against a fake PostHog', () => {
       const egress = fake.bodies()
       for (const probe of [PROBE_TOKEN, 'pii-probe', encodeURIComponent(PROBE_EMAIL)]) {
         expect(egress, `"${probe}" reached PostHog`).not.toContain(probe)
+      }
+    }
+  )
+
+  test(
+    'each pageview carries the tenant of its own page: a switch, a non-tenant page, a reload',
+    { tag: '@no-api' },
+    async ({ page }) => {
+      test.setTimeout(90_000)
+      await stubSignedInApi(page)
+      const poll = { intervals: [500], timeout: 30_000 }
+
+      await page.goto('/tenants/acme')
+      await expect(page.getByRole('heading', { name: 'Acme Corp', level: 1 })).toBeVisible()
+      await expect
+        .poll(() => tenantOf(pageviewsOf(fake, '/tenants/acme')[0]), poll)
+        .toBe(STUB_TENANTS.acme.id)
+
+      await page.getByRole('combobox', { name: 'Switch tenant. Current: Acme Corp' }).click()
+      await page.getByRole('option', { name: /Globex Inc/ }).click()
+      await expect(page.getByRole('heading', { name: 'Globex Inc', level: 1 })).toBeVisible()
+      await expect.poll(() => pageviewsOf(fake, '/tenants/globex').length, poll).toBe(1)
+      const switched = pageviewsOf(fake, '/tenants/globex')[0]
+      expect(tenantOf(switched)).toBe(STUB_TENANTS.globex.id)
+      expect(switched?.properties.tenant_access).toBe('member')
+      const tenantSwitched = fake.events().find((event) => event.event === 'tenant_switched')
+      expect(tenantOf(tenantSwitched)).toBe(STUB_TENANTS.globex.id)
+
+      await page.getByRole('button', { name: /Account menu for/ }).click()
+      await page.getByRole('menuitem', { name: 'Profile' }).click()
+      await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible()
+      await expect.poll(() => pageviewsOf(fake, '/profile').length, poll).toBe(1)
+      const profile = pageviewsOf(fake, '/profile')[0]
+      expect(tenantOf(profile)).toBeUndefined()
+      expect(profile?.properties).not.toHaveProperty('tenant_access')
+
+      // A reload starts from storage the last tenant page wrote; its first pageview must not carry it.
+      await page.reload()
+      await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible()
+      await expect.poll(() => pageviewsOf(fake, '/profile').length, poll).toBe(2)
+      expect(tenantOf(pageviewsOf(fake, '/profile')[1])).toBeUndefined()
+
+      // Every page event this walk sent was grouped by the page it came from.
+      const pageEvents = new Set(['$pageview', '$pageleave', '$autocapture', 'tenant_switched'])
+      for (const event of fake.events()) {
+        const pathname = event.properties.$pathname
+        if (typeof pathname !== 'string' || !pageEvents.has(event.event)) continue
+        const expected = pathname.startsWith('/tenants/acme')
+          ? STUB_TENANTS.acme.id
+          : pathname.startsWith('/tenants/globex')
+            ? STUB_TENANTS.globex.id
+            : undefined
+        expect(tenantOf(event), `${event.event} on ${pathname}`).toBe(expected)
       }
     }
   )

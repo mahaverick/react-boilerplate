@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
 import * as analytics from '@/observability/analytics'
+import { installRouteAnalytics } from '@/observability/route-analytics'
 import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
@@ -447,6 +448,8 @@ describe('tenant detail', () => {
 })
 
 describe('tenant analytics group', () => {
+  let uninstall: () => void = () => {}
+
   beforeEach(() => {
     resetSessionForTests()
     queryClient.clear()
@@ -458,22 +461,43 @@ describe('tenant analytics group', () => {
     })
   })
 
-  it('groups analytics under the tenant the URL names, once it has loaded', async () => {
-    const setTenantGroup = vi.spyOn(analytics, 'setTenantGroup')
-    mockTenant('owner')
-    renderAppAt('/tenants/acme')
-    await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
-    expect(setTenantGroup).toHaveBeenCalledWith(TENANT_ID)
+  afterEach(() => {
+    uninstall()
   })
 
-  it('groups nothing for a tenant that is not available', async () => {
+  /** The app's tree with the router-driven analytics the app installs on its own router. */
+  function renderWithRouteAnalytics(path: string) {
+    const router = renderAppAt(path)
+    uninstall = installRouteAnalytics(router)
+    return router
+  }
+
+  it('groups analytics under the tenant the URL names, from the loader, as a member', async () => {
     const setTenantGroup = vi.spyOn(analytics, 'setTenantGroup')
+    mockTenant('owner')
+    renderWithRouteAnalytics('/tenants/acme')
+    await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
+    await waitFor(() => expect(setTenantGroup).toHaveBeenCalledWith(TENANT_ID, 'member'))
+  })
+
+  it('marks staff who reached the tenant through platform access', async () => {
+    const setTenantGroup = vi.spyOn(analytics, 'setTenantGroup')
+    mockTenant('admin', 'platform')
+    renderWithRouteAnalytics('/tenants/acme')
+    await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
+    await waitFor(() => expect(setTenantGroup).toHaveBeenCalledWith(TENANT_ID, 'platform'))
+  })
+
+  it('groups nothing for a tenant that is not available, and leaves any group', async () => {
+    const setTenantGroup = vi.spyOn(analytics, 'setTenantGroup')
+    const clearTenantGroup = vi.spyOn(analytics, 'clearTenantGroup')
     server.use(
       http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
       http.get('/api/v1/tenants/ghost', () => fail('Tenant not found', 404))
     )
-    renderAppAt('/tenants/ghost')
+    renderWithRouteAnalytics('/tenants/ghost')
     await screen.findByRole('heading', { name: 'Tenant not available' })
+    await waitFor(() => expect(clearTenantGroup).toHaveBeenCalled())
     expect(setTenantGroup).not.toHaveBeenCalled()
   })
 })

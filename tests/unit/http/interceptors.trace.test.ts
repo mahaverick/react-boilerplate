@@ -5,7 +5,8 @@ import { installInterceptors } from '@/http/interceptors'
 import { resetSessionForTests } from '@/http/session'
 import * as analytics from '@/observability/analytics'
 import { useAuthStore } from '@/states/auth.store'
-import { ok } from '@/tests/mocks/handlers'
+import { USER_ID } from '@/tests/fixtures/ids'
+import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/
@@ -53,10 +54,20 @@ describe('the trace headers', () => {
   })
 
   it('add the analytics session id when there is one', async () => {
-    vi.spyOn(analytics, 'getAnalyticsSessionId').mockReturnValue(SESSION_ID)
+    vi.spyOn(analytics, 'getAnalyticsSessionIdFor').mockReturnValue(SESSION_ID)
     const seen = echoHeaders('/api/v1/widgets')
     await makeClient().get('/widgets')
     expect(seen[0]?.get('x-posthog-session-id')).toBe(SESSION_ID)
+  })
+
+  it('ask for the session id of the signed-in user, or of nobody', async () => {
+    const sessionIdFor = vi.spyOn(analytics, 'getAnalyticsSessionIdFor').mockReturnValue(undefined)
+    echoHeaders('/api/v1/widgets')
+    const client = makeClient()
+    await client.get('/widgets')
+    useAuthStore.setState({ user: { ...testUser, id: USER_ID }, accessToken: 'token' })
+    await client.get('/widgets')
+    expect(sessionIdFor.mock.calls).toEqual([[null], [USER_ID]])
   })
 
   it('keep a traceparent the request already carries', async () => {
@@ -67,7 +78,7 @@ describe('the trace headers', () => {
   })
 
   it('never reach a request that leaves the API', async () => {
-    vi.spyOn(analytics, 'getAnalyticsSessionId').mockReturnValue(SESSION_ID)
+    vi.spyOn(analytics, 'getAnalyticsSessionIdFor').mockReturnValue(SESSION_ID)
     const seen: Headers[] = []
     server.use(
       http.get('https://elsewhere.example/thing', ({ request }) => {

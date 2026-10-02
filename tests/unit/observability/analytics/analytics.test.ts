@@ -1,8 +1,13 @@
+import type { CaptureResult } from 'posthog-js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  capturePageview,
+  clearTenantGroup,
   denyAnalyticsConsent,
+  forgetStaleIdentity,
   getAnalyticsConsent,
   getAnalyticsSessionId,
+  getAnalyticsSessionIdFor,
   grantAnalyticsConsent,
   identifyUser,
   initAnalytics,
@@ -41,6 +46,9 @@ const REQUIRED = {
 const DID = '01a0fc35-b7ee-7b93-b550-d8a7f98e30be'
 /** The super properties call `init` makes, and every reset makes again. */
 const REGISTER = `register(${JSON.stringify({ app: ANALYTICS_APP, environment: 'test' })})`
+/** The `tenant_access` registration that follows each tenant group. */
+const MEMBER = 'register({"tenant_access":"member"})'
+const PLATFORM = 'register({"tenant_access":"platform"})'
 
 beforeEach(() => {
   resetAnalyticsForTests()
@@ -92,6 +100,7 @@ describe('initAnalytics', () => {
       REGISTER,
       'identify("user-a")',
       'group("tenant", "tenant-1")',
+      MEMBER,
       'capture("onboarding_checklist_opened", {"required_done":1,"required_total":2})',
     ])
   })
@@ -253,7 +262,9 @@ describe('setTenantGroup', () => {
     setTenantGroup('tenant-2')
     expect(sdk.calls).toEqual([
       'group("tenant", "tenant-1")',
+      MEMBER,
       'group("tenant", "tenant-2")',
+      MEMBER,
       'capture("tenant_switched", {})',
     ])
   })
@@ -264,10 +275,262 @@ describe('setTenantGroup', () => {
     setTenantGroup('tenant-2')
     expect(sdk.calls).toEqual([
       'group("tenant", "tenant-1")',
+      MEMBER,
       'reset()',
       REGISTER,
       'group("tenant", "tenant-2")',
+      MEMBER,
     ])
+  })
+
+  it('a non-tenant page leaves the group, and the tenant after it still counts as a switch', () => {
+    setTenantGroup('tenant-a')
+    clearTenantGroup()
+    clearTenantGroup()
+    setTenantGroup('tenant-b')
+    expect(sdk.calls).toEqual([
+      'group("tenant", "tenant-a")',
+      MEMBER,
+      'resetGroups()',
+      'unregister("tenant_access")',
+      'group("tenant", "tenant-b")',
+      MEMBER,
+      'capture("tenant_switched", {})',
+    ])
+  })
+
+  it('returning to the same tenant across a non-tenant page is not a switch', () => {
+    setTenantGroup('tenant-a')
+    clearTenantGroup()
+    setTenantGroup('tenant-a')
+    expect(sdk.calls.filter((call) => call.startsWith('capture('))).toEqual([])
+    expect(sdk.properties).toMatchObject({
+      $groups: { tenant: 'tenant-a' },
+      tenant_access: 'member',
+    })
+  })
+
+  it('marks staff platform access, and a member visit of the same tenant replaces it', () => {
+    setTenantGroup('tenant-a', 'platform')
+    setTenantGroup('tenant-a', 'member')
+    expect(sdk.calls).toEqual([
+      'group("tenant", "tenant-a")',
+      PLATFORM,
+      'group("tenant", "tenant-a")',
+      MEMBER,
+    ])
+  })
+
+  it('keeps the tenant group when a different stale person is reset under it', () => {
+    setTenantGroup('tenant-a')
+    sdk.distinctId = 'user-old'
+    sdk.userState = 'identified'
+    sdk.calls = []
+    identifyUser('user-b')
+    expect(sdk.calls).toEqual([
+      'reset()',
+      REGISTER,
+      'group("tenant", "tenant-a")',
+      MEMBER,
+      'identify("user-b")',
+    ])
+  })
+})
+
+describe('pageviews and the tenant group', () => {
+  it('replays the group before the pageview of the route that set it', async () => {
+    setTenantGroup('tenant-b', 'platform')
+    capturePageview()
+    clearTenantGroup()
+    capturePageview()
+    await initAnalytics(OPT_OUT)
+    expect(sdk.calls).toEqual([
+      REGISTER,
+      'group("tenant", "tenant-b")',
+      PLATFORM,
+      'capture("$pageview", {})',
+      'resetGroups()',
+      'unregister("tenant_access")',
+      'capture("$pageview", {})',
+    ])
+  })
+
+  it('drops a tenant group an earlier page load left in storage before anything is sent', async () => {
+    sdk.properties = { $groups: { tenant: 'tenant-stale' }, tenant_access: 'platform' }
+    capturePageview()
+    await initAnalytics(OPT_OUT)
+    expect(sdk.calls).toEqual([
+      REGISTER,
+      'resetGroups()',
+      'unregister("tenant_access")',
+      'capture("$pageview", {})',
+    ])
+  })
+
+  it('turns posthog-js’s own history pageviews off', async () => {
+    await initAnalytics(OPT_OUT)
+    expect(sdk.initOptions).toMatchObject({ capture_pageview: false, capture_pageleave: true })
+  })
+})
+
+describe('forgetStaleIdentity', () => {
+  beforeEach(async () => {
+    await initAnalytics(OPT_OUT)
+    sdk.calls = []
+  })
+
+  it('resets a person an earlier visit left identified', () => {
+    sdk.distinctId = 'user-a'
+    sdk.userState = 'identified'
+    forgetStaleIdentity()
+    expect(sdk.calls).toEqual(['reset()', REGISTER])
+    expect(sdk.distinctId).not.toBe('user-a')
+  })
+
+  it('leaves an anonymous browser, a handed-off visitor included, alone', () => {
+    sdk.distinctId = DID
+    forgetStaleIdentity()
+    expect(sdk.calls).toEqual([])
+    expect(sdk.distinctId).toBe(DID)
+  })
+})
+
+/** The guard posthog-js runs on every event, as the facade configured it. */
+function beforeSend(event: CaptureResult): CaptureResult | null {
+  const hook = sdk.initOptions?.before_send as (event: CaptureResult | null) => CaptureResult | null
+  return hook(event)
+}
+
+function eventOf(name: string, properties: Record<string, unknown>): CaptureResult {
+  return { uuid: 'u', event: name, properties }
+}
+
+const SIGNED_IN = { app: ANALYTICS_APP, environment: 'test', distinct_id: 'user-a' }
+
+describe('the event guard', () => {
+  beforeEach(async () => {
+    await initAnalytics(OPT_OUT)
+    identifyUser('user-a')
+    sdk.calls = []
+  })
+
+  it('sends a signed-in user’s own event unchanged, and repairs nothing', async () => {
+    const event = eventOf('$pageview', SIGNED_IN)
+    expect(beforeSend(event)).toEqual(event)
+    await Promise.resolve()
+    expect(sdk.calls).toEqual([])
+  })
+
+  it('drops an event a sibling re-identified, then identifies the signed-in user again', async () => {
+    setTenantGroup('tenant-a')
+    sdk.calls = []
+    sdk.distinctId = 'lead-123'
+    sdk.userState = 'identified'
+    expect(
+      beforeSend(eventOf('$autocapture', { ...SIGNED_IN, distinct_id: 'lead-123' }))
+    ).toBeNull()
+    expect(beforeSend(eventOf('$snapshot', { distinct_id: 'lead-123' }))).toBeNull()
+    expect(sdk.calls).toEqual([])
+    await Promise.resolve()
+    expect(sdk.calls).toEqual([
+      'reset()',
+      REGISTER,
+      'group("tenant", "tenant-a")',
+      MEMBER,
+      'identify("user-a")',
+      REGISTER,
+      'group("tenant", "tenant-a")',
+      MEMBER,
+    ])
+    expect(sdk.distinctId).toBe('user-a')
+    const event = eventOf('$pageview', {
+      ...SIGNED_IN,
+      $groups: { tenant: 'tenant-a' },
+      tenant_access: 'member',
+    })
+    expect(beforeSend(event)).toEqual(event)
+  })
+
+  it('after a sibling reset, drops the anonymous event and identifies the user again without a reset', async () => {
+    sdk.distinctId = 'anon-sibling'
+    sdk.userState = 'anonymous'
+    sdk.properties = {}
+    expect(beforeSend(eventOf('$pageview', { distinct_id: 'anon-sibling' }))).toBeNull()
+    await Promise.resolve()
+    expect(sdk.calls).toEqual(['identify("user-a")', REGISTER])
+  })
+
+  it('repairs a burst of events with one repair', async () => {
+    sdk.distinctId = 'lead-123'
+    sdk.userState = 'identified'
+    for (let index = 0; index < 5; index += 1) {
+      beforeSend(eventOf('$autocapture', { ...SIGNED_IN, distinct_id: 'lead-123' }))
+    }
+    await Promise.resolve()
+    expect(sdk.calls.filter((call) => call.startsWith('identify('))).toEqual(['identify("user-a")'])
+  })
+
+  it('puts back app, environment and the tenant group a sibling reset cleared, and registers them again', async () => {
+    setTenantGroup('tenant-a', 'platform')
+    sdk.calls = []
+    sdk.properties = {}
+    const sent = beforeSend(eventOf('$autocapture', { distinct_id: 'user-a', $el_text: 'x' }))
+    expect(sent?.properties).toEqual({
+      distinct_id: 'user-a',
+      $el_text: 'x',
+      app: ANALYTICS_APP,
+      environment: 'test',
+      $groups: { tenant: 'tenant-a' },
+      tenant_access: 'platform',
+    })
+    await Promise.resolve()
+    expect(sdk.calls).toEqual([REGISTER, 'group("tenant", "tenant-a")', PLATFORM])
+  })
+
+  it('strips a tenant group the tab is not on', () => {
+    const sent = beforeSend(
+      eventOf('$pageview', {
+        ...SIGNED_IN,
+        $groups: { tenant: 'tenant-stale' },
+        tenant_access: 'member',
+      })
+    )
+    expect(sent?.properties).toEqual(SIGNED_IN)
+  })
+
+  it('leaves replay and cookieless events alone', () => {
+    const snapshot = eventOf('$snapshot', { distinct_id: 'user-a' })
+    expect(beforeSend(snapshot)).toEqual(snapshot)
+    const cookieless = eventOf('$pageview', {
+      distinct_id: '$posthog_cookieless',
+      $cookieless_mode: true,
+    })
+    expect(beforeSend(cookieless)).toEqual(cookieless)
+  })
+
+  it('stops guarding once the user signs out', async () => {
+    resetAnalytics()
+    const event = eventOf('$pageview', {
+      app: ANALYTICS_APP,
+      environment: 'test',
+      distinct_id: 'anon-2',
+    })
+    expect(beforeSend(event)).toEqual(event)
+    await Promise.resolve()
+    expect(sdk.calls.filter((call) => call.startsWith('identify('))).toEqual([])
+  })
+
+  it('does not drop the consent event a sign-out reset captures', () => {
+    sdk.consent = 'granted'
+    instance.opt_in_capturing.mockImplementationOnce(() => {
+      expect(
+        beforeSend(
+          eventOf('$opt_in', { app: ANALYTICS_APP, environment: 'test', distinct_id: 'anon-2' })
+        )
+      ).not.toBeNull()
+    })
+    resetAnalytics()
+    expect(instance.opt_in_capturing).toHaveBeenCalled()
   })
 })
 
@@ -304,6 +567,35 @@ describe('consent', () => {
     unsubscribe()
     grantAnalyticsConsent()
     expect(listener).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('getAnalyticsSessionIdFor', () => {
+  beforeEach(async () => {
+    await initAnalytics(OPT_OUT)
+  })
+
+  it('is the session id while PostHog is anonymous, whoever is signed in', () => {
+    expect(getAnalyticsSessionIdFor(null)).toBe(sdk.sessionId)
+    expect(getAnalyticsSessionIdFor('user-b')).toBe(sdk.sessionId)
+  })
+
+  it('is the session id when PostHog holds the signed-in user', () => {
+    sdk.distinctId = 'user-a'
+    sdk.userState = 'identified'
+    expect(getAnalyticsSessionIdFor('user-a')).toBe(sdk.sessionId)
+  })
+
+  it('is nothing when PostHog holds someone else, or someone while nobody is signed in', () => {
+    sdk.distinctId = 'user-a'
+    sdk.userState = 'identified'
+    expect(getAnalyticsSessionIdFor(null)).toBeUndefined()
+    expect(getAnalyticsSessionIdFor('user-b')).toBeUndefined()
+  })
+
+  it('is nothing before the SDK loads', () => {
+    resetAnalyticsForTests()
+    expect(getAnalyticsSessionIdFor(null)).toBeUndefined()
   })
 })
 

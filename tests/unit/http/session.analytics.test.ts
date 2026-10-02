@@ -3,7 +3,12 @@ import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installInterceptors } from '@/http/interceptors'
 import { ensureSession, installAnalyticsIdentity, resetSessionForTests } from '@/http/session'
-import { initAnalytics, resetAnalyticsForTests } from '@/observability/analytics/analytics'
+import {
+  capturePageview,
+  initAnalytics,
+  resetAnalyticsForTests,
+} from '@/observability/analytics/analytics'
+import { bootstrapSession } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
 import { USER_ID, USER_ID_2 } from '@/tests/fixtures/ids'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
@@ -17,6 +22,24 @@ vi.mock('posthog-js', async () => {
 
 const userA = { ...testUser, id: USER_ID }
 const userB = { ...testUser, id: USER_ID_2, email: 'b@b.com' }
+
+function makeClient() {
+  const client = axios.create({ baseURL: '/api/v1' })
+  installInterceptors(client)
+  return client
+}
+
+/** Answers `GET /widgets` and records the `X-POSTHOG-SESSION-ID` each request carried. */
+function echoSessionHeader(): (string | null)[] {
+  const seen: (string | null)[] = []
+  server.use(
+    http.get('/api/v1/widgets', ({ request }) => {
+      seen.push(request.headers.get('x-posthog-session-id'))
+      return ok({})
+    })
+  )
+  return seen
+}
 
 /** The SDK calls after `init`'s own `register`. */
 function sdkCalls(): string[] {
@@ -104,6 +127,30 @@ describe('analytics identity follows the session', () => {
     expect(sdkCalls()).toEqual([`identify("${USER_ID}")`])
   })
 
+  it.each([
+    ['nobody is signed in', null],
+    ['someone else is signed in', userB],
+  ])('sends no session header while PostHog still holds user A and %s', async (_case, user) => {
+    useAuthStore.setState({ user, accessToken: user ? 'token' : null })
+    // After the store change, which identifies the store's user: PostHog then adopts A from elsewhere.
+    sdk.distinctId = USER_ID
+    sdk.userState = 'identified'
+    const seen = echoSessionHeader()
+    await makeClient().get('/widgets')
+    expect(seen).toEqual([null])
+  })
+
+  it('sends the session header while PostHog is anonymous, or holds the signed-in user', async () => {
+    const seen = echoSessionHeader()
+    const client = makeClient()
+    await client.get('/widgets')
+    sdk.distinctId = USER_ID
+    sdk.userState = 'identified'
+    useAuthStore.setState({ user: userA, accessToken: 'token' })
+    await client.get('/widgets')
+    expect(seen).toEqual([sdk.sessionId, sdk.sessionId])
+  })
+
   it('is installed once however often it is called', () => {
     installAnalyticsIdentity()
     useAuthStore.getState().login('token', userA)
@@ -125,5 +172,53 @@ describe('installAnalyticsIdentity with a user already signed in', () => {
     installAnalyticsIdentity()
     await initAnalytics(analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real' }))
     expect(sdkCalls()).toEqual([`identify("${USER_ID}")`])
+  })
+})
+
+describe('a cold load while an earlier visitor is still identified in this browser', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    resetAnalyticsForTests()
+    resetFakePosthog()
+    useAuthStore.setState({
+      accessToken: null,
+      user: null,
+      isAuthenticated: false,
+      isBootstrapped: false,
+    })
+    sdk.distinctId = USER_ID
+    sdk.userState = 'identified'
+  })
+
+  /** The load as main.tsx runs it: restore, the router's first pageview, then the SDK. */
+  async function coldLoad(): Promise<void> {
+    await bootstrapSession()
+    capturePageview()
+    await initAnalytics(analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real' }))
+  }
+
+  it('a restore that answers 401 forgets that person before the first pageview', async () => {
+    server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
+    await coldLoad()
+    expect(sdkCalls()).toEqual(['reset()', 'capture("$pageview", {})'])
+    expect(sdk.distinctId).not.toBe(USER_ID)
+  })
+
+  it('a restore that cannot reach the API forgets that person too', async () => {
+    server.use(http.post('/api/v1/auth/refresh', () => fail('Unavailable', 503)))
+    await coldLoad()
+    expect(sdkCalls()).toEqual(['reset()', 'capture("$pageview", {})'])
+  })
+
+  it('a restore as the same person keeps them, with no reset', async () => {
+    server.use(http.get('/api/v1/profile', () => ok(userA, 'Profile retrieved.')))
+    await coldLoad()
+    expect(sdkCalls()).toEqual([`identify("${USER_ID}")`, 'capture("$pageview", {})'])
+  })
+
+  it('a restore as someone else resets before identifying them', async () => {
+    server.use(http.get('/api/v1/profile', () => ok(userB, 'Profile retrieved.')))
+    await coldLoad()
+    expect(sdkCalls()).toEqual(['reset()', `identify("${USER_ID_2}")`, 'capture("$pageview", {})'])
   })
 })

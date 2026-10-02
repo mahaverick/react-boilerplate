@@ -8,6 +8,8 @@ import {
   installAnalyticsIdentity,
   installAuthBroadcastListener,
 } from '@/http/session'
+import { forgetStaleIdentity } from '@/observability/analytics'
+import { installRouteAnalytics } from '@/observability/route-analytics'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 
@@ -21,7 +23,10 @@ export const queryClient = new QueryClient({
  * signed-in user to /login. ensureSession() dedupes concurrent callers and
  * signs the store out on an auth verdict, so this only starts the cross-tab
  * logout listener and the analytics identity subscription, and flips
- * isBootstrapped, whether or not the refresh worked.
+ * isBootstrapped, whether or not the refresh worked. A restore that ends with
+ * no user also drops any person posthog-js still holds from an earlier visit
+ * (`forgetStaleIdentity`), before the first page view: whoever is at the
+ * browser now is not known to be them.
  */
 export async function bootstrapSession(): Promise<void> {
   if (useAuthStore.getState().isBootstrapped) return
@@ -32,6 +37,7 @@ export async function bootstrapSession(): Promise<void> {
   } catch {
     // Any refresh failure leaves this load signed out; only an auth verdict also clears the store (see refreshSession).
   } finally {
+    if (!useAuthStore.getState().user) forgetStaleIdentity()
     useAuthStore.getState().setBootstrapped()
   }
 }
@@ -48,6 +54,8 @@ export const router = createRouter({
   defaultPendingMs: 300,
   defaultPendingMinMs: 300,
 })
+
+installRouteAnalytics(router)
 
 declare module '@tanstack/react-router' {
   interface Register {

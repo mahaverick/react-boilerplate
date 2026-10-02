@@ -1,7 +1,8 @@
 /**
  * @file A stand-in for posthog-js's default export, for `vi.mock('posthog-js')`.
  * It records every call in order and keeps just enough state (distinct id,
- * identified or not, consent) for the facade's decisions to be observable.
+ * identified or not, consent, registered properties and groups) for the
+ * facade's decisions to be observable.
  */
 import { vi } from 'vitest'
 import { parseRuntimeConfig } from '@/configs/runtime-config'
@@ -29,6 +30,8 @@ export interface FakePosthogSdk {
   userState: 'anonymous' | 'identified'
   consent: Consent
   sessionId: string
+  /** What `register` and `group` persisted; `reset` clears it, as posthog-js does. */
+  properties: Record<string, unknown>
 }
 
 export const sdk: FakePosthogSdk = {
@@ -39,6 +42,7 @@ export const sdk: FakePosthogSdk = {
   userState: 'anonymous',
   consent: 'pending',
   sessionId: '01a0fc35-b7fe-7546-a76f-fea28a1f3cbe',
+  properties: {},
 }
 
 /** Restores the fake to a fresh, anonymous, never-initialised SDK. */
@@ -49,6 +53,7 @@ export function resetFakePosthog(): void {
   sdk.distinctId = 'anon-1'
   sdk.userState = 'anonymous'
   sdk.consent = 'pending'
+  sdk.properties = {}
 }
 
 function record(name: string, ...args: unknown[]): void {
@@ -56,19 +61,37 @@ function record(name: string, ...args: unknown[]): void {
 }
 
 export const instance = {
-  register: vi.fn((properties: unknown) => record('register', properties)),
+  register: vi.fn((properties: Record<string, unknown>) => {
+    record('register', properties)
+    sdk.properties = { ...sdk.properties, ...properties }
+  }),
+  unregister: vi.fn((name: string) => {
+    record('unregister', name)
+    const rest = { ...sdk.properties }
+    delete rest[name]
+    sdk.properties = rest
+  }),
   capture: vi.fn((event: string, properties: unknown) => record('capture', event, properties)),
   identify: vi.fn((id: string) => {
     record('identify', id)
     sdk.distinctId = id
     sdk.userState = 'identified'
   }),
-  group: vi.fn((type: string, key: string) => record('group', type, key)),
+  group: vi.fn((type: string, key: string) => {
+    record('group', type, key)
+    const groups = (sdk.properties.$groups as Record<string, string> | undefined) ?? {}
+    sdk.properties = { ...sdk.properties, $groups: { ...groups, [type]: key } }
+  }),
+  resetGroups: vi.fn(() => {
+    record('resetGroups')
+    sdk.properties = { ...sdk.properties, $groups: {} }
+  }),
   reset: vi.fn(() => {
     record('reset')
     sdk.distinctId = 'anon-2'
     sdk.userState = 'anonymous'
     sdk.consent = 'pending'
+    sdk.properties = {}
   }),
   opt_in_capturing: vi.fn(() => {
     record('opt_in_capturing')
@@ -80,7 +103,9 @@ export const instance = {
   }),
   has_opted_out_capturing: vi.fn(() => sdk.consent === 'denied'),
   get_explicit_consent_status: vi.fn(() => sdk.consent),
-  get_property: vi.fn((name: string) => (name === '$user_state' ? sdk.userState : undefined)),
+  get_property: vi.fn((name: string) =>
+    name === '$user_state' ? sdk.userState : sdk.properties[name]
+  ),
   get_distinct_id: vi.fn(() => sdk.distinctId),
   get_session_id: vi.fn(() => sdk.sessionId),
 }

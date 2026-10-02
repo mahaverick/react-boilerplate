@@ -117,6 +117,32 @@ describe('buildPosthogOptions', () => {
     expect(sent?.properties.$current_url).toBe('https://app.example.com/x?tab=a')
   })
 
+  it('turns off the automatic pageview and keeps the pageleave', () => {
+    expect(buildPosthogOptions(input())).toMatchObject({
+      capture_pageview: false,
+      capture_pageleave: true,
+    })
+  })
+
+  it('runs guardEvent first: null drops the event, and what it returns is what is sanitised', () => {
+    const guardEvent = vi.fn((event: CaptureResult) =>
+      event.event === 'drop-me'
+        ? null
+        : {
+            ...event,
+            properties: { ...event.properties, $current_url: 'https://app.example.com/y?token=t' },
+          }
+    )
+    const beforeSend = buildPosthogOptions(input({ guardEvent })).before_send as (
+      event: CaptureResult | null
+    ) => CaptureResult | null
+    const dropped = { uuid: 'u', event: 'drop-me', properties: {} }
+    expect(beforeSend(dropped)).toBeNull()
+    expect(guardEvent).toHaveBeenCalledWith(dropped)
+    const sent = beforeSend({ uuid: 'u', event: '$pageview', properties: {} })
+    expect(sent?.properties.$current_url).toBe('https://app.example.com/y')
+  })
+
   it('sanitises the URL replay records for the page and each network request', () => {
     const mask = buildPosthogOptions(input()).session_recording?.maskCapturedNetworkRequestFn as (
       request: CapturedNetworkRequest

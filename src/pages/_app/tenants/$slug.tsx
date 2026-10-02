@@ -1,5 +1,4 @@
 import { createFileRoute, Link, Outlet, useRouter } from '@tanstack/react-router'
-import { useEffect } from 'react'
 import { LoadError } from '@/components/features/load-error'
 import { PlatformAccessBanner } from '@/components/features/platform-access-banner'
 import { Badge } from '@/components/ui/badge'
@@ -8,7 +7,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { canViewActivity, ROLE_LABELS } from '@/constants/roles'
 import { cn } from '@/lib/utils'
-import { setTenantGroup } from '@/observability/analytics'
 import { tenantQueryOptions, useMyRole, useTenant, useTenants } from '@/queries/tenant.queries'
 
 /**
@@ -136,18 +134,17 @@ function TenantSuspended({ name }: { name: string }) {
   )
 }
 
-/** The tenant shell. The URL's tenant is the active one, so analytics groups what follows under it. */
+/**
+ * The tenant shell. The URL's tenant is the active one: analytics groups the
+ * page under it from the route's loader data (`installRouteAnalytics`), not
+ * from here, so the group is set before the page view.
+ */
 function TenantLayout() {
   const { slug } = Route.useParams()
   const tenant = useTenant(slug)
   const { role } = useMyRole(slug)
   const tenants = useTenants()
   const listed = tenants.data?.find((entry) => entry.tenant.slug === slug)
-  const tenantId = tenant.data?.id
-
-  useEffect(() => {
-    if (tenantId) setTenantGroup(tenantId)
-  }, [tenantId])
 
   // With no tenant, the list decides between suspended and not found, so wait for it.
   if (tenant.isPending || (!tenant.data && (tenants.isPending || tenants.isFetching))) {
