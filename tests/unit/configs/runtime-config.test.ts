@@ -109,8 +109,11 @@ describe('handoff origin normalisation', () => {
       'https://x.com',
       'https://y.com:8443',
     ])
-    const did = '01a0fc35-b7ee-7b93-b550-d8a7f98e30be'
-    for (const referrer of ['https://www.example.com/blog', 'https://x.com/']) {
+    // Each referrer hands off its own id: an accepted id is refused the second time.
+    for (const [referrer, did] of [
+      ['https://www.example.com/blog', '01a0fc35-b7ee-7b93-b550-d8a7f98e30be'],
+      ['https://x.com/', '01a0fc35-b7ee-7b93-b550-d8a7f98e30bf'],
+    ]) {
       expect(
         readHandoff({ search: `?ph_did=${did}` }, referrer, config.analyticsHandoffOrigins, false)
       ).toEqual({ bootstrap: { distinctID: did } })

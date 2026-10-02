@@ -1,13 +1,19 @@
 /**
  * @file The cross-domain handoff: a website on another domain links into the
  * app with `?ph_did=<anonymous id>&ph_sid=<session id>`, so the visit keeps
- * the website's anonymous history. Accepted only from an allowlisted referrer
- * and only while this browser holds no identified person; the parameters are
- * stripped from the address bar either way.
+ * the website's anonymous history. Accepted only from an allowlisted referrer,
+ * only while this browser holds no identified person, and only once per id in
+ * this browser; the parameters are stripped from the address bar either way.
  */
 
 /** The two query parameters a website appends. */
 export const HANDOFF_PARAMS = ['ph_did', 'ph_sid'] as const
+
+/** The localStorage key listing the handoff ids this browser has already accepted. */
+export const CONSUMED_HANDOFFS_KEY = 'analytics_handoff_consumed'
+
+/** How many accepted handoff ids are remembered; the oldest is forgotten past this. */
+export const MAX_CONSUMED_HANDOFFS = 50
 
 /** posthog-js mints anonymous and session ids as UUIDs (v7); anything else is not a handoff. */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -32,13 +38,36 @@ function originOf(url: string): string | null {
 }
 
 /**
- * Decides whether this page load continues a website visit.
+ * Records `distinctID` as accepted, unless it already was. An id the app has
+ * taken once may since have been merged into a signed-in person, so taking it
+ * again would file the next visitor's activity under that person.
+ * @returns False when the id was already used, or storage cannot be read or
+ *   written: an id that cannot be recorded is refused.
+ */
+function consumeHandoff(distinctID: string): boolean {
+  try {
+    const stored = window.localStorage.getItem(CONSUMED_HANDOFFS_KEY)
+    const parsed: unknown = stored === null ? [] : JSON.parse(stored)
+    const consumed = Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []
+    if (consumed.includes(distinctID)) return false
+    const next = [...consumed, distinctID].slice(-MAX_CONSUMED_HANDOFFS)
+    window.localStorage.setItem(CONSUMED_HANDOFFS_KEY, JSON.stringify(next))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Decides whether this page load continues a website visit, and records an
+ * accepted id so it is never accepted again in this browser.
  * @param location - The page's location; only `search` is read.
  * @param referrer - `document.referrer`, which the sending site's own Referrer-Policy controls.
  * @param allowlist - Origins allowed to hand off (the run-time `ANALYTICS_HANDOFF_ORIGINS`).
  * @param isIdentified - Whether this browser already holds an identified person.
- * @returns `bootstrap` when `ph_did` is a UUID, the referrer's origin is allowlisted and
- *   nobody is identified; `sessionID` only when `ph_sid` is a UUID too.
+ * @returns `bootstrap` when `ph_did` is a UUID, the referrer's origin is allowlisted,
+ *   nobody is identified and the id was never accepted here before; `sessionID`
+ *   only when `ph_sid` is a UUID too.
  */
 export function readHandoff(
   location: Pick<Location, 'search'>,
@@ -52,6 +81,7 @@ export function readHandoff(
   if (isIdentified) return {}
   const origin = originOf(referrer)
   if (origin === null || !allowlist.includes(origin)) return {}
+  if (!consumeHandoff(distinctID)) return {}
   const sessionID = params.get('ph_sid')
   return {
     bootstrap:
