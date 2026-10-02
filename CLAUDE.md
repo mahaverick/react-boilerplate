@@ -145,9 +145,10 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
 - **Captured URLs keep only `ANALYTICS_URL_QUERY_ALLOWLIST` keys.** Add a key
   there only when its values can never be a token, an address or a redirect.
 - **`posthog.reset()` drops the super properties and the consent answer.**
-  `resetAnalytics` and `identifyUser` go through `resetKeepingConsent`, which
-  registers `app` and `environment` again and re-applies the consent; never
-  call the SDK's `reset()` around it.
+  `resetAnalytics`, `identifyUser` and `forgetStaleIdentity` go through
+  `resetKeepingConsent`, which registers `app` and `environment` again,
+  re-applies the current page's tenant group (sign-out clears it first) and
+  re-applies the consent; never call the SDK's `reset()` around it.
 - **Page views come from the router, not posthog-js.** `capture_pageview` is
   off; `installRouteAnalytics` (registered in `router.tsx` before the first
   load) sets or clears the tenant group from the resolved route's loader data
