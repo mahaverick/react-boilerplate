@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   capturePageview,
   clearTenantGroup,
+  confirmSignedInUser,
   denyAnalyticsConsent,
   forgetStaleIdentity,
   getAnalyticsConsent,
@@ -19,6 +20,7 @@ import {
   setTenantGroup,
   subscribeAnalyticsConsent,
   subscribeIdentitySuperseded,
+  SUPERSEDED_RECHECK_MS,
   track,
 } from '@/observability/analytics/analytics'
 import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/analytics/config'
@@ -424,7 +426,7 @@ async function siblingTabIdentified(distinctId: string): Promise<void> {
 
 describe('the event guard', () => {
   beforeEach(async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     await initAnalytics(OPT_OUT)
     identifyUser('user-a')
     sdk.calls = []
@@ -546,7 +548,7 @@ describe('the event guard', () => {
     sdk.distinctId = 'user-b'
     sdk.userState = 'identified'
     expect(beforeSend(eventOf('$pageview', { ...SIGNED_IN, distinct_id: 'user-b' }))).toBeNull()
-    expect(beforeSend(eventOf('$pageview', SIGNED_IN))).toBeNull()
+    expect(beforeSend(eventOf('$autocapture', { ...SIGNED_IN, distinct_id: 'user-b' }))).toBeNull()
     vi.advanceTimersByTime(IDENTITY_REPAIR_DELAY_MS)
     expect(superseded).toHaveBeenCalledTimes(1)
     expect(sdk.calls).toEqual([])
@@ -561,6 +563,77 @@ describe('the event guard', () => {
       distinct_id: 'user-b',
     })
     expect(beforeSend(next)).toEqual(next)
+  })
+
+  describe('once superseded', () => {
+    let superseded: ReturnType<typeof vi.fn<() => void>>
+
+    beforeEach(async () => {
+      setTenantGroup('tenant-a')
+      superseded = vi.fn<() => void>()
+      subscribeIdentitySuperseded(superseded)
+      await siblingTabIdentified('user-b')
+      sdk.distinctId = 'user-b'
+      sdk.userState = 'identified'
+      expect(beforeSend(eventOf('$pageview', { ...SIGNED_IN, distinct_id: 'user-b' }))).toBeNull()
+      sdk.calls = []
+    })
+
+    it('asks the app again while it lasts, at most every SUPERSEDED_RECHECK_MS', () => {
+      beforeSend(eventOf('$pageview', { ...SIGNED_IN, distinct_id: 'user-b' }))
+      expect(superseded).toHaveBeenCalledTimes(1)
+      vi.advanceTimersByTime(SUPERSEDED_RECHECK_MS)
+      beforeSend(eventOf('$pageview', { ...SIGNED_IN, distinct_id: 'user-b' }))
+      expect(superseded).toHaveBeenCalledTimes(2)
+    })
+
+    it('resumes when an event carries its user again', () => {
+      const own = eventOf('$pageview', {
+        ...SIGNED_IN,
+        $groups: { tenant: 'tenant-a' },
+        tenant_access: 'member',
+      })
+      expect(beforeSend(own)).toEqual(own)
+      expect(beforeSend(own)).toEqual(own)
+    })
+
+    it('the app confirming its user while the cookie holds someone else identifies the user again', () => {
+      confirmSignedInUser('user-a')
+      expect(sdk.calls).toEqual([
+        'reset()',
+        REGISTER,
+        MEMBER,
+        'group("tenant", "tenant-a")',
+        'identify("user-a")',
+        REGISTER,
+        MEMBER,
+        'group("tenant", "tenant-a")',
+      ])
+      const own = eventOf('$pageview', {
+        ...SIGNED_IN,
+        $groups: { tenant: 'tenant-a' },
+        tenant_access: 'member',
+      })
+      expect(beforeSend(own)).toEqual(own)
+    })
+
+    it('a confirmation for anyone else changes nothing', () => {
+      confirmSignedInUser('user-b')
+      expect(sdk.calls).toEqual([])
+      expect(beforeSend(eventOf('$pageview', { ...SIGNED_IN, distinct_id: 'user-b' }))).toBeNull()
+    })
+
+    it('accepting the banner never identifies over the other tab’s person', () => {
+      grantAnalyticsConsent()
+      expect(sdk.calls.filter((call) => /identify|reset\(|group|register/.test(call))).toEqual([])
+    })
+
+    it('its sign-out leaves the shared SDK, the other tab’s tenant group included, alone', () => {
+      sdk.properties = { $groups: { tenant: 'tenant-b' }, tenant_access: 'member' }
+      resetAnalytics()
+      expect(sdk.calls).toEqual([])
+      expect(sdk.properties).toMatchObject({ $groups: { tenant: 'tenant-b' } })
+    })
   })
 
   it('a sibling-tab sign-in announced after the drop but before the repair is due also supersedes', async () => {

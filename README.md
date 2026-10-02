@@ -441,9 +441,12 @@ call into `src/observability/analytics` is a no-op.
   identified again; `app`, `environment` and the tenant group are put back on
   events a sibling's reset stripped. Another tab of this app is not a
   sibling to fight: a person it signed in is announced to the other tabs, and
-  a tab whose user it replaced drops its events and signs itself out (its
-  next refresh returns the other person), leaving that tab signed in. A
-  sign-out broadcast landing within the 250 ms cancels the repair.
+  a tab whose user it replaced drops its events (never identifying over that
+  person) and refreshes its session to settle who is signed in. A refresh
+  that returns the other person signs that tab out alone; one that returns
+  its own user resumes it; a failed one is retried while events keep coming.
+  The tab also resumes as soon as the identity cookie holds its user again.
+  A sign-out broadcast landing within the 250 ms cancels the repair.
 - **The consent banner and page views.** Answering the banner captures the
   page on screen (cookieless after a decline), since its router page view was
   dropped while consent was pending; turning analytics back on in the profile

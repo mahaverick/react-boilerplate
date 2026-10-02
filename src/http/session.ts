@@ -2,6 +2,7 @@ import { isAxiosError } from 'axios'
 import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import {
+  confirmSignedInUser,
   identifyUser,
   resetAnalytics,
   setAnalyticsOptOut,
@@ -137,8 +138,10 @@ let uninstallAnalyticsIdentity: (() => void) | null = null
  * distinct id; a user is then identified by id alone after their own opt-out
  * is applied, so an opted-out user's identify is never captured. When
  * analytics reports that another tab signed a different person in under this
- * one, the session is refreshed: the refresh returns that person, which signs
- * this tab out (`SessionIdentityChangedError`). Idempotent; returns the cleanup.
+ * one, the session is refreshed: a refresh that returns that person signs this
+ * tab out (`SessionIdentityChangedError`); one that returns this tab's user
+ * confirms it to analytics (`confirmSignedInUser`); a failed one is retried
+ * on analytics' next recheck. Idempotent; returns the cleanup.
  */
 export function installAnalyticsIdentity(): () => void {
   if (uninstallAnalyticsIdentity) return uninstallAnalyticsIdentity
@@ -153,9 +156,15 @@ export function installAnalyticsIdentity(): () => void {
     if (state.user !== previousState.user) apply(state.user, previousState.user)
   })
   const unsubscribeSuperseded = subscribeIdentitySuperseded(() => {
-    ensureSession().catch((error: unknown) => {
-      if (isAuthVerdict(error)) redirectToLogin()
-    })
+    ensureSession().then(
+      () => {
+        const user = useAuthStore.getState().user
+        if (user) confirmSignedInUser(user.id)
+      },
+      (error: unknown) => {
+        if (isAuthVerdict(error)) redirectToLogin()
+      }
+    )
   })
   uninstallAnalyticsIdentity = () => {
     unsubscribe()
@@ -203,7 +212,7 @@ async function refreshSession(): Promise<string> {
 
     const profile = unwrap(profileResponse)
     const current = useAuthStore.getState().user
-    // The catch below signs out and broadcasts; the 401 interceptor then redirects instead of replaying as them.
+    // The catch below signs this tab out (no broadcast for this error); the 401 interceptor then redirects instead of replaying as them.
     if (current && current.id !== profile.id) throw new SessionIdentityChangedError()
 
     useAuthStore.getState().login(accessToken, profile)

@@ -8,6 +8,7 @@ export {
   type AnalyticsTenantAccess,
   capturePageview,
   clearTenantGroup,
+  confirmSignedInUser,
   denyAnalyticsConsent,
   forgetStaleIdentity,
   getAnalyticsConsent,

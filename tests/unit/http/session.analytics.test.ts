@@ -7,6 +7,7 @@ import {
   capturePageview,
   initAnalytics,
   resetAnalyticsForTests,
+  SUPERSEDED_RECHECK_MS,
 } from '@/observability/analytics/analytics'
 import { bootstrapSession } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
@@ -178,6 +179,57 @@ describe('analytics identity follows the session', () => {
     await vi.waitFor(() => expect(assign).toHaveBeenCalled())
     expect(sdk.calls).not.toContain('reset()')
     expect(sdk.distinctId).toBe(USER_ID_2)
+  })
+
+  /** Puts the fake SDK under user B, a person another tab of this app announced, and sends one event. */
+  async function supersedeByAnotherTab(): Promise<(event: unknown) => unknown> {
+    const announced: unknown[] = []
+    const listener = new BroadcastChannel('analytics-identity')
+    listener.addEventListener('message', (event: MessageEvent<unknown>) =>
+      announced.push(event.data)
+    )
+    const otherTab = new BroadcastChannel('analytics-identity')
+    otherTab.postMessage({ type: 'identified', distinctId: USER_ID_2 })
+    await vi.waitFor(() => expect(announced).toHaveLength(1))
+    listener.close()
+    otherTab.close()
+    sdk.distinctId = USER_ID_2
+    sdk.userState = 'identified'
+    sdk.calls = []
+    const beforeSend = sdk.initOptions?.before_send as (event: unknown) => unknown
+    expect(
+      beforeSend({ uuid: 'u', event: '$pageview', properties: { distinct_id: USER_ID_2 } })
+    ).toBeNull()
+    return beforeSend
+  }
+
+  it('a supersession whose refresh returns this tab’s own user resumes it under that user', async () => {
+    useAuthStore.getState().login('token', userA)
+    server.use(http.get('/api/v1/profile', () => ok(userA, 'Profile retrieved.')))
+    await supersedeByAnotherTab()
+    await vi.waitFor(() => expect(sdk.calls).toContain(`identify("${USER_ID}")`))
+    expect(useAuthStore.getState().user?.id).toBe(USER_ID)
+    expect(sdk.distinctId).toBe(USER_ID)
+  })
+
+  it('a supersession whose refresh fails for a transient reason keeps the tab and retries', async () => {
+    useAuthStore.getState().login('token', userA)
+    let refreshes = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => {
+        refreshes += 1
+        return fail('Unavailable', 503)
+      })
+    )
+    const now = vi.spyOn(Date, 'now')
+    now.mockReturnValue(1_000_000)
+    const beforeSend = await supersedeByAnotherTab()
+    await vi.waitFor(() => expect(refreshes).toBe(1))
+    expect(useAuthStore.getState().user?.id).toBe(USER_ID)
+    now.mockReturnValue(1_000_000 + SUPERSEDED_RECHECK_MS)
+    beforeSend({ uuid: 'u', event: '$pageview', properties: { distinct_id: USER_ID_2 } })
+    await vi.waitFor(() => expect(refreshes).toBe(2))
+    expect(sdk.calls).not.toContain('reset()')
   })
 
   it('is installed once however often it is called', () => {
