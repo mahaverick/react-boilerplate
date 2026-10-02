@@ -1,6 +1,7 @@
 import { isAxiosError } from 'axios'
 import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
+import { identifyUser, resetAnalytics, setAnalyticsOptOut } from '@/observability/analytics'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 
@@ -105,6 +106,36 @@ export function installAuthBroadcastListener(): () => void {
   return uninstallListener
 }
 
+let uninstallAnalyticsIdentity: (() => void) | null = null
+
+/**
+ * Keeps analytics' identity in step with the store's user, whatever changed
+ * it: sign-in, the session restore, the 401 verdict, a logout broadcast from
+ * another tab, or a refresh that failed with one. A different user, or none,
+ * resets first, so the next person's events never carry the last one's
+ * distinct id; a user is then identified by id alone after their own opt-out
+ * is applied, so an opted-out user's identify is never captured. Idempotent;
+ * returns the cleanup.
+ */
+export function installAnalyticsIdentity(): () => void {
+  if (uninstallAnalyticsIdentity) return uninstallAnalyticsIdentity
+  const apply = (user: User | null, previous: User | null) => {
+    if (previous && previous.id !== user?.id) resetAnalytics()
+    if (!user) return
+    setAnalyticsOptOut(user.analyticsOptOut === true)
+    if (user.id !== previous?.id) identifyUser(user.id)
+  }
+  apply(useAuthStore.getState().user, null)
+  const unsubscribe = useAuthStore.subscribe((state, previousState) => {
+    if (state.user !== previousState.user) apply(state.user, previousState.user)
+  })
+  uninstallAnalyticsIdentity = () => {
+    unsubscribe()
+    uninstallAnalyticsIdentity = null
+  }
+  return uninstallAnalyticsIdentity
+}
+
 /**
  * The single in-flight refresh. Every caller (bootstrap, the 401 interceptor,
  * the SSE reconnect) awaits this same promise, because POST /auth/refresh
@@ -178,9 +209,10 @@ export function ensureSession(): Promise<string> {
   return inFlight
 }
 
-/** Test-only: drop the cached promise and this tab's broadcast channel between cases. */
+/** Test-only: drop the cached promise, this tab's broadcast channel and the analytics subscription. */
 export function resetSessionForTests(): void {
   inFlight = null
+  uninstallAnalyticsIdentity?.()
   uninstallListener?.()
   channel?.close()
   channel = null

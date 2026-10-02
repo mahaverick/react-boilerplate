@@ -14,6 +14,10 @@
  * `?access=platform` signs the harness user in as a staff viewer who is not a
  * member of `acme`, so the tenant pages render under the platform access
  * banner.
+ *
+ * `?pii=probe` replaces every person in the fixtures with the analytics PII
+ * probe (`Pii Probe`, `pii-probe…@example.test`), for the DOM PII guard in
+ * `e2e/fixtures/pii.test.ts`.
  */
 import '@/lib/zod-jitless'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -119,6 +123,9 @@ const NOTIFICATIONS = [
   },
 ]
 
+/** The tenant owner as the audit log names them. */
+const AUDIT_ACTOR = { id: USER_ID, name: 'A B', email: 'a@b.com' }
+
 const PREFERENCES = [
   { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
   { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
@@ -190,6 +197,36 @@ const testUser = {
   lastName: 'B',
   createdAt: '2026-01-01T00:00:00.000Z',
   platformRole: null as 'viewer' | null,
+  analyticsOptOut: false,
+}
+
+/** The name and address the PII guards search for; nothing may render them unmasked. */
+const PROBE_NAME = { firstName: 'Pii', lastName: 'Probe' }
+const PROBE_EMAIL = 'pii-probe@example.test'
+
+/** An invitation addressed to someone else, so the accept page shows both addresses. */
+const INVITATION_PREVIEW = {
+  tenant: { name: TENANT.name, slug: TENANT.slug },
+  role: 'editor',
+  invitedBy: { firstName: 'A', lastName: 'B' },
+  email: 'invitee@b.com',
+}
+
+if (new URLSearchParams(location.search).get('pii') === 'probe') {
+  Object.assign(testUser, PROBE_NAME, { email: PROBE_EMAIL })
+  MEMBERS.forEach((member, index) => {
+    Object.assign(member.user, PROBE_NAME, {
+      email: index === 0 ? PROBE_EMAIL : `pii-probe+member${index}@example.test`,
+    })
+  })
+  for (const invitation of [...INVITATIONS, INVITATION_PREVIEW]) {
+    invitation.email = 'pii-probe+invitee@example.test'
+    if (invitation.invitedBy) Object.assign(invitation.invitedBy, PROBE_NAME)
+  }
+  for (const notification of NOTIFICATIONS) {
+    if (notification.type === 'verify_email') notification.body = 'Pii Probe sent you a link.'
+  }
+  Object.assign(AUDIT_ACTOR, { name: 'Pii Probe', email: PROBE_EMAIL })
 }
 
 function ok<T>(data: T, message = 'OK', statusCode = 200) {
@@ -253,6 +290,11 @@ const worker = setupWorker(
   membersHandler,
   // The members page lists pending invitations for an owner. Unmocked, this would reach the real API, 401, and sign the harness user out.
   http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
+  http.post('/api/v1/tenants/acme/invitations/:id/resend', () =>
+    ok(null, 'If that address can be invited, an invitation has been sent.')
+  ),
+  // The accept page's preview, for `?path=/invitations/accept&token=…`.
+  http.post('/api/v1/invitations/preview', () => ok(INVITATION_PREVIEW, 'Invitation retrieved.')),
   http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
   // Every overview mounts the Getting started card, staff's included. Unmocked, it would reach the real API, 401, and sign the harness user out.
   http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
@@ -274,7 +316,7 @@ const worker = setupWorker(
             occurredAt: '2026-09-25T09:00:00.000Z',
             action: 'tenant.created',
             access: 'member',
-            actor: { id: USER_ID, name: 'A B', email: 'a@b.com' },
+            actor: AUDIT_ACTOR,
             target: { type: 'tenant', id: TENANT_ID },
             metadata: { name: 'Acme Corp', slug: 'acme' },
           },

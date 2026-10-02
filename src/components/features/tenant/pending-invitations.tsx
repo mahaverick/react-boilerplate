@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { LoadError } from '@/components/features/load-error'
+import { Pii } from '@/components/shared/pii'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -138,7 +139,9 @@ function RevokeInvitationButton({
       />
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Revoke the invitation to {invitation.email}?</AlertDialogTitle>
+          <AlertDialogTitle>
+            Revoke the invitation to <Pii>{invitation.email}</Pii>?
+          </AlertDialogTitle>
           <AlertDialogDescription>
             The link in their email stops working immediately. You can invite them again later.
           </AlertDialogDescription>
@@ -191,9 +194,9 @@ function InvitationItem({
   return (
     <li className="grid gap-3 rounded-lg border p-4 sm:flex sm:items-center sm:justify-between">
       <div className="grid min-w-0 gap-0.5">
-        <span className="font-medium break-all">{invitation.email}</span>
+        <Pii className="font-medium break-all">{invitation.email}</Pii>
         <span className="text-sm text-muted-foreground">
-          {ROLE_LABELS[invitation.role]} · Invited by {inviterName(invitation.invitedBy)}
+          {ROLE_LABELS[invitation.role]} · Invited by <Pii>{inviterName(invitation.invitedBy)}</Pii>
         </span>
         <span className="text-sm text-muted-foreground">
           Expires {expiresOn(invitation.expiresAt)}

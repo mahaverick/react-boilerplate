@@ -3,7 +3,11 @@ import { createRouter } from '@tanstack/react-router'
 import { RouteError } from '@/components/features/route-error'
 import { RouteNotFound } from '@/components/features/route-not-found'
 import { RoutePending } from '@/components/features/route-pending'
-import { ensureSession, installAuthBroadcastListener } from '@/http/session'
+import {
+  ensureSession,
+  installAnalyticsIdentity,
+  installAuthBroadcastListener,
+} from '@/http/session'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 
@@ -16,11 +20,13 @@ export const queryClient = new QueryClient({
  * every reload starts signed out; without this, `_app` would bounce a
  * signed-in user to /login. ensureSession() dedupes concurrent callers and
  * signs the store out on an auth verdict, so this only starts the cross-tab
- * logout listener and flips isBootstrapped, whether or not the refresh worked.
+ * logout listener and the analytics identity subscription, and flips
+ * isBootstrapped, whether or not the refresh worked.
  */
 export async function bootstrapSession(): Promise<void> {
   if (useAuthStore.getState().isBootstrapped) return
   installAuthBroadcastListener()
+  installAnalyticsIdentity()
   try {
     await ensureSession()
   } catch {

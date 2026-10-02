@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Check, Trash2 } from 'lucide-react'
 import { LoadError } from '@/components/features/load-error'
+import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -63,7 +64,9 @@ function NotificationRow({ notification }: { notification: Notification }) {
           <h3 className="font-medium">{notification.title}</h3>
           {isUnread && <Badge variant="secondary">Unread</Badge>}
         </div>
-        <p className="text-sm text-muted-foreground">{notification.body}</p>
+        <Pii as="p" className="text-sm text-muted-foreground">
+          {notification.body}
+        </Pii>
         <p className="text-xs text-muted-foreground">
           {humanize(notification.type)} &middot; {receivedAt(notification.createdAt)}
         </p>

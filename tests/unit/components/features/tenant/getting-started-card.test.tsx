@@ -6,6 +6,7 @@ import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
+import * as analytics from '@/observability/analytics'
 import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
@@ -682,5 +683,32 @@ describe('keyboard focus when an action replaces its own button', () => {
 
     expect(await screen.findByText('Getting started is not dismissed.')).toBeVisible()
     expect(show).toHaveFocus()
+  })
+})
+
+describe('Getting started analytics', () => {
+  it('sends onboarding_checklist_opened once, with the counts it opened on', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    mockTenant('owner')
+    renderOverview()
+    await findCard()
+    await waitFor(() =>
+      expect(track).toHaveBeenCalledWith('onboarding_checklist_opened', {
+        required_done: 0,
+        required_total: 2,
+      })
+    )
+    expect(
+      track.mock.calls.filter(([event]) => event === 'onboarding_checklist_opened')
+    ).toHaveLength(1)
+  })
+
+  it('sends feature_cta_clicked with the link’s fixed key', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    mockTenant('owner')
+    renderOverview()
+    const card = await findCard()
+    await userEvent.setup().click(within(card).getByRole('link', { name: 'Open settings' }))
+    expect(track).toHaveBeenCalledWith('feature_cta_clicked', { cta: 'onboarding_open_settings' })
   })
 })

@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
+import * as analytics from '@/observability/analytics'
 import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
@@ -442,5 +443,37 @@ describe('tenant detail', () => {
 
     await screen.findByRole('button', { name: 'Save settings' })
     expect(screen.getByText(/as platform staff \(Admin\)/)).toBeInTheDocument()
+  })
+})
+
+describe('tenant analytics group', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  it('groups analytics under the tenant the URL names, once it has loaded', async () => {
+    const setTenantGroup = vi.spyOn(analytics, 'setTenantGroup')
+    mockTenant('owner')
+    renderAppAt('/tenants/acme')
+    await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
+    expect(setTenantGroup).toHaveBeenCalledWith(TENANT_ID)
+  })
+
+  it('groups nothing for a tenant that is not available', async () => {
+    const setTenantGroup = vi.spyOn(analytics, 'setTenantGroup')
+    server.use(
+      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+      http.get('/api/v1/tenants/ghost', () => fail('Tenant not found', 404))
+    )
+    renderAppAt('/tenants/ghost')
+    await screen.findByRole('heading', { name: 'Tenant not available' })
+    expect(setTenantGroup).not.toHaveBeenCalled()
   })
 })

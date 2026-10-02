@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { ActivityList } from '@/components/features/activity/activity-list'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
+import { Pii } from '@/components/shared/pii'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -16,6 +17,7 @@ import { pageTitle } from '@/constants/app'
 import { AUDIT_ACTION_LABELS, AUDIT_ACTIONS, isAuditAction } from '@/constants/audit-actions'
 import { canViewActivity } from '@/constants/roles'
 import { statusFrom } from '@/lib/api-error'
+import { analyticsKey, track } from '@/observability/analytics'
 import {
   flattenAuditPages,
   useTenantAuditLog,
@@ -33,6 +35,8 @@ export const Route = createFileRoute('/_app/tenants/$slug/activity')({
 const ANY = 'any'
 /** The actor select's "anyone acting under platform access". */
 const STAFF = 'staff'
+/** The list `table_filtered` names; the filter values themselves are never sent. */
+const ACTIVITY_TABLE = analyticsKey('activity')
 
 /**
  * Said both when the cached role statically fails `canViewActivity` and when
@@ -72,6 +76,13 @@ function TenantActivity({ slug }: { slug: string }) {
     }
   }, [forbidden, slug, queryClient])
 
+  /** Applies a filter change, and reports that the list was filtered when it really changed. */
+  function changeFilter(next: string, current: string, apply: (value: string) => void): void {
+    if (next === current) return
+    apply(next)
+    track('table_filtered', { table: ACTIVITY_TABLE })
+  }
+
   function actorLabel(value: string): string {
     if (value === ANY) return 'Anyone'
     if (value === STAFF) return 'Staff'
@@ -86,7 +97,10 @@ function TenantActivity({ slug }: { slug: string }) {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap gap-2">
-        <Select value={action} onValueChange={(value: string | null) => setAction(value ?? ANY)}>
+        <Select
+          value={action}
+          onValueChange={(value: string | null) => changeFilter(value ?? ANY, action, setAction)}
+        >
           <SelectTrigger aria-label="Filter by action" className="w-52">
             <SelectValue>{(value: string) => actionLabel(value)}</SelectValue>
           </SelectTrigger>
@@ -99,16 +113,19 @@ function TenantActivity({ slug }: { slug: string }) {
             ))}
           </SelectContent>
         </Select>
-        <Select value={actor} onValueChange={(value: string | null) => setActor(value ?? ANY)}>
+        <Select
+          value={actor}
+          onValueChange={(value: string | null) => changeFilter(value ?? ANY, actor, setActor)}
+        >
           <SelectTrigger aria-label="Filter by who acted" className="w-52">
-            <SelectValue>{(value: string) => actorLabel(value)}</SelectValue>
+            <SelectValue>{(value: string) => <Pii>{actorLabel(value)}</Pii>}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY}>Anyone</SelectItem>
             <SelectItem value={STAFF}>Staff</SelectItem>
             {(members.data ?? []).map((member) => (
               <SelectItem key={member.user.id} value={member.user.id}>
-                {memberName(member)}
+                <Pii>{memberName(member)}</Pii>
               </SelectItem>
             ))}
           </SelectContent>

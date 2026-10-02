@@ -3,6 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { Pii } from '@/components/shared/pii'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -77,8 +78,8 @@ function RegisterPage() {
             <h1>Check your email</h1>
           </CardTitle>
           <CardDescription>
-            We sent a verification link to {registeredEmail}. Open it to finish setting up your
-            account.
+            We sent a verification link to <Pii>{registeredEmail}</Pii>. Open it to finish setting
+            up your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
