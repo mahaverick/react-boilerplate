@@ -1,8 +1,10 @@
 /**
  * @file Strips URLs down to what may leave the browser: scheme, host, path and
  * the allowlisted query keys. posthog-js copies the page URL and the referrer
- * into many properties, so the sanitizer walks every string that looks like a
- * URL rather than a fixed list of keys.
+ * into many properties, some of them nested (web-vitals attribution, exception
+ * frames), so the sanitizer walks `properties`, `$set` and `$set_once`
+ * recursively, to a fixed depth, and sanitises every absolute http(s) string
+ * it finds rather than a fixed list of keys.
  */
 import type { CaptureResult } from 'posthog-js'
 
@@ -13,7 +15,7 @@ const RELATIVE_BASE = 'http://relative.invalid'
 const ABSOLUTE_HTTP_URL = /^https?:\/\//i
 
 /** The `href="…"` and `attr__href="…"` segments of an `$elements_chain`. */
-const CHAIN_HREF = /(?<!\w)((?:attr__)?href=")([^"]*)(")/g
+const CHAIN_HREF = /(?<!\w)((?:attr__)?href=")((?:\\.|[^"\\])*)(")/g
 
 /**
  * The URL with only `allowlist` query keys kept, in their order, and no hash,
@@ -42,25 +44,18 @@ export function sanitizeUrl(url: string, allowlist: readonly string[]): string {
   return `${prefix}${parsed.pathname}${query === '' ? '' : `?${query}`}`
 }
 
-function sanitizeRecord(
-  record: Record<string, unknown> | undefined,
-  allowlist: readonly string[]
-): Record<string, unknown> | undefined {
-  if (!record) return record
-  const result: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(record)) {
-    result[key] =
-      typeof value === 'string' && ABSOLUTE_HTTP_URL.test(value)
-        ? sanitizeUrl(value, allowlist)
-        : value
-  }
-  return result
-}
+/** How deep the walk goes; anything nested further is replaced, not passed through. */
+export const MAX_SANITIZE_DEPTH = 8
 
-function sanitizeElements(elements: unknown, allowlist: readonly string[]): unknown {
-  if (!Array.isArray(elements)) return elements
+/** What a value nested deeper than `MAX_SANITIZE_DEPTH` becomes. */
+const DEPTH_LIMITED = '[depth limit]'
+
+/** Replay snapshots are rrweb data, not event URLs; masking happens in the recorder. */
+const SKIPPED_KEYS: ReadonlySet<string> = new Set(['$snapshot_data'])
+
+function sanitizeElements(elements: unknown[], allowlist: readonly string[]): unknown[] {
   return elements.map((element: unknown) => {
-    if (typeof element !== 'object' || element === null) return element
+    if (typeof element !== 'object' || element === null || Array.isArray(element)) return element
     const copy = { ...(element as Record<string, unknown>) }
     for (const key of ['attr__href', 'href']) {
       const value = copy[key]
@@ -79,12 +74,51 @@ function sanitizeHeatmapData(data: unknown, allowlist: readonly string[]): unkno
   return result
 }
 
+function sanitizeValue(value: unknown, allowlist: readonly string[], depth: number): unknown {
+  if (typeof value === 'string') {
+    return ABSOLUTE_HTTP_URL.test(value) ? sanitizeUrl(value, allowlist) : value
+  }
+  if (typeof value !== 'object' || value === null) return value
+  if (depth >= MAX_SANITIZE_DEPTH) return DEPTH_LIMITED
+  if (Array.isArray(value)) {
+    return value.map((item: unknown) => sanitizeValue(item, allowlist, depth + 1))
+  }
+  const result: Record<string, unknown> = {}
+  for (const [key, child] of Object.entries(value)) {
+    if (SKIPPED_KEYS.has(key)) {
+      result[key] = child
+    } else if (key === '$elements' && Array.isArray(child)) {
+      result[key] = sanitizeElements(child, allowlist)
+    } else if (key === '$elements_chain' && typeof child === 'string') {
+      result[key] = child.replace(
+        CHAIN_HREF,
+        (_match, before: string, href: string, after: string) =>
+          `${before}${sanitizeUrl(href, allowlist)}${after}`
+      )
+    } else if (key === '$heatmap_data') {
+      result[key] = sanitizeHeatmapData(child, allowlist)
+    } else {
+      result[key] = sanitizeValue(child, allowlist, depth + 1)
+    }
+  }
+  return result
+}
+
+function sanitizeRecord(
+  record: Record<string, unknown> | undefined,
+  allowlist: readonly string[]
+): Record<string, unknown> | undefined {
+  if (!record) return record
+  return sanitizeValue(record, allowlist, 0) as Record<string, unknown>
+}
+
 /**
  * The event with every URL it carries sanitised: each absolute http(s) string
- * in `properties`, `$set` and `$set_once` (the current URL, the referrer,
- * their `$initial_*` and `$session_entry_*` copies, an external click URL),
- * the hrefs inside `$elements` and `$elements_chain`, and the keys of
- * `$heatmap_data`. Used as posthog-js's `before_send`.
+ * anywhere in `properties`, `$set` and `$set_once`, to `MAX_SANITIZE_DEPTH`
+ * levels (the current URL, the referrer, their `$initial_*` and
+ * `$session_entry_*` copies, an external click URL, web-vitals navigation and
+ * attribution URLs), the hrefs inside `$elements` and `$elements_chain`, and
+ * the keys of `$heatmap_data`. Used as posthog-js's `before_send`.
  * @param event - The event posthog-js is about to send.
  * @param allowlist - Query keys that may survive.
  * @returns A sanitised copy; the input is not mutated.
@@ -93,32 +127,9 @@ export function sanitizeEventUrls(
   event: CaptureResult,
   allowlist: readonly string[]
 ): CaptureResult {
-  const properties = sanitizeRecord(event.properties, allowlist) ?? {}
-  if ('$elements' in properties) {
-    properties.$elements = sanitizeElements(properties.$elements, allowlist)
-  }
-  if (typeof properties.$elements_chain === 'string') {
-    properties.$elements_chain = properties.$elements_chain.replace(
-      CHAIN_HREF,
-      (_match, before: string, href: string, after: string) =>
-        `${before}${sanitizeUrl(href, allowlist)}${after}`
-    )
-  }
-  if ('$heatmap_data' in properties) {
-    properties.$heatmap_data = sanitizeHeatmapData(properties.$heatmap_data, allowlist)
-  }
-  if (typeof properties.$set === 'object' && properties.$set !== null) {
-    properties.$set = sanitizeRecord(properties.$set as Record<string, unknown>, allowlist)
-  }
-  if (typeof properties.$set_once === 'object' && properties.$set_once !== null) {
-    properties.$set_once = sanitizeRecord(
-      properties.$set_once as Record<string, unknown>,
-      allowlist
-    )
-  }
   return {
     ...event,
-    properties,
+    properties: sanitizeRecord(event.properties, allowlist) ?? {},
     ...(event.$set ? { $set: sanitizeRecord(event.$set, allowlist) } : {}),
     ...(event.$set_once ? { $set_once: sanitizeRecord(event.$set_once, allowlist) } : {}),
   }

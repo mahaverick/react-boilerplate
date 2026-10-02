@@ -57,7 +57,7 @@ describe('parseRuntimeConfig', () => {
 
   it.each([
     ['POSTHOG_KEY', 'not-a-key'],
-    ['POSTHOG_KEY', 'phc_short'],
+    ['POSTHOG_KEY', `phc_${'a'.repeat(7)}`],
     ['POSTHOG_KEY', `${KEY}"`],
     ['POSTHOG_UI_HOST', 'http://us.posthog.com'],
     ['POSTHOG_UI_HOST', 'https://us.posthog.com/'],
@@ -111,16 +111,19 @@ describe('getRuntimeConfig', () => {
 
   it('reads VITE_* from import.meta.env outside a production bundle, and ignores window', () => {
     vi.stubEnv('VITE_POSTHOG_KEY', KEY)
-    window.__APP_CONFIG__ = { POSTHOG_KEY: 'phc_from_window_ignored' }
+    window.__APP_CONFIG__ = { POSTHOG_KEY: 'phc_test_key_not_real_window' }
     expect(getRuntimeConfig().posthogKey).toBe(KEY)
   })
 
   it('reads only window.__APP_CONFIG__ in a production bundle', () => {
     vi.stubEnv('PROD', true)
     vi.stubEnv('VITE_POSTHOG_KEY', KEY)
-    window.__APP_CONFIG__ = { POSTHOG_KEY: 'phc_from_the_container', APP_ENVIRONMENT: 'production' }
+    window.__APP_CONFIG__ = {
+      POSTHOG_KEY: 'phc_test_key_not_real_container',
+      APP_ENVIRONMENT: 'production',
+    }
     expect(getRuntimeConfig()).toMatchObject({
-      posthogKey: 'phc_from_the_container',
+      posthogKey: 'phc_test_key_not_real_container',
       appEnvironment: 'production',
     })
   })

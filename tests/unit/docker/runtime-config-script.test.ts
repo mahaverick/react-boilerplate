@@ -86,7 +86,7 @@ describe('docker/10-runtime-config.sh', () => {
   it.each([
     ['POSTHOG_KEY', 'pii-probe@example.test'],
     ['POSTHOG_KEY', `${KEY}";alert(1);"`],
-    ['POSTHOG_KEY', `${KEY}\nphc_second_line_value`],
+    ['POSTHOG_KEY', `${KEY}\nphc_test_key_not_real_second_line`],
     ['POSTHOG_UI_HOST', 'https://probe.example.test/path'],
     ['POSTHOG_UI_HOST', 'http://probe.example.test'],
     ['ANALYTICS_CONSENT_MODE', 'probe-mode'],

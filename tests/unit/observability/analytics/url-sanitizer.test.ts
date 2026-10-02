@@ -1,7 +1,11 @@
 import { http, HttpResponse } from 'msw'
 import { PostHog, type CaptureResult } from 'posthog-js'
 import { afterEach, describe, expect, it } from 'vitest'
-import { sanitizeEventUrls, sanitizeUrl } from '@/observability/analytics/url-sanitizer'
+import {
+  MAX_SANITIZE_DEPTH,
+  sanitizeEventUrls,
+  sanitizeUrl,
+} from '@/observability/analytics/url-sanitizer'
 import { server } from '@/tests/mocks/server'
 
 const ALLOW = ['tab']
@@ -76,6 +80,81 @@ describe('sanitizeEventUrls', () => {
     const sanitized = sanitizeEventUrls({ uuid: 'u', event: 'x', properties: {} }, ALLOW)
     expect(sanitized).not.toHaveProperty('$set')
     expect(sanitized).not.toHaveProperty('$set_once')
+  })
+})
+
+describe('sanitizeEventUrls on nested properties', () => {
+  const DIRTY = 'https://app.example.com/a?token=probe-token&tab=x'
+  const CLEAN = 'https://app.example.com/a?tab=x'
+
+  it('sanitises a web-vitals-shaped event, however deep the URL sits', () => {
+    const event: CaptureResult = {
+      uuid: 'u',
+      event: '$web_vitals',
+      properties: {
+        $web_vitals_LCP_event: {
+          name: 'LCP',
+          value: 1200,
+          navigationURL: DIRTY,
+          $current_url: DIRTY,
+          attribution: { url: DIRTY, element: '#hero' },
+        },
+        $set: { nested: { page: DIRTY } },
+      },
+      $set_once: { first: { page: DIRTY } },
+    }
+    const sanitized = sanitizeEventUrls(event, ALLOW)
+    const text = JSON.stringify(sanitized)
+    expect(text).not.toContain('probe-token')
+    const vitals = sanitized.properties.$web_vitals_LCP_event as Record<string, unknown>
+    expect(vitals.navigationURL).toBe(CLEAN)
+    expect(vitals.$current_url).toBe(CLEAN)
+    expect(vitals.value).toBe(1200)
+    expect((vitals.attribution as Record<string, unknown>).url).toBe(CLEAN)
+    expect(JSON.stringify(event)).toContain('probe-token')
+  })
+
+  it('sanitises URLs inside arrays', () => {
+    const sanitized = sanitizeEventUrls(
+      {
+        uuid: 'u',
+        event: '$exception',
+        properties: { $exception_list: [{ stacktrace: { frames: [{ filename: DIRTY }, DIRTY] } }] },
+      },
+      ALLOW
+    )
+    expect(JSON.stringify(sanitized)).not.toContain('probe-token')
+    expect(JSON.stringify(sanitized)).toContain(CLEAN)
+  })
+
+  it('leaves $snapshot_data alone', () => {
+    const snapshot = [{ href: DIRTY }]
+    const sanitized = sanitizeEventUrls(
+      { uuid: 'u', event: '$snapshot', properties: { $snapshot_data: snapshot } },
+      ALLOW
+    )
+    expect(sanitized.properties.$snapshot_data).toEqual(snapshot)
+  })
+
+  it('stops at the depth limit without throwing, and never passes the deep value through', () => {
+    let deep: Record<string, unknown> = { url: DIRTY }
+    for (let level = 0; level < MAX_SANITIZE_DEPTH + 4; level += 1) deep = { child: deep }
+    const sanitized = sanitizeEventUrls({ uuid: 'u', event: 'x', properties: { deep } }, ALLOW)
+    expect(JSON.stringify(sanitized)).not.toContain('probe-token')
+  })
+
+  it('keeps an href with an escaped quote whole in an $elements_chain', () => {
+    const sanitized = sanitizeEventUrls(
+      {
+        uuid: 'u',
+        event: '$autocapture',
+        properties: {
+          $elements_chain: 'a:attr__href="/x?a=\\"&token=probe-token&tab=y"nth-child="1"',
+        },
+      },
+      ALLOW
+    )
+    expect(sanitized.properties.$elements_chain).toBe('a:attr__href="/x?tab=y"nth-child="1"')
   })
 })
 

@@ -2,7 +2,8 @@
  * @file Session replay's attribute mask. Replay records every attribute of
  * every element, and the ones named here are where a person's name or address
  * ends up: `aria-label="Remove Jane Doe"`, `title`, `alt`, `placeholder`,
- * `data-*`, a `mailto:` link, or an href whose query carries a token.
+ * `data-*`, a `mailto:` or `tel:` link, or an href, `src` or `srcset` whose
+ * query string can carry a token.
  */
 
 /** What a masked attribute's value is replaced with. */
@@ -26,7 +27,10 @@ export function maskReplayAttribute(name: string, value: string): string {
   if (MASKED_ATTRIBUTES.has(attribute) || attribute.startsWith('data-')) {
     return MASKED_ATTRIBUTE_VALUE
   }
-  if (attribute === 'href' && (/^\s*mailto:/i.test(value) || value.includes('?'))) {
+  if (attribute === 'href' && (/^\s*(?:mailto|tel):/i.test(value) || value.includes('?'))) {
+    return MASKED_ATTRIBUTE_VALUE
+  }
+  if ((attribute === 'src' || attribute === 'srcset') && value.includes('?')) {
     return MASKED_ATTRIBUTE_VALUE
   }
   return value

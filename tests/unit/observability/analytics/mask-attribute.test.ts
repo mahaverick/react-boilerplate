@@ -12,12 +12,17 @@ describe('maskReplayAttribute', () => {
     ['data-state', 'open'],
     ['href', 'mailto:pii-probe@example.test'],
     ['href', '/invitations/accept?token=probe-token'],
+    ['href', 'tel:+15555550123'],
+    ['href', ' TEL:+15555550123'],
+    ['src', '/avatars/1.png?token=probe-token'],
+    ['srcset', '/a.png?token=probe-token 1x, /b.png 2x'],
   ])('masks %s="%s"', (name, value) => {
     expect(maskReplayAttribute(name, value)).toBe('***')
   })
 
   it.each([
     ['href', '/tenants/acme/members'],
+    ['src', '/assets/logo.svg'],
     ['class', 'ph-sensitive ph-mask'],
     ['id', 'main'],
     ['role', 'menu'],

@@ -6,6 +6,7 @@ import {
   grantAnalyticsConsent,
   identifyUser,
   initAnalytics,
+  MAX_QUEUED_COMMANDS,
   resetAnalytics,
   resetAnalyticsForTests,
   setAnalyticsOptOut,
@@ -151,6 +152,44 @@ describe('initAnalytics', () => {
     await expect(initAnalytics(OPT_OUT)).resolves.toBeUndefined()
     identifyUser('user-a')
     expect(sdk.calls).toEqual([])
+  })
+})
+
+describe('the queue before the SDK loads', () => {
+  it('drops the oldest event capture when full, never an identity, reset, group or consent call', async () => {
+    identifyUser('user-a')
+    setAnalyticsOptOut(false)
+    for (let index = 0; index < MAX_QUEUED_COMMANDS + 5; index += 1) {
+      track('onboarding_checklist_opened', { required_done: index, required_total: 0 })
+    }
+    resetAnalytics()
+    setTenantGroup('tenant-1')
+    identifyUser('user-b')
+    await initAnalytics(OPT_OUT)
+
+    const calls = sdk.calls.slice(1)
+    expect(calls.filter((call) => call.startsWith('identify('))).toEqual([
+      'identify("user-a")',
+      'identify("user-b")',
+    ])
+    expect(calls).toContain('reset()')
+    expect(calls).toContain('group("tenant", "tenant-1")')
+    const captures = calls.filter((call) => call.startsWith('capture('))
+    expect(captures.length).toBeLessThan(MAX_QUEUED_COMMANDS + 5)
+    // The newest captures survive; the oldest were dropped.
+    expect(captures.at(-1)).toContain(`"required_done":${MAX_QUEUED_COMMANDS + 4}`)
+    expect(captures[0]).not.toContain('"required_done":0,')
+  })
+
+  it('keeps identity calls even when the queue is full of identity calls', async () => {
+    for (let index = 0; index < MAX_QUEUED_COMMANDS + 3; index += 1) identifyUser(`user-${index}`)
+    track('tenant_switched')
+    await initAnalytics(OPT_OUT)
+    const calls = sdk.calls.slice(1)
+    expect(calls.filter((call) => call.startsWith('identify('))).toHaveLength(
+      MAX_QUEUED_COMMANDS + 3
+    )
+    expect(calls.some((call) => call.startsWith('capture('))).toBe(false)
   })
 })
 

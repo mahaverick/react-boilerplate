@@ -27,12 +27,22 @@ export type AnalyticsConsent = 'granted' | 'denied' | 'pending'
 
 type Command = (client: PostHogInterface) => void
 
-/** Calls held before the SDK loads; more than this and the newest are dropped. */
-const MAX_QUEUED_COMMANDS = 100
+/**
+ * Calls held before the SDK loads. Past this, the oldest queued event
+ * capture is dropped to make room; identity, reset, group and consent calls
+ * are never dropped, so the queue can exceed the cap only by those.
+ */
+export const MAX_QUEUED_COMMANDS = 100
+
+interface QueuedCommand {
+  command: Command
+  /** Only an event capture may be dropped when the queue is full. */
+  isDroppable: boolean
+}
 
 let status: 'idle' | 'loading' | 'ready' | 'inert' = 'idle'
 let client: PostHogInterface | null = null
-let queue: Command[] = []
+let queue: QueuedCommand[] = []
 let activeConfig: AnalyticsConfig | null = null
 let activeTenantId: string | null = null
 const consentListeners = new Set<() => void>()
@@ -49,13 +59,18 @@ function execute(command: Command, instance: PostHogInterface): void {
   }
 }
 
-function run(command: Command): void {
+function run(command: Command, isDroppable = false): void {
   if (status === 'ready' && client) {
     execute(command, client)
     return
   }
   if (status === 'inert') return
-  if (queue.length < MAX_QUEUED_COMMANDS) queue.push(command)
+  if (queue.length >= MAX_QUEUED_COMMANDS) {
+    const oldest = queue.findIndex((queued) => queued.isDroppable)
+    if (oldest !== -1) queue.splice(oldest, 1)
+    else if (isDroppable) return
+  }
+  queue.push({ command, isDroppable })
 }
 
 function becomeInert(): void {
@@ -74,7 +89,7 @@ function onLoaded(instance: PostHogInterface): void {
   execute(registerSuperProperties, instance)
   const pending = queue
   queue = []
-  for (const command of pending) execute(command, instance)
+  for (const { command } of pending) execute(command, instance)
   notifyConsent()
 }
 
@@ -142,7 +157,7 @@ export async function initAnalytics(config: AnalyticsConfig = getAnalyticsConfig
  */
 export function track<E extends BrowserEvent>(event: E, ...args: TrackArgs<E>): void {
   const [properties] = args
-  run((ph) => ph.capture(event, properties ?? {}))
+  run((ph) => ph.capture(event, properties ?? {}), true)
 }
 
 /**
