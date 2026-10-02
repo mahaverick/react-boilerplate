@@ -134,13 +134,15 @@ describe('two tabs of this app', () => {
   const tabs: Facade[] = []
 
   async function openTab(
-    consentMode: 'opt_out' | 'required' = 'opt_out'
+    consentMode: 'opt_out' | 'required' = 'opt_out',
+    beforeLoad?: (facade: Facade) => Promise<void>
   ): Promise<{ facade: Facade; ph: PostHog; sent: CaptureResult[] }> {
     vi.resetModules()
     const sdk = await vi.importActual<typeof import('posthog-js')>('posthog-js')
     const ph = new sdk.PostHog()
     vi.doMock('posthog-js', () => ({ ...sdk, default: ph }))
     const facade = await import('@/observability/analytics/analytics')
+    await beforeLoad?.(facade)
     // Built directly: an app without consent modes maps `required` to `opt_out`, and the facade is shared.
     await facade.initAnalytics({
       ...analyticsConfigFor({ POSTHOG_KEY: KEY, APP_ENVIRONMENT: 'test' }),
@@ -317,5 +319,47 @@ describe('two tabs of this app', () => {
     expect(secondSuperseded).not.toHaveBeenCalled()
     expect(attributed(first.sent)).not.toContain('user-b')
     expect(attributed(second.sent)).not.toContain('user-a')
+  })
+
+  it('a tab whose refresh returned another user signs out without resetting that user’s identity', async () => {
+    const first = await openTab()
+    const second = await openTab()
+    first.facade.identifyUser('user-a')
+    second.facade.identifyUser('user-b')
+    const sessionBefore = second.ph.get_session_id()
+    // What refreshSession does on SessionIdentityChangedError, before logout() resets analytics.
+    first.facade.yieldSharedIdentity()
+    first.facade.resetAnalytics()
+    const from = second.sent.length
+    second.facade.capturePageview()
+    expect(pageviews(second.sent.slice(from))).toEqual(['user-b'])
+    expect(second.ph.get_session_id()).toBe(sessionBefore)
+  })
+
+  it('a new tab whose restore failed without a verdict keeps a person another tab is signed in as', async () => {
+    const signedIn = await openTab()
+    signedIn.facade.identifyUser('user-a')
+    const sessionBefore = signedIn.ph.get_session_id()
+    const restored = await openTab('opt_out', async (facade) => {
+      facade.forgetStaleIdentity({ keepIfAnotherTabHoldsThem: true })
+      // The question is answered before this tab's SDK loads, as it is while the bundle loads.
+      await settle(50, 'the other tab answers on the channel; there is no event for it here')
+    })
+    expect(restored.ph.get_distinct_id()).toBe('user-a')
+    const from = signedIn.sent.length
+    signedIn.facade.capturePageview()
+    expect(pageviews(signedIn.sent.slice(from))).toEqual(['user-a'])
+    expect(signedIn.ph.get_session_id()).toBe(sessionBefore)
+  })
+
+  it('a new tab whose restore failed with nobody answering forgets the person', async () => {
+    const earlier = await openTab()
+    earlier.facade.identifyUser('user-a')
+    earlier.facade.resetAnalyticsForTests()
+    const restored = await openTab('opt_out', async (facade) => {
+      facade.forgetStaleIdentity({ keepIfAnotherTabHoldsThem: true })
+      await settle(50, 'absence has no event: no tab answers on the channel')
+    })
+    expect(restored.ph.get_distinct_id()).not.toBe('user-a')
   })
 })

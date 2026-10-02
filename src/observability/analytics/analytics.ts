@@ -104,6 +104,8 @@ let isRepairScheduled = false
 let identityRepair: ReturnType<typeof setTimeout> | null = null
 /** Distinct ids this app's other tabs identified: a cookie change to one of them is theirs, not a website's. */
 let siblingIdentities: string[] = []
+/** Distinct ids this app's other tabs said they hold since this tab last asked (`askWhoIsSignedIn`). */
+let liveSiblingIdentities = new Set<string>()
 /**
  * Set once another tab of this app identified someone else under this tab's
  * signed-in user. Every event is dropped, and this tab never identifies,
@@ -149,7 +151,12 @@ function openIdentityChannel(): void {
   identityChannel = new BroadcastChannel(IDENTITY_CHANNEL)
   identityChannel.addEventListener('message', (event: MessageEvent<unknown>) => {
     const data = event.data as { type?: unknown; distinctId?: unknown } | null
+    if (data?.type === 'who') {
+      if (signedInUserId !== null && !isSuperseded) announceIdentity(signedInUserId)
+      return
+    }
     if (data?.type !== 'identified' || typeof data.distinctId !== 'string') return
+    liveSiblingIdentities.add(data.distinctId)
     siblingIdentities = [
       ...siblingIdentities.filter((id) => id !== data.distinctId),
       data.distinctId,
@@ -450,10 +457,48 @@ export function identifyUser(userId: string): void {
  * session restore that ended with no user, so an earlier visitor's identity
  * does not carry the next visitor's pageviews, replay and session header.
  * Does nothing for an anonymous browser, a handed-off visitor included.
+ *
+ * With `keepIfAnotherTabHoldsThem` (a restore that failed without judging
+ * the session, such as a 502 during a deploy), the person is kept when
+ * another tab of this app answers that it is signed in as them: resetting
+ * the shared identity would split that tab's replay. The question goes out
+ * at once and the answer is read when the SDK has loaded; with no answer by
+ * then the person is forgotten, so an unanswered question never leaves a
+ * stale person in place.
+ * @param options - `keepIfAnotherTabHoldsThem`, false by default.
  */
-export function forgetStaleIdentity(): void {
+export function forgetStaleIdentity(options: { keepIfAnotherTabHoldsThem?: boolean } = {}): void {
+  if (options.keepIfAnotherTabHoldsThem) askWhoIsSignedIn()
   run((ph) => {
-    if (ph.get_property('$user_state') === 'identified') resetKeepingConsent(ph)
+    if (ph.get_property('$user_state') !== 'identified') return
+    const isHeldElsewhere =
+      options.keepIfAnotherTabHoldsThem === true && liveSiblingIdentities.has(ph.get_distinct_id())
+    if (!isHeldElsewhere) resetKeepingConsent(ph)
+  })
+}
+
+/** Asks this app's other tabs which person each is signed in as; answers land in `liveSiblingIdentities`. */
+function askWhoIsSignedIn(): void {
+  openIdentityChannel()
+  liveSiblingIdentities = new Set()
+  try {
+    identityChannel?.postMessage({ type: 'who' })
+  } catch {
+    // Analytics never fails a user action.
+  }
+}
+
+/**
+ * Hands the shared identity to another tab before this tab signs out
+ * because its session now belongs to someone else (the refresh returned
+ * another user): the coming `resetAnalytics` then forgets this tab's state
+ * only, leaving that tab's person, replay session and tenant group alone.
+ */
+export function yieldSharedIdentity(): void {
+  run(() => {
+    if (signedInUserId === null) return
+    isSuperseded = true
+    supersededNotifiedAt = Date.now()
   })
 }
 
@@ -689,6 +734,7 @@ export function resetAnalyticsForTests(): void {
   if (identityRepair !== null) clearTimeout(identityRepair)
   identityRepair = null
   siblingIdentities = []
+  liveSiblingIdentities = new Set()
   isSuperseded = false
   supersededNotifiedAt = 0
   identityChannel?.close()

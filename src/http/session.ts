@@ -7,6 +7,7 @@ import {
   resetAnalytics,
   setAnalyticsOptOut,
   subscribeIdentitySuperseded,
+  yieldSharedIdentity,
 } from '@/observability/analytics'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
@@ -221,6 +222,8 @@ async function refreshSession(): Promise<string> {
     if (isAuthVerdict(error)) {
       // Read before logout(): a never-signed-in tab must not broadcast and sign out a sibling that just logged in.
       const wasAuthed = useAuthStore.getState().isAuthenticated
+      // Before logout(): its analytics reset must stay local, the shared identity is now the other tab's person.
+      if (error instanceof SessionIdentityChangedError) yieldSharedIdentity()
       useAuthStore.getState().logout()
       // The cookie is shared, so a 401 from an authed tab holds for every tab; a different user means the cookie is another tab's valid session.
       if (wasAuthed && !(error instanceof SessionIdentityChangedError)) broadcastLogout()

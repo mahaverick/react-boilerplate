@@ -418,10 +418,12 @@ call into `src/observability/analytics` is a no-op.
 - **Identity.** The signed-in user is identified by id alone, after the
   session restore and on every sign-in; sign-out, forced or chosen, resets
   first. A page load whose session restore ends signed out forgets any person
-  an earlier visit left in the browser, before its first page view. A token
-  refresh that comes back as a different user (another tab signed someone
-  else in) signs the tab out instead of carrying on, or replaying a request,
-  as them. Person properties (`is_staff`, `platform_role`, …) and the tenant
+  an earlier visit left in the browser, before its first page view, unless
+  the restore failed without judging the session (a 502, say) and another
+  open tab answers that it is signed in as that person. A token refresh that
+  comes back as a different user (another tab signed someone else in) signs
+  the tab out instead of carrying on, or replaying a request, as them, and
+  that sign-out leaves the shared identity, now the other tab's, alone. Person properties (`is_staff`, `platform_role`, …) and the tenant
   group's name are set only by the server.
 - **Page views and the tenant group.** posthog-js's own history page views are
   off; the router captures `$pageview` once each navigation has resolved,

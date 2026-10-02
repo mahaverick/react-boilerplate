@@ -7,6 +7,7 @@ import {
   ensureSession,
   installAnalyticsIdentity,
   installAuthBroadcastListener,
+  isAuthVerdict,
 } from '@/http/session'
 import { forgetStaleIdentity } from '@/observability/analytics'
 import { installRouteAnalytics } from '@/observability/route-analytics'
@@ -26,18 +27,24 @@ export const queryClient = new QueryClient({
  * isBootstrapped, whether or not the refresh worked. A restore that ends with
  * no user also drops any person posthog-js still holds from an earlier visit
  * (`forgetStaleIdentity`), before the first page view: whoever is at the
- * browser now is not known to be them.
+ * browser now is not known to be them. After a failure that judged nothing
+ * (a 502, say) the person is kept if another open tab answers that it is
+ * signed in as them, so that tab's replay is not split.
  */
 export async function bootstrapSession(): Promise<void> {
   if (useAuthStore.getState().isBootstrapped) return
   installAuthBroadcastListener()
   installAnalyticsIdentity()
+  let isVerdict = false
   try {
     await ensureSession()
-  } catch {
+  } catch (error) {
     // Any refresh failure leaves this load signed out; only an auth verdict also clears the store (see refreshSession).
+    isVerdict = isAuthVerdict(error)
   } finally {
-    if (!useAuthStore.getState().user) forgetStaleIdentity()
+    if (!useAuthStore.getState().user) {
+      forgetStaleIdentity({ keepIfAnotherTabHoldsThem: !isVerdict })
+    }
     useAuthStore.getState().setBootstrapped()
   }
 }

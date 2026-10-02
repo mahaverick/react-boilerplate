@@ -12,6 +12,7 @@ import {
 import { bootstrapSession } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
 import { USER_ID, USER_ID_2 } from '@/tests/fixtures/ids'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { analyticsConfigFor, resetFakePosthog, sdk } from '@/tests/mocks/posthog'
 import { server } from '@/tests/mocks/server'
@@ -232,6 +233,16 @@ describe('analytics identity follows the session', () => {
     expect(sdk.calls).not.toContain('reset()')
   })
 
+  it('a refresh that returns another user signs out without resetting that user’s shared identity', async () => {
+    useAuthStore.getState().login('token', userA)
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign: vi.fn() })
+    server.use(http.get('/api/v1/profile', () => ok(userB, 'Profile retrieved.')))
+    sdk.calls = []
+    await expect(ensureSession()).rejects.toThrow()
+    expect(useAuthStore.getState().user).toBeNull()
+    expect(sdk.calls).not.toContain('reset()')
+  })
+
   it('is installed once however often it is called', () => {
     installAnalyticsIdentity()
     useAuthStore.getState().login('token', userA)
@@ -288,6 +299,40 @@ describe('a cold load while an earlier visitor is still identified in this brows
   it('a restore that cannot reach the API forgets that person too', async () => {
     server.use(http.post('/api/v1/auth/refresh', () => fail('Unavailable', 503)))
     await coldLoad()
+    expect(sdkCalls()).toEqual(['reset()', 'capture("$pageview", {})'])
+  })
+
+  /** Another open tab of this app, signed in as `distinctId`: it answers the facade's question. */
+  function anotherTabSignedInAs(distinctId: string): () => void {
+    const tab = new BroadcastChannel('analytics-identity')
+    tab.addEventListener('message', (event: MessageEvent<{ type?: string }>) => {
+      if (event.data.type === 'who') tab.postMessage({ type: 'identified', distinctId })
+    })
+    return () => tab.close()
+  }
+
+  /** The load, with time for another tab's answer to land before the SDK loads. */
+  async function coldLoadAnswered(): Promise<void> {
+    await bootstrapSession()
+    capturePageview()
+    await settle(50, 'another tab answers on the channel; nothing in this tab signals it')
+    await initAnalytics(analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real' }))
+  }
+
+  it('a restore that cannot reach the API keeps a person another tab is signed in as', async () => {
+    const close = anotherTabSignedInAs(USER_ID)
+    server.use(http.post('/api/v1/auth/refresh', () => fail('Unavailable', 503)))
+    await coldLoadAnswered()
+    close()
+    expect(sdkCalls()).toEqual(['capture("$pageview", {})'])
+    expect(sdk.distinctId).toBe(USER_ID)
+  })
+
+  it('a restore that answers 401 forgets the person even if another tab says it holds them', async () => {
+    const close = anotherTabSignedInAs(USER_ID)
+    server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
+    await coldLoadAnswered()
+    close()
     expect(sdkCalls()).toEqual(['reset()', 'capture("$pageview", {})'])
   })
 

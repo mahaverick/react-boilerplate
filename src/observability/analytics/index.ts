@@ -22,6 +22,7 @@ export {
   subscribeAnalyticsConsent,
   subscribeIdentitySuperseded,
   track,
+  yieldSharedIdentity,
 } from './analytics'
 export {
   getAnalyticsConfig,
