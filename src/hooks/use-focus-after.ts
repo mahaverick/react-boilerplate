@@ -26,7 +26,9 @@ export interface FocusAfter<Key extends string> {
  *
  * Focus is never stolen. It moves only if, when the target is ready, focus is
  * on `<body>` or still on the element that was active when `focusAfter` was
- * called; a user who has moved on meanwhile is left where they are.
+ * called; a user who moves on while a target is still pending is left where
+ * they are. (`focusAfter` runs after the action settles, so focus moved during
+ * the request itself is not detected.)
  *
  * A target that has not mounted stays pending only until the owner's next
  * commit, or the next `focusAfter` call, whichever comes first, so a later
