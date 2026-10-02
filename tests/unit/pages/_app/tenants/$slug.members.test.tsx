@@ -1001,3 +1001,146 @@ describe('a stale sign-in on a platform-tenant write', () => {
     expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
   })
 })
+
+describe('keyboard focus after a row action succeeds', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  it('lands on the Pending invitations heading when a revoke removes its row', async () => {
+    let revoked = false
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok(revoked ? [] : [testInvitation], 'Invitations retrieved.')
+      ),
+      http.delete('/api/v1/tenants/acme/invitations/:id', () => {
+        revoked = true
+        return ok(null, 'Invitation revoked.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
+    )
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Revoke' })
+    )
+
+    await screen.findByText('No invitations are waiting to be accepted.')
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Pending invitations', level: 2 })).toHaveFocus()
+    })
+  })
+
+  it('keeps focus off the heading when a revoke fails and the row stays', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok([testInvitation], 'Invitations retrieved.')
+      ),
+      http.delete('/api/v1/tenants/acme/invitations/:id', () =>
+        fail('Something went wrong.', 500, 'internal_error')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
+    )
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Revoke' })
+    )
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole('heading', { name: 'Pending invitations', level: 2 })).not.toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Revoke invitation to invitee@b.com' })).toHaveFocus()
+  })
+
+  it('lands on the Members heading when a removal takes the member’s row away', async () => {
+    let removed = false
+    const everyone = [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')]
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/members', () =>
+        ok(removed ? everyone.slice(0, 1) : everyone, 'Members retrieved.')
+      ),
+      http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, () => {
+        removed = true
+        return ok(null, 'Member removed.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const vic = await rowFor('Vic')
+    await user.click(vic.getByRole('button', { name: 'Remove' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' })
+    )
+
+    await waitFor(() => {
+      expect(screen.queryByRole('cell', { name: /Vic/ })).not.toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Members', level: 2 })).toHaveFocus()
+    })
+  })
+
+  it('keeps focus on the Remove button when a removal fails and the row stays', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
+    server.use(
+      http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, () =>
+        fail('Something went wrong.', 500, 'internal_error')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const vic = await rowFor('Vic')
+    await user.click(vic.getByRole('button', { name: 'Remove' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' })
+    )
+
+    expect(await screen.findByText('Something went wrong.')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+    expect(vic.getByRole('button', { name: 'Remove' })).toHaveFocus()
+    expect(screen.getByRole('heading', { name: 'Members', level: 2 })).not.toHaveFocus()
+  })
+
+  it('does not move focus to the Members heading when you leave the tenant', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'owner', 'Vic')])
+    server.use(http.delete(`/api/v1/tenants/acme/members/${ME}`, () => ok(null, 'Left.')))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    const me = await rowFor('Me')
+    await user.click(me.getByRole('button', { name: 'Leave' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
+    )
+
+    expect(await screen.findByText('You left this tenant.')).toBeInTheDocument()
+    expect(document.activeElement?.tagName).not.toBe('H2')
+  })
+})

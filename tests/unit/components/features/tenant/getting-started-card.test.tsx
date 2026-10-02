@@ -514,3 +514,173 @@ describe('Getting started card', () => {
     expect(within(after).getByText('1 of 2 required')).toBeInTheDocument()
   })
 })
+
+describe('keyboard focus when an action replaces its own button', () => {
+  it('moves from Dismiss to the Show getting started button, then to the card heading', async () => {
+    let served = testOnboarding()
+    mockTenant('owner')
+    server.use(
+      http.get('/api/v1/tenants/acme/onboarding', () => ok(served, 'Onboarding retrieved.')),
+      http.post('/api/v1/tenants/acme/onboarding/dismiss', () => {
+        served = testOnboarding({ state: 'dismissed', dismissedAt: '2026-10-01T09:00:00.000Z' })
+        return ok(served, 'Onboarding dismissed.')
+      }),
+      http.post('/api/v1/tenants/acme/onboarding/undismiss', () => {
+        served = testOnboarding()
+        return ok(served, 'Onboarding restored.')
+      })
+    )
+    const user = userEvent.setup()
+    renderOverview()
+
+    const card = await findCard()
+    await user.click(within(card).getByRole('button', { name: 'Dismiss' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Dismiss' })
+    )
+
+    const show = await screen.findByRole('button', { name: 'Show getting started' })
+    await waitFor(() => {
+      expect(show).toHaveFocus()
+    })
+
+    await user.click(show)
+    const heading = await screen.findByRole('heading', { name: 'Getting started', level: 2 })
+    await waitFor(() => {
+      expect(heading).toHaveFocus()
+    })
+  })
+
+  it('moves from Mark done to that step’s title', async () => {
+    let served = testOnboarding()
+    mockTenant('editor')
+    server.use(
+      http.get('/api/v1/tenants/acme/onboarding', () => ok(served, 'Onboarding retrieved.')),
+      http.post('/api/v1/tenants/acme/onboarding/steps/:key/complete', () => {
+        served = testOnboarding({}, ['read_getting_started'])
+        return ok(served, 'Onboarding step completed.')
+      })
+    )
+    const user = userEvent.setup()
+    renderOverview()
+
+    const card = await findCard()
+    await user.click(
+      within(card).getByRole('button', { name: 'Mark done: Read the getting started guide' })
+    )
+
+    await waitFor(() => {
+      expect(
+        within(stepRow(card, 'Read the getting started guide')).getByText('Done')
+      ).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(within(card).getByText('Read the getting started guide')).toHaveFocus()
+    })
+  })
+
+  it('leaves focus on the button when Mark done is refused', async () => {
+    mockTenant('editor')
+    server.use(
+      http.post('/api/v1/tenants/acme/onboarding/steps/:key/complete', () =>
+        fail('Onboarding is not tracked for this tenant.', 409, 'not_tracked')
+      )
+    )
+    const user = userEvent.setup()
+    renderOverview()
+
+    const card = await findCard()
+    const button = within(card).getByRole('button', { name: /^Mark done/ })
+    await user.click(button)
+
+    expect(await screen.findByText('Onboarding is not tracked for this tenant.')).toBeVisible()
+    expect(button).toHaveFocus()
+  })
+
+  it('moves from the last required Mark done to the “You’re all set” heading', async () => {
+    const LAST_STEP = {
+      key: 'read_getting_started',
+      title: 'Read the getting started guide',
+      description: 'Each member marks this for themselves.',
+      scope: 'member' as const,
+      kind: 'manual' as const,
+      required: true,
+      completedAt: null,
+      source: null,
+    }
+    let served = testOnboarding({ steps: [LAST_STEP] })
+    mockTenant('editor')
+    server.use(
+      http.get('/api/v1/tenants/acme/onboarding', () => ok(served, 'Onboarding retrieved.')),
+      http.post('/api/v1/tenants/acme/onboarding/steps/:key/complete', () => {
+        served = testOnboarding({
+          state: 'complete',
+          completedAt: new Date().toISOString(),
+          steps: [
+            { ...LAST_STEP, completedAt: new Date().toISOString(), source: 'customer' as const },
+          ],
+        })
+        return ok(served, 'Onboarding step completed.')
+      })
+    )
+    const user = userEvent.setup()
+    renderOverview()
+
+    const card = await findCard()
+    await user.click(
+      within(card).getByRole('button', { name: 'Mark done: Read the getting started guide' })
+    )
+
+    const heading = await screen.findByRole('heading', { name: 'You’re all set', level: 2 })
+    await waitFor(() => {
+      expect(heading).toHaveFocus()
+    })
+  })
+
+  it('leaves focus on Dismiss when the dialog closes after a refused dismissal', async () => {
+    mockTenant('owner')
+    server.use(
+      http.post('/api/v1/tenants/acme/onboarding/dismiss', () =>
+        fail('Getting started is already dismissed.', 409, 'dismiss_state')
+      )
+    )
+    const user = userEvent.setup()
+    renderOverview()
+
+    const card = await findCard()
+    const dismiss = within(card).getByRole('button', { name: 'Dismiss' })
+    await user.click(dismiss)
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Dismiss' })
+    )
+
+    expect(await screen.findByText('Getting started is already dismissed.')).toBeVisible()
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+    })
+    await waitFor(() => {
+      expect(dismiss).toHaveFocus()
+    })
+  })
+
+  it('leaves focus on Show getting started when showing it is refused', async () => {
+    mockTenant(
+      'owner',
+      'member',
+      testOnboarding({ state: 'dismissed', dismissedAt: '2026-10-01T09:00:00.000Z' })
+    )
+    server.use(
+      http.post('/api/v1/tenants/acme/onboarding/undismiss', () =>
+        fail('Getting started is not dismissed.', 409, 'dismiss_state')
+      )
+    )
+    const user = userEvent.setup()
+    renderOverview()
+
+    const show = await screen.findByRole('button', { name: 'Show getting started' })
+    await user.click(show)
+
+    expect(await screen.findByText('Getting started is not dismissed.')).toBeVisible()
+    expect(show).toHaveFocus()
+  })
+})

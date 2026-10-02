@@ -47,6 +47,7 @@ import {
   ROLE_LABELS,
   type MembershipRole,
 } from '@/constants/roles'
+import { useFocusAfter } from '@/hooks/use-focus-after'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { writeFailureMessage } from '@/lib/write-failure'
 import {
@@ -165,7 +166,9 @@ function RoleCell({
  * the last owner it is a disabled Leave button described by the row's
  * explanation in `RoleCell` (`isLastOwner` implies `isSelf`). After leaving,
  * the page navigates to `/tenants`, because the tenant's routes answer 404 to
- * a caller with neither a membership nor a platform role.
+ * a caller with neither a membership nor a platform role. It uses
+ * `mutateAsync`, because the refetch unmounts this row first and `mutate`'s
+ * callbacks skip an unmounted observer.
  */
 function RemoveMemberButton({
   slug,
@@ -173,6 +176,7 @@ function RemoveMemberButton({
   isSelf,
   isLastOwner,
   reasonId,
+  onRemoved,
 }: {
   slug: string
   member: TenantMember
@@ -180,6 +184,8 @@ function RemoveMemberButton({
   isLastOwner: boolean
   /** The row's one last-owner explanation, rendered by `RoleCell`. */
   reasonId: string
+  /** Called once another member's removal has succeeded and the list has refetched. */
+  onRemoved: () => void
 }) {
   const removeMember = useRemoveMember(slug)
   const navigate = useNavigate()
@@ -218,17 +224,18 @@ function RemoveMemberButton({
             variant="destructive"
             disabled={removeMember.isPending}
             onClick={() => {
-              removeMember.mutate(member.user.id, {
-                onSuccess: () => {
+              removeMember.mutateAsync(member.user.id).then(
+                () => {
                   setIsOpen(false)
                   toast.success(isSelf ? 'You left this tenant.' : `${name} removed.`)
                   if (isSelf) void navigate({ to: '/tenants' })
+                  else onRemoved()
                 },
-                onError: (error) => {
+                (error: unknown) => {
                   setIsOpen(false)
                   toast.error(writeFailureMessage(error))
-                },
-              })
+                }
+              )
             }}
           >
             {isSelf ? 'Leave' : 'Remove'}
@@ -252,6 +259,7 @@ function MemberRow({
   myRole,
   myUserId,
   owners,
+  onRemoved,
   asCard = false,
 }: {
   slug: string
@@ -259,6 +267,8 @@ function MemberRow({
   myRole: MembershipRole
   myUserId: string | undefined
   owners: number
+  /** Called once removing another member has succeeded. */
+  onRemoved: () => void
   /**
    * Render a stacked card instead of a table row, for phones, where the
    * scrolling table puts the Actions column off-screen.
@@ -288,6 +298,7 @@ function MemberRow({
       isSelf={isSelf}
       isLastOwner={isLastOwner}
       reasonId={reasonId}
+      onRemoved={onRemoved}
     />
   ) : null
 
@@ -349,13 +360,19 @@ function TenantMembersTab() {
   const myUserId = useAuthStore((state) => state.user?.id)
   const owners = ownerCount(members.data)
   const isMobile = useIsMobile()
+  const focus = useFocusAfter<'heading'>()
+  const onRemoved = () => {
+    focus.focusAfter('heading')
+  }
 
   return (
     <div className="grid gap-6">
       <Card>
         <CardHeader>
           <CardTitle>
-            <h2>Members</h2>
+            <h2 ref={focus.target('heading')} tabIndex={-1} className="outline-none">
+              Members
+            </h2>
           </CardTitle>
           <CardDescription>Everyone with access to this tenant.</CardDescription>
         </CardHeader>
@@ -389,6 +406,7 @@ function TenantMembersTab() {
                   myRole={myRole}
                   myUserId={myUserId}
                   owners={owners}
+                  onRemoved={onRemoved}
                 />
               ))}
             </ul>
@@ -411,6 +429,7 @@ function TenantMembersTab() {
                     myRole={myRole}
                     myUserId={myUserId}
                     owners={owners}
+                    onRemoved={onRemoved}
                   />
                 ))}
               </TableBody>

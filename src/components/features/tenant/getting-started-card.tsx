@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CircleCheckIcon, CircleIcon } from 'lucide-react'
 import { useState } from 'react'
@@ -24,8 +25,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { canManageTenant, type MembershipRole } from '@/constants/roles'
+import { useFocusAfter, type FocusAfter } from '@/hooks/use-focus-after'
 import { messageFrom } from '@/lib/api-error'
 import {
+  tenantOnboardingQueryOptions,
   useCompleteOnboardingStep,
   useDismissOnboarding,
   useTenantOnboarding,
@@ -47,6 +50,10 @@ const STEP_LINKS: ReadonlyMap<
   ['configure_settings', { to: '/tenants/$slug/settings', label: 'Open settings' }],
   ['invite_teammate', { to: '/tenants/$slug/members', label: 'Open members' }],
 ])
+
+/** The focus targets this card moves between when an action replaces its own button. */
+type CardFocusKey = 'card' | 'all-set' | 'show' | `step:${string}`
+type CardFocus = FocusAfter<CardFocusKey>
 
 /** What the viewer may do here: staff through platform access may read, never act. */
 interface Viewer {
@@ -91,10 +98,23 @@ function StepMarker({ isDone }: { isDone: boolean }) {
 /**
  * Mark done for a manual step. `mutateAsync`, because the refetch on settle
  * replaces this button with the done marker, and `mutate`'s callbacks skip an
- * unmounted observer.
+ * unmounted observer. Focus goes to the step's title while the checklist is
+ * still in progress; when this was the last required step the checklist is
+ * replaced by "You're all set", so it goes to that card's heading instead (and
+ * nowhere when that card renders nothing, which takes a `completedAt` over a
+ * day old).
  */
-function MarkDoneButton({ slug, step }: { slug: string; step: OnboardingStepView }) {
+function MarkDoneButton({
+  slug,
+  step,
+  focus,
+}: {
+  slug: string
+  step: OnboardingStepView
+  focus: CardFocus
+}) {
   const complete = useCompleteOnboardingStep(slug)
+  const queryClient = useQueryClient()
   return (
     <Button
       variant="outline"
@@ -104,7 +124,14 @@ function MarkDoneButton({ slug, step }: { slug: string; step: OnboardingStepView
       aria-label={`Mark done: ${step.title}`}
       onClick={() => {
         complete.mutateAsync(step.key).then(
-          () => toast.success(`“${step.title}” marked done.`),
+          () => {
+            // The refetch has settled, so the cache says which card the step led to.
+            const state = queryClient.getQueryData(
+              tenantOnboardingQueryOptions(slug).queryKey
+            )?.state
+            focus.focusAfter(state === 'in_progress' ? `step:${step.key}` : 'all-set')
+            toast.success(`“${step.title}” marked done.`)
+          },
           (error: unknown) => toast.error(messageFrom(error))
         )
       }}
@@ -123,10 +150,12 @@ function StepAction({
   slug,
   step,
   viewer,
+  focus,
 }: {
   slug: string
   step: OnboardingStepView
   viewer: Viewer
+  focus: CardFocus
 }) {
   if (step.completedAt !== null || !viewer.isMember) return null
   if (step.kind === 'manual') {
@@ -134,7 +163,7 @@ function StepAction({
     if (step.scope === 'tenant' && !viewer.canManage) {
       return <p className="text-sm text-muted-foreground">{OWNER_OR_ADMIN}</p>
     }
-    return <MarkDoneButton slug={slug} step={step} />
+    return <MarkDoneButton slug={slug} step={step} focus={focus} />
   }
   const link = STEP_LINKS.get(step.key)
   if (!link) return null
@@ -154,28 +183,36 @@ function StepItem({
   slug,
   step,
   viewer,
+  focus,
 }: {
   slug: string
   step: OnboardingStepView
   viewer: Viewer
+  focus: CardFocus
 }) {
   return (
     <li className="flex gap-3 rounded-lg border p-4">
       <StepMarker isDone={step.completedAt !== null} />
       <div className="grid min-w-0 flex-1 gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{step.title}</span>
+          <span
+            ref={focus.target(`step:${step.key}`)}
+            tabIndex={-1}
+            className="font-medium outline-none"
+          >
+            {step.title}
+          </span>
           {!step.required && <Badge variant="outline">Optional</Badge>}
         </div>
         <p className="text-sm text-muted-foreground">{step.description}</p>
-        <StepAction slug={slug} step={step} viewer={viewer} />
+        <StepAction slug={slug} step={step} viewer={viewer} focus={focus} />
       </div>
     </li>
   )
 }
 
 /** Dismiss, behind a confirmation, since it hides the checklist for every member. */
-function DismissButton({ slug }: { slug: string }) {
+function DismissButton({ slug, focus }: { slug: string; focus: CardFocus }) {
   const dismiss = useDismissOnboarding(slug)
   const [isOpen, setIsOpen] = useState(false)
 
@@ -204,6 +241,7 @@ function DismissButton({ slug }: { slug: string }) {
               dismiss.mutateAsync().then(
                 () => {
                   setIsOpen(false)
+                  focus.focusAfter('show')
                   toast.success('Getting started dismissed.')
                 },
                 (error: unknown) => {
@@ -222,7 +260,7 @@ function DismissButton({ slug }: { slug: string }) {
 }
 
 /** The owner's way back from a dismissal; nobody else sees anything while dismissed. */
-function ShowGettingStarted({ slug }: { slug: string }) {
+function ShowGettingStarted({ slug, focus }: { slug: string; focus: CardFocus }) {
   const undismiss = useUndismissOnboarding(slug)
   return (
     <section
@@ -233,10 +271,14 @@ function ShowGettingStarted({ slug }: { slug: string }) {
       <Button
         variant="outline"
         size="sm"
+        ref={focus.target('show')}
         disabled={undismiss.isPending}
         onClick={() => {
           undismiss.mutateAsync().then(
-            () => toast.success('Getting started shown.'),
+            () => {
+              focus.focusAfter('card')
+              toast.success('Getting started shown.')
+            },
             (error: unknown) => toast.error(messageFrom(error))
           )
         }}
@@ -247,12 +289,14 @@ function ShowGettingStarted({ slug }: { slug: string }) {
   )
 }
 
-function AllSetCard() {
+function AllSetCard({ focus }: { focus: CardFocus }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>You’re all set</h2>
+          <h2 ref={focus.target('all-set')} tabIndex={-1} className="outline-none">
+            You’re all set
+          </h2>
         </CardTitle>
         <CardDescription>Every required getting started step is done.</CardDescription>
       </CardHeader>
@@ -264,30 +308,34 @@ function ChecklistCard({
   slug,
   onboarding,
   viewer,
+  focus,
 }: {
   slug: string
   onboarding: TenantOnboarding
   viewer: Viewer
+  focus: CardFocus
 }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>Getting started</h2>
+          <h2 ref={focus.target('card')} tabIndex={-1} className="outline-none">
+            Getting started
+          </h2>
         </CardTitle>
         <CardDescription>
           {onboarding.requiredDone} of {onboarding.requiredTotal} required
         </CardDescription>
         {viewer.isOwner && (
           <CardAction>
-            <DismissButton slug={slug} />
+            <DismissButton slug={slug} focus={focus} />
           </CardAction>
         )}
       </CardHeader>
       <CardContent>
         <ol className="grid gap-3">
           {onboarding.steps.map((step) => (
-            <StepItem key={step.key} slug={slug} step={step} viewer={viewer} />
+            <StepItem key={step.key} slug={slug} step={step} viewer={viewer} focus={focus} />
           ))}
         </ol>
       </CardContent>
@@ -318,16 +366,19 @@ export function GettingStartedCard({
 }) {
   const onboarding = useTenantOnboarding(slug)
   const [mountedAt] = useState(() => Date.now())
+  const focus = useFocusAfter<CardFocusKey>()
   if (!onboarding.data) return null
 
   const viewer = viewerFor(role, access)
   switch (onboarding.data.state) {
     case 'in_progress':
-      return <ChecklistCard slug={slug} onboarding={onboarding.data} viewer={viewer} />
+      return (
+        <ChecklistCard slug={slug} onboarding={onboarding.data} viewer={viewer} focus={focus} />
+      )
     case 'complete':
-      return isRecentlyComplete(onboarding.data, mountedAt) ? <AllSetCard /> : null
+      return isRecentlyComplete(onboarding.data, mountedAt) ? <AllSetCard focus={focus} /> : null
     case 'dismissed':
-      return viewer.isOwner ? <ShowGettingStarted slug={slug} /> : null
+      return viewer.isOwner ? <ShowGettingStarted slug={slug} focus={focus} /> : null
     case 'not_tracked':
       return null
   }
