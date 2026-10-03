@@ -362,4 +362,13 @@ describe('two tabs of this app', () => {
     })
     expect(restored.ph.get_distinct_id()).not.toBe('user-a')
   })
+
+  it('a tab whose refresh returned another user that no tab identified still resets its own user', async () => {
+    const lone = await openTab()
+    lone.facade.identifyUser('user-a')
+    lone.facade.yieldSharedIdentity()
+    lone.facade.resetAnalytics()
+    expect(lone.ph.get_distinct_id()).not.toBe('user-a')
+    expect(lone.ph.get_property('$user_state')).not.toBe('identified')
+  })
 })

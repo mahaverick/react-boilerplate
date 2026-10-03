@@ -493,10 +493,15 @@ function askWhoIsSignedIn(): void {
  * because its session now belongs to someone else (the refresh returned
  * another user): the coming `resetAnalytics` then forgets this tab's state
  * only, leaving that tab's person, replay session and tenant group alone.
+ * Only when the shared identity really is someone else: if it still holds
+ * this tab's user (the other user's tab never identified them), the sign-out
+ * resets as any other does.
  */
 export function yieldSharedIdentity(): void {
-  run(() => {
-    if (signedInUserId === null) return
+  run((ph) => {
+    // An idle tab's in-memory identity is stale: read what the shared storage holds now.
+    ;(ph as PostHog).persistence?.load()
+    if (signedInUserId === null || ph.get_distinct_id() === signedInUserId) return
     isSuperseded = true
     supersededNotifiedAt = Date.now()
   })

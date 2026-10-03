@@ -237,10 +237,22 @@ describe('analytics identity follows the session', () => {
     useAuthStore.getState().login('token', userA)
     vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign: vi.fn() })
     server.use(http.get('/api/v1/profile', () => ok(userB, 'Profile retrieved.')))
+    // The other tab identified B on the shared identity.
+    sdk.distinctId = USER_ID_2
     sdk.calls = []
     await expect(ensureSession()).rejects.toThrow()
     expect(useAuthStore.getState().user).toBeNull()
     expect(sdk.calls).not.toContain('reset()')
+  })
+
+  it('a refresh that returns another user nobody identified here still resets this tab’s user', async () => {
+    useAuthStore.getState().login('token', userA)
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign: vi.fn() })
+    server.use(http.get('/api/v1/profile', () => ok(userB, 'Profile retrieved.')))
+    sdk.calls = []
+    await expect(ensureSession()).rejects.toThrow()
+    expect(sdk.calls).toContain('reset()')
+    expect(sdk.distinctId).not.toBe(USER_ID)
   })
 
   it('is installed once however often it is called', () => {
