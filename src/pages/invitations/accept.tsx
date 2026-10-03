@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { LoadError } from '@/components/features/load-error'
 import { AuthLayout } from '@/components/layouts/auth-layout'
+import { Pii } from '@/components/shared/pii'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -46,9 +47,14 @@ function acceptHref(token: string): string {
   return `${ROUTES.invitationAccept}?token=${encodeURIComponent(token)}`
 }
 
-/** "{inviter} invited you to join {tenant} as {role}." */
-function invitationSentence(invitation: InvitationPreview): string {
-  return `${inviterName(invitation.invitedBy)} invited you to join ${invitation.tenant.name} as ${ROLE_LABELS[invitation.role]}.`
+/** "{inviter} invited you to join {tenant} as {role}.", the inviter's name masked for analytics. */
+function invitationSentence(invitation: InvitationPreview): ReactNode {
+  return (
+    <>
+      <Pii>{inviterName(invitation.invitedBy)}</Pii> invited you to join {invitation.tenant.name} as{' '}
+      {ROLE_LABELS[invitation.role]}.
+    </>
+  )
 }
 
 /** Every state's frame: one `<main>` (AuthLayout) and one `<h1>`. */
@@ -115,8 +121,8 @@ function SignedOut({ token, invitation }: { token: string; invitation: Invitatio
           Create account
         </Link>
         <p className="text-sm text-muted-foreground">
-          New here? Create an account with {invitation.email}, verify it from your inbox, then open
-          this invitation link again.
+          New here? Create an account with <Pii>{invitation.email}</Pii>, verify it from your inbox,
+          then open this invitation link again.
         </p>
       </div>
     </InvitationCard>
@@ -146,7 +152,8 @@ function WrongAccount({
     >
       <div className="grid gap-3">
         <p className="text-sm">
-          This invitation was sent to {invitation.email}. You’re signed in as {currentEmail}.
+          This invitation was sent to <Pii>{invitation.email}</Pii>. You’re signed in as{' '}
+          <Pii>{currentEmail}</Pii>.
         </p>
         <Button className="w-full" disabled={logout.isPending} onClick={() => logout.mutate()}>
           {logout.isPending ? 'Signing out…' : 'Sign out'}

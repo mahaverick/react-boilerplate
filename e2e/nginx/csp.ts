@@ -52,7 +52,7 @@ export async function requireServedApp(): Promise<void> {
   const served = await fetch(APP_ORIGIN).catch(() => null)
   if (!served?.ok) {
     throw new Error(
-      `No app at ${APP_ORIGIN}. Build and run the image: docker build -t react-boilerplate:e2e . && docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp --add-host=api:127.0.0.1 react-boilerplate:e2e`
+      `No app at ${APP_ORIGIN}. Build and run the image: docker build -t react-boilerplate:e2e . && docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp --add-host=api:127.0.0.1 -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=ci -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test react-boilerplate:e2e`
     )
   }
 }

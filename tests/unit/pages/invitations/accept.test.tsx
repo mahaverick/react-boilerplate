@@ -178,9 +178,10 @@ describe('accept page, signed out', () => {
     renderAt(ACCEPT_PATH)
 
     expect(await screen.findByRole('heading', { name: 'Join Acme Corp' })).toBeInTheDocument()
-    expect(
-      screen.getByText('Ada Lovelace invited you to join Acme Corp as Editor.')
-    ).toBeInTheDocument()
+    expect(screen.getByText(/invited you to join/)).toHaveTextContent(
+      'Ada Lovelace invited you to join Acme Corp as Editor.'
+    )
+    expect(screen.getByText('Ada Lovelace')).toHaveClass('ph-sensitive', 'ph-mask')
     expect(screen.getByRole('link', { name: 'Log in' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Create account' })).toBeInTheDocument()
     // Nothing to accept until someone is signed in.
@@ -289,10 +290,11 @@ describe('accept page, signed in', () => {
     )
     renderAt(ACCEPT_PATH)
 
-    expect(
-      await screen.findByText(/This invitation was sent to someone@else\.com\./)
-    ).toBeInTheDocument()
-    expect(screen.getByText(/signed in as a@b\.com\./)).toBeInTheDocument()
+    expect(await screen.findByText(/This invitation was sent to/)).toHaveTextContent(
+      'This invitation was sent to someone@else.com. You’re signed in as a@b.com.'
+    )
+    expect(screen.getByText('someone@else.com')).toHaveClass('ph-sensitive', 'ph-mask')
+    expect(screen.getByText('a@b.com')).toHaveClass('ph-sensitive', 'ph-mask')
     expect(screen.queryByRole('button', { name: 'Accept invitation' })).not.toBeInTheDocument()
     expect(accepts).toBe(0)
   })

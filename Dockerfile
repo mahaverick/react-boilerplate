@@ -49,6 +49,11 @@ ENV NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d
 # Runs before the stock envsubst script. --chmod because the file is owned by
 # root and the image's user cannot chmod it afterwards.
 COPY --chmod=0755 docker/05-prepare.sh /docker-entrypoint.d/05-prepare.sh
+# Writes /tmp/runtime/runtime-config.js from POSTHOG_KEY and the other
+# run-time settings at every start, and stops the container on an invalid one
+# (see the script). The bundle is built once and holds none of them, so the
+# same image is promoted through every environment.
+COPY --chmod=0755 docker/10-runtime-config.sh /docker-entrypoint.d/10-runtime-config.sh
 # Where nginx proxies /api, read at container start: scheme://host:port, no
 # path (see nginx.conf's /api/ location). The default assumes a compose
 # service named `api`.

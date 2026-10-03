@@ -17,6 +17,7 @@ export const testUser: User = {
   lastName: 'B',
   createdAt: '2026-01-01T00:00:00.000Z',
   platformRole: null,
+  analyticsOptOut: false,
 }
 
 /** 43 characters of base64url, the shape the server mints and validates. */
@@ -140,6 +141,10 @@ export function tenantDetail<T extends object>(
 export const handlers = [
   http.post('/api/v1/auth/refresh', () => ok({ accessToken: 'fresh-token' }, 'Token refreshed.')),
   http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.')),
+  // The profile's analytics switch; the name form's tests answer PATCH themselves.
+  http.patch('/api/v1/profile', async ({ request }) =>
+    ok({ ...testUser, ...((await request.json()) as Partial<User>) }, 'Profile updated.')
+  ),
   // Express answers every registration this way, free address or taken: no user, ever.
   http.post('/api/v1/auth/register', () =>
     ok(null, 'If that address can be registered, a verification email has been sent.', 202)

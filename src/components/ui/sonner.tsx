@@ -5,15 +5,20 @@
  * `shadcn add sonner`.
  */
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
+import { cn } from '@/lib/utils'
+import { PII_CLASS_NAME } from '@/observability/analytics'
 import { useThemeStore } from '@/states/theme.store'
 
-/** The app's toast host, themed from the theme store. */
+/**
+ * The app's toast host, themed from the theme store. Every toast is masked for
+ * analytics: toasts name the member, invitee or address an action touched.
+ */
 export function Toaster({ ...props }: ToasterProps) {
   const theme = useThemeStore((s) => s.theme)
   return (
     <Sonner
       theme={theme}
-      className="toaster group"
+      className={cn('toaster group', PII_CLASS_NAME)}
       style={
         {
           '--normal-bg': 'var(--popover)',

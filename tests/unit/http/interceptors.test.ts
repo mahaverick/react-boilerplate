@@ -3,8 +3,9 @@ import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ROUTES } from '@/constants/routes'
 import { installInterceptors } from '@/http/interceptors'
-import { resetSessionForTests } from '@/http/session'
+import { resetSessionForTests, SessionIdentityChangedError } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
+import { USER_ID_2 } from '@/tests/fixtures/ids'
 import { NON_VERDICT_FAILURES } from '@/tests/fixtures/non-verdict-failures'
 import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
@@ -102,6 +103,30 @@ describe('auth interceptors', () => {
     expect(attempts).toBe(2)
     expect(response.data.data).toEqual(['widget'])
     expect(useAuthStore.getState().accessToken).toBe('fresh-token')
+  })
+
+  it('refresh returning a different user signs out and does not replay', async () => {
+    useAuthStore.getState().login('stale', testUser)
+    const assign = stubLocation('/widgets')
+    let attempts = 0
+    server.use(
+      http.get('/api/v1/profile', () =>
+        ok({ ...testUser, id: USER_ID_2, email: 'b@b.com' }, 'Profile retrieved.')
+      ),
+      http.post('/api/v1/widgets', () => {
+        attempts += 1
+        return fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+      })
+    )
+
+    await expect(makeClient().post('/widgets', { name: 'A’s widget' })).rejects.toBeInstanceOf(
+      SessionIdentityChangedError
+    )
+    expect(attempts).toBe(1)
+    expect(useAuthStore.getState().user).toBeNull()
+    expect(assign).toHaveBeenCalledWith(
+      `${ROUTES.login}?redirect=${encodeURIComponent('/widgets')}`
+    )
   })
 
   it('fires ONE refresh for several concurrent expired requests', async () => {

@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react-router'
+import { ConsentBanner } from '@/components/features/analytics/consent-banner'
 import { Toaster } from '@/components/ui/sonner'
 import { APP_NAME } from '@/constants/app'
 import { bootstrapSession } from '@/router'
@@ -31,6 +32,7 @@ function RootComponent() {
       <HeadContent />
       <Outlet />
       <Toaster position="top-right" richColors closeButton />
+      <ConsentBanner />
     </>
   )
 }

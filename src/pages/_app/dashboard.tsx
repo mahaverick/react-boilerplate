@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { Pii } from '@/components/shared/pii'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { pageTitle } from '@/constants/app'
 import { useAuthStore } from '@/states/auth.store'
@@ -16,7 +17,9 @@ function DashboardPage() {
     <Card>
       <CardHeader>
         <CardTitle>
-          <h1>Welcome back, {name}</h1>
+          <h1>
+            Welcome back, <Pii>{name}</Pii>
+          </h1>
         </CardTitle>
         <CardDescription>
           This page is intentionally empty. Derived projects fill it.

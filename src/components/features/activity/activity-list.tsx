@@ -1,4 +1,5 @@
 import { LoadError } from '@/components/features/load-error'
+import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -45,13 +46,13 @@ function ActivityRow<T extends AuditEntry>({ entry }: { entry: T }) {
   return (
     <li className="grid gap-1 py-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="font-medium">{actorName(entry.actor)}</span>
+        <Pii className="font-medium">{actorName(entry.actor)}</Pii>
         {entry.access === 'platform' && <Badge variant="outline">Staff</Badge>}
       </div>
       <p className="text-sm">{auditSentence(entry)}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         {entry.actor && entry.actor.name !== entry.actor.email && (
-          <span className="break-all">{entry.actor.email}</span>
+          <Pii className="break-all">{entry.actor.email}</Pii>
         )}
         <Tooltip>
           <TooltipTrigger className="cursor-default underline decoration-dotted underline-offset-2">

@@ -134,6 +134,11 @@ function TenantSuspended({ name }: { name: string }) {
   )
 }
 
+/**
+ * The tenant shell. The URL's tenant is the active one: analytics groups the
+ * page under it from the route's loader data (`installRouteAnalytics`), not
+ * from here, so the group is set before the page view.
+ */
 function TenantLayout() {
   const { slug } = Route.useParams()
   const tenant = useTenant(slug)

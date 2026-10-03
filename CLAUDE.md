@@ -20,15 +20,18 @@ paths hold the same behaviour in both; a change to one here means checking the
 other in the same PR, and the PR description says what happened there
 ("ported in apex#N", or "not applicable because …").
 
-| Path                                                              | Why it must stay in step                                           |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `src/http/*`                                                      | Session refresh single-flight, 401-verdict sign-out, SSE transport |
-| `src/lib/api-error.ts`                                            | Error envelope parsing                                             |
-| `src/schemas/auth.schemas.ts`, `src/schemas/safe-text.schemas.ts` | Mirror the backend validators                                      |
-| `src/components/ui/form.tsx`, `src/components/ui/sonner.tsx`      | Hand-written, shared behaviour                                     |
-| `nginx.conf` security headers and CSP                             | Same threat model                                                  |
-| `public/theme-init.js`, `src/lib/zod-jitless.ts`                  | CSP compatibility                                                  |
-| `eslint.config.js` rule set (not its file lists)                  | Same conventions                                                   |
+| Path                                                                                                                                                | Why it must stay in step                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `src/http/*`                                                                                                                                        | Session refresh single-flight, 401-verdict sign-out, SSE transport, trace headers, analytics identity order |
+| `src/lib/api-error.ts`                                                                                                                              | Error envelope parsing                                                                                      |
+| `src/schemas/auth.schemas.ts`, `src/schemas/safe-text.schemas.ts`                                                                                   | Mirror the backend validators                                                                               |
+| `src/components/ui/form.tsx`, `src/components/ui/sonner.tsx`                                                                                        | Hand-written, shared behaviour                                                                              |
+| `nginx.conf` security headers and CSP, and `location /api/v1/collect/`                                                                              | Same threat model; same replay batch size                                                                   |
+| `src/observability/analytics/*`, except `config.ts`'s per-app constants and `events.ts`'s registry                                                  | One PII, consent, handoff and identity contract for both apps                                               |
+| `src/components/shared/pii.tsx`, `e2e/helpers/fake-posthog.ts`                                                                                      | The masking class and the egress guard's fake PostHog                                                       |
+| `docker/10-runtime-config.sh`, `src/configs/runtime-config.ts`, `scripts/runtime-config-plugin.mjs`, `nginx.conf`'s `location = /runtime-config.js` | One run-time configuration contract: the same variable names, patterns and file in both images              |
+| `public/theme-init.js`, `src/lib/zod-jitless.ts`                                                                                                    | CSP compatibility                                                                                           |
+| `eslint.config.js` rule set (not its file lists)                                                                                                    | Same conventions                                                                                            |
 
 Staff screens live in Apex. This app keeps the staff paths that live on tenant
 pages — the platform-access banner, the Staff filter on each tenant's Activity
@@ -122,6 +125,48 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   anyone out. Widening this to any error is the single easiest way to log every
   user out during a deploy.
 
+## Analytics — the rules that leak PII when broken
+
+- **Every rendered person name, email address, avatar initial and invitation
+  address is wrapped in `<Pii>`** (`src/components/shared/pii.tsx`). Wrap the
+  value, not the sentence. A page that renders a new kind of person data gets
+  its fixture in the harness's `?pii=probe` mode and a scan in
+  `e2e/fixtures/pii.test.ts`; without that, the guard cannot see it.
+- **Only `src/observability/analytics/` imports posthog-js**, and only
+  `analytics.ts` imports it as a value, through `import()`. `pnpm check:bundle`
+  fails if it reaches the first-visit chunks.
+- **A browser event is declared in `events.ts`** with fixed keys
+  (`analyticsKey('…')`), numbers, booleans or literal unions. A free `string`
+  property fails `REGISTRY_HAS_NO_FREE_STRINGS` at compile time; do not widen
+  it: a free string is how a name or a search term gets into an event.
+- **The browser never sets person or group properties.** `identify` takes the
+  id alone; `is_staff`, `platform_role` and the tenant's name are the server's,
+  where a customer cannot forge them from devtools.
+- **Captured URLs keep only `ANALYTICS_URL_QUERY_ALLOWLIST` keys.** Add a key
+  there only when its values can never be a token, an address or a redirect.
+- **`posthog.reset()` drops the super properties and the consent answer.**
+  `resetAnalytics`, `identifyUser` and `forgetStaleIdentity` go through
+  `resetKeepingConsent`, which registers `app` and `environment` again,
+  re-applies the current page's tenant group (sign-out clears it first) and
+  re-applies the consent; never call the SDK's `reset()` around it.
+- **Page views come from the router, not posthog-js.** `capture_pageview` is
+  off; `installRouteAnalytics` (registered in `router.tsx` before the first
+  load) sets or clears the tenant group from the resolved route's loader data
+  and only then captures `$pageview`. Turning the SDK's history page views
+  back on, or grouping from a component effect, files every page view under
+  the previous page's tenant.
+- **While a user is signed in, the facade drops any event under another
+  distinct id** (`guardEvent` in `analytics.ts`) and identifies the user again:
+  posthog-js adopts the identity cookie a sibling-subdomain website shares
+  before every event. Never loosen it to log-and-send. It repairs only
+  foreign identities: a person another tab of this app identified (announced
+  on the `analytics-identity` channel) supersedes this tab, which signs itself
+  out and never resets the SDK under the other tab.
+- **posthog-js minors wait for a human** (`renovate.json`). Before taking
+  one, run the tests that pin its internals: `url-sanitizer.test.ts`,
+  `handoff.test.ts` and `analytics.sdk.test.ts` (all run the real SDK) and
+  `e2e/nginx/analytics.test.ts`.
+
 ## The container
 
 - **nginx enforces a Content-Security-Policy with `script-src 'self'`.** There
@@ -138,6 +183,18 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   `docker/check-image.sh` checks all of this from outside.
 - **No `location` declares `add_header`.** One that did would silently drop
   every security header — `nginx.conf`'s map comment says why.
+- **Nothing is configured at build time.** One image digest is promoted
+  through every environment, so a setting that differs between environments
+  is a container environment variable read at start, never a `VITE_*` value
+  or a build ARG. `docker/10-runtime-config.sh` validates each one and writes
+  `/runtime-config.js`; the app reads only `getRuntimeConfig()`
+  (`src/configs/runtime-config.ts`). A new setting goes into
+  `RUNTIME_CONFIG_KEYS` and `RUNTIME_CONFIG_PATTERNS`, the script (same
+  pattern), `RUNTIME_CONFIG_NAMES` in `scripts/runtime-config-plugin.mjs`,
+  `docker/check-image.sh`, `.env.example` and the README's table, in one
+  change. A pattern admits no quote, backslash, `<` or newline (the script
+  writes values unescaped), and the script's error names the variable,
+  never the value.
 
 ## Never install
 
@@ -346,8 +403,11 @@ and a fixed address would rate-limit every rerun.
 
 **`nginx`** runs against the PRODUCTION image — `pnpm test:e2e:nginx` builds it, runs it on
 :8088 (container port 8080, read-only root) with `--add-host=api:host-gateway`, tests, and
-tears it down. The tests tagged `@no-api` (headers, the CSP, the theme script, the asset 404, the boot splash)
-need no backend and also run in CI's `e2e` job, against the image with nothing behind `/api`;
+tears it down. The tests tagged `@no-api` (headers, the CSP, the theme script, the asset 404, the boot splash,
+`/runtime-config.js`, and posthog-js under the CSP with a fake PostHog answering `/api/v1/collect` through
+`routeCollectToFake`) need no backend and also run in CI's `e2e` job, against the image with nothing behind
+`/api`, started with `POSTHOG_KEY=phc_test_key_not_real`, `APP_ENVIRONMENT=ci` and
+`ANALYTICS_HANDOFF_ORIGINS=https://www.example.test` (the analytics tests expect exactly those);
 the rest need a live API and run only locally. The project exists first for a reason worth
 keeping: **the Vite dev proxy does not propagate an upstream close.**
 A `curl -N` at it stays open after the API is killed, so the reading side of the client's
@@ -355,6 +415,15 @@ A `curl -N` at it stays open after the API is killed, so the reading side of the
 the SSE reconnect path is unreachable from a dev-server browser. The same curl against nginx
 exits on the second the API dies. Anything that depends on noticing a dropped upstream has to
 be tested here, not against `pnpm dev`.
+
+**Analytics, live** (`E2E_LIVE=1 E2E_ANALYTICS=1`, the second half of
+`e2e/nginx/analytics.test.ts`) needs an express 1.5.0+ behind the image with
+`POSTHOG_PROJECT_KEY=phc_test_key_not_real` and `POSTHOG_HOST`/`POSTHOG_ASSETS_HOST` at
+the fake PostHog the suite starts on `FAKE_POSTHOG_PORT` (4063). posthog-js drops every event
+from a Playwright browser (`navigator.webdriver`, the `HeadlessChrome` brand) unless the test
+uses `HUMAN_USER_AGENT` and `passPosthogBotFilter`, and holds back the replay of a page nobody
+has clicked. Never run `e2e/nginx/sse.test.ts` against an express you did not start:
+`restartApi()` kills whatever listens on the API port.
 
 **`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom
 cannot compute at all — over every surface reachable without a backend, in **both themes**:

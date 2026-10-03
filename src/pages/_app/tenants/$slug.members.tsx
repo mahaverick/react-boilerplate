@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { InviteMemberForm } from '@/components/features/tenant/invite-member-form'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
+import { Pii } from '@/components/shared/pii'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -211,11 +212,23 @@ function RemoveMemberButton({
       />
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{isSelf ? 'Leave this tenant?' : `Remove ${name}?`}</AlertDialogTitle>
+          <AlertDialogTitle>
+            {isSelf ? (
+              'Leave this tenant?'
+            ) : (
+              <>
+                Remove <Pii>{name}</Pii>?
+              </>
+            )}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            {isSelf
-              ? 'You will lose access to this tenant immediately. An owner or admin will have to invite you back.'
-              : `${name} will lose access to this tenant immediately.`}
+            {isSelf ? (
+              'You will lose access to this tenant immediately. An owner or admin will have to invite you back.'
+            ) : (
+              <>
+                <Pii>{name}</Pii> will lose access to this tenant immediately.
+              </>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -307,10 +320,10 @@ function MemberRow({
       <li className="grid gap-3 rounded-lg border p-4">
         <div className="grid gap-0.5">
           <span className="font-medium">
-            {memberName(member)}
+            <Pii>{memberName(member)}</Pii>
             {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
           </span>
-          <span className="text-sm break-all text-muted-foreground">{member.user.email}</span>
+          <Pii className="text-sm break-all text-muted-foreground">{member.user.email}</Pii>
         </div>
         {role}
         {remove && <div>{remove}</div>}
@@ -321,10 +334,12 @@ function MemberRow({
   return (
     <TableRow>
       <TableCell className="font-medium">
-        {memberName(member)}
+        <Pii>{memberName(member)}</Pii>
         {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
       </TableCell>
-      <TableCell>{member.user.email}</TableCell>
+      <TableCell>
+        <Pii>{member.user.email}</Pii>
+      </TableCell>
       <TableCell>{role}</TableCell>
       <TableCell className="text-right">{remove}</TableCell>
     </TableRow>

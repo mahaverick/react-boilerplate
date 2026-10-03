@@ -77,8 +77,10 @@ jobs:
   # here and started as it ships — read-only root, a tmpfs /tmp — with nothing
   # listening behind /api, so every API call answers 502. They check what only
   # the real bundle behind the real nginx.conf shows: the security headers, the
-  # enforced Content-Security-Policy and the pre-paint theme script. The rest of
-  # `nginx` needs a live API and stays local (`pnpm test:e2e:nginx`).
+  # enforced Content-Security-Policy, the pre-paint theme script, the
+  # run-time configuration, and posthog-js's replay under that policy with no
+  # probe value reaching a fake PostHog. The rest of `nginx` needs a live API
+  # and stays local (`pnpm test:e2e:nginx`).
   #
   # `live` is deliberately NOT here. It needs a real express-boilerplate plus
   # postgres, redis and mailpit, and registers accounts through the verification
@@ -117,11 +119,16 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
       - run: pnpm test:e2e
       # `api` resolves to the container's own loopback, where nothing listens.
+      # The run-time settings are what a deployment passes (plain environment
+      # variables), so the bundle under test loads posthog-js as a keyed
+      # deployment does; e2e/nginx/analytics.test.ts expects these values.
       - name: Start the image with no API behind it
         run: |
           docker build -t react-boilerplate:e2e .
           docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp \
-            --add-host=api:127.0.0.1 -e API_UPSTREAM=http://api:4040 react-boilerplate:e2e
+            --add-host=api:127.0.0.1 -e API_UPSTREAM=http://api:4040 \
+            -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=ci \
+            -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test react-boilerplate:e2e
           for i in $(seq 1 30); do
             curl -sf -o /dev/null http://localhost:8088/ && exit 0
             sleep 1
@@ -190,10 +197,13 @@ jobs:
             n=$(grep -cE -- "^\s*$2" rendered.conf || true)
             if [ "$n" != "$1" ]; then echo "expected $1 directive(s): $2 (found $n)"; fail=1; fi
           }
-          expect 2 'proxy_pass http://example:1234;'
-          expect_directive 2 'proxy_pass '
-          expect 2 "proxy_set_header Host \$host;"
-          expect 2 "proxy_set_header X-Forwarded-Proto \$forwarded_proto;"
+          expect 3 'proxy_pass http://example:1234;'
+          expect_directive 3 'proxy_pass '
+          expect 3 "proxy_set_header Host \$host;"
+          expect 3 "proxy_set_header X-Forwarded-Proto \$forwarded_proto;"
+          expect_directive 1 'client_max_body_size 10m;'
+          expect_directive 1 'proxy_request_buffering off;'
+          expect_directive 1 'alias /tmp/runtime/runtime-config\.js;'
           expect 1 "add_header Cache-Control \$cache_control;"
           expect 0 "add_header Cache-Control \$cache_control always;"
           expect 1 "try_files \$uri =404;"

@@ -30,9 +30,10 @@ pnpm install
 pnpm dev
 ```
 
-The dev server listens on <http://localhost:5173>. There is no `.env` step:
-nothing in the app reads a `VITE_*` variable, and `.env.example` holds
-only the comments explaining why — see [Environment](#environment).
+The dev server listens on <http://localhost:5173>. There is no required
+`.env` step: the only `VITE_*` variables are the optional analytics settings
+in `.env.example`, which the dev server serves as `/runtime-config.js` — see
+[Environment](#environment).
 
 ### The API must be running on :4040
 
@@ -69,36 +70,37 @@ empty `Connection` header.
 
 ### Environment
 
-There are no build-time variables. `.env` would be read at **build** time —
-Vite inlines `VITE_*` values into the bundle — but nothing in the app reads
-one, so the same image serves every environment.
-
-The container reads one variable at **start**: `API_UPSTREAM`, where nginx
-proxies `/api`. It defaults to `http://api:4040` and must be
-`scheme://host:port` with no path, not even a trailing `/` (see
-[What `nginx.conf` is doing](#what-nginxconf-is-doing)). Changing it means
-restarting the container, not rebuilding the image. The dev server ignores
-it: `pnpm dev` always proxies to `http://localhost:4040`.
+There are no build-time variables: the same image serves every environment.
+The container reads its settings at **start**, as environment variables —
+`API_UPSTREAM`, where nginx proxies `/api`, and the analytics settings —
+listed with their patterns in [Run-time configuration](#run-time-configuration).
+`API_UPSTREAM` defaults to `http://api:4040` and must be `scheme://host:port`
+with no path, not even a trailing `/` (see
+[What `nginx.conf` is doing](#what-nginxconf-is-doing)). Changing any of them
+means restarting the container, not rebuilding the image. The dev server
+ignores `API_UPSTREAM` (`pnpm dev` always proxies to `http://localhost:4040`)
+and reads the analytics settings from `.env` under their `VITE_` names
+(`.env.example` lists them).
 
 ## Scripts
 
-| Script                | What it does                                                                                                                         |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm dev`            | Dev server on :5173 with the `/api` proxy                                                                                            |
-| `pnpm build`          | `tsc -b` then `vite build` → `dist/`                                                                                                 |
-| `pnpm preview`        | Serve the built bundle locally                                                                                                       |
-| `pnpm lint`           | eslint **and** `prettier --check` — both must pass                                                                                   |
-| `pnpm typecheck`      | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                                                                      |
-| `pnpm test`           | Vitest, single pass                                                                                                                  |
-| `pnpm test:coverage`  | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it                                                |
-| `pnpm test:watch`     | Vitest in watch mode                                                                                                                 |
-| `pnpm format`         | `prettier --write`                                                                                                                   |
-| `pnpm check:bundle`   | Builds in memory; fails on one JS chunk, first-visit JS over budget, or devtools in a chunk. CI runs it                              |
-| `pnpm lint:docs`      | History phrasing and broken links in markdown and config comments. CI runs it                                                        |
-| `pnpm test:e2e`       | Playwright `fixtures` project against the MSW harness; no backend needed. CI runs it                                                 |
-| `pnpm test:e2e:live`  | Playwright `live` project; needs express-boilerplate on :4040                                                                        |
-| `pnpm test:e2e:nginx` | Builds the production image and runs the Playwright `nginx` project against it on :8088; all but the `@no-api` tests need a live API |
-| `pnpm test:contrast`  | axe colour contrast in a real browser, both themes; no backend needed                                                                |
+| Script                | What it does                                                                                                                                                                     |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`            | Dev server on :5173 with the `/api` proxy                                                                                                                                        |
+| `pnpm build`          | `tsc -b` then `vite build` → `dist/`                                                                                                                                             |
+| `pnpm preview`        | Serve the built bundle locally                                                                                                                                                   |
+| `pnpm lint`           | eslint **and** `prettier --check` — both must pass                                                                                                                               |
+| `pnpm typecheck`      | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                                                                                                                  |
+| `pnpm test`           | Vitest, single pass                                                                                                                                                              |
+| `pnpm test:coverage`  | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it                                                                                            |
+| `pnpm test:watch`     | Vitest in watch mode                                                                                                                                                             |
+| `pnpm format`         | `prettier --write`                                                                                                                                                               |
+| `pnpm check:bundle`   | Builds in memory; fails on one JS chunk, first-visit JS over budget or holding posthog-js, or devtools in a chunk. CI runs it                                                    |
+| `pnpm lint:docs`      | History phrasing and broken links in markdown and config comments. CI runs it                                                                                                    |
+| `pnpm test:e2e`       | Playwright `fixtures` project against the MSW harness; no backend needed. CI runs it                                                                                             |
+| `pnpm test:e2e:live`  | Playwright `live` project; needs express-boilerplate on :4040                                                                                                                    |
+| `pnpm test:e2e:nginx` | Builds the production image and runs the Playwright `nginx` project against it on :8088, started with the run-time settings CI uses; all but the `@no-api` tests need a live API |
+| `pnpm test:contrast`  | axe colour contrast in a real browser, both themes; no backend needed                                                                                                            |
 
 CI holds eslint to **zero warnings** as well as zero errors
 (`pnpm exec eslint . --max-warnings 0`).
@@ -111,18 +113,22 @@ src/
     dev/        dev-only tools, mounted from main.tsx
     features/   composed, app-specific pieces (theme toggle, user menu, …)
     layouts/    the auth shell and the app shell
+    shared/     app-wide building blocks that are not shadcn output (`<Pii>`)
     ui/         vendored shadcn output — see CLAUDE.md before editing
+  configs/      the run-time configuration (`getRuntimeConfig`)
   constants/    routes, roles, app name
   hooks/        use-* hooks
   http/         axios client, interceptors, the single-flight session refresh
   lib/          small helpers with no app knowledge
+  observability/analytics/  the PostHog facade (lazy posthog-js, masking, handoff, typed events)
   pages/        TanStack Router file routes (exempt from the kebab-case rules)
   queries/      TanStack Query options and mutations, one file per resource
   schemas/      Zod schemas mirroring the backend validators
   states/       Zustand stores
   styles/       globals.css and the design tokens
   types/        shared API types
-scripts/        Node build and lint checks (check-bundle, comment-style, history-patterns, lint-docs)
+scripts/        Node build and lint checks (check-bundle, comment-style, history-patterns, lint-docs), the dev server's /runtime-config.js
+docker/         the image's entrypoint scripts and nginx main config, and check-image.sh
 tests/
   unit/         Vitest suites, mirroring src/ (plus the accessibility gate)
   mocks/        MSW server and handlers
@@ -203,9 +209,103 @@ replaces `/etc/nginx/nginx.conf` and its only server-config include is
 `Dockerfile` never resets the unprivileged base image's `USER`. A step that needs root
 privileges has to `USER root` first and `USER 101` again before `CMD`.
 
-The image takes no build arguments. The API prefix is baked in and fixed —
-see [The API prefix is fixed](#the-api-prefix-is-fixed) for what has to change
+The image takes no build arguments: every environment-specific setting is
+read at start ([Run-time configuration](#run-time-configuration)). The API
+prefix is baked in and fixed — see
+[The API prefix is fixed](#the-api-prefix-is-fixed) for what has to change
 together if it ever moves.
+
+### Run-time configuration
+
+One image, one digest, is built per commit and promoted unchanged through
+every environment (`deploy.yml`, then `promote`). Nothing is configured at
+build time: no setting is a Vite `VITE_*` value in the production bundle.
+Everything that differs between environments arrives when the container
+**starts**, as plain environment variables, wherever the container runs —
+Kubernetes or not — and whatever secret store the values come from.
+
+| Container env               | Dev `.env`                       | Pattern                                       | Default                  | Meaning                                                                                                 |
+| --------------------------- | -------------------------------- | --------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `API_UPSTREAM`              | —                                | `scheme://host[:port]`, no path               | `http://api:4040`        | Where nginx proxies `/api` (see [Docker](#docker)).                                                     |
+| `POSTHOG_KEY`               | `VITE_POSTHOG_KEY`               | `phc_` and 8–128 of `A-Z a-z 0-9 _ -`         | empty                    | PostHog project key. Empty: no analytics code loads, every call is a no-op.                             |
+| `POSTHOG_UI_HOST`           | `VITE_POSTHOG_UI_HOST`           | an `https://` origin, no path                 | `https://us.posthog.com` | PostHog's UI host, for links posthog-js builds.                                                         |
+| `ANALYTICS_CONSENT_MODE`    | `VITE_ANALYTICS_CONSENT_MODE`    | `opt_out`, `required` or `off`                | `opt_out`                | `opt_out`: capture until the user opts out; `required`: the consent banner first; `off`: nothing loads. |
+| `ANALYTICS_HANDOFF_ORIGINS` | `VITE_ANALYTICS_HANDOFF_ORIGINS` | comma-separated `https://` origins, no spaces | empty                    | Websites on other domains allowed to hand a visitor off ([how](docs/analytics-handoff.md)).             |
+| `APP_ENVIRONMENT`           | `VITE_APP_ENVIRONMENT`           | `[a-z][a-z0-9-]` up to 32                     | `development`            | Sent as `environment` on every browser event.                                                           |
+
+How it reaches the bundle:
+
+- At start, `docker/10-runtime-config.sh` (in `/docker-entrypoint.d/`, after
+  `05-prepare.sh`) checks every value against its pattern. An invalid one
+  **stops the container** with `10-runtime-config.sh: POSTHOG_KEY must be …`
+  — the message names the variable and never prints the value — so a typo
+  fails the rollout instead of quietly switching analytics off. Unset or
+  empty means the default.
+- It writes `/tmp/runtime/runtime-config.js`
+  (`window.__APP_CONFIG__ = Object.freeze({...})`); the root filesystem stays
+  read-only. nginx serves it as `/runtime-config.js` with
+  `Cache-Control: no-store`, and `index.html` loads it before the bundle.
+  Same-origin, so `script-src 'self'` holds.
+- The app reads it only through `getRuntimeConfig()`
+  (`src/configs/runtime-config.ts`), which applies the same patterns again.
+  A production bundle reads nothing else; `pnpm dev`, `pnpm preview` and the
+  unit tests read the dev `.env` names from `import.meta.env`, and the dev and
+  preview servers serve a matching `/runtime-config.js` from them
+  (`scripts/runtime-config-plugin.mjs`).
+- A change takes effect when the container restarts; nothing is rebuilt.
+  Every value is public — each browser receives `/runtime-config.js` — so
+  the PostHog key may come from a secret store but is not a secret.
+
+`docker run`, or a GitHub Actions job using repository secrets:
+
+```bash
+docker run --rm -p 8080:8080 --read-only --tmpfs /tmp --add-host=api:127.0.0.1 \
+  -e POSTHOG_KEY="$POSTHOG_KEY" -e APP_ENVIRONMENT=staging react-boilerplate
+```
+
+Compose:
+
+```yaml
+services:
+  web:
+    image: ghcr.io/<owner>/react-boilerplate:<version>
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      API_UPSTREAM: http://api:4040
+      POSTHOG_KEY: ${POSTHOG_KEY}
+      APP_ENVIRONMENT: staging
+```
+
+Kubernetes, with the key in a Secret:
+
+```yaml
+containers:
+  - name: web
+    image: ghcr.io/<owner>/react-boilerplate@sha256:<digest>
+    securityContext:
+      readOnlyRootFilesystem: true
+    env:
+      - name: APP_ENVIRONMENT
+        value: production
+      - name: POSTHOG_KEY
+        valueFrom:
+          secretKeyRef:
+            name: react-boilerplate
+            key: posthog-key
+    volumeMounts:
+      - name: tmp
+        mountPath: /tmp
+volumes:
+  - name: tmp
+    emptyDir: {}
+```
+
+From Google Secret Manager: sync the secret into that Kubernetes Secret with
+External Secrets or the Secret Manager CSI driver (the `secretKeyRef` stays
+as it is), or on Cloud Run map it straight to the variable
+(`--set-secrets=POSTHOG_KEY=posthog-key:latest`). The container only ever
+sees an environment variable.
 
 ### What `nginx.conf` is doing
 
@@ -235,6 +335,13 @@ short:
   `connect() failed` message, which no log format can change. The cost is that
   `error`-level upstream detail for this one location is dropped; the access log
   still records every request and its status.
+- `location /api/v1/collect/` is `location /api/` with a 10 MB body limit,
+  streamed to express rather than buffered: posthog-js posts a replay batch
+  of up to about 6.3 MB in one request (a third more as base64 when gzip is
+  unavailable), and nginx's default 1 MB answers it 413. Every other API
+  route keeps the default.
+- `location = /runtime-config.js` serves the file the entrypoint writes under
+  `/tmp`, `no-store` through the same `map` as `index.html`.
 
 Security headers (`Content-Security-Policy`, `Permissions-Policy`,
 `Referrer-Policy`, `X-Content-Type-Options`, `X-Frame-Options`,
@@ -265,6 +372,13 @@ nginx sends an **enforced** policy on every response:
   element at runtime.
 - **`connect-src 'self'`** holds because the API is same-origin: nginx proxies
   `/api`. Calling another origin from the browser means widening it here.
+- **Analytics needs nothing added.** posthog-js sends to `/api/v1/collect`
+  and loads its replay recorder and extensions from
+  `/api/v1/collect/static/…`, both same-origin, and replay starts no worker
+  (measured against this image: no `worker` event and no violation). The
+  recorder can start a `blob:` worker only to record `<canvas>` content; that
+  stays off in the PostHog project's replay settings, because `script-src
+'self'` (which `worker-src` falls back to) blocks it.
 - The `nginx` Playwright project asserts zero violations: on the sign-in page
   and for the theme script in CI (the `@no-api` tests), and on the signed-in
   app with a live stream and a tenant page locally (`pnpm test:e2e:nginx`).
@@ -278,6 +392,104 @@ nginx sends an **enforced** policy on every response:
   binds `0.0.0.0:8080` and nothing else. IPv6-only clusters need
   `listen [::]:8080;` added to that block — which fails on hosts with IPv6
   disabled, so it is not a change to make unconditionally.
+
+## Analytics (PostHog)
+
+Product analytics, session replay and typed events go to the same PostHog
+project as express-boilerplate's server events. Without `POSTHOG_KEY`
+none of it exists: posthog-js is loaded with a dynamic `import()`
+(`pnpm check:bundle` fails if it reaches the first-visit chunks), and every
+call into `src/observability/analytics` is a no-op.
+
+- **Configuration.** `POSTHOG_KEY`, `POSTHOG_UI_HOST`,
+  `ANALYTICS_CONSENT_MODE`, `ANALYTICS_HANDOFF_ORIGINS` and `APP_ENVIRONMENT`
+  are container environment, read at start
+  ([Run-time configuration](#run-time-configuration)); one PostHog project per
+  environment is one value per deployment, on the same image. The project is
+  the one express's `POSTHOG_PROJECT_KEY` names. Set `POSTHOG_KEY` only once
+  the API runs express 1.5.0 or later: on an older API the opt-out switch
+  cannot persist and `/api/v1/collect` answers 404.
+- **Transport.** Everything goes through the API's `/api/v1/collect` proxy
+  (express 1.5.0+), so the browser never talks to PostHog and the CSP is
+  unchanged. Each call through the axios client carries a fresh `traceparent`
+  and, while capture is on and PostHog holds either nobody or the signed-in
+  user, `X-POSTHOG-SESSION-ID`, so server events link to that person's replay
+  and never to someone else's.
+- **Identity.** The signed-in user is identified by id alone, after the
+  session restore and on every sign-in; sign-out, forced or chosen, resets
+  first. A page load whose session restore ends signed out forgets any person
+  an earlier visit left in the browser, before its first page view, unless
+  the restore failed without judging the session (a 502, say) and another
+  open tab answers that it is signed in as that person. A token refresh that
+  comes back as a different user (another tab signed someone else in) signs
+  the tab out instead of carrying on, or replaying a request, as them, and
+  that sign-out leaves the shared identity, now the other tab's, alone. Person properties (`is_staff`, `platform_role`, …) and the tenant
+  group's name are set only by the server.
+- **Page views and the tenant group.** posthog-js's own history page views are
+  off; the router captures `$pageview` once each navigation has resolved,
+  after putting the events in the tenant's group on a tenant page and taking
+  them out of any group on every other page, so a page view never carries the
+  previous page's tenant. A reload or a new tab starts with no group: one left
+  in storage by another tab is dropped at load. Reaching a different tenant
+  than the last one since sign-in sends `tenant_switched`, even with other
+  pages in between. On tenant pages the `tenant_access` super property says
+  `member` or `platform` (staff through platform access).
+- **A website sharing the cookie.** posthog-js adopts the shared identity
+  cookie before every event, so a website on a sibling subdomain must never
+  call `identify`, `alias`, `reset` or `group`
+  ([docs/analytics-handoff.md](docs/analytics-handoff.md)). The app defends
+  itself anyway: while a user is signed in, an event under any other distinct
+  id is dropped and, 250 ms later if the change still stands, the user is
+  identified again; `app`, `environment` and the tenant group are put back on
+  events a sibling's reset stripped. Another tab of this app is not a
+  sibling to fight: a person it signed in is announced to the other tabs, and
+  a tab whose user it replaced drops its events (never identifying over that
+  person) and refreshes its session to settle who is signed in. A refresh
+  that returns the other person signs that tab out alone; one that returns
+  its own user resumes it; a failed one is retried while events keep coming.
+  The tab also resumes as soon as the identity cookie holds its user again.
+  A sign-out broadcast landing within the 250 ms cancels the repair.
+- **The consent banner and page views.** Answering the banner captures the
+  page on screen (cookieless after a decline), since its router page view was
+  dropped while consent was pending; turning analytics back on in the profile
+  does the same.
+- **Consent.** In `opt_out` mode the profile's "Share usage analytics" switch
+  (`PATCH /profile { analyticsOptOut }`) stops browser capture for that user;
+  the API's own events continue. In `required` mode the banner decides and
+  the switch can only opt out, or count as consent when turned on. The banner's
+  answer belongs to the browser, not the person: consent is per device, so it
+  survives sign-out and the next person on a shared browser starts with it.
+  Each signed-in user's own opt-out is applied before they are identified, and
+  the profile switch or the banner changes it for that browser.
+- **Masking.** Inputs are masked in replay; every rendered name, address,
+  avatar initial and invitation address is wrapped in `<Pii>`
+  (`ph-sensitive ph-mask`); `aria-label`, `title`, `alt`, `placeholder`,
+  `data-*` and query-carrying hrefs are masked in replay and never reach
+  autocapture; captured URLs keep only the `tab` query key. Typed events
+  (`track`) accept fixed keys, numbers and booleans, never a free string.
+  The tenant slug is not masked: it appears in the browser's `$current_url`
+  and `$pathname` and in the title `$pageview` carries. Staff browsing a
+  customer's tenant through platform access put their browser events in that
+  tenant's group with `tenant_access = platform`: filter group insights on
+  `tenant_access = member` to count customers only (server events carry
+  `access: 'platform'`).
+- **Guards.** `e2e/fixtures/pii.test.ts` (CI) checks every probe name and
+  address on the main pages sits inside `<Pii>`. `e2e/nginx/analytics.test.ts`
+  searches everything that reached a fake PostHog, decoded, after a route walk
+  that includes `?token=` and `register?email=` URLs.
+
+The `@no-api` half of `e2e/nginx/analytics.test.ts` runs in CI against the
+image started with `POSTHOG_KEY=phc_test_key_not_real`, `APP_ENVIRONMENT=ci`
+and `ANALYTICS_HANDOFF_ORIGINS=https://www.example.test`, its
+`/api/v1/collect` traffic answered by a fake PostHog through Playwright. The
+live half needs an express 1.5.0+ behind the image: start express with
+`POSTHOG_PROJECT_KEY=phc_test_key_not_real`, `POSTHOG_HOST` and
+`POSTHOG_ASSETS_HOST` both `http://127.0.0.1:4063` and
+`ANALYTICS_DRAIN_INTERVAL_MS=1000`, run the image with the same three
+settings and `API_UPSTREAM` pointing at that express, then
+`E2E_LIVE=1 E2E_NGINX=1 E2E_ANALYTICS=1 E2E_NGINX_ORIGIN=<image origin> E2E_API_ORIGIN=<express origin> E2E_API_DIR=<express checkout> pnpm exec playwright test --project=nginx e2e/nginx/analytics.test.ts`.
+The suite starts the fake PostHog on :4063 itself (`E2E_FAKE_POSTHOG_PORT`
+moves it).
 
 ## Deploying
 

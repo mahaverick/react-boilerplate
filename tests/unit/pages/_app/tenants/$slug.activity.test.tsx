@@ -3,9 +3,10 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
+import * as analytics from '@/observability/analytics'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -132,6 +133,10 @@ function rowFor(text: RegExp) {
 }
 
 describe('tenant activity tab', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   beforeEach(() => {
     resetSessionForTests()
     queryClient.clear()
@@ -253,6 +258,30 @@ describe('tenant activity tab', () => {
     })
     expect(await screen.findByText(/changed the settings/)).toBeInTheDocument()
     expect(screen.queryByText(/created the tenant/)).not.toBeInTheDocument()
+  })
+
+  it('reports each filter change as table_filtered, naming the list and never the value', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    mockTenant('owner')
+    mockLog(() => page([CREATED]))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/activity')
+    await screen.findByText(/created the tenant/)
+    expect(track).not.toHaveBeenCalledWith('table_filtered', expect.anything())
+
+    await user.click(screen.getByRole('combobox', { name: 'Filter by action' }))
+    await user.click(await screen.findByRole('option', { name: 'Settings changed' }))
+    await user.click(screen.getByRole('combobox', { name: 'Filter by who acted' }))
+    await user.click(await screen.findByRole('option', { name: 'A B' }))
+    // Choosing the value already selected is not a change.
+    await user.click(screen.getByRole('combobox', { name: 'Filter by who acted' }))
+    await user.click(await screen.findByRole('option', { name: 'A B' }))
+
+    const filtered = track.mock.calls.filter(([event]) => event === 'table_filtered')
+    expect(filtered).toEqual([
+      ['table_filtered', { table: 'activity' }],
+      ['table_filtered', { table: 'activity' }],
+    ])
   })
 
   it('says nothing matches, rather than nothing happened, under a filter', async () => {

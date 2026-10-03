@@ -664,11 +664,14 @@ describe('inviting, and the pending invitations', () => {
 
     expect(await screen.findByRole('heading', { name: 'Pending invitations' })).toBeInTheDocument()
     const first = within((await screen.findByText('invitee@b.com')).closest('li') as HTMLElement)
-    expect(first.getByText('Editor · Invited by A B')).toBeInTheDocument()
+    expect(first.getByText(/^Editor · Invited by/)).toHaveTextContent('Editor · Invited by A B')
+    expect(first.getByText('A B')).toHaveClass('ph-sensitive', 'ph-mask')
     expect(first.getByText(/^Expires /)).toBeInTheDocument()
     // An inviter whose account is gone is `null`, not a crash.
     const second = within(screen.getByText('old@b.com').closest('li') as HTMLElement)
-    expect(second.getByText('Viewer · Invited by A teammate')).toBeInTheDocument()
+    expect(second.getByText(/^Viewer · Invited by/)).toHaveTextContent(
+      'Viewer · Invited by A teammate'
+    )
   })
 
   it('says when nothing is pending', async () => {

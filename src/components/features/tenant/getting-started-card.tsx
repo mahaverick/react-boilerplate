@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CircleCheckIcon, CircleIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -27,6 +27,7 @@ import {
 import { canManageTenant, type MembershipRole } from '@/constants/roles'
 import { useFocusAfter, type FocusAfter } from '@/hooks/use-focus-after'
 import { messageFrom } from '@/lib/api-error'
+import { analyticsKey, track, type AnalyticsKey } from '@/observability/analytics'
 import {
   tenantOnboardingQueryOptions,
   useCompleteOnboardingStep,
@@ -42,13 +43,30 @@ const ALL_SET_WINDOW_MS = 24 * 60 * 60 * 1000
 /** Said to a member who cannot do a step an owner or admin can. */
 const OWNER_OR_ADMIN = 'An owner or admin can do this'
 
-/** Where the steps the default registry completes from a page get done. Any other step key gets no link. */
+/**
+ * Where the steps the default registry completes from a page get done, and the
+ * analytics key a click on the link sends. Any other step key gets no link.
+ */
 const STEP_LINKS: ReadonlyMap<
   string,
-  { to: '/tenants/$slug/settings' | '/tenants/$slug/members'; label: string }
+  { to: '/tenants/$slug/settings' | '/tenants/$slug/members'; label: string; cta: AnalyticsKey }
 > = new Map([
-  ['configure_settings', { to: '/tenants/$slug/settings', label: 'Open settings' }],
-  ['invite_teammate', { to: '/tenants/$slug/members', label: 'Open members' }],
+  [
+    'configure_settings',
+    {
+      to: '/tenants/$slug/settings',
+      label: 'Open settings',
+      cta: analyticsKey('onboarding_open_settings'),
+    },
+  ],
+  [
+    'invite_teammate',
+    {
+      to: '/tenants/$slug/members',
+      label: 'Open members',
+      cta: analyticsKey('onboarding_open_members'),
+    },
+  ],
 ])
 
 /** The focus targets this card moves between when an action replaces its own button. */
@@ -173,6 +191,7 @@ function StepAction({
       to={link.to}
       params={{ slug }}
       className="justify-self-start text-sm font-medium underline underline-offset-4"
+      onClick={() => track('feature_cta_clicked', { cta: link.cta })}
     >
       {link.label}
     </Link>
@@ -304,6 +323,10 @@ function AllSetCard({ focus }: { focus: CardFocus }) {
   )
 }
 
+/**
+ * The in-progress checklist. It sends `onboarding_checklist_opened` once per
+ * mount: marking a step done changes the counts, not whether it was opened.
+ */
 function ChecklistCard({
   slug,
   onboarding,
@@ -315,6 +338,18 @@ function ChecklistCard({
   viewer: Viewer
   focus: CardFocus
 }) {
+  const hasTracked = useRef(false)
+  const { requiredDone, requiredTotal } = onboarding
+
+  useEffect(() => {
+    if (hasTracked.current) return
+    hasTracked.current = true
+    track('onboarding_checklist_opened', {
+      required_done: requiredDone,
+      required_total: requiredTotal,
+    })
+  }, [requiredDone, requiredTotal])
+
   return (
     <Card>
       <CardHeader>

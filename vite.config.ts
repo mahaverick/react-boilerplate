@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { runtimeConfigPlugin } from './scripts/runtime-config-plugin.mjs'
 
 export default defineConfig({
   plugins: [
@@ -23,6 +24,12 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
+    /**
+     * `/runtime-config.js` on the dev and preview servers, from the `VITE_`
+     * names of the run-time settings (src/configs/runtime-config.ts); the
+     * image writes it at container start instead.
+     */
+    runtimeConfigPlugin(),
     /**
      * Removes MSW's worker from `dist/`. It sits in `public/` so the dev server
      * serves it from the root scope a service worker needs, and `public/` is

@@ -6,7 +6,8 @@
  * exists. `finally` mounts React whether `load()` resolves or rejects, and the
  * trailing `catch` logs both a rejection of `load()` and a synchronous throw
  * from the mount (say `#root` missing), which would otherwise strand the
- * splash with nothing saying why.
+ * splash with nothing saying why. Analytics starts after the first load, so
+ * the restored session's identity is queued before posthog-js loads.
  */
 // First import: must run before any module builds a Zod schema (see the file).
 import '@/lib/zod-jitless'
@@ -15,6 +16,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Devtools } from '@/components/dev/devtools'
+import { initAnalytics } from '@/observability/analytics'
 import '@/styles/globals.css'
 import { queryClient, router } from '@/router'
 
@@ -29,6 +31,7 @@ void router
         </QueryClientProvider>
       </StrictMode>
     )
+    void initAnalytics()
   })
   .catch((error: unknown) => {
     console.error(error)

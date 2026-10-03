@@ -31,6 +31,8 @@ export interface User {
   lastName: string | null
   createdAt: string
   platformRole: MembershipRole | null
+  /** The profile's "Share usage analytics" switch, off. Stops browser analytics only. */
+  analyticsOptOut: boolean
 }
 
 /** How the caller reached a tenant: as one of its members, or as platform staff. */

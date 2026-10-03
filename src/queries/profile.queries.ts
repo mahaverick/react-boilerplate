@@ -35,6 +35,24 @@ export function useProfile() {
   })
 }
 
+/**
+ * Turns browser analytics off or on for the caller (`PATCH /profile
+ * { analyticsOptOut }`). The returned user lands in the store, whose analytics
+ * subscription (`installAnalyticsIdentity`) applies the new preference.
+ */
+export function useUpdateAnalyticsOptOut() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (analyticsOptOut: boolean) =>
+      unwrap(await apiClient.patch<ApiSuccess<User>>('/profile', { analyticsOptOut })),
+    onSuccess: (user) => {
+      queryClient.setQueryData(profileKeys.detail, user)
+      const { accessToken, login } = useAuthStore.getState()
+      if (accessToken) login(accessToken, user)
+    },
+  })
+}
+
 export function useUpdateProfile() {
   const queryClient = useQueryClient()
   return useMutation({

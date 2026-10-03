@@ -66,7 +66,10 @@ describe('register page', () => {
     await fillAndSubmit('ada@b.com', 'secret123')
 
     expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeInTheDocument()
-    expect(screen.getByText(/verification link to ada@b\.com\./)).toBeInTheDocument()
+    expect(screen.getByText(/We sent a verification link to/)).toHaveTextContent(
+      'We sent a verification link to ada@b.com.'
+    )
+    expect(screen.getByText('ada@b.com')).toHaveClass('ph-sensitive', 'ph-mask')
   })
 
   it('posts and shows the NORMALISED address, not what was typed', async () => {
@@ -80,7 +83,7 @@ describe('register page', () => {
     renderRegisterAt('/register')
     await fillAndSubmit('  Ada@B.COM  ', 'secret123')
 
-    expect(await screen.findByText(/verification link to ada@b\.com\./)).toBeInTheDocument()
+    expect(await screen.findByText('ada@b.com')).toBeInTheDocument()
     expect(screen.queryByText(/Ada@B\.COM/)).not.toBeInTheDocument()
     // Empty optional names are dropped by the schema, not posted as ''.
     expect(body).toEqual({ email: 'ada@b.com', password: 'secret123' })

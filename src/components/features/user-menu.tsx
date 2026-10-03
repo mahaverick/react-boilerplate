@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { LogOut, ShieldCheck, User as UserIcon } from 'lucide-react'
+import { Pii } from '@/components/shared/pii'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -50,9 +51,11 @@ export function UserMenu({ user }: { user: User | null }) {
             render={<SidebarMenuButton size="lg" aria-label={`Account menu for ${name}`} />}
           >
             <Avatar size="sm">
-              <AvatarFallback>{initials(user)}</AvatarFallback>
+              <AvatarFallback>
+                <Pii>{initials(user)}</Pii>
+              </AvatarFallback>
             </Avatar>
-            <span className="truncate">{name}</span>
+            <Pii className="truncate">{name}</Pii>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="top" className="min-w-56">
             <DropdownMenuItem render={<Link to={ROUTES.profile} />}>
