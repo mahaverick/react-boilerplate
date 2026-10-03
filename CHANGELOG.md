@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/mahaverick/react-boilerplate/compare/v1.2.1...v1.3.0) (2026-10-03)
+
+
+### Features
+
+* posthog analytics, run-time configuration, masked replay and consent (sp5a) ([#45](https://github.com/mahaverick/react-boilerplate/issues/45)) ([87a468c](https://github.com/mahaverick/react-boilerplate/commit/87a468c9591f05f8633f978883eb2af64b0c6aed))
+
 ## [1.2.1](https://github.com/mahaverick/react-boilerplate/compare/v1.2.0...v1.2.1) (2026-10-02)
 
 
