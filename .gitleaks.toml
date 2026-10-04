@@ -1,4 +1,9 @@
-# Extends gitleaks' default rules. No allowlist: this repo commits no fake
-# secrets. Add one here, with its reason, if a fixture ever needs it.
+# Extends gitleaks' default rules. The one allowlist entry is the shared scrub
+# vector file: it holds deliberately secret-shaped inputs (a fake key, tokens,
+# an email) that the error scrubber must redact, and nothing else.
 [extend]
 useDefault = true
+
+[[allowlists]]
+description = "secret-shaped inputs the error scrubber's vectors must redact"
+paths = ['''tests/fixtures/error-scrub-vectors\.json''']
