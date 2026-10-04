@@ -4,14 +4,16 @@ node_modules
 dist
 dist-ssr
 build
+# Also what keeps posthog-cli's inject offline (see the Dockerfile).
 .git
 coverage
 # Playwright's output. Neither changes the bundle, and a report can be large.
 test-results
 playwright-report
-# Never bake a developer's environment into an image. The build stage takes no
-# build ARGs: the API prefix is fixed (see API_PREFIX in
-# src/constants/routes.ts), not configured per build.
+# Never bake a developer's environment into an image. No build ARG configures
+# an environment: the API prefix is fixed (see API_PREFIX in
+# src/constants/routes.ts), and the Dockerfile's ARGs name the commit and
+# where its source maps go.
 .env
 .env.*
 !.env.example

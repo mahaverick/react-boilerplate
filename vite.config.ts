@@ -47,7 +47,7 @@ export default defineConfig({
   ],
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   /** The commit, from the image's `GIT_SHA` build argument: the same value in every environment. */
-  define: { __APP_RELEASE__: JSON.stringify(process.env.GIT_SHA ?? 'dev') },
+  define: { __APP_RELEASE__: JSON.stringify(process.env.GIT_SHA || 'dev') },
   /**
    * Maps for every build, with no `sourceMappingURL` comment in the bundle:
    * the image uploads them to PostHog and deletes them before nginx serves `dist/`.

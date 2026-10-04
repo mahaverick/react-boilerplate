@@ -2,11 +2,14 @@
 # Checks a built image from outside, the way it ships. Every probe ends on its
 # own, and the one container this script starts is removed on exit.
 #
-#   bash docker/check-image.sh <image> [host-port]
+#   bash docker/check-image.sh <image> [host-port] [release]
+#
+# `release` is the GIT_SHA the image was built with (default `dev`).
 set -euo pipefail
 
-image=${1:?usage: bash docker/check-image.sh <image> [host-port]}
+image=${1:?usage: bash docker/check-image.sh <image> [host-port] [release]}
 port=${2:-18080}
+release=${3:-dev}
 base="http://127.0.0.1:$port"
 name="rb-check-$$"
 work=$(mktemp -d)
@@ -131,6 +134,25 @@ done
 curl -s -D "$work/headers" -o /dev/null "$base/theme-init.js"
 [ "$(header Content-Type "$work/headers")" = application/javascript ] || problem "/theme-init.js is not served as JavaScript"
 [ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/theme-init.js is not no-store"
+
+# --- Source maps, chunk ids and the release ----------------------------------
+# The build stage uploads the maps and deletes them: none may ship. The prune
+# keeps find out of the kernel's own trees.
+maps=$(docker run --rm --entrypoint sh "$image" -c \
+  'find / \( -path /proc -o -path /sys -o -path /dev \) -prune -o -name "*.map" -print 2>/dev/null' || true)
+[ -z "$maps" ] || problem "the image holds source maps: $maps"
+docker run --rm --entrypoint sh "$image" -c 'cat /usr/share/nginx/html/assets/*.js' >"$work/bundle.js"
+grep -q 'sourceMappingURL' "$work/bundle.js" && problem "a chunk names a source map"
+grep -q '__APP_RELEASE__' "$work/bundle.js" && problem "__APP_RELEASE__ was not replaced at build time"
+# Quoted any way the minifier quotes a string literal, backticks included.
+grep -qE "[\"'\`]${release}[\"'\`]" "$work/bundle.js" || problem "the release \"$release\" is not in the bundle"
+# posthog-cli's inject prepends a chunk-id IIFE and appends a chunkId comment;
+# a release-less inject writes no release id into it.
+curl -sf "$base$asset" >"$work/entry.js" || problem "could not fetch $asset"
+grep -q '_posthogChunkIds' "$work/entry.js" || problem "$asset has no injected chunk id"
+grep -q '^//# chunkId=' "$work/entry.js" || problem "$asset has no chunkId comment"
+grep -qE '_posthogReleaseId=[A-Za-z_$]+\._posthogReleaseId\|\|' "$work/bundle.js" \
+  && problem "a chunk carries an injected release id: inject must stay release-less"
 
 # --- The run-time configuration, written at start under /tmp -----------------
 curl -s -D "$work/headers" -o "$work/body" "$base/runtime-config.js"

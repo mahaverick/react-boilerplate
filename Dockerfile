@@ -22,16 +22,41 @@ ENV HUSKY=0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN corepack install
 RUN pnpm install --frozen-lockfile
+# posthog-cli's postinstall is off (pnpm-workspace.yaml), so its npm wrapper
+# downloads the binary from releases.posthog.com on first run. Run here, the
+# download is cached with the dependencies and a failed one stops the build
+# before anything else.
+RUN pnpm exec posthog-cli --version
 
 COPY . .
+# Inside a git checkout, posthog-cli's inject derives a release from git and
+# calls PostHog. .dockerignore keeps .git out; this fails the build if it
+# ever gets in.
+RUN test ! -e .git || { echo '.git is in the build context (see .dockerignore)' >&2; exit 1; }
 
-# No build ARGs, deliberately. The API prefix is FIXED at /api/v1 — it lives in
-# src/constants/routes.ts as API_PREFIX, and nginx.conf's SSE location, the
-# notification stream's `fetch` URL and the Google OAuth anchor all derive
-# from or hardcode it. A build arg that moved only the axios base would ship
-# an image whose notification stream and Google sign-in are broken with
-# nothing in any log to say so.
+# No build ARG configures an environment. The API prefix is FIXED at /api/v1 —
+# it lives in src/constants/routes.ts as API_PREFIX, and nginx.conf's SSE
+# location, the notification stream's `fetch` URL and the Google OAuth anchor
+# all derive from or hardcode it. A build arg that moved only the axios base
+# would ship an image whose notification stream and Google sign-in are broken
+# with nothing in any log to say so. The three ARGs below are per commit,
+# not per environment: GIT_SHA names the commit (vite.config.ts bakes it in
+# as the release), and the other two say where its source maps are uploaded.
+ARG GIT_SHA=dev
+ARG POSTHOG_SOURCEMAP_PROJECTS=
+ARG POSTHOG_CLI_HOST=https://us.posthog.com
+# vite.config.ts builds hidden source maps: no sourceMappingURL in any chunk.
 RUN pnpm build
+# Chunk ids go into every build, uploaded or not, so a file name never holds
+# two different contents across builds. Inject must stay release-less: no
+# --release-* flags and no .git, or it calls PostHog and writes a release id
+# into every chunk. The token is a placeholder the CLI checks only for shape.
+RUN POSTHOG_CLI_TOKEN=phx_inject_placeholder POSTHOG_CLI_ENV_ID=0 \
+    pnpm exec posthog-cli sourcemap inject --directory dist
+# The token is a BuildKit secret: never in a layer or in `docker history`.
+RUN --mount=type=secret,id=posthog_cli_token,required=false \
+    sh docker/upload-sourcemaps.sh
+RUN find dist -name '*.map' -delete
 
 # The unprivileged nginx image runs as uid 101 and listens on 8080. Both base
 # images are pinned by digest, and Renovate moves each tag and digest together.
