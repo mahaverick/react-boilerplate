@@ -33,7 +33,8 @@ ARG TARGETARCH
 COPY docker/posthog-cli.sha256 /tmp/posthog-cli.sha256
 RUN set -eu; \
     node node_modules/@posthog/cli/install.js; \
-    bin=$(find -L node_modules/@posthog/cli/node_modules/.bin_real -type f -name posthog-cli | head -n 1); \
+    bin=node_modules/@posthog/cli/node_modules/.bin_real/posthog-cli; \
+    if [ ! -f "$bin" ] || [ -L "$bin" ]; then echo "$bin is not a regular file (the path the CLI runs)" >&2; exit 1; fi; \
     want=$(awk -v arch="$TARGETARCH" '$1 !~ /^#/ && $2 == arch { print $1 }' /tmp/posthog-cli.sha256); \
     if [ -z "$want" ]; then echo "no pinned posthog-cli hash for architecture '$TARGETARCH' (docker/posthog-cli.sha256)" >&2; exit 1; fi; \
     got=$(sha256sum "$bin" | cut -d' ' -f1); \

@@ -59,7 +59,7 @@ jobs:
           PROJECTS: ${{ vars.POSTHOG_SOURCEMAP_PROJECTS }}
           HAS_TOKEN: ${{ secrets.POSTHOG_CLI_TOKEN != '' }}
         run: |
-          if [ -z "$PROJECTS" ]; then
+          if [ -z "$(printf '%s' "$PROJECTS" | tr -d ' ,[:space:]')" ]; then
             echo "::warning::sourcemaps not uploaded (POSTHOG_SOURCEMAP_PROJECTS unset)"
           elif [ "$HAS_TOKEN" != true ]; then
             echo "::error::POSTHOG_SOURCEMAP_PROJECTS is set but POSTHOG_CLI_TOKEN is empty"

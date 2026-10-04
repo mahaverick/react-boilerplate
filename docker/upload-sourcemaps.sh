@@ -7,16 +7,25 @@
 # and never printed.
 set -eu
 
-projects=$(printf '%s' "${POSTHOG_SOURCEMAP_PROJECTS:-}" | tr -d ' ')
+projects=$(printf '%s' "${POSTHOG_SOURCEMAP_PROJECTS:-}" | tr -d ' \t\r\n')
 token_file=${POSTHOG_CLI_TOKEN_FILE:-/run/secrets/posthog_cli_token}
 cli=${POSTHOG_CLI:-node_modules/.bin/posthog-cli}
 directory=${SOURCEMAP_DIRECTORY:-dist}
 export POSTHOG_CLI_HOST="${POSTHOG_CLI_HOST:-https://us.posthog.com}"
 
-if [ -z "$projects" ]; then
+# Only commas and whitespace is as good as unset.
+if [ -z "$(printf '%s' "$projects" | tr -d ',')" ]; then
   echo 'sourcemaps: not configured, skipping upload'
   exit 0
 fi
+
+case $POSTHOG_CLI_HOST in
+  https://*) ;;
+  *)
+    echo 'sourcemaps: POSTHOG_CLI_HOST must start with https://' >&2
+    exit 1
+    ;;
+esac
 
 # A secret passed empty arrives as an empty file; one not passed, as none.
 if [ ! -s "$token_file" ]; then

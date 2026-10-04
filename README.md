@@ -545,6 +545,9 @@ not catch:
 - email edge forms: no TLD, double-encoded, a fullwidth `@`, a quoted local
   part.
 
+Also unverified by the binary's hash check: the CLI's JavaScript wrapper
+(`lib/posthog-api-cli.mjs`), which comes from the npm package, not the download.
+
 ### Source maps
 
 The build always writes hidden source maps (no `sourceMappingURL` in any

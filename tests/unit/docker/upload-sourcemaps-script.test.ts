@@ -86,6 +86,25 @@ describe('docker/upload-sourcemaps.sh', () => {
     expect(`${result.stdout}${result.stderr}`).not.toContain(TOKEN)
   })
 
+  it.each([',', ' , ,', ',\n'])('treats %j as no projects configured', (projects) => {
+    const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: projects }, null)
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe('sourcemaps: not configured, skipping upload\n')
+    expect(cliRuns()).toEqual([])
+  })
+
+  it('ignores an empty entry between projects', () => {
+    runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101,,202' })
+    expect(cliRuns().map((run) => run[1])).toEqual(['101', '202'])
+  })
+
+  it.each(['http://us.posthog.com', 'us.posthog.com'])('refuses the host %s', (host) => {
+    const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101', POSTHOG_CLI_HOST: host })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('POSTHOG_CLI_HOST must start with https://')
+    expect(cliRuns()).toEqual([])
+  })
+
   it('defaults the host to PostHog US', () => {
     runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101' })
     expect(cliRuns()[0]?.[3]).toBe('https://us.posthog.com')
