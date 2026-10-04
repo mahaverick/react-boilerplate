@@ -31,6 +31,9 @@ other in the same PR, and the PR description says what happened there
 | `src/components/shared/pii.tsx`, `e2e/helpers/fake-posthog.ts`                                                                                      | The masking class and the egress guard's fake PostHog                                                       |
 | `docker/10-runtime-config.sh`, `src/configs/runtime-config.ts`, `scripts/runtime-config-plugin.mjs`, `nginx.conf`'s `location = /runtime-config.js` | One run-time configuration contract: the same variable names, patterns and file in both images              |
 | `public/theme-init.js`, `src/lib/zod-jitless.ts`                                                                                                    | CSP compatibility                                                                                           |
+| `src/observability/errors/**`, `src/observability/identity-epoch.ts`, `tests/fixtures/error-scrub-vectors.json`                                     | One capture, filter, scrub and consent contract; the vectors are express-boilerplate's, byte for byte       |
+| `docker/upload-sourcemaps.sh`, `docker/check-image.sh`, `docker/posthog-cli.sha256`, `.github/workflows/deploy.yml`                                 | One source map pipeline; `deploy.yml` is byte-identical in express-boilerplate too                          |
+| `nginx.conf`'s `.map` location                                                                                                                      | No source map is ever served                                                                                |
 | `eslint.config.js` rule set (not its file lists)                                                                                                    | Same conventions                                                                                            |
 
 Staff screens live in Apex. This app keeps the staff paths that live on tenant
@@ -186,7 +189,9 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
 - **Nothing is configured at build time.** One image digest is promoted
   through every environment, so a setting that differs between environments
   is a container environment variable read at start, never a `VITE_*` value
-  or a build ARG. `docker/10-runtime-config.sh` validates each one and writes
+  or a build ARG. The Dockerfile's ARGs are per commit, not per environment:
+  `GIT_SHA` is the release, and the source map ARGs say where its maps go.
+  `docker/10-runtime-config.sh` validates each one and writes
   `/runtime-config.js`; the app reads only `getRuntimeConfig()`
   (`src/configs/runtime-config.ts`). A new setting goes into
   `RUNTIME_CONFIG_KEYS` and `RUNTIME_CONFIG_PATTERNS`, the script (same
@@ -195,6 +200,34 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   change. A pattern admits no quote, backslash, `<` or newline (the script
   writes values unescaped), and the script's error names the variable,
   never the value.
+
+## Error tracking — the rules that leak or go blind when broken
+
+- **`listen.ts` stays tiny and imports nothing.** It is in every page's entry
+  chunk (`pnpm check:bundle` caps it at 1 KB gzipped and keeps
+  `@posthog/core` out of first-visit chunks). Everything else is in the lazy
+  `report.ts`, which never imports the router: the router registers its
+  route source (`setErrorRouteSource`), so a crash in the router's own
+  module can still be reported.
+- **Inject stays release-less.** `posthog-cli sourcemap inject` in the
+  Dockerfile runs with a placeholder token, no `--release-*` flag and no
+  `.git` in the context (the Dockerfile refuses one). A release makes it
+  call PostHog and write a release id into every chunk, so an unchanged lazy
+  chunk would ship new bytes under its old hashed name.
+- **An upload failure fails the build.** `docker/upload-sourcemaps.sh` has no
+  `|| true` and the CLI gets no `--no-fail`; projects set with no token
+  fails too. Never soften either: an image with no uploaded maps reports
+  unreadable frames, silently.
+- **A `@posthog/cli` version bump updates `docker/posthog-cli.sha256`.** The
+  Dockerfile checks the downloaded binary against those per-architecture
+  hashes before it runs with the upload token; package.json cannot hold the
+  reminder, so it is here and in that file.
+- **No source map is served.** The image deletes them and `nginx.conf`'s
+  `.map` location answers 404 regardless; any deploy of `dist/` outside the
+  image must delete `*.map` first.
+- **Scrub rules change in express first.** `scrub.ts` is a port of express's
+  `error-scrubber.service.ts`, and both test the same vector file; copy the
+  file, never edit it here alone.
 
 ## Never install
 
