@@ -91,3 +91,21 @@ test(
     expect(html).toContain('<script src="/theme-init.js"></script>')
   }
 )
+
+test(
+  'a source map is a 404 under /assets and anywhere else, with the security headers',
+  { tag: '@no-api' },
+  async ({ request }) => {
+    const entry = await entryChunk(request)
+    for (const path of [
+      `${entry}.map`,
+      '/assets/index-abc.js.map',
+      '/assets/missing.MAP',
+      '/main.js.map',
+    ]) {
+      const response = await request.get(path)
+      expect(response.status(), path).toBe(404)
+      expect(response.headers()['x-content-type-options'], path).toBe('nosniff')
+    }
+  }
+)

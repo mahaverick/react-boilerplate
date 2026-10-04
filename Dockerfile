@@ -22,10 +22,23 @@ ENV HUSKY=0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN corepack install
 RUN pnpm install --frozen-lockfile
-# posthog-cli's postinstall is off (pnpm-workspace.yaml), so its npm wrapper
-# downloads the binary from releases.posthog.com on first run. Run here, the
-# download is cached with the dependencies and a failed one stops the build
-# before anything else.
+# posthog-cli's postinstall is off (pnpm-workspace.yaml), so the npm wrapper
+# downloads its binary from releases.posthog.com, with no checksum of its own.
+# Run here, the download is cached with the dependencies and a failed one stops
+# the build before anything else. The binary is hashed BEFORE it first runs,
+# and later runs with the upload token mounted: a mismatch, or an architecture
+# docker/posthog-cli.sha256 does not list, fails the build. A version bump of
+# @posthog/cli must update that file.
+ARG TARGETARCH
+COPY docker/posthog-cli.sha256 /tmp/posthog-cli.sha256
+RUN set -eu; \
+    node node_modules/@posthog/cli/install.js; \
+    bin=$(find -L node_modules/@posthog/cli/node_modules/.bin_real -type f -name posthog-cli | head -n 1); \
+    want=$(awk -v arch="$TARGETARCH" '$1 !~ /^#/ && $2 == arch { print $1 }' /tmp/posthog-cli.sha256); \
+    if [ -z "$want" ]; then echo "no pinned posthog-cli hash for architecture '$TARGETARCH' (docker/posthog-cli.sha256)" >&2; exit 1; fi; \
+    got=$(sha256sum "$bin" | cut -d' ' -f1); \
+    if [ "$got" != "$want" ]; then echo "posthog-cli binary hash mismatch for $TARGETARCH: got $got, pinned $want" >&2; exit 1; fi; \
+    echo "posthog-cli binary verified: $got"
 RUN pnpm exec posthog-cli --version
 
 COPY . .
