@@ -181,6 +181,19 @@ export function fingerprintOf(list: Exception[]): string {
   return `${first?.type ?? 'Error'}|${where}`
 }
 
+/**
+ * A sanitised URL with its path scrubbed (a user's email in a path segment
+ * becomes `[email]`) and its query kept as `sanitizeUrl` left it, since the
+ * query rule would turn the allowlisted keys into `?[query]`.
+ * @param url - The result of `sanitizeUrl`.
+ * @returns The URL to send.
+ */
+function scrubUrl(url: string): string {
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) return scrubText(url)
+  return `${scrubText(url.slice(0, queryStart))}${url.slice(queryStart)}`
+}
+
 function build(error: unknown, handled: boolean): Exception[] {
   builder ??= new ErrorPropertiesBuilder(
     [
@@ -386,7 +399,7 @@ export function report(
         ...(routeId === undefined ? {} : { route_id: routeId }),
         ...(isStale
           ? {}
-          : { $current_url: sanitizeUrl(location.href, ANALYTICS_URL_QUERY_ALLOWLIST) }),
+          : { $current_url: scrubUrl(sanitizeUrl(location.href, ANALYTICS_URL_QUERY_ALLOWLIST)) }),
       },
     }
     // The identity is read when it settles, so it counts only if nothing changed it since this error.

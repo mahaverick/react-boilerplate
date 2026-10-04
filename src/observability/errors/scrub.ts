@@ -24,11 +24,56 @@ const SCAN_MAX = 4 * SCRUB_VALUE_MAX
  */
 const KEY_DETAIL_PATTERN = /Key \(([^()]*)\)=\(.*\)(?=$|[\s.,;:])/gm
 
-/** A URL or path followed by a query string: the part before `?` is kept. */
+/**
+ * A value Postgres echoes back from the input: `invalid input syntax for
+ * type X: "value"` and `invalid input value for enum X: "value"`. A doubled
+ * quote inside the value does not end it.
+ */
+const PG_INPUT_PATTERN =
+  /(invalid input (?:syntax for type|value for enum) [\w." ]+?: )"(?:[^"]|"")*"/g
+
+/**
+ * The snippet V8 echoes in a JSON parse error: `"<text>"... is not valid JSON`.
+ * It matches at the start of a line or after `, `.
+ */
+const JSON_SNIPPET_PATTERN = /(^|, )".*?"(?:\.\.\.)? is not valid JSON/gm
+
+/**
+ * The credentials in a URL's userinfo: `scheme://user:pass@host`. The
+ * scheme and `://` are kept.
+ */
+const USERINFO_PATTERN = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@"'<>]+@/gi
+
+/**
+ * A URL or path followed by a query string: the part before `?` is kept.
+ */
 const QUERY_PATTERN = /((?:https?:\/\/|\/)[^\s?"'<>]*)\?[^\s"'<>]+/g
 
-/** `Bearer` and the credential after it, in any letter case. */
+/**
+ * A URL's or path's fragment: the part before `#` is kept.
+ */
+const FRAGMENT_PATTERN = /((?:https?:\/\/|\/)[^\s#"'<>]*)#[^\s"'<>]+/g
+
+/**
+ * `Bearer` and the credential after it, in any letter case.
+ */
 const BEARER_PATTERN = /\bBearer\s+[^\s"',;]+/gi
+
+/**
+ * HTTP Basic credentials: `Basic` (this exact case) and a base64 value of
+ * at least eight characters that holds an uppercase letter, a digit, `+` or
+ * `/`, so prose such as `Basic validation failed` is left alone.
+ */
+const BASIC_PATTERN =
+  /\bBasic\s+(?=[A-Za-z0-9+/]*[A-Z0-9+/])(?:[A-Za-z0-9+/]{4}){2,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?(?![\w+/=])/g
+
+/**
+ * A secret-named key and its value: `password=...`, `"token":"..."`,
+ * `api_key: ...`, `Cookie: ...`. The key and its separator are kept; a
+ * value already replaced (`[...]`) is left as it is.
+ */
+const KV_SECRET_PATTERN =
+  /\b([\w-]*?(?:pass(?:word|wd)?|pwd|secret|token|api[_-]?key|session|cookie|credentials?)["']?\s*[:=]\s*["']?)(?!\[)[^\s"',;&})\]]+/gi
 
 /**
  * A JSON Web Token: three dot-separated base64url segments, the first
@@ -36,20 +81,26 @@ const BEARER_PATTERN = /\bBearer\s+[^\s"',;]+/gi
  */
 const JWT_PATTERN = /\beyJ[\w-]+\.[\w-]+\.[\w-]*/g
 
-/** A PostHog project, personal or secret key. */
+/**
+ * A PostHog project, personal or secret key.
+ */
 const POSTHOG_KEY_PATTERN = /\bph[cxs]_\w+/g
 
-/** An email address. */
-const EMAIL_PATTERN = /[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g
+/**
+ * An email address, in any script, with `@` written plainly or as `%40`.
+ */
+const EMAIL_PATTERN = /[\p{L}\p{N}_.%+-]+(?:@|%40)[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}/gu
 
 /**
- * A run of 32 or more hex digits: a hash, a token or a key. The lookarounds
- * (not `\b`) mean a run touching a letter or underscore is still replaced,
- * while a longer hex run is never split.
+ * A run of 32 or more hex digits: a hash, a token or a key. It is delimited
+ * by hex digits rather than word boundaries, so a run stuck to other word
+ * characters (`key_<hex>`, `<hex>suffix`) is still replaced.
  */
 const HEX_RUN_PATTERN = /(?<![0-9A-Fa-f])[0-9A-Fa-f]{32,}(?![0-9A-Fa-f])/g
 
-/** A run of 40 or more base64 or base64url characters, with its padding. */
+/**
+ * A run of 40 or more base64 or base64url characters, with its padding.
+ */
 const BASE64_RUN_PATTERN = /[\w+/-]{40,}={0,2}/g
 
 /**
@@ -62,8 +113,8 @@ const BASE64_UPPERCASE_SHARE = 0.25
  * Whether a long base64-alphabet run is a secret rather than a file path.
  * A run with no `/` always is. One with a `/` is when it holds a digit and
  * at least a quarter of its letters are uppercase: random base64 is half
- * uppercase, and a path such as `/assets/route-error-boundary` is almost all
- * lowercase.
+ * uppercase, and a path such as `/app/src/services/errors/error-scrubber`
+ * is almost all lowercase.
  * @param run - The matched run.
  * @returns True when the run should be replaced.
  */
@@ -96,27 +147,44 @@ function scanned(value: string): string {
  */
 function capped(value: string, wasCut: boolean): string {
   if (!wasCut && value.length <= SCRUB_VALUE_MAX) return value
-  return `${value.slice(0, SCRUB_VALUE_MAX - TRUNCATION_MARKER.length)}${TRUNCATION_MARKER}`
+  const kept = value.slice(0, SCRUB_VALUE_MAX - TRUNCATION_MARKER.length)
+  return `${kept}${TRUNCATION_MARKER}`
 }
 
 /**
- * Removes personal data and secrets from one text, by eight rules applied in
+ * Remove personal data and secrets from one text, by these rules applied in
  * this order: Postgres `Key (col)=(value)` details keep the columns and lose
- * the value; a URL's or path's query string becomes `?[query]`; `Bearer
- * <credential>` becomes `Bearer [token]`; a JWT becomes `[jwt]`; a PostHog key
- * becomes `[posthog-key]`; an email address becomes `[email]`; a run of 32 or
- * more hex digits, and a secret-looking run of 40 or more base64 characters,
- * become `[secret]`; and the result is cut to 1024 characters, ending in
- * `…[truncated]`. Applying it twice gives the same text as applying it once.
- * @param value - An exception's type or value, or a frame's filename or function.
+ * the value (`([value])`); a value Postgres echoes after `invalid input
+ * syntax for type` or `invalid input value for enum`, and the snippet in a
+ * V8 `is not valid JSON` error, become `"[value]"`; the userinfo of a URL
+ * becomes `[credentials]@`; a URL's or path's query string becomes
+ * `?[query]` and its fragment `#[fragment]`; `Bearer <credential>` becomes
+ * `Bearer [token]`; `Basic <base64>` becomes `Basic [token]`; the value of a
+ * secret-named key (`password`, `token`, `secret`, `api_key`, `session`,
+ * `cookie`, `credentials`) becomes `[redacted]`; a JWT becomes `[jwt]`; a
+ * PostHog key (`phc_`, `phx_`, `phs_`) becomes `[posthog-key]`; an email
+ * address, written with `@` or `%40`, becomes `[email]`; a run of 32 or more
+ * hex digits, and a secret-looking run of 40 or more base64 characters
+ * (`isSecretRun`), become `[secret]`; and the result is cut to 1024
+ * characters, ending in `…[truncated]`. A key-named word is replaced even in
+ * prose (`Missing token: please` keeps `Missing token: [redacted]`): the
+ * rule trades some readable text for never leaking a value. Applying it
+ * twice gives the same text as applying it once.
+ * @param value - The text: an exception's type or value, or a frame's filename or function.
  * @returns The scrubbed text.
  */
 export function scrubText(value: string): string {
   const input = scanned(value)
   const scrubbed = input
     .replaceAll(KEY_DETAIL_PATTERN, 'Key ($1)=([value])')
+    .replaceAll(PG_INPUT_PATTERN, '$1"[value]"')
+    .replaceAll(JSON_SNIPPET_PATTERN, '$1"[value]" is not valid JSON')
+    .replaceAll(USERINFO_PATTERN, '$1[credentials]@')
     .replaceAll(QUERY_PATTERN, '$1?[query]')
+    .replaceAll(FRAGMENT_PATTERN, '$1#[fragment]')
     .replaceAll(BEARER_PATTERN, 'Bearer [token]')
+    .replaceAll(BASIC_PATTERN, 'Basic [token]')
+    .replaceAll(KV_SECRET_PATTERN, '$1[redacted]')
     .replaceAll(JWT_PATTERN, '[jwt]')
     .replaceAll(POSTHOG_KEY_PATTERN, '[posthog-key]')
     .replaceAll(EMAIL_PATTERN, '[email]')

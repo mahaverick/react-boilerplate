@@ -229,6 +229,14 @@ describe('report', () => {
     expect(event?.properties).not.toHaveProperty('$groups')
   })
 
+  it('scrubs the URL path and keeps an allowlisted query', async () => {
+    window.history.replaceState(null, '', '/users/jane%40example.com?tab=overview&x=1')
+    report(appError('boom'), 'window', false)
+    await drain()
+    const [event] = sentEvents()
+    expect(event?.properties.$current_url).toBe(`${location.origin}/users/[email]?tab=overview`)
+  })
+
   it('sends an error handed over more than ten seconds after it was noted anonymous, stamped when it was noted', async () => {
     setErrorRouteSource(() => '/_app/dashboard')
     window.history.replaceState(null, '', '/dashboard')
