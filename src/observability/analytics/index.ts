@@ -5,6 +5,7 @@
 export {
   ANALYTICS_PROXY_PATH,
   type AnalyticsConsent,
+  type AnalyticsIdentity,
   type AnalyticsTenantAccess,
   capturePageview,
   clearTenantGroup,
@@ -22,6 +23,7 @@ export {
   subscribeAnalyticsConsent,
   subscribeIdentitySuperseded,
   track,
+  whenAnalyticsSettled,
   yieldSharedIdentity,
 } from './analytics'
 export {
