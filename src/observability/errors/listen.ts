@@ -3,11 +3,18 @@
  * a few, and loads the lazy reporter (`report.ts`) on the first error or when
  * the browser is idle. Nothing here builds, filters or sends an event.
  */
+import { identityEpoch } from '@/observability/identity-epoch'
 
 /** Where an error was noticed; sent as the event's `origin`. */
 export type ErrorOrigin = 'window' | 'rejection' | 'react' | 'router' | 'chunk_load'
 
-type Reporter = (error: unknown, origin: ErrorOrigin, handled: boolean, notedAt?: number) => void
+type Reporter = (
+  error: unknown,
+  origin: ErrorOrigin,
+  handled: boolean,
+  notedAt?: number,
+  notedEpoch?: number
+) => void
 
 /** Errors held until the reporter has loaded; later ones are dropped. */
 export const ERROR_BUFFER_LIMIT = 20
@@ -22,7 +29,7 @@ export const IDLE_LOAD_FALLBACK_MS = 3000
  */
 export const RETHROW_WINDOW_MS = 1000
 
-const buffer: [unknown, ErrorOrigin, boolean, number][] = []
+const buffer: [unknown, ErrorOrigin, boolean, number, number][] = []
 const seen = new WeakSet<object>()
 /** When each recently noted name, message and stack was first noted. */
 const recent = new Map<string, number>()
@@ -37,8 +44,8 @@ function load(): void {
   import('./report').then(
     (module) => {
       reporter = module.report
-      for (const [error, origin, handled, notedAt] of buffer.splice(0)) {
-        reporter(error, origin, handled, notedAt)
+      for (const [error, origin, handled, notedAt, notedEpoch] of buffer.splice(0)) {
+        reporter(error, origin, handled, notedAt, notedEpoch)
       }
     },
     () => {
@@ -82,7 +89,8 @@ export function noteError(error: unknown, origin: ErrorOrigin, handled: boolean)
       reporter(error, origin, handled)
       return
     }
-    if (buffer.length < ERROR_BUFFER_LIMIT) buffer.push([error, origin, handled, Date.now()])
+    if (buffer.length < ERROR_BUFFER_LIMIT)
+      buffer.push([error, origin, handled, Date.now(), identityEpoch()])
     load()
   } catch {
     // Error tracking never fails the page.

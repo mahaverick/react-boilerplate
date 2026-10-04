@@ -341,15 +341,17 @@ function sendOnPageHide(): void {
  * @param handled - True when the app already shows the user an error screen.
  * @param notedAt - When it was noted, `Date.now()` by default; a buffered error
  *   carries its own. Older than `STALE_ERROR_MS`, it is sent anonymous.
+ * @param notedEpoch - `identityEpoch()` when it was noted, read now by default;
+ *   if the epoch has changed by the time analytics settles, it is sent anonymous.
  */
 export function report(
   error: unknown,
   origin: ErrorOrigin,
   handled: boolean,
-  notedAt = Date.now()
+  notedAt = Date.now(),
+  notedEpoch = identityEpoch()
 ): void {
   try {
-    const epoch = identityEpoch()
     const isStale = Date.now() - notedAt > STALE_ERROR_MS
     if (!isAnalyticsAvailable() || accepted >= PAGE_LIMIT || isIgnoredError(error)) return
     if (!isPageHideInstalled) {
@@ -390,7 +392,7 @@ export function report(
     // The identity is read when it settles, so it counts only if nothing changed it since this error.
     void resolveIdentity().then(
       (identity) => {
-        const isOwn = !isStale && identityEpoch() === epoch
+        const isOwn = !isStale && identityEpoch() === notedEpoch
         enqueue(withIdentity(event, isOwn ? identity : null))
       },
       () => {
