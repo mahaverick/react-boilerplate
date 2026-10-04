@@ -1,9 +1,11 @@
 # Extends gitleaks' default rules. The one allowlist entry is the shared scrub
 # vector file: it holds deliberately secret-shaped inputs (a fake key, tokens,
-# an email) that the error scrubber must redact, and nothing else.
+# an email) that the error scrubber must redact, and nothing else. It is the
+# singular [allowlist] table because the gitleaks the CI action runs (8.24.x)
+# ignores the newer [[allowlists]] array form.
 [extend]
 useDefault = true
 
-[[allowlists]]
+[allowlist]
 description = "secret-shaped inputs the error scrubber's vectors must redact"
-paths = ['''tests/fixtures/error-scrub-vectors\.json''']
+paths = ['''^tests/fixtures/error-scrub-vectors\.json$''']

@@ -203,8 +203,8 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
 
 ## Error tracking — the rules that leak or go blind when broken
 
-- **`listen.ts` stays tiny and imports nothing.** It is in every page's entry
-  chunk (`pnpm check:bundle` caps it at 1 KB gzipped and keeps
+- **`listen.ts` stays tiny and imports only `identity-epoch.ts`**, which
+  imports nothing. It is in every page's entry chunk (`pnpm check:bundle` caps it at 1 KB gzipped and keeps
   `@posthog/core` out of first-visit chunks). Everything else is in the lazy
   `report.ts`, which never imports the router: the router registers its
   route source (`setErrorRouteSource`), so a crash in the router's own
