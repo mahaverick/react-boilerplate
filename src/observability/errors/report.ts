@@ -1,0 +1,369 @@
+/**
+ * @file The lazy half of error tracking: it filters a noted error, builds a
+ * PostHog `$exception` from it with `@posthog/core`, scrubs and throttles it,
+ * attaches an identity only when analytics consent allows, and sends it
+ * through the API's `/api/v1/collect` proxy. It never throws.
+ */
+import {
+  chromeStackLineParser,
+  createStackParser,
+  DOMExceptionCoercer,
+  ErrorCoercer,
+  ErrorEventCoercer,
+  ErrorPropertiesBuilder,
+  geckoStackLineParser,
+  ObjectCoercer,
+  PrimitiveCoercer,
+  PromiseRejectionEventCoercer,
+  StringCoercer,
+  type Exception,
+  type StackFrame,
+} from '@posthog/core/error-tracking'
+import { uuidv7 } from '@posthog/core/vendor/uuidv7'
+import { isAxiosError } from 'axios'
+import { isChunkLoadError } from '@/lib/chunk-load-error'
+import {
+  ANALYTICS_PROXY_PATH,
+  getAnalyticsConfig,
+  isAnalyticsAvailable,
+  whenAnalyticsSettled,
+  type AnalyticsIdentity,
+} from '@/observability/analytics'
+import { ANALYTICS_APP, ANALYTICS_URL_QUERY_ALLOWLIST } from '@/observability/analytics/config'
+import { sanitizeUrl } from '@/observability/analytics/url-sanitizer'
+import { currentRouteId, type ErrorOrigin } from './listen'
+import { scrubText } from './scrub'
+
+/** How long an exception waits for analytics to settle before it is sent anonymous. */
+export const SETTLE_CAP_MS = 10_000
+
+/** Events per fingerprint in one page life. */
+export const FINGERPRINT_LIMIT = 5
+
+/** Events in one page life; past it nothing more is built. */
+export const PAGE_LIMIT = 30
+
+/** Events per request. */
+export const BATCH_SIZE = 10
+
+/** How long an event waits for others to share its request. */
+export const BATCH_WINDOW_MS = 2_000
+
+/** The one retry of a batch that failed on the network or with a 5xx. */
+export const RETRY_DELAY_MS = 5_000
+
+/** Exceptions kept from a `cause` chain, the thrown one first. */
+export const CAUSE_DEPTH = 5
+
+/** What `fetch` throws for a request that never got a response, in Chromium, Firefox and Safari. */
+const NETWORK_FAILURE_MESSAGES = [
+  'Failed to fetch',
+  'NetworkError when attempting to fetch resource.',
+  'Load failed',
+]
+
+/** A browser `$exception` as `/batch/` takes it. */
+export interface ExceptionEvent {
+  event: '$exception'
+  uuid: string
+  timestamp: string
+  distinct_id: string
+  properties: Record<string, unknown>
+}
+
+type PendingEvent = Omit<ExceptionEvent, 'distinct_id'>
+
+let builder: ErrorPropertiesBuilder | undefined
+const fingerprintCounts = new Map<string, number>()
+let accepted = 0
+let settleGate: Promise<void> | undefined
+let queue: ExceptionEvent[] = []
+let flushTimer: ReturnType<typeof setTimeout> | undefined
+const retrying = new Map<ExceptionEvent[], ReturnType<typeof setTimeout>>()
+let isPageHideInstalled = false
+
+function messageOf(input: unknown): string | undefined {
+  if (typeof input === 'string') return input
+  if (typeof input !== 'object' || input === null) return undefined
+  const message = (input as { message?: unknown }).message
+  return typeof message === 'string' ? message : undefined
+}
+
+/**
+ * Whether a noted error is dropped before anything is built: an API or
+ * network failure (the server owns its 5xx, and the network is not a bug),
+ * an abort, ResizeObserver noise, or a cross-origin `Script error.` with no
+ * stack.
+ * @param input - The noted error, as received.
+ * @returns True to drop it.
+ */
+export function isIgnoredError(input: unknown): boolean {
+  if (isAxiosError(input)) return true
+  if (typeof input !== 'object' && typeof input !== 'string') return false
+  const name = typeof input === 'object' && input !== null ? (input as { name?: unknown }).name : ''
+  if (name === 'AbortError' || name === 'CanceledError') return true
+  const message = messageOf(input)
+  if (message === undefined) return false
+  if (message.startsWith('ResizeObserver loop')) return true
+  if (input instanceof TypeError && NETWORK_FAILURE_MESSAGES.includes(message)) return true
+  return message === 'Script error.' && !(input instanceof Error && input.stack)
+}
+
+/**
+ * Whether a frame is this app's code: a file served from this origin under
+ * `/assets/` (a production build) or `/src/` (the dev server). An extension's
+ * or another origin's frame never is.
+ * @param filename - The frame's URL.
+ * @param origin - Defaults to this page's origin.
+ * @returns True for the app's own frames.
+ */
+export function isAppFrame(filename: string | undefined, origin = location.origin): boolean {
+  if (!filename) return false
+  try {
+    const url = new URL(filename)
+    return url.origin === origin && /^\/(assets|src)\//.test(url.pathname)
+  } catch {
+    return false
+  }
+}
+
+function scrubFrame(frame: StackFrame): StackFrame {
+  return {
+    ...frame,
+    in_app: isAppFrame(frame.filename),
+    ...(frame.filename === undefined ? {} : { filename: scrubText(frame.filename) }),
+    ...(frame.function === undefined ? {} : { function: scrubText(frame.function) }),
+  }
+}
+
+/**
+ * The builder's exception list cut to `CAUSE_DEPTH`, with `in_app`
+ * recomputed for every frame and every type, value, filename and function
+ * scrubbed.
+ * @param list - `$exception_list` as the builder returned it.
+ * @returns The list to send.
+ */
+export function prepareExceptionList(list: Exception[]): Exception[] {
+  return list.slice(0, CAUSE_DEPTH).map((exception) => ({
+    ...exception,
+    ...(exception.type === undefined ? {} : { type: scrubText(exception.type) }),
+    ...(exception.value === undefined ? {} : { value: scrubText(exception.value) }),
+    ...(exception.stacktrace
+      ? {
+          stacktrace: {
+            ...exception.stacktrace,
+            frames: exception.stacktrace.frames?.map(scrubFrame),
+          },
+        }
+      : {}),
+  }))
+}
+
+/**
+ * What the throttle counts as one error: the thrown exception's type and its
+ * innermost in-app frame, or its type and scrubbed value when it has none.
+ * @param list - A prepared exception list.
+ * @returns The fingerprint.
+ */
+export function fingerprintOf(list: Exception[]): string {
+  const [first] = list
+  const frame = first?.stacktrace?.frames?.findLast((candidate) => candidate.in_app)
+  const where = frame
+    ? `${frame.filename ?? ''}:${frame.function ?? ''}:${String(frame.lineno ?? '')}`
+    : (first?.value ?? '')
+  return `${first?.type ?? 'Error'}|${where}`
+}
+
+function build(error: unknown, handled: boolean): Exception[] {
+  builder ??= new ErrorPropertiesBuilder(
+    [
+      new DOMExceptionCoercer(),
+      new ErrorEventCoercer(),
+      new ErrorCoercer(),
+      new PromiseRejectionEventCoercer(),
+      new ObjectCoercer(),
+      new StringCoercer(),
+      new PrimitiveCoercer(),
+    ],
+    createStackParser('web:javascript', chromeStackLineParser, geckoStackLineParser)
+  )
+  return builder.buildFromUnknown(error, { mechanism: { type: 'generic', handled } })
+    .$exception_list
+}
+
+/**
+ * The identity for an event built now. The first call waits for analytics
+ * to settle, at most `SETTLE_CAP_MS`; once that wait is over, later calls
+ * read the identity without waiting, and get null while analytics is still
+ * unsettled.
+ */
+function resolveIdentity(): Promise<AnalyticsIdentity | null> {
+  settleGate ??= new Promise((resolve) => {
+    const cap = setTimeout(resolve, SETTLE_CAP_MS)
+    void whenAnalyticsSettled().then(() => {
+      clearTimeout(cap)
+      resolve()
+    })
+  })
+  // Both settle in order once the gate is open: a settled analytics answers first, an unsettled one is beaten by null.
+  return settleGate.then(() => Promise.race([whenAnalyticsSettled(), Promise.resolve(null)]))
+}
+
+/**
+ * The event with its identity: the consented person, session, window and
+ * tenant group; or, without consent, a fresh distinct id of its own and no
+ * person profile.
+ * @param event - The built event.
+ * @param identity - From `whenAnalyticsSettled`, or null.
+ * @returns The event to send.
+ */
+export function withIdentity(
+  event: PendingEvent,
+  identity: AnalyticsIdentity | null
+): ExceptionEvent {
+  if (identity === null) {
+    return {
+      ...event,
+      distinct_id: uuidv7(),
+      properties: { ...event.properties, $process_person_profile: false },
+    }
+  }
+  return {
+    ...event,
+    distinct_id: identity.distinctId,
+    properties: {
+      ...event.properties,
+      ...(identity.sessionId ? { $session_id: identity.sessionId } : {}),
+      ...(identity.windowId ? { $window_id: identity.windowId } : {}),
+      ...(identity.groups ? { $groups: identity.groups } : {}),
+    },
+  }
+}
+
+function batchUrl(): string {
+  return `${location.origin}${ANALYTICS_PROXY_PATH}/batch/`
+}
+
+function batchBody(batch: ExceptionEvent[]): string {
+  return JSON.stringify({ api_key: getAnalyticsConfig().key, batch })
+}
+
+async function send(batch: ExceptionEvent[], canRetry: boolean): Promise<void> {
+  try {
+    const response = await fetch(batchUrl(), {
+      method: 'POST',
+      keepalive: true,
+      body: batchBody(batch),
+    })
+    if (response.status < 500) return
+  } catch {
+    // A network failure: retried once below, like a 5xx.
+  }
+  if (!canRetry) return
+  retrying.set(
+    batch,
+    setTimeout(() => {
+      retrying.delete(batch)
+      void send(batch, false)
+    }, RETRY_DELAY_MS)
+  )
+}
+
+function flush(): void {
+  if (flushTimer !== undefined) clearTimeout(flushTimer)
+  flushTimer = undefined
+  while (queue.length > 0) void send(queue.splice(0, BATCH_SIZE), true)
+}
+
+function enqueue(event: ExceptionEvent): void {
+  queue.push(event)
+  if (queue.length >= BATCH_SIZE) flush()
+  else flushTimer ??= setTimeout(flush, BATCH_WINDOW_MS)
+}
+
+/** On `pagehide`, everything not yet sent, and every batch waiting to retry, goes by beacon. */
+function sendOnPageHide(): void {
+  const unsent = queue.splice(0)
+  for (const [batch, timer] of retrying) {
+    clearTimeout(timer)
+    unsent.push(...batch)
+  }
+  retrying.clear()
+  if (flushTimer !== undefined) clearTimeout(flushTimer)
+  flushTimer = undefined
+  for (let start = 0; start < unsent.length; start += BATCH_SIZE) {
+    const body = batchBody(unsent.slice(start, start + BATCH_SIZE))
+    // Typed, or the beacon goes as text/plain.
+    navigator.sendBeacon(batchUrl(), new Blob([body], { type: 'application/json' }))
+  }
+}
+
+/**
+ * Filters, builds, scrubs and throttles one noted error, then queues it to
+ * send once its identity is known. Does nothing without a PostHog key or in
+ * consent mode `off`. Never throws.
+ * @param error - The noted error.
+ * @param origin - Where it was noticed.
+ * @param handled - True when the app already shows the user an error screen.
+ */
+export function report(error: unknown, origin: ErrorOrigin, handled: boolean): void {
+  try {
+    if (!isAnalyticsAvailable() || accepted >= PAGE_LIMIT || isIgnoredError(error)) return
+    if (!isPageHideInstalled) {
+      isPageHideInstalled = true
+      addEventListener('pagehide', sendOnPageHide)
+    }
+    const isChunkLoad = origin === 'chunk_load' || isChunkLoadError(error)
+    const list = prepareExceptionList(build(error, handled || isChunkLoad))
+    const hasAppFrame = list.some((exception) =>
+      exception.stacktrace?.frames?.some((frame) => frame.in_app)
+    )
+    // A failed chunk fetch has no frames of its own; it is kept because it signals deploy skew.
+    if (!hasAppFrame && !isChunkLoad) return
+    const fingerprint = fingerprintOf(list)
+    const count = fingerprintCounts.get(fingerprint) ?? 0
+    if (count >= FINGERPRINT_LIMIT) return
+    fingerprintCounts.set(fingerprint, count + 1)
+    accepted += 1
+    const routeId = currentRouteId()
+    const event: PendingEvent = {
+      event: '$exception',
+      uuid: uuidv7(),
+      timestamp: new Date().toISOString(),
+      properties: {
+        $exception_list: list,
+        $exception_level: 'error',
+        app: ANALYTICS_APP,
+        origin: isChunkLoad ? 'chunk_load' : origin,
+        release: __APP_RELEASE__,
+        environment: getAnalyticsConfig().environment,
+        ...(routeId === undefined ? {} : { route_id: routeId }),
+        $current_url: sanitizeUrl(location.href, ANALYTICS_URL_QUERY_ALLOWLIST),
+      },
+    }
+    void resolveIdentity().then(
+      (identity) => {
+        enqueue(withIdentity(event, identity))
+      },
+      () => {
+        enqueue(withIdentity(event, null))
+      }
+    )
+  } catch {
+    // Error tracking never fails the page, and never reports itself.
+  }
+}
+
+/** Test-only: forget the throttle, the queue, the settle wait and the timers. */
+export function resetReporterForTests(): void {
+  fingerprintCounts.clear()
+  accepted = 0
+  settleGate = undefined
+  queue = []
+  if (flushTimer !== undefined) clearTimeout(flushTimer)
+  flushTimer = undefined
+  for (const timer of retrying.values()) clearTimeout(timer)
+  retrying.clear()
+  if (isPageHideInstalled) removeEventListener('pagehide', sendOnPageHide)
+  isPageHideInstalled = false
+}
