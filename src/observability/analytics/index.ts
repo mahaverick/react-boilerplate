@@ -16,6 +16,7 @@ export {
   getAnalyticsSessionIdFor,
   grantAnalyticsConsent,
   identifyUser,
+  identityEpoch,
   initAnalytics,
   resetAnalytics,
   setAnalyticsOptOut,

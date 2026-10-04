@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  clearTenantGroup,
+  forgetStaleIdentity,
   grantAnalyticsConsent,
   identifyUser,
+  identityEpoch,
   initAnalytics,
+  resetAnalytics,
   resetAnalyticsForTests,
   setAnalyticsOptOut,
   setTenantGroup,
@@ -90,5 +94,23 @@ describe('whenAnalyticsSettled', () => {
     })
     await initAnalytics(OPT_OUT)
     await expect(whenAnalyticsSettled()).resolves.toBeNull()
+  })
+})
+
+describe('identityEpoch', () => {
+  it.each([
+    ['identifyUser', () => identifyUser('user-a')],
+    ['resetAnalytics', () => resetAnalytics()],
+    ['forgetStaleIdentity', () => forgetStaleIdentity()],
+    ['setTenantGroup', () => setTenantGroup('tenant-1')],
+    ['clearTenantGroup', () => clearTenantGroup()],
+  ])('changes at the call to %s, before the SDK loads', (_name, change) => {
+    const before = identityEpoch()
+    change()
+    expect(identityEpoch()).not.toBe(before)
+  })
+
+  it('stays put while nothing changes the identity', () => {
+    expect(identityEpoch()).toBe(identityEpoch())
   })
 })

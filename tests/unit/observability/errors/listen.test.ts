@@ -45,9 +45,27 @@ describe('noteError', () => {
       expect(reported).toHaveBeenCalledTimes(2)
     })
     expect(reported.mock.calls).toEqual([
-      [first, 'window', false],
-      [second, 'router', true],
+      [first, 'window', false, expect.any(Number)],
+      [second, 'router', true, expect.any(Number)],
     ])
+  })
+
+  it('hands a buffered error over with the time it was noted, and a later one without', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      const noted = Date.now()
+      noteError(new Error('buffered'), 'window', false)
+      vi.useRealTimers()
+      await vi.waitFor(() => {
+        expect(reported).toHaveBeenCalledTimes(1)
+      })
+      expect(reported.mock.calls[0]?.[3]).toBe(noted)
+      noteError(new Error('direct'), 'window', false)
+      expect(reported.mock.calls[1]).toHaveLength(3)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports straight away once the reporter has loaded', async () => {
@@ -67,7 +85,7 @@ describe('noteError', () => {
     await vi.waitFor(() => {
       expect(reported).toHaveBeenCalledTimes(1)
     })
-    expect(reported).toHaveBeenCalledWith(error, 'react', true)
+    expect(reported).toHaveBeenCalledWith(error, 'react', true, expect.any(Number))
   })
 
   it('notes a re-throw of the same crash once: a new object with the same name, message and stack', async () => {
@@ -120,7 +138,7 @@ describe('noteError', () => {
   it('passes a thrown string or other primitive through', async () => {
     noteError('a string', 'rejection', false)
     await vi.waitFor(() => {
-      expect(reported).toHaveBeenCalledWith('a string', 'rejection', false)
+      expect(reported).toHaveBeenCalledWith('a string', 'rejection', false, expect.any(Number))
     })
   })
 
@@ -155,9 +173,9 @@ describe('installErrorListeners', () => {
       expect(reported).toHaveBeenCalledTimes(3)
     })
     expect(reported.mock.calls).toEqual([
-      [thrown, 'window', false],
-      [opaque, 'window', false],
-      [reason, 'rejection', false],
+      [thrown, 'window', false, expect.any(Number)],
+      [opaque, 'window', false, expect.any(Number)],
+      [reason, 'rejection', false, expect.any(Number)],
     ])
   })
 })
@@ -173,8 +191,8 @@ describe('rootErrorOptions', () => {
       expect(reported).toHaveBeenCalledTimes(2)
     })
     expect(reported.mock.calls).toEqual([
-      [uncaught, 'react', false],
-      [caught, 'react', true],
+      [uncaught, 'react', false, expect.any(Number)],
+      [caught, 'react', true, expect.any(Number)],
     ])
     expect(log.mock.calls).toEqual([[uncaught], [caught]])
   })
@@ -238,7 +256,7 @@ describe('a crashed route tree the router re-renders', () => {
     expect(caught[0]).not.toBe(caught[1])
     // …and error tracking noted only the first.
     expect(reported).toHaveBeenCalledTimes(1)
-    expect(reported).toHaveBeenCalledWith(caught[0], 'react', true)
+    expect(reported).toHaveBeenCalledWith(caught[0], 'react', true, expect.any(Number))
     act(() => {
       root.unmount()
     })

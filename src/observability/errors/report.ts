@@ -25,6 +25,7 @@ import { isChunkLoadError } from '@/lib/chunk-load-error'
 import {
   ANALYTICS_PROXY_PATH,
   getAnalyticsConfig,
+  identityEpoch,
   isAnalyticsAvailable,
   whenAnalyticsSettled,
   type AnalyticsIdentity,
@@ -54,6 +55,12 @@ export const RETRY_DELAY_MS = 5_000
 
 /** Exceptions kept from a `cause` chain, the thrown one first. */
 export const CAUSE_DEPTH = 5
+
+/** The most serialized bytes in one request: under the 64 KiB that `keepalive` fetches and beacons share. */
+export const BATCH_MAX_BYTES = 60 * 1024
+
+/** An error handed over later than this after it was noted is sent anonymous: its identity is no longer knowable. */
+export const STALE_ERROR_MS = 10_000
 
 /** What `fetch` throws for a request that never got a response, in Chromium, Firefox and Safari. */
 const NETWORK_FAILURE_MESSAGES = [
@@ -248,12 +255,34 @@ function batchBody(batch: ExceptionEvent[]): string {
   return JSON.stringify({ api_key: getAnalyticsConfig().key, batch })
 }
 
+function byteLength(text: string): number {
+  return new TextEncoder().encode(text).length
+}
+
+/**
+ * Takes the next request's events off the front of a list: at most
+ * `BATCH_SIZE`, and at most `BATCH_MAX_BYTES` once serialized (an event too
+ * big alone still goes alone).
+ */
+function takeBatch(events: ExceptionEvent[]): ExceptionEvent[] {
+  let bytes = byteLength(batchBody([]))
+  let count = 0
+  for (const event of events.slice(0, BATCH_SIZE)) {
+    bytes += byteLength(JSON.stringify(event)) + 1
+    if (count > 0 && bytes > BATCH_MAX_BYTES) break
+    count += 1
+  }
+  return events.splice(0, count)
+}
+
 async function send(batch: ExceptionEvent[], canRetry: boolean): Promise<void> {
   try {
+    const body = batchBody(batch)
+    // A keepalive body over 64 KiB is refused outright, so only one that fits asks for it.
     const response = await fetch(batchUrl(), {
       method: 'POST',
-      keepalive: true,
-      body: batchBody(batch),
+      ...(byteLength(body) <= BATCH_MAX_BYTES ? { keepalive: true } : {}),
+      body,
     })
     if (response.status < 500) return
   } catch {
@@ -272,7 +301,7 @@ async function send(batch: ExceptionEvent[], canRetry: boolean): Promise<void> {
 function flush(): void {
   if (flushTimer !== undefined) clearTimeout(flushTimer)
   flushTimer = undefined
-  while (queue.length > 0) void send(queue.splice(0, BATCH_SIZE), true)
+  while (queue.length > 0) void send(takeBatch(queue), true)
 }
 
 function enqueue(event: ExceptionEvent): void {
@@ -283,18 +312,23 @@ function enqueue(event: ExceptionEvent): void {
 
 /** On `pagehide`, everything not yet sent, and every batch waiting to retry, goes by beacon. */
 function sendOnPageHide(): void {
-  const unsent = queue.splice(0)
-  for (const [batch, timer] of retrying) {
-    clearTimeout(timer)
-    unsent.push(...batch)
-  }
-  retrying.clear()
-  if (flushTimer !== undefined) clearTimeout(flushTimer)
-  flushTimer = undefined
-  for (let start = 0; start < unsent.length; start += BATCH_SIZE) {
-    const body = batchBody(unsent.slice(start, start + BATCH_SIZE))
-    // Typed, or the beacon goes as text/plain.
-    navigator.sendBeacon(batchUrl(), new Blob([body], { type: 'application/json' }))
+  // A listener that throws reaches window `error`, which would report the reporter itself.
+  try {
+    const unsent = queue.splice(0)
+    for (const [batch, timer] of retrying) {
+      clearTimeout(timer)
+      unsent.push(...batch)
+    }
+    retrying.clear()
+    if (flushTimer !== undefined) clearTimeout(flushTimer)
+    flushTimer = undefined
+    while (unsent.length > 0) {
+      const body = batchBody(takeBatch(unsent))
+      // Typed, or the beacon goes as text/plain.
+      navigator.sendBeacon(batchUrl(), new Blob([body], { type: 'application/json' }))
+    }
+  } catch {
+    // The page is going away: there is nothing left to try.
   }
 }
 
@@ -305,9 +339,18 @@ function sendOnPageHide(): void {
  * @param error - The noted error.
  * @param origin - Where it was noticed.
  * @param handled - True when the app already shows the user an error screen.
+ * @param notedAt - When it was noted, `Date.now()` by default; a buffered error
+ *   carries its own. Older than `STALE_ERROR_MS`, it is sent anonymous.
  */
-export function report(error: unknown, origin: ErrorOrigin, handled: boolean): void {
+export function report(
+  error: unknown,
+  origin: ErrorOrigin,
+  handled: boolean,
+  notedAt = Date.now()
+): void {
   try {
+    const epoch = identityEpoch()
+    const isStale = Date.now() - notedAt > STALE_ERROR_MS
     if (!isAnalyticsAvailable() || accepted >= PAGE_LIMIT || isIgnoredError(error)) return
     if (!isPageHideInstalled) {
       isPageHideInstalled = true
@@ -325,11 +368,12 @@ export function report(error: unknown, origin: ErrorOrigin, handled: boolean): v
     if (count >= FINGERPRINT_LIMIT) return
     fingerprintCounts.set(fingerprint, count + 1)
     accepted += 1
-    const routeId = currentRouteId()
+    // A replayed error's route and URL are the page's now, not its own.
+    const routeId = isStale ? undefined : currentRouteId()
     const event: PendingEvent = {
       event: '$exception',
       uuid: uuidv7(),
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(notedAt).toISOString(),
       properties: {
         $exception_list: list,
         $exception_level: 'error',
@@ -338,12 +382,16 @@ export function report(error: unknown, origin: ErrorOrigin, handled: boolean): v
         release: __APP_RELEASE__,
         environment: getAnalyticsConfig().environment,
         ...(routeId === undefined ? {} : { route_id: routeId }),
-        $current_url: sanitizeUrl(location.href, ANALYTICS_URL_QUERY_ALLOWLIST),
+        ...(isStale
+          ? {}
+          : { $current_url: sanitizeUrl(location.href, ANALYTICS_URL_QUERY_ALLOWLIST) }),
       },
     }
+    // The identity is read when it settles, so it counts only if nothing changed it since this error.
     void resolveIdentity().then(
       (identity) => {
-        enqueue(withIdentity(event, identity))
+        const isOwn = !isStale && identityEpoch() === epoch
+        enqueue(withIdentity(event, isOwn ? identity : null))
       },
       () => {
         enqueue(withIdentity(event, null))

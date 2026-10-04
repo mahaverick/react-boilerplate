@@ -132,6 +132,22 @@ export interface AnalyticsIdentity {
   groups?: Record<string, string>
 }
 
+/** Counts the calls that can change who an event belongs to; see `identityEpoch`. */
+let epoch = 0
+
+/**
+ * A number that changes, at the moment of the call and not when the SDK gets
+ * to the queued command, whenever the user, the tenant group or the tab's
+ * standing changes: sign-in, sign-out, a forgotten identity, a tenant group
+ * set or cleared, a supersession. A caller that read it when something
+ * happened and finds it unchanged later knows the identity read since still
+ * belongs to that moment.
+ * @returns The current epoch.
+ */
+export function identityEpoch(): number {
+  return epoch
+}
+
 function notifySettled(): void {
   for (const waiter of settledWaiters) waiter()
   settledWaiters.clear()
@@ -196,6 +212,7 @@ function announceIdentity(distinctId: string): void {
  * `SUPERSEDED_RECHECK_MS` while the tab stays superseded.
  */
 function supersede(): void {
+  epoch += 1
   const now = Date.now()
   if (isSuperseded && now - supersededNotifiedAt < SUPERSEDED_RECHECK_MS) return
   isSuperseded = true
@@ -469,6 +486,7 @@ export function capturePageview(): void {
  * @param userId - The API's user id.
  */
 export function identifyUser(userId: string): void {
+  epoch += 1
   run((ph) => applyIdentity(ph, userId))
 }
 
@@ -488,6 +506,7 @@ export function identifyUser(userId: string): void {
  * @param options - `keepIfAnotherTabHoldsThem`, false by default.
  */
 export function forgetStaleIdentity(options: { keepIfAnotherTabHoldsThem?: boolean } = {}): void {
+  epoch += 1
   if (options.keepIfAnotherTabHoldsThem) askWhoIsSignedIn()
   run((ph) => {
     if (ph.get_property('$user_state') !== 'identified') return
@@ -518,6 +537,7 @@ function askWhoIsSignedIn(): void {
  * resets as any other does.
  */
 export function yieldSharedIdentity(): void {
+  epoch += 1
   run((ph) => {
     // An idle tab's in-memory identity is stale: read what the shared storage holds now.
     ;(ph as PostHog).persistence?.load()
@@ -537,6 +557,7 @@ export function yieldSharedIdentity(): void {
  * @param access - `platform` when staff reached it through platform access.
  */
 export function setTenantGroup(tenantId: string, access: AnalyticsTenantAccess = 'member'): void {
+  epoch += 1
   run((ph) => {
     if (appliedTenant?.id === tenantId && appliedTenant.access === access) return
     const isSwitch = lastTenantId !== null && lastTenantId !== tenantId
@@ -549,6 +570,7 @@ export function setTenantGroup(tenantId: string, access: AnalyticsTenantAccess =
 
 /** Takes the following events out of any tenant group: a page that is not a tenant's. */
 export function clearTenantGroup(): void {
+  epoch += 1
   run((ph) => {
     if (appliedTenant === null) return
     appliedTenant = null
@@ -563,6 +585,7 @@ export function clearTenantGroup(): void {
  * the shared identity too.
  */
 export function resetAnalytics(): void {
+  epoch += 1
   run((ph) => {
     appliedTenant = null
     lastTenantId = null
@@ -590,6 +613,7 @@ export function resetAnalytics(): void {
  * @param userId - The user the refresh returned.
  */
 export function confirmSignedInUser(userId: string): void {
+  epoch += 1
   run((ph) => {
     if (!isSuperseded || signedInUserId !== userId) return
     isSuperseded = false
@@ -814,4 +838,5 @@ export function resetAnalyticsForTests(): void {
   consentListeners.clear()
   supersededListeners.clear()
   settledWaiters.clear()
+  epoch = 0
 }

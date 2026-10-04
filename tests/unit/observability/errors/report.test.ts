@@ -1,10 +1,16 @@
 import { AxiosError, AxiosHeaders, CanceledError } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { whenAnalyticsSettled, type AnalyticsIdentity } from '@/observability/analytics'
+import {
+  identifyUser,
+  resetAnalytics,
+  setTenantGroup,
+  whenAnalyticsSettled,
+  type AnalyticsIdentity,
+} from '@/observability/analytics'
 import { ANALYTICS_APP } from '@/observability/analytics/config'
-import * as listen from '@/observability/errors/listen'
 import { resetErrorListenForTests, setErrorRouteSource } from '@/observability/errors/listen'
 import {
+  BATCH_MAX_BYTES,
   BATCH_SIZE,
   BATCH_WINDOW_MS,
   CAUSE_DEPTH,
@@ -17,6 +23,7 @@ import {
   resetReporterForTests,
   RETRY_DELAY_MS,
   SETTLE_CAP_MS,
+  STALE_ERROR_MS,
   type ExceptionEvent,
 } from '@/observability/errors/report'
 
@@ -53,6 +60,21 @@ const CONSENTED: AnalyticsIdentity = {
 function appError(message: string, at = 'renderWidget', line = 1): Error {
   const error = new TypeError(message)
   error.stack = `TypeError: ${message}\n    at ${at} (${location.origin}/assets/index-abc123.js:${String(line)}:200)\n    at outer (${location.origin}/assets/index-abc123.js:9:10)`
+  return error
+}
+
+/** An error with a 50-frame stack and a cause with another, each frame unique to `index`. */
+function deepError(index: number): Error {
+  const frames = (prefix: string) =>
+    Array.from(
+      { length: 50 },
+      (_unused, frame) =>
+        `    at ${prefix}${String(index)}x${String(frame)} (${location.origin}/assets/index-abc123.js:${String(frame + 1)}:200)`
+    ).join('\n')
+  const cause = new TypeError(`cause ${String(index)}`)
+  cause.stack = `TypeError: cause ${String(index)}\n${frames('inner')}`
+  const error = new TypeError(`deep ${String(index)}`, { cause })
+  error.stack = `TypeError: deep ${String(index)}\n${frames('outer')}`
   return error
 }
 
@@ -173,6 +195,52 @@ describe('report', () => {
     report(appError('later', 'other'), 'window', false)
     await drain()
     expect(sentEvents()).toHaveLength(2)
+  })
+
+  it('sends the consented identity when nothing changed it before analytics settled', async () => {
+    let settle: (identity: AnalyticsIdentity | null) => void = () => {}
+    settled.mockReturnValue(new Promise((resolve) => (settle = resolve)))
+    report(appError('before settle'), 'window', false)
+    settle(CONSENTED)
+    await drain()
+    expect(sentEvents()[0]?.distinct_id).toBe('user-a')
+  })
+
+  it.each([
+    ['the tenant was switched', () => setTenantGroup('tenant-2')],
+    [
+      'the user logged out and in again',
+      () => {
+        resetAnalytics()
+        identifyUser('user-b')
+      },
+    ],
+  ])('sends anonymous when %s before analytics settled', async (_label, change) => {
+    let settle: (identity: AnalyticsIdentity | null) => void = () => {}
+    settled.mockReturnValue(new Promise((resolve) => (settle = resolve)))
+    report(appError('before settle'), 'window', false)
+    change()
+    settle(CONSENTED)
+    await drain()
+    const [event] = sentEvents()
+    expect(event?.distinct_id).not.toBe('user-a')
+    expect(event?.properties.$process_person_profile).toBe(false)
+    expect(event?.properties).not.toHaveProperty('$session_id')
+    expect(event?.properties).not.toHaveProperty('$groups')
+  })
+
+  it('sends an error handed over more than ten seconds after it was noted anonymous, stamped when it was noted', async () => {
+    setErrorRouteSource(() => '/_app/dashboard')
+    window.history.replaceState(null, '', '/dashboard')
+    const notedAt = Date.now() - STALE_ERROR_MS - 1
+    report(appError('replayed'), 'window', false, notedAt)
+    await drain()
+    const [event] = sentEvents()
+    expect(event?.timestamp).toBe(new Date(notedAt).toISOString())
+    expect(event?.properties.$process_person_profile).toBe(false)
+    expect(event?.properties).not.toHaveProperty('$groups')
+    expect(event?.properties).not.toHaveProperty('route_id')
+    expect(event?.properties).not.toHaveProperty('$current_url')
   })
 
   it('sends nothing without a key or in consent mode off', async () => {
@@ -306,30 +374,78 @@ describe('report', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('does not report its own send failing: one retry, no noted error, no rejection, no throw on pagehide', async () => {
-    const unhandled = vi.fn()
-    window.addEventListener('unhandledrejection', unhandled)
-    const noted = vi.spyOn(listen, 'noteError')
+  it('retries a blocked collect once and raises no window error of its own', async () => {
+    const raised = vi.fn()
+    window.addEventListener('error', raised)
     try {
       fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
       report(appError('blocked collect'), 'window', false)
       await drain()
-      expect(fetchMock).toHaveBeenCalledTimes(1)
-      await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS)
+      await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * 3)
       expect(fetchMock).toHaveBeenCalledTimes(2)
-      await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * 2)
-      expect(fetchMock).toHaveBeenCalledTimes(2)
-      expect(noted).not.toHaveBeenCalled()
-      expect(unhandled).not.toHaveBeenCalled()
-
-      beacon.mockReturnValue(false)
-      report(appError('after the block', 'other'), 'window', false)
-      await vi.advanceTimersByTimeAsync(0)
-      expect(() => window.dispatchEvent(new Event('pagehide'))).not.toThrow()
-      expect(beacon).toHaveBeenCalledTimes(1)
+      expect(raised).not.toHaveBeenCalled()
     } finally {
-      window.removeEventListener('unhandledrejection', unhandled)
+      window.removeEventListener('error', raised)
     }
+  })
+
+  it.each([
+    [
+      'throws',
+      () =>
+        Object.defineProperty(navigator, 'sendBeacon', {
+          value: () => {
+            throw new Error('beacon blocked')
+          },
+          configurable: true,
+        }),
+    ],
+    [
+      'is missing',
+      () =>
+        Object.defineProperty(navigator, 'sendBeacon', { value: undefined, configurable: true }),
+    ],
+  ])('raises no window error when sendBeacon %s on pagehide', async (_label, break_) => {
+    const raised = vi.fn()
+    window.addEventListener('error', raised)
+    try {
+      report(appError('queued'), 'window', false)
+      await vi.advanceTimersByTimeAsync(0)
+      break_()
+      window.dispatchEvent(new Event('pagehide'))
+      expect(raised).not.toHaveBeenCalled()
+    } finally {
+      window.removeEventListener('error', raised)
+    }
+  })
+
+  it('splits a burst of deep exceptions into requests of at most 60 KiB, keepalive on each', async () => {
+    for (let index = 0; index < BATCH_SIZE; index += 1) {
+      report(deepError(index), 'window', false)
+    }
+    await vi.advanceTimersByTimeAsync(0)
+    await drain()
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(2)
+    for (const [, init] of fetchMock.mock.calls) {
+      const body = bodyOf(init)
+      expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(BATCH_MAX_BYTES)
+      expect(init?.keepalive).toBe(true)
+      expect((JSON.parse(body) as { batch: unknown[] }).batch.length).toBeLessThanOrEqual(
+        BATCH_SIZE
+      )
+    }
+    expect(sentEvents()).toHaveLength(BATCH_SIZE)
+  })
+
+  it('beacons in chunks of at most 60 KiB on pagehide', async () => {
+    for (let index = 0; index < BATCH_SIZE - 1; index += 1) {
+      report(deepError(index), 'window', false)
+    }
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetchMock).not.toHaveBeenCalled()
+    window.dispatchEvent(new Event('pagehide'))
+    expect(beacon.mock.calls.length).toBeGreaterThan(2)
+    for (const [, blob] of beacon.mock.calls) expect(blob.size).toBeLessThanOrEqual(BATCH_MAX_BYTES)
   })
 
   it('never throws, whatever it is handed', () => {

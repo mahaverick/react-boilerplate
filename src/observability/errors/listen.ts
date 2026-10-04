@@ -7,7 +7,7 @@
 /** Where an error was noticed; sent as the event's `origin`. */
 export type ErrorOrigin = 'window' | 'rejection' | 'react' | 'router' | 'chunk_load'
 
-type Reporter = (error: unknown, origin: ErrorOrigin, handled: boolean) => void
+type Reporter = (error: unknown, origin: ErrorOrigin, handled: boolean, notedAt?: number) => void
 
 /** Errors held until the reporter has loaded; later ones are dropped. */
 export const ERROR_BUFFER_LIMIT = 20
@@ -22,7 +22,7 @@ export const IDLE_LOAD_FALLBACK_MS = 3000
  */
 export const RETHROW_WINDOW_MS = 1000
 
-const buffer: [unknown, ErrorOrigin, boolean][] = []
+const buffer: [unknown, ErrorOrigin, boolean, number][] = []
 const seen = new WeakSet<object>()
 /** When each recently noted name, message and stack was first noted. */
 const recent = new Map<string, number>()
@@ -37,7 +37,9 @@ function load(): void {
   import('./report').then(
     (module) => {
       reporter = module.report
-      for (const [error, origin, handled] of buffer.splice(0)) reporter(error, origin, handled)
+      for (const [error, origin, handled, notedAt] of buffer.splice(0)) {
+        reporter(error, origin, handled, notedAt)
+      }
     },
     () => {
       isLoading = false
@@ -80,7 +82,7 @@ export function noteError(error: unknown, origin: ErrorOrigin, handled: boolean)
       reporter(error, origin, handled)
       return
     }
-    if (buffer.length < ERROR_BUFFER_LIMIT) buffer.push([error, origin, handled])
+    if (buffer.length < ERROR_BUFFER_LIMIT) buffer.push([error, origin, handled, Date.now()])
     load()
   } catch {
     // Error tracking never fails the page.
