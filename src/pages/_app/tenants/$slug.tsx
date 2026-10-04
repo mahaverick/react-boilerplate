@@ -1,4 +1,11 @@
-import { createFileRoute, Link, Outlet, useRouter } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useRouter,
+  type ErrorComponentProps,
+} from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { LoadError } from '@/components/features/load-error'
 import { PlatformAccessBanner } from '@/components/features/platform-access-banner'
 import { Badge } from '@/components/ui/badge'
@@ -7,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { canViewActivity, ROLE_LABELS } from '@/constants/roles'
 import { cn } from '@/lib/utils'
+import { noteError } from '@/observability/errors'
 import { tenantQueryOptions, useMyRole, useTenant, useTenants } from '@/queries/tenant.queries'
 
 /**
@@ -35,10 +43,16 @@ const TENANT_LOAD_ERROR =
 
 /**
  * The route's error boundary. Retry is `router.invalidate()`, which re-runs
- * the loader; `ensureQueryData` finds no data and fetches again.
+ * the loader; `ensureQueryData` finds no data and fetches again. The error
+ * goes to error tracking on mount, which drops it when it is the API's.
  */
-function TenantLoadFailed() {
+function TenantLoadFailed({ error }: ErrorComponentProps) {
   const router = useRouter()
+
+  useEffect(() => {
+    noteError(error, 'router', true)
+  }, [error])
+
   return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void router.invalidate()} />
 }
 

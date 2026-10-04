@@ -7,12 +7,14 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { AxiosError } from 'axios'
 import { http } from 'msw'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
 import * as analytics from '@/observability/analytics'
+import { noteError } from '@/observability/errors'
 import { installRouteAnalytics } from '@/observability/route-analytics'
 import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient } from '@/router'
@@ -23,6 +25,11 @@ import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantAccess } from '@/types/api.types'
+
+vi.mock('@/observability/errors', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/observability/errors')>()),
+  noteError: vi.fn(),
+}))
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -144,6 +151,18 @@ describe('tenant detail', () => {
     expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     // Not the 404 panel: the tenant may be perfectly fine and unreachable.
     expect(screen.queryByText(/Tenant not available/i)).not.toBeInTheDocument()
+  })
+
+  it('hands the load failure to error tracking as handled, from the router', async () => {
+    vi.mocked(noteError).mockClear()
+    server.use(
+      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+      http.get('/api/v1/tenants/acme', () => fail('Something went wrong', 500))
+    )
+    renderAppAt('/tenants/acme')
+
+    await screen.findByRole('alert')
+    expect(noteError).toHaveBeenCalledWith(expect.any(AxiosError), 'router', true)
   })
 
   it('says a suspended tenant is suspended, not that it is missing', async () => {
