@@ -14,6 +14,7 @@ import {
   IDENTITY_REPAIR_DELAY_MS,
   initAnalytics,
   MAX_QUEUED_COMMANDS,
+  registerFeatureProperties,
   resetAnalytics,
   resetAnalyticsForTests,
   setAnalyticsOptOut,
@@ -529,6 +530,36 @@ describe('the event guard', () => {
       $cookieless_mode: true,
     })
     expect(beforeSend(cookieless)).toEqual(cookieless)
+  })
+
+  it('sends exactly this tab’s $feature/* properties, cookieless events included, and none on replay', async () => {
+    registerFeatureProperties({ '$feature/test_exp': 'bold' })
+    sdk.calls = []
+    const sent = beforeSend(
+      eventOf('$pageview', {
+        ...SIGNED_IN,
+        '$feature/test_exp': 'control',
+        '$feature/other_user_flag': true,
+      })
+    )
+    expect(sent?.properties).toEqual({ ...SIGNED_IN, '$feature/test_exp': 'bold' })
+    const cookieless = beforeSend(
+      eventOf('$pageview', {
+        distinct_id: '$posthog_cookieless',
+        $cookieless_mode: true,
+        '$feature/other_user_flag': true,
+      })
+    )
+    expect(cookieless?.properties).toEqual({
+      distinct_id: '$posthog_cookieless',
+      $cookieless_mode: true,
+      '$feature/test_exp': 'bold',
+    })
+    const snapshot = eventOf('$snapshot', { distinct_id: 'user-a' })
+    expect(beforeSend(snapshot)).toEqual(snapshot)
+    // Normalising an event never writes to the SDK or its storage.
+    await Promise.resolve()
+    expect(sdk.calls).toEqual([])
   })
 
   it('a sign-out landing before the repair is due cancels it: no /login event goes to the signed-out user', () => {

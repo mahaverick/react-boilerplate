@@ -419,7 +419,7 @@ test.describe('analytics against a fake PostHog', () => {
   )
 
   test(
-    'a stale flag cache from an earlier visit never reaches an event: the server value does',
+    'a stale flag cache or super property from an earlier visit never reaches an event: the server value does',
     { tag: '@no-api' },
     async ({ page }) => {
       await stubSignedInApi(page)
@@ -430,7 +430,9 @@ test.describe('analytics against a fake PostHog', () => {
        * `ph_<token>_posthog` (the app sets no `persistence_name`). Its flag
        * cache lives in two of that object's fields, `$enabled_feature_flags`
        * (a key to value map) and `$active_feature_flags` (the keys); each
-       * event then gets `$feature/<key>` from them. Seeded before any page
+       * event then gets `$feature/<key>` from them. The same object also holds
+       * every `register()`ed super property at its top level, where another
+       * tab can leave a `$feature/<key>` of its own. Seeded before any page
        * script runs, as a returning visitor's browser would hold it.
        */
       await page.addInitScript(() => {
@@ -439,6 +441,7 @@ test.describe('analytics against a fake PostHog', () => {
           JSON.stringify({
             $enabled_feature_flags: { example_cta_experiment: 'control' },
             $active_feature_flags: ['example_cta_experiment'],
+            '$feature/example_cta_experiment': 'control',
           })
         )
       })
