@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/mahaverick/react-boilerplate/compare/v1.3.0...v1.4.0) (2026-10-05)
+
+
+### Features
+
+* browser error tracking and source maps (sp5c) ([#47](https://github.com/mahaverick/react-boilerplate/issues/47)) ([e5ee0a0](https://github.com/mahaverick/react-boilerplate/commit/e5ee0a043967c61aa9e393b800df57958813b73a))
+
 ## [1.3.0](https://github.com/mahaverick/react-boilerplate/compare/v1.2.1...v1.3.0) (2026-10-03)
 
 
