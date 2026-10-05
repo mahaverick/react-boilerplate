@@ -84,23 +84,23 @@ and reads the analytics settings from `.env` under their `VITE_` names
 
 ## Scripts
 
-| Script                | What it does                                                                                                                                                                           |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`            | Dev server on :5173 with the `/api` proxy                                                                                                                                              |
-| `pnpm build`          | `tsc -b` then `vite build` → `dist/`                                                                                                                                                   |
-| `pnpm preview`        | Serve the built bundle locally                                                                                                                                                         |
-| `pnpm lint`           | eslint **and** `prettier --check` — both must pass                                                                                                                                     |
-| `pnpm typecheck`      | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                                                                                                                        |
-| `pnpm test`           | Vitest, single pass                                                                                                                                                                    |
-| `pnpm test:coverage`  | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it                                                                                                  |
-| `pnpm test:watch`     | Vitest in watch mode                                                                                                                                                                   |
-| `pnpm format`         | `prettier --write`                                                                                                                                                                     |
-| `pnpm check:bundle`   | Builds in memory; fails on one JS chunk, first-visit JS over budget or holding posthog-js or `@posthog/core`, the error listener over 1 KB gzipped, or devtools in a chunk. CI runs it |
-| `pnpm lint:docs`      | History phrasing and broken links in markdown and config comments. CI runs it                                                                                                          |
-| `pnpm test:e2e`       | Playwright `fixtures` project against the MSW harness; no backend needed. CI runs it                                                                                                   |
-| `pnpm test:e2e:live`  | Playwright `live` project; needs express-boilerplate on :4040                                                                                                                          |
-| `pnpm test:e2e:nginx` | Builds the production image and runs the Playwright `nginx` project against it on :8088, started with the run-time settings CI uses; all but the `@no-api` tests need a live API       |
-| `pnpm test:contrast`  | axe colour contrast in a real browser, both themes; no backend needed                                                                                                                  |
+| Script                | What it does                                                                                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm dev`            | Dev server on :5173 with the `/api` proxy                                                                                                                                                                                                  |
+| `pnpm build`          | `tsc -b` then `vite build` → `dist/`                                                                                                                                                                                                       |
+| `pnpm preview`        | Serve the built bundle locally                                                                                                                                                                                                             |
+| `pnpm lint`           | eslint **and** `prettier --check` — both must pass                                                                                                                                                                                         |
+| `pnpm typecheck`      | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                                                                                                                                                                            |
+| `pnpm test`           | Vitest, single pass                                                                                                                                                                                                                        |
+| `pnpm test:coverage`  | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it                                                                                                                                                      |
+| `pnpm test:watch`     | Vitest in watch mode                                                                                                                                                                                                                       |
+| `pnpm format`         | `prettier --write`                                                                                                                                                                                                                         |
+| `pnpm check:bundle`   | Builds in memory; fails on one JS chunk, first-visit JS over budget or holding posthog-js or `@posthog/core`, the error listener over 1 KB gzipped, or devtools in a chunk. CI runs it                                                     |
+| `pnpm lint:docs`      | History phrasing and broken links in markdown and config comments. CI runs it                                                                                                                                                              |
+| `pnpm test:e2e`       | Playwright `fixtures` project against the MSW harness; no backend needed. CI runs it                                                                                                                                                       |
+| `pnpm test:e2e:live`  | Playwright `live` project; needs express at `E2E_API_ORIGIN` (default :4040); `flags.test.ts` also needs `E2E_FLAGS_SET_CMD` (`<cmd> <key> <value>`; `example_beta_page` on\|off, `example_cta_experiment` control\|bold at 100 % rollout) |
+| `pnpm test:e2e:nginx` | Builds the production image and runs the Playwright `nginx` project against it on :8088, started with the run-time settings CI uses; all but the `@no-api` tests need a live API                                                           |
+| `pnpm test:contrast`  | axe colour contrast in a real browser, both themes; no backend needed                                                                                                                                                                      |
 
 CI holds eslint to **zero warnings** as well as zero errors
 (`pnpm exec eslint . --max-warnings 0`).
@@ -121,6 +121,7 @@ src/
   http/         axios client, interceptors, the single-flight session refresh
   lib/          small helpers with no app knowledge
   observability/analytics/  the PostHog facade (lazy posthog-js, masking, handoff, typed events)
+  observability/flags/      flag reads, gating, experiment exposure and `$feature/*` registration
   pages/        TanStack Router file routes (exempt from the kebab-case rules)
   queries/      TanStack Query options and mutations, one file per resource
   schemas/      Zod schemas mirroring the backend validators
@@ -493,6 +494,34 @@ settings and `API_UPSTREAM` pointing at that express, then
 `E2E_LIVE=1 E2E_NGINX=1 E2E_ANALYTICS=1 E2E_NGINX_ORIGIN=<image origin> E2E_API_ORIGIN=<express origin> E2E_API_DIR=<express checkout> pnpm exec playwright test --project=nginx e2e/nginx/analytics.test.ts`.
 The suite starts the fake PostHog on :4063 itself (`E2E_FAKE_POSTHOG_PORT`
 moves it).
+
+## Feature flags
+
+Flags are declared in express-boilerplate's registry, evaluated by express
+and read here from three endpoints: `GET /api/v1/tenants/:slug/flags` on a
+tenant page, `GET /api/v1/flags` elsewhere, and the matching
+`POST …/flags/exposures` for experiments. With flags unconfigured in express,
+both reads answer every flag's fallback, so the app behaves as if every flag
+were off.
+
+- **Reading.** `useFlag(key)`, `useVariant(key)` and `<Flag name variant?>`
+  from `src/observability/flags/`. Each shows the fallback while the values
+  load or after a failed read. The `_app` loader warms the page's scope, and
+  values refetch on a tenant switch, on focus after five minutes and every
+  ten minutes.
+- **Gating.** A tenant tab or sidebar item takes `flag` and is hidden while it
+  is off; a route's `beforeLoad` calls `requireClientFlag`, which answers not
+  found. The API route behind it is gated by express, which is what actually
+  refuses.
+- **Experiments.** Reading an experiment flag reports its exposure once per
+  tab session; express records `$feature_flag_called` when the user matched a
+  release condition or is in the holdout. Every browser event
+  carries `$feature/<key>` for the metrics.
+- **Adding a flag.** Add it to express's registry and run `flags:sync` there,
+  then copy its key, kind, variants, fallback and `experiment` into
+  `src/observability/flags/flag-keys.ts`, and its fallback into
+  `TEST_FLAG_FALLBACKS` (`tests/mocks/handlers.ts`) and the harness's
+  `FLAG_FALLBACKS`.
 
 ## Error tracking (PostHog)
 

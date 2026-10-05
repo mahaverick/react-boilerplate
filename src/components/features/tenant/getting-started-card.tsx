@@ -15,7 +15,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Card,
   CardAction,
@@ -27,7 +27,9 @@ import {
 import { canManageTenant, type MembershipRole } from '@/constants/roles'
 import { useFocusAfter, type FocusAfter } from '@/hooks/use-focus-after'
 import { messageFrom } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 import { analyticsKey, track, type AnalyticsKey } from '@/observability/analytics'
+import { useVariant } from '@/observability/flags/flag-hooks'
 import {
   tenantOnboardingQueryOptions,
   useCompleteOnboardingStep,
@@ -159,6 +161,35 @@ function MarkDoneButton({
   )
 }
 
+/** A step's link, as `STEP_LINKS` describes it. */
+type StepLinkTarget = NonNullable<ReturnType<(typeof STEP_LINKS)['get']>>
+
+/**
+ * A step's call to action, styled by the `example_cta_experiment` variant:
+ * an underlined link for `control`, a filled button for `bold`. Reading the
+ * variant here, where the link renders, reports the exposure only for a
+ * viewer who sees a link. A click sends `feature_cta_clicked`, the
+ * experiment's metric, which carries `$feature/example_cta_experiment`.
+ */
+function StepLink({ slug, link }: { slug: string; link: StepLinkTarget }) {
+  const variant = useVariant('example_cta_experiment')
+  return (
+    <Link
+      to={link.to}
+      params={{ slug }}
+      className={cn(
+        'justify-self-start',
+        variant === 'bold'
+          ? buttonVariants({ size: 'sm' })
+          : 'text-sm font-medium underline underline-offset-4'
+      )}
+      onClick={() => track('feature_cta_clicked', { cta: link.cta })}
+    >
+      {link.label}
+    </Link>
+  )
+}
+
 /**
  * The one thing a pending step offers this viewer: Mark done for a manual
  * step, a link for an auto step the viewer can do from another page, the
@@ -186,16 +217,7 @@ function StepAction({
   const link = STEP_LINKS.get(step.key)
   if (!link) return null
   if (!viewer.canManage) return <p className="text-sm text-muted-foreground">{OWNER_OR_ADMIN}</p>
-  return (
-    <Link
-      to={link.to}
-      params={{ slug }}
-      className="justify-self-start text-sm font-medium underline underline-offset-4"
-      onClick={() => track('feature_cta_clicked', { cta: link.cta })}
-    >
-      {link.label}
-    </Link>
-  )
+  return <StepLink slug={slug} link={link} />
 }
 
 function StepItem({

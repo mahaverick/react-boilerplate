@@ -39,6 +39,9 @@ export type AnalyticsTenantAccess = 'member' | 'platform'
 /** The super property that carries `AnalyticsTenantAccess` on tenant pages. */
 export const TENANT_ACCESS_PROPERTY = 'tenant_access'
 
+/** A `$feature/<flag>` super property: that flag's value, carried by every browser event. */
+export type FeaturePropertyName = `$feature/${string}`
+
 /** posthog-js's marker on an event sent cookieless (`required` mode, consent refused). */
 const COOKIELESS_FLAG_PROPERTY = '$cookieless_mode'
 
@@ -93,6 +96,17 @@ let activeConfig: AnalyticsConfig | null = null
  * reads the state of a later one.
  */
 let appliedTenant: AppliedTenant | null = null
+/**
+ * The `$feature/*` properties the flags module registered for the signed-in
+ * user. The event guard sends exactly these on every event but replay, and
+ * `registerSuperProperties` puts them back in the SDK after any reset of it,
+ * including a re-identify of the same person. Written only inside a command,
+ * like `appliedTenant`, and emptied when the person is forgotten:
+ * `resetAnalytics` (superseded or not) and `forgetStaleIdentity` unless
+ * another tab holds the person. A reset of the SDK that keeps the person
+ * leaves them in place.
+ */
+let featureProperties: Record<FeaturePropertyName, boolean | string> = {}
 /** The last tenant grouped since sign-in, kept across non-tenant pages so `tenant_switched` compares tenants. */
 let lastTenantId: string | null = null
 /**
@@ -215,7 +229,7 @@ function becomeInert(): void {
 
 /** The super properties on every browser event; `reset()` clears them, so they are set again after it. */
 function registerSuperProperties(ph: PostHogInterface): void {
-  ph.register({ app: ANALYTICS_APP, environment: activeConfig?.environment })
+  ph.register({ app: ANALYTICS_APP, environment: activeConfig?.environment, ...featureProperties })
 }
 
 /** Puts the SDK's tenant group and `tenant_access` in line with `appliedTenant`. */
@@ -234,13 +248,17 @@ function applyTenant(ph: PostHogInterface): void {
 }
 
 /**
- * Starts the loaded SDK. The super properties are registered first, and any
- * tenant group a previous page load persisted is dropped: the tenant comes
- * from the route this load resolves, never from storage another tab wrote.
+ * Starts the loaded SDK. Flags an earlier visit cached are purged first
+ * (`updateFlags({})`): posthog-js would otherwise add them to every event as
+ * `$feature/*`, overriding the server's values the flags module registers.
+ * The super properties are registered next, and any tenant group a previous
+ * page load persisted is dropped: the tenant comes from the route this load
+ * resolves, never from storage another tab wrote.
  */
 function onLoaded(instance: PostHogInterface): void {
   client = instance
   status = 'ready'
+  execute((ph) => ph.updateFlags({}), instance)
   execute(registerSuperProperties, instance)
   execute(applyTenant, instance)
   const pending = queue
@@ -355,20 +373,48 @@ function repairedProperties(properties: Record<string, unknown>): Record<string,
 }
 
 /**
- * Runs on every event before it is sanitised and sent. While a user is
- * signed in, an event carrying any other distinct id is dropped: a sibling
- * sharing the identity cookie re-attributed it. If another tab of this app
- * identified that person, this tab is superseded (see
+ * The event's properties with exactly this tab's `featureProperties` as its
+ * `$feature/*` properties, or null when it already carries exactly those.
+ * posthog-js keeps every `register()`ed property across an identity it
+ * adopts from another tab and saves them into the storage the tabs share, so
+ * the SDK can hold a variant another tab, or this tab's signed-out user,
+ * registered.
+ */
+function normalisedFeatureProperties(
+  properties: Record<string, unknown>
+): Record<string, unknown> | null {
+  const carried = Object.keys(properties).filter((name) => name.startsWith('$feature/'))
+  const registered = Object.entries(featureProperties)
+  const isExact =
+    carried.length === registered.length &&
+    registered.every(([name, value]) => properties[name] === value)
+  if (isExact) return null
+  const normalised: Record<string, unknown> = { ...properties }
+  for (const name of carried) delete normalised[name]
+  for (const [name, value] of registered) normalised[name] = value
+  return normalised
+}
+
+/**
+ * Runs on every event before it is sanitised and sent. Every event but replay
+ * (`$snapshot`, which carries no super properties) leaves with exactly the
+ * `$feature/*` properties this tab registered: any other one the SDK holds
+ * (see `normalisedFeatureProperties`) is removed from the event, never from
+ * storage. Cookieless events then go as they are: they carry a placeholder
+ * id. While a user is signed in, an event carrying any other distinct id is
+ * dropped: a sibling sharing the identity cookie re-attributed it. If another
+ * tab of this app identified that person, this tab is superseded (see
  * `subscribeIdentitySuperseded`); otherwise the user is identified again
  * after `IDENTITY_REPAIR_DELAY_MS`. An event missing this tab's app,
  * environment or tenant group (a sibling's reset clears them) gets them back,
- * and the SDK is repaired for the next event. Cookieless events carry a
- * placeholder id and are left alone, as is replay (`$snapshot`), which
- * carries no super properties.
- * @param event - The event posthog-js is about to send.
+ * and the SDK is repaired for the next event.
+ * @param captured - The event posthog-js is about to send.
  * @returns The event to send, or null to drop it.
  */
-function guardEvent(event: CaptureResult): CaptureResult | null {
+function guardEvent(captured: CaptureResult): CaptureResult | null {
+  const normalised =
+    captured.event === '$snapshot' ? null : normalisedFeatureProperties(captured.properties ?? {})
+  const event = normalised === null ? captured : { ...captured, properties: normalised }
   const properties = (event.properties ?? {}) as Record<string, unknown>
   if (properties[COOKIELESS_FLAG_PROPERTY] === true) return event
   if (isSuperseded) {
@@ -496,10 +542,12 @@ export function forgetStaleIdentity(options: { keepIfAnotherTabHoldsThem?: boole
   bumpIdentityEpoch()
   if (options.keepIfAnotherTabHoldsThem) askWhoIsSignedIn()
   run((ph) => {
-    if (ph.get_property('$user_state') !== 'identified') return
     const isHeldElsewhere =
       options.keepIfAnotherTabHoldsThem === true && liveSiblingIdentities.has(ph.get_distinct_id())
-    if (!isHeldElsewhere) resetKeepingConsent(ph)
+    if (isHeldElsewhere) return
+    featureProperties = {}
+    if (ph.get_property('$user_state') !== 'identified') return
+    resetKeepingConsent(ph)
   })
 }
 
@@ -566,16 +614,55 @@ export function clearTenantGroup(): void {
 }
 
 /**
+ * Registers flag values as `$feature/<flag>` super properties, so every
+ * following event, autocapture and page views included, carries them for
+ * experiment metrics. They are registered again after a sibling's reset and
+ * dropped by any reset of the person. While this tab is superseded they are
+ * kept for its events only: the SDK, and the storage it shares with the tab
+ * that superseded it, are left alone. A no-op when analytics is inert.
+ * @param properties - `$feature/<flag>` names and their values.
+ */
+export function registerFeatureProperties(
+  properties: Record<FeaturePropertyName, boolean | string>
+): void {
+  run((ph) => {
+    featureProperties = { ...featureProperties, ...properties }
+    // The SDK holds the other tab's person: registering would save these into storage as theirs.
+    if (!isSuperseded) ph.register(properties)
+  })
+}
+
+/**
+ * Removes `$feature/<flag>` super properties registered by
+ * `registerFeatureProperties`, from this tab's events at once and from the
+ * SDK unless this tab is superseded.
+ * @param names - The property names to remove.
+ */
+export function unregisterFeatureProperties(names: readonly FeaturePropertyName[]): void {
+  run((ph) => {
+    const next = { ...featureProperties }
+    for (const name of names) {
+      delete next[name]
+      if (!isSuperseded) ph.unregister(name)
+    }
+    featureProperties = next
+  })
+}
+
+/**
  * Forgets the person and the tenant: sign-out, forced or chosen. The consent
  * answer survives. A tab superseded by another tab's sign-in forgets its own
  * state only: resetting the SDK would sign that other tab's person out of
- * the shared identity too.
+ * the shared identity too. Any `$feature/*` property the SDK still holds
+ * from this tab's user stays there, and the event guard keeps it off every
+ * event this tab sends.
  */
 export function resetAnalytics(): void {
   bumpIdentityEpoch()
   run((ph) => {
     appliedTenant = null
     lastTenantId = null
+    featureProperties = {}
     if (identityRepair !== null) {
       clearTimeout(identityRepair)
       identityRepair = null
@@ -811,6 +898,7 @@ export function resetAnalyticsForTests(): void {
   queue = []
   activeConfig = null
   appliedTenant = null
+  featureProperties = {}
   lastTenantId = null
   signedInUserId = null
   isRepairScheduled = false

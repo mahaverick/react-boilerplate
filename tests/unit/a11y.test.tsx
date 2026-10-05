@@ -32,6 +32,7 @@ import {
   ok,
   tenantDetail,
   TEST_INVITATION_TOKEN,
+  testFlags,
   testOnboarding,
   testUser,
 } from '@/tests/mocks/handlers'
@@ -214,6 +215,13 @@ function mockSignedInData() {
     http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.')),
     http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
     http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
+    // The Beta tab and page are graded too, so the reference flag is on.
+    http.get('/api/v1/tenants/acme/flags', () =>
+      ok(testFlags({ example_beta_page: true }), 'Flags retrieved.')
+    ),
+    http.get('/api/v1/tenants/acme/beta', () =>
+      ok({ slug: 'acme', enabledAt: '2026-10-05T09:00:00.000Z' }, 'Beta retrieved.')
+    ),
     http.get('/api/v1/tenants/acme/audit-log', () =>
       ok({ entries: AUDIT_ENTRIES, nextCursor: 'c2' }, 'Audit log retrieved.')
     ),
@@ -572,6 +580,11 @@ describe('signed-in pages', () => {
       'tenant settings',
       '/tenants/acme/settings',
       () => screen.findByRole('button', { name: 'Save settings' }),
+    ],
+    [
+      'tenant beta',
+      '/tenants/acme/beta',
+      () => screen.findByText('Beta features are on for acme.'),
     ],
     [
       'tenant activity',

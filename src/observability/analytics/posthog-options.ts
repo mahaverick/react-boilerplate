@@ -72,7 +72,11 @@ export interface PosthogOptionsInput {
 }
 
 /**
- * The init options. `required` adds `cookieless_mode: 'on_reject'`: until the
+ * The init options. posthog-js does no flag work
+ * (`advanced_disable_feature_flags`): express evaluates every flag, and
+ * `advanced_disable_flags` is not used because it also stops remote config,
+ * so session replay would never start. `required` adds
+ * `cookieless_mode: 'on_reject'`: until the
  * banner is answered nothing is captured, and a refusal leaves only
  * cookieless, server-hashed counts. posthog-js 1.435 has no `cookie_domain`
  * option; `cross_subdomain_cookie` finds the registrable domain itself.
@@ -90,6 +94,7 @@ export function buildPosthogOptions(input: PosthogOptionsInput): Partial<PostHog
     autocapture: true,
     capture_pageview: false,
     capture_pageleave: true,
+    advanced_disable_feature_flags: true,
     mask_all_element_attributes: true,
     mask_personal_data_properties: true,
     custom_personal_data_properties: [...CUSTOM_PERSONAL_DATA_PROPERTIES],

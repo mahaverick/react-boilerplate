@@ -110,6 +110,8 @@ export const instance = {
   ),
   get_distinct_id: vi.fn(() => sdk.distinctId),
   get_session_id: vi.fn(() => sdk.sessionId),
+  /** Not recorded in `calls`: `onLoaded` purges cached flags with it before anything else. */
+  updateFlags: vi.fn<(flags: Record<string, boolean | string>) => void>(),
   sessionManager: {
     checkAndGetSessionAndWindowId: vi.fn(() => ({
       sessionId: sdk.sessionId,

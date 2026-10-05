@@ -34,6 +34,7 @@ describe('buildPosthogOptions', () => {
       ui_host: 'https://us.posthog.com',
       defaults: '2026-08-30',
       autocapture: true,
+      advanced_disable_feature_flags: true,
       mask_all_element_attributes: true,
       mask_personal_data_properties: true,
       custom_personal_data_properties: [
@@ -58,6 +59,8 @@ describe('buildPosthogOptions', () => {
       },
     })
     expect(options.custom_personal_data_properties).not.toBe(CUSTOM_PERSONAL_DATA_PROPERTIES)
+    // advanced_disable_flags would also stop remote config, and session replay with it.
+    expect(options).not.toHaveProperty('advanced_disable_flags')
   })
 
   it('takes the persistence name and cookie scope from its input, and from the config constants for this app', () => {

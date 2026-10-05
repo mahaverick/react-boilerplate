@@ -145,6 +145,18 @@ async function stubSignedInApi(page: Page): Promise<void> {
         )
       )
     }
+    // Express's flag answer: the CTA experiment at bold, so events can be checked for its $feature property.
+    if (
+      pathname === '/api/v1/flags' ||
+      /^\/api\/v1\/tenants\/(acme|globex)\/flags$/.test(pathname)
+    ) {
+      return route.fulfill(
+        envelope({
+          flags: { example_beta_page: false, example_cta_experiment: 'bold' },
+          evaluatedAt: '2026-10-05T09:00:00.000Z',
+        })
+      )
+    }
     const detail = /^\/api\/v1\/tenants\/(acme|globex)$/.exec(pathname)?.[1]
     if (detail === 'acme' || detail === 'globex') {
       return route.fulfill(envelope({ ...tenantRow(detail), role: 'owner', access: 'member' }))
@@ -388,6 +400,65 @@ test.describe('analytics against a fake PostHog', () => {
             ? STUB_TENANTS.globex.id
             : undefined
         expect(tenantOf(event), `${event.event} on ${pathname}`).toBe(expected)
+      }
+
+      // posthog-js does no flag work: express is the only evaluator, and the app registers its answer.
+      expect(fake.requests.filter((request) => /^\/(flags|decide)\/?$/.test(request.path))).toEqual(
+        []
+      )
+      await expect
+        .poll(
+          () =>
+            fake
+              .events()
+              .some((event) => event.properties['$feature/example_cta_experiment'] === 'bold'),
+          poll
+        )
+        .toBe(true)
+    }
+  )
+
+  test(
+    'a stale flag cache or super property from an earlier visit never reaches an event: the server value does',
+    { tag: '@no-api' },
+    async ({ page }) => {
+      await stubSignedInApi(page)
+      const poll = { intervals: [500], timeout: 30_000 }
+
+      /**
+       * posthog-js 1.435.6 persists one JSON object in localStorage under
+       * `ph_<token>_posthog` (the app sets no `persistence_name`). Its flag
+       * cache lives in two of that object's fields, `$enabled_feature_flags`
+       * (a key to value map) and `$active_feature_flags` (the keys); each
+       * event then gets `$feature/<key>` from them. The same object also holds
+       * every `register()`ed super property at its top level, where another
+       * tab can leave a `$feature/<key>` of its own. Seeded before any page
+       * script runs, as a returning visitor's browser would hold it.
+       */
+      await page.addInitScript(() => {
+        window.localStorage.setItem(
+          'ph_phc_test_key_not_real_posthog',
+          JSON.stringify({
+            $enabled_feature_flags: { example_cta_experiment: 'control' },
+            $active_feature_flags: ['example_cta_experiment'],
+            '$feature/example_cta_experiment': 'control',
+          })
+        )
+      })
+
+      await page.goto('/tenants/acme')
+      await expect(page.getByRole('heading', { name: 'Acme Corp', level: 1 })).toBeVisible()
+      await expect
+        .poll(
+          () =>
+            fake
+              .events()
+              .some((event) => event.properties['$feature/example_cta_experiment'] === 'bold'),
+          poll
+        )
+        .toBe(true)
+      for (const event of fake.events()) {
+        expect(event.properties['$feature/example_cta_experiment'], event.event).not.toBe('control')
       }
     }
   )

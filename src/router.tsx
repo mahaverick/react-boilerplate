@@ -11,6 +11,7 @@ import {
 } from '@/http/session'
 import { forgetStaleIdentity } from '@/observability/analytics'
 import { setErrorRouteSource } from '@/observability/errors'
+import { installFlagScopeReset } from '@/observability/flags/flag-scope'
 import { installRouteAnalytics } from '@/observability/route-analytics'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -35,7 +36,7 @@ export const queryClient = new QueryClient({
 export async function bootstrapSession(): Promise<void> {
   if (useAuthStore.getState().isBootstrapped) return
   installAuthBroadcastListener()
-  installAnalyticsIdentity()
+  installAnalyticsIdentity(queryClient)
   let isVerdict = false
   try {
     await ensureSession()
@@ -64,6 +65,7 @@ export const router = createRouter({
 })
 
 installRouteAnalytics(router)
+installFlagScopeReset(router, queryClient)
 setErrorRouteSource(() => router.state.matches.at(-1)?.routeId)
 
 declare module '@tanstack/react-router' {

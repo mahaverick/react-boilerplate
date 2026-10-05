@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import type { CaptureResult, PostHog } from 'posthog-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ANALYTICS_APP } from '@/observability/analytics/config'
+import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/analytics/config'
 import { settle } from '@/tests/fixtures/timing'
 import { analyticsConfigFor } from '@/tests/mocks/posthog'
 import { server } from '@/tests/mocks/server'
@@ -370,5 +370,94 @@ describe('two tabs of this app', () => {
     lone.facade.resetAnalytics()
     expect(lone.ph.get_distinct_id()).not.toBe('user-a')
     expect(lone.ph.get_property('$user_state')).not.toBe('identified')
+  })
+
+  /** Every `$feature/*` property each event carries, by event. */
+  const featuresOf = (sent: CaptureResult[]) =>
+    sent.map((event) =>
+      Object.fromEntries(
+        Object.entries(event.properties).filter(([name]) => name.startsWith('$feature/'))
+      )
+    )
+
+  /** The `$feature/example_cta_experiment` the shared storage holds, and for whom. */
+  const storedVariant = () => {
+    const name = ANALYTICS_PERSISTENCE_NAME
+      ? `ph_${ANALYTICS_PERSISTENCE_NAME}`
+      : `ph_${KEY}_posthog`
+    const blob = JSON.parse(window.localStorage.getItem(name) ?? '{}') as Record<string, unknown>
+    return { distinctId: blob.distinct_id, variant: blob['$feature/example_cta_experiment'] }
+  }
+
+  it('a superseded tab never sends its signed-out user’s variants under the other tab’s person', async () => {
+    const first = await openTab()
+    const second = await openTab()
+    const superseded = vi.fn()
+    first.facade.subscribeIdentitySuperseded(superseded)
+    first.facade.identifyUser('user-a')
+    first.facade.registerFeatureProperties({ '$feature/example_cta_experiment': 'control' })
+    second.facade.identifyUser('user-b')
+    await until(() => {
+      first.facade.capturePageview()
+      return superseded.mock.calls.length > 0
+    })
+    // posthog-js keeps A's variant across the adopted identity and saves it, debounced, as B's.
+    await until(() => storedVariant().variant === 'control')
+    expect(storedVariant().distinctId).toBe('user-b')
+    // The refresh returned user B: the app hands the identity over and signs the first tab out.
+    first.facade.yieldSharedIdentity()
+    first.facade.resetAnalytics()
+
+    const firstFrom = first.sent.length
+    first.facade.capturePageview()
+    first.facade.capturePageview()
+    const secondFrom = second.sent.length
+    second.facade.capturePageview()
+    // A new page load as B reads the storage the first tab wrote.
+    const reloaded = await openTab()
+    reloaded.facade.identifyUser('user-b')
+    const reloadedFrom = reloaded.sent.length
+    reloaded.facade.capturePageview()
+
+    expect(pageviews(first.sent.slice(firstFrom))).toEqual(['user-b', 'user-b'])
+    expect(featuresOf(first.sent.slice(firstFrom))).toEqual([{}, {}])
+    expect(pageviews(second.sent.slice(secondFrom))).toEqual(['user-b'])
+    expect(featuresOf(second.sent.slice(secondFrom))).toEqual([{}])
+    expect(pageviews(reloaded.sent.slice(reloadedFrom))).toEqual(['user-b'])
+    expect(featuresOf(reloaded.sent.slice(reloadedFrom))).toEqual([{}])
+  })
+
+  it('a superseded tab registers no variant into the storage it shares with the other tab', async () => {
+    const first = await openTab()
+    const second = await openTab()
+    const superseded = vi.fn()
+    first.facade.subscribeIdentitySuperseded(superseded)
+    first.facade.identifyUser('user-a')
+    second.facade.identifyUser('user-b')
+    await until(() => {
+      first.facade.capturePageview()
+      return superseded.mock.calls.length > 0
+    })
+    first.facade.registerFeatureProperties({ '$feature/example_cta_experiment': 'control' })
+    first.ph.persistence?.flush()
+
+    expect(first.ph.get_property('$feature/example_cta_experiment')).toBeUndefined()
+    expect(storedVariant()).toEqual({ distinctId: 'user-b', variant: undefined })
+  })
+
+  it('an event carries exactly the variants its tab registered', async () => {
+    const tab = await openTab()
+    tab.facade.identifyUser('user-a')
+    tab.facade.registerFeatureProperties({ '$feature/example_cta_experiment': 'bold' })
+    // A variant the SDK holds that this tab never registered: storage an earlier page wrote.
+    tab.ph.register({ '$feature/example_beta_page': true })
+    const from = tab.sent.length
+    tab.facade.capturePageview()
+    tab.facade.unregisterFeatureProperties(['$feature/example_cta_experiment'])
+    tab.facade.capturePageview()
+    expect(featuresOf(tab.sent.slice(from))).toEqual([
+      { '$feature/example_cta_experiment': 'bold' },
+      {},
+    ])
   })
 })

@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import type { MembershipRole } from '@/constants/roles'
+import type { ClientFlagValues } from '@/observability/flags/flag-types'
 import { INVITATION_ID, USER_ID } from '@/tests/fixtures/ids'
 import type {
   InvitationPreview,
@@ -111,6 +112,30 @@ export function testOnboarding(
     completedAt: null,
     dismissedAt: null,
     ...overrides,
+  }
+}
+
+/**
+ * Every react flag at its fallback, written out rather than read from the
+ * flags module: this file loads in the setup file, before a test's
+ * `vi.mock('@/observability/flags/flag-keys', …)` could apply, and importing
+ * the module here would pin the real slice for every test.
+ */
+export const TEST_FLAG_FALLBACKS = {
+  example_beta_page: false,
+  example_cta_experiment: 'control',
+} satisfies ClientFlagValues
+
+/**
+ * A flags read as express answers it: every flag at its fallback unless
+ * `overrides` says otherwise.
+ */
+export function testFlags(
+  overrides: Partial<Record<keyof ClientFlagValues, boolean | string>> = {}
+) {
+  return {
+    flags: { ...TEST_FLAG_FALLBACKS, ...overrides },
+    evaluatedAt: '2026-10-05T09:00:00.000Z',
   }
 }
 
@@ -230,6 +255,16 @@ export const handlers = [
   http.post('/api/v1/tenants/:slug/onboarding/undismiss', () =>
     ok(testOnboarding(), 'Onboarding restored.')
   ),
+  /**
+   * The signed-in layout's loader reads the page's flags on every
+   * authenticated route: the user's, or the tenant's on a tenant page. Every
+   * flag at its fallback; a test about a flag overrides these. Exposure
+   * reports answer 204, as express does.
+   */
+  http.get('/api/v1/flags', () => ok(testFlags(), 'Flags retrieved.')),
+  http.get('/api/v1/tenants/:slug/flags', () => ok(testFlags(), 'Flags retrieved.')),
+  http.post('/api/v1/flags/exposures', () => new HttpResponse(null, { status: 204 })),
+  http.post('/api/v1/tenants/:slug/flags/exposures', () => new HttpResponse(null, { status: 204 })),
   // Tenant audit log, empty. A test about activity overrides it.
   http.get('/api/v1/tenants/:slug/audit-log', () =>
     ok({ entries: [], nextCursor: null }, 'Audit log retrieved.')
