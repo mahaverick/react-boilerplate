@@ -403,7 +403,7 @@ test.describe('analytics against a fake PostHog', () => {
       }
 
       // posthog-js does no flag work: express is the only evaluator, and the app registers its answer.
-      expect(fake.requests.filter((request) => /^\/(flags|decide)\/$/.test(request.path))).toEqual(
+      expect(fake.requests.filter((request) => /^\/(flags|decide)\/?$/.test(request.path))).toEqual(
         []
       )
       await expect
