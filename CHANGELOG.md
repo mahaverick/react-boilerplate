@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/mahaverick/react-boilerplate/compare/v1.4.0...v1.5.0) (2026-10-05)
+
+
+### Features
+
+* read server-evaluated feature flags (sp5d) ([#49](https://github.com/mahaverick/react-boilerplate/issues/49)) ([d906f7c](https://github.com/mahaverick/react-boilerplate/commit/d906f7c407cb0076804f7e7ada0b0faec95d716f))
+
 ## [1.4.0](https://github.com/mahaverick/react-boilerplate/compare/v1.3.0...v1.4.0) (2026-10-05)
 
 
