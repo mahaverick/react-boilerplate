@@ -15,6 +15,9 @@ import { pageTitle } from '@/constants/app'
 import { canViewActivity, ROLE_LABELS } from '@/constants/roles'
 import { cn } from '@/lib/utils'
 import { noteError } from '@/observability/errors'
+import { useFlagValues } from '@/observability/flags/flag-hooks'
+import type { BooleanClientFlagKey } from '@/observability/flags/flag-types'
+import { filterByFlag } from '@/observability/flags/flag-values'
 import { tenantQueryOptions, useMyRole, useTenant, useTenants } from '@/queries/tenant.queries'
 
 /**
@@ -56,21 +59,35 @@ function TenantLoadFailed({ error }: ErrorComponentProps) {
   return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void router.invalidate()} />
 }
 
-const TABS = [
+/** One tenant tab. `flag` hides it while that tenant-scoped flag is off for this tenant. */
+interface TenantTab {
+  to:
+    | '/tenants/$slug'
+    | '/tenants/$slug/members'
+    | '/tenants/$slug/settings'
+    | '/tenants/$slug/beta'
+    | '/tenants/$slug/activity'
+  label: string
+  exact: boolean
+  flag?: BooleanClientFlagKey
+}
+
+const TABS: readonly TenantTab[] = [
   { to: '/tenants/$slug', label: 'Overview', exact: true },
   { to: '/tenants/$slug/members', label: 'Members', exact: false },
   { to: '/tenants/$slug/settings', label: 'Settings', exact: false },
-] as const
+  { to: '/tenants/$slug/beta', label: 'Beta', exact: false, flag: 'example_beta_page' },
+]
 
 /** Owner and admin only, the same bar as the audit-log route it reads. */
-const ACTIVITY_TAB = { to: '/tenants/$slug/activity', label: 'Activity', exact: false } as const
+const ACTIVITY_TAB: TenantTab = { to: '/tenants/$slug/activity', label: 'Activity', exact: false }
 
-/** The tab bar: a `nav` of real links, since the tabs are routes, not widget panels. */
+/**
+ * The tab bar: a `nav` of real links, since the tabs are routes, not widget
+ * panels. A flagged tab is left out while its flag is off.
+ */
 function TenantTabs({ slug, showActivity }: { slug: string; showActivity: boolean }) {
-  /** Annotated: `.map` over a union of two array types is not callable. */
-  const tabs: readonly ((typeof TABS)[number] | typeof ACTIVITY_TAB)[] = showActivity
-    ? [...TABS, ACTIVITY_TAB]
-    : TABS
+  const tabs = filterByFlag(showActivity ? [...TABS, ACTIVITY_TAB] : TABS, useFlagValues())
   return (
     <nav aria-label="Tenant sections" className="border-b">
       <ul className="flex gap-1 overflow-x-auto">

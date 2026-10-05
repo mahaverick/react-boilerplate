@@ -145,6 +145,18 @@ async function stubSignedInApi(page: Page): Promise<void> {
         )
       )
     }
+    // Express's flag answer: the CTA experiment at bold, so events can be checked for its $feature property.
+    if (
+      pathname === '/api/v1/flags' ||
+      /^\/api\/v1\/tenants\/(acme|globex)\/flags$/.test(pathname)
+    ) {
+      return route.fulfill(
+        envelope({
+          flags: { example_beta_page: false, example_cta_experiment: 'bold' },
+          evaluatedAt: '2026-10-05T09:00:00.000Z',
+        })
+      )
+    }
     const detail = /^\/api\/v1\/tenants\/(acme|globex)$/.exec(pathname)?.[1]
     if (detail === 'acme' || detail === 'globex') {
       return route.fulfill(envelope({ ...tenantRow(detail), role: 'owner', access: 'member' }))
@@ -389,6 +401,20 @@ test.describe('analytics against a fake PostHog', () => {
             : undefined
         expect(tenantOf(event), `${event.event} on ${pathname}`).toBe(expected)
       }
+
+      // posthog-js does no flag work: express is the only evaluator, and the app registers its answer.
+      expect(fake.requests.filter((request) => /^\/(flags|decide)\/$/.test(request.path))).toEqual(
+        []
+      )
+      await expect
+        .poll(
+          () =>
+            fake
+              .events()
+              .some((event) => event.properties['$feature/example_cta_experiment'] === 'bold'),
+          poll
+        )
+        .toBe(true)
     }
   )
 

@@ -27,6 +27,7 @@ import { Route as AppTenantsIndexRouteImport } from './pages/_app/tenants/index'
 import { Route as AppTenantsSlugRouteImport } from './pages/_app/tenants/$slug'
 import { Route as AppTenantsSlugIndexRouteImport } from './pages/_app/tenants/$slug.index'
 import { Route as AppTenantsSlugActivityRouteImport } from './pages/_app/tenants/$slug.activity'
+import { Route as AppTenantsSlugBetaRouteImport } from './pages/_app/tenants/$slug.beta'
 import { Route as AppTenantsSlugMembersRouteImport } from './pages/_app/tenants/$slug.members'
 import { Route as AppTenantsSlugSettingsRouteImport } from './pages/_app/tenants/$slug.settings'
 
@@ -118,6 +119,11 @@ const AppTenantsSlugActivityRoute = AppTenantsSlugActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => AppTenantsSlugRoute,
 } as any)
+const AppTenantsSlugBetaRoute = AppTenantsSlugBetaRouteImport.update({
+  id: '/beta',
+  path: '/beta',
+  getParentRoute: () => AppTenantsSlugRoute,
+} as any)
 const AppTenantsSlugMembersRoute = AppTenantsSlugMembersRouteImport.update({
   id: '/members',
   path: '/members',
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/tenants/': typeof AppTenantsIndexRoute
   '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
+  '/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
   '/tenants/$slug/': typeof AppTenantsSlugIndexRoute
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/tenants': typeof AppTenantsIndexRoute
   '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
+  '/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
   '/tenants/$slug': typeof AppTenantsSlugIndexRoute
@@ -187,6 +195,7 @@ export interface FileRoutesById {
   '/_app/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/_app/tenants/': typeof AppTenantsIndexRoute
   '/_app/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
+  '/_app/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
   '/_app/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/_app/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
   '/_app/tenants/$slug/': typeof AppTenantsSlugIndexRoute
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/tenants/$slug'
     | '/tenants/'
     | '/tenants/$slug/activity'
+    | '/tenants/$slug/beta'
     | '/tenants/$slug/members'
     | '/tenants/$slug/settings'
     | '/tenants/$slug/'
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/tenants'
     | '/tenants/$slug/activity'
+    | '/tenants/$slug/beta'
     | '/tenants/$slug/members'
     | '/tenants/$slug/settings'
     | '/tenants/$slug'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/_app/tenants/$slug'
     | '/_app/tenants/'
     | '/_app/tenants/$slug/activity'
+    | '/_app/tenants/$slug/beta'
     | '/_app/tenants/$slug/members'
     | '/_app/tenants/$slug/settings'
     | '/_app/tenants/$slug/'
@@ -394,6 +406,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTenantsSlugActivityRouteImport
       parentRoute: typeof AppTenantsSlugRoute
     }
+    '/_app/tenants/$slug/beta': {
+      id: '/_app/tenants/$slug/beta'
+      path: '/beta'
+      fullPath: '/tenants/$slug/beta'
+      preLoaderRoute: typeof AppTenantsSlugBetaRouteImport
+      parentRoute: typeof AppTenantsSlugRoute
+    }
     '/_app/tenants/$slug/members': {
       id: '/_app/tenants/$slug/members'
       path: '/members'
@@ -413,6 +432,7 @@ declare module '@tanstack/react-router' {
 
 interface AppTenantsSlugRouteChildren {
   AppTenantsSlugActivityRoute: typeof AppTenantsSlugActivityRoute
+  AppTenantsSlugBetaRoute: typeof AppTenantsSlugBetaRoute
   AppTenantsSlugMembersRoute: typeof AppTenantsSlugMembersRoute
   AppTenantsSlugSettingsRoute: typeof AppTenantsSlugSettingsRoute
   AppTenantsSlugIndexRoute: typeof AppTenantsSlugIndexRoute
@@ -420,6 +440,7 @@ interface AppTenantsSlugRouteChildren {
 
 const AppTenantsSlugRouteChildren: AppTenantsSlugRouteChildren = {
   AppTenantsSlugActivityRoute: AppTenantsSlugActivityRoute,
+  AppTenantsSlugBetaRoute: AppTenantsSlugBetaRoute,
   AppTenantsSlugMembersRoute: AppTenantsSlugMembersRoute,
   AppTenantsSlugSettingsRoute: AppTenantsSlugSettingsRoute,
   AppTenantsSlugIndexRoute: AppTenantsSlugIndexRoute,

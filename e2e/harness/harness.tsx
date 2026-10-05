@@ -18,6 +18,10 @@
  * `?pii=probe` replaces every person in the fixtures with the analytics PII
  * probe (`Pii Probe`, `pii-probe…@example.test`), for the DOM PII guard in
  * `e2e/fixtures/pii.test.ts`.
+ *
+ * `?flags=network` leaves the flag reads, their exposure reports and the beta
+ * route unmocked, so `e2e/fixtures/flags.test.ts` answers them itself with
+ * `context.route`; otherwise every flag is at its fallback.
  */
 import '@/lib/zod-jitless'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -242,6 +246,25 @@ const suspended = state === 'suspended'
 
 const SOLE_OWNER = [MEMBERS[0]]
 
+/** Every react flag at its fallback, as express answers when no flag is on. */
+const FLAG_FALLBACKS = { example_beta_page: false, example_cta_experiment: 'control' }
+
+const flagHandlers =
+  new URLSearchParams(location.search).get('flags') === 'network'
+    ? []
+    : [
+        http.get('/api/v1/flags', () =>
+          ok({ flags: FLAG_FALLBACKS, evaluatedAt: '2026-10-05T09:00:00.000Z' }, 'Flags.')
+        ),
+        http.get('/api/v1/tenants/acme/flags', () =>
+          ok({ flags: FLAG_FALLBACKS, evaluatedAt: '2026-10-05T09:00:00.000Z' }, 'Flags.')
+        ),
+        http.post(
+          '/api/v1/tenants/acme/flags/exposures',
+          () => new Response(null, { status: 204 })
+        ),
+      ]
+
 const membersHandler =
   state === 'soleowner'
     ? http.get('/api/v1/tenants/acme/members', () => ok(SOLE_OWNER, 'Members retrieved.'))
@@ -261,6 +284,8 @@ const membersHandler =
           : http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
 
 const worker = setupWorker(
+  // The signed-in layout reads the page's flags on every route. Unmocked, they would reach the real API, 401, and sign the harness user out.
+  ...flagHandlers,
   http.get('/api/v1/tenants', () =>
     ok(
       asStaff
