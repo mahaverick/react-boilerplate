@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useMatches, type LinkProps } from '@tanstack/react-router'
-import { Bell, Building2, LayoutDashboard } from 'lucide-react'
+import { Bell, Building2, LayoutDashboard, type LucideIcon } from 'lucide-react'
 import { Fragment, useEffect } from 'react'
 import { NotificationBell } from '@/components/features/notification-bell'
 import { MAIN_CONTENT_ID, SkipLink } from '@/components/features/skip-link'
@@ -29,16 +29,31 @@ import {
 } from '@/components/ui/sidebar'
 import { ROUTES } from '@/constants/routes'
 import { useNotificationStream } from '@/hooks/use-notifications'
+import { useFeaturePropertiesSync, useFlagValues } from '@/observability/flags/flag-hooks'
+import type { BooleanClientFlagKey } from '@/observability/flags/flag-types'
+import { filterByFlag } from '@/observability/flags/flag-values'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
 
+/**
+ * One sidebar entry. `flag` hides it while that flag is off; the sidebar has
+ * no tenant, so only a user-scoped flag belongs here (a tenant-scoped one
+ * gates a tenant tab instead).
+ */
+interface NavItem {
+  to: (typeof ROUTES)['dashboard' | 'notifications' | 'tenants']
+  label: string
+  Icon: LucideIcon
+  flag?: BooleanClientFlagKey
+}
+
 /** The sidebar's primary navigation. `to` is typed against the route tree, so a missing route is a type error. */
-const NAV_ITEMS = [
+const NAV_ITEMS: readonly NavItem[] = [
   { to: ROUTES.dashboard, label: 'Dashboard', Icon: LayoutDashboard },
   { to: ROUTES.notifications, label: 'Notifications', Icon: Bell },
   { to: ROUTES.tenants, label: 'Tenants', Icon: Building2 },
-] as const
+]
 
 interface Crumb {
   /** Stable across renders: one crumb per matched route. */
@@ -106,9 +121,10 @@ function isNavActive(pathname: string, to: string): boolean {
 /**
  * The signed-in shell: sidebar, header with breadcrumbs, and the page.
  *
- * It holds the one mount of the notification stream and the listener that
+ * It holds the one mount of the notification stream, of the `$feature/*`
+ * super-property sync (`useFeaturePropertiesSync`), and of the listener that
  * makes `theme: 'system'` follow the OS (the theme store samples
- * `prefers-color-scheme` once, at import). Both live here, not in the sidebar:
+ * `prefers-color-scheme` once, at import). All three live here, not in the sidebar:
  * below `md` the `Sidebar` renders into a `Sheet`, whose content unmounts
  * while the drawer is closed, so anything inside it would be dead on phones.
  * The theme toggle is a sibling of the user menu for the same reason: inside
@@ -132,8 +148,10 @@ export function AppLayout() {
   const setTheme = useThemeStore((s) => s.setTheme)
   const crumbs = useBreadcrumbs()
   const pathname = useLocation({ select: (location) => location.pathname })
+  const navItems = filterByFlag(NAV_ITEMS, useFlagValues())
 
   useNotificationStream()
+  useFeaturePropertiesSync()
 
   useEffect(() => {
     if (theme !== 'system') return
@@ -153,7 +171,7 @@ export function AppLayout() {
         <SidebarContent>
           <nav aria-label="Main">
             <SidebarMenu>
-              {NAV_ITEMS.map(({ to, label, Icon }) => (
+              {navItems.map(({ to, label, Icon }) => (
                 <SidebarMenuItem key={to}>
                   <SidebarMenuButton isActive={isNavActive(pathname, to)} render={<Link to={to} />}>
                     <Icon />

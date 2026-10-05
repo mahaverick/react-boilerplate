@@ -121,6 +121,7 @@ src/
   http/         axios client, interceptors, the single-flight session refresh
   lib/          small helpers with no app knowledge
   observability/analytics/  the PostHog facade (lazy posthog-js, masking, handoff, typed events)
+  observability/flags/      flag reads, gating, experiment exposure and `$feature/*` registration
   pages/        TanStack Router file routes (exempt from the kebab-case rules)
   queries/      TanStack Query options and mutations, one file per resource
   schemas/      Zod schemas mirroring the backend validators
@@ -493,6 +494,34 @@ settings and `API_UPSTREAM` pointing at that express, then
 `E2E_LIVE=1 E2E_NGINX=1 E2E_ANALYTICS=1 E2E_NGINX_ORIGIN=<image origin> E2E_API_ORIGIN=<express origin> E2E_API_DIR=<express checkout> pnpm exec playwright test --project=nginx e2e/nginx/analytics.test.ts`.
 The suite starts the fake PostHog on :4063 itself (`E2E_FAKE_POSTHOG_PORT`
 moves it).
+
+## Feature flags
+
+Flags are declared in express-boilerplate's registry, evaluated by express
+and read here from three endpoints: `GET /api/v1/tenants/:slug/flags` on a
+tenant page, `GET /api/v1/flags` elsewhere, and the matching
+`POST …/flags/exposures` for experiments. With flags unconfigured in express,
+both reads answer every flag's fallback, so the app behaves as if every flag
+were off.
+
+- **Reading.** `useFlag(key)`, `useVariant(key)` and `<Flag name variant?>`
+  from `src/observability/flags/`. Each shows the fallback while the values
+  load or after a failed read. The `_app` loader warms the page's scope, and
+  values refetch on a tenant switch, on focus after five minutes and every
+  ten minutes.
+- **Gating.** A tenant tab or sidebar item takes `flag` and is hidden while it
+  is off; a route's `beforeLoad` calls `requireClientFlag`, which answers not
+  found. The API route behind it is gated by express, which is what actually
+  refuses.
+- **Experiments.** Reading an experiment flag reports its exposure once per
+  tab session; express records `$feature_flag_called` when the user matched a
+  release condition or is in the holdout. Every browser event
+  carries `$feature/<key>` for the metrics.
+- **Adding a flag.** Add it to express's registry and run `flags:sync` there,
+  then copy its key, kind, variants, fallback and `experiment` into
+  `src/observability/flags/flag-keys.ts`, and its fallback into
+  `TEST_FLAG_FALLBACKS` (`tests/mocks/handlers.ts`) and the harness's
+  `FLAG_FALLBACKS`.
 
 ## Error tracking (PostHog)
 

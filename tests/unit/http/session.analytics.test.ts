@@ -9,7 +9,9 @@ import {
   resetAnalyticsForTests,
   SUPERSEDED_RECHECK_MS,
 } from '@/observability/analytics/analytics'
-import { bootstrapSession } from '@/router'
+import { EXPOSURE_DEDUPE_PREFIX } from '@/observability/flags/exposure'
+import { flagKeys } from '@/observability/flags/flag-query'
+import { bootstrapSession, queryClient } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
 import { USER_ID, USER_ID_2 } from '@/tests/fixtures/ids'
 import { settle } from '@/tests/fixtures/timing'
@@ -59,7 +61,7 @@ describe('analytics identity follows the session', () => {
       isAuthenticated: false,
       isBootstrapped: false,
     })
-    installAnalyticsIdentity()
+    installAnalyticsIdentity(queryClient)
     await initAnalytics(analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real' }))
   })
 
@@ -256,9 +258,53 @@ describe('analytics identity follows the session', () => {
   })
 
   it('is installed once however often it is called', () => {
-    installAnalyticsIdentity()
+    installAnalyticsIdentity(queryClient)
     useAuthStore.getState().login('token', userA)
     expect(sdkCalls()).toEqual([`identify("${USER_ID}")`])
+  })
+})
+
+describe('flag values follow the session', () => {
+  const MARK = `${EXPOSURE_DEDUPE_PREFIX}none:example_cta_experiment:bold`
+  /** Any cached value will do: the suite checks only whether entries are dropped or kept, so it names no app's slice. */
+  const CACHED_FLAGS = { example_cta_experiment: 'bold' }
+
+  beforeEach(() => {
+    resetSessionForTests()
+    resetAnalyticsForTests()
+    resetFakePosthog()
+    queryClient.clear()
+    window.sessionStorage.clear()
+    useAuthStore.setState({
+      accessToken: 'token',
+      user: userA,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+    installAnalyticsIdentity(queryClient)
+    queryClient.setQueryData(flagKeys.none(), CACHED_FLAGS)
+    queryClient.setQueryData(flagKeys.tenant('acme'), CACHED_FLAGS)
+    queryClient.setQueryData(['tenants'], [])
+    window.sessionStorage.setItem(MARK, '1')
+  })
+
+  it('drops every flag value and exposure mark when the user changes', () => {
+    useAuthStore.getState().login('token', userB)
+    expect(queryClient.getQueryCache().findAll({ queryKey: flagKeys.all })).toHaveLength(0)
+    expect(window.sessionStorage.getItem(MARK)).toBeNull()
+    expect(queryClient.getQueryData(['tenants'])).toEqual([])
+  })
+
+  it('drops them on sign-out', () => {
+    useAuthStore.getState().logout()
+    expect(queryClient.getQueryCache().findAll({ queryKey: flagKeys.all })).toHaveLength(0)
+    expect(window.sessionStorage.getItem(MARK)).toBeNull()
+  })
+
+  it('keeps them when the same user is stored again, as a refresh does', () => {
+    useAuthStore.getState().login('fresh-token', { ...userA })
+    expect(queryClient.getQueryCache().findAll({ queryKey: flagKeys.all })).toHaveLength(2)
+    expect(window.sessionStorage.getItem(MARK)).toBe('1')
   })
 })
 
@@ -273,7 +319,7 @@ describe('installAnalyticsIdentity with a user already signed in', () => {
       isAuthenticated: true,
       isBootstrapped: true,
     })
-    installAnalyticsIdentity()
+    installAnalyticsIdentity(queryClient)
     await initAnalytics(analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real' }))
     expect(sdkCalls()).toEqual([`identify("${USER_ID}")`])
   })

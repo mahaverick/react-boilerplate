@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
@@ -9,6 +10,8 @@ import {
   subscribeIdentitySuperseded,
   yieldSharedIdentity,
 } from '@/observability/analytics'
+import { clearExposureDedupe } from '@/observability/flags/exposure'
+import { clearFlags } from '@/observability/flags/flag-query'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 
@@ -136,18 +139,24 @@ let uninstallAnalyticsIdentity: (() => void) | null = null
  * it: sign-in, the session restore, the 401 verdict, a logout broadcast from
  * another tab, or a refresh that failed with one. A different user, or none,
  * resets first, so the next person's events never carry the last one's
- * distinct id; a user is then identified by id alone after their own opt-out
+ * distinct id, and drops every flag value and exposure mark the last one had,
+ * so nobody sees another person's flags; a user is then identified by id alone after their own opt-out
  * is applied, so an opted-out user's identify is never captured. When
  * analytics reports that another tab signed a different person in under this
  * one, the session is refreshed: a refresh that returns that person signs this
  * tab out (`SessionIdentityChangedError`); one that returns this tab's user
  * confirms it to analytics (`confirmSignedInUser`); a failed one is retried
  * on analytics' next recheck. Idempotent; returns the cleanup.
+ * @param queryClient - The client holding the flag queries.
  */
-export function installAnalyticsIdentity(): () => void {
+export function installAnalyticsIdentity(queryClient: QueryClient): () => void {
   if (uninstallAnalyticsIdentity) return uninstallAnalyticsIdentity
   const apply = (user: User | null, previous: User | null) => {
-    if (previous && previous.id !== user?.id) resetAnalytics()
+    if (previous && previous.id !== user?.id) {
+      resetAnalytics()
+      clearFlags(queryClient)
+      clearExposureDedupe()
+    }
     if (!user) return
     setAnalyticsOptOut(user.analyticsOptOut === true)
     if (user.id !== previous?.id) identifyUser(user.id)

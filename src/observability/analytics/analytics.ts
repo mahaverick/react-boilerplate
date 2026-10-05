@@ -39,6 +39,9 @@ export type AnalyticsTenantAccess = 'member' | 'platform'
 /** The super property that carries `AnalyticsTenantAccess` on tenant pages. */
 export const TENANT_ACCESS_PROPERTY = 'tenant_access'
 
+/** A `$feature/<flag>` super property: that flag's value, carried by every browser event. */
+export type FeaturePropertyName = `$feature/${string}`
+
 /** posthog-js's marker on an event sent cookieless (`required` mode, consent refused). */
 const COOKIELESS_FLAG_PROPERTY = '$cookieless_mode'
 
@@ -93,6 +96,13 @@ let activeConfig: AnalyticsConfig | null = null
  * reads the state of a later one.
  */
 let appliedTenant: AppliedTenant | null = null
+/**
+ * The `$feature/*` properties the flags module registered for the signed-in
+ * user, kept so `registerSuperProperties` puts them back after a sibling's
+ * reset. Written only inside a command, like `appliedTenant`, and emptied by
+ * every reset of the person.
+ */
+let featureProperties: Record<FeaturePropertyName, boolean | string> = {}
 /** The last tenant grouped since sign-in, kept across non-tenant pages so `tenant_switched` compares tenants. */
 let lastTenantId: string | null = null
 /**
@@ -215,7 +225,7 @@ function becomeInert(): void {
 
 /** The super properties on every browser event; `reset()` clears them, so they are set again after it. */
 function registerSuperProperties(ph: PostHogInterface): void {
-  ph.register({ app: ANALYTICS_APP, environment: activeConfig?.environment })
+  ph.register({ app: ANALYTICS_APP, environment: activeConfig?.environment, ...featureProperties })
 }
 
 /** Puts the SDK's tenant group and `tenant_access` in line with `appliedTenant`. */
@@ -234,13 +244,17 @@ function applyTenant(ph: PostHogInterface): void {
 }
 
 /**
- * Starts the loaded SDK. The super properties are registered first, and any
- * tenant group a previous page load persisted is dropped: the tenant comes
- * from the route this load resolves, never from storage another tab wrote.
+ * Starts the loaded SDK. Flags an earlier visit cached are purged first
+ * (`updateFlags({})`): posthog-js would otherwise add them to every event as
+ * `$feature/*`, overriding the server's values the flags module registers.
+ * The super properties are registered next, and any tenant group a previous
+ * page load persisted is dropped: the tenant comes from the route this load
+ * resolves, never from storage another tab wrote.
  */
 function onLoaded(instance: PostHogInterface): void {
   client = instance
   status = 'ready'
+  execute((ph) => ph.updateFlags({}), instance)
   execute(registerSuperProperties, instance)
   execute(applyTenant, instance)
   const pending = queue
@@ -259,6 +273,7 @@ function onLoaded(instance: PostHogInterface): void {
  */
 function resetKeepingConsent(ph: PostHogInterface): void {
   signedInUserId = null
+  featureProperties = {}
   const consent = ph.get_explicit_consent_status()
   ph.reset()
   registerSuperProperties(ph)
@@ -566,6 +581,38 @@ export function clearTenantGroup(): void {
 }
 
 /**
+ * Registers flag values as `$feature/<flag>` super properties, so every
+ * following event, autocapture and page views included, carries them for
+ * experiment metrics. They are registered again after a sibling's reset and
+ * dropped by any reset of the person. A no-op when analytics is inert.
+ * @param properties - `$feature/<flag>` names and their values.
+ */
+export function registerFeatureProperties(
+  properties: Record<FeaturePropertyName, boolean | string>
+): void {
+  run((ph) => {
+    featureProperties = { ...featureProperties, ...properties }
+    ph.register(properties)
+  })
+}
+
+/**
+ * Removes `$feature/<flag>` super properties registered by
+ * `registerFeatureProperties`.
+ * @param names - The property names to remove.
+ */
+export function unregisterFeatureProperties(names: readonly FeaturePropertyName[]): void {
+  run((ph) => {
+    const next = { ...featureProperties }
+    for (const name of names) {
+      delete next[name]
+      ph.unregister(name)
+    }
+    featureProperties = next
+  })
+}
+
+/**
  * Forgets the person and the tenant: sign-out, forced or chosen. The consent
  * answer survives. A tab superseded by another tab's sign-in forgets its own
  * state only: resetting the SDK would sign that other tab's person out of
@@ -811,6 +858,7 @@ export function resetAnalyticsForTests(): void {
   queue = []
   activeConfig = null
   appliedTenant = null
+  featureProperties = {}
   lastTenantId = null
   signedInUserId = null
   isRepairScheduled = false
