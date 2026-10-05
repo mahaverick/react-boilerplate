@@ -2,6 +2,8 @@ import path from 'node:path'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  /** vite.config.ts's `define`, which this standalone config does not inherit. */
+  define: { __APP_RELEASE__: JSON.stringify('test') },
   resolve: {
     /** `@/tests` first: aliases match in order, and `@` would resolve `@/tests/…` into src/. */
     alias: [

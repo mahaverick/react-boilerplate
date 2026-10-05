@@ -8,6 +8,7 @@
  * action.
  */
 import type { CaptureResult, PostHog, PostHogInterface } from 'posthog-js'
+import { bumpIdentityEpoch, identityEpoch } from '@/observability/identity-epoch'
 import {
   ANALYTICS_APP,
   ANALYTICS_CROSS_SUBDOMAIN_COOKIE,
@@ -118,6 +119,26 @@ let supersededNotifiedAt = 0
 let identityChannel: BroadcastChannel | null = null
 const consentListeners = new Set<() => void>()
 const supersededListeners = new Set<() => void>()
+/** Waiting on `whenAnalyticsSettled`, until the SDK loads or analytics turns inert. */
+const settledWaiters = new Set<() => void>()
+
+/**
+ * Who a browser `$exception` may be attributed to: the person posthog-js
+ * holds, their replay session and window, and the tenant group on screen.
+ */
+export interface AnalyticsIdentity {
+  distinctId: string
+  sessionId?: string
+  windowId?: string
+  groups?: Record<string, string>
+}
+
+export { identityEpoch }
+
+function notifySettled(): void {
+  for (const waiter of settledWaiters) waiter()
+  settledWaiters.clear()
+}
 
 function notifyConsent(): void {
   for (const listener of consentListeners) listener()
@@ -178,6 +199,7 @@ function announceIdentity(distinctId: string): void {
  * `SUPERSEDED_RECHECK_MS` while the tab stays superseded.
  */
 function supersede(): void {
+  bumpIdentityEpoch()
   const now = Date.now()
   if (isSuperseded && now - supersededNotifiedAt < SUPERSEDED_RECHECK_MS) return
   isSuperseded = true
@@ -188,6 +210,7 @@ function supersede(): void {
 function becomeInert(): void {
   status = 'inert'
   queue = []
+  notifySettled()
 }
 
 /** The super properties on every browser event; `reset()` clears them, so they are set again after it. */
@@ -224,6 +247,7 @@ function onLoaded(instance: PostHogInterface): void {
   queue = []
   for (const { command } of pending) execute(command, instance)
   notifyConsent()
+  notifySettled()
 }
 
 /**
@@ -449,6 +473,7 @@ export function capturePageview(): void {
  * @param userId - The API's user id.
  */
 export function identifyUser(userId: string): void {
+  bumpIdentityEpoch()
   run((ph) => applyIdentity(ph, userId))
 }
 
@@ -468,6 +493,7 @@ export function identifyUser(userId: string): void {
  * @param options - `keepIfAnotherTabHoldsThem`, false by default.
  */
 export function forgetStaleIdentity(options: { keepIfAnotherTabHoldsThem?: boolean } = {}): void {
+  bumpIdentityEpoch()
   if (options.keepIfAnotherTabHoldsThem) askWhoIsSignedIn()
   run((ph) => {
     if (ph.get_property('$user_state') !== 'identified') return
@@ -498,6 +524,7 @@ function askWhoIsSignedIn(): void {
  * resets as any other does.
  */
 export function yieldSharedIdentity(): void {
+  bumpIdentityEpoch()
   run((ph) => {
     // An idle tab's in-memory identity is stale: read what the shared storage holds now.
     ;(ph as PostHog).persistence?.load()
@@ -517,6 +544,7 @@ export function yieldSharedIdentity(): void {
  * @param access - `platform` when staff reached it through platform access.
  */
 export function setTenantGroup(tenantId: string, access: AnalyticsTenantAccess = 'member'): void {
+  bumpIdentityEpoch()
   run((ph) => {
     if (appliedTenant?.id === tenantId && appliedTenant.access === access) return
     const isSwitch = lastTenantId !== null && lastTenantId !== tenantId
@@ -529,6 +557,7 @@ export function setTenantGroup(tenantId: string, access: AnalyticsTenantAccess =
 
 /** Takes the following events out of any tenant group: a page that is not a tenant's. */
 export function clearTenantGroup(): void {
+  bumpIdentityEpoch()
   run((ph) => {
     if (appliedTenant === null) return
     appliedTenant = null
@@ -543,6 +572,7 @@ export function clearTenantGroup(): void {
  * the shared identity too.
  */
 export function resetAnalytics(): void {
+  bumpIdentityEpoch()
   run((ph) => {
     appliedTenant = null
     lastTenantId = null
@@ -570,6 +600,7 @@ export function resetAnalytics(): void {
  * @param userId - The user the refresh returned.
  */
 export function confirmSignedInUser(userId: string): void {
+  bumpIdentityEpoch()
   run((ph) => {
     if (!isSuperseded || signedInUserId !== userId) return
     isSuperseded = false
@@ -726,6 +757,53 @@ export function getAnalyticsSessionIdFor(userId: string | null): string | undefi
   return getAnalyticsSessionId()
 }
 
+/**
+ * The identity an exception may carry right now, or null when it must be
+ * anonymous: no consent (in `required` mode, until granted; in `opt_out`
+ * mode, after an opt-out), a superseded tab, or a person posthog-js holds
+ * that is not this tab's signed-in user.
+ */
+function currentIdentity(): AnalyticsIdentity | null {
+  if (status !== 'ready' || !client || isSuperseded) return null
+  try {
+    const isConsented =
+      activeConfig?.consentMode === 'required'
+        ? client.get_explicit_consent_status() === 'granted'
+        : !client.has_opted_out_capturing()
+    if (!isConsented) return null
+    const distinctId = client.get_distinct_id()
+    if (signedInUserId !== null && distinctId !== signedInUserId) return null
+    const windowId = (client as PostHog).sessionManager?.checkAndGetSessionAndWindowId(
+      true
+    ).windowId
+    return {
+      distinctId,
+      sessionId: client.get_session_id(),
+      ...(windowId ? { windowId } : {}),
+      ...(appliedTenant ? { groups: { tenant: appliedTenant.id } } : {}),
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolves once analytics has settled, either loaded with a consent state or
+ * inert (no key, consent mode `off`, or posthog-js failed to load), with the
+ * identity an exception may carry at that moment. It never rejects and sets
+ * no timer: a caller that cannot wait for a load that never starts caps the
+ * wait itself.
+ * @returns The identity, or null when the exception must be anonymous.
+ */
+export function whenAnalyticsSettled(): Promise<AnalyticsIdentity | null> {
+  if (status === 'ready' || status === 'inert') return Promise.resolve(currentIdentity())
+  return new Promise((resolve) => {
+    settledWaiters.add(() => {
+      resolve(currentIdentity())
+    })
+  })
+}
+
 /** Test-only: forget the SDK, the queue, the identity, the tenant and every listener. */
 export function resetAnalyticsForTests(): void {
   status = 'idle'
@@ -746,4 +824,5 @@ export function resetAnalyticsForTests(): void {
   identityChannel = null
   consentListeners.clear()
   supersededListeners.clear()
+  settledWaiters.clear()
 }

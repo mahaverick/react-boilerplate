@@ -84,23 +84,23 @@ and reads the analytics settings from `.env` under their `VITE_` names
 
 ## Scripts
 
-| Script                | What it does                                                                                                                                                                     |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`            | Dev server on :5173 with the `/api` proxy                                                                                                                                        |
-| `pnpm build`          | `tsc -b` then `vite build` → `dist/`                                                                                                                                             |
-| `pnpm preview`        | Serve the built bundle locally                                                                                                                                                   |
-| `pnpm lint`           | eslint **and** `prettier --check` — both must pass                                                                                                                               |
-| `pnpm typecheck`      | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                                                                                                                  |
-| `pnpm test`           | Vitest, single pass                                                                                                                                                              |
-| `pnpm test:coverage`  | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it                                                                                            |
-| `pnpm test:watch`     | Vitest in watch mode                                                                                                                                                             |
-| `pnpm format`         | `prettier --write`                                                                                                                                                               |
-| `pnpm check:bundle`   | Builds in memory; fails on one JS chunk, first-visit JS over budget or holding posthog-js, or devtools in a chunk. CI runs it                                                    |
-| `pnpm lint:docs`      | History phrasing and broken links in markdown and config comments. CI runs it                                                                                                    |
-| `pnpm test:e2e`       | Playwright `fixtures` project against the MSW harness; no backend needed. CI runs it                                                                                             |
-| `pnpm test:e2e:live`  | Playwright `live` project; needs express-boilerplate on :4040                                                                                                                    |
-| `pnpm test:e2e:nginx` | Builds the production image and runs the Playwright `nginx` project against it on :8088, started with the run-time settings CI uses; all but the `@no-api` tests need a live API |
-| `pnpm test:contrast`  | axe colour contrast in a real browser, both themes; no backend needed                                                                                                            |
+| Script                | What it does                                                                                                                                                                           |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`            | Dev server on :5173 with the `/api` proxy                                                                                                                                              |
+| `pnpm build`          | `tsc -b` then `vite build` → `dist/`                                                                                                                                                   |
+| `pnpm preview`        | Serve the built bundle locally                                                                                                                                                         |
+| `pnpm lint`           | eslint **and** `prettier --check` — both must pass                                                                                                                                     |
+| `pnpm typecheck`      | `tsc --noEmit` on `tsconfig.app.json`, then `e2e/tsconfig.json`                                                                                                                        |
+| `pnpm test`           | Vitest, single pass                                                                                                                                                                    |
+| `pnpm test:coverage`  | Vitest + coverage; fails under 88/82/86/89 % (stmts/branches/funcs/lines). CI runs it                                                                                                  |
+| `pnpm test:watch`     | Vitest in watch mode                                                                                                                                                                   |
+| `pnpm format`         | `prettier --write`                                                                                                                                                                     |
+| `pnpm check:bundle`   | Builds in memory; fails on one JS chunk, first-visit JS over budget or holding posthog-js or `@posthog/core`, the error listener over 1 KB gzipped, or devtools in a chunk. CI runs it |
+| `pnpm lint:docs`      | History phrasing and broken links in markdown and config comments. CI runs it                                                                                                          |
+| `pnpm test:e2e`       | Playwright `fixtures` project against the MSW harness; no backend needed. CI runs it                                                                                                   |
+| `pnpm test:e2e:live`  | Playwright `live` project; needs express-boilerplate on :4040                                                                                                                          |
+| `pnpm test:e2e:nginx` | Builds the production image and runs the Playwright `nginx` project against it on :8088, started with the run-time settings CI uses; all but the `@no-api` tests need a live API       |
+| `pnpm test:contrast`  | axe colour contrast in a real browser, both themes; no backend needed                                                                                                                  |
 
 CI holds eslint to **zero warnings** as well as zero errors
 (`pnpm exec eslint . --max-warnings 0`).
@@ -209,11 +209,14 @@ replaces `/etc/nginx/nginx.conf` and its only server-config include is
 `Dockerfile` never resets the unprivileged base image's `USER`. A step that needs root
 privileges has to `USER root` first and `USER 101` again before `CMD`.
 
-The image takes no build arguments: every environment-specific setting is
-read at start ([Run-time configuration](#run-time-configuration)). The API
-prefix is baked in and fixed — see
-[The API prefix is fixed](#the-api-prefix-is-fixed) for what has to change
-together if it ever moves.
+No build argument configures an environment: every environment-specific
+setting is read at start ([Run-time configuration](#run-time-configuration)).
+The three build arguments are per commit — `GIT_SHA` (the release the bundle
+reports, `dev` when unset or empty), `POSTHOG_SOURCEMAP_PROJECTS` and
+`POSTHOG_CLI_HOST` (where the source maps go; see
+[Error tracking](#error-tracking-posthog)). The API prefix is baked in and
+fixed — see [The API prefix is fixed](#the-api-prefix-is-fixed) for what has
+to change together if it ever moves.
 
 ### Run-time configuration
 
@@ -231,7 +234,7 @@ Kubernetes or not — and whatever secret store the values come from.
 | `POSTHOG_UI_HOST`           | `VITE_POSTHOG_UI_HOST`           | an `https://` origin, no path                 | `https://us.posthog.com` | PostHog's UI host, for links posthog-js builds.                                                         |
 | `ANALYTICS_CONSENT_MODE`    | `VITE_ANALYTICS_CONSENT_MODE`    | `opt_out`, `required` or `off`                | `opt_out`                | `opt_out`: capture until the user opts out; `required`: the consent banner first; `off`: nothing loads. |
 | `ANALYTICS_HANDOFF_ORIGINS` | `VITE_ANALYTICS_HANDOFF_ORIGINS` | comma-separated `https://` origins, no spaces | empty                    | Websites on other domains allowed to hand a visitor off ([how](docs/analytics-handoff.md)).             |
-| `APP_ENVIRONMENT`           | `VITE_APP_ENVIRONMENT`           | `[a-z][a-z0-9-]` up to 32                     | `development`            | Sent as `environment` on every browser event.                                                           |
+| `APP_ENVIRONMENT`           | `VITE_APP_ENVIRONMENT`           | `[a-z][a-z0-9-]` up to 32                     | `development`            | Sent as `environment` on every browser event and exception. Set it to express's `APP_ENV` value.        |
 
 How it reaches the bundle:
 
@@ -490,6 +493,103 @@ settings and `API_UPSTREAM` pointing at that express, then
 `E2E_LIVE=1 E2E_NGINX=1 E2E_ANALYTICS=1 E2E_NGINX_ORIGIN=<image origin> E2E_API_ORIGIN=<express origin> E2E_API_DIR=<express checkout> pnpm exec playwright test --project=nginx e2e/nginx/analytics.test.ts`.
 The suite starts the fake PostHog on :4063 itself (`E2E_FAKE_POSTHOG_PORT`
 moves it).
+
+## Error tracking (PostHog)
+
+Every crash in the browser becomes one `$exception` in PostHog Error
+Tracking, in the project `POSTHOG_KEY` names, symbolicated to the `.ts` and
+`.tsx` source. Without `POSTHOG_KEY`, or in consent mode `off`, nothing is
+sent.
+
+- **What is caught.** Uncaught errors and unhandled rejections (window
+  listeners installed before any other module runs), every error React's
+  root sees (`createRoot`'s `onUncaughtError` and `onCaughtError`, so every
+  error boundary), and every error screen the router shows (`RouteError`, the
+  tenant page's own). A chunk that fails to load is sent as handled, with
+  `origin: chunk_load`: it means a deploy left the page behind.
+- **What is not.** API errors and network failures (the API reports its own
+  5xx), aborts, ResizeObserver noise, opaque cross-origin `Script error.`,
+  and any error with no frame from this app's own files (an extension's).
+- **Where it goes.** `src/observability/errors/listen.ts` is in the entry
+  chunk (under 1 KB gzipped) and only notes errors; the reporter and
+  `@posthog/core` load on the first error or when the browser is idle. Events
+  go to the API's `/api/v1/collect/batch/`, batched, and by `sendBeacon` when
+  the page is hidden. At most 5 per error and 30 per page are sent.
+- **Identity.** With analytics consent, an exception carries the user's
+  distinct id, the replay session and the tenant group. Without it (opted
+  out, consent pending in `required` mode, posthog-js blocked, or analytics
+  unsettled after 10 s) it is anonymous: a new distinct id per event and no
+  person profile. An earlier anonymous crash is never re-attributed.
+- **Scrubbing.** Exception types, values, frame file names and function names
+  go through the same rules as express-boilerplate's
+  (`src/observability/errors/scrub.ts`, tested against the shared
+  `tests/fixtures/error-scrub-vectors.json`): emails, JWTs, bearer tokens,
+  PostHog keys, long hex and base64 runs, query strings and Postgres key
+  details are replaced, and each text is cut to 1024 characters. URLs keep
+  only the analytics allowlist's query keys.
+- **Release.** Each exception's `release` is the commit the image was built
+  from (`GIT_SHA`); its `environment` is `APP_ENVIRONMENT`.
+
+### What the scrubber does not catch
+
+Regex scrubbing is best-effort; keep secrets out of error messages. It does
+not catch:
+
+- credentials in an `Authorization` header with a scheme it does not know,
+  and multi-parameter OAuth or Digest headers;
+- secrets held in arrays;
+- short non-hex signatures;
+- IP addresses, phone numbers, names and UUIDs;
+- short opaque tokens in a URL path;
+- JWTs of an unusual shape;
+- email edge forms: no TLD, double-encoded, a fullwidth `@`, a quoted local
+  part.
+
+Also unverified by the binary's hash check: the CLI's JavaScript wrapper
+(`lib/posthog-api-cli.mjs`), which comes from the npm package, not the download.
+
+### Source maps
+
+The build always writes hidden source maps (no `sourceMappingURL` in any
+chunk), and the image's build stage then:
+
+1. injects chunk ids into every chunk with `posthog-cli sourcemap inject`,
+   offline and release-less, whether or not maps are uploaded, so one file
+   name never holds two contents across builds;
+2. uploads the maps to every project in `POSTHOG_SOURCEMAP_PROJECTS`
+   (`docker/upload-sourcemaps.sh`), one run per project; an upload that fails
+   fails the build;
+3. deletes every `.map`, so none ships (`docker/check-image.sh` checks).
+
+nginx also answers 404 for any `.map` URL outside `/api/` (the `.map`
+location in `nginx.conf`), even where a file exists. **Any deploy of `dist/`
+outside the image must delete `*.map` first.**
+
+The build downloads the `posthog-cli` binary from releases.posthog.com and
+verifies its SHA-256 against `docker/posthog-cli.sha256` (one hash per
+architecture) before it first runs. **Bumping `@posthog/cli` means updating
+those hashes** (the file says how); a mismatch fails the build.
+
+**One-time setup, per repository:**
+
+- Create a PostHog **personal API key** with the error-tracking write scope
+  (sourcemap upload) for the organisation, and store it as the repository
+  **secret `POSTHOG_CLI_TOKEN`**. It reaches the build as a BuildKit secret:
+  never in a layer, an image or the provenance attestation.
+- Set the repository **variable `POSTHOG_SOURCEMAP_PROJECTS`** to a
+  comma-separated list of project ids, one per environment
+  (`12345,67890`). Project ids appear in the image's provenance; they are not
+  secrets.
+- Optionally set the **variable `POSTHOG_CLI_HOST`** (default
+  `https://us.posthog.com`; `https://eu.posthog.com` for EU cloud).
+
+Until the variable is set, `deploy.yml` warns `sourcemaps not uploaded` and
+the image builds without uploading: exceptions arrive, unsymbolicated. With
+the variable set and the secret missing, the build fails. Maps are uploaded
+only when an image is built: a release tag promotes the same digest and
+uploads nothing, so **adding an environment's project later means rebuilding**
+the image (re-run `deploy.yml` on `main`) before that environment shows
+symbolicated frames.
 
 ## Deploying
 

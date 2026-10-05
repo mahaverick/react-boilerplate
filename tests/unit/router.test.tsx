@@ -10,8 +10,14 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { act, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { noteError } from '@/observability/errors'
 import { router as appRouter } from '@/router'
 import { settle } from '@/tests/fixtures/timing'
+
+vi.mock('@/observability/errors', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/observability/errors')>()),
+  noteError: vi.fn(),
+}))
 
 /**
  * The app router's route-state options, applied to a small tree of its own.
@@ -184,6 +190,39 @@ describe('route errors', () => {
 
     await user.click(within(alert).getByRole('button', { name: 'Reload' }))
     expect(reload).toHaveBeenCalledOnce()
+  })
+})
+
+describe('route errors and error tracking', () => {
+  it('notes a loader error as handled, from the router', async () => {
+    vi.mocked(noteError).mockClear()
+    const error = new Error('loader exploded')
+    renderTree(() => {
+      throw error
+    }, '/page')
+
+    await screen.findByRole('alert')
+    expect(noteError).toHaveBeenCalledWith(error, 'router', true)
+  })
+
+  it('notes a chunk that failed to load as chunk_load', async () => {
+    vi.mocked(noteError).mockClear()
+    const error = new TypeError(
+      'Failed to fetch dynamically imported module: http://localhost:3000/assets/page-a1b2.js'
+    )
+    renderTree(() => {
+      throw error
+    }, '/page')
+
+    await screen.findByRole('heading', { level: 1, name: 'A new version is available' })
+    expect(noteError).toHaveBeenCalledWith(error, 'chunk_load', true)
+  })
+
+  it('reads the app router’s deepest match as the error route', async () => {
+    const { currentRouteId } = await import('@/observability/errors/listen')
+    await appRouter.navigate({ to: '/login' })
+    expect(currentRouteId()).toEqual(expect.any(String))
+    expect(currentRouteId()).toBe(appRouter.state.matches.at(-1)?.routeId)
   })
 })
 

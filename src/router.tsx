@@ -10,6 +10,7 @@ import {
   isAuthVerdict,
 } from '@/http/session'
 import { forgetStaleIdentity } from '@/observability/analytics'
+import { setErrorRouteSource } from '@/observability/errors'
 import { installRouteAnalytics } from '@/observability/route-analytics'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -63,6 +64,7 @@ export const router = createRouter({
 })
 
 installRouteAnalytics(router)
+setErrorRouteSource(() => router.state.matches.at(-1)?.routeId)
 
 declare module '@tanstack/react-router' {
   interface Register {

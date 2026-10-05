@@ -1,4 +1,7 @@
 allowBuilds:
+  # Its postinstall downloads the posthog-cli binary. Left off: only the image
+  # build runs the CLI, and the npm wrapper downloads the same binary on first run.
+  '@posthog/cli': false
   core-js: false
   msw: true
 # Minutes (3 days). Matches renovate.json.

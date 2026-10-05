@@ -1,0 +1,11 @@
+# SHA-256 of the posthog-cli binary @posthog/cli downloads at image build, per
+# TARGETARCH, for the musl build (the build stage is Alpine). The Dockerfile
+# checks the downloaded binary against these before it runs it with the upload
+# token mounted. A version bump of @posthog/cli in package.json MUST update
+# both hashes in the same change: compute each over the `posthog-cli` file
+# inside releases.posthog.com/posthog-cli/v<version>/posthog-cli-<arch>-unknown-linux-musl.tar.gz
+# (x86_64 for amd64, aarch64 for arm64) and cross-check the archive against the
+# release's .sha256 file and its GitHub mirror.
+# @posthog/cli 0.18.9
+a0cb0680065a473c49b2144a8ae2bf4521e4dbd434772e2fe455c0963426c357  amd64
+6aceb44c7f67fe46644eaa38589d785d30d3afa60e5af5b730a8d39036d8fd2f  arm64

@@ -9,7 +9,7 @@ import {
 import { INVITATION_ID, USER_ID, USER_ID_2 } from '@/tests/fixtures/ids'
 
 describe('AUDIT_ACTIONS', () => {
-  it('lists exactly the sixteen actions the API writes', () => {
+  it('lists exactly the eighteen actions the API writes', () => {
     expect([...AUDIT_ACTIONS].sort()).toEqual(
       [
         'invitation.accepted',
@@ -28,6 +28,8 @@ describe('AUDIT_ACTIONS', () => {
         'tenant.created',
         'tenant.settings_updated',
         'tenant.updated',
+        'tenant.errors_viewed',
+        'user.errors_viewed',
       ].sort()
     )
     for (const action of AUDIT_ACTIONS) expect(AUDIT_ACTION_LABELS[action]).not.toBe('')
@@ -112,6 +114,8 @@ describe('auditSentence', () => {
       { reason: 'Stuck', recipientCount: 1, emailDomains: ['acme.test'], messageIds: [] },
       'sent an onboarding reminder to 1 owner',
     ],
+    ['user.errors_viewed', {}, 'viewed a user’s errors'],
+    ['tenant.errors_viewed', {}, 'viewed a tenant’s errors'],
   ])('%s reads as a sentence', (action, metadata, sentence) => {
     expect(auditSentence({ action, metadata })).toBe(sentence)
   })

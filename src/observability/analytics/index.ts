@@ -5,6 +5,7 @@
 export {
   ANALYTICS_PROXY_PATH,
   type AnalyticsConsent,
+  type AnalyticsIdentity,
   type AnalyticsTenantAccess,
   capturePageview,
   clearTenantGroup,
@@ -15,6 +16,7 @@ export {
   getAnalyticsSessionIdFor,
   grantAnalyticsConsent,
   identifyUser,
+  identityEpoch,
   initAnalytics,
   resetAnalytics,
   setAnalyticsOptOut,
@@ -22,6 +24,7 @@ export {
   subscribeAnalyticsConsent,
   subscribeIdentitySuperseded,
   track,
+  whenAnalyticsSettled,
   yieldSharedIdentity,
 } from './analytics'
 export {

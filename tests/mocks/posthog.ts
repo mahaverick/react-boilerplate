@@ -30,6 +30,7 @@ export interface FakePosthogSdk {
   userState: 'anonymous' | 'identified'
   consent: Consent
   sessionId: string
+  windowId: string
   /** What `register` and `group` persisted; `reset` clears it, as posthog-js does. */
   properties: Record<string, unknown>
 }
@@ -42,6 +43,7 @@ export const sdk: FakePosthogSdk = {
   userState: 'anonymous',
   consent: 'pending',
   sessionId: '01a0fc35-b7fe-7546-a76f-fea28a1f3cbe',
+  windowId: '01a0fc35-b7fe-7546-a76f-fea28a1f3cbf',
   properties: {},
 }
 
@@ -108,6 +110,12 @@ export const instance = {
   ),
   get_distinct_id: vi.fn(() => sdk.distinctId),
   get_session_id: vi.fn(() => sdk.sessionId),
+  sessionManager: {
+    checkAndGetSessionAndWindowId: vi.fn(() => ({
+      sessionId: sdk.sessionId,
+      windowId: sdk.windowId,
+    })),
+  },
 }
 
 export const posthogDefault = {

@@ -158,7 +158,11 @@ jobs:
   # builds, the default render passes `nginx -t`, a custom API_UPSTREAM renders
   # without touching nginx's own variables, and docker/check-image.sh passes:
   # uid 101 on 8080, a read-only root, API_UPSTREAM validation, the security
-  # headers on pages, assets and a 404, and a real 404 for a missing asset.
+  # headers on pages, assets and a 404, a real 404 for a missing asset, no
+  # source map anywhere, chunk ids injected with no release id, and this
+  # commit's sha baked in as the release. It builds with no source map
+  # variable and no secret, as a fork or a fresh repo does, so the upload is
+  # skipped; the Dockerfile itself fails if .git reaches the build context.
   #
   # Plain `docker` rather than docker/build-push-action, so this adds no action
   # pins to keep current. The runner ships with docker already.
@@ -169,7 +173,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: docker build -t react-boilerplate:ci .
+      - run: docker build --build-arg GIT_SHA="$GIT_SHA" -t react-boilerplate:ci .
+        env:
+          GIT_SHA: ${{ github.sha }}
       # `nginx -t` inside the built image. nginx resolves `api` when it LOADS
       # the config, so the hostname has to exist for the parse to succeed —
       # the same reason running this image standalone needs `--add-host`.
@@ -219,4 +225,6 @@ jobs:
           if [ "$fail" != 0 ]; then cat rendered.conf; exit 1; fi
       # The image from outside, the way it ships. docker/check-image.sh says
       # what it checks; run it locally with the same command.
-      - run: bash docker/check-image.sh react-boilerplate:ci
+      - run: bash docker/check-image.sh react-boilerplate:ci 18080 "$GIT_SHA"
+        env:
+          GIT_SHA: ${{ github.sha }}

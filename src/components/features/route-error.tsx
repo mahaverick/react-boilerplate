@@ -1,5 +1,5 @@
 import { Link, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Card,
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/card'
 import { ROUTES } from '@/constants/routes'
 import { isChunkLoadError } from '@/lib/chunk-load-error'
+import { noteError } from '@/observability/errors'
 
 /**
  * The router-wide error screen, for any route without its own `errorComponent`.
@@ -18,10 +19,16 @@ import { isChunkLoadError } from '@/lib/chunk-load-error'
  * new deploy's file names. Try again calls `router.invalidate()`, which re-runs
  * the loaders and replaces the failed match, then `reset()`. The error's own
  * message is shown in development only: in production it can carry server or
- * stack detail that means nothing to the reader.
+ * stack detail that means nothing to the reader. The error goes to error
+ * tracking on mount: the router catches loader errors outside React's root
+ * hooks, and one React did see is noted only once.
  */
 export function RouteError({ error, reset }: ErrorComponentProps) {
   const router = useRouter()
+
+  useEffect(() => {
+    noteError(error, isChunkLoadError(error) ? 'chunk_load' : 'router', true)
+  }, [error])
 
   if (isChunkLoadError(error)) {
     return (
