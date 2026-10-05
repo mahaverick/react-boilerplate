@@ -419,6 +419,48 @@ test.describe('analytics against a fake PostHog', () => {
   )
 
   test(
+    'a stale flag cache from an earlier visit never reaches an event: the server value does',
+    { tag: '@no-api' },
+    async ({ page }) => {
+      await stubSignedInApi(page)
+      const poll = { intervals: [500], timeout: 30_000 }
+
+      /**
+       * posthog-js 1.435.6 persists one JSON object in localStorage under
+       * `ph_<token>_posthog` (the app sets no `persistence_name`). Its flag
+       * cache lives in two of that object's fields, `$enabled_feature_flags`
+       * (a key to value map) and `$active_feature_flags` (the keys); each
+       * event then gets `$feature/<key>` from them. Seeded before any page
+       * script runs, as a returning visitor's browser would hold it.
+       */
+      await page.addInitScript(() => {
+        window.localStorage.setItem(
+          'ph_phc_test_key_not_real_posthog',
+          JSON.stringify({
+            $enabled_feature_flags: { example_cta_experiment: 'control' },
+            $active_feature_flags: ['example_cta_experiment'],
+          })
+        )
+      })
+
+      await page.goto('/tenants/acme')
+      await expect(page.getByRole('heading', { name: 'Acme Corp', level: 1 })).toBeVisible()
+      await expect
+        .poll(
+          () =>
+            fake
+              .events()
+              .some((event) => event.properties['$feature/example_cta_experiment'] === 'bold'),
+          poll
+        )
+        .toBe(true)
+      for (const event of fake.events()) {
+        expect(event.properties['$feature/example_cta_experiment'], event.event).not.toBe('control')
+      }
+    }
+  )
+
+  test(
     'a handoff from the allowlisted site continues its visitor; any other is ignored; both are stripped',
     { tag: '@no-api' },
     async ({ page }) => {

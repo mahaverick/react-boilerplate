@@ -452,8 +452,12 @@ signs the harness user out — any non-expiry 401 on a token-bearing request, `R
 only the one being asserted on. If a fixtures test starts landing on `/login`, that is why,
 and the teardown message names the endpoint.
 
-**`live`** needs a real express-boilerplate on `:4040` and its docker services, and is skipped
-unless `E2E_LIVE=1`. Accounts are registered and verified through mailpit — login stays 401
+**`live`** needs a real express-boilerplate and its docker services, and is skipped unless
+`E2E_LIVE=1`. The helpers reach express at `E2E_API_ORIGIN` (default `:4040`; point it at the
+express under test, never assume `:4040`). `live/flags.test.ts` also needs `E2E_FLAGS_SET_CMD`,
+an executable run as `<cmd> <key> <value>` that leaves the fake PostHog serving that definition
+(`example_beta_page` `on`|`off`, `example_cta_experiment` `control`|`bold`, the latter active at
+100 % rollout); with `E2E_LIVE=1` and the variable unset it fails rather than skips. Accounts are registered and verified through mailpit — login stays 401
 until the address is verified, and the link only exists in the email. Each run uses a **fresh
 address**, because the login limiter is keyed `ip:email` at five attempts per fifteen minutes
 and a fixed address would rate-limit every rerun.

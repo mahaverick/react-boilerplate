@@ -16,9 +16,10 @@ import {
 
 /**
  * The reference flags against a real express with feature flags on and a fake
- * PostHog serving its definitions. Needs express 1.8.0 or later on :4040 with
- * `POSTHOG_FEATURE_FLAGS_KEY` set, and Mailpit for the account helpers, so it
- * is skipped unless `E2E_LIVE=1`. Run it with `pnpm test:e2e:live`.
+ * PostHog serving its definitions. Needs express 1.8.0 or later with
+ * `POSTHOG_FEATURE_FLAGS_KEY` set, at `E2E_API_ORIGIN` (the helpers' default is
+ * :4040, but point it at the express under test), and Mailpit for the account
+ * helpers. It is skipped unless `E2E_LIVE=1`. Run it with `pnpm test:e2e:live`.
  *
  * The live suite has no way to change the fake PostHog's flag definitions, so
  * this spec takes one from the environment. `E2E_FLAGS_SET_CMD` is an
@@ -27,13 +28,13 @@ import {
  * `example_beta_page`, and `control` or `bold` for `example_cta_experiment`
  * (a multivariate flag the command keeps active at 100 % rollout). Express
  * reads definitions on a 30 s timer, so every assertion that follows a change
- * polls for up to 45 s. Without the variable the spec is skipped.
+ * polls for up to 45 s. With `E2E_LIVE=1` and no variable the spec fails: a
+ * live run that cannot change a flag has not checked the flags.
  */
 
 test.skip(process.env.E2E_LIVE !== '1', 'live backend required — run pnpm test:e2e:live')
 
-const SET_CMD = process.env.E2E_FLAGS_SET_CMD
-test.skip(!SET_CMD, 'E2E_FLAGS_SET_CMD is not set: nothing can change the fake PostHog definitions')
+const cmd: string = process.env.E2E_FLAGS_SET_CMD ?? ''
 
 const execFile = promisify(execFileCallback)
 
@@ -41,6 +42,11 @@ const execFile = promisify(execFileCallback)
 const DEFINITIONS_WAIT = 45_000
 
 test.beforeAll(async () => {
+  if (!cmd) {
+    throw new Error(
+      'E2E_FLAGS_SET_CMD is not set: nothing can change the fake PostHog definitions. See the header of e2e/live/flags.test.ts.'
+    )
+  }
   if (!(await apiIsReady())) {
     throw new Error(
       `No API at ${API_ORIGIN}. Start express 1.8.0+ first: cd ../express-boilerplate && pnpm dev`
@@ -49,7 +55,7 @@ test.beforeAll(async () => {
 })
 
 async function setFlag(key: string, value: string): Promise<void> {
-  await execFile(SET_CMD ?? '', [key, value], { timeout: 30_000 })
+  await execFile(cmd, [key, value], { timeout: 30_000 })
 }
 
 test('flag changes reach the tab, the page, the API and the exposure report', async ({ page }) => {
