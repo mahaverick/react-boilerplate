@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  confirmSignedInUser,
+  forgetStaleIdentity,
   grantAnalyticsConsent,
   identifyUser,
   initAnalytics,
@@ -7,6 +9,7 @@ import {
   resetAnalytics,
   resetAnalyticsForTests,
   unregisterFeatureProperties,
+  yieldSharedIdentity,
 } from '@/observability/analytics/analytics'
 import { ANALYTICS_APP } from '@/observability/analytics/config'
 import {
@@ -88,5 +91,38 @@ describe('$feature/* super properties', () => {
     resetAnalytics()
     expect(sdk.calls.slice(-1)).toEqual([REGISTER])
     expect(sdk.properties).not.toHaveProperty('$feature/test_exp')
+  })
+  it("does not hand a superseded tab's flags to the person who superseded it", async () => {
+    await initAnalytics(OPT_OUT)
+    identifyUser('user-a')
+    registerFeatureProperties({ '$feature/test_exp': 'bold' })
+    sdk.distinctId = 'user-b'
+    yieldSharedIdentity()
+    resetAnalytics()
+    sdk.calls.length = 0
+    grantAnalyticsConsent()
+    expect(sdk.calls.filter((call) => call.startsWith('register('))).not.toEqual([])
+    expect(sdk.calls.join('\n')).not.toContain('$feature/')
+  })
+
+  it('forgets them when a stale identity is forgotten', async () => {
+    await initAnalytics(OPT_OUT)
+    identifyUser('user-a')
+    registerFeatureProperties({ '$feature/test_exp': 'bold' })
+    forgetStaleIdentity()
+    sdk.calls.length = 0
+    grantAnalyticsConsent()
+    expect(sdk.calls.join('\n')).not.toContain('$feature/')
+  })
+
+  it('keeps them when the same person is identified again after a reset of the SDK', async () => {
+    await initAnalytics(OPT_OUT)
+    identifyUser('user-a')
+    registerFeatureProperties({ '$feature/test_exp': 'bold' })
+    sdk.distinctId = 'someone-else'
+    sdk.userState = 'identified'
+    yieldSharedIdentity()
+    confirmSignedInUser('user-a')
+    expect(sdk.properties['$feature/test_exp']).toBe('bold')
   })
 })

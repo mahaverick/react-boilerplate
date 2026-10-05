@@ -98,9 +98,12 @@ let activeConfig: AnalyticsConfig | null = null
 let appliedTenant: AppliedTenant | null = null
 /**
  * The `$feature/*` properties the flags module registered for the signed-in
- * user, kept so `registerSuperProperties` puts them back after a sibling's
- * reset. Written only inside a command, like `appliedTenant`, and emptied by
- * every reset of the person.
+ * user, kept so `registerSuperProperties` puts them back after any reset of
+ * the SDK, including a re-identify of the same person. Written only inside a
+ * command, like `appliedTenant`, and emptied when the person is forgotten:
+ * `resetAnalytics` (superseded or not) and `forgetStaleIdentity` unless
+ * another tab holds the person. A reset of the SDK that keeps the person
+ * leaves them in place.
  */
 let featureProperties: Record<FeaturePropertyName, boolean | string> = {}
 /** The last tenant grouped since sign-in, kept across non-tenant pages so `tenant_switched` compares tenants. */
@@ -273,7 +276,6 @@ function onLoaded(instance: PostHogInterface): void {
  */
 function resetKeepingConsent(ph: PostHogInterface): void {
   signedInUserId = null
-  featureProperties = {}
   const consent = ph.get_explicit_consent_status()
   ph.reset()
   registerSuperProperties(ph)
@@ -511,10 +513,12 @@ export function forgetStaleIdentity(options: { keepIfAnotherTabHoldsThem?: boole
   bumpIdentityEpoch()
   if (options.keepIfAnotherTabHoldsThem) askWhoIsSignedIn()
   run((ph) => {
-    if (ph.get_property('$user_state') !== 'identified') return
     const isHeldElsewhere =
       options.keepIfAnotherTabHoldsThem === true && liveSiblingIdentities.has(ph.get_distinct_id())
-    if (!isHeldElsewhere) resetKeepingConsent(ph)
+    if (isHeldElsewhere) return
+    featureProperties = {}
+    if (ph.get_property('$user_state') !== 'identified') return
+    resetKeepingConsent(ph)
   })
 }
 
@@ -623,6 +627,7 @@ export function resetAnalytics(): void {
   run((ph) => {
     appliedTenant = null
     lastTenantId = null
+    featureProperties = {}
     if (identityRepair !== null) {
       clearTimeout(identityRepair)
       identityRepair = null
