@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/mahaverick/react-boilerplate/compare/v1.5.0...v1.5.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* **flags:** order the $feature/* sync before the page view and reset it on sign-out ([#51](https://github.com/mahaverick/react-boilerplate/issues/51)) ([03489a7](https://github.com/mahaverick/react-boilerplate/commit/03489a77b0216e5295f0d21465e8b28d00b2fef2))
+
 ## [1.5.0](https://github.com/mahaverick/react-boilerplate/compare/v1.4.0...v1.5.0) (2026-10-05)
 
 
