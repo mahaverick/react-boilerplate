@@ -45,7 +45,11 @@ export function syncFeatureProperties(
   registeredNames = new Set(Object.keys(next) as FeaturePropertyName[])
 }
 
-/** Test-only: forget what this module registered. */
-export function resetFeaturePropertiesForTests(): void {
+/**
+ * Forgets what this module registered, without unregistering it: for a reset
+ * of analytics, which drops the properties itself, so the next sync registers
+ * its values afresh rather than unregistering names nothing holds.
+ */
+export function forgetFeatureProperties(): void {
   registeredNames = new Set()
 }

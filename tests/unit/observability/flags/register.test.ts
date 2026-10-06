@@ -3,7 +3,7 @@ import * as analytics from '@/observability/analytics'
 import type { ClientFlagKey } from '@/observability/flags/flag-types'
 import {
   featurePropertyName,
-  resetFeaturePropertiesForTests,
+  forgetFeatureProperties,
   syncFeatureProperties,
 } from '@/observability/flags/register'
 import { testFlagKey } from '@/tests/fixtures/test-client-flags'
@@ -21,7 +21,7 @@ let register: MockInstance<typeof analytics.registerFeatureProperties>
 let unregister: MockInstance<typeof analytics.unregisterFeatureProperties>
 
 beforeEach(() => {
-  resetFeaturePropertiesForTests()
+  forgetFeatureProperties()
   register = vi.spyOn(analytics, 'registerFeatureProperties').mockImplementation(() => undefined)
   unregister = vi
     .spyOn(analytics, 'unregisterFeatureProperties')
@@ -51,6 +51,15 @@ describe('syncFeatureProperties', () => {
     syncFeatureProperties(values({ test_exp: 'calm' }))
     expect(unregister).toHaveBeenCalledWith(['$feature/test_bool'])
     expect(register).toHaveBeenLastCalledWith({ '$feature/test_exp': 'calm' })
+  })
+
+  it('after forgetting, registers afresh and unregisters nothing', () => {
+    syncFeatureProperties(values({ test_bool: true, test_exp: 'bold' }))
+    forgetFeatureProperties()
+    register.mockClear()
+    syncFeatureProperties(values({ test_exp: 'calm' }))
+    expect(unregister).not.toHaveBeenCalled()
+    expect(register).toHaveBeenCalledWith({ '$feature/test_exp': 'calm' })
   })
 
   it('unregisters everything for null', () => {

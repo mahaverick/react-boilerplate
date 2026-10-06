@@ -18,7 +18,7 @@ import type {
   MultivariateClientFlagKey,
 } from '@/observability/flags/flag-types'
 import { fallbackFlags } from '@/observability/flags/flag-values'
-import { resetFeaturePropertiesForTests } from '@/observability/flags/register'
+import { forgetFeatureProperties } from '@/observability/flags/register'
 import { testFlagKey } from '@/tests/fixtures/test-client-flags'
 import { settle } from '@/tests/fixtures/timing'
 import { server } from '@/tests/mocks/server'
@@ -69,7 +69,7 @@ beforeEach(() => {
   window.sessionStorage.clear()
   resetExposureForTests()
   resetFlagHooksForTests()
-  resetFeaturePropertiesForTests()
+  forgetFeatureProperties()
   exposures = []
   server.use(
     http.post('/api/v1/flags/exposures', async ({ request }) => {
