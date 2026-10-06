@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/mahaverick/react-boilerplate/compare/v1.5.2...v1.6.0) (2026-10-06)
+
+
+### Features
+
+* **maintenance:** maintenance page, read-only banner and status poll (sp5e-1) ([#56](https://github.com/mahaverick/react-boilerplate/issues/56)) ([bd98446](https://github.com/mahaverick/react-boilerplate/commit/bd98446c8312e5198119248f9ba1f4db153eb995))
+
 ## [1.5.2](https://github.com/mahaverick/react-boilerplate/compare/v1.5.1...v1.5.2) (2026-10-06)
 
 
