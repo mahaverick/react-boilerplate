@@ -192,9 +192,13 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   matched condition or a holdout.
 - **`$feature/*` is registered from `useFeaturePropertiesSync` in
   `AppLayout`, never from the query**: a loader also runs for a hovered
-  link's preload, and that scope is not the page's. It syncs in a layout
-  effect, which runs before the router's `onResolved` captures the page
-  view; a passive effect is ordered before it only by React's flush timing.
+  link's preload, and that scope is not the page's. Before each page view the
+  router syncs them too (`installRouteFeatureProperties`, on `onLoad`, which
+  fires before `onResolved` captures the page view and never for a preload):
+  `main.tsx` runs the first load before React mounts, so without it the
+  landing page view carries no `$feature/*`. The hook syncs in a layout
+  effect, which within a navigation also runs before `onResolved`; a passive
+  effect would be ordered before it only by React's flush timing.
 
 ## The container
 

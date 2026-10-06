@@ -11,7 +11,10 @@ import {
 } from '@/http/session'
 import { forgetStaleIdentity } from '@/observability/analytics'
 import { setErrorRouteSource } from '@/observability/errors'
-import { installFlagScopeReset } from '@/observability/flags/flag-scope'
+import {
+  installFlagScopeReset,
+  installRouteFeatureProperties,
+} from '@/observability/flags/flag-scope'
 import { installRouteAnalytics } from '@/observability/route-analytics'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -66,6 +69,7 @@ export const router = createRouter({
 
 installRouteAnalytics(router)
 installFlagScopeReset(router, queryClient)
+installRouteFeatureProperties(router, queryClient)
 setErrorRouteSource(() => router.state.matches.at(-1)?.routeId)
 
 declare module '@tanstack/react-router' {

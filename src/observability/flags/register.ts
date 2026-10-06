@@ -8,11 +8,11 @@ import {
   unregisterFeatureProperties,
   type FeaturePropertyName,
 } from '@/observability/analytics'
+import { registeredFeatureNames } from './feature-property-names'
 import type { ClientFlagKey } from './flag-types'
 import { clientFlagKeys } from './flag-values'
 
-/** The names this module last registered, so a later sync can drop the ones it no longer sends. */
-let registeredNames = new Set<FeaturePropertyName>()
+export { forgetFeatureProperties } from './feature-property-names'
 
 /**
  * The super property that carries a flag's value.
@@ -39,17 +39,9 @@ export function syncFeatureProperties(
       if (value !== undefined) next[featurePropertyName(key)] = value
     }
   }
-  const stale = [...registeredNames].filter((name) => !(name in next))
+  const stale = [...registeredFeatureNames].filter((name) => !(name in next))
   if (stale.length > 0) unregisterFeatureProperties(stale)
   if (Object.keys(next).length > 0) registerFeatureProperties(next)
-  registeredNames = new Set(Object.keys(next) as FeaturePropertyName[])
-}
-
-/**
- * Forgets what this module registered, without unregistering it: for a reset
- * of analytics, which drops the properties itself, so the next sync registers
- * its values afresh rather than unregistering names nothing holds.
- */
-export function forgetFeatureProperties(): void {
-  registeredNames = new Set()
+  registeredFeatureNames.clear()
+  for (const name of Object.keys(next) as FeaturePropertyName[]) registeredFeatureNames.add(name)
 }
