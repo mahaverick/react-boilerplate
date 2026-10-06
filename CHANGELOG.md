@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.2](https://github.com/mahaverick/react-boilerplate/compare/v1.5.1...v1.5.2) (2026-10-06)
+
+
+### Bug Fixes
+
+* **flags:** landing pageview flag properties and SP5d review follow-ups ([#53](https://github.com/mahaverick/react-boilerplate/issues/53)) ([7127970](https://github.com/mahaverick/react-boilerplate/commit/712797090a36c658a8c495b6f760bd8700636606))
+
 ## [1.5.1](https://github.com/mahaverick/react-boilerplate/compare/v1.5.0...v1.5.1) (2026-10-06)
 
 
