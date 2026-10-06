@@ -331,6 +331,32 @@ describe('two tabs of this app', () => {
     expect(entries.map((entry) => entry.distinctId)).toEqual(['user-a'])
   })
 
+  const registered = () =>
+    (
+      JSON.parse(window.localStorage.getItem('analytics-identity-registry') ?? '[]') as {
+        distinctId: string
+      }[]
+    ).map((entry) => entry.distinctId)
+
+  it('takes the user out of the registry when consent is denied, and again once opted out', async () => {
+    const required = await openTab('required')
+    required.facade.identifyUser('user-a')
+    required.facade.grantAnalyticsConsent()
+    expect(registered()).toEqual(['user-a'])
+    required.facade.denyAnalyticsConsent()
+    expect(registered()).toEqual([])
+  })
+
+  it('takes the user out of the registry when the profile opts out, and back in on opting in', async () => {
+    const optOut = await openTab('opt_out')
+    optOut.facade.identifyUser('user-b')
+    expect(registered()).toEqual(['user-b'])
+    optOut.facade.setAnalyticsOptOut(true)
+    expect(registered()).toEqual([])
+    optOut.facade.setAnalyticsOptOut(false)
+    expect(registered()).toEqual(['user-b'])
+  })
+
   /** Blocks the event loop, as a long task or a throttled background tab does. */
   function stallEventLoop(ms: number): void {
     const end = Date.now() + ms
@@ -339,7 +365,7 @@ describe('two tabs of this app', () => {
     }
   }
 
-  it('a stalled event loop never lets the repair run before the other tab’s sign-in lands', async () => {
+  it('after a stalled event loop the registry still supersedes the tab instead of repairing', async () => {
     const first = await openTab()
     const second = await openTab()
     const superseded = vi.fn()

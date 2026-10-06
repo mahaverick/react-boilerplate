@@ -814,8 +814,10 @@ export function setAnalyticsOptOut(isOptedOut: boolean): void {
   run((ph) => {
     if (isOptedOut) {
       if (!ph.has_opted_out_capturing()) ph.opt_out_capturing()
+      if (signedInUserId !== null) unregisterIdentity(signedInUserId)
     } else if (activeConfig?.consentMode === 'opt_out' && ph.has_opted_out_capturing()) {
       ph.opt_in_capturing()
+      if (signedInUserId !== null && !isSuperseded) registerIdentity(signedInUserId)
       if (isOnScreen) ph.capture('$pageview', {})
     }
     notifyConsent()
@@ -856,6 +858,7 @@ export function denyAnalyticsConsent(): void {
   run((ph) => {
     const wasPending = ph.get_explicit_consent_status() === 'pending'
     ph.opt_out_capturing()
+    if (signedInUserId !== null) unregisterIdentity(signedInUserId)
     if (wasPending) ph.capture('$pageview', {})
     notifyConsent()
   })
