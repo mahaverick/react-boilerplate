@@ -3,12 +3,14 @@ import { createRouter } from '@tanstack/react-router'
 import { RouteError } from '@/components/features/route-error'
 import { RouteNotFound } from '@/components/features/route-not-found'
 import { RoutePending } from '@/components/features/route-pending'
+import { apiClient } from '@/http/client'
 import {
   ensureSession,
   installAnalyticsIdentity,
   installAuthBroadcastListener,
   isAuthVerdict,
 } from '@/http/session'
+import { installMaintenanceModeInterceptor } from '@/lib/maintenance-mode'
 import { forgetStaleIdentity } from '@/observability/analytics'
 import { setErrorRouteSource } from '@/observability/errors'
 import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
@@ -19,6 +21,9 @@ import {
 import { installRouteAnalytics } from '@/observability/route-analytics'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+
+// Before any request: the session restore's own answers carry the mode.
+installMaintenanceModeInterceptor(apiClient)
 
 export const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },

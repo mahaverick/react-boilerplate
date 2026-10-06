@@ -49,6 +49,34 @@ export const ACCESS_TOKEN_EXPIRED = 'ACCESS_TOKEN_EXPIRED'
  */
 export const REAUTH_REQUIRED = 'REAUTH_REQUIRED'
 
+/** The maintenance modes express enforces, mildest first. */
+export const MAINTENANCE_MODES = ['off', 'read_only', 'full'] as const
+
+/** One of `MAINTENANCE_MODES`. */
+export type MaintenanceMode = (typeof MAINTENANCE_MODES)[number]
+
+/** Whether `value` is one of `MAINTENANCE_MODES`. */
+export function isMaintenanceMode(value: unknown): value is MaintenanceMode {
+  return typeof value === 'string' && (MAINTENANCE_MODES as readonly string[]).includes(value)
+}
+
+/** 503 on every customer route while maintenance is `full`, and on a non-staff sign-in. */
+export const MAINTENANCE_MODE = 'MAINTENANCE_MODE'
+
+/** 503 on a write while maintenance is `read_only`. */
+export const READ_ONLY_MODE = 'READ_ONLY_MODE'
+
+/**
+ * `GET /status/maintenance`, public. `message` is the owner's text for
+ * customers, plain text; `since` is when the current mode began. Both are
+ * `null` while the mode is `off`.
+ */
+export interface MaintenanceStatus {
+  mode: MaintenanceMode
+  message: string | null
+  since: string | null
+}
+
 /**
  * `invitedBy` on a pending-invitation row, or `null` once the inviter's
  * account is gone (the column is `on delete set null`).

@@ -177,6 +177,50 @@ describe('notifications page', () => {
     expect(within(main).queryAllByRole('switch')).toHaveLength(0)
   })
 
+  it('lists only the types the API sends, so a customer sees no maintenance row', async () => {
+    // Express omits the staff-only `maintenance_mode_changed` type for a user with no platform membership.
+    server.use(
+      http.get('/api/v1/notifications/preferences', () =>
+        ok(
+          {
+            preferences: [
+              { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
+            ],
+          },
+          'Notification preferences retrieved.'
+        )
+      )
+    )
+    renderNotifications()
+
+    const main = await screen.findByRole('main')
+    expect(await within(main).findByText('Verify email')).toBeInTheDocument()
+    expect(within(main).queryByText(/maintenance/i)).not.toBeInTheDocument()
+  })
+
+  it('lists the maintenance type when the API sends it, as it does for staff', async () => {
+    server.use(
+      http.get('/api/v1/notifications/preferences', () =>
+        ok(
+          {
+            preferences: [
+              {
+                notificationType: 'maintenance_mode_changed',
+                emailEnabled: true,
+                inAppEnabled: true,
+              },
+            ],
+          },
+          'Notification preferences retrieved.'
+        )
+      )
+    )
+    renderNotifications()
+
+    const main = await screen.findByRole('main')
+    expect(await within(main).findByText('Maintenance mode changed')).toBeInTheDocument()
+  })
+
   it('says so when the inbox is empty', async () => {
     server.use(http.get('/api/v1/notifications', () => ok({ notifications: [] }, 'Retrieved.')))
     renderNotifications()

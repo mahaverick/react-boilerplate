@@ -1,10 +1,21 @@
 import { AxiosError } from 'axios'
-import type { ApiErrorBody } from '@/types/api.types'
+import { READ_ONLY_MODE, type ApiErrorBody } from '@/types/api.types'
 
-/** The envelope's `message`, or a generic retry prompt when the failure carried none. */
+/**
+ * What a write refused by read-only maintenance says. The 503's own `message`
+ * is the owner's notice for the whole maintenance period, which the banner
+ * already shows, not a reason this one write failed.
+ */
+export const READ_ONLY_MODE_MESSAGE = 'Changes are paused during maintenance.'
+
+/**
+ * The envelope's `message`, `READ_ONLY_MODE_MESSAGE` for a `READ_ONLY_MODE`
+ * refusal, or a generic retry prompt when the failure carried none.
+ */
 export function messageFrom(error: unknown): string {
   if (error instanceof AxiosError) {
     const body = error.response?.data as ApiErrorBody | undefined
+    if (body?.code === READ_ONLY_MODE) return READ_ONLY_MODE_MESSAGE
     if (body?.message) return body.message
   }
   return 'Something went wrong. Please try again.'

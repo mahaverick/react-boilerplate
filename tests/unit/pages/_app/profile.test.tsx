@@ -9,6 +9,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -33,6 +34,7 @@ describe('profile page', () => {
   beforeEach(() => {
     resetSessionForTests()
     queryClient.clear()
+    useMaintenanceModeStore.setState({ mode: 'off', message: null, since: null })
     useAuthStore.setState({
       accessToken: 'access-token',
       user: testUser,
@@ -149,5 +151,48 @@ describe('profile page', () => {
       expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled()
     })
     expect(screen.getByLabelText('First name')).toHaveValue('A')
+  })
+
+  it('keeps what was typed when read-only maintenance refuses the save, and says why', async () => {
+    server.use(
+      http.patch('/api/v1/profile', () =>
+        HttpResponse.json(
+          {
+            success: false,
+            message: 'Upgrading the database. Back by 11:00.',
+            statusCode: 503,
+            code: 'READ_ONLY_MODE',
+            mode: 'read_only',
+            since: '2026-10-06T10:42:00.000Z',
+            requestId: 'test-request-id',
+          },
+          { status: 503, headers: { 'Maintenance-Mode': 'read_only', 'Retry-After': '30' } }
+        )
+      ),
+      http.get('/api/v1/status/maintenance', () =>
+        ok(
+          {
+            mode: 'read_only',
+            message: 'Upgrading the database. Back by 11:00.',
+            since: '2026-10-06T10:42:00.000Z',
+          },
+          'Maintenance status retrieved.'
+        )
+      )
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await user.clear(first)
+    await user.type(first, 'Ada')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText('Changes are paused during maintenance.')).toBeInTheDocument()
+    const banner = await screen.findByRole('region', { name: 'Maintenance' })
+    expect(banner).toHaveTextContent('Upgrading the database. Back by 11:00.')
+    expect(screen.getByLabelText('First name')).toHaveValue('Ada')
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled()
+    expect(screen.getAllByText('Changes are paused during maintenance.')).toHaveLength(1)
   })
 })

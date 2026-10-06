@@ -44,6 +44,8 @@ export interface BrowserEventProps {
   table_filtered: { table: AnalyticsKey }
   /** A list was exported. */
   table_exported: { table: AnalyticsKey }
+  /** The maintenance page (`full`) or the read-only banner was shown, once per maintenance period. */
+  maintenance_page_viewed: { mode: 'full' | 'read_only' }
 }
 
 /** A registered event name. */

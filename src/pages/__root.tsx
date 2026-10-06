@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react-router'
 import { ConsentBanner } from '@/components/features/analytics/consent-banner'
+import { MaintenanceGate } from '@/components/features/maintenance/maintenance-gate'
 import { Toaster } from '@/components/ui/sonner'
 import { APP_NAME } from '@/constants/app'
 import { bootstrapSession } from '@/router'
@@ -26,11 +27,19 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootComponent,
 })
 
+/**
+ * The page, inside the maintenance gate, which swaps it for the maintenance
+ * screen while the mode is `full`. The gate is imported statically, as the
+ * router's error screen is: it is needed exactly when the API is not
+ * answering normally, which is a bad moment to fetch a lazy chunk.
+ */
 function RootComponent() {
   return (
     <>
       <HeadContent />
-      <Outlet />
+      <MaintenanceGate>
+        <Outlet />
+      </MaintenanceGate>
       <Toaster position="top-right" richColors closeButton />
       <ConsentBanner />
     </>

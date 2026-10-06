@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, AxiosHeaders } from 'axios'
+import { toast } from 'sonner'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   Form,
@@ -13,6 +14,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { READ_ONLY_TOAST_ID } from '@/constants/maintenance-mode'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 
@@ -354,6 +356,39 @@ describe('capture', () => {
 
     expect(result.current.formErrors).toEqual([])
     expect(result.current.fieldErrors).toEqual({ email: ['Already taken.'] })
+  })
+  it('toasts a read-only refusal once, and puts nothing on the form', () => {
+    const toastError = vi.spyOn(toast, 'error')
+    const { result } = renderHook(() => useServerErrors())
+    const config = { headers: new AxiosHeaders() }
+    const refusal = () =>
+      new AxiosError('Service Unavailable', '503', config, null, {
+        data: {
+          success: false,
+          message: 'Upgrading the database.',
+          statusCode: 503,
+          code: 'READ_ONLY_MODE',
+          requestId: 'test-request-id',
+        },
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: {},
+        config,
+      })
+
+    act(() => {
+      result.current.capture(refusal())
+      result.current.capture(refusal())
+    })
+
+    expect(result.current.formErrors).toEqual([])
+    expect(result.current.fieldErrors).toEqual({})
+    expect(toastError).toHaveBeenCalledWith('Changes are paused during maintenance.', {
+      id: READ_ONLY_TOAST_ID,
+    })
+    expect(new Set(toastError.mock.calls.map(([, options]) => options?.id))).toEqual(
+      new Set([READ_ONLY_TOAST_ID])
+    )
   })
 })
 

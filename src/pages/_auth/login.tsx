@@ -44,6 +44,8 @@ const OAUTH_ERRORS: Record<string, string> = {
     "Google hasn't verified this email address. Verify it with Google, or sign up with email and password.",
   google_email_missing: "Your Google account didn't share an email address.",
   processing_failed: 'Something went wrong signing in with Google. Try again.',
+  // The API refuses a non-staff sign-in while maintenance mode is full.
+  MAINTENANCE_MODE: 'Sign-in is paused for maintenance. Please try again later.',
 }
 
 /**

@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
 import type { Page } from '@playwright/test'
-import { expect, test } from '../hermetic'
+import { expect, FALLBACK_HEADER, test } from '../hermetic'
 import { afterAnimations, afterFontsAndFrames } from '../timing'
 
 /**
@@ -370,6 +370,47 @@ test.describe('staff surfaces', () => {
       await expect(row.getByText('Staff', { exact: true })).toBeVisible()
       expect(report('staff badge', theme, result), report('staff badge', theme, result)).toBe('')
     })
+  }
+})
+
+/**
+ * The maintenance surfaces: the full-mode screen and the read-only banner,
+ * each driven by answering the status read, and each asserted present before
+ * its grade counts.
+ */
+test.describe('maintenance surfaces', () => {
+  for (const theme of THEMES) {
+    for (const mode of ['full', 'read_only'] as const) {
+      test(`the ${mode} maintenance surface meets WCAG AA contrast in ${theme}`, async ({
+        page,
+        context,
+      }) => {
+        await context.route('**/api/v1/status/maintenance', (route) =>
+          route.fulfill({
+            status: 200,
+            headers: { [FALLBACK_HEADER]: '1', 'Maintenance-Mode': mode },
+            json: {
+              success: true,
+              message: 'Maintenance status retrieved.',
+              statusCode: 200,
+              data: { mode, message: 'Back by 11:00.', since: '2026-10-06T10:42:00.000Z' },
+            },
+          })
+        )
+        const result = await contrastOf(
+          page,
+          '/e2e/harness/?path=/dashboard',
+          theme,
+          mode === 'full' ? 'We’ll be back soon' : /^Welcome back/
+        )
+        if (mode === 'read_only') {
+          await expect(page.getByRole('region', { name: 'Maintenance' })).toBeVisible()
+        }
+        await expect(page.getByText('Back by 11:00.')).toBeVisible()
+        const name = `maintenance ${mode}`
+        expect(report(name, theme, result), report(name, theme, result)).toBe('')
+      })
+    }
   }
 })
 

@@ -12,6 +12,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
 import {
@@ -441,6 +442,7 @@ beforeEach(() => {
   resetSessionForTests()
   queryClient.clear()
   useSidebarStore.setState({ isCollapsed: false })
+  useMaintenanceModeStore.setState({ mode: 'off', message: null, since: null })
 })
 
 afterEach(() => {
@@ -668,6 +670,56 @@ describe('signed-in pages', () => {
  * The accept page's other states, each one its own render: a default sweep
  * only ever sees the invited account arriving at a valid link.
  */
+/** The status endpoint answering `mode`, with the owner's message. */
+function serveMaintenance(mode: 'read_only' | 'full') {
+  server.use(
+    http.get('/api/v1/status/maintenance', () =>
+      ok(
+        { mode, message: 'Upgrading the database. Back by 11:00.', since: '2026-10-06T10:42:00Z' },
+        'Maintenance status retrieved.'
+      )
+    )
+  )
+}
+
+describe('maintenance mode', () => {
+  it('the full maintenance page, signed in, has no axe violations', async () => {
+    signIn()
+    mockSignedInData()
+    serveMaintenance('full')
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: 'We’ll be back soon' })
+    await expectNoViolations()
+  })
+
+  it('the full maintenance page over sign-in has no axe violations', async () => {
+    signOut()
+    serveMaintenance('full')
+    renderAppAt('/login')
+    await screen.findByText('Upgrading the database. Back by 11:00.')
+    await expectNoViolations()
+  })
+
+  it('a page under the read-only banner has no axe violations', async () => {
+    signIn()
+    mockSignedInData()
+    serveMaintenance('read_only')
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+    await screen.findByRole('region', { name: 'Maintenance' })
+    await expectNoViolations()
+  })
+
+  it('sign-in under the read-only banner has no axe violations', async () => {
+    signOut()
+    serveMaintenance('read_only')
+    renderAppAt('/login')
+    await screen.findByRole('button', { name: 'Sign in' })
+    await screen.findByRole('region', { name: 'Maintenance' })
+    await expectNoViolations()
+  })
+})
+
 describe('invitation accept states', () => {
   const acceptPath = `/invitations/accept?token=${TEST_INVITATION_TOKEN}`
 
