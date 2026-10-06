@@ -9,7 +9,7 @@ import {
 } from '@/observability/analytics/analytics'
 import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/analytics/config'
 import { isPersistedIdentified } from '@/observability/analytics/handoff'
-import { analyticsConfigFor } from '@/tests/mocks/posthog'
+import { analyticsConfigFor, stopPersisting } from '@/tests/mocks/posthog'
 import { server } from '@/tests/mocks/server'
 
 /**
@@ -21,6 +21,7 @@ import { server } from '@/tests/mocks/server'
 describe('the facade over the pinned posthog-js', () => {
   afterEach(() => {
     resetAnalyticsForTests()
+    stopPersisting(posthog)
     window.localStorage.clear()
   })
 
@@ -80,6 +81,7 @@ describe('the banner answer over the pinned posthog-js', () => {
 
   afterEach(() => {
     facade.resetAnalyticsForTests()
+    stopPersisting(instance)
     vi.doUnmock('posthog-js')
     window.localStorage.clear()
     window.sessionStorage.clear()

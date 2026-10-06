@@ -3,7 +3,7 @@ import type { CaptureResult, PostHog } from 'posthog-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/analytics/config'
 import { settle } from '@/tests/fixtures/timing'
-import { analyticsConfigFor } from '@/tests/mocks/posthog'
+import { analyticsConfigFor, stopPersisting } from '@/tests/mocks/posthog'
 import { server } from '@/tests/mocks/server'
 
 const KEY = 'phc_test_key_not_real'
@@ -49,6 +49,8 @@ describe('a sibling sharing the identity cookie', () => {
 
   afterEach(() => {
     facade.resetAnalyticsForTests()
+    stopPersisting(posthog)
+    stopPersisting(website)
     window.localStorage.clear()
     window.sessionStorage.clear()
     for (const cookie of document.cookie.split('; ')) {
@@ -131,7 +133,7 @@ type Facade = typeof import('@/observability/analytics/analytics')
  * its own SDK and facade on one cookie jar, as the review's probe ran them.
  */
 describe('two tabs of this app', () => {
-  const tabs: Facade[] = []
+  const tabs: { facade: Facade; ph: PostHog }[] = []
 
   async function openTab(
     consentMode: 'opt_out' | 'required' = 'opt_out',
@@ -152,7 +154,7 @@ describe('two tabs of this app', () => {
     const sent: CaptureResult[] = []
     ph.on('eventCaptured', (event: CaptureResult) => sent.push(event))
     vi.doUnmock('posthog-js')
-    tabs.push(facade)
+    tabs.push({ facade, ph })
     return { facade, ph, sent }
   }
 
@@ -161,7 +163,10 @@ describe('two tabs of this app', () => {
   })
 
   afterEach(() => {
-    for (const facade of tabs.splice(0)) facade.resetAnalyticsForTests()
+    for (const { facade, ph } of tabs.splice(0)) {
+      facade.resetAnalyticsForTests()
+      stopPersisting(ph)
+    }
     window.localStorage.clear()
     window.sessionStorage.clear()
     for (const cookie of document.cookie.split('; ')) {
