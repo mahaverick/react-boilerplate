@@ -77,12 +77,14 @@ export function useVariant<K extends MultivariateClientFlagKey>(key: K): ClientV
 
 /**
  * Keeps the `$feature/*` super properties on the current scope's values,
- * unregistering them all while that scope has none. Mount it once, in the
- * authenticated layout: registering from the query instead would also
- * register a hovered link's preloaded scope. A layout effect: the router
- * emits `onResolved`, where the page view is captured, only after its
- * matches' own layout effect has run, and a layout effect below them runs
- * before that one, so a page view never carries the previous scope's values.
+ * unregistering them all while that scope has none, as its values arrive and
+ * change. Mount it once, in the authenticated layout: registering from the
+ * query instead would also register a hovered link's preloaded scope. Before
+ * a page view the app syncs from the router (`onLoad`), which also covers the
+ * first load, captured before React mounts. A layout effect besides: within
+ * a navigation the router emits `onResolved`, where the page view is
+ * captured, only after its matches' own layout effect has run, and a layout
+ * effect below them runs before that one.
  */
 export function useFeaturePropertiesSync(): void {
   const scope = useFlagScope()

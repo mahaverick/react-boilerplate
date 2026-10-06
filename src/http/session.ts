@@ -11,8 +11,8 @@ import {
   yieldSharedIdentity,
 } from '@/observability/analytics'
 import { clearExposureDedupe } from '@/observability/flags/exposure'
+import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
 import { clearFlags } from '@/observability/flags/flag-query'
-import { forgetFeatureProperties } from '@/observability/flags/register'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 

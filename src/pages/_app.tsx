@@ -10,7 +10,8 @@ import { useAuthStore } from '@/states/auth.store'
  * entered on: the tenant's on a tenant page (a parent route's params include
  * `$slug`), the user's elsewhere. It does not run again on a navigation that
  * stays in the shell, a move to another tenant included: that page's readers
- * fetch its flags and show the fallbacks meanwhile. `ensureFlags` never
+ * fetch its flags and show the fallbacks meanwhile, unless a guard of the
+ * navigation (`requireClientFlag`) has already read them. `ensureFlags` never
  * rejects, so a failed read renders the page with fallbacks.
  */
 export const Route = createFileRoute('/_app')({

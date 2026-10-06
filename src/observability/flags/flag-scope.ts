@@ -7,7 +7,9 @@ import { useParams, type AnyRouter } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { clearExposureDedupe } from './exposure'
 // Import cycle (flag-scope → flag-query → flag-scope): safe, as each reads the other only inside functions.
-import { clearFlags } from './flag-query'
+import { clearFlags, flagKeyFor } from './flag-query'
+import type { ClientFlagValues } from './flag-types'
+import { syncFeatureProperties } from './register'
 
 /** Where a flags read is evaluated: in a tenant, with no tenant, or for staff in Apex. */
 export type FlagScope = { kind: 'tenant'; slug: string } | { kind: 'none' } | { kind: 'platform' }
@@ -69,5 +71,29 @@ export function installFlagScopeReset(router: AnyRouter, queryClient: QueryClien
       clearExposureDedupe()
     }
     lastTenant = scope.slug
+  })
+}
+
+/**
+ * Syncs the `$feature/*` super properties to the resolved scope's cached
+ * values each time the router commits a navigation, the first load
+ * included. The router emits `onLoad` before `onResolved`, where the page
+ * view is captured, and never for a preload. On the first load React has not
+ * mounted yet, so `useFeaturePropertiesSync` cannot have run; a page under
+ * the signed-in shell has its values cached by `_app`'s loader by then. A
+ * scope with nothing cached (another tenant's, before its page fetches it)
+ * unregisters them all, and that hook registers them when they arrive.
+ * @param router - The app's router.
+ * @param queryClient - The client holding the flag queries.
+ * @returns The unsubscribe.
+ */
+export function installRouteFeatureProperties(
+  router: AnyRouter,
+  queryClient: QueryClient
+): () => void {
+  return router.subscribe('onLoad', () => {
+    const params = (router.state.matches.at(-1)?.params ?? {}) as { slug?: string }
+    const key = flagKeyFor(flagScopeFor(params))
+    syncFeatureProperties(queryClient.getQueryData<ClientFlagValues>(key) ?? null)
   })
 }

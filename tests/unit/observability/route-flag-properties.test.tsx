@@ -18,7 +18,11 @@ import {
 } from '@/observability/analytics/analytics'
 import { resetFlagHooksForTests, useFeaturePropertiesSync } from '@/observability/flags/flag-hooks'
 import { ensureFlags } from '@/observability/flags/flag-query'
-import { flagScopeFor, installFlagScopeReset } from '@/observability/flags/flag-scope'
+import {
+  flagScopeFor,
+  installFlagScopeReset,
+  installRouteFeatureProperties,
+} from '@/observability/flags/flag-scope'
 import { forgetFeatureProperties } from '@/observability/flags/register'
 import { installRouteAnalytics } from '@/observability/route-analytics'
 import { ok, testFlags } from '@/tests/mocks/handlers'
@@ -53,9 +57,9 @@ function featuresHeld(): Record<string, unknown> {
  * The app's shape: a pathless `_app` layout whose loader warms the flags of
  * the page it is entered on and whose component mounts the `$feature/*`
  * sync, the tenant layout under it, and the router subscriptions
- * `router.tsx` installs, in its order.
+ * `router.tsx` installs, in its order. Nothing is rendered until `mount`.
  */
-function renderApp(initialPath: string) {
+function buildApp(initialPath: string) {
   const queryClient = new QueryClient()
   const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
     component: Outlet,
@@ -89,14 +93,19 @@ function renderApp(initialPath: string) {
     history: createMemoryHistory({ initialEntries: [initialPath] }),
     context: { queryClient },
   })
-  const uninstall = [installRouteAnalytics(router), installFlagScopeReset(router, queryClient)]
-  render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router as never} />
-    </QueryClientProvider>
-  )
+  const uninstall = [
+    installRouteAnalytics(router),
+    installFlagScopeReset(router, queryClient),
+    installRouteFeatureProperties(router, queryClient),
+  ]
   return {
     router,
+    mount: () =>
+      render(
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router as never} />
+        </QueryClientProvider>
+      ),
     cleanup: () => {
       for (const stop of uninstall) stop()
       queryClient.clear()
@@ -104,36 +113,68 @@ function renderApp(initialPath: string) {
   }
 }
 
+/** Mounts the app at once and lets `RouterProvider` run the first load, as most tests do. */
+function renderApp(initialPath: string) {
+  const app = buildApp(initialPath)
+  app.mount()
+  return app
+}
+
 /** Indexes in `sdk.calls` of the calls that start with `prefix`. */
 function indexesOf(prefix: string): number[] {
   return sdk.calls.flatMap((call, index) => (call.startsWith(prefix) ? [index] : []))
 }
 
-describe('$feature/* across a change of flag scope', () => {
-  let cleanup: () => void = () => {}
+const ANALYTICS = analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real' })
+let cleanup: () => void = () => {}
 
-  beforeEach(async () => {
-    resetAnalyticsForTests()
-    resetFakePosthog()
-    resetFlagHooksForTests()
-    forgetFeatureProperties()
-    captures = []
-    instance.capture.mockImplementation((event: string, properties: unknown) => {
-      sdk.calls.push(`capture(${JSON.stringify(event)}, ${JSON.stringify(properties)})`)
-      captures.push({ event, features: featuresHeld() })
-    })
-    server.use(
-      http.get('/api/v1/tenants/:slug/flags', ({ params }) =>
-        ok(TENANT_FLAGS[String(params.slug)] ?? testFlags())
-      ),
-      http.get('/api/v1/flags', () => ok(testFlags()))
-    )
-    await initAnalytics(analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real' }))
+beforeEach(() => {
+  resetAnalyticsForTests()
+  resetFakePosthog()
+  resetFlagHooksForTests()
+  forgetFeatureProperties()
+  captures = []
+  instance.capture.mockImplementation((event: string, properties: unknown) => {
+    sdk.calls.push(`capture(${JSON.stringify(event)}, ${JSON.stringify(properties)})`)
+    captures.push({ event, features: featuresHeld() })
   })
+  server.use(
+    http.get('/api/v1/tenants/:slug/flags', ({ params }) =>
+      ok(TENANT_FLAGS[String(params.slug)] ?? testFlags())
+    ),
+    http.get('/api/v1/flags', () => ok(testFlags()))
+  )
+})
 
-  afterEach(() => {
-    cleanup()
-    instance.capture.mockRestore()
+afterEach(() => {
+  cleanup()
+  cleanup = () => {}
+  instance.capture.mockRestore()
+})
+
+describe('the landing page view, booted as main.tsx boots', () => {
+  it("carries the landing scope's values, though no React tree exists when it is captured", async () => {
+    const app = buildApp('/tenants/acme')
+    cleanup = app.cleanup
+    await app.router.load()
+    app.mount()
+    await initAnalytics(ANALYTICS)
+    await screen.findByRole('heading', { name: 'acme' })
+
+    expect(captures.map((capture) => capture.event)).toEqual(['$pageview'])
+    expect(captures[0]?.features).toEqual(ACME)
+  })
+})
+
+/**
+ * These pass with the sync in a passive effect too: router stores reach
+ * React through `useSyncExternalStore`, so the commit of a navigation is
+ * sync-lane and React flushes its passive effects before `onResolved`. The
+ * layout effect, and the `onLoad` sync before it, are defence in depth.
+ */
+describe('$feature/* across a change of flag scope', () => {
+  beforeEach(async () => {
+    await initAnalytics(ANALYTICS)
   })
 
   async function startOnAcme() {
