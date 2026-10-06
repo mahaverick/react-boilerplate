@@ -3,8 +3,8 @@ import { READ_ONLY_MODE, type ApiErrorBody } from '@/types/api.types'
 
 /**
  * What a write refused by read-only maintenance says. The 503's own `message`
- * is the owner's notice for the whole maintenance period, which the banner
- * already shows, not a reason this one write failed.
+ * is the owner's notice for the whole maintenance period, not a reason this
+ * one write failed.
  */
 export const READ_ONLY_MODE_MESSAGE = 'Changes are paused during maintenance.'
 

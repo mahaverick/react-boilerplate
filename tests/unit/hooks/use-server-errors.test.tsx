@@ -357,6 +357,7 @@ describe('capture', () => {
     expect(result.current.formErrors).toEqual([])
     expect(result.current.fieldErrors).toEqual({ email: ['Already taken.'] })
   })
+
   it('toasts a read-only refusal once, and puts nothing on the form', () => {
     const toastError = vi.spyOn(toast, 'error')
     const { result } = renderHook(() => useServerErrors())

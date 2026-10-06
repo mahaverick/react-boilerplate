@@ -11,6 +11,7 @@ import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -274,6 +275,41 @@ describe('read-only maintenance', () => {
 
     const banner = await screen.findByRole('region', { name: 'Maintenance' })
     expect(await within(banner).findByText('Back by 11:00.')).toBeVisible()
+  })
+
+  it('is not reverted by an older read still in flight when a header says read_only', async () => {
+    signIn()
+    let release: () => void = () => undefined
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let calls = 0
+    server.use(
+      http.get('/api/v1/status/maintenance', async () => {
+        calls += 1
+        if (calls === 1) {
+          await held
+          return ok({ mode: 'off', message: null, since: null }, 'Maintenance status retrieved.')
+        }
+        return ok(
+          { mode: 'read_only', message: 'Back by 11:00.', since: SINCE },
+          'Maintenance status retrieved.'
+        )
+      })
+    )
+    renderAppAt('/dashboard')
+    await waitFor(() => expect(calls).toBe(1))
+
+    act(() => useMaintenanceModeStore.getState().setFromHeader('read_only'))
+    const banner = await screen.findByRole('region', { name: 'Maintenance' })
+    expect(await within(banner).findByText('Back by 11:00.')).toBeVisible()
+
+    release()
+    await act(() =>
+      settle(100, 'the aborted read has no event to observe, only a store it must not reach')
+    )
+    expect(useMaintenanceModeStore.getState().mode).toBe('read_only')
+    expect(screen.getByRole('region', { name: 'Maintenance' })).toBeInTheDocument()
   })
 
   it('collapses to its summary and expands again', async () => {

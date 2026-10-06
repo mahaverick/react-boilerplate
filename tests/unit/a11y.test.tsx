@@ -666,10 +666,6 @@ describe('signed-in pages', () => {
   )
 })
 
-/**
- * The accept page's other states, each one its own render: a default sweep
- * only ever sees the invited account arriving at a valid link.
- */
 /** The status endpoint answering `mode`, with the owner's message. */
 function serveMaintenance(mode: 'read_only' | 'full') {
   server.use(
@@ -720,6 +716,10 @@ describe('maintenance mode', () => {
   })
 })
 
+/**
+ * The accept page's other states, each one its own render: a default sweep
+ * only ever sees the invited account arriving at a valid link.
+ */
 describe('invitation accept states', () => {
   const acceptPath = `/invitations/accept?token=${TEST_INVITATION_TOKEN}`
 

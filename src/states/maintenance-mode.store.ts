@@ -17,8 +17,9 @@ interface MaintenanceModeState {
   /**
    * Applies a `Maintenance-Mode` response header. Anything but a known mode
    * (no header, a value an older or newer API sends) changes nothing: an
-   * nginx 502 page or a cached response carries no header and must never end
-   * maintenance. A new mode drops the message and start time, which belonged
+   * nginx 502 page carries no header and must never end maintenance. A cached
+   * response carries the header it was stored with, which may be stale, so the
+   * status read sends `Cache-Control: no-cache`. A new mode drops the message and start time, which belonged
    * to the old one, until the status endpoint or a 503 body supplies them.
    */
   setFromHeader: (value: unknown) => void

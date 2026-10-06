@@ -25,13 +25,14 @@ function stringOrNull(value: unknown): string | null {
  * body without a known `mode` rejects, so it can never end maintenance. The
  * endpoint answers `Cache-Control: public, max-age=5`; the request asks past
  * the browser's copy, because a status cached before the mode changed would
- * overwrite the newer mode a response header has just reported.
+ * overwrite the newer mode a response header has just reported. `signal`
+ * aborts the request, so a read the query cancelled never reaches the store.
  */
-export async function fetchMaintenanceStatus(): Promise<MaintenanceStatus> {
+export async function fetchMaintenanceStatus(signal?: AbortSignal): Promise<MaintenanceStatus> {
   const data = unwrap(
     await apiClient.get<ApiSuccess<Partial<Record<keyof MaintenanceStatus, unknown>>>>(
       '/status/maintenance',
-      { headers: { 'Cache-Control': 'no-cache' } }
+      { headers: { 'Cache-Control': 'no-cache' }, signal }
     )
   )
   if (!isMaintenanceMode(data.mode)) throw new Error('The maintenance status names no known mode.')
@@ -55,7 +56,7 @@ export function useMaintenanceStatus(): UseQueryResult<MaintenanceStatus> {
   const isFull = useMaintenanceModeStore((state) => state.mode === 'full')
   return useQuery({
     queryKey: maintenanceStatusKey,
-    queryFn: fetchMaintenanceStatus,
+    queryFn: ({ signal }) => fetchMaintenanceStatus(signal),
     retry: false,
     refetchInterval: isFull ? () => maintenancePollInterval() : false,
   })
