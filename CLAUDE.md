@@ -165,8 +165,8 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   before every event. Never loosen it to log-and-send. It repairs only
   foreign identities: a person another tab of this app identified (announced
   on the `analytics-identity` channel, and written first to a short-lived
-  `localStorage` registry so a stalled event loop cannot let the repair timer
-  win the race) supersedes this tab, which signs itself
+  `localStorage` registry, which narrows the race a stalled event loop
+  opens between the repair timer and the channel's message) supersedes this tab, which signs itself
   out and never resets the SDK under the other tab.
 - **posthog-js minors wait for a human** (`renovate.json`). Before taking
   one, run the tests that pin its internals: `url-sanitizer.test.ts`,

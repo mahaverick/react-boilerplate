@@ -148,12 +148,22 @@ describe('a sibling sharing the identity cookie', () => {
     expect(window.localStorage.getItem('analytics-identity-registry')).toBeNull()
   })
 
-  it('keeps the registry bounded', () => {
-    for (let index = 0; index < 30; index += 1) facade.identifyUser(`user-${index}`)
+  it('keeps the registry bounded, and drops expired entries', () => {
+    const now = Date.now()
+    window.localStorage.setItem(
+      'analytics-identity-registry',
+      JSON.stringify([
+        { distinctId: 'closed-tab', at: now - 120_000 },
+        ...Array.from({ length: 25 }, (_, index) => ({ distinctId: `planted-${index}`, at: now })),
+      ])
+    )
+    facade.identifyUser('user-a')
     const entries = JSON.parse(
       window.localStorage.getItem('analytics-identity-registry') ?? '[]'
-    ) as unknown[]
-    expect(entries.length).toBeLessThanOrEqual(20)
+    ) as { distinctId: string }[]
+    expect(entries).toHaveLength(20)
+    expect(entries.at(-1)?.distinctId).toBe('user-a')
+    expect(entries.some((entry) => entry.distinctId === 'closed-tab')).toBe(false)
   })
 
   it('storage that throws for the registry leaves identify, repair and sign-out as they were', async () => {
@@ -307,6 +317,18 @@ describe('two tabs of this app', () => {
     first.facade.resetAnalytics()
     second.facade.capturePageview()
     expect(pageviews(second.sent).at(-1)).toBe('user-b')
+  })
+
+  it('writes nothing to the registry while consent is pending, and records the user once granted', async () => {
+    const tab = await openTab('required')
+    tab.facade.identifyUser('user-a')
+    expect(window.localStorage.getItem('analytics-identity-registry')).toBeNull()
+
+    tab.facade.grantAnalyticsConsent()
+    const entries = JSON.parse(
+      window.localStorage.getItem('analytics-identity-registry') ?? '[]'
+    ) as { distinctId: string }[]
+    expect(entries.map((entry) => entry.distinctId)).toEqual(['user-a'])
   })
 
   /** Blocks the event loop, as a long task or a throttled background tab does. */

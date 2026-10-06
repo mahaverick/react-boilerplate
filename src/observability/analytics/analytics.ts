@@ -64,7 +64,7 @@ const IDENTITY_REGISTRY_KEY = 'analytics-identity-registry'
 
 /**
  * How long a registry entry counts. Well past `IDENTITY_REPAIR_DELAY_MS` plus
- * any stall of the event loop, short enough that a person who signed out
+ * a typical stall of the event loop, short enough that a person who signed out
  * somewhere is not taken for a signed-in tab for long.
  */
 const IDENTITY_REGISTRY_TTL_MS = 60_000
@@ -204,7 +204,7 @@ function readIdentityRegistry(): IdentityRegistryEntry[] {
     const parsed: unknown = JSON.parse(window.localStorage.getItem(IDENTITY_REGISTRY_KEY) ?? '[]')
     if (!Array.isArray(parsed)) return []
     const now = Date.now()
-    return (parsed as unknown[])
+    const entries = (parsed as unknown[])
       .filter(
         (entry): entry is IdentityRegistryEntry =>
           typeof entry === 'object' &&
@@ -214,6 +214,9 @@ function readIdentityRegistry(): IdentityRegistryEntry[] {
           Math.abs(now - (entry as IdentityRegistryEntry).at) < IDENTITY_REGISTRY_TTL_MS
       )
       .slice(-MAX_SIBLING_IDENTITIES)
+    // Ids of closed tabs do not linger: the trimmed list replaces what storage held.
+    if (entries.length !== parsed.length) writeIdentityRegistry(entries)
+    return entries
   } catch {
     return []
   }
@@ -230,15 +233,19 @@ function writeIdentityRegistry(entries: IdentityRegistryEntry[]): void {
 
 /**
  * Records, in storage every tab of this app reads, that this tab is about to
- * identify `distinctId`. Written synchronously, before `identify`, so a tab
- * whose event loop stalled past `IDENTITY_REPAIR_DELAY_MS` still finds the
- * person there when its repair timer runs ahead of the channel's message.
+ * identify `distinctId`. Written synchronously, before `identify`, so it is
+ * normally visible to a tab whose event loop stalled past
+ * `IDENTITY_REPAIR_DELAY_MS` when its repair timer runs ahead of the
+ * channel's message. It narrows that race; it does not close it, as a browser
+ * may deliver another tab's storage write late.
  */
 function registerIdentity(distinctId: string): void {
-  writeIdentityRegistry([
-    ...readIdentityRegistry().filter((entry) => entry.distinctId !== distinctId),
-    { distinctId, at: Date.now() },
-  ])
+  writeIdentityRegistry(
+    [
+      ...readIdentityRegistry().filter((entry) => entry.distinctId !== distinctId),
+      { distinctId, at: Date.now() },
+    ].slice(-MAX_SIBLING_IDENTITIES)
+  )
 }
 
 /** Takes `distinctId` out of the registry: the person signed out of this tab. */
@@ -369,7 +376,8 @@ function applyIdentity(ph: PostHogInterface, userId: string): void {
     resetKeepingConsent(ph)
   }
   isSuperseded = false
-  registerIdentity(userId)
+  // Not while opted out: posthog-js persists nothing then, and neither does this registry.
+  if (!ph.has_opted_out_capturing()) registerIdentity(userId)
   ph.identify(userId)
   signedInUserId = userId
   announceIdentity(userId)
@@ -399,9 +407,10 @@ function scheduleRepair(): void {
  * still stands then and is foreign. A sign-out in this tab (another tab's
  * logout broadcast landing) cancels it. A change to a person another tab of
  * this app identified, announced on the channel or recorded in the storage
- * registry (which a stalled event loop cannot delay), is that tab's
- * legitimate sign-in: this tab is then superseded instead, and the app signs
- * it out, never fighting the other tab.
+ * registry (written before the identify, so normally visible before the
+ * cookie change, and narrowing the race a stalled event loop opens), is that
+ * tab's legitimate sign-in: this tab is then superseded instead, and the app
+ * signs it out, never fighting the other tab.
  * Only a foreign identity, such as one a website sharing the cookie set, is
  * repaired.
  */
@@ -828,6 +837,7 @@ export function grantAnalyticsConsent(): void {
     const userId = signedInUserId
     // A superseded tab never identifies over the person another tab signed in.
     if (!isSuperseded) {
+      if (userId !== null) registerIdentity(userId)
       if (userId !== null && ph.get_distinct_id() !== userId) applyIdentity(ph, userId)
       registerSuperProperties(ph)
       applyTenant(ph)
