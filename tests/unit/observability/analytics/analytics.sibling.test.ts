@@ -103,6 +103,100 @@ describe('a sibling sharing the identity cookie', () => {
     ])
   })
 
+  /** The registry as another tab of this app leaves it, `ageMs` old. */
+  function plantRegistry(distinctId: string, ageMs: number) {
+    window.localStorage.setItem(
+      'analytics-identity-registry',
+      JSON.stringify([{ distinctId, at: Date.now() - ageMs }])
+    )
+  }
+
+  it('an identity in the sibling registry supersedes the tab instead of being repaired', async () => {
+    const superseded = vi.fn()
+    facade.subscribeIdentitySuperseded(superseded)
+    facade.identifyUser('user-a')
+    plantRegistry('user-b', 1000)
+
+    website.identify('user-b')
+    facade.capturePageview()
+    await vi.waitFor(() => expect(superseded).toHaveBeenCalled())
+    expect(posthog.get_distinct_id()).toBe('user-b')
+    expect(sent.filter((event) => event.event === '$identify')).toHaveLength(1)
+  })
+
+  it('an expired registry entry no longer counts: the foreign identity is repaired as before', async () => {
+    const superseded = vi.fn()
+    facade.subscribeIdentitySuperseded(superseded)
+    facade.identifyUser('user-a')
+    plantRegistry('lead-123', 61_000)
+
+    website.identify('lead-123')
+    facade.capturePageview()
+    await vi.waitFor(() => expect(posthog.get_distinct_id()).toBe('user-a'))
+    expect(superseded).not.toHaveBeenCalled()
+  })
+
+  it('identifying records the user in the registry, and signing out takes them out', () => {
+    facade.identifyUser('user-a')
+    const entries = JSON.parse(
+      window.localStorage.getItem('analytics-identity-registry') ?? '[]'
+    ) as { distinctId: string; at: number }[]
+    expect(entries.map((entry) => entry.distinctId)).toEqual(['user-a'])
+    expect(Date.now() - (entries[0]?.at ?? 0)).toBeLessThan(5000)
+
+    facade.resetAnalytics()
+    expect(window.localStorage.getItem('analytics-identity-registry')).toBeNull()
+  })
+
+  it('keeps the registry bounded', () => {
+    for (let index = 0; index < 30; index += 1) facade.identifyUser(`user-${index}`)
+    const entries = JSON.parse(
+      window.localStorage.getItem('analytics-identity-registry') ?? '[]'
+    ) as unknown[]
+    expect(entries.length).toBeLessThanOrEqual(20)
+  })
+
+  it('storage that throws for the registry leaves identify, repair and sign-out as they were', async () => {
+    const getItem = Reflect.get(Storage.prototype, 'getItem')
+    const setItem = Reflect.get(Storage.prototype, 'setItem')
+    const removeItem = Reflect.get(Storage.prototype, 'removeItem')
+    const isRegistry = (key: string) => key === 'analytics-identity-registry'
+    const reads = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (
+      this: Storage,
+      key
+    ) {
+      if (isRegistry(key)) throw new Error('storage is blocked')
+      return getItem.call(this, key)
+    })
+    const writes = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key,
+      value
+    ) {
+      if (isRegistry(key)) throw new Error('storage is full')
+      setItem.call(this, key, value)
+    })
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(function (this: Storage, key) {
+      if (isRegistry(key)) throw new Error('storage is blocked')
+      removeItem.call(this, key)
+    })
+    const superseded = vi.fn()
+    facade.subscribeIdentitySuperseded(superseded)
+
+    facade.identifyUser('user-a')
+    expect(posthog.get_distinct_id()).toBe('user-a')
+    expect(writes).toHaveBeenCalledWith('analytics-identity-registry', expect.any(String))
+
+    website.identify('lead-123')
+    facade.capturePageview()
+    await vi.waitFor(() => expect(posthog.get_distinct_id()).toBe('user-a'))
+    expect(reads).toHaveBeenCalledWith('analytics-identity-registry')
+    expect(superseded).not.toHaveBeenCalled()
+
+    expect(() => facade.resetAnalytics()).not.toThrow()
+    vi.restoreAllMocks()
+  })
+
   it('the control: without the guard, the website’s identify takes the app’s next event', () => {
     facade.identifyUser('user-a')
     website.identify('lead-123')
@@ -213,6 +307,34 @@ describe('two tabs of this app', () => {
     first.facade.resetAnalytics()
     second.facade.capturePageview()
     expect(pageviews(second.sent).at(-1)).toBe('user-b')
+  })
+
+  /** Blocks the event loop, as a long task or a throttled background tab does. */
+  function stallEventLoop(ms: number): void {
+    const end = Date.now() + ms
+    while (Date.now() < end) {
+      // Nothing runs, so a timer comes due and a message stays queued.
+    }
+  }
+
+  it('a stalled event loop never lets the repair run before the other tab’s sign-in lands', async () => {
+    const first = await openTab()
+    const second = await openTab()
+    const superseded = vi.fn()
+    first.facade.subscribeIdentitySuperseded(superseded)
+    first.facade.identifyUser('user-a')
+    second.facade.identifyUser('user-b')
+    // The first tab's event finds the other tab's person and schedules the repair ...
+    first.facade.capturePageview()
+    // ... and the loop stalls past its delay, so the timer and the message are both due.
+    stallEventLoop(first.facade.IDENTITY_REPAIR_DELAY_MS + 50)
+
+    await vi.waitFor(() => expect(superseded).toHaveBeenCalled())
+    await settle(50, 'absence has no event: a repair would have identified by now')
+    expect(identifies(first.sent).map((event): unknown => event.properties.distinct_id)).toEqual([
+      'user-a',
+    ])
+    expect(first.ph.get_distinct_id()).toBe('user-b')
   })
 
   it('one tab signing out: the other, signed out by the broadcast, never puts the person back', async () => {
