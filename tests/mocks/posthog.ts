@@ -4,6 +4,7 @@
  * identified or not, consent, registered properties and groups) for the
  * facade's decisions to be observable.
  */
+import type { PostHog } from 'posthog-js'
 import { vi } from 'vitest'
 import { parseRuntimeConfig } from '@/configs/runtime-config'
 import { analyticsConfigFrom, type AnalyticsConfig } from '@/observability/analytics/config'
@@ -16,6 +17,20 @@ import { analyticsConfigFrom, type AnalyticsConfig } from '@/observability/analy
  */
 export function analyticsConfigFor(raw: Record<string, string> = {}): AnalyticsConfig {
   return analyticsConfigFrom(parseRuntimeConfig(raw).config)
+}
+
+/**
+ * Stops an SDK instance writing to the storage every test shares. Each test's
+ * instances outlive it, and posthog-js debounces its persistence writes
+ * (`persistence_save_debounce_ms`, 250 under these defaults): a write still
+ * pending when a test ends lands after `afterEach` cleared storage, in a
+ * later test, as a person that test never identified. Disabling persistence
+ * cancels that write, and must come before storage is cleared: it also
+ * removes the instance's storage. For tests that run the real posthog-js.
+ * @param instance - A real posthog-js instance a test created.
+ */
+export function stopPersisting(instance: PostHog): void {
+  instance.set_config({ disable_persistence: true })
 }
 
 type Consent = 'granted' | 'denied' | 'pending'
