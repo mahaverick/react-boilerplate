@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.0](https://github.com/mahaverick/react-boilerplate/compare/v1.6.0...v1.7.0) (2026-10-06)
+
+
+### Features
+
+* **tenants:** load a tenant's flags with the tenant page ([#59](https://github.com/mahaverick/react-boilerplate/issues/59)) ([c6ac388](https://github.com/mahaverick/react-boilerplate/commit/c6ac38820ae76ec823e7a831419abcf3ff3aa36d))
+
+
+### Bug Fixes
+
+* **analytics:** a stalled tab yields to a sibling's sign-in instead of repairing over it ([#60](https://github.com/mahaverick/react-boilerplate/issues/60)) ([1d30b48](https://github.com/mahaverick/react-boilerplate/commit/1d30b489f1bcf8048ee8d520a42e9e00374a87f1))
+
 ## [1.6.0](https://github.com/mahaverick/react-boilerplate/compare/v1.5.2...v1.6.0) (2026-10-06)
 
 
