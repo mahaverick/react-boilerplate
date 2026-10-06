@@ -269,4 +269,8 @@ export const handlers = [
   http.get('/api/v1/tenants/:slug/audit-log', () =>
     ok({ entries: [], nextCursor: null }, 'Audit log retrieved.')
   ),
+  // The root route reads it on every mount. No maintenance; a test about maintenance overrides it.
+  http.get('/api/v1/status/maintenance', () =>
+    ok({ mode: 'off', message: null, since: null }, 'Maintenance status retrieved.')
+  ),
 ]
