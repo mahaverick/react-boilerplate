@@ -52,7 +52,8 @@ export function flagsPathFor(scope: FlagScope): string {
  * navigation resolves on a different tenant from the last one, so returning
  * to a tenant reads its flags afresh. On resolve, not in a loader: a loader
  * also runs for a hovered link's preload. The resolved tenant's own values
- * are kept, so its page never flashes its fallbacks.
+ * are kept: a guard of this navigation (`requireClientFlag`) may have just
+ * read them.
  * @param router - The app's router.
  * @param queryClient - The client holding the flag queries.
  * @returns The unsubscribe.

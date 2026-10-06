@@ -12,6 +12,7 @@ import {
 } from '@/observability/analytics'
 import { clearExposureDedupe } from '@/observability/flags/exposure'
 import { clearFlags } from '@/observability/flags/flag-query'
+import { forgetFeatureProperties } from '@/observability/flags/register'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 
@@ -154,6 +155,7 @@ export function installAnalyticsIdentity(queryClient: QueryClient): () => void {
   const apply = (user: User | null, previous: User | null) => {
     if (previous && previous.id !== user?.id) {
       resetAnalytics()
+      forgetFeatureProperties()
       clearFlags(queryClient)
       clearExposureDedupe()
     }

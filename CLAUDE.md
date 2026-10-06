@@ -192,7 +192,9 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   matched condition or a holdout.
 - **`$feature/*` is registered from `useFeaturePropertiesSync` in
   `AppLayout`, never from the query**: a loader also runs for a hovered
-  link's preload, and that scope is not the page's.
+  link's preload, and that scope is not the page's. It syncs in a layout
+  effect, which runs before the router's `onResolved` captures the page
+  view; a passive effect is ordered before it only by React's flush timing.
 
 ## The container
 

@@ -5,7 +5,7 @@
  * is reported as an exposure after the commit that used it.
  */
 import { useQuery } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
 import { reportExposure } from './exposure'
 import { flagsQueryOptions } from './flag-query'
 import { useFlagScope } from './flag-scope'
@@ -76,14 +76,18 @@ export function useVariant<K extends MultivariateClientFlagKey>(key: K): ClientV
 }
 
 /**
- * Keeps the `$feature/*` super properties on the current scope's values.
- * Mount it once, in the authenticated layout: registering from the query
- * instead would also register a hovered link's preloaded scope.
+ * Keeps the `$feature/*` super properties on the current scope's values,
+ * unregistering them all while that scope has none. Mount it once, in the
+ * authenticated layout: registering from the query instead would also
+ * register a hovered link's preloaded scope. A layout effect: the router
+ * emits `onResolved`, where the page view is captured, only after its
+ * matches' own layout effect has run, and a layout effect below them runs
+ * before that one, so a page view never carries the previous scope's values.
  */
 export function useFeaturePropertiesSync(): void {
   const scope = useFlagScope()
   const { data } = useQuery(flagsQueryOptions(scope))
-  useEffect(() => {
+  useLayoutEffect(() => {
     syncFeatureProperties(data ?? null)
   }, [data])
 }
