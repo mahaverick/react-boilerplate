@@ -206,8 +206,10 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
 ## Maintenance mode — the rules that strand users when broken
 
 - **Only a known `Maintenance-Mode` value moves the mode.** A response with
-  no header (an nginx 502 page, a cached response) or an unknown value changes
-  nothing; only an explicit `off` ends maintenance. Loosening this ends
+  no header (an nginx 502 page) or an unknown value changes nothing; only an
+  explicit `off` ends maintenance. A cached response carries the header it was
+  stored with, possibly stale, which is why the status read sends
+  `Cache-Control: no-cache`. Loosening this ends
   maintenance on every deploy's first 502.
 - **The header is read in `src/lib/maintenance-mode.ts`, not `src/http/`.**
   `src/http/*` is byte-shared with Apex, which ignores the header; the
