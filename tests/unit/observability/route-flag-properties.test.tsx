@@ -11,7 +11,11 @@ import { render, screen } from '@testing-library/react'
 import { http } from 'msw'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { initAnalytics, resetAnalyticsForTests } from '@/observability/analytics/analytics'
+import {
+  capturePageview,
+  initAnalytics,
+  resetAnalyticsForTests,
+} from '@/observability/analytics/analytics'
 import { resetFlagHooksForTests, useFeaturePropertiesSync } from '@/observability/flags/flag-hooks'
 import { ensureFlags } from '@/observability/flags/flag-query'
 import { flagScopeFor, installFlagScopeReset } from '@/observability/flags/flag-scope'
@@ -157,6 +161,8 @@ describe('$feature/* across a change of flag scope', () => {
     expect(captures.map((capture) => capture.event)).toEqual(['tenant_switched', '$pageview'])
     for (const capture of captures) expect(capture.features).toEqual({})
     await vi.waitFor(() => expect(featuresHeld()).toEqual(GLOBEX))
+    capturePageview()
+    expect(captures.at(-1)?.features).toEqual(GLOBEX)
   })
 
   it("leaving a tenant for a page with no tenant does not carry the tenant's values either", async () => {
