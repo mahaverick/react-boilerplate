@@ -1,6 +1,9 @@
 import * as React from 'react'
 import { flushSync } from 'react-dom'
-import { fieldErrorsFrom, formErrorsFrom, messageFrom } from '@/lib/api-error'
+import { toast } from 'sonner'
+import { READ_ONLY_TOAST_ID } from '@/constants/maintenance-mode'
+import { codeFrom, fieldErrorsFrom, formErrorsFrom, messageFrom } from '@/lib/api-error'
+import { READ_ONLY_MODE } from '@/types/api.types'
 
 /**
  * The backend's validator detail, held for as long as it is still true: inline
@@ -37,6 +40,8 @@ export interface ServerErrors {
  * `<Form>` focuses the first `aria-invalid` control once that submit settles,
  * so the error must already be in the DOM. With no detail at all (a 401, 429,
  * 500 or no response), `capture` shows the response's message at form level.
+ * A `READ_ONLY_MODE` refusal is not about the form, so it is a toast instead
+ * and the form shows no error; the inputs keep what was typed.
  * `clearField` drops only that field's messages; a sibling's still stands.
  */
 export function useServerErrors(): ServerErrors {
@@ -44,6 +49,10 @@ export function useServerErrors(): ServerErrors {
   const [formErrors, setFormErrorsState] = React.useState<string[]>([])
 
   const capture = React.useCallback((error: unknown) => {
+    if (codeFrom(error) === READ_ONLY_MODE) {
+      toast.error(messageFrom(error), { id: READ_ONLY_TOAST_ID })
+      return
+    }
     const fields = fieldErrorsFrom(error)
     const formLevel = formErrorsFrom(error)
     const hasDetail = Object.keys(fields).length > 0 || formLevel.length > 0

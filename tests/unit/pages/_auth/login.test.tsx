@@ -314,6 +314,7 @@ describe('OAuth failure messages', () => {
     ['google_email_missing', "Your Google account didn't share an email address."],
     ['processing_failed', 'Something went wrong signing in with Google. Try again.'],
     ['google_auth_failed', 'Google sign-in failed. Please try again.'],
+    ['MAINTENANCE_MODE', 'Sign-in is paused for maintenance. Please try again later.'],
   ])('explains ?error=%s', async (code, message) => {
     renderLoginAt(`/login?error=${code}`)
 

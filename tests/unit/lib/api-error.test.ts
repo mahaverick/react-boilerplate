@@ -1,6 +1,13 @@
 import { AxiosError, AxiosHeaders } from 'axios'
 import { describe, expect, it } from 'vitest'
-import { codeFrom, fieldErrorsFrom, formErrorsFrom, messageFrom, statusFrom } from '@/lib/api-error'
+import {
+  codeFrom,
+  fieldErrorsFrom,
+  formErrorsFrom,
+  messageFrom,
+  READ_ONLY_MODE_MESSAGE,
+  statusFrom,
+} from '@/lib/api-error'
 import type { ApiErrorBody } from '@/types/api.types'
 
 function axiosErrorWith(body: ApiErrorBody): AxiosError {
@@ -83,5 +90,28 @@ describe('api-error', () => {
     expect(codeFrom(VALIDATION_FAILURE)).toBeUndefined()
     expect(codeFrom(new AxiosError('Network Error'))).toBeUndefined()
     expect(codeFrom(new Error('boom'))).toBeUndefined()
+  })
+
+  it('says changes are paused for a read-only refusal, not the owner’s notice', () => {
+    const refusal = axiosErrorWith({
+      success: false,
+      message: 'Upgrading the database. Back by 11:00.',
+      statusCode: 503,
+      code: 'READ_ONLY_MODE',
+      requestId: 'req-4',
+    })
+    expect(READ_ONLY_MODE_MESSAGE).toBe('Changes are paused during maintenance.')
+    expect(messageFrom(refusal)).toBe(READ_ONLY_MODE_MESSAGE)
+  })
+
+  it('keeps the server message for a full-maintenance refusal', () => {
+    const refusal = axiosErrorWith({
+      success: false,
+      message: 'Upgrading the database. Back by 11:00.',
+      statusCode: 503,
+      code: 'MAINTENANCE_MODE',
+      requestId: 'req-5',
+    })
+    expect(messageFrom(refusal)).toBe('Upgrading the database. Back by 11:00.')
   })
 })
