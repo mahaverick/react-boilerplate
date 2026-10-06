@@ -16,6 +16,8 @@ import { canViewActivity, ROLE_LABELS } from '@/constants/roles'
 import { cn } from '@/lib/utils'
 import { noteError } from '@/observability/errors'
 import { useFlagValues } from '@/observability/flags/flag-hooks'
+import { ensureFlags } from '@/observability/flags/flag-query'
+import { flagScopeFor } from '@/observability/flags/flag-scope'
 import type { BooleanClientFlagKey } from '@/observability/flags/flag-types'
 import { filterByFlag } from '@/observability/flags/flag-values'
 import { tenantQueryOptions, useMyRole, useTenant, useTenants } from '@/queries/tenant.queries'
@@ -24,7 +26,12 @@ import { tenantQueryOptions, useMyRole, useTenant, useTenants } from '@/queries/
  * The tenant shell: header, tab bar, `<Outlet />`. A layout route whose tabs
  * are real child routes, so each is linkable and survives a reload.
  *
- * The loader warms the detail query for every tab. `tenantQueryOptions`
+ * The loader warms the detail query for every tab, and the tenant's flags in
+ * parallel, so a switch from another tenant, which the `_app` loader does not
+ * run for, paints this tenant's flag-driven UI (the Beta tab) on first load. A
+ * hover preload skips the flags: they are read only for a navigation that
+ * commits, and `ensureFlags` never rejects, so a failed flags read never
+ * blocks the page. `tenantQueryOptions`
  * resolves a 404 to `null`, so a tenant with no detail reaches the layout,
  * which reads the tenant list to choose between the suspended panel (a member
  * of a suspended tenant) and the not-found panel; any other failure reaches
@@ -32,8 +39,15 @@ import { tenantQueryOptions, useMyRole, useTenant, useTenants } from '@/queries/
  * resolves before any fetch.
  */
 export const Route = createFileRoute('/_app/tenants/$slug')({
-  loader: async ({ context, params }) =>
-    context.queryClient.ensureQueryData(tenantQueryOptions(params.slug)),
+  loader: async ({ context, params, preload }) => {
+    const detail = context.queryClient.ensureQueryData(tenantQueryOptions(params.slug))
+    if (preload) return detail
+    const [tenant] = await Promise.all([
+      detail,
+      ensureFlags(context.queryClient, flagScopeFor(params)),
+    ])
+    return tenant
+  },
   head: ({ params }) => ({ meta: [{ title: pageTitle(params.slug) }] }),
   staticData: { crumb: (params) => params.slug ?? 'Tenant' },
   component: TenantLayout,

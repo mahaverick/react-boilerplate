@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
-import { http } from 'msw'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { delay, http } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { RouteNotFound } from '@/components/features/route-not-found'
 import { resetSessionForTests } from '@/http/session'
@@ -163,5 +163,88 @@ describe('the Beta page', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Tenant sections' })
     expect(within(nav).getByRole('link', { name: 'Beta' })).toBeInTheDocument()
+  })
+})
+
+const GLOBEX = {
+  ...TENANT,
+  id: '00000000-0000-4000-8000-0000000000b2',
+  name: 'Globex',
+  slug: 'globex',
+}
+
+/** Two tenants: acme with the beta flag off, globex with it on. Counts the flags reads per tenant. */
+function mockTwoTenants(options: { globexFlags?: 'ok' | 'fail' } = {}) {
+  const reads = { acme: 0, globex: 0, globexDetail: 0 }
+  server.use(
+    http.get('/api/v1/tenants', () =>
+      ok(
+        [
+          { tenant: TENANT, role: 'owner' },
+          { tenant: GLOBEX, role: 'owner' },
+        ],
+        'Tenants.'
+      )
+    ),
+    http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'owner'), 'Tenant.')),
+    http.get('/api/v1/tenants/globex', () => {
+      reads.globexDetail += 1
+      return ok(tenantDetail(GLOBEX, 'owner'), 'Tenant.')
+    }),
+    http.get('/api/v1/tenants/acme/flags', () => {
+      reads.acme += 1
+      return ok(testFlags({ example_beta_page: false }), 'Flags retrieved.')
+    }),
+    http.get('/api/v1/tenants/globex/flags', async () => {
+      reads.globex += 1
+      await delay(40)
+      if (options.globexFlags === 'fail') return fail('Boom', 500)
+      return ok(testFlags({ example_beta_page: true }), 'Flags retrieved.')
+    })
+  )
+  return reads
+}
+
+describe('a tenant switch', () => {
+  it('renders the new tenant’s flag values on first paint, with no fallback flash', async () => {
+    const reads = mockTwoTenants()
+    const router = renderAppAt('/tenants/acme')
+    await screen.findByRole('heading', { name: 'Acme Corp' })
+    expect(screen.queryByRole('link', { name: 'Beta' })).toBeNull()
+
+    await act(() => router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } }))
+    await screen.findByRole('heading', { name: 'Globex' })
+
+    expect(screen.getByRole('link', { name: 'Beta' })).toHaveAttribute(
+      'href',
+      '/tenants/globex/beta'
+    )
+    expect(reads.globex).toBe(1)
+  })
+
+  it('makes no flags request for a hover preload of another tenant', async () => {
+    const reads = mockTwoTenants()
+    const router = renderAppAt('/tenants/acme')
+    await screen.findByRole('heading', { name: 'Acme Corp' })
+
+    await act(() => router.preloadRoute({ to: '/tenants/$slug', params: { slug: 'globex' } }))
+
+    expect(reads.globexDetail).toBe(1)
+    expect(reads.globex).toBe(0)
+  })
+
+  it('still opens the tenant, with the fallbacks, when its flags cannot be read', async () => {
+    const reads = mockTwoTenants({ globexFlags: 'fail' })
+    const router = renderAppAt('/tenants/acme')
+    await screen.findByRole('heading', { name: 'Acme Corp' })
+
+    await act(() => router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } }))
+
+    expect(await screen.findByRole('heading', { name: 'Globex' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Tenant sections' })).toHaveTextContent(
+      'Settings'
+    )
+    expect(screen.queryByRole('link', { name: 'Beta' })).toBeNull()
+    expect(reads.globex).toBeGreaterThanOrEqual(1)
   })
 })

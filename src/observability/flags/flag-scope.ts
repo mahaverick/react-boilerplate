@@ -81,8 +81,9 @@ export function installFlagScopeReset(router: AnyRouter, queryClient: QueryClien
  * view is captured, and never for a preload. On the first load React has not
  * mounted yet, so `useFeaturePropertiesSync` cannot have run; a page under
  * the signed-in shell has its values cached by `_app`'s loader by then. A
- * scope with nothing cached (another tenant's, before its page fetches it)
- * unregisters them all, and that hook registers them when they arrive.
+ * scope with nothing cached (a tenant whose flags read failed, so its page
+ * fetches them again) unregisters them all, and that hook registers them when
+ * they arrive.
  * @param router - The app's router.
  * @param queryClient - The client holding the flag queries.
  * @returns The unsubscribe.
