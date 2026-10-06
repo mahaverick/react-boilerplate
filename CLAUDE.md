@@ -203,6 +203,24 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   `/invitations/accept`, are synced to the no-tenant scope's cached values, or
   to none, rather than keeping the last shell page's.
 
+## Maintenance mode — the rules that strand users when broken
+
+- **Only a known `Maintenance-Mode` value moves the mode.** A response with
+  no header (an nginx 502 page, a cached response) or an unknown value changes
+  nothing; only an explicit `off` ends maintenance. Loosening this ends
+  maintenance on every deploy's first 502.
+- **The header is read in `src/lib/maintenance-mode.ts`, not `src/http/`.**
+  `src/http/*` is byte-shared with Apex, which ignores the header; the
+  interceptor is installed on `apiClient` from `router.tsx`, before the first
+  request.
+- **A maintenance 503 is never a sign-out.** The 401 rules above are
+  untouched by it, and `_app`/`_auth` do not redirect while the mode is
+  `full`: a page loaded then has a token but no profile, and the redirect
+  would lose the URL the recovery (`MaintenanceGate`) returns the user to.
+- **The maintenance page is imported statically** into `__root.tsx`, for the
+  reason the router's error screen is: it is needed exactly when the API is
+  failing.
+
 ## The container
 
 - **nginx enforces a Content-Security-Policy with `script-src 'self'`.** There
@@ -454,7 +472,7 @@ falls through** (`onUnhandledRequest: 'bypass'`) and 401s. Under Playwright, the
 `contrast` projects take `test` from `e2e/hermetic.ts`, which answers every `/api` request that
 would leave the browser with express's 401 envelope, and fails the test at teardown if any `/api`
 response came from the proxy instead, or if it answered anything other than a signed-out page's
-bootstrap refresh — naming each. A test that fulfills an `/api` route itself stamps its response with
+bootstrap refresh and the root route's maintenance read (answered `off`) — naming each. A test that fulfills an `/api` route itself stamps its response with
 `FALLBACK_HEADER` from that file, or the teardown reports it as an escape. The 401 still
 signs the harness user out — any non-expiry 401 on a token-bearing request, `REAUTH_REQUIRED` aside, is a verdict
 (interceptors.ts) — so every authed endpoint the page under test calls must be mocked, not

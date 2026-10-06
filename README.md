@@ -523,6 +523,29 @@ were off.
   `TEST_FLAG_FALLBACKS` (`tests/mocks/handlers.ts`) and the harness's
   `FLAG_FALLBACKS`.
 
+## Maintenance mode
+
+A platform owner switches the product into maintenance from Apex; express
+enforces it and this app shows it. The app learns the mode from three
+places: the `Maintenance-Mode` header on every API response, a 503 whose
+`code` is `MAINTENANCE_MODE` or `READ_ONLY_MODE`, and
+`GET /api/v1/status/maintenance`, read once at start and again every
+30 to 40 seconds while the mode is `full`.
+
+- **`full`.** Every page, sign-in and sign-up included, is replaced by a
+  maintenance screen with the owner's message (as text) and the start time.
+  The session and the URL are kept. When the poll sees the mode end, the
+  app refreshes the session, runs the route guards again and refetches, so
+  the user is back on the page they were on.
+- **`read_only`.** A banner sits above every page with the owner's message;
+  it collapses, but cannot be dismissed. A write the API refuses says
+  "Changes are paused during maintenance." in a toast, and a form keeps what
+  was typed.
+- **Analytics.** `maintenance_page_viewed` (`{ mode }`) is sent once per tab
+  session for each maintenance period, under the usual consent rules.
+- **Operating it** is Apex's job: see the Apex and express READMEs for the
+  runbook. Nothing here is configured per environment.
+
 ## Error tracking (PostHog)
 
 Every crash in the browser becomes one `$exception` in PostHog Error
