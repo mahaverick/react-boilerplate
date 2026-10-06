@@ -8,7 +8,7 @@ import {
   unregisterFeatureProperties,
   type FeaturePropertyName,
 } from '@/observability/analytics'
-import { registeredFeatureNames } from './feature-property-names'
+import { registeredFeatureProperties } from './feature-property-names'
 import type { ClientFlagKey } from './flag-types'
 import { clientFlagKeys } from './flag-values'
 
@@ -27,6 +27,8 @@ export function featurePropertyName(key: ClientFlagKey): FeaturePropertyName {
 /**
  * Registers `$feature/<key>` for every flag in `values` and unregisters the
  * ones registered before that `values` no longer has; null unregisters all.
+ * Does nothing when `values` holds exactly what is registered already, as
+ * each navigation's sync usually does: a register is a write to storage.
  * @param values - The current scope's values, or null when there are none.
  */
 export function syncFeatureProperties(
@@ -39,9 +41,14 @@ export function syncFeatureProperties(
       if (value !== undefined) next[featurePropertyName(key)] = value
     }
   }
-  const stale = [...registeredFeatureNames].filter((name) => !(name in next))
+  const entries = Object.entries(next) as [FeaturePropertyName, boolean | string][]
+  const isUnchanged =
+    entries.length === registeredFeatureProperties.size &&
+    entries.every(([name, value]) => registeredFeatureProperties.get(name) === value)
+  if (isUnchanged) return
+  const stale = [...registeredFeatureProperties.keys()].filter((name) => !(name in next))
   if (stale.length > 0) unregisterFeatureProperties(stale)
-  if (Object.keys(next).length > 0) registerFeatureProperties(next)
-  registeredFeatureNames.clear()
-  for (const name of Object.keys(next) as FeaturePropertyName[]) registeredFeatureNames.add(name)
+  if (entries.length > 0) registerFeatureProperties(next)
+  registeredFeatureProperties.clear()
+  for (const [name, value] of entries) registeredFeatureProperties.set(name, value)
 }

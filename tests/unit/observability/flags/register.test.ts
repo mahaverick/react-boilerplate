@@ -62,6 +62,23 @@ describe('syncFeatureProperties', () => {
     expect(register).toHaveBeenCalledWith({ '$feature/test_exp': 'calm' })
   })
 
+  it('skips a sync whose values are exactly those registered', () => {
+    syncFeatureProperties(values({ test_bool: true, test_exp: 'bold' }))
+    register.mockClear()
+    syncFeatureProperties(values({ test_exp: 'bold', test_bool: true }))
+    syncFeatureProperties(null)
+    syncFeatureProperties(null)
+    expect(register).not.toHaveBeenCalled()
+    expect(unregister).toHaveBeenCalledTimes(1)
+  })
+
+  it('registers again when a value changes under the same names', () => {
+    syncFeatureProperties(values({ test_exp: 'bold' }))
+    syncFeatureProperties(values({ test_exp: 'calm' }))
+    expect(register).toHaveBeenLastCalledWith({ '$feature/test_exp': 'calm' })
+    expect(unregister).not.toHaveBeenCalled()
+  })
+
   it('unregisters everything for null', () => {
     syncFeatureProperties(values({ test_exp: 'bold' }))
     register.mockClear()

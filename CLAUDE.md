@@ -198,7 +198,10 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   `main.tsx` runs the first load before React mounts, so without it the
   landing page view carries no `$feature/*`. The hook syncs in a layout
   effect, which within a navigation also runs before `onResolved`; a passive
-  effect would be ordered before it only by React's flush timing.
+  effect would be ordered before it only by React's flush timing. A page
+  outside the shell (`/login`, `/reset-password`, `/verify-email`,
+  `/invitations/accept`) is synced to the no-tenant scope's cached values, or
+  to none, rather than keeping the last shell page's.
 
 ## The container
 
