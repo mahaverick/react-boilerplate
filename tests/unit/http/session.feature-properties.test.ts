@@ -1,12 +1,15 @@
 import { QueryClient } from '@tanstack/react-query'
+import { http } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installAnalyticsIdentity, resetSessionForTests } from '@/http/session'
 import { initAnalytics, resetAnalyticsForTests } from '@/observability/analytics/analytics'
 import { forgetFeatureProperties, syncFeatureProperties } from '@/observability/flags/register'
+import { bootstrapSession } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
 import { USER_ID } from '@/tests/fixtures/ids'
-import { testUser } from '@/tests/mocks/handlers'
+import { fail, testUser } from '@/tests/mocks/handlers'
 import { analyticsConfigFor, resetFakePosthog, sdk } from '@/tests/mocks/posthog'
+import { server } from '@/tests/mocks/server'
 
 vi.mock('posthog-js', async () => {
   const { posthogDefault } = await import('@/tests/mocks/posthog')
@@ -48,5 +51,32 @@ describe('$feature/* bookkeeping follows the session', () => {
     syncFeatureProperties(values({ test_exp: 'calm' }))
 
     expect(sdk.calls).toEqual(['register({"$feature/test_exp":"calm"})'])
+  })
+})
+
+describe('$feature/* bookkeeping on a cold load that restores nobody', () => {
+  beforeEach(async () => {
+    resetSessionForTests()
+    resetAnalyticsForTests()
+    resetFakePosthog()
+    forgetFeatureProperties()
+    useAuthStore.setState({
+      accessToken: null,
+      user: null,
+      isAuthenticated: false,
+      isBootstrapped: false,
+    })
+    await initAnalytics(analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real' }))
+  })
+
+  it('forgets the registered names along with the stale identity', async () => {
+    syncFeatureProperties(values({ test_bool: true, test_exp: 'bold' }))
+    server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
+    await bootstrapSession()
+    sdk.calls = []
+
+    syncFeatureProperties(values({ test_exp: 'bold' }))
+
+    expect(sdk.calls).toEqual(['register({"$feature/test_exp":"bold"})'])
   })
 })

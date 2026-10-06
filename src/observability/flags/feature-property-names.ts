@@ -1,7 +1,7 @@
 /**
- * @file The `$feature/*` properties the flags module last registered, apart
- * from the code that registers them, so the session's sign-out can forget
- * them without importing that code.
+ * @file The `$feature/*` properties the flags module last registered: the
+ * state `register.ts` syncs against, and the session and the router forget
+ * when analytics forgets the person.
  */
 import type { FeaturePropertyName } from '@/observability/analytics'
 
