@@ -59,6 +59,21 @@ const IDENTITY_CHANNEL = 'analytics-identity'
 /** How many identities announced by this app's other tabs are remembered. */
 const MAX_SIBLING_IDENTITIES = 20
 
+/** The `localStorage` key of the sibling-identity registry (`registerIdentity`). */
+const IDENTITY_REGISTRY_KEY = 'analytics-identity-registry'
+
+/**
+ * How long a registry entry counts. Well past `IDENTITY_REPAIR_DELAY_MS` plus
+ * a typical stall of the event loop, short enough that a person who signed out
+ * somewhere is not taken for a signed-in tab for long.
+ */
+const IDENTITY_REGISTRY_TTL_MS = 60_000
+
+interface IdentityRegistryEntry {
+  distinctId: string
+  at: number
+}
+
 /**
  * While this tab stays superseded, how often an event asks the app again to
  * settle who is signed in: a refresh that failed for a transient reason is
@@ -117,7 +132,7 @@ let lastTenantId: string | null = null
 let signedInUserId: string | null = null
 let isRepairScheduled = false
 let identityRepair: ReturnType<typeof setTimeout> | null = null
-/** Distinct ids this app's other tabs identified: a cookie change to one of them is theirs, not a website's. */
+/** Distinct ids this app's other tabs announced on the channel; with the storage registry, `isSiblingIdentity` says whose a cookie change is. */
 let siblingIdentities: string[] = []
 /** Distinct ids this app's other tabs said they hold since this tab last asked (`askWhoIsSignedIn`). */
 let liveSiblingIdentities = new Set<string>()
@@ -178,6 +193,72 @@ function run(command: Command, isDroppable = false): void {
     else if (isDroppable) return
   }
   queue.push({ command, isDroppable })
+}
+
+/**
+ * The registry's unexpired entries, oldest first. Storage that throws, holds
+ * something else or is missing reads as empty.
+ */
+function readIdentityRegistry(): IdentityRegistryEntry[] {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(IDENTITY_REGISTRY_KEY) ?? '[]')
+    if (!Array.isArray(parsed)) return []
+    const now = Date.now()
+    const entries = (parsed as unknown[])
+      .filter(
+        (entry): entry is IdentityRegistryEntry =>
+          typeof entry === 'object' &&
+          entry !== null &&
+          typeof (entry as IdentityRegistryEntry).distinctId === 'string' &&
+          typeof (entry as IdentityRegistryEntry).at === 'number' &&
+          Math.abs(now - (entry as IdentityRegistryEntry).at) < IDENTITY_REGISTRY_TTL_MS
+      )
+      .slice(-MAX_SIBLING_IDENTITIES)
+    // Ids of closed tabs do not linger: the trimmed list replaces what storage held.
+    if (entries.length !== parsed.length) writeIdentityRegistry(entries)
+    return entries
+  } catch {
+    return []
+  }
+}
+
+function writeIdentityRegistry(entries: IdentityRegistryEntry[]): void {
+  try {
+    if (entries.length === 0) window.localStorage.removeItem(IDENTITY_REGISTRY_KEY)
+    else window.localStorage.setItem(IDENTITY_REGISTRY_KEY, JSON.stringify(entries))
+  } catch {
+    // Storage may be full, blocked or gone: the channel alone then carries the identity.
+  }
+}
+
+/**
+ * Records, in storage every tab of this app reads, that this tab is about to
+ * identify `distinctId`. Written synchronously, before `identify`, so it is
+ * normally visible to a tab whose event loop stalled past
+ * `IDENTITY_REPAIR_DELAY_MS` when its repair timer runs ahead of the
+ * channel's message. It narrows that race; it does not close it, as a browser
+ * may deliver another tab's storage write late.
+ */
+function registerIdentity(distinctId: string): void {
+  writeIdentityRegistry(
+    [
+      ...readIdentityRegistry().filter((entry) => entry.distinctId !== distinctId),
+      { distinctId, at: Date.now() },
+    ].slice(-MAX_SIBLING_IDENTITIES)
+  )
+}
+
+/** Takes `distinctId` out of the registry: the person signed out of this tab. */
+function unregisterIdentity(distinctId: string): void {
+  writeIdentityRegistry(readIdentityRegistry().filter((entry) => entry.distinctId !== distinctId))
+}
+
+/** Whether another tab of this app identified `distinctId`: announced on the channel or registered in storage. */
+function isSiblingIdentity(distinctId: string): boolean {
+  return (
+    siblingIdentities.includes(distinctId) ||
+    readIdentityRegistry().some((entry) => entry.distinctId === distinctId)
+  )
 }
 
 /** Opens this tab's identity channel, once; a no-op without BroadcastChannel. */
@@ -276,6 +357,7 @@ function onLoaded(instance: PostHogInterface): void {
  * `appliedTenant` before calling this.
  */
 function resetKeepingConsent(ph: PostHogInterface): void {
+  if (signedInUserId !== null) unregisterIdentity(signedInUserId)
   signedInUserId = null
   const consent = ph.get_explicit_consent_status()
   ph.reset()
@@ -294,6 +376,8 @@ function applyIdentity(ph: PostHogInterface, userId: string): void {
     resetKeepingConsent(ph)
   }
   isSuperseded = false
+  // Not while opted out: posthog-js persists nothing then, and neither does this registry.
+  if (!ph.has_opted_out_capturing()) registerIdentity(userId)
   ph.identify(userId)
   signedInUserId = userId
   announceIdentity(userId)
@@ -322,8 +406,11 @@ function scheduleRepair(): void {
  * identity cookie, `IDENTITY_REPAIR_DELAY_MS` later, and only if the change
  * still stands then and is foreign. A sign-out in this tab (another tab's
  * logout broadcast landing) cancels it. A change to a person another tab of
- * this app identified is that tab's legitimate sign-in: this tab is then
- * superseded instead, and the app signs it out, never fighting the other tab.
+ * this app identified, announced on the channel or recorded in the storage
+ * registry (written before the identify, so normally visible before the
+ * cookie change, and narrowing the race a stalled event loop opens), is that
+ * tab's legitimate sign-in: this tab is then superseded instead, and the app
+ * signs it out, never fighting the other tab.
  * Only a foreign identity, such as one a website sharing the cookie set, is
  * repaired.
  */
@@ -336,7 +423,7 @@ function scheduleIdentityRepair(): void {
       if (userId === null || isSuperseded) return
       const current = ph.get_distinct_id()
       if (current === userId) return
-      if (siblingIdentities.includes(current)) {
+      if (isSiblingIdentity(current)) {
         supersede()
         return
       }
@@ -426,10 +513,7 @@ function guardEvent(captured: CaptureResult): CaptureResult | null {
     isSuperseded = false
   }
   if (signedInUserId !== null && properties.distinct_id !== signedInUserId) {
-    if (
-      typeof properties.distinct_id === 'string' &&
-      siblingIdentities.includes(properties.distinct_id)
-    ) {
+    if (typeof properties.distinct_id === 'string' && isSiblingIdentity(properties.distinct_id)) {
       supersede()
     } else {
       scheduleIdentityRepair()
@@ -670,6 +754,7 @@ export function resetAnalytics(): void {
     if (isSuperseded) {
       // The shared SDK holds the other tab's person and tenant group: leave both alone.
       isSuperseded = false
+      if (signedInUserId !== null) unregisterIdentity(signedInUserId)
       signedInUserId = null
       return
     }
@@ -729,8 +814,10 @@ export function setAnalyticsOptOut(isOptedOut: boolean): void {
   run((ph) => {
     if (isOptedOut) {
       if (!ph.has_opted_out_capturing()) ph.opt_out_capturing()
+      if (signedInUserId !== null) unregisterIdentity(signedInUserId)
     } else if (activeConfig?.consentMode === 'opt_out' && ph.has_opted_out_capturing()) {
       ph.opt_in_capturing()
+      if (signedInUserId !== null && !isSuperseded) registerIdentity(signedInUserId)
       if (isOnScreen) ph.capture('$pageview', {})
     }
     notifyConsent()
@@ -752,6 +839,7 @@ export function grantAnalyticsConsent(): void {
     const userId = signedInUserId
     // A superseded tab never identifies over the person another tab signed in.
     if (!isSuperseded) {
+      if (userId !== null) registerIdentity(userId)
       if (userId !== null && ph.get_distinct_id() !== userId) applyIdentity(ph, userId)
       registerSuperProperties(ph)
       applyTenant(ph)
@@ -770,6 +858,7 @@ export function denyAnalyticsConsent(): void {
   run((ph) => {
     const wasPending = ph.get_explicit_consent_status() === 'pending'
     ph.opt_out_capturing()
+    if (signedInUserId !== null) unregisterIdentity(signedInUserId)
     if (wasPending) ph.capture('$pageview', {})
     notifyConsent()
   })
@@ -910,6 +999,7 @@ export function resetAnalyticsForTests(): void {
   supersededNotifiedAt = 0
   identityChannel?.close()
   identityChannel = null
+  writeIdentityRegistry([])
   consentListeners.clear()
   supersededListeners.clear()
   settledWaiters.clear()
