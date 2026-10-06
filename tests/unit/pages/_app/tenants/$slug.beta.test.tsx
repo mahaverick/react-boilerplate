@@ -233,6 +233,21 @@ describe('a tenant switch', () => {
     expect(reads.globex).toBe(0)
   })
 
+  it('loads the flags once for a click that follows a hover preload, and the detail once', async () => {
+    const reads = mockTwoTenants()
+    const router = renderAppAt('/tenants/acme')
+    await screen.findByRole('heading', { name: 'Acme Corp' })
+
+    await act(() => router.preloadRoute({ to: '/tenants/$slug', params: { slug: 'globex' } }))
+    expect(reads.globex).toBe(0)
+    await act(() => router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } }))
+    await screen.findByRole('heading', { name: 'Globex' })
+
+    expect(screen.getByRole('link', { name: 'Beta' })).toBeInTheDocument()
+    expect(reads.globex).toBe(1)
+    expect(reads.globexDetail).toBe(1)
+  })
+
   it('still opens the tenant, with the fallbacks, when its flags cannot be read', async () => {
     const reads = mockTwoTenants({ globexFlags: 'fail' })
     const router = renderAppAt('/tenants/acme')
@@ -245,6 +260,7 @@ describe('a tenant switch', () => {
       'Settings'
     )
     expect(screen.queryByRole('link', { name: 'Beta' })).toBeNull()
-    expect(reads.globex).toBeGreaterThanOrEqual(1)
+    // The loader's read, then the page's own query reading again after the failure.
+    await waitFor(() => expect(reads.globex).toBeGreaterThanOrEqual(2))
   })
 })
