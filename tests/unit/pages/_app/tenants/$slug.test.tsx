@@ -542,6 +542,11 @@ describe('tenant detail', () => {
     })
     expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
     expect(patched).toBeNull()
+
+    await user.type(timezone, 'X')
+    await waitFor(() => {
+      expect(screen.queryByText('Change a field before saving.')).not.toBeInTheDocument()
+    })
   })
 
   it('asks for a change, and sends nothing, when Save is pressed with no changes', async () => {
@@ -601,6 +606,113 @@ describe('tenant detail', () => {
 
     await waitFor(() => {
       expect(patched).toEqual({ name: 'Acme Ltd' })
+    })
+  })
+
+  it('sends the edit again when Save is pressed after a failed save', async () => {
+    mockTenant('owner')
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/tenants/acme', async ({ request }) => {
+        bodies.push(await request.json())
+        return bodies.length === 1
+          ? fail('Something broke.', 500)
+          : ok({ ...TENANT, name: 'Acme Ltd' }, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await user.clear(name)
+    await user.type(name, 'Acme Ltd')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await screen.findByText('Something broke.')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ name: 'Acme Ltd' }, { name: 'Acme Ltd' }])
+    })
+  })
+
+  it('sends a field edited back to its old value after a save', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success')
+    mockTenant('owner')
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/tenants/acme', async ({ request }) => {
+        bodies.push(await request.json())
+        return ok(TENANT, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await user.clear(name)
+    await user.type(name, 'Acme Ltd')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('Tenant updated.')
+    })
+    await user.clear(name)
+    await user.type(name, 'Acme Corp')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ name: 'Acme Ltd' }, { name: 'Acme Corp' }])
+    })
+  })
+
+  it('sends the settings edit again when Save is pressed after a failed save', async () => {
+    mockTenant('owner')
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
+        bodies.push(await request.json())
+        return bodies.length === 1
+          ? fail('Something broke.', 500)
+          : ok({ ...SETTINGS, locale: 'en-GB' }, 'Settings updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/settings')
+
+    await user.type(await screen.findByLabelText('Locale'), '-GB')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    await screen.findByText('Something broke.')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'en-GB' }, { locale: 'en-GB' }])
+    })
+  })
+
+  // A save the server finds already applied keeps `updatedAt`, so the form is not remounted.
+  it('sends a setting edited back to its old value after a save that left the row as it was', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success')
+    mockTenant('owner')
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
+        bodies.push(await request.json())
+        return ok(SETTINGS, 'Settings updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/settings')
+
+    const locale = await screen.findByLabelText('Locale')
+    await user.type(locale, '-GB')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('Settings updated.')
+    })
+    await user.type(locale, '{Backspace}{Backspace}{Backspace}')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'en-GB' }, { locale: 'en' }])
     })
   })
 

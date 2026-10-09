@@ -242,6 +242,60 @@ describe('profile page', () => {
     })
   })
 
+  it('sends the name again when Save is pressed after a failed save', async () => {
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/profile', async ({ request }) => {
+        bodies.push(await request.json())
+        return bodies.length === 1
+          ? fail('Something broke.', 500)
+          : ok({ ...testUser, firstName: 'Ada' }, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await user.clear(first)
+    await user.type(first, 'Ada')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await screen.findByText('Something broke.')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ firstName: 'Ada' }, { firstName: 'Ada' }])
+    })
+  })
+
+  it('sends a name edited back to its old value after a save', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success')
+    const stored = testUser.firstName ?? ''
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/profile', async ({ request }) => {
+        bodies.push(await request.json())
+        return ok(testUser, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await user.clear(first)
+    await user.type(first, 'Ada')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('Profile updated.')
+    })
+    await user.clear(first)
+    await user.type(first, stored)
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ firstName: 'Ada' }, { firstName: stored }])
+    })
+  })
+
   it('shows a refetch on a form nobody has touched', async () => {
     let served = { ...testUser, firstName: 'Ada', lastName: 'Byron' }
     useAuthStore.setState({ user: served })
