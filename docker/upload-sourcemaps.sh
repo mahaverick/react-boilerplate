@@ -70,12 +70,16 @@ for project in $(printf '%s' "$projects" | tr ',' ' '); do
     echo "sourcemaps: posthog-cli skipped chunks as too large for project $project" >&2
     exit 1
   fi
-  # Nothing uploaded fails too, unless a non-zero count says the maps were
-  # already there ("12 already uploaded", "skipped 3 existing"): a re-run of
-  # a build whose upload went through finds nothing new to send.
-  if printf '%s\n' "$output" | grep -Eiq 'uploaded 0([^0-9]|$)|no source ?maps? (were )?found' \
-    && ! printf '%s\n' "$output" \
-      | grep -Eiq '(^|[^0-9])[1-9][0-9]*[^0-9.,;]{0,30}(already|existing)|(already|existing)[^0-9.,;]{0,30}[1-9]'; then
+  # Nothing uploaded fails too, unless that same line puts a non-zero count
+  # right beside an already-there phrase ("12 already uploaded", "skipped 3
+  # existing"): a re-run of a build whose upload went through finds nothing
+  # new to send. Per line and adjacent, so a count elsewhere in the output
+  # ("Found 74 existing source map files") or a "none already present" does
+  # not excuse it. Not caught: one line that says both, such as "No source
+  # maps found. Release 2 already exists"; the CLI's wording is undocumented.
+  if printf '%s\n' "$output" | grep -Ei 'uploaded 0+([^0-9.]|$)|no source ?maps? (were )?found' \
+    | grep -Eiv '[1-9][0-9]* (chunks? |source ?maps? |files? )?(already (uploaded|present|exist)|existing)' \
+    | grep -q .; then
     echo "sourcemaps: posthog-cli uploaded no source maps to project $project" >&2
     exit 1
   fi

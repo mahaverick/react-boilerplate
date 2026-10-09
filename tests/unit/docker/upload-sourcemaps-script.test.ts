@@ -166,6 +166,10 @@ describe('docker/upload-sourcemaps.sh', () => {
     'No source maps found in dist',
     'Uploaded 0 chunks, skipped 0 already present',
     'Uploaded 0 chunks, 0 already uploaded',
+    'Uploaded 0 chunks, already uploaded 0',
+    'Uploaded 0 of 12 chunks (none already present)',
+    'Found 74 existing source map files\nUploaded 0 chunks',
+    'Uploaded 00 chunks',
   ])('fails the build when the CLI uploaded nothing: %s', (output) => {
     const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101,202', CLI_OUTPUT: output })
     expect(result.status).toBe(1)
