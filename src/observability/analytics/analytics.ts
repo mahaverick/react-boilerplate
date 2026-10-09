@@ -254,7 +254,9 @@ function readIdentityRegistry(): IdentityRegistryEntry[] {
  * app writes the one key, so the change is applied to what storage holds
  * right before the write: when the text read to compute it has changed by
  * then, the change is computed again from the new text, so an entry another
- * tab wrote in between is kept.
+ * tab wrote in between is kept. After `IDENTITY_REGISTRY_WRITE_ATTEMPTS`
+ * such changes it writes anyway, and an entry written in that last window is
+ * lost: storage has no compare-and-set, so the race is narrowed, not closed.
  * @param change - The entry to add and the ids to remove.
  */
 function changeIdentityRegistry(change: {

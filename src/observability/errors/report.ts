@@ -59,7 +59,12 @@ export const CAUSE_DEPTH = 5
 /** The most serialized bytes in one request: under the 64 KiB that `keepalive` fetches and beacons share. */
 export const BATCH_MAX_BYTES = 60 * 1024
 
-/** The most `keepalive` request bytes a page may have in flight at once; Chromium refuses a keepalive fetch past it. */
+/**
+ * The most `keepalive` request bytes a page may have in flight at once;
+ * Chromium refuses a keepalive fetch past it. The quota is the page's, shared
+ * with beacons and posthog-js's own requests, which the reporter's counter
+ * does not see.
+ */
 export const KEEPALIVE_QUOTA_BYTES = 64 * 1024
 
 /** An error handed over later than this after it was noted is sent anonymous: its identity is no longer knowable. */

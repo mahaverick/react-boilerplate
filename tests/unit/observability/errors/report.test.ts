@@ -554,18 +554,29 @@ describe('keepalive bodies in flight', () => {
     expect(inFlight).toBeLessThanOrEqual(KEEPALIVE_QUOTA_BYTES)
   })
 
-  it('asks for keepalive again once an earlier keepalive request has settled', async () => {
+  it('a deep error beside a pending keepalive goes plain, and keepalive again once that settles', async () => {
     let finish: (response: Response) => void = () => {}
     fetchMock.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
-    for (let index = 0; index < 20; index += 1) report(deepError(index), 'window', false)
+    for (const index of [0, 1, 2]) report(deepError(index), 'window', false)
     await drain()
-    const calls = fetchMock.mock.calls.length
+    expect(fetchMock.mock.calls[0]?.[1]?.keepalive).toBe(true)
+    for (const index of [3, 4]) report(deepError(index), 'window', false)
+    await drain()
+    expect(fetchMock.mock.calls.at(-1)?.[1]?.keepalive).toBeUndefined()
     finish(new Response('{}', { status: 200 }))
     await vi.advanceTimersByTimeAsync(0)
-    report(appError('after the burst'), 'window', false)
+    for (const index of [5, 6]) report(deepError(index), 'window', false)
     await drain()
-    expect(fetchMock.mock.calls).toHaveLength(calls + 1)
     expect(fetchMock.mock.calls.at(-1)?.[1]?.keepalive).toBe(true)
+  })
+
+  it('a keepalive request that fails on the network gives its bytes back', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    for (const index of [0, 1, 2]) report(deepError(index), 'window', false)
+    await drain()
+    for (const index of [3, 4, 5]) report(deepError(index), 'window', false)
+    await drain()
+    expect(fetchMock.mock.calls[1]?.[1]?.keepalive).toBe(true)
   })
 })
 
