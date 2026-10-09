@@ -1,11 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
+import { profileKeys } from '@/queries/profile.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -124,6 +125,35 @@ describe('profile page', () => {
       screen.queryByText('This field contains characters that are not allowed')
     ).not.toBeInTheDocument()
     expect(first).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  it('sends only the edited name after a refetch brings a change made elsewhere', async () => {
+    let served = { ...testUser, firstName: 'Ada', lastName: 'Byron' }
+    useAuthStore.setState({ user: served })
+    let body: unknown = null
+    server.use(
+      http.get('/api/v1/profile', () => ok(served, 'Profile retrieved.')),
+      http.patch('/api/v1/profile', async ({ request }) => {
+        body = await request.json()
+        return ok({ ...served, firstName: 'Augusta' }, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await waitFor(() => {
+      expect(first).toHaveValue('Ada')
+    })
+    await user.clear(first)
+    await user.type(first, 'Augusta')
+    served = { ...served, lastName: 'King\u{200B}' }
+    await act(() => queryClient.refetchQueries({ queryKey: profileKeys.detail }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(body).toEqual({ firstName: 'Augusta' })
+    })
   })
 
   it('shows a legacy first name as invalid once the user edits it, and sends nothing', async () => {

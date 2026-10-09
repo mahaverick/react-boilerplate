@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
+import { useChangedFields } from '@/hooks/use-changed-fields'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import {
@@ -28,7 +29,6 @@ import {
   useUpdateTenantSettings,
   type TenantSettings,
 } from '@/queries/tenant.queries'
-import { changedFieldsOf } from '@/schemas/changed-fields.schemas'
 import { tenantSettingsFormSchema } from '@/schemas/tenant.schemas'
 
 export const Route = createFileRoute('/_app/tenants/$slug/settings')({
@@ -61,21 +61,21 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
   const serverErrors = useServerErrors()
 
   /** The schema's input type: TanStack needs the validator's input assignable to the form values. */
-  const defaultValues: z.input<typeof tenantSettingsFormSchema> = {
+  const loaded: z.input<typeof tenantSettingsFormSchema> = {
     timezone: settings.timezone,
     locale: settings.locale,
     metadata: metadataText(settings.metadata),
   }
-
-  const changes = changedFieldsOf(tenantSettingsFormSchema, defaultValues)
+  const { baseline, changes, rebase } = useChangedFields(tenantSettingsFormSchema, loaded)
 
   const form = useForm({
-    defaultValues,
+    defaultValues: baseline,
     validators: { onSubmit: changes },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
         await updateSettings.mutateAsync(changes.parse(value))
+        rebase(value)
         toast.success('Settings updated.')
       } catch (error) {
         serverErrors.capture(error)

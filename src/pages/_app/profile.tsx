@@ -18,11 +18,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
+import { useChangedFields } from '@/hooks/use-changed-fields'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { formatDate } from '@/lib/format'
 import { useProfile, useUpdateProfile } from '@/queries/profile.queries'
-import { changedFieldsOf } from '@/schemas/changed-fields.schemas'
 import { updateProfileSchema } from '@/schemas/profile.schemas'
 import type { User } from '@/types/api.types'
 
@@ -67,8 +67,9 @@ function ProfilePage() {
 
 /**
  * The name form and the read-only email and join date; PATCH /profile changes
- * the names alone. Only a name the user changed is checked and sent, so a
- * stored name that today's rules refuse does not block changing the other.
+ * the names alone. Only a name the user changed since the form opened (or last
+ * saved) is checked and sent, so a stored name that today's rules refuse does
+ * not block changing the other, and a refetch does not send a stale name back.
  * The value is parsed before posting, so trimming reaches the wire, and
  * `<FormError />` shows schema-level server messages, which `<Form>` does not
  * render itself.
@@ -77,16 +78,19 @@ function ProfileDetails({ user }: { user: User }) {
   const updateProfile = useUpdateProfile()
   const serverErrors = useServerErrors()
 
-  const defaultValues = { firstName: user.firstName ?? '', lastName: user.lastName ?? '' }
-  const changes = changedFieldsOf(updateProfileSchema, defaultValues)
+  const { baseline, changes, rebase } = useChangedFields(updateProfileSchema, {
+    firstName: user.firstName ?? '',
+    lastName: user.lastName ?? '',
+  })
 
   const form = useForm({
-    defaultValues,
+    defaultValues: baseline,
     validators: { onSubmit: changes },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
         await updateProfile.mutateAsync(changes.parse(value))
+        rebase(value)
         toast.success('Profile updated.')
       } catch (error) {
         serverErrors.capture(error)

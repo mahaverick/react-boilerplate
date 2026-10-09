@@ -5,7 +5,7 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
 import { http } from 'msw'
@@ -431,6 +431,34 @@ describe('tenant detail', () => {
     })
     expect(screen.queryByText('Logo must be an http or https URL.')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Logo URL')).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  it("sends only the user's edit after a refetch brings another admin's change", async () => {
+    mockTenant('owner')
+    let served = TENANT
+    let patched: unknown = null
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(served, 'owner'), 'Tenant retrieved.')
+      ),
+      http.patch('/api/v1/tenants/acme', async ({ request }) => {
+        patched = await request.json()
+        return ok({ ...served, name: 'Acme Ltd' }, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await user.clear(name)
+    await user.type(name, 'Acme Ltd')
+    served = { ...TENANT, website: 'https://other.example', description: 'Ad\u{200B}min' }
+    await act(() => queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme') }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(patched).toEqual({ name: 'Acme Ltd' })
+    })
   })
 
   it('shows a legacy logo as invalid once the user edits it, and sends nothing', async () => {
