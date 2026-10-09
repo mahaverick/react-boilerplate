@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { act, type ReactNode } from 'react'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_PREFIX } from '@/constants/routes'
 import { useNotificationStream } from '@/hooks/use-notifications'
@@ -84,6 +85,8 @@ describe('useNotificationStream', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    // The toast spy is on a module shared by every test, unlike the per-test client's.
+    vi.restoreAllMocks()
     // Restores whatever fetch setup.ts's own globals had before this test's stub, not `undefined`.
     vi.unstubAllGlobals()
     client.clear()
@@ -314,6 +317,35 @@ describe('useNotificationStream', () => {
 
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
     expect(latest().headers.Authorization).toBe('Bearer fresh-token')
+  })
+
+  it('treats a 503 at stream capacity as a refused connect: backoff and retry, no toast, still signed in', async () => {
+    server.use(
+      http.post('/api/v1/auth/refresh', () =>
+        ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      )
+    )
+    queueConnectRefusal({
+      status: 503,
+      body: {
+        success: false,
+        message: 'The server is at its notification stream capacity. Try again shortly.',
+        statusCode: 503,
+        code: 'stream_capacity',
+        requestId: 'r',
+      },
+    })
+    const toastError = vi.spyOn(toast, 'error')
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    expect(toastError).not.toHaveBeenCalled()
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
   it('reconnects through ensureSession after a stream failure', async () => {
