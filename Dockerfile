@@ -53,14 +53,16 @@ RUN test ! -e .git || { echo '.git is in the build context (see .dockerignore)' 
 # location, the notification stream's `fetch` URL and the Google OAuth anchor
 # all derive from or hardcode it. A build arg that moved only the axios base
 # would ship an image whose notification stream and Google sign-in are broken
-# with nothing in any log to say so. The three ARGs below are per commit,
-# not per environment: GIT_SHA names the commit (vite.config.ts bakes it in
-# as the release), and the other two say where its source maps are uploaded.
+# with nothing in any log to say so. The build ARGs are per commit, not per
+# environment: GIT_SHA names the commit (vite.config.ts bakes it in as the
+# release), and the two after the build say where its source maps are uploaded.
 ARG GIT_SHA=dev
-ARG POSTHOG_SOURCEMAP_PROJECTS=
-ARG POSTHOG_CLI_HOST=https://us.posthog.com
 # vite.config.ts builds hidden source maps: no sourceMappingURL in any chunk.
 RUN pnpm build
+# Declared after the build, so a change to where the maps go re-runs only the
+# upload, not `pnpm build`: an ARG is part of every later RUN's cache key.
+ARG POSTHOG_SOURCEMAP_PROJECTS=
+ARG POSTHOG_CLI_HOST=https://us.posthog.com
 # Chunk ids go into every build, uploaded or not, so a file name never holds
 # two different contents across builds. Inject must stay release-less: no
 # --release-* flags and no .git, or it calls PostHog and writes a release id
