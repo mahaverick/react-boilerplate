@@ -70,7 +70,7 @@ function ProfilePage() {
  * the names alone. Only a name the user changed since the form opened (or last
  * saved) is checked and sent, so a stored name that today's rules refuse does
  * not block changing the other, and a refetch does not send a stale name back.
- * With nothing changed, Save sends nothing and says nothing.
+ * With nothing changed, Save sends nothing and asks for a change instead.
  * The value is parsed before posting, so trimming reaches the wire, and
  * `<FormError />` shows schema-level server messages, which `<Form>` does not
  * render itself.
@@ -79,17 +79,20 @@ function ProfileDetails({ user }: { user: User }) {
   const updateProfile = useUpdateProfile()
   const serverErrors = useServerErrors()
 
-  const { baseline, changes, rebase } = useChangedFields(updateProfileSchema, {
-    firstName: user.firstName ?? '',
-    lastName: user.lastName ?? '',
-  })
+  const { baseline, changes, changedBody, listeners, rebase } = useChangedFields(
+    updateProfileSchema,
+    { firstName: user.firstName ?? '', lastName: user.lastName ?? '' },
+    serverErrors,
+    'Change a name before saving.'
+  )
 
   const form = useForm({
     defaultValues: baseline,
     validators: { onSubmit: changes },
+    listeners,
     onSubmit: async ({ value }) => {
-      const body = changes.parse(value)
-      if (Object.keys(body).length === 0) return
+      const body = changedBody(value)
+      if (!body) return
       serverErrors.reset()
       try {
         await updateProfile.mutateAsync(body)

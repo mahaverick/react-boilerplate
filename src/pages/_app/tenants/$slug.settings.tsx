@@ -55,7 +55,8 @@ function metadataText(metadata: Record<string, unknown> | null): string {
  * body: the metadata textarea parses to an object, or `null` to clear it. Only
  * the fields the user changed since the form opened (or last saved) are
  * checked and sent, so a stored value that today's rules refuse does not block
- * saving the others. With nothing changed, Save sends nothing and says nothing.
+ * saving the others. With nothing changed, Save sends nothing and asks for a
+ * change instead.
  */
 function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettings }) {
   const updateSettings = useUpdateTenantSettings(slug)
@@ -67,14 +68,20 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
     locale: settings.locale,
     metadata: metadataText(settings.metadata),
   }
-  const { baseline, changes, rebase } = useChangedFields(tenantSettingsFormSchema, loaded)
+  const { baseline, changes, changedBody, listeners, rebase } = useChangedFields(
+    tenantSettingsFormSchema,
+    loaded,
+    serverErrors,
+    'Change a field before saving.'
+  )
 
   const form = useForm({
     defaultValues: baseline,
     validators: { onSubmit: changes },
+    listeners,
     onSubmit: async ({ value }) => {
-      const body = changes.parse(value)
-      if (Object.keys(body).length === 0) return
+      const body = changedBody(value)
+      if (!body) return
       serverErrors.reset()
       try {
         await updateSettings.mutateAsync(body)

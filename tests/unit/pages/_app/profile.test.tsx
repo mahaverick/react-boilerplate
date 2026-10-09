@@ -11,7 +11,6 @@ import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
-import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -183,7 +182,7 @@ describe('profile page', () => {
     expect(called).toBe(false)
   })
 
-  it('sends nothing and says nothing when Save is pressed with no changes', async () => {
+  it('asks for a change, and sends nothing, when Save is pressed with no changes', async () => {
     const toastSuccess = vi.spyOn(toast, 'success')
     let called = false
     server.use(
@@ -195,12 +194,18 @@ describe('profile page', () => {
     const user = userEvent.setup()
     renderProfile()
 
-    await screen.findByLabelText('First name')
+    const first = await screen.findByLabelText('First name')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
-    await settle(200, 'absence has no event: a skipped save sends nothing to wait on')
+    // The message is the barrier: it is set where the request would have been sent.
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a name before saving.')
     expect(called).toBe(false)
     expect(toastSuccess).not.toHaveBeenCalled()
+
+    await user.type(first, 'b')
+    await waitFor(() => {
+      expect(screen.queryByText('Change a name before saving.')).not.toBeInTheDocument()
+    })
   })
 
   it('refuses to submit an empty name without touching the network', async () => {

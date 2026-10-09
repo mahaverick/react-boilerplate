@@ -69,7 +69,7 @@ function TenantDetails({ tenant }: { tenant: Tenant }) {
  * row as it was when the form opened (or last saved) are checked and sent, so
  * a stored value that today's rules refuse does not block saving the others,
  * and a refetch that brings another admin's change does not send it back. With
- * nothing changed, Save sends nothing and says nothing. They are parsed before posting, so an
+ * nothing changed, Save sends nothing and asks for a change instead. They are parsed before posting, so an
  * emptied box goes over as `null` and clears the column: `''` would be a 400,
  * and an omitted key would keep the old value.
  */
@@ -84,14 +84,20 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
     logo: tenant.logo ?? '',
     website: tenant.website ?? '',
   }
-  const { baseline, changes, rebase } = useChangedFields(updateTenantSchema, loaded)
+  const { baseline, changes, changedBody, listeners, rebase } = useChangedFields(
+    updateTenantSchema,
+    loaded,
+    serverErrors,
+    'Change a field before saving.'
+  )
 
   const form = useForm({
     defaultValues: baseline,
     validators: { onSubmit: changes },
+    listeners,
     onSubmit: async ({ value }) => {
-      const body = changes.parse(value)
-      if (Object.keys(body).length === 0) return
+      const body = changedBody(value)
+      if (!body) return
       serverErrors.reset()
       try {
         await updateTenant.mutateAsync(body)

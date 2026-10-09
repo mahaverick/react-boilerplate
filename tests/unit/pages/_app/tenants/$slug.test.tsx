@@ -540,11 +540,11 @@ describe('tenant detail', () => {
         screen.queryByText('Timezone must be a time zone name such as Europe/Paris.')
       ).not.toBeInTheDocument()
     })
-    await settle(200, 'absence has no event: a skipped save sends nothing to wait on')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
     expect(patched).toBeNull()
   })
 
-  it('sends nothing and says nothing when Save is pressed with no changes', async () => {
+  it('asks for a change, and sends nothing, when Save is pressed with no changes', async () => {
     const toastSuccess = vi.spyOn(toast, 'success')
     mockTenant('owner')
     let patches = 0
@@ -557,12 +557,18 @@ describe('tenant detail', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme')
 
-    await screen.findByLabelText('Name')
+    const name = await screen.findByLabelText('Name')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
-    await settle(200, 'absence has no event: a skipped save sends nothing to wait on')
+    // The message is the barrier: it is set where the request would have been sent.
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
     expect(patches).toBe(0)
     expect(toastSuccess).not.toHaveBeenCalled()
+
+    await user.type(name, ' Ltd')
+    await waitFor(() => {
+      expect(screen.queryByText('Change a field before saving.')).not.toBeInTheDocument()
+    })
   })
 
   /**
