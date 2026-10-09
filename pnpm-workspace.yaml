@@ -6,11 +6,6 @@ allowBuilds:
   msw: true
 # Minutes (3 days). Matches renovate.json.
 minimumReleaseAge: 4320
-minimumReleaseAgeExclude:
-  # solid-js 1.9.16 moves its seroval to ~1.6.8, out of GHSA-p6vx-979v-rg4c and
-  # GHSA-jp82-f5mq-hwhp (reached only through the query devtools). It was under
-  # 3 days old when taken. Remove this entry after 2026-10-10.
-  - solid-js@1.9.16
 # Floors against regression: the lockfile already resolves a patched version
 # of each, and every parent's range admits it. Each entry names the advisory it
 # clears; remove it once every parent's own range excludes the vulnerable
