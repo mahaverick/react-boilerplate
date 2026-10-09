@@ -74,6 +74,51 @@ async function replayContains(fake: FakePosthog, text: string): Promise<void> {
     .toBe(true)
 }
 
+/** One serialized DOM node in a replay snapshot, as rrweb writes it. */
+interface ReplayNode {
+  id: number
+  tagName?: string
+  textContent?: string
+  attributes?: Record<string, string | null>
+  childNodes?: ReplayNode[]
+}
+
+/** One rrweb event: a full snapshot (`type` 2) or an incremental one (`type` 3, `source` 0 for DOM mutations). */
+interface ReplayEvent {
+  type: number
+  data: {
+    source?: number
+    node?: ReplayNode
+    attributes?: { id: number; attributes: Record<string, string | null> }[]
+    adds?: { parentId: number; node: ReplayNode }[]
+  }
+}
+
+/** Every rrweb event in the replay the fake has received, decoded, in arrival order. */
+function replayEvents(fake: FakePosthog): ReplayEvent[] {
+  return fake.bodiesFor('/s/').flatMap((body) => {
+    const parsed = JSON.parse(body) as unknown
+    const batch = (Array.isArray(parsed) ? parsed : [parsed]) as {
+      properties?: { $snapshot_data?: ReplayEvent[] }
+    }[]
+    return batch.flatMap((event) => event.properties?.$snapshot_data ?? [])
+  })
+}
+
+/** The first node in `node`'s tree that `matches`, depth first. */
+function findNode(
+  node: ReplayNode | undefined,
+  matches: (node: ReplayNode) => boolean
+): ReplayNode | undefined {
+  if (!node) return undefined
+  if (matches(node)) return node
+  for (const child of node.childNodes ?? []) {
+    const found = findNode(child, matches)
+    if (found) return found
+  }
+  return undefined
+}
+
 /** Whether the fake has a browser `$pageview` of `pathname`. */
 function sawPageview(fake: FakePosthog, pathname: string): boolean {
   return fake
@@ -381,9 +426,22 @@ test.describe('analytics against a fake PostHog', () => {
       }, PROBE_EMAIL)
       await replayContains(fake, 'aria-mutation-marker')
 
-      const replay = fake.bodiesFor('/s/').join('\n')
-      // Three labels: the snapshot's, the added button's and the changed one.
-      expect(replay.match(/aria-label\\*":\\*"\*\*\*\\*"/g)?.length ?? 0).toBeGreaterThanOrEqual(3)
+      const events = replayEvents(fake)
+      const snapshotted = events
+        .filter((event) => event.type === 2)
+        .map((event) => findNode(event.data.node, (node) => node.attributes?.id === 'probe-resend'))
+        .find((node) => node !== undefined)
+      expect(snapshotted?.attributes?.['aria-label']).toBe('***')
+      const mutations = events.filter((event) => event.type === 3 && event.data.source === 0)
+      const relabelled = mutations
+        .flatMap((event) => event.data.attributes ?? [])
+        .filter((change) => change.id === snapshotted?.id && 'aria-label' in change.attributes)
+      expect(relabelled.map((change) => change.attributes['aria-label'])).toEqual(['***'])
+      const adds = mutations.flatMap((event) => event.data.adds ?? [])
+      const markerParent = adds.find((add) => add.node.textContent === 'aria-mutation-marker')
+      const added = adds.find((add) => add.node.id === markerParent?.parentId)
+      expect(added?.node.tagName).toBe('button')
+      expect(added?.node.attributes?.['aria-label']).toBe('***')
       expect(fake.bodies(), 'an aria-label address reached PostHog').not.toContain('pii-probe')
     }
   )
