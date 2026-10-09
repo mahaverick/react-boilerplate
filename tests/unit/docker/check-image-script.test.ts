@@ -58,12 +58,21 @@ describe('docker/check-image.sh --check-bundle', () => {
     ['minified', '_posthogReleaseId=e._posthogReleaseId||"r1";'],
     ['spaced', 'globalThis._posthogReleaseId = globalThis._posthogReleaseId || "r1";'],
     ['bracketed', 'e["_posthogReleaseId"]="r1";'],
+    ['logical or', 'e._posthogReleaseId||="r1";'],
+    ['nullish', 'e._posthogReleaseId ??= "r1";'],
+    ['object literal', 'Object.assign(globalThis,{_posthogReleaseId:"r1"});'],
+    ['quoted key', 'Object.assign(globalThis,{"_posthogReleaseId" : "r1"});'],
   ])('fails a bundle with an injected release id, %s', (_label, inject) => {
     const result = checkBundle(`release:"${RELEASE}";${inject}`)
     expect(result.status).toBe(1)
     expect(result.stdout).toContain(
       'FAIL: a chunk carries an injected release id: inject must stay release-less'
     )
+  })
+
+  it('matches the release as a fixed string, so a dot in it is not any character', () => {
+    expect(checkBundle('o,release:"1x2x0",e', '1.2.0').status).toBe(1)
+    expect(checkBundle(`o,release:"1.2.0",e${POSTHOG_JS_READ}`, '1.2.0').status).toBe(0)
   })
 
   it('passes a comparison with the id, which assigns nothing', () => {

@@ -20,18 +20,19 @@ problem() {
 # The release must be in the bundle at the one place the build defines it,
 # report.ts's `release: __APP_RELEASE__`, which minifies to `release:"<sha>"`
 # in any quotes. A bare "<sha>" anywhere would pass on an unrelated literal
-# such as `dev`.
+# such as `dev`. Matched as a fixed string, so a `.` in the release is a dot.
 check_release() {
-  if ! grep -qE "release:[\"'\`]$2[\"'\`]" "$1"; then
-    problem "the release \"$2\" is not in the bundle where the build defines it"
-  fi
+  for quote in '"' "'" '`'; do
+    grep -qF "release:$quote$2$quote" "$1" && return 0
+  done
+  problem "the release \"$2\" is not in the bundle where the build defines it"
 }
 
-# posthog-cli's inject must stay release-less: any assignment to
-# _posthogReleaseId (dotted or bracketed, spaced or not) is one it wrote.
-# posthog-js only reads it.
+# posthog-cli's inject must stay release-less: a write to _posthogReleaseId
+# is one it made. That is an assignment (`=`, `||=`, `??=` or `&&=`; dotted or
+# bracketed, spaced or not) or an object-literal key. posthog-js only reads it.
 check_release_less() {
-  if grep -qE "_posthogReleaseId[\"'\`]?\]?[[:space:]]*=([^=]|$)" "$1"; then
+  if grep -qE "_posthogReleaseId[\"'\`]?\]?[[:space:]]*(\|\||\?\?|&&)?=([^=]|$)|_posthogReleaseId[\"'\`]?[[:space:]]*:" "$1"; then
     problem "a chunk carries an injected release id: inject must stay release-less"
   fi
 }
@@ -218,14 +219,20 @@ done
 if [ "$status" != 200 ]; then
   problem "the proxied /api/ check got $status from the stand-in API, not 200"
 else
-  for field in $security_fields; do
-    count=$(header_count "$field" "$work/headers")
-    [ "$count" = 1 ] || problem "proxied /api/: $field sent $count times, not once"
+  # Every location that proxies to the API: the general one, the stream's and
+  # the collector's.
+  for path in /api/v1/health /api/v1/notifications/stream /api/v1/collect/e; do
+    status=$(curl -s -D "$work/headers" -o /dev/null -w '%{http_code}' "http://127.0.0.1:$api_port$path" || true)
+    [ "$status" = 200 ] || problem "proxied $path got $status from the stand-in API, not 200"
+    for field in $security_fields; do
+      count=$(header_count "$field" "$work/headers")
+      [ "$count" = 1 ] || problem "proxied $path: $field sent $count times, not once"
+    done
+    [ "$(header X-Frame-Options "$work/headers")" = SAMEORIGIN ] \
+      || problem "proxied $path: X-Frame-Options is not the API's own"
+    [ "$(header Content-Security-Policy "$work/headers")" = "default-src 'none';frame-ancestors 'none'" ] \
+      || problem "proxied $path: Content-Security-Policy is not the API's own"
   done
-  [ "$(header X-Frame-Options "$work/headers")" = SAMEORIGIN ] \
-    || problem "proxied /api/: X-Frame-Options is not the API's own"
-  [ "$(header Content-Security-Policy "$work/headers")" = "default-src 'none';frame-ancestors 'none'" ] \
-    || problem "proxied /api/: Content-Security-Policy is not the API's own"
 fi
 curl -s -D "$work/headers" -o /dev/null "$base/theme-init.js"
 [ "$(header Content-Type "$work/headers")" = application/javascript ] || problem "/theme-init.js is not served as JavaScript"
