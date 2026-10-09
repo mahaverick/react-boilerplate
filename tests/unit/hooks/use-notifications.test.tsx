@@ -19,6 +19,7 @@ import {
   MockFetchStream,
   queueConnectRefusal,
   stubStreamFetch,
+  type ConnectRefusal,
 } from '@/tests/mocks/fetch-stream'
 import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -319,22 +320,36 @@ describe('useNotificationStream', () => {
     expect(latest().headers.Authorization).toBe('Bearer fresh-token')
   })
 
-  it('treats a 503 at stream capacity as a refused connect: backoff and retry, no toast, still signed in', async () => {
+  /** express's 503 at its process-wide stream cap (`didRefuseStream`). */
+  const STREAM_CAPACITY: ConnectRefusal = {
+    status: 503,
+    body: {
+      success: false,
+      message: 'The server is at its notification stream capacity. Try again shortly.',
+      statusCode: 503,
+      code: 'stream_capacity',
+      requestId: 'r',
+    },
+  }
+
+  /**
+   * Counts every `/auth/refresh` call, answering each with a fresh token.
+   * @returns A reader for the count so far.
+   */
+  function countRefreshes(): () => number {
+    let refreshes = 0
     server.use(
-      http.post('/api/v1/auth/refresh', () =>
-        ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
-      )
+      http.post('/api/v1/auth/refresh', () => {
+        refreshes += 1
+        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      })
     )
-    queueConnectRefusal({
-      status: 503,
-      body: {
-        success: false,
-        message: 'The server is at its notification stream capacity. Try again shortly.',
-        statusCode: 503,
-        code: 'stream_capacity',
-        requestId: 'r',
-      },
-    })
+    return () => refreshes
+  }
+
+  it('treats a 503 at stream capacity as a refused connect: backoff and retry, no refresh, no toast, still signed in', async () => {
+    const refreshes = countRefreshes()
+    queueConnectRefusal(STREAM_CAPACITY)
     const toastError = vi.spyOn(toast, 'error')
 
     renderHook(() => useNotificationStream(), { wrapper })
@@ -344,8 +359,52 @@ describe('useNotificationStream', () => {
     })
 
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    // A full stream server is not a verdict on the session: the same token reconnects, with no refresh.
+    expect(latest().headers.Authorization).toBe('Bearer tok-a')
+    expect(refreshes()).toBe(0)
     expect(toastError).not.toHaveBeenCalled()
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
+  })
+
+  it('waits out a 503 Retry-After in seconds, plus jitter, before reconnecting', async () => {
+    const refreshes = countRefreshes()
+    // Jitter adds up to a fifth of the wait; half of that here, so 30s becomes 33s.
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': '30' } })
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(32_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    expect(latest().headers.Authorization).toBe('Bearer tok-a')
+    expect(refreshes()).toBe(0)
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+  })
+
+  it('waits out a 503 Retry-After given as an HTTP date', async () => {
+    countRefreshes()
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const retryAt = new Date(Math.ceil((Date.now() + 45_000) / 1_000) * 1_000)
+    queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': retryAt.toUTCString() } })
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(44_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
   })
 
   it('reconnects through ensureSession after a stream failure', async () => {
