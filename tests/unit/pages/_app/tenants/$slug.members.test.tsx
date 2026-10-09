@@ -20,6 +20,8 @@ import {
   INVITATION_ID,
   INVITATION_ID_2,
   INVITATION_ID_3,
+  INVITATION_ID_4,
+  INVITATION_ID_5,
   INVITATION_ID_9,
   MEMBERSHIP_ID,
   MEMBERSHIP_ID_2,
@@ -803,14 +805,16 @@ describe('inviting, and the pending invitations', () => {
     }
   })
 
-  it('lets an owner resend an invitation for every role', async () => {
+  it('lets an owner resend and revoke an invitation for every role', async () => {
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () =>
         ok(
           [
             invitation(INVITATION_ID, 'owner@b.com', { role: 'owner' }),
             invitation(INVITATION_ID_2, 'admin@b.com', { role: 'admin' }),
-            invitation(INVITATION_ID_3, 'editor@b.com', { role: 'editor' }),
+            invitation(INVITATION_ID_3, 'manager@b.com', { role: 'manager' }),
+            invitation(INVITATION_ID_4, 'editor@b.com', { role: 'editor' }),
+            invitation(INVITATION_ID_5, 'viewer@b.com', { role: 'viewer' }),
           ],
           'Invitations retrieved.'
         )
@@ -818,13 +822,17 @@ describe('inviting, and the pending invitations', () => {
     )
     renderAppAt('/tenants/acme/members')
 
-    for (const email of ['owner@b.com', 'admin@b.com', 'editor@b.com']) {
-      expect(
-        await screen.findByRole('button', { name: `Resend invitation to ${email}` })
-      ).toBeEnabled()
+    for (const role of ['owner', 'admin', 'manager', 'editor', 'viewer']) {
+      const email = `${role}@b.com`
+      const resend = await screen.findByRole('button', { name: `Resend invitation to ${email}` })
+      const revoke = screen.getByRole('button', { name: `Revoke invitation to ${email}` })
+      for (const control of [resend, revoke]) {
+        expect(control).toBeEnabled()
+        expect(control).not.toHaveAttribute('aria-describedby')
+      }
     }
     expect(
-      screen.queryByText('Only an owner can resend an invitation for this role.')
+      screen.queryByText('Only an owner can resend or revoke an invitation for this role.')
     ).not.toBeInTheDocument()
   })
 
