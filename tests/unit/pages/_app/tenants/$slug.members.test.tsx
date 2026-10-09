@@ -100,6 +100,20 @@ function mockTenant(myRole: MembershipRole, members: ReturnType<typeof member>[]
   )
 }
 
+/** `mockTenant` for the platform tenant, whose removals and leaves also revoke elsewhere. */
+function mockPlatformTenant(myRole: MembershipRole, members: ReturnType<typeof member>[]) {
+  const platform = { ...TENANT, name: 'Platform', slug: 'platform' }
+  server.use(
+    http.get('/api/v1/tenants', () =>
+      ok([{ tenant: platform, role: myRole, isPlatform: true }], 'Tenants retrieved.')
+    ),
+    http.get('/api/v1/tenants/platform', () =>
+      ok(tenantDetail(platform, myRole), 'Tenant retrieved.')
+    ),
+    http.get('/api/v1/tenants/platform/members', () => ok(members, 'Members retrieved.'))
+  )
+}
+
 function renderAppAt(path: string): AnyRouter {
   const router = createRouter({
     routeTree,
@@ -968,6 +982,28 @@ describe('the remove and leave dialogs', () => {
     await user.click((await rowFor('Ada')).getByRole('button', { name: 'Remove' }))
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
       'Ada X will lose access to this tenant immediately. Pending invitations they sent are revoked.'
+    )
+  })
+
+  it('tells an owner removing a platform member that their invitations in other tenants go too', async () => {
+    mockPlatformTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_2, 'admin', 'Ada')])
+    const user = userEvent.setup()
+    renderAppAt('/tenants/platform/members')
+
+    await user.click((await rowFor('Ada')).getByRole('button', { name: 'Remove' }))
+    expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+      'Ada X will lose access to this tenant immediately. Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there.'
+    )
+  })
+
+  it('tells a platform admin leaving that their invitations in other tenants go too', async () => {
+    mockPlatformTenant('admin', [member(ME, 'admin', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
+    const user = userEvent.setup()
+    renderAppAt('/tenants/platform/members')
+
+    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+      'You will lose access to this tenant immediately. An owner or admin will have to invite you back. Pending invitations you sent here are revoked, and so are any you sent in other tenants for a role you can no longer grant there.'
     )
   })
 

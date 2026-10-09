@@ -49,6 +49,7 @@ import {
   ROLE_LABELS,
   type MembershipRole,
 } from '@/constants/roles'
+import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { useFocusAfter } from '@/hooks/use-focus-after'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { statusFrom } from '@/lib/api-error'
@@ -78,6 +79,17 @@ const LEAVE_WARNING =
 
 /** Added for an owner or admin, the roles that can have sent invitations: leaving revokes them. */
 const INVITATIONS_REVOKED_ON_LEAVE = 'Pending invitations you sent are revoked.'
+
+/** Added on the platform tenant for an owner or admin: leaving staff also revokes, in each other tenant, what their membership there cannot grant, or everything where they have none. */
+const PLATFORM_INVITATIONS_REVOKED_ON_LEAVE =
+  'Pending invitations you sent here are revoked, and so are any you sent in other tenants for a role you can no longer grant there.'
+
+/** What removing a member says about the invitations they sent. */
+const INVITATIONS_REVOKED_ON_REMOVE = 'Pending invitations they sent are revoked.'
+
+/** The same on the platform tenant, where the removal also revokes elsewhere as leaving does. */
+const PLATFORM_INVITATIONS_REVOKED_ON_REMOVE =
+  'Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there.'
 
 /** What a leave says when the API answers 404: the membership was already gone. */
 const NO_LONGER_A_MEMBER = 'You are no longer a member of this tenant.'
@@ -181,8 +193,10 @@ function RoleCell({
  * Remove goes through the members route; Leave, which every role has, through
  * the caller's own membership route (`useLeaveTenant`). For the last owner it
  * is a disabled Leave button described by the row's explanation in `RoleCell`
- * (`isLastOwner` implies `isSelf`). An owner or admin leaving is told the
- * invitations they sent are revoked, as the server does. After leaving, or
+ * (`isLastOwner` implies `isSelf`). An owner or admin leaving, and anyone
+ * removing a member, is told the invitations sent are revoked, as the server
+ * does; on the platform tenant, so are those beyond the sender's remaining
+ * authority in other tenants. After leaving, or
  * when the API answers 404 because the membership was already gone, the page
  * navigates to `/tenants`, because the tenant's routes answer 404 to a caller
  * with neither a membership nor a platform role, and only then drops the
@@ -216,6 +230,7 @@ function RemoveMemberButton({
   const [isOpen, setIsOpen] = useState(false)
   const name = memberName(member)
   const isPending = isSelf ? leaveTenant.isPending : removeMember.isPending
+  const isPlatform = slug === PLATFORM_TENANT_SLUG
 
   /** Leaves, then lands on the tenant list and forgets the tenant; other failures stay here. */
   async function leave() {
@@ -267,12 +282,15 @@ function RemoveMemberButton({
             {isSelf ? (
               <>
                 {LEAVE_WARNING}
-                {canManageTenant(myRole) && ` ${INVITATIONS_REVOKED_ON_LEAVE}`}
+                {canManageTenant(myRole) &&
+                  ` ${isPlatform ? PLATFORM_INVITATIONS_REVOKED_ON_LEAVE : INVITATIONS_REVOKED_ON_LEAVE}`}
               </>
             ) : (
               <>
-                <Pii>{name}</Pii> will lose access to this tenant immediately. Pending invitations
-                they sent are revoked.
+                <Pii>{name}</Pii> will lose access to this tenant immediately.{' '}
+                {isPlatform
+                  ? PLATFORM_INVITATIONS_REVOKED_ON_REMOVE
+                  : INVITATIONS_REVOKED_ON_REMOVE}
               </>
             )}
           </AlertDialogDescription>
