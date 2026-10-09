@@ -66,12 +66,12 @@ jobs:
       - run: pnpm check:bundle
       - name: Audit production dependencies
         run: pnpm audit --prod --audit-level moderate
-      # Dev tooling as well, without failing the job: a critical advisory in a
-      # build or test tool shows up on every run instead of accumulating
-      # unseen. Reviewed ones sit in pnpm-workspace.yaml's auditConfig.
-      - name: Audit dev dependencies too (non-blocking)
-        run: pnpm audit --audit-level critical
+      # Dev tooling never ships, so its advisories warn instead of failing the
+      # build; a critical one still shows on the run as a failed, allowed step.
+      # Reviewed ones sit in pnpm-workspace.yaml's auditConfig.
+      - name: Audit all dependencies (non-blocking)
         continue-on-error: true
+        run: pnpm audit --audit-level critical
 
   # Two Playwright runs.
   #

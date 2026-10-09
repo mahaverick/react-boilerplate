@@ -18,12 +18,13 @@ minimumReleaseAgeExclude:
   # GHSA-jp82-f5mq-hwhp (reached only through the query devtools). It was under
   # 3 days old when taken. Remove this entry after 2026-10-10.
   - solid-js@1.9.16
-# Patched versions of transitive dependencies whose parents have not taken
-# them yet. Each entry names the advisory it clears; remove it once every
-# parent resolves a patched version on its own (`pnpm why <name>`).
+# Floors against regression: the lockfile already resolves a patched version
+# of each, and every parent's range admits it. Each entry names the advisory it
+# clears; remove it once every parent's own range excludes the vulnerable
+# versions (`pnpm why <name>`).
 overrides:
-  # GHSA-68fv-2mgg-jv7q: via postcss (shadcn, eslint-plugin-tailwindcss) and
-  # @tailwindcss/node. Dev only.
+  # GHSA-68fv-2mgg-jv7q: via vite > postcss (also shadcn, eslint-plugin-tailwindcss),
+  # @tailwindcss/node, jsdom > css-tree and @vitest/coverage-v8 > magicast. Dev only.
   source-map-js@<1.2.2: ^1.2.2
   # GHSA-6qxp-vccf-f47h: via the shadcn CLI's MCP server. Dev only.
   '@modelcontextprotocol/sdk@<1.31.0': ^1.31.0
