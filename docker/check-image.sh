@@ -1,12 +1,47 @@
 #!/usr/bin/env bash
 # Checks a built image from outside, the way it ships. Every probe ends on its
-# own, and the one container this script starts is removed on exit.
+# own, and every container and network this script starts is removed on exit.
 #
 #   bash docker/check-image.sh <image> [host-port] [release]
+#   bash docker/check-image.sh --check-bundle <bundle.js> <release>
 #
 # `release` is the GIT_SHA the image was built with (default `dev`). The
-# proxied-API check also uses host-port + 1.
+# proxied-API check also uses host-port + 1. `--check-bundle` runs only the
+# release checks, on a bundle already on disk, without Docker.
 set -euo pipefail
+
+fail=0
+
+problem() {
+  echo "FAIL: $*"
+  fail=1
+}
+
+# The release must be in the bundle at the one place the build defines it,
+# report.ts's `release: __APP_RELEASE__`, which minifies to `release:"<sha>"`
+# in any quotes. A bare "<sha>" anywhere would pass on an unrelated literal
+# such as `dev`.
+check_release() {
+  if ! grep -qE "release:[\"'\`]$2[\"'\`]" "$1"; then
+    problem "the release \"$2\" is not in the bundle where the build defines it"
+  fi
+}
+
+# posthog-cli's inject must stay release-less: any assignment to
+# _posthogReleaseId (dotted or bracketed, spaced or not) is one it wrote.
+# posthog-js only reads it.
+check_release_less() {
+  if grep -qE "_posthogReleaseId[\"'\`]?\]?[[:space:]]*=([^=]|$)" "$1"; then
+    problem "a chunk carries an injected release id: inject must stay release-less"
+  fi
+}
+
+if [ "${1:-}" = --check-bundle ]; then
+  bundle=${2:?usage: bash docker/check-image.sh --check-bundle <bundle.js> <release>}
+  check_release "$bundle" "${3:?usage: bash docker/check-image.sh --check-bundle <bundle.js> <release>}"
+  check_release_less "$bundle"
+  exit "$fail"
+fi
 
 image=${1:?usage: bash docker/check-image.sh <image> [host-port] [release]}
 port=${2:-18080}
@@ -14,7 +49,6 @@ release=${3:-dev}
 base="http://127.0.0.1:$port"
 name="rb-check-$$"
 work=$(mktemp -d)
-fail=0
 
 cleanup() {
   docker rm -f "$name" "$name-bad" "$name-api" "$name-proxy" >/dev/null 2>&1 || true
@@ -22,11 +56,6 @@ cleanup() {
   rm -rf "$work"
 }
 trap cleanup EXIT
-
-problem() {
-  echo "FAIL: $*"
-  fail=1
-}
 
 # The first value of header $1 in the `curl -D` dump $2, or nothing.
 header() {
@@ -211,15 +240,13 @@ maps=$(docker run --rm --entrypoint sh "$image" -c \
 docker run --rm --entrypoint sh "$image" -c 'cat /usr/share/nginx/html/assets/*.js' >"$work/bundle.js"
 grep -q 'sourceMappingURL' "$work/bundle.js" && problem "a chunk names a source map"
 grep -q '__APP_RELEASE__' "$work/bundle.js" && problem "__APP_RELEASE__ was not replaced at build time"
-# Quoted any way the minifier quotes a string literal, backticks included.
-grep -qE "[\"'\`]${release}[\"'\`]" "$work/bundle.js" || problem "the release \"$release\" is not in the bundle"
+check_release "$work/bundle.js" "$release"
 # posthog-cli's inject prepends a chunk-id IIFE and appends a chunkId comment;
 # a release-less inject writes no release id into it.
 curl -sf "$base$asset" >"$work/entry.js" || problem "could not fetch $asset"
 grep -q '_posthogChunkIds' "$work/entry.js" || problem "$asset has no injected chunk id"
 grep -q '^//# chunkId=' "$work/entry.js" || problem "$asset has no chunkId comment"
-grep -qE '_posthogReleaseId=[A-Za-z_$]+\._posthogReleaseId\|\|' "$work/bundle.js" \
-  && problem "a chunk carries an injected release id: inject must stay release-less"
+check_release_less "$work/bundle.js"
 
 # --- The run-time configuration, written at start under /tmp -----------------
 curl -s -D "$work/headers" -o "$work/body" "$base/runtime-config.js"
