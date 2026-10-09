@@ -99,10 +99,15 @@ describe('register names: the API safeText rule', () => {
     ])
   })
 
-  it('accepts names in other scripts, with direction marks', () => {
+  it('accepts names in other scripts', () => {
     expect(
-      registerSchema.safeParse({ ...base, firstName: 'שָׁלוֹם\u{200F}', lastName: 'Ὀδυσσεύς' })
-        .success
+      registerSchema.safeParse({ ...base, firstName: 'שָׁלוֹם', lastName: 'Ὀδυσσεύς' }).success
     ).toBe(true)
+  })
+
+  it('refuses an invisible direction mark or zero-width character in a name', () => {
+    for (const firstName of ['שָׁלוֹם\u{200F}', 'Ad\u{200B}min']) {
+      expect(registerSchema.safeParse({ ...base, firstName }).success).toBe(false)
+    }
   })
 })
