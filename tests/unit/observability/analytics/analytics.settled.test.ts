@@ -99,12 +99,24 @@ describe('whenAnalyticsSettled', () => {
 
 describe('identityEpoch', () => {
   it.each([
-    ['identifyUser', () => identifyUser('user-a')],
-    ['resetAnalytics', () => resetAnalytics()],
-    ['forgetStaleIdentity', () => forgetStaleIdentity()],
-    ['setTenantGroup', () => setTenantGroup('tenant-1')],
-    ['clearTenantGroup', () => clearTenantGroup()],
-  ])('changes at the call to %s, before the SDK loads', (_name, change) => {
+    ['identifyUser', () => undefined, () => identifyUser('user-a')],
+    ['identifyUser for another user', () => identifyUser('user-a'), () => identifyUser('user-b')],
+    ['resetAnalytics', () => undefined, () => resetAnalytics()],
+    ['forgetStaleIdentity', () => undefined, () => forgetStaleIdentity()],
+    ['setTenantGroup', () => undefined, () => setTenantGroup('tenant-1')],
+    [
+      'setTenantGroup for another tenant',
+      () => setTenantGroup('tenant-1'),
+      () => setTenantGroup('tenant-2'),
+    ],
+    [
+      'setTenantGroup with another access',
+      () => setTenantGroup('tenant-1'),
+      () => setTenantGroup('tenant-1', 'platform'),
+    ],
+    ['clearTenantGroup', () => setTenantGroup('tenant-1'), () => clearTenantGroup()],
+  ])('changes at the call to %s, before the SDK loads', (_name, arrange, change) => {
+    arrange()
     const before = identityEpoch()
     change()
     expect(identityEpoch()).not.toBe(before)
@@ -112,5 +124,37 @@ describe('identityEpoch', () => {
 
   it('stays put while nothing changes the identity', () => {
     expect(identityEpoch()).toBe(identityEpoch())
+  })
+
+  it('a second setTenantGroup for the tenant already grouped leaves the epoch alone', async () => {
+    await initAnalytics(OPT_OUT)
+    setTenantGroup('tenant-1')
+    const before = identityEpoch()
+    setTenantGroup('tenant-1')
+    expect(identityEpoch()).toBe(before)
+  })
+
+  it('a session refresh re-identifying the same user leaves the epoch alone', async () => {
+    await initAnalytics(OPT_OUT)
+    identifyUser('user-a')
+    const before = identityEpoch()
+    identifyUser('user-a')
+    expect(identityEpoch()).toBe(before)
+  })
+
+  it('leaving a non-tenant page for another non-tenant page leaves the epoch alone', async () => {
+    await initAnalytics(OPT_OUT)
+    clearTenantGroup()
+    const before = identityEpoch()
+    clearTenantGroup()
+    expect(identityEpoch()).toBe(before)
+  })
+
+  it('identifying the same user again after a sign-out changes it', () => {
+    identifyUser('user-a')
+    resetAnalytics()
+    const before = identityEpoch()
+    identifyUser('user-a')
+    expect(identityEpoch()).not.toBe(before)
   })
 })

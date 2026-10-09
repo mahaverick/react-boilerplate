@@ -7,6 +7,7 @@ import {
   whenAnalyticsSettled,
   type AnalyticsIdentity,
 } from '@/observability/analytics'
+import { resetAnalyticsForTests } from '@/observability/analytics/analytics'
 import { ANALYTICS_APP } from '@/observability/analytics/config'
 import { resetErrorListenForTests, setErrorRouteSource } from '@/observability/errors/listen'
 import {
@@ -100,6 +101,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
   resetReporterForTests()
   resetErrorListenForTests()
+  resetAnalyticsForTests()
   config.isAvailable = true
   settled.mockReset()
   settled.mockResolvedValue(CONSENTED)
@@ -468,6 +470,20 @@ describe('report', () => {
     expect(() => {
       report(hostile, 'window', false)
     }).not.toThrow()
+  })
+})
+
+describe('the identity across a navigation inside the same tenant', () => {
+  it('keeps the consented identity: re-grouping the same tenant changes nothing', async () => {
+    setTenantGroup('tenant-1')
+    report(appError('crash on the members page'), 'react', true)
+    setTenantGroup('tenant-1') // the router re-applies the same tenant on the next page
+    await drain()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [event] = (
+      JSON.parse(bodyOf(fetchMock.mock.calls[0]?.[1])) as { batch: ExceptionEvent[] }
+    ).batch
+    expect(event?.distinct_id).toBe('user-a')
   })
 })
 

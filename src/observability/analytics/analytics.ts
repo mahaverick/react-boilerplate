@@ -112,6 +112,14 @@ let activeConfig: AnalyticsConfig | null = null
  */
 let appliedTenant: AppliedTenant | null = null
 /**
+ * The user and tenant group the app last asked for, written at the call and
+ * not when the SDK runs the command, so the identity epoch moves only when a
+ * call changes who an event belongs to: the router re-applying the tenant on
+ * screen, or a session refresh re-identifying the same user, leaves it alone.
+ */
+let requestedUserId: string | null = null
+let requestedTenant: AppliedTenant | null = null
+/**
  * The `$feature/*` properties the flags module registered for the signed-in
  * user. The event guard sends exactly these on every event but replay, and
  * `registerSuperProperties` puts them back in the SDK after any reset of it,
@@ -603,7 +611,8 @@ export function capturePageview(): void {
  * @param userId - The API's user id.
  */
 export function identifyUser(userId: string): void {
-  bumpIdentityEpoch()
+  if (requestedUserId !== userId) bumpIdentityEpoch()
+  requestedUserId = userId
   run((ph) => applyIdentity(ph, userId))
 }
 
@@ -624,6 +633,7 @@ export function identifyUser(userId: string): void {
  */
 export function forgetStaleIdentity(options: { keepIfAnotherTabHoldsThem?: boolean } = {}): void {
   bumpIdentityEpoch()
+  requestedUserId = null
   if (options.keepIfAnotherTabHoldsThem) askWhoIsSignedIn()
   run((ph) => {
     const isHeldElsewhere =
@@ -676,7 +686,8 @@ export function yieldSharedIdentity(): void {
  * @param access - `platform` when staff reached it through platform access.
  */
 export function setTenantGroup(tenantId: string, access: AnalyticsTenantAccess = 'member'): void {
-  bumpIdentityEpoch()
+  if (requestedTenant?.id !== tenantId || requestedTenant.access !== access) bumpIdentityEpoch()
+  requestedTenant = { id: tenantId, access }
   run((ph) => {
     if (appliedTenant?.id === tenantId && appliedTenant.access === access) return
     const isSwitch = lastTenantId !== null && lastTenantId !== tenantId
@@ -689,7 +700,8 @@ export function setTenantGroup(tenantId: string, access: AnalyticsTenantAccess =
 
 /** Takes the following events out of any tenant group: a page that is not a tenant's. */
 export function clearTenantGroup(): void {
-  bumpIdentityEpoch()
+  if (requestedTenant !== null) bumpIdentityEpoch()
+  requestedTenant = null
   run((ph) => {
     if (appliedTenant === null) return
     appliedTenant = null
@@ -743,6 +755,8 @@ export function unregisterFeatureProperties(names: readonly FeaturePropertyName[
  */
 export function resetAnalytics(): void {
   bumpIdentityEpoch()
+  requestedUserId = null
+  requestedTenant = null
   run((ph) => {
     appliedTenant = null
     lastTenantId = null
@@ -987,6 +1001,8 @@ export function resetAnalyticsForTests(): void {
   queue = []
   activeConfig = null
   appliedTenant = null
+  requestedUserId = null
+  requestedTenant = null
   featureProperties = {}
   lastTenantId = null
   signedInUserId = null
