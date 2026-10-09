@@ -12,6 +12,8 @@ import type { ApiErrorBody } from '@/types/api.types'
 export interface ConnectRefusal {
   status: number
   body?: ApiErrorBody
+  /** Response headers beside the body's `Content-Type`, such as `Retry-After`. */
+  headers?: Record<string, string>
 }
 
 let queuedConnectRefusal: ConnectRefusal | null = null
@@ -64,7 +66,10 @@ export class MockFetchStream {
         refusal.body === undefined ? null : JSON.stringify(refusal.body),
         {
           status: refusal.status,
-          headers: refusal.body === undefined ? {} : { 'Content-Type': 'application/json' },
+          headers: {
+            ...(refusal.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+            ...refusal.headers,
+          },
         }
       )
       MockFetchStream.instances.push(this)

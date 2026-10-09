@@ -7,6 +7,7 @@ import {
   whenAnalyticsSettled,
   type AnalyticsIdentity,
 } from '@/observability/analytics'
+import { resetAnalyticsForTests } from '@/observability/analytics/analytics'
 import { ANALYTICS_APP } from '@/observability/analytics/config'
 import { resetErrorListenForTests, setErrorRouteSource } from '@/observability/errors/listen'
 import {
@@ -18,6 +19,7 @@ import {
   fingerprintOf,
   isAppFrame,
   isIgnoredError,
+  KEEPALIVE_QUOTA_BYTES,
   PAGE_LIMIT,
   report,
   resetReporterForTests,
@@ -100,6 +102,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
   resetReporterForTests()
   resetErrorListenForTests()
+  resetAnalyticsForTests()
   config.isAvailable = true
   settled.mockReset()
   settled.mockResolvedValue(CONSENTED)
@@ -427,21 +430,26 @@ describe('report', () => {
     }
   })
 
-  it('splits a burst of deep exceptions into requests of at most 60 KiB, keepalive on each', async () => {
+  it('splits a burst of deep exceptions into requests of at most 60 KiB, keepalive while the quota allows', async () => {
     for (let index = 0; index < BATCH_SIZE; index += 1) {
       report(deepError(index), 'window', false)
     }
     await vi.advanceTimersByTimeAsync(0)
     await drain()
     expect(fetchMock.mock.calls.length).toBeGreaterThan(2)
+    expect(fetchMock.mock.calls[0]?.[1]?.keepalive).toBe(true)
+    let keepaliveBytes = 0
     for (const [, init] of fetchMock.mock.calls) {
       const body = bodyOf(init)
-      expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(BATCH_MAX_BYTES)
-      expect(init?.keepalive).toBe(true)
+      const bytes = new TextEncoder().encode(body).length
+      expect(bytes).toBeLessThanOrEqual(BATCH_MAX_BYTES)
+      if (init?.keepalive === true) keepaliveBytes += bytes
       expect((JSON.parse(body) as { batch: unknown[] }).batch.length).toBeLessThanOrEqual(
         BATCH_SIZE
       )
     }
+    // Every chunk leaves in one flush, so all are in flight together.
+    expect(keepaliveBytes).toBeLessThanOrEqual(KEEPALIVE_QUOTA_BYTES)
     expect(sentEvents()).toHaveLength(BATCH_SIZE)
   })
 
@@ -468,6 +476,121 @@ describe('report', () => {
     expect(() => {
       report(hostile, 'window', false)
     }).not.toThrow()
+  })
+})
+
+describe('waiting for analytics to settle', () => {
+  it('parks no new settle waiter per error once the settle cap has passed and analytics never settled', async () => {
+    const actual = await vi.importActual<typeof import('@/observability/analytics')>(
+      '@/observability/analytics'
+    )
+    // The real whenAnalyticsSettled, with analytics never loaded: each call while unsettled parks a waiter in its module Set, cleared only when analytics settles.
+    let parked = 0
+    settled.mockImplementation(() => {
+      parked += 1
+      return actual.whenAnalyticsSettled()
+    })
+    report(appError('first', 'a', 1), 'window', false)
+    await vi.advanceTimersByTimeAsync(SETTLE_CAP_MS + BATCH_WINDOW_MS)
+    const before = parked
+    for (let index = 0; index < 20; index += 1) {
+      report(appError(`later ${String(index)}`, `f${String(index)}`, index + 2), 'window', false)
+    }
+    await vi.advanceTimersByTimeAsync(BATCH_WINDOW_MS)
+    expect(sentEvents()).toHaveLength(21)
+    expect(parked - before).toBe(0)
+  })
+
+  it('reads the identity again once analytics settles after the cap', async () => {
+    let settle: (identity: AnalyticsIdentity | null) => void = () => {}
+    const late = new Promise<AnalyticsIdentity | null>((resolve) => (settle = resolve))
+    settled.mockReturnValue(late)
+    report(appError('before the cap', 'a', 1), 'window', false)
+    await vi.advanceTimersByTimeAsync(SETTLE_CAP_MS + BATCH_WINDOW_MS)
+    expect(sentEvents()[0]?.distinct_id).not.toBe('user-a')
+    settle(CONSENTED)
+    settled.mockResolvedValue(CONSENTED)
+    await vi.advanceTimersByTimeAsync(0)
+    report(appError('after the settle', 'b', 2), 'window', false)
+    await drain()
+    expect(sentEvents()[1]?.distinct_id).toBe('user-a')
+  })
+
+  it('beacons an error that is still waiting for analytics to settle when the page goes away', async () => {
+    settled.mockReturnValue(new Promise(() => {})) // analytics has not settled yet
+    report(appError('crash during load'), 'window', false)
+    await vi.advanceTimersByTimeAsync(100)
+    dispatchEvent(new Event('pagehide'))
+    expect(beacon).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(await (beacon.mock.calls[0]?.[1] as Blob).text()) as {
+      batch: ExceptionEvent[]
+    }
+    expect(body.batch).toHaveLength(1)
+    expect(body.batch[0]?.properties.$process_person_profile).toBe(false)
+  })
+
+  it('does not send a beaconed error a second time when analytics settles later', async () => {
+    let settle: (identity: AnalyticsIdentity | null) => void = () => {}
+    settled.mockReturnValue(new Promise((resolve) => (settle = resolve)))
+    report(appError('crash during load'), 'window', false)
+    await vi.advanceTimersByTimeAsync(100)
+    dispatchEvent(new Event('pagehide'))
+    settle(CONSENTED)
+    await drain()
+    expect(beacon).toHaveBeenCalledTimes(1)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('keepalive bodies in flight', () => {
+  it('never has more than 64 KiB of keepalive bodies in flight at once', async () => {
+    fetchMock.mockImplementation(() => new Promise(() => {})) // in flight until the page ends
+    for (let index = 0; index < 20; index += 1) report(deepError(index), 'window', false)
+    await drain()
+    const inFlight = fetchMock.mock.calls
+      .filter(([, init]) => init?.keepalive === true)
+      .reduce((sum, [, init]) => sum + new TextEncoder().encode(bodyOf(init)).length, 0)
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1)
+    expect(inFlight).toBeLessThanOrEqual(KEEPALIVE_QUOTA_BYTES)
+  })
+
+  it('a deep error beside a pending keepalive goes plain, and keepalive again once that settles', async () => {
+    let finish: (response: Response) => void = () => {}
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
+    for (const index of [0, 1, 2]) report(deepError(index), 'window', false)
+    await drain()
+    expect(fetchMock.mock.calls[0]?.[1]?.keepalive).toBe(true)
+    for (const index of [3, 4]) report(deepError(index), 'window', false)
+    await drain()
+    expect(fetchMock.mock.calls.at(-1)?.[1]?.keepalive).toBeUndefined()
+    finish(new Response('{}', { status: 200 }))
+    await vi.advanceTimersByTimeAsync(0)
+    for (const index of [5, 6]) report(deepError(index), 'window', false)
+    await drain()
+    expect(fetchMock.mock.calls.at(-1)?.[1]?.keepalive).toBe(true)
+  })
+
+  it('a keepalive request that fails on the network gives its bytes back', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    for (const index of [0, 1, 2]) report(deepError(index), 'window', false)
+    await drain()
+    for (const index of [3, 4, 5]) report(deepError(index), 'window', false)
+    await drain()
+    expect(fetchMock.mock.calls[1]?.[1]?.keepalive).toBe(true)
+  })
+})
+
+describe('the identity across a navigation inside the same tenant', () => {
+  it('keeps the consented identity: re-grouping the same tenant changes nothing', async () => {
+    setTenantGroup('tenant-1')
+    report(appError('crash on the members page'), 'react', true)
+    setTenantGroup('tenant-1') // the router re-applies the same tenant on the next page
+    await drain()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [event] = (
+      JSON.parse(bodyOf(fetchMock.mock.calls[0]?.[1])) as { batch: ExceptionEvent[] }
+    ).batch
+    expect(event?.distinct_id).toBe('user-a')
   })
 })
 

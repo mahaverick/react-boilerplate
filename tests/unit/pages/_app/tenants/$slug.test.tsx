@@ -5,7 +5,7 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
 import { http } from 'msw'
@@ -365,7 +365,7 @@ describe('tenant detail', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme')
 
-    await screen.findByLabelText('Name')
+    await user.type(await screen.findByLabelText('Name'), ' Ltd')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     const message = await screen.findByText('Something broke.')
@@ -381,12 +381,367 @@ describe('tenant detail', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/settings')
 
-    await user.click(await screen.findByRole('button', { name: 'Save settings' }))
+    await user.type(await screen.findByLabelText('Locale'), '-GB')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
 
     const message = await screen.findByText('Something broke.')
     expect(message.closest('form')).not.toBeNull()
     expect(screen.getAllByText('Something broke.')).toHaveLength(1)
     expect(toastError).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Stored values the client's rules now refuse, saved before those rules
+   * existed: the forms send only what the user changed, so the old value
+   * neither blocks a save of another field nor goes back over the wire.
+   */
+  function mockLegacyTenant() {
+    mockTenant('owner')
+    const legacy = { ...TENANT, logo: 'javascript:alert(1)', description: 'Ad\u{200B}min anvils' }
+    const legacySettings = { ...SETTINGS, timezone: 'Mars/Olympus_Mons', locale: 'en_GB' }
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(legacy, 'owner'), 'Tenant retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/settings', () => ok(legacySettings, 'Settings retrieved.'))
+    )
+  }
+
+  it('saves an edited name while a refused legacy logo and description stay as they are', async () => {
+    mockLegacyTenant()
+    let patched: unknown = null
+    server.use(
+      http.patch('/api/v1/tenants/acme', async ({ request }) => {
+        patched = await request.json()
+        return ok({ ...TENANT, name: 'Acme Ltd' }, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await waitFor(() => {
+      expect(screen.getByLabelText('Logo URL')).toHaveValue('javascript:alert(1)')
+    })
+    await user.clear(name)
+    await user.type(name, 'Acme Ltd')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(patched).toEqual({ name: 'Acme Ltd' })
+    })
+    expect(screen.queryByText('Logo must be an http or https URL.')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Logo URL')).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  it("sends only the user's edit after a refetch brings another admin's change", async () => {
+    mockTenant('owner')
+    let served = TENANT
+    let patched: unknown = null
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(served, 'owner'), 'Tenant retrieved.')
+      ),
+      http.patch('/api/v1/tenants/acme', async ({ request }) => {
+        patched = await request.json()
+        return ok({ ...served, name: 'Acme Ltd' }, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await user.clear(name)
+    await user.type(name, 'Acme Ltd')
+    served = { ...TENANT, website: 'https://other.example', description: 'Ad\u{200B}min' }
+    await act(() => queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme') }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(patched).toEqual({ name: 'Acme Ltd' })
+    })
+  })
+
+  it('shows a legacy logo as invalid once the user edits it, and sends nothing', async () => {
+    mockLegacyTenant()
+    let patches = 0
+    server.use(
+      http.patch('/api/v1/tenants/acme', () => {
+        patches += 1
+        return ok(TENANT, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const logo = await screen.findByLabelText('Logo URL')
+    await waitFor(() => {
+      expect(logo).toHaveValue('javascript:alert(1)')
+    })
+    await user.type(logo, '2')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText('Logo must be an http or https URL.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Logo URL')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByText('Description contains characters that are not allowed')).toBeNull()
+    // The message is the barrier: a refused submit never reaches onSubmit.
+    expect(patches).toBe(0)
+  })
+
+  it('saves an edited metadata while a refused legacy timezone and locale stay as they are', async () => {
+    mockLegacyTenant()
+    let patched: unknown = null
+    server.use(
+      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
+        patched = await request.json()
+        return ok({ ...SETTINGS, metadata: { tier: 'max' } }, 'Settings updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/settings')
+
+    const metadata = await screen.findByLabelText('Metadata')
+    expect(screen.getByLabelText('Timezone')).toHaveValue('Mars/Olympus_Mons')
+    await user.clear(metadata)
+    await user.type(metadata, '{{"tier":"max"}')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+
+    await waitFor(() => {
+      expect(patched).toEqual({ metadata: { tier: 'max' } })
+    })
+    expect(screen.queryByText(/must be a time zone name/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/must be a language tag/)).not.toBeInTheDocument()
+  })
+
+  it('shows a legacy timezone as invalid once edited, and not after the edit is undone', async () => {
+    mockLegacyTenant()
+    let patched: unknown = null
+    server.use(
+      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
+        patched = await request.json()
+        return ok(SETTINGS, 'Settings updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/settings')
+
+    const timezone = await screen.findByLabelText('Timezone')
+    await user.type(timezone, 'X')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    expect(
+      await screen.findByText('Timezone must be a time zone name such as Europe/Paris.')
+    ).toBeInTheDocument()
+    expect(patched).toBeNull()
+
+    await user.type(timezone, '{Backspace}')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Timezone must be a time zone name such as Europe/Paris.')
+      ).not.toBeInTheDocument()
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
+    expect(patched).toBeNull()
+
+    await user.type(timezone, 'X')
+    await waitFor(() => {
+      expect(screen.queryByText('Change a field before saving.')).not.toBeInTheDocument()
+    })
+  })
+
+  it('asks for a change, and sends nothing, when Save is pressed with no changes', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success')
+    mockTenant('owner')
+    let patches = 0
+    server.use(
+      http.patch('/api/v1/tenants/acme', () => {
+        patches += 1
+        return ok(TENANT, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    // The message is the barrier: it is set where the request would have been sent.
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
+    expect(patches).toBe(0)
+    expect(toastSuccess).not.toHaveBeenCalled()
+
+    await user.type(name, ' Ltd')
+    await waitFor(() => {
+      expect(screen.queryByText('Change a field before saving.')).not.toBeInTheDocument()
+    })
+  })
+
+  it("does not send another admin's change back after an unchanged Save and a refetch", async () => {
+    mockTenant('owner')
+    let served = TENANT
+    let patched: unknown = null
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(served, 'owner'), 'Tenant retrieved.')
+      ),
+      http.patch('/api/v1/tenants/acme', async ({ request }) => {
+        patched = await request.json()
+        return ok({ ...served, name: 'Acme Ltd' }, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
+
+    served = { ...TENANT, name: 'Acme Corporation', website: 'https://other.example' }
+    await act(() => queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme') }))
+    // The header reads the same query, so it shows the refetch once the form has it too.
+    await screen.findByRole('heading', { name: 'Acme Corporation' })
+    await user.clear(name)
+    await user.type(name, 'Acme Ltd')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(patched).toEqual({ name: 'Acme Ltd' })
+    })
+  })
+
+  it('sends the edit again when Save is pressed after a failed save', async () => {
+    mockTenant('owner')
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/tenants/acme', async ({ request }) => {
+        bodies.push(await request.json())
+        return bodies.length === 1
+          ? fail('Something broke.', 500)
+          : ok({ ...TENANT, name: 'Acme Ltd' }, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await user.clear(name)
+    await user.type(name, 'Acme Ltd')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await screen.findByText('Something broke.')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ name: 'Acme Ltd' }, { name: 'Acme Ltd' }])
+    })
+  })
+
+  it('sends a field edited back to its old value after a save', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success')
+    mockTenant('owner')
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/tenants/acme', async ({ request }) => {
+        bodies.push(await request.json())
+        return ok(TENANT, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await user.clear(name)
+    await user.type(name, 'Acme Ltd')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('Tenant updated.')
+    })
+    await user.clear(name)
+    await user.type(name, 'Acme Corp')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ name: 'Acme Ltd' }, { name: 'Acme Corp' }])
+    })
+  })
+
+  it('sends the settings edit again when Save is pressed after a failed save', async () => {
+    mockTenant('owner')
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
+        bodies.push(await request.json())
+        return bodies.length === 1
+          ? fail('Something broke.', 500)
+          : ok({ ...SETTINGS, locale: 'en-GB' }, 'Settings updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/settings')
+
+    await user.type(await screen.findByLabelText('Locale'), '-GB')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    await screen.findByText('Something broke.')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'en-GB' }, { locale: 'en-GB' }])
+    })
+  })
+
+  // A save the server finds already applied keeps `updatedAt`, so the form is not remounted.
+  it('sends a setting edited back to its old value after a save that left the row as it was', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success')
+    mockTenant('owner')
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
+        bodies.push(await request.json())
+        return ok(SETTINGS, 'Settings updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/settings')
+
+    const locale = await screen.findByLabelText('Locale')
+    await user.type(locale, '-GB')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('Settings updated.')
+    })
+    await user.type(locale, '{Backspace}{Backspace}{Backspace}')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'en-GB' }, { locale: 'en' }])
+    })
+  })
+
+  it('shows a refetch on a form nobody has touched, and still asks for a change', async () => {
+    mockTenant('owner')
+    let served = TENANT
+    let patches = 0
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(served, 'owner'), 'Tenant retrieved.')
+      ),
+      http.patch('/api/v1/tenants/acme', () => {
+        patches += 1
+        return ok(served, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    await screen.findByLabelText('Name')
+    served = { ...TENANT, website: 'https://other.example' }
+    await act(() => queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme') }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Website')).toHaveValue('https://other.example')
+    })
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
+    expect(patches).toBe(0)
   })
 
   /**

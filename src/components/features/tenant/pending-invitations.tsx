@@ -30,10 +30,11 @@ const INVITATIONS_ERROR =
   'We could not load the pending invitations, so none are listed here. This is not a sign that there are none.'
 
 /**
- * Why Resend is off: resend re-checks `canActorGrantRole` against the
- * invitation's role, so an admin's resend of an owner or admin invite is refused.
+ * Why Resend and Revoke are off: both re-check `canActorGrantRole` against the
+ * invitation's role, so an admin's resend or revoke of an owner or admin
+ * invite is refused.
  */
-const RESEND_REASON = 'Only an owner can resend an invitation for this role.'
+const GRANT_REASON = 'Only an owner can resend or revoke an invitation for this role.'
 
 /** Resend or revoke found the row accepted, revoked or expired meanwhile. */
 const NO_LONGER_PENDING = 'That invitation is no longer pending.'
@@ -54,40 +55,36 @@ function expiresOn(expiresAt: string): string {
 
 /**
  * Resend for one row, named after the invitee since there is one per row.
- * When the actor may not grant the invitation's role, the button is disabled
- * with the reason as visible text: a disabled button has `pointer-events:
- * none`, so a tooltip on it would never open. It uses `mutateAsync`, because
- * the list refetch can unmount this row first and `mutate`'s callbacks skip
- * an unmounted observer.
+ * With `reasonId` (the actor may not grant the invitation's role) the button
+ * is disabled and described by the row's one reason, which `InvitationItem`
+ * renders as visible text: a disabled button has `pointer-events: none`, so a
+ * tooltip on it would never open. It uses `mutateAsync`, because the list
+ * refetch can unmount this row first and `mutate`'s callbacks skip an
+ * unmounted observer.
  */
 function ResendInvitationButton({
   slug,
   invitation,
-  myRole,
+  reasonId,
 }: {
   slug: string
   invitation: TenantInvitation
-  myRole: MembershipRole
+  /** The row's grant-rule reason, when the actor may not act on this invitation. */
+  reasonId?: string
 }) {
   const resend = useResendInvitation(slug)
-  const reasonId = `resend-reason-${invitation.id}`
 
-  if (!canActorGrantRole(myRole, invitation.role)) {
+  if (reasonId) {
     return (
-      <div className="grid gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled
-          aria-label={`Resend invitation to ${invitation.email}`}
-          aria-describedby={reasonId}
-        >
-          Resend
-        </Button>
-        <p id={reasonId} className="text-xs text-muted-foreground">
-          {RESEND_REASON}
-        </p>
-      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        aria-label={`Resend invitation to ${invitation.email}`}
+        aria-describedby={reasonId}
+      >
+        Resend
+      </Button>
     )
   }
 
@@ -109,19 +106,40 @@ function ResendInvitationButton({
   )
 }
 
-/** Revoke for one row, behind a confirmation; `mutateAsync` for the same reason as resend. */
+/**
+ * Revoke for one row, behind a confirmation; `mutateAsync` for the same
+ * reason as resend. With `reasonId` it is disabled and described by the
+ * row's one reason, as Resend is.
+ */
 function RevokeInvitationButton({
   slug,
   invitation,
+  reasonId,
   onRevoked,
 }: {
   slug: string
   invitation: TenantInvitation
+  /** The row's grant-rule reason, when the actor may not act on this invitation. */
+  reasonId?: string
   /** Called once the revoke has succeeded and the list has refetched. */
   onRevoked: () => void
 }) {
   const revoke = useRevokeInvitation(slug)
   const [isOpen, setIsOpen] = useState(false)
+
+  if (reasonId) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        aria-label={`Revoke invitation to ${invitation.email}`}
+        aria-describedby={reasonId}
+      >
+        Revoke
+      </Button>
+    )
+  }
 
   return (
     <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
@@ -179,6 +197,9 @@ function RevokeInvitationButton({
  * A stacked item at every width rather than a table row with a card twin:
  * one render path keeps every id unique, and there is no fixed-width table
  * to scroll off a phone screen.
+ *
+ * When the actor may not grant the invitation's role, Resend and Revoke are
+ * both off and the reason renders once, under them, with both pointing at it.
  */
 function InvitationItem({
   slug,
@@ -191,6 +212,10 @@ function InvitationItem({
   myRole: MembershipRole
   onRevoked: () => void
 }) {
+  const reasonId = canActorGrantRole(myRole, invitation.role)
+    ? undefined
+    : `grant-reason-${invitation.id}`
+
   return (
     <li className="grid gap-3 rounded-lg border p-4 sm:flex sm:items-center sm:justify-between">
       <div className="grid min-w-0 gap-0.5">
@@ -202,9 +227,21 @@ function InvitationItem({
           Expires {expiresOn(invitation.expiresAt)}
         </span>
       </div>
-      <div className="flex gap-2">
-        <ResendInvitationButton slug={slug} invitation={invitation} myRole={myRole} />
-        <RevokeInvitationButton slug={slug} invitation={invitation} onRevoked={onRevoked} />
+      <div className="grid gap-1">
+        <div className="flex gap-2">
+          <ResendInvitationButton slug={slug} invitation={invitation} reasonId={reasonId} />
+          <RevokeInvitationButton
+            slug={slug}
+            invitation={invitation}
+            reasonId={reasonId}
+            onRevoked={onRevoked}
+          />
+        </div>
+        {reasonId && (
+          <p id={reasonId} className="text-xs text-muted-foreground">
+            {GRANT_REASON}
+          </p>
+        )}
       </div>
     </li>
   )

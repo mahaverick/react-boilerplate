@@ -473,21 +473,6 @@ describe('member mutations and the caller’s own profile', () => {
   })
 
   describe('useRemoveMember', () => {
-    it('drops the whole tenant cache prefix on a self-leave', async () => {
-      client.setQueryData(tenantKeys.detail('acme'), { id: TENANT_ID })
-      client.setQueryData(tenantKeys.members('acme'), [])
-      server.use(
-        http.delete(`/api/v1/tenants/acme/members/${USER_ID}`, () => ok(null, 'Member removed.'))
-      )
-
-      const { result } = renderHook(() => tenantQueries.useRemoveMember('acme'), { wrapper })
-      result.current.mutate(USER_ID)
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true))
-      expect(client.getQueryState(tenantKeys.detail('acme'))).toBeUndefined()
-      expect(client.getQueryState(tenantKeys.members('acme'))).toBeUndefined()
-    })
-
     it('invalidates the member list, not the detail, when removing someone else', async () => {
       client.setQueryData(tenantKeys.detail('acme'), { id: TENANT_ID })
       client.setQueryData(tenantKeys.members('acme'), [])
@@ -502,19 +487,83 @@ describe('member mutations and the caller’s own profile', () => {
       expect(client.getQueryState(tenantKeys.detail('acme'))?.data).toEqual({ id: TENANT_ID })
       expect(client.getQueryState(tenantKeys.members('acme'))?.isInvalidated).toBe(true)
     })
+  })
 
-    it('refreshes the profile after a self-leave of the platform tenant', async () => {
+  describe('useLeaveTenant', () => {
+    it('leaves through the membership route and refetches the tenant list', async () => {
+      client.setQueryData(tenantKeys.list, [])
+      client.setQueryData(tenantKeys.detail('acme'), { id: TENANT_ID })
+      server.use(
+        http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.'))
+      )
+
+      const { result } = renderHook(() => tenantQueries.useLeaveTenant('acme'), { wrapper })
+      result.current.mutate()
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
+      // The page drops the tenant's cache once it has left the tenant's routes (`dropTenantCache`).
+      expect(client.getQueryState(tenantKeys.detail('acme'))?.data).toEqual({ id: TENANT_ID })
+    })
+
+    it('refetches the member list when leaving is refused with a 409', async () => {
+      client.setQueryData(tenantKeys.list, [])
+      client.setQueryData(tenantKeys.members('acme'), [])
+      server.use(
+        http.delete('/api/v1/tenants/acme/membership', () =>
+          fail(
+            'You are the last owner: make someone else an owner before you leave.',
+            409,
+            'LAST_OWNER'
+          )
+        )
+      )
+
+      const { result } = renderHook(() => tenantQueries.useLeaveTenant('acme'), { wrapper })
+      result.current.mutate()
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      expect(client.getQueryState(tenantKeys.members('acme'))?.isInvalidated).toBe(true)
+      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(false)
+    })
+
+    it('refetches the tenant list when the membership was already gone (404)', async () => {
+      client.setQueryData(tenantKeys.list, [])
+      client.setQueryData(tenantKeys.members('acme'), [])
+      server.use(
+        http.delete('/api/v1/tenants/acme/membership', () => fail('Tenant not found', 404))
+      )
+
+      const { result } = renderHook(() => tenantQueries.useLeaveTenant('acme'), { wrapper })
+      result.current.mutate()
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
+      expect(client.getQueryState(tenantKeys.members('acme'))?.isInvalidated).toBe(false)
+    })
+
+    it('drops the whole tenant cache prefix with dropTenantCache', () => {
+      client.setQueryData(tenantKeys.detail('acme'), { id: TENANT_ID })
+      client.setQueryData(tenantKeys.members('acme'), [])
+      client.setQueryData(tenantKeys.list, [])
+
+      tenantQueries.dropTenantCache(client, 'acme')
+
+      expect(client.getQueryState(tenantKeys.detail('acme'))).toBeUndefined()
+      expect(client.getQueryState(tenantKeys.members('acme'))).toBeUndefined()
+      expect(client.getQueryState(tenantKeys.list)?.data).toEqual([])
+    })
+
+    it('refreshes the profile after leaving the platform tenant', async () => {
       signInAs(USER_ID)
       server.use(
-        http.delete(`/api/v1/tenants/platform/members/${USER_ID}`, () =>
-          ok(null, 'Member removed.')
-        ),
+        http.delete('/api/v1/tenants/platform/membership', () => ok(null, 'You left the tenant.')),
         http.get('/api/v1/profile', () => ok({ ...testUser, platformRole: null }, 'Profile.'))
       )
       useAuthStore.setState({ user: { ...testUser, id: USER_ID, platformRole: 'viewer' } })
 
-      const { result } = renderHook(() => tenantQueries.useRemoveMember('platform'), { wrapper })
-      result.current.mutate(USER_ID)
+      const { result } = renderHook(() => tenantQueries.useLeaveTenant('platform'), { wrapper })
+      result.current.mutate()
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       await waitFor(() => {
@@ -522,18 +571,37 @@ describe('member mutations and the caller’s own profile', () => {
       })
     })
 
-    it('does not ask for the profile on a self-leave outside the platform tenant', async () => {
+    it('refreshes the profile when the platform membership was already gone (404)', async () => {
+      signInAs(USER_ID)
+      client.setQueryData(tenantKeys.list, [])
+      server.use(
+        http.delete('/api/v1/tenants/platform/membership', () => fail('Tenant not found', 404)),
+        http.get('/api/v1/profile', () => ok({ ...testUser, platformRole: null }, 'Profile.'))
+      )
+      useAuthStore.setState({ user: { ...testUser, id: USER_ID, platformRole: 'viewer' } })
+
+      const { result } = renderHook(() => tenantQueries.useLeaveTenant('platform'), { wrapper })
+      result.current.mutate()
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      await waitFor(() => {
+        expect(useAuthStore.getState().user?.platformRole).toBeNull()
+      })
+      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
+    })
+
+    it('does not ask for the profile after leaving any other tenant', async () => {
       let profileCalls = 0
       server.use(
-        http.delete(`/api/v1/tenants/acme/members/${USER_ID}`, () => ok(null, 'Member removed.')),
+        http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.')),
         http.get('/api/v1/profile', () => {
           profileCalls += 1
           return ok(testUser, 'Profile.')
         })
       )
 
-      const { result } = renderHook(() => tenantQueries.useRemoveMember('acme'), { wrapper })
-      result.current.mutate(USER_ID)
+      const { result } = renderHook(() => tenantQueries.useLeaveTenant('acme'), { wrapper })
+      result.current.mutate()
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(profileCalls).toBe(0)

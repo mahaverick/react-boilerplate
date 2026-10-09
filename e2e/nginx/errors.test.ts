@@ -118,6 +118,12 @@ function mechanismOf(event: FakePosthogEvent | undefined): { handled?: boolean }
 
 const POLL = { intervals: [500], timeout: 30_000 }
 
+/** The lazy reporter chunk, fetched on the first noted error. */
+const REPORTER_CHUNK = /\/assets\/report-[^/]+\.js$/
+
+/** The reporter's batch window (`BATCH_WINDOW_MS` in report.ts). */
+const BATCH_WINDOW_MS = 2_000
+
 test.describe('error tracking against a fake PostHog', () => {
   test.use({ userAgent: HUMAN_USER_AGENT })
 
@@ -215,12 +221,18 @@ test.describe('error tracking against a fake PostHog', () => {
         }
         await route.fulfill({ response, body })
       })
+      const reporter = page.waitForResponse(REPORTER_CHUNK)
       await stubApi(page, { firstName: 42 })
       await page.goto('/dashboard')
       await expect(
         page.getByRole('heading', { name: 'Something went wrong', level: 1 })
       ).toBeVisible()
       await expect.poll(() => heldChunk, POLL).toBeDefined()
+      await reporter
+      await settle(
+        BATCH_WINDOW_MS + 1_000,
+        'absence has no event: the loaded reporter batches for 2 s, and must still be waiting for analytics'
+      )
       expect(exceptions(fake)).toEqual([])
 
       releasePosthog()
@@ -230,7 +242,7 @@ test.describe('error tracking against a fake PostHog', () => {
   )
 
   test('an API 500 and a network failure send nothing', { tag: '@no-api' }, async ({ page }) => {
-    const reporter = page.waitForResponse(/\/assets\/report-[^/]+\.js$/)
+    const reporter = page.waitForResponse(REPORTER_CHUNK)
     await stubApi(page, { tenantDetail: 500 })
     await page.goto('/tenants/acme')
     await expect(page.getByText(/could not load this tenant/i)).toBeVisible()
@@ -244,6 +256,18 @@ test.describe('error tracking against a fake PostHog', () => {
 
     await settle(4_000, 'absence has no event: the reporter batches for 2 s before it sends')
     expect(exceptions(fake)).toEqual([])
+
+    // The control: the same fake, routed the same way, does receive a real crash.
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
+    await routeCollectToFake(page, fake)
+    await stubApi(page, { firstName: 42 })
+    await page.goto('/dashboard')
+    await expect(
+      page.getByRole('heading', { name: 'Something went wrong', level: 1 })
+    ).toBeVisible()
+    await expect.poll(() => exceptions(fake).length, POLL).toBe(1)
+    const list = exceptions(fake)[0]?.properties.$exception_list as { type: string }[]
+    expect(list[0]?.type).toBe('TypeError')
   })
 
   test(
@@ -262,6 +286,11 @@ test.describe('error tracking against a fake PostHog', () => {
       expect(isBlocked).toBe(true)
 
       await expect.poll(() => exceptions(fake).length, POLL).toBeGreaterThan(0)
+      await settle(
+        BATCH_WINDOW_MS + 1_000,
+        'absence has no event: a second chunk-load report would leave in the next batch'
+      )
+      expect(exceptions(fake)).toHaveLength(1)
       const [event] = exceptions(fake)
       expect(event?.properties.origin).toBe('chunk_load')
       expect(mechanismOf(event)?.handled).toBe(true)
@@ -279,8 +308,29 @@ test.describe('error tracking against a fake PostHog', () => {
       ).toBeVisible()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(1)
 
-      const [event] = exceptions(fake)
+      // A second crash with the address in the path.
+      await page.goto(`/tenants/${PROBE_EMAIL}`)
+      await expect(
+        page.getByRole('heading', { name: 'Something went wrong', level: 1 })
+      ).toBeVisible()
+      await expect.poll(() => exceptions(fake).length, POLL).toBe(2)
+      // A third, with the probes in the title and a form field.
+      await page.evaluate(
+        ({ email, token }) => {
+          document.title = `${email} ${token}`
+          const field = document.createElement('input')
+          field.name = 'token'
+          field.value = token
+          document.body.append(field)
+        },
+        { email: PROBE_EMAIL, token: PROBE_TOKEN }
+      )
+      await page.getByRole('alert').getByRole('button', { name: 'Try again' }).click()
+      await expect.poll(() => exceptions(fake).length, POLL).toBe(3)
+
+      const [event, second] = exceptions(fake)
       expect(event?.properties.$current_url).toMatch(/\/dashboard$/)
+      expect(second?.properties.$current_url).toMatch(/\/tenants\/\[email\]$/)
       const payload = JSON.stringify(exceptions(fake))
       for (const probe of PROBES) expect(payload, `"${probe}" reached PostHog`).not.toContain(probe)
       const egress = fake.bodies()

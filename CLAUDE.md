@@ -35,6 +35,9 @@ other in the same PR, and the PR description says what happened there
 | `src/observability/errors/**`, `src/observability/identity-epoch.ts`, `tests/fixtures/error-scrub-vectors.json`                                                                                                                      | One capture, filter, scrub and consent contract; the vectors are express-boilerplate's, byte for byte                  |
 | `docker/upload-sourcemaps.sh`, `docker/check-image.sh`, `docker/posthog-cli.sha256`, `.github/workflows/deploy.yml`                                                                                                                  | One source map pipeline; `deploy.yml` is byte-identical in express-boilerplate too                                     |
 | `nginx.conf`'s `.map` location                                                                                                                                                                                                       | No source map is ever served                                                                                           |
+| `docker/nginx.main.conf`, `pnpm-workspace.yaml`, `tests/unit/docker/{check-image-script,nginx-main-conf}.test.ts`                                                                                                                    | Same container limits, dependency overrides and script tests                                                           |
+| `src/components/features/profile/security-section.tsx` and its test                                                                                                                                                                  | One sign-out-other-sessions section; apex adds `useRevokeOtherSessions` to its own `auth.queries.ts`                   |
+| `src/schemas/changed-fields.schemas.ts`, `src/hooks/use-changed-fields.ts` and their tests                                                                                                                                           | Changed-field edit forms; byte for byte wherever apex adopts them                                                      |
 | `eslint.config.js` rule set (not its file lists)                                                                                                                                                                                     | Same conventions                                                                                                       |
 
 Staff screens live in Apex. This app keeps the staff paths that live on tenant
@@ -84,8 +87,10 @@ only — `:main` and the `deploy` job both run only from `main`.
 
 - `gitleaks.yml` scans each PR's commits and each push to `main` for secrets.
 - `pr-title` — the PR title must be a conventional commit; it becomes the squash commit release-please reads.
-- `ci.yml`'s `test` job ends with `pnpm audit --prod --audit-level high`: a high or critical advisory in a production dependency fails CI.
-  Because `test` is a required check, an advisory with no fixed version blocks every PR. The escape hatch is `pnpm audit --ignore <GHSA>`,
+- `ci.yml`'s `test` job runs `pnpm audit --prod --audit-level moderate`: a moderate or worse advisory in a production dependency fails CI.
+  A second, non-blocking step runs `pnpm audit --audit-level critical` over dev dependencies too, so a critical advisory in build or test tooling shows on every run.
+  Because `test` is a required check, an advisory with no fixed version blocks every PR. Prefer an `overrides` entry in `pnpm-workspace.yaml` that forces the patched version (one GHSA comment per entry).
+  When no patched version exists, the escape hatch is `pnpm audit --ignore <GHSA>`,
   which writes that one ID under `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`; add a comment there by hand giving the reason and a date to revisit.
 
 **Releases merge themselves.** `release.yml` queues release-please's PR with
@@ -269,9 +274,11 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   `.git` in the context (the Dockerfile refuses one). A release makes it
   call PostHog and write a release id into every chunk, so an unchanged lazy
   chunk would ship new bytes under its old hashed name.
-- **An upload failure fails the build.** `docker/upload-sourcemaps.sh` has no
-  `|| true` and the CLI gets no `--no-fail`; projects set with no token
-  fails too. Never soften either: an image with no uploaded maps reports
+- **Four upload outcomes fail the build.** `docker/upload-sourcemaps.sh` has no
+  `|| true` and the CLI gets no `--no-fail`. It fails on: no `.map` files under
+  `dist/`; a chunk the CLI skipped as too large; nothing uploaded (unless the
+  same output line gives a non-zero "already uploaded" or existing count); and
+  a failed upload. Projects set with no token fails too. Never soften either: an image with no uploaded maps reports
   unreadable frames, silently.
 - **A `@posthog/cli` version bump updates `docker/posthog-cli.sha256`.** The
   Dockerfile checks the downloaded binary against those per-architecture
@@ -340,6 +347,18 @@ hand-written one stays out.
 - Parse before posting. TanStack hands `onSubmit` the raw form state, so a
   schema's `.trim()`/`.toLowerCase()` only reaches the wire if the value is
   parsed on the way out.
+- **Edit forms send only the fields that changed** (`useChangedFields` in
+  `src/hooks/use-changed-fields.ts`; the profile, tenant details and tenant
+  settings forms). A stored value that today's rules refuse must not block
+  saving other fields, so parsing the whole form with the full schema is the
+  wrong habit here. Pass `baseline` as `defaultValues`, `changes` as
+  `validators.onSubmit` and `listeners` as the form's listeners; post
+  `changedBody(value)` unless it is `null`, and call `rebase(value)` after a
+  successful save. While the form is pristine the baseline follows refetches;
+  it freezes on the first edit, blur or save attempt; it moves only on
+  `rebase`. A save with no changes posts nothing and shows the form-level
+  message ("Change a field before saving.", "Change a name before saving." on
+  profile), which clears when a field changes.
 - **`<Form>`'s server-error clearing covers native inputs only.** It listens for
   a change event that bubbles out of the form element. A Base UI `Select` does
   not emit one, so a form with a Select must call `serverErrors.clearField()`
@@ -467,7 +486,8 @@ projects (`fixtures`, `live`, `contrast`, `nginx`), and three conventions that a
 same fixtures `tests/unit/a11y.test.tsx` uses, so it needs no backend. It exists for the
 checks jsdom cannot make, because jsdom has no layout: whether the webfont actually resolved,
 whether anything overflows the viewport at 390px, whether a state renders as more than a bare
-header. `?state=loaded|empty|error|loading|soleowner` picks the members response.
+header. `?state=loaded|empty|error|loading|soleowner` picks the members response;
+`?state=viewer|admin` makes the harness user a non-owner member, so their own row offers Leave.
 
 Two harness traps that make a test measure the wrong thing: answering
 the SSE stream with `204` looks to the hook exactly like a dropped connection and sends the

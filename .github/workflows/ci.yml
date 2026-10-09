@@ -64,7 +64,14 @@ jobs:
       # A second, in-memory build: fails on a single JS chunk, first-visit JS
       # over budget, or a devtools module in any chunk.
       - run: pnpm check:bundle
-      - run: pnpm audit --prod --audit-level high
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level moderate
+      # Dev tooling never ships, so its advisories warn instead of failing the
+      # build; a critical one still shows on the run as a failed, allowed step.
+      # Reviewed ones sit in pnpm-workspace.yaml's auditConfig.
+      - name: Audit all dependencies (non-blocking)
+        continue-on-error: true
+        run: pnpm audit --audit-level critical
 
   # Two Playwright runs.
   #

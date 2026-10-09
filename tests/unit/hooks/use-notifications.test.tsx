@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { act, type ReactNode } from 'react'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_PREFIX } from '@/constants/routes'
 import { useNotificationStream } from '@/hooks/use-notifications'
@@ -18,6 +19,7 @@ import {
   MockFetchStream,
   queueConnectRefusal,
   stubStreamFetch,
+  type ConnectRefusal,
 } from '@/tests/mocks/fetch-stream'
 import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -84,6 +86,8 @@ describe('useNotificationStream', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    // The toast spy is on a module shared by every test, unlike the per-test client's.
+    vi.restoreAllMocks()
     // Restores whatever fetch setup.ts's own globals had before this test's stub, not `undefined`.
     vi.unstubAllGlobals()
     client.clear()
@@ -314,6 +318,149 @@ describe('useNotificationStream', () => {
 
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
     expect(latest().headers.Authorization).toBe('Bearer fresh-token')
+  })
+
+  /** express's 503 at its process-wide stream cap (`didRefuseStream`). */
+  const STREAM_CAPACITY: ConnectRefusal = {
+    status: 503,
+    body: {
+      success: false,
+      message: 'The server is at its notification stream capacity. Try again shortly.',
+      statusCode: 503,
+      code: 'stream_capacity',
+      requestId: 'r',
+    },
+  }
+
+  /**
+   * Counts every `/auth/refresh` call, answering each with a fresh token.
+   * @returns A reader for the count so far.
+   */
+  function countRefreshes(): () => number {
+    let refreshes = 0
+    server.use(
+      http.post('/api/v1/auth/refresh', () => {
+        refreshes += 1
+        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      })
+    )
+    return () => refreshes
+  }
+
+  it('treats a 503 at stream capacity as a refused connect: backoff and retry, no refresh, no toast, still signed in', async () => {
+    const refreshes = countRefreshes()
+    queueConnectRefusal(STREAM_CAPACITY)
+    const toastError = vi.spyOn(toast, 'error')
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    // A full stream server is not a verdict on the session: the same token reconnects, with no refresh.
+    expect(latest().headers.Authorization).toBe('Bearer tok-a')
+    expect(refreshes()).toBe(0)
+    expect(toastError).not.toHaveBeenCalled()
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+  })
+
+  it('waits out a 503 Retry-After in seconds, plus jitter, before reconnecting', async () => {
+    const refreshes = countRefreshes()
+    // Jitter adds up to a fifth of the wait; half of that here, so 30s becomes 33s.
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': '30' } })
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(32_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    expect(latest().headers.Authorization).toBe('Bearer tok-a')
+    expect(refreshes()).toBe(0)
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+  })
+
+  it('waits out a 503 Retry-After given as an HTTP date', async () => {
+    countRefreshes()
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const retryAt = new Date(Math.ceil((Date.now() + 45_000) / 1_000) * 1_000)
+    queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': retryAt.toUTCString() } })
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(44_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+  })
+
+  it('holds a long Retry-After to the five-minute cap', async () => {
+    countRefreshes()
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': '3600' } })
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(299_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+  })
+
+  it('reconnects within six minutes of a Retry-After date a year ahead', async () => {
+    countRefreshes()
+    // The most jitter there is: a fifth on top of the five-minute cap.
+    vi.spyOn(Math, 'random').mockReturnValue(0.999)
+    const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60_000)
+    queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': nextYear.toUTCString() } })
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    // Not at once either: a year is past setTimeout's ceiling, which would fire immediately.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(290_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70_000)
+    })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+  })
+
+  it('waits the backoff, not zero, on a Retry-After it cannot read', async () => {
+    countRefreshes()
+    queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': 'soon' } })
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600)
+    })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
   })
 
   it('reconnects through ensureSession after a stream failure', async () => {

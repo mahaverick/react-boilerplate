@@ -6,11 +6,31 @@ allowBuilds:
   msw: true
 # Minutes (3 days). Matches renovate.json.
 minimumReleaseAge: 4320
-# posthog-js 1.435.6 is the version the analytics module was probed against; it
-# and its own @posthog packages were under 3 days old when it was pinned.
-# Remove these entries after 2026-10-05.
 minimumReleaseAgeExclude:
-  - posthog-js@1.435.6
-  - '@posthog/browser-common@0.9.1'
-  - '@posthog/core@1.55.3'
-  - '@posthog/types@1.413.0'
+  # solid-js 1.9.16 moves its seroval to ~1.6.8, out of GHSA-p6vx-979v-rg4c and
+  # GHSA-jp82-f5mq-hwhp (reached only through the query devtools). It was under
+  # 3 days old when taken. Remove this entry after 2026-10-10.
+  - solid-js@1.9.16
+# Floors against regression: the lockfile already resolves a patched version
+# of each, and every parent's range admits it. Each entry names the advisory it
+# clears; remove it once every parent's own range excludes the vulnerable
+# versions (`pnpm why <name>`).
+overrides:
+  # GHSA-68fv-2mgg-jv7q: via vite > postcss (also shadcn, eslint-plugin-tailwindcss),
+  # @tailwindcss/node, jsdom > css-tree and @vitest/coverage-v8 > magicast. Dev only.
+  source-map-js@<1.2.2: ^1.2.2
+  # GHSA-6qxp-vccf-f47h: via the shadcn CLI's MCP server. Dev only.
+  '@modelcontextprotocol/sdk@<1.31.0': ^1.31.0
+  # GHSA-p6vx-979v-rg4c, GHSA-jp82-f5mq-hwhp: solid-js before 1.9.16 pins a
+  # vulnerable seroval. Via @tanstack/react-query-devtools > query-devtools.
+  # Dev only (the devtools never reach a production chunk).
+  solid-js@<1.9.16: ^1.9.16
+auditConfig:
+  ignoreGhsas:
+    # braces <=3.0.3 stack exhaustion on deeply nested brace patterns; no
+    # patched version yet. Dev tooling only: reached through micromatch from
+    # eslint-plugin-check-file (this repo's own filename globs) and from the
+    # shadcn CLI's fast-glob (its own component paths). Neither sees a pattern
+    # from outside the repo, and nothing ships in the image. Remove once braces
+    # ships a fix; revisit 2027-01-07.
+    - GHSA-vfj7-8cjw-p6xm

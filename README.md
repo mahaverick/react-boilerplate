@@ -357,9 +357,15 @@ into a block that sets any header itself. Cache-Control is therefore chosen by
 a `map` rather than per-location. **Verify this with `curl -I` against a real
 asset, not by reading the config.**
 
+A proxied `/api/` response keeps each of these headers the API already sent
+(helmet's own, stricter values, such as its `default-src 'none'` policy and
+`X-Frame-Options: SAMEORIGIN`); nginx adds only the ones the API left out, so
+none is sent twice. Nginx's own 502 or 504 for an `/api/` request with no
+backend carries the full set.
+
 ### Content-Security-Policy
 
-nginx sends an **enforced** policy on every response:
+nginx sends an **enforced** policy on every response it answers itself:
 
     default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
     img-src 'self' data:; connect-src 'self'; object-src 'none';
@@ -575,27 +581,77 @@ sent.
 - **Scrubbing.** Exception types, values, frame file names and function names
   go through the same rules as express-boilerplate's
   (`src/observability/errors/scrub.ts`, tested against the shared
-  `tests/fixtures/error-scrub-vectors.json`): emails, JWTs, bearer tokens,
-  PostHog keys, long hex and base64 runs, query strings and Postgres key
-  details are replaced, and each text is cut to 1024 characters. URLs keep
-  only the analytics allowlist's query keys.
+  `tests/fixtures/error-scrub-vectors.json`): Postgres key details and echoed
+  values, URL credentials, query strings, fragments other than line or
+  heading anchors, the token segment after `/reset/`, `/verify/`, `/invite/`
+  or `/accept/`, Bearer and Basic credentials, Authorization and Cookie
+  values, secret-named keys' values, JWTs, emails, PostHog and vendor keys,
+  IP addresses, `+`-prefixed phone numbers and long hex and base64 runs are
+  replaced, and each text is cut to 1024 characters. URLs keep only the
+  analytics allowlist's query keys.
 - **Release.** Each exception's `release` is the commit the image was built
   from (`GIT_SHA`); its `environment` is `APP_ENVIRONMENT`.
 
 ### What the scrubber does not catch
 
-Regex scrubbing is best-effort; keep secrets out of error messages. It does
-not catch:
+Regex scrubbing is best-effort; keep secrets out of error messages. The list
+is express-boilerplate's (`SECURITY.md`), since the rules are the same. It
+does not catch:
 
-- credentials in an `Authorization` header with a scheme it does not know,
-  and multi-parameter OAuth or Digest headers;
-- secrets held in arrays;
-- short non-hex signatures;
-- IP addresses, phone numbers, names and UUIDs;
-- short opaque tokens in a URL path;
-- JWTs of an unusual shape;
-- email edge forms: no TLD, double-encoded, a fullwidth `@`, a quoted local
-  part.
+- names and other free text;
+- ids, UUIDs included: they are identifiers, kept on purpose for debugging;
+- national-format phone numbers without a leading `+`;
+- a bare opaque word with no key in front of it;
+- a `code` value outside a query, a form body or an OAuth or authorization
+  context, and a `key` value written with `:`, so `code: 'ECONNREFUSED'` and
+  `key: 'user_id'` stay readable (an `oauth` inside any word, `myoauthlib`
+  included, counts as OAuth context, so every `code` key in that text goes);
+- a bare `response:` followed by unquoted prose (`Unexpected response: 502`);
+- an Authorization header on its own, which does not make a `code` on another
+  line an authorization code;
+- the text after a Bearer or Basic credential on an Authorization line
+  (`Bearer [token] extra` keeps `extra`);
+- a nested array value past its first `]`;
+- a camelCase `pin` (`userPin`);
+- a key behind a double-encoded quote or separator (`%2522`, `%253D`) or a
+  hex HTML entity (`&#x3D;`), and a `key` after an encoded `&` (`%26key%3D`);
+- a URL fragment of lowercase letters and hyphens with no key-like word
+  (`#api-key` and `#token-abc` are replaced): under 40 characters, or up to 64
+  when each hyphen-joined word has at most 20 letters, which reads as a
+  heading, unless another rule would replace part of it (32 or more of the
+  letters `a` to `f`, a Slack-style `xoxb-` prefix), when it is replaced whole;
+- a kebab- or snake-case run of lowercase words of up to 20 letters each, 40
+  or more characters in all, which reads as an identifier;
+- vendor tokens with no rule (`ya29.`, `glpat-`, `hf_`, Google `1//` refresh
+  tokens);
+- a host named like a package ref after `@` (`jane@main`, `jane@npm:`,
+  `jane@workspace:`);
+- the domain of an email whose local part is a JWT (`[jwt]@example.com`);
+- the part before the last `/` of a run joined to an email address's local
+  part when the run, with the local part's leading base64 characters, is under
+  40 characters or reads as a path rather than base64, counting stopped by a
+  `%2F` (`abc/def%2Fghi@example.com` keeps `abc/`), or when it follows an
+  address character directly (a letter, digit, `.`, `%`, `+`, `-`, `_`, `/` or
+  `@`: `jane@example.com/<secret>@…`, `u.<secret>@…`);
+- a quoted value whose key sits inside a URL query that an encoded key's value
+  runs into (`secret%3Dhttps://…?a=1/api_key="…"` keeps the quoted value);
+- a key name glued to the end of the segment after `/reset/`, `/verify/`,
+  `/invite/` or `/accept/`, which goes into `[token]` with the segment and
+  leaves the value after it in view (`/app/reset/x.tsrefresh_token = …`
+  becomes `/app/reset/[token] = …`);
+- the parameters other than secret-named ones of an Authorization or Cookie
+  value opened by an escaped quote and a scheme (`\"OAuth username="…",
+realm="…"` keeps `username` and `realm`; `oauth_signature`, `oauth_token`,
+  `nonce`, `cnonce` and `response` are still redacted);
+- the rest of a base64 run that is the domain of an address whose local part
+  follows a `/` (`dir/x@wJalr…/K7MDENG/…` keeps `/K7MDENG/…`).
+
+Scrubbing a scrubbed text again changes nothing, except contrived inputs that
+glue a phone number, IP address or hex run to one another, put an address with
+a quoted local part (`"jane doe"@…`) straight against a URL's or path's query
+or fragment, end an address with a `.` straight before a query
+(`jane@example.com.?a=1`), or leave a placeholder in quotes straight before an
+`@`.
 
 Also unverified by the binary's hash check: the CLI's JavaScript wrapper
 (`lib/posthog-api-cli.mjs`), which comes from the npm package, not the download.
@@ -609,8 +665,10 @@ chunk), and the image's build stage then:
    offline and release-less, whether or not maps are uploaded, so one file
    name never holds two contents across builds;
 2. uploads the maps to every project in `POSTHOG_SOURCEMAP_PROJECTS`
-   (`docker/upload-sourcemaps.sh`), one run per project; an upload that fails
-   fails the build;
+   (`docker/upload-sourcemaps.sh`), one run per project. The build fails if there
+   are no `.map` files under `dist/`, if the CLI skipped a chunk as too large,
+   if nothing was uploaded (unless the same output line gives a non-zero
+   "already uploaded" or existing count), or if an upload fails;
 3. deletes every `.map`, so none ships (`docker/check-image.sh` checks).
 
 nginx also answers 404 for any `.map` URL outside `/api/` (the `.map`

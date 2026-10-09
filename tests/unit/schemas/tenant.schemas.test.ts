@@ -6,6 +6,7 @@ import {
   slugSchema,
   tenantSettingsFormSchema,
   updateTenantSchema,
+  updateTenantSettingsSchema,
 } from '@/schemas/tenant.schemas'
 
 describe('slugSchema', () => {
@@ -171,8 +172,8 @@ describe('tenant text fields: the API safeText rule', () => {
       ...base,
       name: 'Acme\u{202E}',
       description: 'a\rb',
-      logo: 'logo\u{85}',
-      website: 'site\u{2066}',
+      logo: 'https://acme.example/logo\u{85}',
+      website: 'https://acme.example/\u{2066}',
     })
     expect(issuesOf(result)).toEqual([
       ['name', 'Name contains characters that are not allowed'],
@@ -199,17 +200,178 @@ describe('tenant text fields: the API safeText rule', () => {
   })
 
   it('applies the same rule on update', () => {
-    const result = updateTenantSchema.safeParse({ name: 'Acme\u{0}', website: 'x\u{202A}' })
+    const result = updateTenantSchema.safeParse({
+      name: 'Acme\u{0}',
+      website: 'https://acme.example/\u{202A}',
+    })
     expect(issuesOf(result)).toEqual([
       ['name', 'Name contains characters that are not allowed'],
       ['website', 'Website contains characters that are not allowed'],
     ])
   })
+})
 
-  it('leaves timezone and locale unchecked, as the API does', () => {
+describe('tenant settings: timezone and locale', () => {
+  const base = { timezone: 'Europe/London', locale: 'en-GB', metadata: '' }
+
+  /** The messages for one field, from the form schema and the PATCH body schema. */
+  function messagesFor(field: 'timezone' | 'locale', value: string) {
+    const form = tenantSettingsFormSchema.safeParse({ ...base, [field]: value })
+    const body = updateTenantSettingsSchema.safeParse({ [field]: value })
+    return [form, body].map((result) => result.error?.issues.map((issue) => issue.message))
+  }
+
+  it.each([
+    ['timezone', 'Etc/\u{202E}gnp', 'Timezone contains characters that are not allowed'],
+    ['timezone', 'UTC\nX', 'Timezone contains characters that are not allowed'],
+    ['locale', 'en\u{7}', 'Locale contains characters that are not allowed'],
+  ])('refuses a control or bidi character in %s', (field, value, message) => {
+    for (const messages of messagesFor(field as 'timezone' | 'locale', value)) {
+      expect(messages?.[0]).toBe(message)
+    }
+  })
+
+  it.each([
+    ['timezone', 'Not a zone', 'Timezone must be a time zone name such as Europe/Paris.'],
+    ['timezone', 'Mars/Olympus_Mons', 'Timezone must be a time zone name such as Europe/Paris.'],
+    ['timezone', '+05:30', 'Timezone must be a time zone name such as Europe/Paris.'],
+    ['locale', 'english', 'Locale must be a language tag such as en or en-US.'],
+    ['locale', 'en_GB', 'Locale must be a language tag such as en or en-US.'],
+    // The tag's shape passes; Intl refuses the repeated region subtag.
+    ['locale', 'en-GB-GB', 'Locale must be a language tag such as en or en-US.'],
+  ])('refuses %s %j by its shape', (field, value, message) => {
+    for (const messages of messagesFor(field as 'timezone' | 'locale', value)) {
+      expect(messages).toEqual([message])
+    }
+  })
+
+  it.each(['UTC', 'Europe/London', 'America/Argentina/Buenos_Aires', 'Etc/GMT+5', '+0530'])(
+    'accepts the time zone %s',
+    (timezone) => {
+      expect(tenantSettingsFormSchema.safeParse({ ...base, timezone }).success).toBe(true)
+    }
+  )
+
+  it.each(['en', 'en-GB', 'zh-Hant-TW', 'es-419'])('accepts the locale %s', (locale) => {
+    expect(tenantSettingsFormSchema.safeParse({ ...base, locale }).success).toBe(true)
+  })
+})
+
+describe('tenant settings: metadata is bounded', () => {
+  /** An object nested `depth` levels deep: `{ a: { a: … {} } }`. */
+  function nested(depth: number): Record<string, unknown> {
+    let value: Record<string, unknown> = {}
+    for (let level = 1; level < depth; level += 1) value = { a: value }
+    return value
+  }
+
+  it('refuses metadata over 16 KB as JSON', () => {
+    const big = JSON.stringify({ blob: 'x'.repeat(16_384) })
+    expect(metadataTextSchema.safeParse(big).error?.issues[0]?.message).toBe(
+      'Metadata must be at most 16384 characters as JSON.'
+    )
     expect(
-      tenantSettingsFormSchema.safeParse({ timezone: 'UTC\u{1B}', locale: 'en', metadata: '' })
-        .success
-    ).toBe(true)
+      updateTenantSettingsSchema.safeParse({ metadata: { blob: 'x'.repeat(16_384) } }).success
+    ).toBe(false)
+  })
+
+  it('accepts exactly 16 384 characters as JSON, and refuses one more', () => {
+    // {"blob":"…"} is 11 characters of frame.
+    const atCap = { blob: 'x'.repeat(16_384 - 11) }
+    const overCap = { blob: 'x'.repeat(16_384 - 10) }
+    expect(updateTenantSettingsSchema.safeParse({ metadata: atCap }).success).toBe(true)
+    expect(metadataTextSchema.safeParse(JSON.stringify(atCap)).success).toBe(true)
+    expect(updateTenantSettingsSchema.safeParse({ metadata: overCap }).success).toBe(false)
+  })
+
+  it('refuses metadata nested more than 10 levels deep, and accepts 10', () => {
+    expect(metadataTextSchema.safeParse(JSON.stringify(nested(11))).error?.issues[0]?.message).toBe(
+      'Metadata must be nested at most 10 levels deep.'
+    )
+    expect(updateTenantSettingsSchema.safeParse({ metadata: nested(11) }).success).toBe(false)
+    expect(metadataTextSchema.safeParse(JSON.stringify(nested(10))).success).toBe(true)
+    expect(updateTenantSettingsSchema.safeParse({ metadata: nested(10) }).success).toBe(true)
+  })
+
+  it('reports only the depth for metadata both too deep and too large, as the API does', () => {
+    const deepAndLarge = { ...nested(11), blob: 'x'.repeat(16_384) }
+    expect(
+      metadataTextSchema
+        .safeParse(JSON.stringify(deepAndLarge))
+        .error?.issues.map((issue) => issue.message)
+    ).toEqual(['Metadata must be nested at most 10 levels deep.'])
+  })
+
+  it('refuses a NUL in a key or a string value', () => {
+    expect(metadataTextSchema.safeParse('{"a\\u0000b":1}').error?.issues[0]?.message).toBe(
+      'Metadata contains characters that are not allowed'
+    )
+    expect(updateTenantSettingsSchema.safeParse({ metadata: { a: 'x\u{0}' } }).success).toBe(false)
+  })
+
+  it('counts an array as a level', () => {
+    expect(metadataTextSchema.safeParse(JSON.stringify({ a: [[[[[[[[[[1]]]]]]]]]] })).success).toBe(
+      false
+    )
+  })
+})
+
+describe('tenant logo and website: http or https URLs only', () => {
+  const base = { name: 'Acme', slug: 'acme' }
+
+  it.each([
+    ['website', 'javascript:alert(document.domain)', 'Website must be an http or https URL.'],
+    ['logo', 'javascript:alert(1)', 'Logo must be an http or https URL.'],
+    ['logo', 'data:text/html,<script>alert(1)</script>', 'Logo must be an http or https URL.'],
+    ['website', 'call us maybe', 'Website must be an http or https URL.'],
+    ['website', 'https://bank.example@evil.example/', 'Website must be an http or https URL.'],
+    ['website', 'https://user:pw@host.example/', 'Website must be an http or https URL.'],
+    ['website', 'https://:pw@host.example/', 'Website must be an http or https URL.'],
+    [
+      'website',
+      String.raw`https://evil.example\@good.example/`,
+      'Website must be an http or https URL.',
+    ],
+    ['logo', String.raw`https://good.example/a\b`, 'Logo must be an http or https URL.'],
+  ])('refuses %s %s', (field, value, message) => {
+    for (const schema of [newTenantSchema, updateTenantSchema]) {
+      const result = schema.safeParse({ ...base, [field]: value })
+      expect(result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])).toEqual([
+        [field, message],
+      ])
+    }
+  })
+
+  it('gives a refused character alone its message, not the URL message too, as the API does', () => {
+    for (const schema of [newTenantSchema, updateTenantSchema]) {
+      const result = schema.safeParse({ ...base, website: 'javascript:\u{202E}' })
+      expect(result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])).toEqual([
+        ['website', 'Website contains characters that are not allowed'],
+      ])
+    }
+  })
+
+  it('accepts http and https URLs, trimmed', () => {
+    expect(
+      newTenantSchema.parse({
+        ...base,
+        logo: ' https://cdn.acme.example/logo.png ',
+        website: 'http://acme.example',
+      })
+    ).toMatchObject({ logo: 'https://cdn.acme.example/logo.png', website: 'http://acme.example' })
+  })
+
+  it('accepts an @ in the path or query, which names no other host', () => {
+    expect(
+      newTenantSchema.parse({ ...base, website: 'https://example.com/u/@name?x=a@b' })
+    ).toMatchObject({ website: 'https://example.com/u/@name?x=a@b' })
+  })
+
+  it('still clears with a blank value', () => {
+    expect(newTenantSchema.parse({ ...base, logo: '', website: '' })).toEqual(base)
+    expect(updateTenantSchema.parse({ logo: '', website: '  ' })).toEqual({
+      logo: null,
+      website: null,
+    })
   })
 })

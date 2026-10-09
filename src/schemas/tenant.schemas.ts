@@ -97,18 +97,57 @@ export const slugSchema = z
   )
   .refine((slug) => !RESERVED.has(slug), 'This slug is reserved and cannot be used.')
 
-/** Which of the API's `safeText` checks a field gets. Absent means none. */
-type SafeTextMode = 'single-line' | 'multiline'
+/**
+ * Which of the API's checks a field gets: `safeText` on one line or several,
+ * or `url`, a single-line `safeText` field that must also be an http or https
+ * URL. Absent means none.
+ */
+type SafeTextMode = 'single-line' | 'multiline' | 'url'
+
+/** An absolute http or https URL, as the API's `z.url({ protocol: /^https?$/ })` takes it. */
+const HTTP_URL = z.url({ protocol: /^https?$/ })
+
+/**
+ * Whether `value` is free of what the API refuses before its URL check: a
+ * backslash anywhere, or credentials (`user:pw@`) in a parsable URL, either of
+ * which can make one host read as another. An `@` in the path or query is fine.
+ * @param value - The trimmed candidate.
+ * @returns True when neither is present.
+ */
+function hasNoUserinfoOrBackslash(value: string): boolean {
+  if (value.includes('\\')) return false
+  // `new URL` in a try, not `URL.canParse`, which Safari 16 lacks.
+  try {
+    const { username, password } = new URL(value)
+    return username === '' && password === ''
+  } catch {
+    return true
+  }
+}
+
+/**
+ * The API's URL check, which it pipes so that it runs only once every earlier
+ * check passed. A blank passes, for the caller to read as "not given" or
+ * "clear it".
+ */
+function httpUrlCheck(message: string) {
+  return z.string().refine((value) => value === '' || HTTP_URL.safeParse(value).success, message)
+}
 
 /**
  * A trimmed string capped at `max`. With `safe`, it also refuses what the
- * API's `safeText` refuses, after turning `\r\n` into `\n` on a multiline field.
+ * API's `safeText` refuses, after turning `\r\n` into `\n` on a multiline field;
+ * with `url`, anything but a blank or an http or https URL as well.
  */
 function boundedText(max: number, label: string, safe?: SafeTextMode) {
   const multiline = safe === 'multiline'
   const field = multiline ? z.string().overwrite(normalizeMultilineText) : z.string()
   const bounded = field.trim().max(max, `${label} must be at most ${max} characters.`)
-  return safe ? bounded.refine(safeText({ multiline }), notAllowedMessage(label)) : bounded
+  if (!safe) return bounded
+  const safeField = bounded.refine(safeText({ multiline }), notAllowedMessage(label))
+  if (safe !== 'url') return safeField
+  const notHttpUrl = `${label} must be an http or https URL.`
+  return safeField.refine(hasNoUserinfoOrBackslash, notHttpUrl).pipe(httpUrlCheck(notHttpUrl))
 }
 
 /**
@@ -144,8 +183,8 @@ export const newTenantSchema = z.object({
     .refine(safeText(), notAllowedMessage('Name')),
   slug: slugSchema,
   description: optionalText(MAX_TENANT_DESCRIPTION_LENGTH, 'Description', 'multiline'),
-  logo: optionalText(MAX_TENANT_LOGO_LENGTH, 'Logo', 'single-line'),
-  website: optionalText(MAX_TENANT_WEBSITE_LENGTH, 'Website', 'single-line'),
+  logo: optionalText(MAX_TENANT_LOGO_LENGTH, 'Logo', 'url'),
+  website: optionalText(MAX_TENANT_WEBSITE_LENGTH, 'Website', 'url'),
 })
 
 export type NewTenantInput = z.infer<typeof newTenantSchema>
@@ -163,8 +202,8 @@ export const updateTenantSchema = z.object({
     .refine(safeText(), notAllowedMessage('Name'))
     .optional(),
   description: clearableText(MAX_TENANT_DESCRIPTION_LENGTH, 'Description', 'multiline'),
-  logo: clearableText(MAX_TENANT_LOGO_LENGTH, 'Logo', 'single-line'),
-  website: clearableText(MAX_TENANT_WEBSITE_LENGTH, 'Website', 'single-line'),
+  logo: clearableText(MAX_TENANT_LOGO_LENGTH, 'Logo', 'url'),
+  website: clearableText(MAX_TENANT_WEBSITE_LENGTH, 'Website', 'url'),
 })
 
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>
@@ -186,15 +225,151 @@ export const updateMemberRoleSchema = z.object({ role: z.enum(MEMBERSHIP_ROLES) 
 
 export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>
 
+/** The most characters `metadata` may take as JSON: every member downloads it with the settings. */
+export const MAX_TENANT_METADATA_LENGTH = 16_384
+
+/** The deepest `metadata` may nest; its own object is level 1. */
+export const MAX_TENANT_METADATA_DEPTH = 10
+
+/** A time zone name's letters, digits and `_+-/`, as the API checks first. */
+const TIMEZONE_PATTERN = /^[A-Za-z0-9_+\-/]+$/
+
+/** A BCP 47 language tag's common shape (`en`, `en-GB`, `zh-Hant-TW`), as the API checks first. */
+const LOCALE_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/
+
 /**
- * `PATCH /tenants/:slug/settings`. `timezone` and `locale` are bounded to
- * their column widths only; like the API, this does not check for a real IANA
- * zone or BCP 47 tag.
+ * Whether `value` names a time zone this browser knows (an IANA name such as
+ * `Europe/Paris`, an alias such as `UTC`, or `Etc/GMT+5`), in the
+ * letters-digits-`_+-/` shape, as the API's `isTimeZoneName` checks it. Names
+ * match case-insensitively, and a colon-free UTC offset (`+0530`) is a name to
+ * `Intl`; the colon form `+05:30` fails the shape check.
+ * @param value - The trimmed candidate.
+ * @returns True when the value is a usable time zone name.
+ */
+function isTimeZoneName(value: string): boolean {
+  if (!TIMEZONE_PATTERN.test(value)) return false
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Whether `value` is a BCP 47 language tag of the common shape that `Intl`
+ * accepts, as the API's `isLocaleTag` checks it.
+ * @param value - The trimmed candidate.
+ * @returns True when the value is a usable locale tag.
+ */
+function isLocaleTag(value: string): boolean {
+  if (!LOCALE_PATTERN.test(value)) return false
+  try {
+    return Intl.getCanonicalLocales(value).length === 1
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Walks a parsed JSON value once, iteratively, as the API's `scanJson` does:
+ * whether a key or string holds U+0000 (which Postgres `jsonb` refuses), and
+ * how deeply it nests (a bare primitive is 0, an object or array one more
+ * than its deepest child).
+ * @param value - A value `JSON.parse` produced.
+ * @returns What the walk found.
+ */
+function scanJson(value: unknown): { hasNul: boolean; depth: number } {
+  const scan = { hasNul: false, depth: 0 }
+  const pending: { node: unknown; depth: number }[] = [{ node: value, depth: 0 }]
+  for (let item = pending.pop(); item !== undefined; item = pending.pop()) {
+    const { node, depth } = item
+    if (typeof node === 'string') {
+      if (node.includes('\u{0}')) scan.hasNul = true
+      continue
+    }
+    if (typeof node !== 'object' || node === null) continue
+    scan.depth = Math.max(scan.depth, depth + 1)
+    for (const [key, child] of Object.entries(node)) {
+      if (key.includes('\u{0}')) scan.hasNul = true
+      pending.push({ node: child, depth: depth + 1 })
+    }
+  }
+  return scan
+}
+
+/**
+ * Adds the API's metadata bounds to `ctx` as issues, with its messages: at
+ * most `MAX_TENANT_METADATA_DEPTH` levels deep, else at most
+ * `MAX_TENANT_METADATA_LENGTH` characters as JSON, and no U+0000. The size is
+ * measured only once the depth passes, as the API measures it.
+ * @param value - The metadata object.
+ * @param ctx - The refinement context to report on.
+ */
+function checkMetadataBounds(value: Record<string, unknown>, ctx: z.RefinementCtx): void {
+  const scan = scanJson(value)
+  if (scan.depth > MAX_TENANT_METADATA_DEPTH) {
+    ctx.addIssue({
+      code: 'custom',
+      message: `Metadata must be nested at most ${MAX_TENANT_METADATA_DEPTH} levels deep.`,
+    })
+  } else if (JSON.stringify(value).length > MAX_TENANT_METADATA_LENGTH) {
+    ctx.addIssue({
+      code: 'custom',
+      message: `Metadata must be at most ${MAX_TENANT_METADATA_LENGTH} characters as JSON.`,
+    })
+  }
+  if (scan.hasNul) {
+    ctx.addIssue({ code: 'custom', message: 'Metadata contains characters that are not allowed' })
+  }
+}
+
+/** The timezone field: trimmed, capped, `safeText`, and a known time zone name, with the API's messages. */
+function timezoneText() {
+  return z
+    .string()
+    .trim()
+    .max(
+      MAX_TENANT_TIMEZONE_LENGTH,
+      `Timezone must be at most ${MAX_TENANT_TIMEZONE_LENGTH} characters.`
+    )
+    .refine(safeText(), notAllowedMessage('Timezone'))
+    .refine(
+      (value) => value === '' || isTimeZoneName(value),
+      'Timezone must be a time zone name such as Europe/Paris.'
+    )
+}
+
+/** The locale field: trimmed, capped, `safeText`, and a BCP 47 tag, with the API's messages. */
+function localeText() {
+  return z
+    .string()
+    .trim()
+    .max(MAX_TENANT_LOCALE_LENGTH, `Locale must be at most ${MAX_TENANT_LOCALE_LENGTH} characters.`)
+    .refine(safeText(), notAllowedMessage('Locale'))
+    .refine(
+      (value) => value === '' || isLocaleTag(value),
+      'Locale must be a language tag such as en or en-US.'
+    )
+}
+
+/**
+ * `PATCH /tenants/:slug/settings`. `timezone` must name a time zone and
+ * `locale` must be a BCP 47 tag, both within their column widths, as the API
+ * checks them; `metadata` is bounded in size and depth.
  */
 export const updateTenantSettingsSchema = z.object({
-  timezone: optionalText(MAX_TENANT_TIMEZONE_LENGTH, 'Timezone'),
-  locale: optionalText(MAX_TENANT_LOCALE_LENGTH, 'Locale'),
-  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+  timezone: timezoneText()
+    .transform((value) => (value === '' ? undefined : value))
+    .optional(),
+  locale: localeText()
+    .transform((value) => (value === '' ? undefined : value))
+    .optional(),
+  metadata: z
+    .record(z.string(), z.unknown())
+    .superRefine(checkMetadataBounds)
+    .nullable()
+    .optional(),
 })
 
 export type UpdateTenantSettingsInput = z.infer<typeof updateTenantSettingsSchema>
@@ -218,7 +393,9 @@ export const metadataTextSchema = z.string().transform((text, ctx) => {
     ctx.addIssue({ code: 'custom', message: 'Metadata must be a JSON object.' })
     return z.NEVER
   }
-  return parsed as Record<string, unknown>
+  const metadata = parsed as Record<string, unknown>
+  checkMetadataBounds(metadata, ctx)
+  return metadata
 })
 
 /**
@@ -229,21 +406,7 @@ export const metadataTextSchema = z.string().transform((text, ctx) => {
  * report "Settings updated." while keeping the old value.
  */
 export const tenantSettingsFormSchema = z.object({
-  timezone: z
-    .string()
-    .trim()
-    .min(1, 'Timezone is required.')
-    .max(
-      MAX_TENANT_TIMEZONE_LENGTH,
-      `Timezone must be at most ${MAX_TENANT_TIMEZONE_LENGTH} characters.`
-    ),
-  locale: z
-    .string()
-    .trim()
-    .min(1, 'Locale is required.')
-    .max(
-      MAX_TENANT_LOCALE_LENGTH,
-      `Locale must be at most ${MAX_TENANT_LOCALE_LENGTH} characters.`
-    ),
+  timezone: timezoneText().refine((value) => value !== '', 'Timezone is required.'),
+  locale: localeText().refine((value) => value !== '', 'Locale is required.'),
   metadata: metadataTextSchema,
 })

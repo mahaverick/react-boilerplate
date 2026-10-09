@@ -112,6 +112,14 @@ let activeConfig: AnalyticsConfig | null = null
  */
 let appliedTenant: AppliedTenant | null = null
 /**
+ * The user and tenant group the app last asked for, written at the call and
+ * not when the SDK runs the command, so the identity epoch moves only when a
+ * call changes who an event belongs to: the router re-applying the tenant on
+ * screen, or a session refresh re-identifying the same user, leaves it alone.
+ */
+let requestedUserId: string | null = null
+let requestedTenant: AppliedTenant | null = null
+/**
  * The `$feature/*` properties the flags module registered for the signed-in
  * user. The event guard sends exactly these on every event but replay, and
  * `registerSuperProperties` puts them back in the SDK after any reset of it,
@@ -195,34 +203,78 @@ function run(command: Command, isDroppable = false): void {
   queue.push({ command, isDroppable })
 }
 
+/** How many times a registry change re-reads storage that another tab changed under it before writing anyway. */
+const IDENTITY_REGISTRY_WRITE_ATTEMPTS = 3
+
 /**
- * The registry's unexpired entries, oldest first. Storage that throws, holds
- * something else or is missing reads as empty.
+ * The registry's raw stored text. Storage that throws reads as missing.
  */
-function readIdentityRegistry(): IdentityRegistryEntry[] {
+function storedIdentityRegistry(): string | null {
   try {
-    const parsed: unknown = JSON.parse(window.localStorage.getItem(IDENTITY_REGISTRY_KEY) ?? '[]')
+    return window.localStorage.getItem(IDENTITY_REGISTRY_KEY)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The well-formed, unexpired entries of a stored registry, oldest first.
+ * Text that is missing, malformed or not a list reads as empty.
+ */
+function parseIdentityRegistry(stored: string | null): IdentityRegistryEntry[] {
+  try {
+    const parsed: unknown = JSON.parse(stored ?? '[]')
     if (!Array.isArray(parsed)) return []
     const now = Date.now()
-    const entries = (parsed as unknown[])
-      .filter(
-        (entry): entry is IdentityRegistryEntry =>
-          typeof entry === 'object' &&
-          entry !== null &&
-          typeof (entry as IdentityRegistryEntry).distinctId === 'string' &&
-          typeof (entry as IdentityRegistryEntry).at === 'number' &&
-          Math.abs(now - (entry as IdentityRegistryEntry).at) < IDENTITY_REGISTRY_TTL_MS
-      )
-      .slice(-MAX_SIBLING_IDENTITIES)
-    // Ids of closed tabs do not linger: the trimmed list replaces what storage held.
-    if (entries.length !== parsed.length) writeIdentityRegistry(entries)
-    return entries
+    return (parsed as unknown[]).filter(
+      (entry): entry is IdentityRegistryEntry =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as IdentityRegistryEntry).distinctId === 'string' &&
+        typeof (entry as IdentityRegistryEntry).at === 'number' &&
+        Math.abs(now - (entry as IdentityRegistryEntry).at) < IDENTITY_REGISTRY_TTL_MS
+    )
   } catch {
     return []
   }
 }
 
-function writeIdentityRegistry(entries: IdentityRegistryEntry[]): void {
+/**
+ * The registry's unexpired entries, oldest first. Storage that throws, holds
+ * something else or is missing reads as empty.
+ */
+function readIdentityRegistry(): IdentityRegistryEntry[] {
+  return parseIdentityRegistry(storedIdentityRegistry()).slice(-MAX_SIBLING_IDENTITIES)
+}
+
+/**
+ * Changes the registry: `add` is recorded (replacing any entry for the same
+ * id) and the ids in `remove` are taken out; expired entries are dropped and
+ * the list is cut to `MAX_SIBLING_IDENTITIES` on the way. Every tab of this
+ * app writes the one key, so the change is applied to what storage holds
+ * right before the write: when the text read to compute it has changed by
+ * then, the change is computed again from the new text, so an entry another
+ * tab wrote in between is kept. After `IDENTITY_REGISTRY_WRITE_ATTEMPTS`
+ * such changes it writes anyway, and an entry written in that last window is
+ * lost: storage has no compare-and-set, so the race is narrowed, not closed.
+ * @param change - The entry to add and the ids to remove.
+ */
+function changeIdentityRegistry(change: {
+  add?: IdentityRegistryEntry
+  remove?: readonly string[]
+}): void {
+  const { add, remove = [] } = change
+  let stored = storedIdentityRegistry()
+  let entries: IdentityRegistryEntry[] = []
+  for (let attempt = 0; attempt < IDENTITY_REGISTRY_WRITE_ATTEMPTS; attempt += 1) {
+    const kept = parseIdentityRegistry(stored).filter(
+      (entry) => !remove.includes(entry.distinctId) && entry.distinctId !== add?.distinctId
+    )
+    entries = (add ? [...kept, add] : kept).slice(-MAX_SIBLING_IDENTITIES)
+    const current = storedIdentityRegistry()
+    if (current === stored) break
+    stored = current
+  }
   try {
     if (entries.length === 0) window.localStorage.removeItem(IDENTITY_REGISTRY_KEY)
     else window.localStorage.setItem(IDENTITY_REGISTRY_KEY, JSON.stringify(entries))
@@ -240,17 +292,12 @@ function writeIdentityRegistry(entries: IdentityRegistryEntry[]): void {
  * may deliver another tab's storage write late.
  */
 function registerIdentity(distinctId: string): void {
-  writeIdentityRegistry(
-    [
-      ...readIdentityRegistry().filter((entry) => entry.distinctId !== distinctId),
-      { distinctId, at: Date.now() },
-    ].slice(-MAX_SIBLING_IDENTITIES)
-  )
+  changeIdentityRegistry({ add: { distinctId, at: Date.now() } })
 }
 
 /** Takes `distinctId` out of the registry: the person signed out of this tab. */
 function unregisterIdentity(distinctId: string): void {
-  writeIdentityRegistry(readIdentityRegistry().filter((entry) => entry.distinctId !== distinctId))
+  changeIdentityRegistry({ remove: [distinctId] })
 }
 
 /** Whether another tab of this app identified `distinctId`: announced on the channel or registered in storage. */
@@ -603,7 +650,8 @@ export function capturePageview(): void {
  * @param userId - The API's user id.
  */
 export function identifyUser(userId: string): void {
-  bumpIdentityEpoch()
+  if (requestedUserId !== userId) bumpIdentityEpoch()
+  requestedUserId = userId
   run((ph) => applyIdentity(ph, userId))
 }
 
@@ -624,6 +672,7 @@ export function identifyUser(userId: string): void {
  */
 export function forgetStaleIdentity(options: { keepIfAnotherTabHoldsThem?: boolean } = {}): void {
   bumpIdentityEpoch()
+  requestedUserId = null
   if (options.keepIfAnotherTabHoldsThem) askWhoIsSignedIn()
   run((ph) => {
     const isHeldElsewhere =
@@ -676,7 +725,8 @@ export function yieldSharedIdentity(): void {
  * @param access - `platform` when staff reached it through platform access.
  */
 export function setTenantGroup(tenantId: string, access: AnalyticsTenantAccess = 'member'): void {
-  bumpIdentityEpoch()
+  if (requestedTenant?.id !== tenantId || requestedTenant.access !== access) bumpIdentityEpoch()
+  requestedTenant = { id: tenantId, access }
   run((ph) => {
     if (appliedTenant?.id === tenantId && appliedTenant.access === access) return
     const isSwitch = lastTenantId !== null && lastTenantId !== tenantId
@@ -689,7 +739,8 @@ export function setTenantGroup(tenantId: string, access: AnalyticsTenantAccess =
 
 /** Takes the following events out of any tenant group: a page that is not a tenant's. */
 export function clearTenantGroup(): void {
-  bumpIdentityEpoch()
+  if (requestedTenant !== null) bumpIdentityEpoch()
+  requestedTenant = null
   run((ph) => {
     if (appliedTenant === null) return
     appliedTenant = null
@@ -743,6 +794,8 @@ export function unregisterFeatureProperties(names: readonly FeaturePropertyName[
  */
 export function resetAnalytics(): void {
   bumpIdentityEpoch()
+  requestedUserId = null
+  requestedTenant = null
   run((ph) => {
     appliedTenant = null
     lastTenantId = null
@@ -987,6 +1040,8 @@ export function resetAnalyticsForTests(): void {
   queue = []
   activeConfig = null
   appliedTenant = null
+  requestedUserId = null
+  requestedTenant = null
   featureProperties = {}
   lastTenantId = null
   signedInUserId = null
@@ -999,7 +1054,11 @@ export function resetAnalyticsForTests(): void {
   supersededNotifiedAt = 0
   identityChannel?.close()
   identityChannel = null
-  writeIdentityRegistry([])
+  try {
+    window.localStorage.removeItem(IDENTITY_REGISTRY_KEY)
+  } catch {
+    // Storage may be blocked: there is then no registry to forget.
+  }
   consentListeners.clear()
   supersededListeners.clear()
   settledWaiters.clear()

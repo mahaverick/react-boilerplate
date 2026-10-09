@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
+import { useChangedFields } from '@/hooks/use-changed-fields'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { formatDate } from '@/lib/format'
@@ -64,29 +65,44 @@ function TenantDetails({ tenant }: { tenant: Tenant }) {
 /**
  * The edit form. Owner and admin only: `PATCH /tenants/:slug` is gated
  * `requireRole('owner', 'admin')`. There is no slug field, since the API's
- * `updateTenantSchema` omits it. The value is parsed before posting, so an
- * emptied box goes over as `null` and clears the column: `''` would be a 400,
- * and an omitted key would keep the old value.
+ * `updateTenantSchema` omits it. Only the fields the user changed from the
+ * row (as loaded until the first edit, blur or save attempt, or as last saved)
+ * are checked and sent, so a stored value that today's rules refuse does not block saving the
+ * others, and a refetch that brings another admin's change does not send it
+ * back. With nothing changed, Save sends nothing and asks for a change instead.
+ * The changed fields are parsed before posting, so an emptied box goes over as
+ * `null` and clears the column: `''` would be a 400, and an omitted key would
+ * keep the old value.
  */
 function EditTenantForm({ tenant }: { tenant: Tenant }) {
   const updateTenant = useUpdateTenant(tenant.slug)
   const serverErrors = useServerErrors()
 
   /** The schema's input type: TanStack needs the validator's input assignable to the form values. */
-  const defaultValues: z.input<typeof updateTenantSchema> = {
+  const loaded: z.input<typeof updateTenantSchema> = {
     name: tenant.name,
     description: tenant.description ?? '',
     logo: tenant.logo ?? '',
     website: tenant.website ?? '',
   }
+  const { baseline, changes, changedBody, listeners, rebase } = useChangedFields(
+    updateTenantSchema,
+    loaded,
+    serverErrors,
+    'Change a field before saving.'
+  )
 
   const form = useForm({
-    defaultValues,
-    validators: { onSubmit: updateTenantSchema },
+    defaultValues: baseline,
+    validators: { onSubmit: changes },
+    listeners,
     onSubmit: async ({ value }) => {
+      const body = changedBody(value)
+      if (!body) return
       serverErrors.reset()
       try {
-        await updateTenant.mutateAsync(updateTenantSchema.parse(value))
+        await updateTenant.mutateAsync(body)
+        rebase(value)
         toast.success('Tenant updated.')
       } catch (error) {
         serverErrors.capture(error)

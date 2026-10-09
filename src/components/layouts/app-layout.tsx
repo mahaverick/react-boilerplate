@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation, useMatches, type LinkProps } from '@tanstack/react-router'
 import { Bell, Building2, LayoutDashboard, type LucideIcon } from 'lucide-react'
 import { Fragment, useEffect } from 'react'
+import { MaintenanceBanner } from '@/components/features/maintenance/maintenance-gate'
 import { NotificationBell } from '@/components/features/notification-bell'
 import { MAIN_CONTENT_ID, SkipLink } from '@/components/features/skip-link'
 import { TenantSwitcher } from '@/components/features/tenant-switcher'
@@ -138,7 +139,9 @@ function isNavActive(pathname: string, to: string): boolean {
  * is a sibling `li`, since an `li` inside an `li` is invalid. The nav
  * highlight reads the location, not the last crumb, whose deep path matches
  * no nav item. The sidebar store, not the provider, owns the open state, so
- * anything in the app can read or set it.
+ * anything in the app can read or set it. `MaintenanceBanner` sits under the
+ * header, inside the content column, so the fixed sidebar never covers it; the
+ * maintenance gate draws it only for pages outside this shell.
  */
 export function AppLayout() {
   const user = useAuthStore((s) => s.user)
@@ -213,6 +216,7 @@ export function AppLayout() {
             <NotificationBell />
           </div>
         </header>
+        <MaintenanceBanner />
         <div className="flex-1 overflow-auto p-4 md:p-6">
           <Outlet />
         </div>

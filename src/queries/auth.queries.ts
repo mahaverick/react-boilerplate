@@ -94,6 +94,23 @@ export function useChangePassword() {
   })
 }
 
+/** What `POST /auth/sessions/revoke-others` answers: how many other sessions it ended. */
+export interface RevokedSessions {
+  revoked: number
+}
+
+/**
+ * Signs the caller out everywhere but here: the API revokes every other
+ * session of this user and keeps the current one. It sends an empty JSON
+ * object, the body the API documents for the route.
+ */
+export function useRevokeOtherSessions() {
+  return useMutation({
+    mutationFn: async () =>
+      unwrap(await apiClient.post<ApiSuccess<RevokedSessions>>('/auth/sessions/revoke-others', {})),
+  })
+}
+
 const LOGOUT_FAILED_MESSAGE = "Couldn't sign out. Check your connection and try again."
 
 /**

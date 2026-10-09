@@ -10,6 +10,44 @@ const INITIAL_BACKOFF_MS = 1_000
 const MAX_BACKOFF_MS = 30_000
 
 /**
+ * The longest a server's `Retry-After` may hold a reconnect off, so a wrong
+ * header (a far-future date) cannot park the stream for good.
+ */
+const MAX_RETRY_AFTER_MS = 5 * 60_000
+
+/**
+ * The most a `Retry-After` wait is stretched by, as a fraction of it, so the
+ * tabs a full server refused together do not all return in the same second.
+ */
+const RETRY_AFTER_JITTER = 0.2
+
+/**
+ * A connect the server answered with a non-ok status, and the wait its
+ * `Retry-After` asked for, if any.
+ */
+class StreamRefusedError extends Error {
+  constructor(
+    readonly status: number,
+    readonly retryAfterMs: number | null
+  ) {
+    super(`stream failed: ${status}`)
+  }
+}
+
+/**
+ * Reads a `Retry-After` header, in delay seconds or as an HTTP date.
+ * @param value - The header's value, or null when absent.
+ * @returns The wait in milliseconds, at most `MAX_RETRY_AFTER_MS`, or null when absent or unreadable.
+ */
+function parseRetryAfter(value: string | null): number | null {
+  if (value === null) return null
+  const trimmed = value.trim()
+  const ms = /^\d+$/.test(trimmed) ? Number(trimmed) * 1_000 : Date.parse(trimmed) - Date.now()
+  if (Number.isNaN(ms)) return null
+  return Math.min(Math.max(ms, 0), MAX_RETRY_AFTER_MS)
+}
+
+/**
  * The event name the API writes on each notification frame
  * (`id: <id>\nevent: notification\ndata: <json>`). A mismatch fails silently:
  * the inbox never updates.
@@ -37,6 +75,12 @@ const NOTIFICATION_EVENT = 'notification'
  * (nothing else would move a tab that is sitting still), and any other
  * failure (a deploy's 502, a 429, an unreachable API) keeps retrying.
  *
+ * A connect the server refused with anything but a 401 (a 503 at its stream
+ * capacity, a 429 over the per-user cap) says nothing about the session, so
+ * it reconnects with the same token and no refresh. It waits the backoff or
+ * the response's `Retry-After`, whichever is longer, plus jitter on a
+ * `Retry-After` wait.
+ *
  * Mount this once, in `AppLayout`'s body, never in the bell or the page: two
  * mounts open two connections, and anything inside `Sidebar` unmounts below
  * 768px, where it becomes a `Sheet`.
@@ -63,10 +107,22 @@ export function useNotificationStream(): void {
       refetchList()
     }
 
-    const scheduleReconnect = (token: string) => {
+    const scheduleReconnect = (token: string, refusal?: StreamRefusedError) => {
       if (cancelled) return
-      const delay = backoffRef.current
-      backoffRef.current = Math.min(delay * 2, MAX_BACKOFF_MS)
+      const backoff = backoffRef.current
+      backoffRef.current = Math.min(backoff * 2, MAX_BACKOFF_MS)
+      const retryAfter = refusal?.retryAfterMs ?? null
+      const delay =
+        retryAfter === null
+          ? backoff
+          : Math.max(backoff, retryAfter) * (1 + Math.random() * RETRY_AFTER_JITTER)
+      // Only a 401 or a dropped stream may need a new token; ensureSession() rotates the refresh cookie on every call.
+      if (refusal && refusal.status !== 401) {
+        retryTimer = setTimeout(() => {
+          connect(token)
+        }, delay)
+        return
+      }
       retryTimer = setTimeout(() => {
         ensureSession()
           .then((fresh) => {
@@ -104,7 +160,10 @@ export function useNotificationStream(): void {
           })
 
           if (!response.ok || !response.body) {
-            throw new Error(`stream failed: ${response.status}`)
+            throw new StreamRefusedError(
+              response.status,
+              parseRetryAfter(response.headers.get('Retry-After'))
+            )
           }
           refetchList()
 
@@ -113,9 +172,9 @@ export function useNotificationStream(): void {
             if (event.event === NOTIFICATION_EVENT) onNotification()
           }
           if (!cancelled) scheduleReconnect(token)
-        } catch {
+        } catch (error) {
           if (controller.signal.aborted || cancelled) return
-          scheduleReconnect(token)
+          scheduleReconnect(token, error instanceof StreamRefusedError ? error : undefined)
         }
       })()
     }

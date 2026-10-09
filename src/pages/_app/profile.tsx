@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
+import { useChangedFields } from '@/hooks/use-changed-fields'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { formatDate } from '@/lib/format'
@@ -66,21 +67,37 @@ function ProfilePage() {
 
 /**
  * The name form and the read-only email and join date; PATCH /profile changes
- * the names alone. The value is parsed before posting, so trimming reaches the
- * wire, and `<FormError />` shows schema-level server messages, which `<Form>`
- * does not render itself.
+ * the names alone. Only a name the user changed from the stored names (as
+ * loaded until the first edit, blur or save attempt, or as last saved) is
+ * checked and sent, so a stored name that today's rules refuse does not block
+ * changing the other, and a refetch does not send a stale name back.
+ * With nothing changed, Save sends nothing and asks for a change instead.
+ * The value is parsed before posting, so trimming reaches the wire, and
+ * `<FormError />` shows schema-level server messages, which `<Form>` does not
+ * render itself.
  */
 function ProfileDetails({ user }: { user: User }) {
   const updateProfile = useUpdateProfile()
   const serverErrors = useServerErrors()
 
+  const { baseline, changes, changedBody, listeners, rebase } = useChangedFields(
+    updateProfileSchema,
+    { firstName: user.firstName ?? '', lastName: user.lastName ?? '' },
+    serverErrors,
+    'Change a name before saving.'
+  )
+
   const form = useForm({
-    defaultValues: { firstName: user.firstName ?? '', lastName: user.lastName ?? '' },
-    validators: { onSubmit: updateProfileSchema },
+    defaultValues: baseline,
+    validators: { onSubmit: changes },
+    listeners,
     onSubmit: async ({ value }) => {
+      const body = changedBody(value)
+      if (!body) return
       serverErrors.reset()
       try {
-        await updateProfile.mutateAsync(updateProfileSchema.parse(value))
+        await updateProfile.mutateAsync(body)
+        rebase(value)
         toast.success('Profile updated.')
       } catch (error) {
         serverErrors.capture(error)

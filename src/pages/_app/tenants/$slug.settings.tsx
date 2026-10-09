@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
+import { useChangedFields } from '@/hooks/use-changed-fields'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import {
@@ -51,26 +52,40 @@ function metadataText(metadata: Record<string, unknown> | null): string {
 
 /**
  * The settings form for owners and admins. Its schema's output is the PATCH
- * body: the metadata textarea parses to an object, or `null` to clear it.
+ * body: the metadata textarea parses to an object, or `null` to clear it. Only
+ * the fields the user changed from the stored values (as loaded until the
+ * first edit, blur or save attempt, or as last saved) are checked and sent, so
+ * a stored value that today's rules refuse does not block saving the others.
+ * With nothing changed, Save sends nothing and asks for a change instead.
  */
 function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettings }) {
   const updateSettings = useUpdateTenantSettings(slug)
   const serverErrors = useServerErrors()
 
   /** The schema's input type: TanStack needs the validator's input assignable to the form values. */
-  const defaultValues: z.input<typeof tenantSettingsFormSchema> = {
+  const loaded: z.input<typeof tenantSettingsFormSchema> = {
     timezone: settings.timezone,
     locale: settings.locale,
     metadata: metadataText(settings.metadata),
   }
+  const { baseline, changes, changedBody, listeners, rebase } = useChangedFields(
+    tenantSettingsFormSchema,
+    loaded,
+    serverErrors,
+    'Change a field before saving.'
+  )
 
   const form = useForm({
-    defaultValues,
-    validators: { onSubmit: tenantSettingsFormSchema },
+    defaultValues: baseline,
+    validators: { onSubmit: changes },
+    listeners,
     onSubmit: async ({ value }) => {
+      const body = changedBody(value)
+      if (!body) return
       serverErrors.reset()
       try {
-        await updateSettings.mutateAsync(tenantSettingsFormSchema.parse(value))
+        await updateSettings.mutateAsync(body)
+        rebase(value)
         toast.success('Settings updated.')
       } catch (error) {
         serverErrors.capture(error)
@@ -91,10 +106,7 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
                 onChange={(e) => field.handleChange(e.target.value)}
               />
             </FormControl>
-            <FormDescription>
-              An IANA name such as Europe/London. The API stores it as written and does not check it
-              against a zone database — neither does this form, so that the two agree.
-            </FormDescription>
+            <FormDescription>A time zone name such as Europe/London.</FormDescription>
             <FormMessage />
           </FormItem>
         )}

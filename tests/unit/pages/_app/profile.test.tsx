@@ -1,11 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
+import { profileKeys } from '@/queries/profile.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -89,6 +90,230 @@ describe('profile page', () => {
     })
   })
 
+  /** A stored first name the name rule now refuses, saved before the rule existed. */
+  function mockLegacyName() {
+    const legacy = { ...testUser, firstName: 'Ad\u{200B}a', lastName: 'Byron' }
+    useAuthStore.setState({ user: legacy })
+    server.use(http.get('/api/v1/profile', () => ok(legacy, 'Profile retrieved.')))
+  }
+
+  it('saves an edited last name while a refused legacy first name stays as it is', async () => {
+    mockLegacyName()
+    let body: unknown = null
+    server.use(
+      http.patch('/api/v1/profile', async ({ request }) => {
+        body = await request.json()
+        return ok({ ...testUser, lastName: 'Lovelace' }, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await waitFor(() => {
+      expect(first).toHaveValue('Ad\u{200B}a')
+    })
+    const last = screen.getByLabelText('Last name')
+    await user.clear(last)
+    await user.type(last, 'Lovelace')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(body).toEqual({ lastName: 'Lovelace' })
+    })
+    expect(
+      screen.queryByText('This field contains characters that are not allowed')
+    ).not.toBeInTheDocument()
+    expect(first).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  it('sends only the edited name after a refetch brings a change made elsewhere', async () => {
+    let served = { ...testUser, firstName: 'Ada', lastName: 'Byron' }
+    useAuthStore.setState({ user: served })
+    let body: unknown = null
+    server.use(
+      http.get('/api/v1/profile', () => ok(served, 'Profile retrieved.')),
+      http.patch('/api/v1/profile', async ({ request }) => {
+        body = await request.json()
+        return ok({ ...served, firstName: 'Augusta' }, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await waitFor(() => {
+      expect(first).toHaveValue('Ada')
+    })
+    await user.clear(first)
+    await user.type(first, 'Augusta')
+    served = { ...served, lastName: 'King\u{200B}' }
+    await act(() => queryClient.refetchQueries({ queryKey: profileKeys.detail }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(body).toEqual({ firstName: 'Augusta' })
+    })
+  })
+
+  it('shows a legacy first name as invalid once the user edits it, and sends nothing', async () => {
+    mockLegacyName()
+    let called = false
+    server.use(
+      http.patch('/api/v1/profile', () => {
+        called = true
+        return ok(testUser, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await waitFor(() => {
+      expect(first).toHaveValue('Ad\u{200B}a')
+    })
+    await user.type(first, 'm')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(
+      await screen.findByText('This field contains characters that are not allowed')
+    ).toBeInTheDocument()
+    // The message is the barrier: a refused submit never reaches onSubmit.
+    expect(called).toBe(false)
+  })
+
+  it('asks for a change, and sends nothing, when Save is pressed with no changes', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success')
+    let called = false
+    server.use(
+      http.patch('/api/v1/profile', () => {
+        called = true
+        return ok(testUser, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    // The message is the barrier: it is set where the request would have been sent.
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a name before saving.')
+    expect(called).toBe(false)
+    expect(toastSuccess).not.toHaveBeenCalled()
+
+    await user.type(first, 'b')
+    await waitFor(() => {
+      expect(screen.queryByText('Change a name before saving.')).not.toBeInTheDocument()
+    })
+  })
+
+  it('does not send a name changed elsewhere back after an unchanged Save and a refetch', async () => {
+    let served = { ...testUser, firstName: 'Ada', lastName: 'Byron' }
+    useAuthStore.setState({ user: served })
+    let body: unknown = null
+    server.use(
+      http.get('/api/v1/profile', () => ok(served, 'Profile retrieved.')),
+      http.patch('/api/v1/profile', async ({ request }) => {
+        body = await request.json()
+        return ok({ ...served, firstName: 'Augusta' }, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await waitFor(() => {
+      expect(first).toHaveValue('Ada')
+    })
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a name before saving.')
+
+    served = { ...served, lastName: 'King', email: 'ada.king@example.com' }
+    await act(() => queryClient.refetchQueries({ queryKey: profileKeys.detail }))
+    // The email row reads the same query, so it shows the refetch once the form has it too.
+    await screen.findByText('ada.king@example.com')
+    await user.clear(first)
+    await user.type(first, 'Augusta')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(body).toEqual({ firstName: 'Augusta' })
+    })
+  })
+
+  it('sends the name again when Save is pressed after a failed save', async () => {
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/profile', async ({ request }) => {
+        bodies.push(await request.json())
+        return bodies.length === 1
+          ? fail('Something broke.', 500)
+          : ok({ ...testUser, firstName: 'Ada' }, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await user.clear(first)
+    await user.type(first, 'Ada')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await screen.findByText('Something broke.')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ firstName: 'Ada' }, { firstName: 'Ada' }])
+    })
+  })
+
+  it('sends a name edited back to its old value after a save', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success')
+    const stored = testUser.firstName ?? ''
+    const bodies: unknown[] = []
+    server.use(
+      http.patch('/api/v1/profile', async ({ request }) => {
+        bodies.push(await request.json())
+        return ok(testUser, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await user.clear(first)
+    await user.type(first, 'Ada')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('Profile updated.')
+    })
+    await user.clear(first)
+    await user.type(first, stored)
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(bodies).toEqual([{ firstName: 'Ada' }, { firstName: stored }])
+    })
+  })
+
+  it('shows a refetch on a form nobody has touched', async () => {
+    let served = { ...testUser, firstName: 'Ada', lastName: 'Byron' }
+    useAuthStore.setState({ user: served })
+    server.use(http.get('/api/v1/profile', () => ok(served, 'Profile retrieved.')))
+    renderProfile()
+
+    const last = await screen.findByLabelText('Last name')
+    await waitFor(() => {
+      expect(last).toHaveValue('Byron')
+    })
+    served = { ...served, lastName: 'King' }
+    await act(() => queryClient.refetchQueries({ queryKey: profileKeys.detail }))
+
+    await waitFor(() => {
+      expect(last).toHaveValue('King')
+    })
+  })
+
   it('refuses to submit an empty name without touching the network', async () => {
     let called = false
     server.use(
@@ -125,7 +350,8 @@ describe('profile page', () => {
     const user = userEvent.setup()
     renderProfile()
 
-    await user.click(await screen.findByRole('button', { name: 'Save changes' }))
+    await user.type(await screen.findByLabelText('Last name'), 'x')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
     expect(await screen.findByText('That name is not allowed.')).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('First name'), 'a')
@@ -140,7 +366,8 @@ describe('profile page', () => {
     const user = userEvent.setup()
     renderProfile()
 
-    await user.click(await screen.findByRole('button', { name: 'Save changes' }))
+    await user.type(await screen.findByLabelText('Last name'), 'x')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     const message = await screen.findByText('Something broke.')
     expect(message.closest('form')).not.toBeNull()

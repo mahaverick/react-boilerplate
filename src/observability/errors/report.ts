@@ -59,6 +59,14 @@ export const CAUSE_DEPTH = 5
 /** The most serialized bytes in one request: under the 64 KiB that `keepalive` fetches and beacons share. */
 export const BATCH_MAX_BYTES = 60 * 1024
 
+/**
+ * The most `keepalive` request bytes a page may have in flight at once;
+ * Chromium refuses a keepalive fetch past it. The quota is the page's, shared
+ * with beacons and posthog-js's own requests, which the reporter's counter
+ * does not see.
+ */
+export const KEEPALIVE_QUOTA_BYTES = 64 * 1024
+
 /** An error handed over later than this after it was noted is sent anonymous: its identity is no longer knowable. */
 export const STALE_ERROR_MS = 10_000
 
@@ -84,9 +92,15 @@ let builder: ErrorPropertiesBuilder | undefined
 const fingerprintCounts = new Map<string, number>()
 let accepted = 0
 let settleGate: Promise<void> | undefined
+/** Set once analytics has settled; until then, an event built after the settle cap is anonymous without asking again. */
+let hasAnalyticsSettled = false
 let queue: ExceptionEvent[] = []
+/** Built events still waiting for their identity; `pagehide` beacons them anonymous. */
+const awaitingIdentity = new Set<PendingEvent>()
 let flushTimer: ReturnType<typeof setTimeout> | undefined
 const retrying = new Map<ExceptionEvent[], ReturnType<typeof setTimeout>>()
+/** The bytes of this reporter's `keepalive` requests still in flight. */
+let keepaliveBytesInFlight = 0
 let isPageHideInstalled = false
 
 function messageOf(input: unknown): string | undefined {
@@ -215,18 +229,19 @@ function build(error: unknown, handled: boolean): Exception[] {
  * The identity for an event built now. The first call waits for analytics
  * to settle, at most `SETTLE_CAP_MS`; once that wait is over, later calls
  * read the identity without waiting, and get null while analytics is still
- * unsettled.
+ * unsettled. Only the first call asks analytics to tell it when it settles,
+ * so errors after the cap leave nothing waiting on a load that may never end.
  */
 function resolveIdentity(): Promise<AnalyticsIdentity | null> {
   settleGate ??= new Promise((resolve) => {
     const cap = setTimeout(resolve, SETTLE_CAP_MS)
     void whenAnalyticsSettled().then(() => {
+      hasAnalyticsSettled = true
       clearTimeout(cap)
       resolve()
     })
   })
-  // Both settle in order once the gate is open: a settled analytics answers first, an unsettled one is beaten by null.
-  return settleGate.then(() => Promise.race([whenAnalyticsSettled(), Promise.resolve(null)]))
+  return settleGate.then(() => (hasAnalyticsSettled ? whenAnalyticsSettled() : null))
 }
 
 /**
@@ -288,18 +303,33 @@ function takeBatch(events: ExceptionEvent[]): ExceptionEvent[] {
   return events.splice(0, count)
 }
 
+/**
+ * Posts one batch, retrying once after a network failure or a 5xx. The
+ * request asks for `keepalive`, so it outlives the page, only while it fits
+ * in what is left of `KEEPALIVE_QUOTA_BYTES` beside the reporter's other
+ * keepalive requests in flight; otherwise it goes as a plain request.
+ * @param batch - The events to send.
+ * @param canRetry - False for the retry itself.
+ */
 async function send(batch: ExceptionEvent[], canRetry: boolean): Promise<void> {
+  let keepaliveBytes = 0
   try {
     const body = batchBody(batch)
-    // A keepalive body over 64 KiB is refused outright, so only one that fits asks for it.
+    const bytes = byteLength(body)
+    if (bytes <= BATCH_MAX_BYTES && keepaliveBytesInFlight + bytes <= KEEPALIVE_QUOTA_BYTES) {
+      keepaliveBytes = bytes
+      keepaliveBytesInFlight += bytes
+    }
     const response = await fetch(batchUrl(), {
       method: 'POST',
-      ...(byteLength(body) <= BATCH_MAX_BYTES ? { keepalive: true } : {}),
+      ...(keepaliveBytes > 0 ? { keepalive: true } : {}),
       body,
     })
     if (response.status < 500) return
   } catch {
     // A network failure: retried once below, like a 5xx.
+  } finally {
+    keepaliveBytesInFlight -= keepaliveBytes
   }
   if (!canRetry) return
   retrying.set(
@@ -323,11 +353,17 @@ function enqueue(event: ExceptionEvent): void {
   else flushTimer ??= setTimeout(flush, BATCH_WINDOW_MS)
 }
 
-/** On `pagehide`, everything not yet sent, and every batch waiting to retry, goes by beacon. */
+/**
+ * On `pagehide`, everything not yet sent, every batch waiting to retry, and
+ * every event still waiting for its identity (anonymous, as its identity is
+ * not known yet) goes by beacon.
+ */
 function sendOnPageHide(): void {
   // A listener that throws reaches window `error`, which would report the reporter itself.
   try {
     const unsent = queue.splice(0)
+    for (const event of awaitingIdentity) unsent.push(withIdentity(event, null))
+    awaitingIdentity.clear()
     for (const [batch, timer] of retrying) {
       clearTimeout(timer)
       unsent.push(...batch)
@@ -402,14 +438,17 @@ export function report(
           : { $current_url: scrubUrl(sanitizeUrl(location.href, ANALYTICS_URL_QUERY_ALLOWLIST)) }),
       },
     }
+    awaitingIdentity.add(event)
     // The identity is read when it settles, so it counts only if nothing changed it since this error.
     void resolveIdentity().then(
       (identity) => {
+        // Already beaconed on pagehide.
+        if (!awaitingIdentity.delete(event)) return
         const isOwn = !isStale && identityEpoch() === notedEpoch
         enqueue(withIdentity(event, isOwn ? identity : null))
       },
       () => {
-        enqueue(withIdentity(event, null))
+        if (awaitingIdentity.delete(event)) enqueue(withIdentity(event, null))
       }
     )
   } catch {
@@ -422,11 +461,14 @@ export function resetReporterForTests(): void {
   fingerprintCounts.clear()
   accepted = 0
   settleGate = undefined
+  hasAnalyticsSettled = false
   queue = []
+  awaitingIdentity.clear()
   if (flushTimer !== undefined) clearTimeout(flushTimer)
   flushTimer = undefined
   for (const timer of retrying.values()) clearTimeout(timer)
   retrying.clear()
+  keepaliveBytesInFlight = 0
   if (isPageHideInstalled) removeEventListener('pagehide', sendOnPageHide)
   isPageHideInstalled = false
 }

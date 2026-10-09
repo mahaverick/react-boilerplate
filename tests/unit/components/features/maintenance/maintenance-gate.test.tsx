@@ -312,6 +312,75 @@ describe('read-only maintenance', () => {
     expect(screen.getByRole('region', { name: 'Maintenance' })).toBeInTheDocument()
   })
 
+  it('on an app page the read-only banner sits inside main, not above the sidebar shell', async () => {
+    signIn()
+    serveStatus('read_only')
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+    const banner = await screen.findByRole('region', { name: 'Maintenance' })
+    const main = screen.getByRole('main')
+    expect(main.contains(banner)).toBe(true)
+    expect(banner.previousElementSibling?.tagName).toBe('HEADER')
+    expect(screen.getAllByRole('region', { name: 'Maintenance' })).toHaveLength(1)
+  })
+
+  it('makes no status read when the header switched read_only on and back off before the read started', async () => {
+    signIn()
+    let calls = 0
+    server.use(
+      http.get('/api/v1/status/maintenance', () => {
+        calls += 1
+        return ok({ mode: 'off', message: null, since: null }, 'Maintenance status retrieved.')
+      })
+    )
+    renderAppAt('/dashboard')
+    await waitFor(() =>
+      expect(queryClient.getQueryState(['maintenance-status'])?.status).toBe('success')
+    )
+    const before = calls
+    act(() => useMaintenanceModeStore.getState().setFromHeader('read_only'))
+    act(() => useMaintenanceModeStore.getState().setFromHeader('off'))
+    await act(() => settle(200, 'a read that should not start has no event to wait on'))
+    expect(useMaintenanceModeStore.getState().mode).toBe('off')
+    expect(calls - before).toBe(0)
+  })
+
+  it('drops a status read in flight when a header turns the mode off, so its late answer cannot put read_only back', async () => {
+    signIn()
+    renderAppAt('/dashboard')
+    await waitFor(() =>
+      expect(queryClient.getQueryState(['maintenance-status'])?.status).toBe('success')
+    )
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    let isAnswered = false
+    let isRequested = false
+    server.use(
+      http.get('/api/v1/status/maintenance', async () => {
+        isRequested = true
+        await held
+        isAnswered = true
+        // Served before the switch, delivered after it.
+        return HttpResponse.json(
+          {
+            success: true,
+            message: 'Maintenance status retrieved.',
+            statusCode: 200,
+            data: { mode: 'read_only', message: null, since: SINCE },
+          },
+          { headers: { 'Maintenance-Mode': 'read_only' } }
+        )
+      })
+    )
+    act(() => useMaintenanceModeStore.getState().setFromHeader('read_only'))
+    await waitFor(() => expect(isRequested).toBe(true))
+    act(() => useMaintenanceModeStore.getState().setFromHeader('off'))
+    release()
+    await waitFor(() => expect(isAnswered).toBe(true))
+    await act(() => settle(200, 'a dropped answer has no event to wait on'))
+    expect(useMaintenanceModeStore.getState().mode).toBe('off')
+  })
+
   it('collapses to its summary and expands again', async () => {
     signIn()
     serveStatus('read_only')
@@ -341,6 +410,7 @@ describe('read-only maintenance', () => {
     renderAppAt('/login')
 
     expect(await screen.findByRole('region', { name: 'Maintenance' })).toBeInTheDocument()
+    expect(screen.getAllByRole('region', { name: 'Maintenance' })).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
   })
 })
