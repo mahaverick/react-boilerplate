@@ -928,6 +928,30 @@ describe('inviting, and the pending invitations', () => {
   })
 })
 
+describe('the remove and leave dialogs', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  it('tells an owner removing a member that the invitations that member sent are revoked', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_2, 'admin', 'Ada')])
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click((await rowFor('Ada')).getByRole('button', { name: 'Remove' }))
+    expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+      'Ada X will lose access to this tenant immediately. Pending invitations they sent are revoked.'
+    )
+  })
+})
+
 describe('a stale sign-in on a platform-tenant write', () => {
   const SIGN_IN_AGAIN = 'For your security, sign out and sign in again before making this change.'
   const stale = () => fail('Confirm your identity to continue', 401, REAUTH_REQUIRED)

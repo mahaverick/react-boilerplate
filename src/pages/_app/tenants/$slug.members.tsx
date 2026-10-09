@@ -226,7 +226,8 @@ function RemoveMemberButton({
               'You will lose access to this tenant immediately. An owner or admin will have to invite you back.'
             ) : (
               <>
-                <Pii>{name}</Pii> will lose access to this tenant immediately.
+                <Pii>{name}</Pii> will lose access to this tenant immediately. Pending invitations
+                they sent are revoked.
               </>
             )}
           </AlertDialogDescription>
