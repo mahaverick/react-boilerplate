@@ -2,9 +2,9 @@
 # Uploads dist/'s source maps to every PostHog project in
 # POSTHOG_SOURCEMAP_PROJECTS, one posthog-cli run per project, after the
 # Dockerfile's inject. Unset projects skip the upload; set projects with no
-# token, or any failed upload, fail the build, so an image whose maps are
-# missing is never pushed. The token is read from the BuildKit secret file
-# and never printed.
+# token, no maps to upload, or any failed, skipped or empty upload, fail the
+# build, so an image whose maps are missing is never pushed. The token is
+# read from the BuildKit secret file and never printed.
 set -eu
 
 projects=$(printf '%s' "${POSTHOG_SOURCEMAP_PROJECTS:-}" | tr -d ' \t\r\n')
@@ -43,6 +43,13 @@ for project in $(printf '%s' "$projects" | tr ',' ' '); do
   esac
 done
 
+# A build with no maps (a vite config that stopped emitting them) would
+# otherwise upload nothing, pass, and ship chunks no frame can be mapped from.
+if ! find "$directory" -name '*.map' -type f | grep -q .; then
+  echo "sourcemaps: no source maps under $directory to upload" >&2
+  exit 1
+fi
+
 for project in $(printf '%s' "$projects" | tr ',' ' '); do
   # No --release-* flags: in event mode they record nothing (the events carry
   # the release). No --no-fail and no `|| true`: a failed upload fails the build.
@@ -53,11 +60,18 @@ for project in $(printf '%s' "$projects" | tr ',' ' '); do
     exit 1
   fi
   if [ -n "$output" ]; then printf '%s\n' "$output"; fi
-  # The CLI exits 0 after skipping a chunk as too large, which would then
-  # ship with no map behind it: its output is the only sign. Any "too large"
-  # beside a non-zero number counts ("skipped 2 too large"), a zero does not.
-  if printf '%s\n' "$output" | grep -Eiq '[1-9][0-9]*[^0-9.,;]*too large|too large[^0-9.,;]*[1-9][0-9]*'; then
+  # The CLI exits 0 after skipping a chunk as too large, or after finding
+  # nothing to upload, and either chunk would then ship with no map behind
+  # it: its output is the only sign. Its exact wording is not documented, so
+  # any "too large" fails unless that line's count is an explicit zero
+  # ("skipped 0 too large").
+  if printf '%s\n' "$output" | grep -i 'too large' \
+    | grep -Eiv '(^|[^0-9])0[^0-9]{0,8}too large|too large[^0-9]{0,8}0([^0-9]|$)' | grep -q .; then
     echo "sourcemaps: posthog-cli skipped chunks as too large for project $project" >&2
+    exit 1
+  fi
+  if printf '%s\n' "$output" | grep -Eiq 'uploaded 0([^0-9]|$)|no source ?maps? (were )?found'; then
+    echo "sourcemaps: posthog-cli uploaded no source maps to project $project" >&2
     exit 1
   fi
   echo "sourcemaps: uploaded to project $project"

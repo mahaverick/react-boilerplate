@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -9,7 +9,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
  * docker/upload-sourcemaps.sh, run by `sh` as the image's build stage runs
  * it, against a stand-in posthog-cli that records each run's arguments and
  * environment, prints `CLI_OUTPUT` when set, and exits with the code its
- * test chose.
+ * test chose. It runs in a temporary directory whose `dist` holds one source
+ * map, as the build stage's does after inject.
  */
 
 const SCRIPT = path.resolve(import.meta.dirname, '../../../docker/upload-sourcemaps.sh')
@@ -31,6 +32,8 @@ beforeEach(() => {
     ].join('\n')
   )
   chmodSync(path.join(dir, 'posthog-cli'), 0o755)
+  mkdirSync(path.join(dir, 'dist', 'assets'), { recursive: true })
+  writeFileSync(path.join(dir, 'dist', 'assets', 'index-abc.js.map'), '{}')
 })
 
 afterEach(() => {
@@ -41,6 +44,7 @@ function runScript(env: Record<string, string>, token: string | null = TOKEN) {
   const tokenFile = path.join(dir, 'token')
   if (token !== null) writeFileSync(tokenFile, token)
   return spawnSync('sh', [SCRIPT], {
+    cwd: dir,
     env: {
       PATH: process.env.PATH ?? '',
       POSTHOG_CLI: path.join(dir, 'posthog-cli'),
@@ -139,6 +143,8 @@ describe('docker/upload-sourcemaps.sh', () => {
   it.each([
     'Uploaded 3 chunks, skipped 0 already present, skipped 2 too large',
     'chunk assets/index-abc.js is too large (6 MB), skipping it',
+    'Skipping assets/index-abc.js: too large',
+    'WARN chunk assets/index-D9fA2.js is too large, skipping',
   ])('fails the build when the CLI says it skipped a chunk as too large: %s', (output) => {
     const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101,202', CLI_OUTPUT: output })
     expect(result.status).toBe(1)
@@ -146,6 +152,25 @@ describe('docker/upload-sourcemaps.sh', () => {
     expect(result.stderr).toContain('posthog-cli skipped chunks as too large for project 101')
     expect(cliRuns().map((run) => run[1])).toEqual(['101'])
   })
+
+  it('fails the build, before uploading anything, when there is no source map to upload', () => {
+    rmSync(path.join(dir, 'dist', 'assets', 'index-abc.js.map'))
+    const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101' })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('sourcemaps: no source maps under dist to upload')
+    expect(cliRuns()).toEqual([])
+  })
+
+  it.each(['Uploaded 0 chunks', 'No source maps found in dist'])(
+    'fails the build when the CLI uploaded nothing: %s',
+    (output) => {
+      const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101,202', CLI_OUTPUT: output })
+      expect(result.status).toBe(1)
+      expect(result.stdout).not.toContain('sourcemaps: uploaded to project 101')
+      expect(result.stderr).toContain('posthog-cli uploaded no source maps to project 101')
+      expect(cliRuns().map((run) => run[1])).toEqual(['101'])
+    }
+  )
 
   it('refuses a project id that is not digits, before uploading anything', () => {
     const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101,abc' })
