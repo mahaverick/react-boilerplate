@@ -312,6 +312,18 @@ describe('read-only maintenance', () => {
     expect(screen.getByRole('region', { name: 'Maintenance' })).toBeInTheDocument()
   })
 
+  it('on an app page the read-only banner sits inside main, not above the sidebar shell', async () => {
+    signIn()
+    serveStatus('read_only')
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+    const banner = await screen.findByRole('region', { name: 'Maintenance' })
+    const main = screen.getByRole('main')
+    expect(main.contains(banner)).toBe(true)
+    expect(banner.previousElementSibling?.tagName).toBe('HEADER')
+    expect(screen.getAllByRole('region', { name: 'Maintenance' })).toHaveLength(1)
+  })
+
   it('makes no status read when the header switched read_only on and back off before the read started', async () => {
     signIn()
     let calls = 0
@@ -362,6 +374,7 @@ describe('read-only maintenance', () => {
     renderAppAt('/login')
 
     expect(await screen.findByRole('region', { name: 'Maintenance' })).toBeInTheDocument()
+    expect(screen.getAllByRole('region', { name: 'Maintenance' })).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
   })
 })
