@@ -6,14 +6,7 @@ allowBuilds:
   msw: true
 # Minutes (3 days). Matches renovate.json.
 minimumReleaseAge: 4320
-# posthog-js 1.435.6 is the version the analytics module was probed against; it
-# and its own @posthog packages were under 3 days old when it was pinned.
-# Remove these entries after 2026-10-05.
 minimumReleaseAgeExclude:
-  - posthog-js@1.435.6
-  - '@posthog/browser-common@0.9.1'
-  - '@posthog/core@1.55.3'
-  - '@posthog/types@1.413.0'
   # solid-js 1.9.16 moves its seroval to ~1.6.8, out of GHSA-p6vx-979v-rg4c and
   # GHSA-jp82-f5mq-hwhp (reached only through the query devtools). It was under
   # 3 days old when taken. Remove this entry after 2026-10-10.
