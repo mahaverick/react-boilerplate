@@ -541,23 +541,33 @@ be tested here, not against `pnpm dev`.
 the fake PostHog the suite starts on `FAKE_POSTHOG_PORT` (4063). posthog-js drops every event
 from a Playwright browser (`navigator.webdriver`, the `HeadlessChrome` brand) unless the test
 uses `HUMAN_USER_AGENT` and `passPosthogBotFilter`, and holds back the replay of a page nobody
-has clicked. `E2E_API_DIR` is where `grantPlatformRole` runs `pnpm platform:grant`; point
-it at the express under test, never at your main checkout.
+has clicked. `E2E_API_DIR` (default `../express-boilerplate`) is the checkout of the express
+under test, where `grantPlatformRole` runs `pnpm platform:grant`; for the default :4040 live
+run that is the main checkout. Only `restartApi` refuses the main checkout.
 
-**The SSE reconnect test restarts an express**, so it runs only by hand.
-`restartApi()` kills whatever listens on the `E2E_API_ORIGIN` port and starts `pnpm dev` in
+**The SSE reconnect test restarts an express**, so it runs only by hand. `restartApi()`
+stops the listeners on the `E2E_API_ORIGIN` port and starts `pnpm dev` in the resolved
 `E2E_API_DIR` with `APP_PORT` set to that port, so the new server never falls back to its
-checkout's `.env` port. The rules are `restartRefusal` in `scripts/api-restart-guard.mjs`,
-unit-tested in `tests/unit/api-restart-guard.test.ts`. It refuses, by throwing, on port 4040
-(a developer's own `pnpm dev`), without `E2E_ALLOW_API_RESTART=1`, without a non-empty
-`E2E_API_DIR`, when that directory resolves to the main checkout (`../express-boilerplate`),
-and when it is not a git worktree (no `.git` file), which refuses a standalone clone too.
-`e2e/nginx/sse.test.ts` skips with the reason instead, so `pnpm test:e2e:nginx` always skips
-it. To run it, start express from a worktree on another port
-(`git -C ../express-boilerplate worktree add ../express-sse`; in it, `pnpm install`, a `.env`,
-then `APP_PORT=4999 pnpm dev`), then:
+checkout's `.env` port. The rules are `restartPlan` and `stopListenersIn` in
+`scripts/api-restart-guard.mjs`, unit-tested with mocked processes and file system in
+`tests/unit/api-restart-guard.test.ts`. It refuses, by throwing: an origin that is not http(s)
+with an explicit port; port 4040 (a developer's own `pnpm dev`); a run without
+`E2E_ALLOW_API_RESTART=1`; an empty `E2E_API_DIR`; a directory that resolves to the main
+checkout (`../express-boilerplate`); and one that is not a git worktree (no `.git` file), which
+refuses a standalone clone too. It signals nothing unless every listener on the port has its
+working directory inside that worktree. `e2e/nginx/sse.test.ts` skips with the reason instead,
+so `pnpm test:e2e:nginx` always skips it.
+
+To run it, give express a worktree with its own `.env`, built from `.env.example` and never a
+copy of the main checkout's: `APP_PORT=4999`, a `DATABASE_URL` naming a database of its own
+(`boilerplate_sse` below, on the compose Postgres) and `REDIS_KEY_PREFIX=express-sse`, so the
+run's accounts and keys stay out of the dev database and keyspace. Then:
 
 ```sh
+git -C ../express-boilerplate worktree add ../express-sse
+docker exec express-boilerplate-postgres-1 createdb -U boilerplate boilerplate_sse
+# In ../express-sse: write its .env as above, then
+#   pnpm install && pnpm db:migrate && pnpm dev
 docker build -t react-boilerplate:e2e .
 docker run -d --name rb-e2e-sse -p 8089:8080 --read-only --tmpfs /tmp \
   --add-host=api:host-gateway -e API_UPSTREAM=http://api:4999 react-boilerplate:e2e
@@ -565,6 +575,8 @@ E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
   E2E_API_ORIGIN=http://localhost:4999 E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
   pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
 docker rm -f rb-e2e-sse
+# The run leaves its restarted server running, detached; it recorded the process group:
+kill -TERM -"$(cat "$(node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid")"
 ```
 
 **`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom
@@ -585,7 +597,7 @@ contrast too — which token a component puts on which surface decides the ratio
 alone — and composition changes on every feature, so run this before merging UI work, not only when a
 token moves. **Do not eyeball a contrast change — run the script.**
 
-`restartApi()` kills by port with `-sTCP:LISTEN` and escalates SIGTERM→SIGKILL. Both details
+`restartApi()` finds listeners by port with `-sTCP:LISTEN` and escalates SIGTERM→SIGKILL. Both details
 are load-bearing: `pnpm dev` is `tsx watch`, whose CHILD holds the port and survives a
 group SIGTERM, and without `-sTCP:LISTEN` lsof also lists the Vite proxy as a client of that
 port and the kill takes the dev server down too.

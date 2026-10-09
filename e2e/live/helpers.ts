@@ -1,10 +1,17 @@
 import { execFile as execFileCallback, spawn } from 'node:child_process'
-import { realpathSync, statSync } from 'node:fs'
+import { realpathSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { expect, type Page } from '@playwright/test'
 import type { MembershipRole } from '@/constants/roles'
-import { portOf, respawnOptions, restartRefusal } from '../../scripts/api-restart-guard.mjs'
+import {
+  cwdFromLsofFields,
+  respawnOptions,
+  restartedPidFile,
+  restartPlan,
+  stopListenersIn,
+} from '../../scripts/api-restart-guard.mjs'
 import { settle } from '../timing'
 
 const execFile = promisify(execFileCallback)
@@ -159,13 +166,13 @@ async function portFreedWithin(port: string, timeoutMs: number): Promise<boolean
 }
 
 /**
- * Why `restartApi` would refuse to run here, or `null` when it may: the rules
- * are `restartRefusal` in `scripts/api-restart-guard.mjs`, applied to this
- * process's environment and file system.
- * @returns The refusal, naming what to change, or `null`.
+ * What `restartApi` may do here, or why it refuses: `restartPlan` from
+ * `scripts/api-restart-guard.mjs`, applied to this process's environment and
+ * file system.
+ * @returns `{ refusal }`, or the checked port and resolved worktree.
  */
-export function apiRestartRefusal(): string | null {
-  return restartRefusal({
+function apiRestartPlan(): { refusal: string } | { port: string; dir: string } {
+  return restartPlan({
     origin: API_ORIGIN,
     allowRestart: process.env.E2E_ALLOW_API_RESTART,
     apiDir: process.env.E2E_API_DIR,
@@ -182,41 +189,68 @@ export function apiRestartRefusal(): string | null {
 }
 
 /**
+ * Why `restartApi` would refuse to run here, or `null` when it may.
+ * @returns The refusal, naming what to change, or `null`.
+ */
+export function apiRestartRefusal(): string | null {
+  const plan = apiRestartPlan()
+  return 'refusal' in plan ? plan.refusal : null
+}
+
+/**
+ * A process's working directory, read with lsof, or `null` when unreadable.
+ * @param pid - The process.
+ * @returns Its working directory, or `null`.
+ */
+async function cwdOf(pid: number): Promise<string | null> {
+  const { stdout } = await execFile('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn']).catch(
+    () => ({ stdout: '' })
+  )
+  return cwdFromLsofFields(stdout)
+}
+
+/**
  * Stops whatever is listening on the API port, then starts a new one.
  *
- * Kills by PORT rather than by a pid this process spawned, because the API is
- * started outside the test run and the SSE test has to be able to restart
- * THAT. `tsx watch` spawns a child, so the whole process group goes. Refuses,
- * by throwing, unless `apiRestartRefusal` allows it. The new server is given
- * `APP_PORT` set to the checked port, so it never falls back to its
- * checkout's `.env` port (4040 by default).
+ * Finds the server by PORT rather than by a pid this process spawned,
+ * because the API is started outside the test run and the SSE test has to be
+ * able to restart THAT; it stops only listeners running inside the checked
+ * worktree. Refuses, by throwing, unless `apiRestartRefusal` allows it. The
+ * new server starts in the resolved worktree with `APP_PORT` set to the
+ * checked port, so it never falls back to its `.env` port (4040 by default).
+ * That server stays running, detached; its pid, which is also its process
+ * group, is written to `restartedPidFile(os.tmpdir(), port)`.
  */
 export async function restartApi(): Promise<void> {
-  const refusal = apiRestartRefusal()
-  const apiDir = process.env.E2E_API_DIR
-  if (refusal !== null || apiDir === undefined) throw new Error(refusal ?? 'E2E_API_DIR is unset')
-  const port = portOf(API_ORIGIN)
+  const plan = apiRestartPlan()
+  if ('refusal' in plan) throw new Error(plan.refusal)
+  const { port, dir } = plan
 
   /**
-   * Kill EVERY pid holding the port, not just the process group of the one
-   * we find first. `pnpm dev` is `tsx watch`, which spawns the real server
-   * as a CHILD: SIGTERM to only the parent's group would leave that child
-   * listening, the server would never go down, and "reconnects after a
-   * restart" would measure a stream that was never interrupted. SIGTERM
-   * first so it can close cleanly, then SIGKILL whatever is still there
-   * after 3s.
+   * Stop EVERY pid holding the port, not just the process group of the one
+   * found first: `pnpm dev` is `tsx watch`, whose CHILD is the real server,
+   * and a SIGTERM to the parent's group alone would leave it listening, so
+   * "reconnects after a restart" would measure a stream never interrupted.
+   * `stopListenersIn` signals only when every listener runs inside the
+   * worktree, SIGTERM first, then SIGKILL after 3 s.
    */
-  signalAll(await listeningPids(port), 'SIGTERM')
-  if (!(await portFreedWithin(port, 3000))) {
-    signalAll(await listeningPids(port), 'SIGKILL')
-    await expect
-      .poll(() => listeningPids(port), {
-        message: `something still listens on :${port} after SIGKILL`,
-        intervals: [100],
-        timeout: 5000,
-      })
-      .toEqual([])
-  }
+  await stopListenersIn({
+    port,
+    dir,
+    listeningPids,
+    cwdOf,
+    signal: (pid, name) => {
+      signalAll([pid], name)
+    },
+    freedWithin: (ms) => portFreedWithin(port, ms),
+  })
+  await expect
+    .poll(() => listeningPids(port), {
+      message: `something still listens on :${port} after SIGKILL`,
+      intervals: [100],
+      timeout: 5000,
+    })
+    .toEqual([])
 
   // Confirm it actually went down, or "reconnects after a restart" passes against a server that never stopped.
   await expect
@@ -227,7 +261,9 @@ export async function restartApi(): Promise<void> {
     })
     .toBe(false)
 
-  spawn('pnpm', ['dev'], respawnOptions(apiDir, port, process.env)).unref()
+  const server = spawn('pnpm', ['dev'], respawnOptions(dir, port, process.env))
+  if (server.pid !== undefined) writeFileSync(restartedPidFile(tmpdir(), port), String(server.pid))
+  server.unref()
   await waitForApi()
 }
 
