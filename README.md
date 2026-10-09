@@ -497,7 +497,7 @@ live half needs an express 1.5.0+ behind the image: start express with
 `POSTHOG_ASSETS_HOST` both `http://127.0.0.1:4063` and
 `ANALYTICS_DRAIN_INTERVAL_MS=1000`, run the image with the same three
 settings and `API_UPSTREAM` pointing at that express, then
-`E2E_LIVE=1 E2E_NGINX=1 E2E_ANALYTICS=1 E2E_NGINX_ORIGIN=<image origin> E2E_API_ORIGIN=<express origin> E2E_API_DIR=<express checkout> pnpm exec playwright test --project=nginx e2e/nginx/analytics.test.ts`.
+`E2E_LIVE=1 E2E_NGINX=1 E2E_ANALYTICS=1 E2E_NGINX_ORIGIN=<image origin> E2E_API_ORIGIN=<express origin> E2E_API_DIR=<that express's git worktree, never your main checkout> pnpm exec playwright test --project=nginx e2e/nginx/analytics.test.ts`.
 The suite starts the fake PostHog on :4063 itself (`E2E_FAKE_POSTHOG_PORT`
 moves it).
 

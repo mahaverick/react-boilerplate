@@ -27,9 +27,11 @@ import {
  * on.
  *
  * Needs the container and a live API that this run may restart: an express
- * you started on a port other than :4040, named by `E2E_API_ORIGIN` and the
- * container's `API_UPSTREAM`, with `E2E_ALLOW_API_RESTART=1`. Without that it
- * skips, saying why; `beforeAll` says so if the API is missing.
+ * started from a git worktree on a port other than :4040, named by
+ * `E2E_API_ORIGIN`, `E2E_API_DIR` and the container's `API_UPSTREAM`, with
+ * `E2E_ALLOW_API_RESTART=1`. Without that it skips, saying why; CLAUDE.md
+ * "End-to-end tests" has the command, and `beforeAll` says so if the API is
+ * missing.
  */
 
 const APP_ORIGIN = process.env.E2E_NGINX_ORIGIN ?? 'http://localhost:8088'

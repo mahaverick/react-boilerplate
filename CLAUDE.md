@@ -541,12 +541,31 @@ be tested here, not against `pnpm dev`.
 the fake PostHog the suite starts on `FAKE_POSTHOG_PORT` (4063). posthog-js drops every event
 from a Playwright browser (`navigator.webdriver`, the `HeadlessChrome` brand) unless the test
 uses `HUMAN_USER_AGENT` and `passPosthogBotFilter`, and holds back the replay of a page nobody
-has clicked. Never run `e2e/nginx/sse.test.ts` against an express you did not start:
-`restartApi()` kills whatever listens on the API port and starts `pnpm dev` in `E2E_API_DIR`.
-It refuses, by throwing, unless `E2E_ALLOW_API_RESTART=1` and `E2E_API_DIR` are both set, and
-always for port 4040, a developer's own `pnpm dev`; the SSE test skips with that reason
-instead. So the test needs an express you started on another port, named by
-`E2E_API_ORIGIN`, `E2E_API_DIR` and the container's `API_UPSTREAM`.
+has clicked. `E2E_API_DIR` is where `grantPlatformRole` runs `pnpm platform:grant`; point
+it at the express under test, never at your main checkout.
+
+**The SSE reconnect test restarts an express**, so it runs only by hand.
+`restartApi()` kills whatever listens on the `E2E_API_ORIGIN` port and starts `pnpm dev` in
+`E2E_API_DIR` with `APP_PORT` set to that port, so the new server never falls back to its
+checkout's `.env` port. The rules are `restartRefusal` in `scripts/api-restart-guard.mjs`,
+unit-tested in `tests/unit/api-restart-guard.test.ts`. It refuses, by throwing, on port 4040
+(a developer's own `pnpm dev`), without `E2E_ALLOW_API_RESTART=1`, without a non-empty
+`E2E_API_DIR`, when that directory resolves to the main checkout (`../express-boilerplate`),
+and when it is not a git worktree (no `.git` file), which refuses a standalone clone too.
+`e2e/nginx/sse.test.ts` skips with the reason instead, so `pnpm test:e2e:nginx` always skips
+it. To run it, start express from a worktree on another port
+(`git -C ../express-boilerplate worktree add ../express-sse`; in it, `pnpm install`, a `.env`,
+then `APP_PORT=4999 pnpm dev`), then:
+
+```sh
+docker build -t react-boilerplate:e2e .
+docker run -d --name rb-e2e-sse -p 8089:8080 --read-only --tmpfs /tmp \
+  --add-host=api:host-gateway -e API_UPSTREAM=http://api:4999 react-boilerplate:e2e
+E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
+  E2E_API_ORIGIN=http://localhost:4999 E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
+  pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
+docker rm -f rb-e2e-sse
+```
 
 **`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom
 cannot compute at all — over every surface reachable without a backend, in **both themes**:

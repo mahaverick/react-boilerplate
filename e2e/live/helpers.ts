@@ -1,7 +1,10 @@
 import { execFile as execFileCallback, spawn } from 'node:child_process'
+import { realpathSync, statSync } from 'node:fs'
+import path from 'node:path'
 import { promisify } from 'node:util'
 import { expect, type Page } from '@playwright/test'
 import type { MembershipRole } from '@/constants/roles'
+import { portOf, respawnOptions, restartRefusal } from '../../scripts/api-restart-guard.mjs'
 import { settle } from '../timing'
 
 const execFile = promisify(execFileCallback)
@@ -155,29 +158,27 @@ async function portFreedWithin(port: string, timeoutMs: number): Promise<boolean
   return true
 }
 
-/** The port a developer's own express listens on, which `restartApi` never kills. */
-const DEV_API_PORT = '4040'
-
 /**
- * Why `restartApi` would refuse to run here, or `null` when it may. It kills
- * whatever listens on the API port and starts `pnpm dev` in `E2E_API_DIR`,
- * so it needs an explicit opt-in (`E2E_ALLOW_API_RESTART=1`) and an explicit
- * `E2E_API_DIR`, and never touches :4040, the port a developer's own
- * `pnpm dev` holds.
+ * Why `restartApi` would refuse to run here, or `null` when it may: the rules
+ * are `restartRefusal` in `scripts/api-restart-guard.mjs`, applied to this
+ * process's environment and file system.
  * @returns The refusal, naming what to change, or `null`.
  */
 export function apiRestartRefusal(): string | null {
-  const port = new URL(API_ORIGIN).port || '80'
-  if (port === DEV_API_PORT) {
-    return `restartApi kills whatever listens on :${port}, the dev server's port: point E2E_API_ORIGIN at an express you started on another port`
-  }
-  if (process.env.E2E_ALLOW_API_RESTART !== '1') {
-    return `restartApi kills whatever listens on :${port} and starts pnpm dev in E2E_API_DIR: set E2E_ALLOW_API_RESTART=1 for an express you started`
-  }
-  if (process.env.E2E_API_DIR === undefined) {
-    return 'restartApi starts pnpm dev in E2E_API_DIR: set it to the checkout of the express you started, not the default sibling checkout'
-  }
-  return null
+  return restartRefusal({
+    origin: API_ORIGIN,
+    allowRestart: process.env.E2E_ALLOW_API_RESTART,
+    apiDir: process.env.E2E_API_DIR,
+    mainCheckout: path.resolve('../express-boilerplate'),
+    realpath: (target) => realpathSync(target),
+    isFile: (target) => {
+      try {
+        return statSync(target).isFile()
+      } catch {
+        return false
+      }
+    },
+  })
 }
 
 /**
@@ -186,12 +187,15 @@ export function apiRestartRefusal(): string | null {
  * Kills by PORT rather than by a pid this process spawned, because the API is
  * started outside the test run and the SSE test has to be able to restart
  * THAT. `tsx watch` spawns a child, so the whole process group goes. Refuses,
- * by throwing, unless `apiRestartRefusal` allows it.
+ * by throwing, unless `apiRestartRefusal` allows it. The new server is given
+ * `APP_PORT` set to the checked port, so it never falls back to its
+ * checkout's `.env` port (4040 by default).
  */
 export async function restartApi(): Promise<void> {
   const refusal = apiRestartRefusal()
-  if (refusal !== null) throw new Error(refusal)
-  const port = new URL(API_ORIGIN).port || '80'
+  const apiDir = process.env.E2E_API_DIR
+  if (refusal !== null || apiDir === undefined) throw new Error(refusal ?? 'E2E_API_DIR is unset')
+  const port = portOf(API_ORIGIN)
 
   /**
    * Kill EVERY pid holding the port, not just the process group of the one
@@ -223,7 +227,7 @@ export async function restartApi(): Promise<void> {
     })
     .toBe(false)
 
-  spawn('pnpm', ['dev'], { cwd: API_DIR, detached: true, stdio: 'ignore' }).unref()
+  spawn('pnpm', ['dev'], respawnOptions(apiDir, port, process.env)).unref()
   await waitForApi()
 }
 
