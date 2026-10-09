@@ -172,8 +172,8 @@ describe('tenant text fields: the API safeText rule', () => {
       ...base,
       name: 'Acme\u{202E}',
       description: 'a\rb',
-      logo: 'logo\u{85}',
-      website: 'site\u{2066}',
+      logo: 'https://acme.example/logo\u{85}',
+      website: 'https://acme.example/\u{2066}',
     })
     expect(issuesOf(result)).toEqual([
       ['name', 'Name contains characters that are not allowed'],
@@ -200,7 +200,10 @@ describe('tenant text fields: the API safeText rule', () => {
   })
 
   it('applies the same rule on update', () => {
-    const result = updateTenantSchema.safeParse({ name: 'Acme\u{0}', website: 'x\u{202A}' })
+    const result = updateTenantSchema.safeParse({
+      name: 'Acme\u{0}',
+      website: 'https://acme.example/\u{202A}',
+    })
     expect(issuesOf(result)).toEqual([
       ['name', 'Name contains characters that are not allowed'],
       ['website', 'Website contains characters that are not allowed'],
@@ -308,5 +311,55 @@ describe('tenant settings: metadata is bounded', () => {
     expect(metadataTextSchema.safeParse(JSON.stringify({ a: [[[[[[[[[[1]]]]]]]]]] })).success).toBe(
       false
     )
+  })
+})
+
+describe('tenant logo and website: http or https URLs only', () => {
+  const base = { name: 'Acme', slug: 'acme' }
+
+  it.each([
+    ['website', 'javascript:alert(document.domain)', 'Website must be an http or https URL.'],
+    ['logo', 'javascript:alert(1)', 'Logo must be an http or https URL.'],
+    ['logo', 'data:text/html,<script>alert(1)</script>', 'Logo must be an http or https URL.'],
+    ['website', 'call us maybe', 'Website must be an http or https URL.'],
+    ['website', 'https://bank.example@evil.example/', 'Website must be an http or https URL.'],
+    ['website', 'https://user:pw@host.example/', 'Website must be an http or https URL.'],
+    [
+      'website',
+      String.raw`https://evil.example\@good.example/`,
+      'Website must be an http or https URL.',
+    ],
+    ['logo', String.raw`https://good.example/a\b`, 'Logo must be an http or https URL.'],
+  ])('refuses %s %s', (field, value, message) => {
+    for (const schema of [newTenantSchema, updateTenantSchema]) {
+      const result = schema.safeParse({ ...base, [field]: value })
+      expect(result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])).toEqual([
+        [field, message],
+      ])
+    }
+  })
+
+  it('accepts http and https URLs, trimmed', () => {
+    expect(
+      newTenantSchema.parse({
+        ...base,
+        logo: ' https://cdn.acme.example/logo.png ',
+        website: 'http://acme.example',
+      })
+    ).toMatchObject({ logo: 'https://cdn.acme.example/logo.png', website: 'http://acme.example' })
+  })
+
+  it('accepts an @ in the path or query, which names no other host', () => {
+    expect(
+      newTenantSchema.parse({ ...base, website: 'https://example.com/u/@name?x=a@b' })
+    ).toMatchObject({ website: 'https://example.com/u/@name?x=a@b' })
+  })
+
+  it('still clears with a blank value', () => {
+    expect(newTenantSchema.parse({ ...base, logo: '', website: '' })).toEqual(base)
+    expect(updateTenantSchema.parse({ logo: '', website: '  ' })).toEqual({
+      logo: null,
+      website: null,
+    })
   })
 })
