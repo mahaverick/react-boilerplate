@@ -390,6 +390,131 @@ describe('tenant detail', () => {
   })
 
   /**
+   * Stored values the client's rules now refuse, saved before those rules
+   * existed: the forms send only what the user changed, so the old value
+   * neither blocks a save of another field nor goes back over the wire.
+   */
+  function mockLegacyTenant() {
+    mockTenant('owner')
+    const legacy = { ...TENANT, logo: 'javascript:alert(1)', description: 'Ad\u{200B}min anvils' }
+    const legacySettings = { ...SETTINGS, timezone: 'Mars/Olympus_Mons', locale: 'en_GB' }
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(legacy, 'owner'), 'Tenant retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/settings', () => ok(legacySettings, 'Settings retrieved.'))
+    )
+  }
+
+  it('saves an edited name while a refused legacy logo and description stay as they are', async () => {
+    mockLegacyTenant()
+    let patched: unknown = null
+    server.use(
+      http.patch('/api/v1/tenants/acme', async ({ request }) => {
+        patched = await request.json()
+        return ok({ ...TENANT, name: 'Acme Ltd' }, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await waitFor(() => {
+      expect(screen.getByLabelText('Logo URL')).toHaveValue('javascript:alert(1)')
+    })
+    await user.clear(name)
+    await user.type(name, 'Acme Ltd')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(patched).toEqual({ name: 'Acme Ltd' })
+    })
+    expect(screen.queryByText('Logo must be an http or https URL.')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Logo URL')).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  it('shows a legacy logo as invalid once the user edits it, and sends nothing', async () => {
+    mockLegacyTenant()
+    let patches = 0
+    server.use(
+      http.patch('/api/v1/tenants/acme', () => {
+        patches += 1
+        return ok(TENANT, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const logo = await screen.findByLabelText('Logo URL')
+    await waitFor(() => {
+      expect(logo).toHaveValue('javascript:alert(1)')
+    })
+    await user.type(logo, '2')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText('Logo must be an http or https URL.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Logo URL')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByText('Description contains characters that are not allowed')).toBeNull()
+    // The message is the barrier: a refused submit never reaches onSubmit.
+    expect(patches).toBe(0)
+  })
+
+  it('saves an edited metadata while a refused legacy timezone and locale stay as they are', async () => {
+    mockLegacyTenant()
+    let patched: unknown = null
+    server.use(
+      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
+        patched = await request.json()
+        return ok({ ...SETTINGS, metadata: { tier: 'max' } }, 'Settings updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/settings')
+
+    const metadata = await screen.findByLabelText('Metadata')
+    expect(screen.getByLabelText('Timezone')).toHaveValue('Mars/Olympus_Mons')
+    await user.clear(metadata)
+    await user.type(metadata, '{{"tier":"max"}')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+
+    await waitFor(() => {
+      expect(patched).toEqual({ metadata: { tier: 'max' } })
+    })
+    expect(screen.queryByText(/must be a time zone name/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/must be a language tag/)).not.toBeInTheDocument()
+  })
+
+  it('shows a legacy timezone as invalid once edited, and not after the edit is undone', async () => {
+    mockLegacyTenant()
+    let patched: unknown = null
+    server.use(
+      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
+        patched = await request.json()
+        return ok(SETTINGS, 'Settings updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/settings')
+
+    const timezone = await screen.findByLabelText('Timezone')
+    await user.type(timezone, 'X')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    expect(
+      await screen.findByText('Timezone must be a time zone name such as Europe/Paris.')
+    ).toBeInTheDocument()
+    expect(patched).toBeNull()
+
+    await user.type(timezone, '{Backspace}')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() => {
+      expect(patched).toEqual({})
+    })
+    expect(
+      screen.queryByText('Timezone must be a time zone name such as Europe/Paris.')
+    ).not.toBeInTheDocument()
+  })
+
+  /**
    * The settings twin of the members-tab retry test: a settings failure
    * has its own retry, which must reach the SETTINGS query and leave the
    * tenant detail alone. The detail is the role's source, and refetching

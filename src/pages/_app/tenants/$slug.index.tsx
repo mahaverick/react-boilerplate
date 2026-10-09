@@ -25,6 +25,7 @@ import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { formatDate } from '@/lib/format'
 import { useMyRole, useTenant, useUpdateTenant, type Tenant } from '@/queries/tenant.queries'
+import { changedFieldsOf } from '@/schemas/changed-fields.schemas'
 import { updateTenantSchema } from '@/schemas/tenant.schemas'
 
 export const Route = createFileRoute('/_app/tenants/$slug/')({
@@ -64,7 +65,9 @@ function TenantDetails({ tenant }: { tenant: Tenant }) {
 /**
  * The edit form. Owner and admin only: `PATCH /tenants/:slug` is gated
  * `requireRole('owner', 'admin')`. There is no slug field, since the API's
- * `updateTenantSchema` omits it. The value is parsed before posting, so an
+ * `updateTenantSchema` omits it. Only the fields the user changed from the
+ * stored row are checked and sent, so a stored value that today's rules refuse
+ * does not block saving the others. They are parsed before posting, so an
  * emptied box goes over as `null` and clears the column: `''` would be a 400,
  * and an omitted key would keep the old value.
  */
@@ -80,13 +83,15 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
     website: tenant.website ?? '',
   }
 
+  const changes = changedFieldsOf(updateTenantSchema, defaultValues)
+
   const form = useForm({
     defaultValues,
-    validators: { onSubmit: updateTenantSchema },
+    validators: { onSubmit: changes },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        await updateTenant.mutateAsync(updateTenantSchema.parse(value))
+        await updateTenant.mutateAsync(changes.parse(value))
         toast.success('Tenant updated.')
       } catch (error) {
         serverErrors.capture(error)

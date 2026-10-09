@@ -28,6 +28,7 @@ import {
   useUpdateTenantSettings,
   type TenantSettings,
 } from '@/queries/tenant.queries'
+import { changedFieldsOf } from '@/schemas/changed-fields.schemas'
 import { tenantSettingsFormSchema } from '@/schemas/tenant.schemas'
 
 export const Route = createFileRoute('/_app/tenants/$slug/settings')({
@@ -51,7 +52,9 @@ function metadataText(metadata: Record<string, unknown> | null): string {
 
 /**
  * The settings form for owners and admins. Its schema's output is the PATCH
- * body: the metadata textarea parses to an object, or `null` to clear it.
+ * body: the metadata textarea parses to an object, or `null` to clear it. Only
+ * the fields the user changed are checked and sent, so a stored value that
+ * today's rules refuse does not block saving the others.
  */
 function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettings }) {
   const updateSettings = useUpdateTenantSettings(slug)
@@ -64,13 +67,15 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
     metadata: metadataText(settings.metadata),
   }
 
+  const changes = changedFieldsOf(tenantSettingsFormSchema, defaultValues)
+
   const form = useForm({
     defaultValues,
-    validators: { onSubmit: tenantSettingsFormSchema },
+    validators: { onSubmit: changes },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        await updateSettings.mutateAsync(tenantSettingsFormSchema.parse(value))
+        await updateSettings.mutateAsync(changes.parse(value))
         toast.success('Settings updated.')
       } catch (error) {
         serverErrors.capture(error)
