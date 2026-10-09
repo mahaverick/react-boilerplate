@@ -161,16 +161,30 @@ describe('docker/upload-sourcemaps.sh', () => {
     expect(cliRuns()).toEqual([])
   })
 
-  it.each(['Uploaded 0 chunks', 'No source maps found in dist'])(
-    'fails the build when the CLI uploaded nothing: %s',
-    (output) => {
-      const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101,202', CLI_OUTPUT: output })
-      expect(result.status).toBe(1)
-      expect(result.stdout).not.toContain('sourcemaps: uploaded to project 101')
-      expect(result.stderr).toContain('posthog-cli uploaded no source maps to project 101')
-      expect(cliRuns().map((run) => run[1])).toEqual(['101'])
-    }
-  )
+  it.each([
+    'Uploaded 0 chunks',
+    'No source maps found in dist',
+    'Uploaded 0 chunks, skipped 0 already present',
+    'Uploaded 0 chunks, 0 already uploaded',
+  ])('fails the build when the CLI uploaded nothing: %s', (output) => {
+    const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101,202', CLI_OUTPUT: output })
+    expect(result.status).toBe(1)
+    expect(result.stdout).not.toContain('sourcemaps: uploaded to project 101')
+    expect(result.stderr).toContain('posthog-cli uploaded no source maps to project 101')
+    expect(cliRuns().map((run) => run[1])).toEqual(['101'])
+  })
+
+  it.each([
+    'Uploaded 0 chunks, 12 already uploaded',
+    'Uploaded 0 chunks, skipped 3 already present',
+    'No source maps found to upload: 7 already exist',
+    'uploaded 0, skipped 5 existing',
+  ])('passes a re-run that finds every source map already uploaded: %s', (output) => {
+    const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101,202', CLI_OUTPUT: output })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('sourcemaps: uploaded to project 202')
+    expect(cliRuns().map((run) => run[1])).toEqual(['101', '202'])
+  })
 
   it('refuses a project id that is not digits, before uploading anything', () => {
     const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101,abc' })

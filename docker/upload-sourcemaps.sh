@@ -70,7 +70,12 @@ for project in $(printf '%s' "$projects" | tr ',' ' '); do
     echo "sourcemaps: posthog-cli skipped chunks as too large for project $project" >&2
     exit 1
   fi
-  if printf '%s\n' "$output" | grep -Eiq 'uploaded 0([^0-9]|$)|no source ?maps? (were )?found'; then
+  # Nothing uploaded fails too, unless a non-zero count says the maps were
+  # already there ("12 already uploaded", "skipped 3 existing"): a re-run of
+  # a build whose upload went through finds nothing new to send.
+  if printf '%s\n' "$output" | grep -Eiq 'uploaded 0([^0-9]|$)|no source ?maps? (were )?found' \
+    && ! printf '%s\n' "$output" \
+      | grep -Eiq '(^|[^0-9])[1-9][0-9]*[^0-9.,;]{0,30}(already|existing)|(already|existing)[^0-9.,;]{0,30}[1-9]'; then
     echo "sourcemaps: posthog-cli uploaded no source maps to project $project" >&2
     exit 1
   fi
