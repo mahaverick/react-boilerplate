@@ -19,6 +19,7 @@ import {
   fingerprintOf,
   isAppFrame,
   isIgnoredError,
+  KEEPALIVE_QUOTA_BYTES,
   PAGE_LIMIT,
   report,
   resetReporterForTests,
@@ -429,21 +430,26 @@ describe('report', () => {
     }
   })
 
-  it('splits a burst of deep exceptions into requests of at most 60 KiB, keepalive on each', async () => {
+  it('splits a burst of deep exceptions into requests of at most 60 KiB, keepalive while the quota allows', async () => {
     for (let index = 0; index < BATCH_SIZE; index += 1) {
       report(deepError(index), 'window', false)
     }
     await vi.advanceTimersByTimeAsync(0)
     await drain()
     expect(fetchMock.mock.calls.length).toBeGreaterThan(2)
+    expect(fetchMock.mock.calls[0]?.[1]?.keepalive).toBe(true)
+    let keepaliveBytes = 0
     for (const [, init] of fetchMock.mock.calls) {
       const body = bodyOf(init)
-      expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(BATCH_MAX_BYTES)
-      expect(init?.keepalive).toBe(true)
+      const bytes = new TextEncoder().encode(body).length
+      expect(bytes).toBeLessThanOrEqual(BATCH_MAX_BYTES)
+      if (init?.keepalive === true) keepaliveBytes += bytes
       expect((JSON.parse(body) as { batch: unknown[] }).batch.length).toBeLessThanOrEqual(
         BATCH_SIZE
       )
     }
+    // Every chunk leaves in one flush, so all are in flight together.
+    expect(keepaliveBytes).toBeLessThanOrEqual(KEEPALIVE_QUOTA_BYTES)
     expect(sentEvents()).toHaveLength(BATCH_SIZE)
   })
 
@@ -533,6 +539,33 @@ describe('waiting for analytics to settle', () => {
     await drain()
     expect(beacon).toHaveBeenCalledTimes(1)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('keepalive bodies in flight', () => {
+  it('never has more than 64 KiB of keepalive bodies in flight at once', async () => {
+    fetchMock.mockImplementation(() => new Promise(() => {})) // in flight until the page ends
+    for (let index = 0; index < 20; index += 1) report(deepError(index), 'window', false)
+    await drain()
+    const inFlight = fetchMock.mock.calls
+      .filter(([, init]) => init?.keepalive === true)
+      .reduce((sum, [, init]) => sum + new TextEncoder().encode(bodyOf(init)).length, 0)
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1)
+    expect(inFlight).toBeLessThanOrEqual(KEEPALIVE_QUOTA_BYTES)
+  })
+
+  it('asks for keepalive again once an earlier keepalive request has settled', async () => {
+    let finish: (response: Response) => void = () => {}
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
+    for (let index = 0; index < 20; index += 1) report(deepError(index), 'window', false)
+    await drain()
+    const calls = fetchMock.mock.calls.length
+    finish(new Response('{}', { status: 200 }))
+    await vi.advanceTimersByTimeAsync(0)
+    report(appError('after the burst'), 'window', false)
+    await drain()
+    expect(fetchMock.mock.calls).toHaveLength(calls + 1)
+    expect(fetchMock.mock.calls.at(-1)?.[1]?.keepalive).toBe(true)
   })
 })
 

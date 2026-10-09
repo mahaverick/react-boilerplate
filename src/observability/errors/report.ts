@@ -59,6 +59,9 @@ export const CAUSE_DEPTH = 5
 /** The most serialized bytes in one request: under the 64 KiB that `keepalive` fetches and beacons share. */
 export const BATCH_MAX_BYTES = 60 * 1024
 
+/** The most `keepalive` request bytes a page may have in flight at once; Chromium refuses a keepalive fetch past it. */
+export const KEEPALIVE_QUOTA_BYTES = 64 * 1024
+
 /** An error handed over later than this after it was noted is sent anonymous: its identity is no longer knowable. */
 export const STALE_ERROR_MS = 10_000
 
@@ -91,6 +94,8 @@ let queue: ExceptionEvent[] = []
 const awaitingIdentity = new Set<PendingEvent>()
 let flushTimer: ReturnType<typeof setTimeout> | undefined
 const retrying = new Map<ExceptionEvent[], ReturnType<typeof setTimeout>>()
+/** The bytes of this reporter's `keepalive` requests still in flight. */
+let keepaliveBytesInFlight = 0
 let isPageHideInstalled = false
 
 function messageOf(input: unknown): string | undefined {
@@ -293,18 +298,33 @@ function takeBatch(events: ExceptionEvent[]): ExceptionEvent[] {
   return events.splice(0, count)
 }
 
+/**
+ * Posts one batch, retrying once after a network failure or a 5xx. The
+ * request asks for `keepalive`, so it outlives the page, only while it fits
+ * in what is left of `KEEPALIVE_QUOTA_BYTES` beside the reporter's other
+ * keepalive requests in flight; otherwise it goes as a plain request.
+ * @param batch - The events to send.
+ * @param canRetry - False for the retry itself.
+ */
 async function send(batch: ExceptionEvent[], canRetry: boolean): Promise<void> {
+  let keepaliveBytes = 0
   try {
     const body = batchBody(batch)
-    // A keepalive body over 64 KiB is refused outright, so only one that fits asks for it.
+    const bytes = byteLength(body)
+    if (bytes <= BATCH_MAX_BYTES && keepaliveBytesInFlight + bytes <= KEEPALIVE_QUOTA_BYTES) {
+      keepaliveBytes = bytes
+      keepaliveBytesInFlight += bytes
+    }
     const response = await fetch(batchUrl(), {
       method: 'POST',
-      ...(byteLength(body) <= BATCH_MAX_BYTES ? { keepalive: true } : {}),
+      ...(keepaliveBytes > 0 ? { keepalive: true } : {}),
       body,
     })
     if (response.status < 500) return
   } catch {
     // A network failure: retried once below, like a 5xx.
+  } finally {
+    keepaliveBytesInFlight -= keepaliveBytes
   }
   if (!canRetry) return
   retrying.set(
@@ -443,6 +463,7 @@ export function resetReporterForTests(): void {
   flushTimer = undefined
   for (const timer of retrying.values()) clearTimeout(timer)
   retrying.clear()
+  keepaliveBytesInFlight = 0
   if (isPageHideInstalled) removeEventListener('pagehide', sendOnPageHide)
   isPageHideInstalled = false
 }
