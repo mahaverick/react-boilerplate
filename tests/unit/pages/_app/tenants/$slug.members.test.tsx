@@ -763,7 +763,7 @@ describe('inviting, and the pending invitations', () => {
     ).toBeInTheDocument()
   })
 
-  it('switches off Resend, with the reason, for a role an admin cannot grant', async () => {
+  it('switches off Resend and Revoke, with one reason, for a role an admin cannot grant', async () => {
     mockTenant('admin', [member(ME, 'admin', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () =>
@@ -781,14 +781,23 @@ describe('inviting, and the pending invitations', () => {
 
     for (const email of ['owner@b.com', 'admin@b.com']) {
       const resend = await screen.findByRole('button', { name: `Resend invitation to ${email}` })
-      expect(resend).toBeDisabled()
-      expect(resend).toHaveAccessibleDescription(
-        'Only an owner can resend an invitation for this role.'
-      )
+      const revoke = screen.getByRole('button', { name: `Revoke invitation to ${email}` })
+      for (const control of [resend, revoke]) {
+        expect(control).toBeDisabled()
+        expect(control).toHaveAccessibleDescription(
+          'Only an owner can resend or revoke an invitation for this role.'
+        )
+      }
     }
-    const editorResend = screen.getByRole('button', { name: 'Resend invitation to editor@b.com' })
-    expect(editorResend).toBeEnabled()
-    expect(editorResend).not.toHaveAttribute('aria-describedby')
+    // Once per row, not once per disabled control.
+    expect(
+      screen.getAllByText('Only an owner can resend or revoke an invitation for this role.')
+    ).toHaveLength(2)
+    for (const name of ['Resend invitation to editor@b.com', 'Revoke invitation to editor@b.com']) {
+      const control = screen.getByRole('button', { name })
+      expect(control).toBeEnabled()
+      expect(control).not.toHaveAttribute('aria-describedby')
+    }
   })
 
   it('lets an owner resend an invitation for every role', async () => {
