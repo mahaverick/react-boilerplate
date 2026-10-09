@@ -407,6 +407,62 @@ describe('useNotificationStream', () => {
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
   })
 
+  it('holds a long Retry-After to the five-minute cap', async () => {
+    countRefreshes()
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': '3600' } })
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(299_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+  })
+
+  it('reconnects within six minutes of a Retry-After date a year ahead', async () => {
+    countRefreshes()
+    // The most jitter there is: a fifth on top of the five-minute cap.
+    vi.spyOn(Math, 'random').mockReturnValue(0.999)
+    const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60_000)
+    queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': nextYear.toUTCString() } })
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    // Not at once either: a year is past setTimeout's ceiling, which would fire immediately.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(290_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70_000)
+    })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+  })
+
+  it('waits the backoff, not zero, on a Retry-After it cannot read', async () => {
+    countRefreshes()
+    queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': 'soon' } })
+
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600)
+    })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+  })
+
   it('reconnects through ensureSession after a stream failure', async () => {
     server.use(
       http.post('/api/v1/auth/refresh', () =>
