@@ -349,6 +349,46 @@ test.describe('analytics against a fake PostHog', () => {
   )
 
   test(
+    'replay masks an address in an aria-label, in the full snapshot and in later mutations',
+    { tag: '@no-api' },
+    async ({ page }) => {
+      // In the DOM before the recorder loads, so it is in the full snapshot.
+      await page.addInitScript((email) => {
+        document.addEventListener('DOMContentLoaded', () => {
+          const resend = document.createElement('button')
+          resend.type = 'button'
+          resend.id = 'probe-resend'
+          resend.textContent = 'Resend'
+          resend.setAttribute('aria-label', `Resend invitation to ${email}`)
+          document.body.append(resend)
+        })
+      }, PROBE_EMAIL)
+      await page.goto('/login')
+      const heading = page.getByRole('heading', { name: 'Sign in', level: 1 })
+      await expect(heading).toBeVisible()
+      await clickUntilReplayed(fake, heading, 'Sign in')
+
+      // An added element and a changed attribute: the two mutation paths.
+      await page.evaluate((email) => {
+        const revoke = document.createElement('button')
+        revoke.type = 'button'
+        revoke.textContent = 'aria-mutation-marker'
+        revoke.setAttribute('aria-label', `Revoke invitation to ${email}`)
+        document.body.append(revoke)
+        document
+          .getElementById('probe-resend')
+          ?.setAttribute('aria-label', `Revoke the invitation to ${email}?`)
+      }, PROBE_EMAIL)
+      await replayContains(fake, 'aria-mutation-marker')
+
+      const replay = fake.bodiesFor('/s/').join('\n')
+      // Three labels: the snapshot's, the added button's and the changed one.
+      expect(replay.match(/aria-label\\*":\\*"\*\*\*\\*"/g)?.length ?? 0).toBeGreaterThanOrEqual(3)
+      expect(fake.bodies(), 'an aria-label address reached PostHog').not.toContain('pii-probe')
+    }
+  )
+
+  test(
     'each pageview carries the tenant of its own page: a switch, a non-tenant page, a full load',
     { tag: '@no-api' },
     async ({ page }) => {

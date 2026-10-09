@@ -141,6 +141,13 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   value, not the sentence. A page that renders a new kind of person data gets
   its fixture in the harness's `?pii=probe` mode and a scan in
   `e2e/fixtures/pii.test.ts`; without that, the guard cannot see it.
+- **Replay masks attributes by name, not by `<Pii>`**, which cannot wrap one.
+  `maskReplayAttribute` (`mask-attribute.ts`, passed as `session_recording.maskAttributeFn`)
+  turns `aria-label`, `title`, `alt`, `placeholder`, `srcdoc`, every `data-*`, an `href` with a
+  query or a `mailto:`/`tel:` scheme, and a `src` or `srcset` with a query into `***`, and rrweb applies it
+  to the full snapshot and to added nodes and attribute changes alike. That is why an
+  accessible name may carry an address ("Resend invitation to …"); an attribute outside that
+  list may not. `e2e/nginx/analytics.test.ts` pins `aria-label` on all three paths.
 - **Only `src/observability/analytics/` imports posthog-js**, and only
   `analytics.ts` imports it as a value, through `import()`. `pnpm check:bundle`
   fails if it reaches the first-visit chunks.
