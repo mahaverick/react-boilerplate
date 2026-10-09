@@ -203,34 +203,76 @@ function run(command: Command, isDroppable = false): void {
   queue.push({ command, isDroppable })
 }
 
+/** How many times a registry change re-reads storage that another tab changed under it before writing anyway. */
+const IDENTITY_REGISTRY_WRITE_ATTEMPTS = 3
+
 /**
- * The registry's unexpired entries, oldest first. Storage that throws, holds
- * something else or is missing reads as empty.
+ * The registry's raw stored text. Storage that throws reads as missing.
  */
-function readIdentityRegistry(): IdentityRegistryEntry[] {
+function storedIdentityRegistry(): string | null {
   try {
-    const parsed: unknown = JSON.parse(window.localStorage.getItem(IDENTITY_REGISTRY_KEY) ?? '[]')
+    return window.localStorage.getItem(IDENTITY_REGISTRY_KEY)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The well-formed, unexpired entries of a stored registry, oldest first.
+ * Text that is missing, malformed or not a list reads as empty.
+ */
+function parseIdentityRegistry(stored: string | null): IdentityRegistryEntry[] {
+  try {
+    const parsed: unknown = JSON.parse(stored ?? '[]')
     if (!Array.isArray(parsed)) return []
     const now = Date.now()
-    const entries = (parsed as unknown[])
-      .filter(
-        (entry): entry is IdentityRegistryEntry =>
-          typeof entry === 'object' &&
-          entry !== null &&
-          typeof (entry as IdentityRegistryEntry).distinctId === 'string' &&
-          typeof (entry as IdentityRegistryEntry).at === 'number' &&
-          Math.abs(now - (entry as IdentityRegistryEntry).at) < IDENTITY_REGISTRY_TTL_MS
-      )
-      .slice(-MAX_SIBLING_IDENTITIES)
-    // Ids of closed tabs do not linger: the trimmed list replaces what storage held.
-    if (entries.length !== parsed.length) writeIdentityRegistry(entries)
-    return entries
+    return (parsed as unknown[]).filter(
+      (entry): entry is IdentityRegistryEntry =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as IdentityRegistryEntry).distinctId === 'string' &&
+        typeof (entry as IdentityRegistryEntry).at === 'number' &&
+        Math.abs(now - (entry as IdentityRegistryEntry).at) < IDENTITY_REGISTRY_TTL_MS
+    )
   } catch {
     return []
   }
 }
 
-function writeIdentityRegistry(entries: IdentityRegistryEntry[]): void {
+/**
+ * The registry's unexpired entries, oldest first. Storage that throws, holds
+ * something else or is missing reads as empty.
+ */
+function readIdentityRegistry(): IdentityRegistryEntry[] {
+  return parseIdentityRegistry(storedIdentityRegistry()).slice(-MAX_SIBLING_IDENTITIES)
+}
+
+/**
+ * Changes the registry: `add` is recorded (replacing any entry for the same
+ * id) and the ids in `remove` are taken out; expired entries are dropped and
+ * the list is cut to `MAX_SIBLING_IDENTITIES` on the way. Every tab of this
+ * app writes the one key, so the change is applied to what storage holds
+ * right before the write: when the text read to compute it has changed by
+ * then, the change is computed again from the new text, so an entry another
+ * tab wrote in between is kept.
+ * @param change - The entry to add and the ids to remove.
+ */
+function changeIdentityRegistry(change: {
+  add?: IdentityRegistryEntry
+  remove?: readonly string[]
+}): void {
+  const { add, remove = [] } = change
+  let stored = storedIdentityRegistry()
+  let entries: IdentityRegistryEntry[] = []
+  for (let attempt = 0; attempt < IDENTITY_REGISTRY_WRITE_ATTEMPTS; attempt += 1) {
+    const kept = parseIdentityRegistry(stored).filter(
+      (entry) => !remove.includes(entry.distinctId) && entry.distinctId !== add?.distinctId
+    )
+    entries = (add ? [...kept, add] : kept).slice(-MAX_SIBLING_IDENTITIES)
+    const current = storedIdentityRegistry()
+    if (current === stored) break
+    stored = current
+  }
   try {
     if (entries.length === 0) window.localStorage.removeItem(IDENTITY_REGISTRY_KEY)
     else window.localStorage.setItem(IDENTITY_REGISTRY_KEY, JSON.stringify(entries))
@@ -248,17 +290,12 @@ function writeIdentityRegistry(entries: IdentityRegistryEntry[]): void {
  * may deliver another tab's storage write late.
  */
 function registerIdentity(distinctId: string): void {
-  writeIdentityRegistry(
-    [
-      ...readIdentityRegistry().filter((entry) => entry.distinctId !== distinctId),
-      { distinctId, at: Date.now() },
-    ].slice(-MAX_SIBLING_IDENTITIES)
-  )
+  changeIdentityRegistry({ add: { distinctId, at: Date.now() } })
 }
 
 /** Takes `distinctId` out of the registry: the person signed out of this tab. */
 function unregisterIdentity(distinctId: string): void {
-  writeIdentityRegistry(readIdentityRegistry().filter((entry) => entry.distinctId !== distinctId))
+  changeIdentityRegistry({ remove: [distinctId] })
 }
 
 /** Whether another tab of this app identified `distinctId`: announced on the channel or registered in storage. */
@@ -1015,7 +1052,11 @@ export function resetAnalyticsForTests(): void {
   supersededNotifiedAt = 0
   identityChannel?.close()
   identityChannel = null
-  writeIdentityRegistry([])
+  try {
+    window.localStorage.removeItem(IDENTITY_REGISTRY_KEY)
+  } catch {
+    // Storage may be blocked: there is then no registry to forget.
+  }
   consentListeners.clear()
   supersededListeners.clear()
   settledWaiters.clear()

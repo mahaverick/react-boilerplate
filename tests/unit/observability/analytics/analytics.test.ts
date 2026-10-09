@@ -839,3 +839,51 @@ describe('getAnalyticsSessionId', () => {
     expect(getAnalyticsSessionId()).toBe(sdk.sessionId)
   })
 })
+
+describe('the identity registry', () => {
+  it("keeps another tab's entry written between this tab's read and its write", async () => {
+    await initAnalytics(OPT_OUT)
+    const realGet = Reflect.get(Storage.prototype, 'getItem')
+    const realSet = Reflect.get(Storage.prototype, 'setItem')
+    let isInjected = false
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (this: Storage, key) {
+      const value = realGet.call(this, key)
+      if (key === 'analytics-identity-registry' && !isInjected) {
+        isInjected = true
+        // Another tab registers its person between this tab's read and its write.
+        const others = JSON.parse(value ?? '[]') as unknown[]
+        realSet.call(
+          this,
+          key,
+          JSON.stringify([...others, { distinctId: 'user-b', at: Date.now() }])
+        )
+      }
+      return value
+    })
+    identifyUser('user-a')
+    vi.restoreAllMocks()
+    expect(isInjected).toBe(true)
+    const stored = JSON.parse(
+      window.localStorage.getItem('analytics-identity-registry') ?? '[]'
+    ) as { distinctId: string }[]
+    expect(stored.map((entry) => entry.distinctId)).toEqual(['user-b', 'user-a'])
+  })
+
+  it("a sign-out takes out this tab's user only, keeping an entry another tab wrote since", async () => {
+    await initAnalytics(OPT_OUT)
+    identifyUser('user-a')
+    const now = Date.now()
+    window.localStorage.setItem(
+      'analytics-identity-registry',
+      JSON.stringify([
+        { distinctId: 'user-a', at: now },
+        { distinctId: 'user-b', at: now },
+      ])
+    )
+    resetAnalytics()
+    const stored = JSON.parse(
+      window.localStorage.getItem('analytics-identity-registry') ?? '[]'
+    ) as { distinctId: string }[]
+    expect(stored.map((entry) => entry.distinctId)).toEqual(['user-b'])
+  })
+})
