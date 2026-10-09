@@ -4,7 +4,8 @@
 #
 #   bash docker/check-image.sh <image> [host-port] [release]
 #
-# `release` is the GIT_SHA the image was built with (default `dev`).
+# `release` is the GIT_SHA the image was built with (default `dev`). The
+# proxied-API check also uses host-port + 1.
 set -euo pipefail
 
 image=${1:?usage: bash docker/check-image.sh <image> [host-port] [release]}
@@ -16,7 +17,8 @@ work=$(mktemp -d)
 fail=0
 
 cleanup() {
-  docker rm -f "$name" "$name-bad" >/dev/null 2>&1 || true
+  docker rm -f "$name" "$name-bad" "$name-api" "$name-proxy" >/dev/null 2>&1 || true
+  docker network rm "$name-net" >/dev/null 2>&1 || true
   rm -rf "$work"
 }
 trap cleanup EXIT
@@ -131,6 +133,71 @@ Cross-Origin-Opener-Policy|same-origin
 Server|nginx
 EOF
 done
+
+# --- /api/ responses carry each security header once --------------------------
+# Two of a header leave a browser enforcing neither cleanly (two COOP lines do
+# not parse). With no API behind it, nginx's own 502 carries nginx's set; behind
+# an API that sends its own, as express's helmet does, the response keeps the
+# API's and nginx adds only what the API left out.
+security_fields='Content-Security-Policy X-Frame-Options Cross-Origin-Opener-Policy Referrer-Policy X-Content-Type-Options Permissions-Policy'
+# How many times header $1 appears in the `curl -D` dump $2.
+header_count() {
+  { grep -ci "^$1:" "$2" || true; } | tr -d ' '
+}
+curl -s -D "$work/headers" -o /dev/null "$base/api/v1/health"
+for field in $security_fields; do
+  count=$(header_count "$field" "$work/headers")
+  [ "$count" = 1 ] || problem "/api/ with no API behind it: $field sent $count times, not once"
+done
+# A stand-in API: this image's nginx, answering every path with helmet's
+# values for the five headers helmet sets, and no Permissions-Policy.
+api_port=$((port + 1))
+cat >"$work/stub.conf" <<'STUB'
+pid /tmp/stub.pid;
+events {}
+http {
+  access_log off;
+  client_body_temp_path /tmp/stub-client;
+  proxy_temp_path /tmp/stub-proxy;
+  fastcgi_temp_path /tmp/stub-fastcgi;
+  uwsgi_temp_path /tmp/stub-uwsgi;
+  scgi_temp_path /tmp/stub-scgi;
+  server {
+    listen 8081;
+    location / {
+      add_header Content-Security-Policy "default-src 'none';frame-ancestors 'none'" always;
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header Cross-Origin-Opener-Policy "same-origin" always;
+      add_header Referrer-Policy "no-referrer" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      return 200 '{}';
+    }
+  }
+}
+STUB
+docker network create "$name-net" >/dev/null
+docker run -d --name "$name-api" --network "$name-net" --tmpfs /tmp \
+  -v "$work/stub.conf:/etc/stub.conf:ro" --entrypoint nginx "$image" -c /etc/stub.conf -g 'daemon off;' >/dev/null
+docker run -d --name "$name-proxy" --network "$name-net" -p "127.0.0.1:$api_port:8080" --read-only \
+  --tmpfs /tmp -e "API_UPSTREAM=http://$name-api:8081" "$image" >/dev/null
+status=
+for _ in $(seq 1 30); do
+  status=$(curl -s -D "$work/headers" -o /dev/null -w '%{http_code}' "http://127.0.0.1:$api_port/api/v1/health" || true)
+  [ "$status" = 200 ] && break
+  sleep 1
+done
+if [ "$status" != 200 ]; then
+  problem "the proxied /api/ check got $status from the stand-in API, not 200"
+else
+  for field in $security_fields; do
+    count=$(header_count "$field" "$work/headers")
+    [ "$count" = 1 ] || problem "proxied /api/: $field sent $count times, not once"
+  done
+  [ "$(header X-Frame-Options "$work/headers")" = SAMEORIGIN ] \
+    || problem "proxied /api/: X-Frame-Options is not the API's own"
+  [ "$(header Content-Security-Policy "$work/headers")" = "default-src 'none';frame-ancestors 'none'" ] \
+    || problem "proxied /api/: Content-Security-Policy is not the API's own"
+fi
 curl -s -D "$work/headers" -o /dev/null "$base/theme-init.js"
 [ "$(header Content-Type "$work/headers")" = application/javascript ] || problem "/theme-init.js is not served as JavaScript"
 [ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/theme-init.js is not no-store"
