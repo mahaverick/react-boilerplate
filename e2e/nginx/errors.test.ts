@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 import {
+  clickUntilReplayed,
   HUMAN_USER_AGENT,
   passPosthogBotFilter,
   routeCollectToFake,
@@ -346,10 +347,11 @@ test.describe('error tracking against a fake PostHog', () => {
 
       // A second crash with the address in the path.
       await page.goto(`/tenants/${PROBE_EMAIL}`)
-      await expect(
-        page.getByRole('heading', { name: 'Something went wrong', level: 1 })
-      ).toBeVisible()
+      const crashed = page.getByRole('heading', { name: 'Something went wrong', level: 1 })
+      await expect(crashed).toBeVisible()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(2)
+      // The barrier: a replay upload from this page, so the read below covers a known flush.
+      await clickUntilReplayed(fake, crashed, `/tenants/${PROBE_EMAIL}`)
       // Read before the synthetic title, which replay records and $pageview sends; react's titles carry at most the slug, already in the URL.
       const egress = fake.bodies()
       // A third, with the probes in the title and a form field.
