@@ -312,6 +312,27 @@ describe('read-only maintenance', () => {
     expect(screen.getByRole('region', { name: 'Maintenance' })).toBeInTheDocument()
   })
 
+  it('makes no status read when the header switched read_only on and back off before the read started', async () => {
+    signIn()
+    let calls = 0
+    server.use(
+      http.get('/api/v1/status/maintenance', () => {
+        calls += 1
+        return ok({ mode: 'off', message: null, since: null }, 'Maintenance status retrieved.')
+      })
+    )
+    renderAppAt('/dashboard')
+    await waitFor(() =>
+      expect(queryClient.getQueryState(['maintenance-status'])?.status).toBe('success')
+    )
+    const before = calls
+    act(() => useMaintenanceModeStore.getState().setFromHeader('read_only'))
+    act(() => useMaintenanceModeStore.getState().setFromHeader('off'))
+    await act(() => settle(200, 'a read that should not start has no event to wait on'))
+    expect(useMaintenanceModeStore.getState().mode).toBe('off')
+    expect(calls - before).toBe(0)
+  })
+
   it('collapses to its summary and expands again', async () => {
     signIn()
     serveStatus('read_only')

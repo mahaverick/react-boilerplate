@@ -31,10 +31,15 @@ export function MaintenanceGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (mode === 'off' || since !== null) return
+    let isCancelled = false
     // `cancelRefetch` only cancels a read that has data already; the first read has none.
-    void queryClient
-      .cancelQueries({ queryKey: maintenanceStatusKey })
-      .then(() => refetch({ cancelRefetch: true }))
+    void queryClient.cancelQueries({ queryKey: maintenanceStatusKey }).then(() => {
+      // The mode changed again (back off, or its start became known) before the cancel finished.
+      if (!isCancelled) void refetch({ cancelRefetch: true })
+    })
+    return () => {
+      isCancelled = true
+    }
   }, [mode, since, refetch, queryClient])
 
   useEffect(() => {
