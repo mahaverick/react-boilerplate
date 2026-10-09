@@ -992,7 +992,18 @@ describe('the remove and leave dialogs', () => {
 
     await user.click((await rowFor('Ada')).getByRole('button', { name: 'Remove' }))
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
-      'Ada X will lose access to this tenant immediately. Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there.'
+      'Ada X loses staff access immediately. Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there. If their address is on an auto-join domain, they rejoin as a viewer at their next sign-in.'
+    )
+  })
+
+  it('tells a platform viewer leaving that an auto-join domain brings them back', async () => {
+    mockPlatformTenant('viewer', [member(ME, 'viewer', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
+    const user = userEvent.setup()
+    renderAppAt('/tenants/platform/members')
+
+    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+      'You lose staff access immediately. An owner or admin will have to invite you back, unless your address is on an auto-join domain: then you rejoin as a viewer at your next sign-in.'
     )
   })
 
@@ -1003,7 +1014,7 @@ describe('the remove and leave dialogs', () => {
 
     await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
-      'You will lose access to this tenant immediately. An owner or admin will have to invite you back. Pending invitations you sent here are revoked, and so are any you sent in other tenants for a role you can no longer grant there.'
+      'You lose staff access immediately. An owner or admin will have to invite you back, unless your address is on an auto-join domain: then you rejoin as a viewer at your next sign-in. Pending invitations you sent here are revoked, and so are any you sent in other tenants for a role you can no longer grant there.'
     )
   })
 

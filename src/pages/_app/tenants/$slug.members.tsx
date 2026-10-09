@@ -77,6 +77,14 @@ export const Route = createFileRoute('/_app/tenants/$slug/members')({
 const LEAVE_WARNING =
   'You will lose access to this tenant immediately. An owner or admin will have to invite you back.'
 
+/**
+ * What the Leave dialog says on the platform tenant. Its membership is the
+ * platform role, so leaving ends staff access; an address on an auto-join
+ * domain joins again as viewer at its next sign-in.
+ */
+const LEAVE_PLATFORM =
+  'You lose staff access immediately. An owner or admin will have to invite you back, unless your address is on an auto-join domain: then you rejoin as a viewer at your next sign-in.'
+
 /** Added for an owner or admin, the roles that can have sent invitations: leaving revokes them. */
 const INVITATIONS_REVOKED_ON_LEAVE = 'Pending invitations you sent are revoked.'
 
@@ -87,9 +95,12 @@ const PLATFORM_INVITATIONS_REVOKED_ON_LEAVE =
 /** What removing a member says about the invitations they sent. */
 const INVITATIONS_REVOKED_ON_REMOVE = 'Pending invitations they sent are revoked.'
 
-/** The same on the platform tenant, where the removal also revokes elsewhere as leaving does. */
+/**
+ * The same on the platform tenant, where the removal also revokes elsewhere
+ * as leaving does, and an auto-join domain brings the address back as viewer.
+ */
 const PLATFORM_INVITATIONS_REVOKED_ON_REMOVE =
-  'Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there.'
+  'Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there. If their address is on an auto-join domain, they rejoin as a viewer at their next sign-in.'
 
 /** What a leave says when the API answers 404: the membership was already gone. */
 const NO_LONGER_A_MEMBER = 'You are no longer a member of this tenant.'
@@ -281,13 +292,16 @@ function RemoveMemberButton({
           <AlertDialogDescription>
             {isSelf ? (
               <>
-                {LEAVE_WARNING}
+                {isPlatform ? LEAVE_PLATFORM : LEAVE_WARNING}
                 {canManageTenant(myRole) &&
                   ` ${isPlatform ? PLATFORM_INVITATIONS_REVOKED_ON_LEAVE : INVITATIONS_REVOKED_ON_LEAVE}`}
               </>
             ) : (
               <>
-                <Pii>{name}</Pii> will lose access to this tenant immediately.{' '}
+                <Pii>{name}</Pii>{' '}
+                {isPlatform
+                  ? 'loses staff access immediately.'
+                  : 'will lose access to this tenant immediately.'}{' '}
                 {isPlatform
                   ? PLATFORM_INVITATIONS_REVOKED_ON_REMOVE
                   : INVITATIONS_REVOKED_ON_REMOVE}
