@@ -26,12 +26,20 @@ function lineOf(prefix: string): number {
 
 describe('Dockerfile', () => {
   it.each(['ARG POSTHOG_SOURCEMAP_PROJECTS', 'ARG POSTHOG_CLI_HOST'])(
-    'declares %s after the build and inject, so changing it re-runs only the upload',
+    'declares %s after the build and inject, so changing it re-runs only the upload and the map deletion',
     (arg) => {
       const declared = lineOf(arg)
       expect(declared).toBeGreaterThan(lineOf('RUN pnpm build'))
       expect(declared).toBeGreaterThan(lineOf('    pnpm exec posthog-cli sourcemap inject'))
       expect(declared).toBeLessThan(lineOf('    sh docker/upload-sourcemaps.sh'))
+      const stageEnd = LINES.findIndex(
+        (line, index) => index > declared && line.startsWith('FROM ')
+      )
+      const laterRuns = LINES.slice(declared, stageEnd).filter((line) => line.startsWith('RUN '))
+      expect(laterRuns).toEqual([
+        'RUN --mount=type=secret,id=posthog_cli_token,required=false \\',
+        "RUN find dist -name '*.map' -delete",
+      ])
     }
   )
 })

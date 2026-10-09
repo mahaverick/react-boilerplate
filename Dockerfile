@@ -66,8 +66,8 @@ RUN pnpm build
 RUN POSTHOG_CLI_TOKEN=phx_inject_placeholder POSTHOG_CLI_ENV_ID=0 \
     pnpm exec posthog-cli sourcemap inject --directory dist
 # Declared just before the upload, so a change to where the maps go re-runs
-# only the upload, not `pnpm build` or inject: an ARG is part of every later
-# RUN's cache key.
+# only the upload and the map deletion after it, not `pnpm build` or inject:
+# an ARG is part of every later RUN's cache key.
 ARG POSTHOG_SOURCEMAP_PROJECTS=
 ARG POSTHOG_CLI_HOST=https://us.posthog.com
 # The token is a BuildKit secret: never in a layer or in `docker history`.
