@@ -49,6 +49,18 @@ describe('useChangedFields', () => {
     expect(result.current.baseline).toEqual({ firstName: 'Ada', lastName: 'Byron' })
   })
 
+  it('freezes on a save attempt too, which TanStack counts as touching every field', () => {
+    const { result, rerender } = renderHook(({ loaded }) => useTracked(loaded), {
+      initialProps: { loaded: { firstName: 'Ada', lastName: 'Byron' } },
+    })
+    act(() => {
+      result.current.listeners.onSubmit()
+    })
+    rerender({ loaded: { firstName: 'Ada', lastName: 'King' } })
+
+    expect(result.current.baseline).toEqual({ firstName: 'Ada', lastName: 'Byron' })
+  })
+
   it('moves the baseline only when rebased, after a save', () => {
     const { result } = renderHook(() => useTracked({ firstName: 'Ada', lastName: 'Byron' }))
     act(() => {

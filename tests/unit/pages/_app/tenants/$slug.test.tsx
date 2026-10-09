@@ -571,6 +571,39 @@ describe('tenant detail', () => {
     })
   })
 
+  it("does not send another admin's change back after an unchanged Save and a refetch", async () => {
+    mockTenant('owner')
+    let served = TENANT
+    let patched: unknown = null
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(served, 'owner'), 'Tenant retrieved.')
+      ),
+      http.patch('/api/v1/tenants/acme', async ({ request }) => {
+        patched = await request.json()
+        return ok({ ...served, name: 'Acme Ltd' }, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    const name = await screen.findByLabelText('Name')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
+
+    served = { ...TENANT, name: 'Acme Corporation', website: 'https://other.example' }
+    await act(() => queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme') }))
+    // The header reads the same query, so it shows the refetch once the form has it too.
+    await screen.findByRole('heading', { name: 'Acme Corporation' })
+    await user.clear(name)
+    await user.type(name, 'Acme Ltd')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(patched).toEqual({ name: 'Acme Ltd' })
+    })
+  })
+
   it('shows a refetch on a form nobody has touched, and still asks for a change', async () => {
     mockTenant('owner')
     let served = TENANT

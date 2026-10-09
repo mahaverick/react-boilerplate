@@ -1,7 +1,7 @@
 /**
  * @file The values an edit form diffs against: the loaded values while the
- * form is untouched, frozen at the user's first edit so that "changed" means
- * changed by this user in this form, not by a refetch of someone else's edit.
+ * form is untouched, frozen at the user's first edit, blur or save attempt so
+ * that "changed" means changed by this user in this form, not by a refetch.
  */
 import { useState } from 'react'
 import type { z } from 'zod'
@@ -13,10 +13,10 @@ import { changedFieldsOf } from '@/schemas/changed-fields.schemas'
  * differs from it. Pass `baseline` as the form's `defaultValues`, `changes` as
  * its `onSubmit` validator and `listeners` as its listeners; in `onSubmit`,
  * post `changedBody(value)` unless it is `null`, and `rebase` with the values
- * just saved once the save succeeds. Until a field is touched (changed or
- * blurred, as TanStack counts it), the baseline is `loaded`, so a refetch
- * updates it and, through `defaultValues`, the values shown; after that only
- * `rebase` moves it.
+ * just saved once the save succeeds. Until the form is touched (a change, a
+ * blur or a save attempt, each of which TanStack counts), the baseline is
+ * `loaded`, so a refetch updates it and, through `defaultValues`, the values
+ * shown; after that only `rebase` moves it.
  * @param schema - The form's full object schema.
  * @param loaded - The stored values, as of the latest load.
  * @param serverErrors - The form's errors, where an unchanged save is told to change something.
@@ -61,5 +61,11 @@ export function useChangedFields<Shape extends z.core.$ZodShape>(
       serverErrors.setFormErrors([])
   }
 
-  return { baseline, changes, changedBody, listeners: { onChange, onBlur: freeze }, rebase }
+  return {
+    baseline,
+    changes,
+    changedBody,
+    listeners: { onChange, onBlur: freeze, onSubmit: freeze },
+    rebase,
+  }
 }

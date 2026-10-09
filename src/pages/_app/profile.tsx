@@ -68,9 +68,9 @@ function ProfilePage() {
 /**
  * The name form and the read-only email and join date; PATCH /profile changes
  * the names alone. Only a name the user changed from the stored names (as
- * loaded until the first edit, or as last saved) is checked and sent, so a
- * stored name that today's rules refuse does not block changing the other, and
- * a refetch does not send a stale name back.
+ * loaded until the first edit, blur or save attempt, or as last saved) is
+ * checked and sent, so a stored name that today's rules refuse does not block
+ * changing the other, and a refetch does not send a stale name back.
  * With nothing changed, Save sends nothing and asks for a change instead.
  * The value is parsed before posting, so trimming reaches the wire, and
  * `<FormError />` shows schema-level server messages, which `<Form>` does not

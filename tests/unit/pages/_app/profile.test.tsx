@@ -208,6 +208,40 @@ describe('profile page', () => {
     })
   })
 
+  it('does not send a name changed elsewhere back after an unchanged Save and a refetch', async () => {
+    let served = { ...testUser, firstName: 'Ada', lastName: 'Byron' }
+    useAuthStore.setState({ user: served })
+    let body: unknown = null
+    server.use(
+      http.get('/api/v1/profile', () => ok(served, 'Profile retrieved.')),
+      http.patch('/api/v1/profile', async ({ request }) => {
+        body = await request.json()
+        return ok({ ...served, firstName: 'Augusta' }, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await waitFor(() => {
+      expect(first).toHaveValue('Ada')
+    })
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a name before saving.')
+
+    served = { ...served, lastName: 'King', email: 'ada.king@example.com' }
+    await act(() => queryClient.refetchQueries({ queryKey: profileKeys.detail }))
+    // The email row reads the same query, so it shows the refetch once the form has it too.
+    await screen.findByText('ada.king@example.com')
+    await user.clear(first)
+    await user.type(first, 'Augusta')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(body).toEqual({ firstName: 'Augusta' })
+    })
+  })
+
   it('shows a refetch on a form nobody has touched', async () => {
     let served = { ...testUser, firstName: 'Ada', lastName: 'Byron' }
     useAuthStore.setState({ user: served })

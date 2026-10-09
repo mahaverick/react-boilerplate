@@ -66,8 +66,8 @@ function TenantDetails({ tenant }: { tenant: Tenant }) {
  * The edit form. Owner and admin only: `PATCH /tenants/:slug` is gated
  * `requireRole('owner', 'admin')`. There is no slug field, since the API's
  * `updateTenantSchema` omits it. Only the fields the user changed from the
- * row (as loaded until the first edit, or as last saved) are checked and sent,
- * so a stored value that today's rules refuse does not block saving the
+ * row (as loaded until the first edit, blur or save attempt, or as last saved)
+ * are checked and sent, so a stored value that today's rules refuse does not block saving the
  * others, and a refetch that brings another admin's change does not send it
  * back. With nothing changed, Save sends nothing and asks for a change instead.
  * The changed fields are parsed before posting, so an emptied box goes over as
