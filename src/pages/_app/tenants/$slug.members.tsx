@@ -54,6 +54,7 @@ import { writeFailureMessage } from '@/lib/write-failure'
 import {
   memberName,
   ownerCount,
+  useLeaveTenant,
   useMembers,
   useMyRole,
   useRemoveMember,
@@ -67,6 +68,13 @@ export const Route = createFileRoute('/_app/tenants/$slug/members')({
   staticData: { crumb: 'Members' },
   component: TenantMembersTab,
 })
+
+/** What the Leave dialog says, for every role. */
+const LEAVE_WARNING =
+  'You will lose access to this tenant immediately. An owner or admin will have to invite you back.'
+
+/** Added for an owner or admin, the roles that can have sent invitations: leaving revokes them. */
+const INVITATIONS_REVOKED_ON_LEAVE = 'Pending invitations you sent are revoked.'
 
 /** The reason the last owner's own controls are switched off. */
 const LAST_OWNER_REASON = 'A tenant must always have an owner. Add another owner first.'
@@ -163,17 +171,21 @@ function RoleCell({
 }
 
 /**
- * The Remove control, or Leave on your own row, behind a confirm dialog. For
- * the last owner it is a disabled Leave button described by the row's
- * explanation in `RoleCell` (`isLastOwner` implies `isSelf`). After leaving,
- * the page navigates to `/tenants`, because the tenant's routes answer 404 to
- * a caller with neither a membership nor a platform role. It uses
+ * The Remove control, or Leave on your own row, behind a confirm dialog.
+ * Remove goes through the members route; Leave, which every role has, through
+ * the caller's own membership route (`useLeaveTenant`). For the last owner it
+ * is a disabled Leave button described by the row's explanation in `RoleCell`
+ * (`isLastOwner` implies `isSelf`). An owner or admin leaving is told the
+ * invitations they sent are revoked, as the server does. After leaving, the
+ * page navigates to `/tenants`, because the tenant's routes answer 404 to a
+ * caller with neither a membership nor a platform role. It uses
  * `mutateAsync`, because the refetch unmounts this row first and `mutate`'s
  * callbacks skip an unmounted observer.
  */
 function RemoveMemberButton({
   slug,
   member,
+  myRole,
   isSelf,
   isLastOwner,
   reasonId,
@@ -181,6 +193,7 @@ function RemoveMemberButton({
 }: {
   slug: string
   member: TenantMember
+  myRole: MembershipRole
   isSelf: boolean
   isLastOwner: boolean
   /** The row's one last-owner explanation, rendered by `RoleCell`. */
@@ -189,9 +202,11 @@ function RemoveMemberButton({
   onRemoved: () => void
 }) {
   const removeMember = useRemoveMember(slug)
+  const leaveTenant = useLeaveTenant(slug)
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
   const name = memberName(member)
+  const isPending = isSelf ? leaveTenant.isPending : removeMember.isPending
 
   if (isLastOwner) {
     return (
@@ -205,7 +220,7 @@ function RemoveMemberButton({
     <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
       <AlertDialogTrigger
         render={
-          <Button variant="outline" size="sm" disabled={removeMember.isPending}>
+          <Button variant="outline" size="sm" disabled={isPending}>
             {isSelf ? 'Leave' : 'Remove'}
           </Button>
         }
@@ -223,7 +238,10 @@ function RemoveMemberButton({
           </AlertDialogTitle>
           <AlertDialogDescription>
             {isSelf ? (
-              'You will lose access to this tenant immediately. An owner or admin will have to invite you back.'
+              <>
+                {LEAVE_WARNING}
+                {canManageTenant(myRole) && ` ${INVITATIONS_REVOKED_ON_LEAVE}`}
+              </>
             ) : (
               <>
                 <Pii>{name}</Pii> will lose access to this tenant immediately. Pending invitations
@@ -236,9 +254,12 @@ function RemoveMemberButton({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
-            disabled={removeMember.isPending}
+            disabled={isPending}
             onClick={() => {
-              removeMember.mutateAsync(member.user.id).then(
+              const action = isSelf
+                ? leaveTenant.mutateAsync()
+                : removeMember.mutateAsync(member.user.id)
+              action.then(
                 () => {
                   setIsOpen(false)
                   toast.success(isSelf ? 'You left this tenant.' : `${name} removed.`)
@@ -265,7 +286,8 @@ function RemoveMemberButton({
  * `canManageTenant` (owner or admin, as the DELETE members route requires)
  * and `canActorModifyTarget`, a different pair from the role-change gate in
  * `RoleCell`. `reasonId` is one id per row: the last-owner explanation renders
- * once, in the role cell, and every control the guard disables points at it.
+ * once, in the role cell, and every control the guard disables points at it;
+ * your own row always has Leave.
  */
 function MemberRow({
   slug,
@@ -292,7 +314,8 @@ function MemberRow({
   const targetRole = member.membership.role
   const isSelf = member.user.id === myUserId
   const isLastOwner = isLastOwnerBlocked({ targetRole, isSelf, ownerCount: owners })
-  const canRemove = canManageTenant(myRole) && canActorModifyTarget(myRole, targetRole, isSelf)
+  const canRemove =
+    isSelf || (canManageTenant(myRole) && canActorModifyTarget(myRole, targetRole, isSelf))
   const reasonId = `last-owner-${member.membership.id}`
 
   const role = (
@@ -309,6 +332,7 @@ function MemberRow({
     <RemoveMemberButton
       slug={slug}
       member={member}
+      myRole={myRole}
       isSelf={isSelf}
       isLastOwner={isLastOwner}
       reasonId={reasonId}

@@ -469,7 +469,8 @@ projects (`fixtures`, `live`, `contrast`, `nginx`), and three conventions that a
 same fixtures `tests/unit/a11y.test.tsx` uses, so it needs no backend. It exists for the
 checks jsdom cannot make, because jsdom has no layout: whether the webfont actually resolved,
 whether anything overflows the viewport at 390px, whether a state renders as more than a bare
-header. `?state=loaded|empty|error|loading|soleowner` picks the members response.
+header. `?state=loaded|empty|error|loading|soleowner` picks the members response;
+`?state=viewer|admin` makes the harness user a non-owner member, so their own row offers Leave.
 
 Two harness traps that make a test measure the wrong thing: answering
 the SSE stream with `204` looks to the hook exactly like a dropped connection and sends the

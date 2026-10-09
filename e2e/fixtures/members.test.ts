@@ -41,6 +41,21 @@ test.describe('desktop', () => {
     // `.` rather than an apostrophe: the copy uses a typographic ’ (U+2019), and an ASCII ' silently matches nothing.
     await expect(page.getByText(/could not load this tenant.s members/i)).toBeVisible()
   })
+
+  test('lets a viewer leave from their own row, then lands on the tenant list', async ({
+    page,
+  }) => {
+    await page.goto('/e2e/harness/?state=viewer')
+    const leave = page.getByRole('row', { name: /A B/ }).getByRole('button', { name: 'Leave' })
+    await leave.click()
+
+    const dialog = page.getByRole('alertdialog', { name: 'Leave this tenant?' })
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Leave' }).click()
+
+    await expect(page.getByText('You left this tenant.')).toBeVisible()
+    await expect(page).toHaveURL(/\/tenants(\?|$)/)
+  })
 })
 
 test.describe('mobile', () => {
@@ -57,6 +72,20 @@ test.describe('mobile', () => {
     await expect(remove).toBeInViewport()
 
     // Nothing may overflow the viewport. This is the assertion that would catch a card layout regressing back into a wide row.
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    )
+    expect(overflows).toBe(false)
+  })
+
+  test('keeps a viewer’s Leave and its dialog on-screen', async ({ page }) => {
+    await page.goto('/e2e/harness/?state=viewer')
+    const leave = page.getByRole('button', { name: 'Leave' })
+    await expect(leave).toBeInViewport()
+    await leave.click()
+
+    const confirm = page.getByRole('alertdialog').getByRole('button', { name: 'Leave' })
+    await expect(confirm).toBeInViewport()
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
     )

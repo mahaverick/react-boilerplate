@@ -192,9 +192,10 @@ describe('members tab permissions', () => {
     const amy = await rowFor('Amy')
     expect(amy.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
 
-    // Not even their own admin membership: the matrix answers "no" for an admin target however `isSelf` reads.
+    // Their own admin membership is never Remove, which the matrix refuses; it is Leave, which every role has.
     const me = await rowFor('Me')
-    expect(me.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
+    expect(me.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+    expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
   })
 
   it('offers an admin only the roles below admin when inviting someone', async () => {
@@ -218,7 +219,7 @@ describe('members tab permissions', () => {
     expect(options).toEqual(['Owner', 'Admin', 'Manager', 'Editor', 'Viewer'])
   })
 
-  it('gives a viewer no controls, no invite form and no invitations request', async () => {
+  it('gives a viewer no controls but Leave, no invite form and no invitations request', async () => {
     let invitationCalls = 0
     mockTenant('viewer', [member(ME, 'viewer', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
     server.use(
@@ -229,11 +230,13 @@ describe('members tab permissions', () => {
     )
     renderAppAt('/tenants/acme/members')
 
-    await rowFor('Vic')
+    const vic = await rowFor('Vic')
+    expect(vic.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
+    expect((await rowFor('Me')).getByRole('button', { name: 'Leave' })).toBeEnabled()
     // Scoped to `main`: the sidebar's tenant switcher is a combobox too, on every authenticated page, and is not what this test is about.
     const main = within(screen.getByRole('main'))
     expect(main.queryByRole('combobox')).not.toBeInTheDocument()
-    expect(main.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
+    expect(main.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
     expect(main.queryByRole('heading', { name: 'Invite a member' })).not.toBeInTheDocument()
     expect(main.queryByRole('heading', { name: 'Pending invitations' })).not.toBeInTheDocument()
     // The list route is owner/admin only, so a viewer's page never asks it.
@@ -959,6 +962,75 @@ describe('the remove and leave dialogs', () => {
       'Ada X will lose access to this tenant immediately. Pending invitations they sent are revoked.'
     )
   })
+
+  it.each(['manager', 'editor', 'viewer'] as const)(
+    'lets the %s leave through the membership route, then lands on the tenant list',
+    async (role) => {
+      let left = 0
+      mockTenant(role, [member(ME, role, 'Me'), member(USER_ID_4, 'owner', 'Otto')])
+      server.use(
+        http.delete('/api/v1/tenants/acme/membership', () => {
+          left += 1
+          return ok(null, 'You left the tenant.')
+        }),
+        http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.'))
+      )
+      const user = userEvent.setup()
+      const router = renderAppAt('/tenants/acme/members')
+
+      await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+      const dialog = await screen.findByRole('alertdialog')
+      expect(dialog).toHaveAccessibleName('Leave this tenant?')
+      expect(dialog).toHaveAccessibleDescription(
+        'You will lose access to this tenant immediately. An owner or admin will have to invite you back.'
+      )
+      await user.click(within(dialog).getByRole('button', { name: 'Leave' }))
+
+      expect(await screen.findByText('You left this tenant.')).toBeInTheDocument()
+      expect(left).toBe(1)
+      await waitFor(() => expect(router.state.location.pathname).toBe('/tenants'))
+    }
+  )
+
+  it('tells an admin leaving that the invitations they sent are revoked', async () => {
+    mockTenant('admin', [member(ME, 'admin', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+      'You will lose access to this tenant immediately. An owner or admin will have to invite you back. Pending invitations you sent are revoked.'
+    )
+  })
+
+  it('shows the server’s message when leaving is refused, and stays on the page', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
+    server.use(
+      http.delete('/api/v1/tenants/acme/membership', () =>
+        fail(
+          'You are the last owner: make someone else an owner before you leave.',
+          409,
+          'LAST_OWNER'
+        )
+      )
+    )
+    const user = userEvent.setup()
+    const router = renderAppAt('/tenants/acme/members')
+
+    const me = await rowFor('Me')
+    await user.click(me.getByRole('button', { name: 'Leave' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
+    )
+
+    expect(
+      await screen.findByText(
+        'You are the last owner: make someone else an owner before you leave.'
+      )
+    ).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/tenants/acme/members')
+    expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
+  })
 })
 
 describe('a stale sign-in on a platform-tenant write', () => {
@@ -1014,6 +1086,21 @@ describe('a stale sign-in on a platform-tenant write', () => {
 
     expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
     expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
+  })
+
+  it('tells the reader to sign in again when leaving is refused', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
+    server.use(http.delete('/api/v1/tenants/acme/membership', stale))
+    const user = userEvent.setup()
+    const router = renderAppAt('/tenants/acme/members')
+
+    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Leave' }))
+
+    expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
+    expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/tenants/acme/members')
   })
 
   it('tells the reader to sign in again when a resend is refused', async () => {
@@ -1166,7 +1253,9 @@ describe('keyboard focus after a row action succeeds', () => {
 
   it('does not move focus to the Members heading when you leave the tenant', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'owner', 'Vic')])
-    server.use(http.delete(`/api/v1/tenants/acme/members/${ME}`, () => ok(null, 'Left.')))
+    server.use(
+      http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.'))
+    )
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/members')
 

@@ -9,7 +9,9 @@
  *
  * `?state=loaded|empty|error|loading|soleowner` picks what the members
  * endpoint answers, which is how the e2e suite reaches the states that only
- * exist for one shape of data.
+ * exist for one shape of data. `?state=viewer` or `?state=admin` makes the
+ * harness user a viewer or admin of `acme`, with Cleo D its owner, so their
+ * own row offers Leave.
  *
  * `?access=platform` signs the harness user in as a staff viewer who is not a
  * member of `acme`, so the tenant pages render under the platform access
@@ -246,6 +248,13 @@ const suspended = state === 'suspended'
 
 const SOLE_OWNER = [MEMBERS[0]]
 
+/** `?state=viewer|admin`: the harness user's role in `acme`, with Cleo D its owner. */
+const selfRole = state === 'viewer' || state === 'admin' ? state : null
+const NON_OWNER_MEMBERS = MEMBERS.map((entry, index) => ({
+  ...entry,
+  membership: { ...entry.membership, role: index === 0 ? (selfRole ?? 'owner') : 'owner' },
+}))
+
 /** Every react flag at its fallback, as express answers when no flag is on. */
 const FLAG_FALLBACKS = { example_beta_page: false, example_cta_experiment: 'control' }
 
@@ -281,7 +290,9 @@ const membersHandler =
           )
         : state === 'loading'
           ? http.get('/api/v1/tenants/acme/members', () => new Promise<Response>(() => {}))
-          : http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
+          : http.get('/api/v1/tenants/acme/members', () =>
+              ok(selfRole ? NON_OWNER_MEMBERS : MEMBERS, 'Members retrieved.')
+            )
 
 const worker = setupWorker(
   // The signed-in layout reads the page's flags on every route. Unmocked, they would reach the real API, 401, and sign the harness user out.
@@ -293,7 +304,7 @@ const worker = setupWorker(
         : [
             {
               tenant: suspended ? { ...TENANT, lifecycleState: 'suspended' } : TENANT,
-              role: 'owner',
+              role: selfRole ?? 'owner',
             },
           ],
       'Tenants retrieved.'
@@ -308,11 +319,17 @@ const worker = setupWorker(
       : ok(
           asStaff
             ? { ...TENANT, isPlatform: false, role: 'viewer', access: 'platform' }
-            : { ...TENANT, isPlatform: false, role: 'owner', access: 'member' },
+            : {
+                ...TENANT,
+                isPlatform: false,
+                role: selfRole ?? 'owner',
+                access: 'member',
+              },
           'Tenant retrieved.'
         )
   ),
   membersHandler,
+  http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.')),
   // The members page lists pending invitations for an owner. Unmocked, this would reach the real API, 401, and sign the harness user out.
   http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
   http.post('/api/v1/tenants/acme/invitations/:id/resend', () =>

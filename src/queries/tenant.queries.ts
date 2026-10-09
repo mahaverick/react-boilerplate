@@ -287,26 +287,35 @@ export function useUpdateMemberRole(slug: string) {
 }
 
 /**
- * Removes a member. Removing yourself drops the tenant's whole cache prefix
- * rather than refetching queries a former member cannot read, and a self
- * removal from the platform tenant refreshes the stored user's platformRole.
+ * Leaves a tenant: `DELETE /tenants/:slug/membership`, open to every role but
+ * the tenant's last owner (409 `LAST_OWNER`). It drops the tenant's whole
+ * cache prefix rather than refetching queries a former member cannot read,
+ * and leaving the platform tenant refreshes the stored user's platformRole.
+ */
+export function useLeaveTenant(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/membership`),
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: tenantKeys.detail(slug) })
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      if (slug === PLATFORM_TENANT_SLUG) await refreshProfile(queryClient)
+    },
+  })
+}
+
+/**
+ * Removes another member, then refetches the member list and the tenant
+ * list. Leaving, which removes yourself, is `useLeaveTenant`.
  */
 export function useRemoveMember(slug: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (userId: string) =>
       apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/members/${userId}`),
-    onSuccess: async (_data, userId) => {
-      const isSelf = userId === useAuthStore.getState().user?.id
-      if (isSelf) {
-        queryClient.removeQueries({ queryKey: tenantKeys.detail(slug) })
-      } else {
-        await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
-      }
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
       await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
-      if (isSelf && slug === PLATFORM_TENANT_SLUG) {
-        await refreshProfile(queryClient)
-      }
     },
   })
 }
