@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 /**
  * docker/upload-sourcemaps.sh, run by `sh` as the image's build stage runs
  * it, against a stand-in posthog-cli that records each run's arguments and
- * environment and exits with the code its test chose.
+ * environment, prints `CLI_OUTPUT` when set, and exits with the code its
+ * test chose.
  */
 
 const SCRIPT = path.resolve(import.meta.dirname, '../../../docker/upload-sourcemaps.sh')
@@ -23,6 +24,7 @@ beforeEach(() => {
     [
       '#!/bin/sh',
       'printf "%s|%s|%s|%s\\n" "$*" "$POSTHOG_CLI_ENV_ID" "$POSTHOG_CLI_TOKEN" "$POSTHOG_CLI_HOST" >> "$CLI_LOG"',
+      '[ -n "$CLI_OUTPUT" ] && printf "%s\\n" "$CLI_OUTPUT"',
       'case ",$FAIL_PROJECTS," in *",$POSTHOG_CLI_ENV_ID,"*) exit 1 ;; esac',
       'exit 0',
       '',
@@ -125,6 +127,24 @@ describe('docker/upload-sourcemaps.sh', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('sourcemaps: upload to project 202 failed')
     expect(cliRuns().map((run) => run[1])).toEqual(['101', '202'])
+  })
+
+  it('prints the CLI output and passes when no chunk was skipped as too large', () => {
+    const summary = 'Uploaded 3 chunks, skipped 1 already present, skipped 0 too large'
+    const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101', CLI_OUTPUT: summary })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe(`${summary}\nsourcemaps: uploaded to project 101\n`)
+  })
+
+  it.each([
+    'Uploaded 3 chunks, skipped 0 already present, skipped 2 too large',
+    'chunk assets/index-abc.js is too large (6 MB), skipping it',
+  ])('fails the build when the CLI says it skipped a chunk as too large: %s', (output) => {
+    const result = runScript({ POSTHOG_SOURCEMAP_PROJECTS: '101,202', CLI_OUTPUT: output })
+    expect(result.status).toBe(1)
+    expect(result.stdout).not.toContain('sourcemaps: uploaded to project 101')
+    expect(result.stderr).toContain('posthog-cli skipped chunks as too large for project 101')
+    expect(cliRuns().map((run) => run[1])).toEqual(['101'])
   })
 
   it('refuses a project id that is not digits, before uploading anything', () => {

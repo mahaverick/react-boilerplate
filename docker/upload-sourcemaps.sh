@@ -46,8 +46,18 @@ done
 for project in $(printf '%s' "$projects" | tr ',' ' '); do
   # No --release-* flags: in event mode they record nothing (the events carry
   # the release). No --no-fail and no `|| true`: a failed upload fails the build.
-  if ! POSTHOG_CLI_TOKEN=$token POSTHOG_CLI_ENV_ID=$project "$cli" sourcemap upload --directory "$directory"; then
+  # The output is captured, then printed, so it can be read for skipped chunks.
+  if ! output=$(POSTHOG_CLI_TOKEN=$token POSTHOG_CLI_ENV_ID=$project "$cli" sourcemap upload --directory "$directory" 2>&1); then
+    if [ -n "$output" ]; then printf '%s\n' "$output" >&2; fi
     echo "sourcemaps: upload to project $project failed" >&2
+    exit 1
+  fi
+  if [ -n "$output" ]; then printf '%s\n' "$output"; fi
+  # The CLI exits 0 after skipping a chunk as too large, which would then
+  # ship with no map behind it: its output is the only sign. Any "too large"
+  # beside a non-zero number counts ("skipped 2 too large"), a zero does not.
+  if printf '%s\n' "$output" | grep -Eiq '[1-9][0-9]*[^0-9.,;]*too large|too large[^0-9.,;]*[1-9][0-9]*'; then
+    echo "sourcemaps: posthog-cli skipped chunks as too large for project $project" >&2
     exit 1
   fi
   echo "sourcemaps: uploaded to project $project"
