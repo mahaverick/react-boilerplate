@@ -357,9 +357,15 @@ into a block that sets any header itself. Cache-Control is therefore chosen by
 a `map` rather than per-location. **Verify this with `curl -I` against a real
 asset, not by reading the config.**
 
+A proxied `/api/` response keeps each of these headers the API already sent
+(helmet's own, stricter values, such as its `default-src 'none'` policy and
+`X-Frame-Options: SAMEORIGIN`); nginx adds only the ones the API left out, so
+none is sent twice. Nginx's own 502 or 504 for an `/api/` request with no
+backend carries the full set.
+
 ### Content-Security-Policy
 
-nginx sends an **enforced** policy on every response:
+nginx sends an **enforced** policy on every response it answers itself:
 
     default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
     img-src 'self' data:; connect-src 'self'; object-src 'none';
@@ -659,8 +665,10 @@ chunk), and the image's build stage then:
    offline and release-less, whether or not maps are uploaded, so one file
    name never holds two contents across builds;
 2. uploads the maps to every project in `POSTHOG_SOURCEMAP_PROJECTS`
-   (`docker/upload-sourcemaps.sh`), one run per project; an upload that fails
-   fails the build;
+   (`docker/upload-sourcemaps.sh`), one run per project. The build fails if there
+   are no `.map` files under `dist/`, if the CLI skipped a chunk as too large,
+   if nothing was uploaded (unless the same output line gives a non-zero
+   "already uploaded" or existing count), or if an upload fails;
 3. deletes every `.map`, so none ships (`docker/check-image.sh` checks).
 
 nginx also answers 404 for any `.map` URL outside `/api/` (the `.map`
