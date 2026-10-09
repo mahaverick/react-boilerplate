@@ -473,6 +473,44 @@ describe('report', () => {
   })
 })
 
+describe('waiting for analytics to settle', () => {
+  it('parks no new settle waiter per error once the settle cap has passed and analytics never settled', async () => {
+    const actual = await vi.importActual<typeof import('@/observability/analytics')>(
+      '@/observability/analytics'
+    )
+    // The real whenAnalyticsSettled, with analytics never loaded: each call while unsettled parks a waiter in its module Set, cleared only when analytics settles.
+    let parked = 0
+    settled.mockImplementation(() => {
+      parked += 1
+      return actual.whenAnalyticsSettled()
+    })
+    report(appError('first', 'a', 1), 'window', false)
+    await vi.advanceTimersByTimeAsync(SETTLE_CAP_MS + BATCH_WINDOW_MS)
+    const before = parked
+    for (let index = 0; index < 20; index += 1) {
+      report(appError(`later ${String(index)}`, `f${String(index)}`, index + 2), 'window', false)
+    }
+    await vi.advanceTimersByTimeAsync(BATCH_WINDOW_MS)
+    expect(sentEvents()).toHaveLength(21)
+    expect(parked - before).toBe(0)
+  })
+
+  it('reads the identity again once analytics settles after the cap', async () => {
+    let settle: (identity: AnalyticsIdentity | null) => void = () => {}
+    const late = new Promise<AnalyticsIdentity | null>((resolve) => (settle = resolve))
+    settled.mockReturnValue(late)
+    report(appError('before the cap', 'a', 1), 'window', false)
+    await vi.advanceTimersByTimeAsync(SETTLE_CAP_MS + BATCH_WINDOW_MS)
+    expect(sentEvents()[0]?.distinct_id).not.toBe('user-a')
+    settle(CONSENTED)
+    settled.mockResolvedValue(CONSENTED)
+    await vi.advanceTimersByTimeAsync(0)
+    report(appError('after the settle', 'b', 2), 'window', false)
+    await drain()
+    expect(sentEvents()[1]?.distinct_id).toBe('user-a')
+  })
+})
+
 describe('the identity across a navigation inside the same tenant', () => {
   it('keeps the consented identity: re-grouping the same tenant changes nothing', async () => {
     setTenantGroup('tenant-1')

@@ -84,6 +84,8 @@ let builder: ErrorPropertiesBuilder | undefined
 const fingerprintCounts = new Map<string, number>()
 let accepted = 0
 let settleGate: Promise<void> | undefined
+/** Set once analytics has settled; until then, an event built after the settle cap is anonymous without asking again. */
+let hasAnalyticsSettled = false
 let queue: ExceptionEvent[] = []
 let flushTimer: ReturnType<typeof setTimeout> | undefined
 const retrying = new Map<ExceptionEvent[], ReturnType<typeof setTimeout>>()
@@ -215,18 +217,19 @@ function build(error: unknown, handled: boolean): Exception[] {
  * The identity for an event built now. The first call waits for analytics
  * to settle, at most `SETTLE_CAP_MS`; once that wait is over, later calls
  * read the identity without waiting, and get null while analytics is still
- * unsettled.
+ * unsettled. Only the first call asks analytics to tell it when it settles,
+ * so errors after the cap leave nothing waiting on a load that may never end.
  */
 function resolveIdentity(): Promise<AnalyticsIdentity | null> {
   settleGate ??= new Promise((resolve) => {
     const cap = setTimeout(resolve, SETTLE_CAP_MS)
     void whenAnalyticsSettled().then(() => {
+      hasAnalyticsSettled = true
       clearTimeout(cap)
       resolve()
     })
   })
-  // Both settle in order once the gate is open: a settled analytics answers first, an unsettled one is beaten by null.
-  return settleGate.then(() => Promise.race([whenAnalyticsSettled(), Promise.resolve(null)]))
+  return settleGate.then(() => (hasAnalyticsSettled ? whenAnalyticsSettled() : null))
 }
 
 /**
@@ -422,6 +425,7 @@ export function resetReporterForTests(): void {
   fingerprintCounts.clear()
   accepted = 0
   settleGate = undefined
+  hasAnalyticsSettled = false
   queue = []
   if (flushTimer !== undefined) clearTimeout(flushTimer)
   flushTimer = undefined
