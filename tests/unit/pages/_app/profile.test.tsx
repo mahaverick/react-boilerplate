@@ -11,6 +11,7 @@ import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -182,6 +183,26 @@ describe('profile page', () => {
     expect(called).toBe(false)
   })
 
+  it('sends nothing and says nothing when Save is pressed with no changes', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success')
+    let called = false
+    server.use(
+      http.patch('/api/v1/profile', () => {
+        called = true
+        return ok(testUser, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    await screen.findByLabelText('First name')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await settle(200, 'absence has no event: a skipped save sends nothing to wait on')
+    expect(called).toBe(false)
+    expect(toastSuccess).not.toHaveBeenCalled()
+  })
+
   it('refuses to submit an empty name without touching the network', async () => {
     let called = false
     server.use(
@@ -218,7 +239,8 @@ describe('profile page', () => {
     const user = userEvent.setup()
     renderProfile()
 
-    await user.click(await screen.findByRole('button', { name: 'Save changes' }))
+    await user.type(await screen.findByLabelText('Last name'), 'x')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
     expect(await screen.findByText('That name is not allowed.')).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('First name'), 'a')
@@ -233,7 +255,8 @@ describe('profile page', () => {
     const user = userEvent.setup()
     renderProfile()
 
-    await user.click(await screen.findByRole('button', { name: 'Save changes' }))
+    await user.type(await screen.findByLabelText('Last name'), 'x')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     const message = await screen.findByText('Something broke.')
     expect(message.closest('form')).not.toBeNull()

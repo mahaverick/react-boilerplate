@@ -68,7 +68,8 @@ function TenantDetails({ tenant }: { tenant: Tenant }) {
  * `updateTenantSchema` omits it. Only the fields the user changed from the
  * row as it was when the form opened (or last saved) are checked and sent, so
  * a stored value that today's rules refuse does not block saving the others,
- * and a refetch that brings another admin's change does not send it back. They are parsed before posting, so an
+ * and a refetch that brings another admin's change does not send it back. With
+ * nothing changed, Save sends nothing and says nothing. They are parsed before posting, so an
  * emptied box goes over as `null` and clears the column: `''` would be a 400,
  * and an omitted key would keep the old value.
  */
@@ -89,9 +90,11 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
     defaultValues: baseline,
     validators: { onSubmit: changes },
     onSubmit: async ({ value }) => {
+      const body = changes.parse(value)
+      if (Object.keys(body).length === 0) return
       serverErrors.reset()
       try {
-        await updateTenant.mutateAsync(changes.parse(value))
+        await updateTenant.mutateAsync(body)
         rebase(value)
         toast.success('Tenant updated.')
       } catch (error) {

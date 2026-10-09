@@ -503,7 +503,10 @@ describe('Getting started card', () => {
 
     const card = await findCard()
     await user.click(within(card).getByRole('link', { name: 'Open settings' }))
-    await user.click(await screen.findByRole('button', { name: 'Save settings' }))
+    const timezone = await screen.findByLabelText('Timezone')
+    await user.clear(timezone)
+    await user.type(timezone, 'Europe/Paris')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
     await screen.findByText('Settings updated.')
 
     const tabs = screen.getByRole('navigation', { name: 'Tenant sections' })

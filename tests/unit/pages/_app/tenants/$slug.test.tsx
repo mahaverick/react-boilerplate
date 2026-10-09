@@ -365,7 +365,7 @@ describe('tenant detail', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme')
 
-    await screen.findByLabelText('Name')
+    await user.type(await screen.findByLabelText('Name'), ' Ltd')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     const message = await screen.findByText('Something broke.')
@@ -381,7 +381,8 @@ describe('tenant detail', () => {
     const user = userEvent.setup()
     renderAppAt('/tenants/acme/settings')
 
-    await user.click(await screen.findByRole('button', { name: 'Save settings' }))
+    await user.type(await screen.findByLabelText('Locale'), '-GB')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
 
     const message = await screen.findByText('Something broke.')
     expect(message.closest('form')).not.toBeNull()
@@ -535,11 +536,33 @@ describe('tenant detail', () => {
     await user.type(timezone, '{Backspace}')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
     await waitFor(() => {
-      expect(patched).toEqual({})
+      expect(
+        screen.queryByText('Timezone must be a time zone name such as Europe/Paris.')
+      ).not.toBeInTheDocument()
     })
-    expect(
-      screen.queryByText('Timezone must be a time zone name such as Europe/Paris.')
-    ).not.toBeInTheDocument()
+    await settle(200, 'absence has no event: a skipped save sends nothing to wait on')
+    expect(patched).toBeNull()
+  })
+
+  it('sends nothing and says nothing when Save is pressed with no changes', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success')
+    mockTenant('owner')
+    let patches = 0
+    server.use(
+      http.patch('/api/v1/tenants/acme', () => {
+        patches += 1
+        return ok(TENANT, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    await screen.findByLabelText('Name')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await settle(200, 'absence has no event: a skipped save sends nothing to wait on')
+    expect(patches).toBe(0)
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 
   /**
