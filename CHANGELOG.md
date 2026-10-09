@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/mahaverick/react-boilerplate/compare/v1.7.0...v1.8.0) (2026-10-09)
+
+
+### Features
+
+* leave a tenant, sign out other sessions, and the cleanup P1 client fixes ([#62](https://github.com/mahaverick/react-boilerplate/issues/62)) ([670e72f](https://github.com/mahaverick/react-boilerplate/commit/670e72f67ec5418e2d0985054657f46c3351ffa9))
+
 ## [1.7.0](https://github.com/mahaverick/react-boilerplate/compare/v1.6.0...v1.7.0) (2026-10-06)
 
 
