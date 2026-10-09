@@ -22,6 +22,7 @@ import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { formatDate } from '@/lib/format'
 import { useProfile, useUpdateProfile } from '@/queries/profile.queries'
+import { changedFieldsOf } from '@/schemas/changed-fields.schemas'
 import { updateProfileSchema } from '@/schemas/profile.schemas'
 import type { User } from '@/types/api.types'
 
@@ -66,21 +67,26 @@ function ProfilePage() {
 
 /**
  * The name form and the read-only email and join date; PATCH /profile changes
- * the names alone. The value is parsed before posting, so trimming reaches the
- * wire, and `<FormError />` shows schema-level server messages, which `<Form>`
- * does not render itself.
+ * the names alone. Only a name the user changed is checked and sent, so a
+ * stored name that today's rules refuse does not block changing the other.
+ * The value is parsed before posting, so trimming reaches the wire, and
+ * `<FormError />` shows schema-level server messages, which `<Form>` does not
+ * render itself.
  */
 function ProfileDetails({ user }: { user: User }) {
   const updateProfile = useUpdateProfile()
   const serverErrors = useServerErrors()
 
+  const defaultValues = { firstName: user.firstName ?? '', lastName: user.lastName ?? '' }
+  const changes = changedFieldsOf(updateProfileSchema, defaultValues)
+
   const form = useForm({
-    defaultValues: { firstName: user.firstName ?? '', lastName: user.lastName ?? '' },
-    validators: { onSubmit: updateProfileSchema },
+    defaultValues,
+    validators: { onSubmit: changes },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
-        await updateProfile.mutateAsync(updateProfileSchema.parse(value))
+        await updateProfile.mutateAsync(changes.parse(value))
         toast.success('Profile updated.')
       } catch (error) {
         serverErrors.capture(error)

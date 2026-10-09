@@ -89,6 +89,69 @@ describe('profile page', () => {
     })
   })
 
+  /** A stored first name the name rule now refuses, saved before the rule existed. */
+  function mockLegacyName() {
+    const legacy = { ...testUser, firstName: 'Ad\u{200B}a', lastName: 'Byron' }
+    useAuthStore.setState({ user: legacy })
+    server.use(http.get('/api/v1/profile', () => ok(legacy, 'Profile retrieved.')))
+  }
+
+  it('saves an edited last name while a refused legacy first name stays as it is', async () => {
+    mockLegacyName()
+    let body: unknown = null
+    server.use(
+      http.patch('/api/v1/profile', async ({ request }) => {
+        body = await request.json()
+        return ok({ ...testUser, lastName: 'Lovelace' }, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await waitFor(() => {
+      expect(first).toHaveValue('Ad\u{200B}a')
+    })
+    const last = screen.getByLabelText('Last name')
+    await user.clear(last)
+    await user.type(last, 'Lovelace')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(body).toEqual({ lastName: 'Lovelace' })
+    })
+    expect(
+      screen.queryByText('This field contains characters that are not allowed')
+    ).not.toBeInTheDocument()
+    expect(first).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  it('shows a legacy first name as invalid once the user edits it, and sends nothing', async () => {
+    mockLegacyName()
+    let called = false
+    server.use(
+      http.patch('/api/v1/profile', () => {
+        called = true
+        return ok(testUser, 'Profile updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const first = await screen.findByLabelText('First name')
+    await waitFor(() => {
+      expect(first).toHaveValue('Ad\u{200B}a')
+    })
+    await user.type(first, 'm')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(
+      await screen.findByText('This field contains characters that are not allowed')
+    ).toBeInTheDocument()
+    // The message is the barrier: a refused submit never reaches onSubmit.
+    expect(called).toBe(false)
+  })
+
   it('refuses to submit an empty name without touching the network', async () => {
     let called = false
     server.use(

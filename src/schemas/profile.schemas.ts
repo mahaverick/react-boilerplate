@@ -8,8 +8,8 @@ const SHARED_NAME_MESSAGE = notAllowedMessage('This field')
 
 /**
  * The two fields the API's updateProfileSchema accepts; it strips any other
- * key, so email and every other user column cannot change here. Both are
- * required on this form, where the API also takes them as optional or `null`.
+ * key, so email and every other user column cannot change here. A name the
+ * form sends may not be blank, where the API also takes `null`.
  */
 export const updateProfileSchema = z.object({
   firstName: z
