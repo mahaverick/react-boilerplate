@@ -281,3 +281,88 @@ describe('security section', () => {
     expect(refreshCalls).toBe(0)
   })
 })
+
+describe('sign out other sessions', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  /** Answers the revoke with `revoked`, recording each request's body and content type. */
+  function mockRevokeOthers(revoked: number) {
+    const requests: { body: unknown; contentType: string | null }[] = []
+    server.use(
+      http.post('/api/v1/auth/sessions/revoke-others', async ({ request }) => {
+        requests.push({
+          body: await request.json(),
+          contentType: request.headers.get('content-type'),
+        })
+        return ok({ revoked }, 'Other sessions signed out.')
+      })
+    )
+    return requests
+  }
+
+  it('posts an empty JSON body and says how many sessions it ended', async () => {
+    mockProviders(['email'], true)
+    const requests = mockRevokeOthers(2)
+    const user = userEvent.setup()
+    renderProfile()
+
+    const security = await section()
+    await user.click(await security.findByRole('button', { name: 'Sign out other sessions' }))
+
+    expect(await screen.findByText('Signed out 2 other sessions.')).toBeInTheDocument()
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.body).toEqual({})
+    expect(requests[0]?.contentType).toContain('application/json')
+  })
+
+  it('says one session in the singular, and none when there were none', async () => {
+    mockProviders(['email'], true)
+    mockRevokeOthers(1)
+    const user = userEvent.setup()
+    renderProfile()
+
+    const button = await (await section()).findByRole('button', { name: 'Sign out other sessions' })
+    await user.click(button)
+    expect(await screen.findByText('Signed out 1 other session.')).toBeInTheDocument()
+
+    mockRevokeOthers(0)
+    await user.click(button)
+    expect(await screen.findByText('No other sessions were signed in.')).toBeInTheDocument()
+  })
+
+  it('is offered on a Google-only account too', async () => {
+    mockProviders(['email', 'google'], false)
+    renderProfile()
+
+    expect(
+      await (await section()).findByRole('button', { name: 'Sign out other sessions' })
+    ).toBeEnabled()
+  })
+
+  it('shows the server’s message when it is refused', async () => {
+    mockProviders(['email'], true)
+    server.use(
+      http.post('/api/v1/auth/sessions/revoke-others', () =>
+        fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED')
+      )
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    await user.click(
+      await (await section()).findByRole('button', { name: 'Sign out other sessions' })
+    )
+    expect(
+      await screen.findByText('Too many attempts. Please try again later.')
+    ).toBeInTheDocument()
+  })
+})

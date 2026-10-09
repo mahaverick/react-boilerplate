@@ -17,7 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { messageFrom, statusFrom } from '@/lib/api-error'
-import { useAuthProviders, useChangePassword } from '@/queries/auth.queries'
+import { useAuthProviders, useChangePassword, useRevokeOtherSessions } from '@/queries/auth.queries'
 import { changePasswordSchema, type ChangePasswordInput } from '@/schemas/auth.schemas'
 import type { AuthProviders } from '@/types/api.types'
 
@@ -25,6 +25,19 @@ const PASSWORD_CHANGED = 'Password changed. Other sessions were signed out.'
 const PROVIDERS_ERROR = 'We could not load your sign-in methods.'
 const GOOGLE_ONLY =
   'This account signs in with Google only. To add a password, use Forgot password on the sign-in page.'
+
+/** What the other-sessions control says it does. */
+const OTHER_SESSIONS_HINT =
+  'Signs you out on every other browser and device. You stay signed in here.'
+
+/**
+ * The toast after other sessions were signed out.
+ * @param revoked - How many sessions the API ended.
+ */
+function revokedMessage(revoked: number): string {
+  if (revoked === 0) return 'No other sessions were signed in.'
+  return `Signed out ${String(revoked)} other ${revoked === 1 ? 'session' : 'sessions'}.`
+}
 
 /** Display names by provider id. An id not listed here shows as itself. */
 const PROVIDER_LABELS: Record<string, string> = { google: 'Google' }
@@ -38,7 +51,11 @@ const FIELD_FOR_MESSAGE = new Map<string, keyof ChangePasswordInput>([
   ['New password must be different from the current password.', 'newPassword'],
 ])
 
-/** Sign-in methods and the change-password form, below the profile form. */
+/**
+ * Sign-in methods, the change-password form and signing out other sessions,
+ * below the profile form. Signing out other sessions is offered on every
+ * account, a Google-only one included.
+ */
 export function SecuritySection() {
   const providers = useAuthProviders()
   const headingId = useId()
@@ -65,6 +82,7 @@ export function SecuritySection() {
           )}
         </>
       )}
+      <OtherSessions />
     </section>
   )
 }
@@ -86,6 +104,40 @@ function SignInMethods({ providers, hasPassword }: AuthProviders) {
           <li key={link.provider}>{PROVIDER_LABELS[link.provider] ?? link.provider}</li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/**
+ * "Sign out other sessions": one button, confirmed by a toast with the count,
+ * as the change-password form confirms its own change. A failure shows the
+ * server's message.
+ */
+function OtherSessions() {
+  const revokeOthers = useRevokeOtherSessions()
+  const hintId = useId()
+
+  return (
+    <div className="grid gap-2">
+      <h3 className="text-sm font-medium">Other sessions</h3>
+      <p id={hintId} className="text-sm text-muted-foreground">
+        {OTHER_SESSIONS_HINT}
+      </p>
+      <div>
+        <Button
+          variant="outline"
+          aria-describedby={hintId}
+          disabled={revokeOthers.isPending}
+          onClick={() => {
+            revokeOthers.mutate(undefined, {
+              onSuccess: ({ revoked }) => toast.success(revokedMessage(revoked)),
+              onError: (error) => toast.error(messageFrom(error)),
+            })
+          }}
+        >
+          {revokeOthers.isPending ? 'Signing out…' : 'Sign out other sessions'}
+        </Button>
+      </div>
     </div>
   )
 }

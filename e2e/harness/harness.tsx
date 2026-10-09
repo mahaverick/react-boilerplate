@@ -405,6 +405,9 @@ const worker = setupWorker(
       'Auth providers retrieved.'
     )
   ),
+  http.post('/api/v1/auth/sessions/revoke-others', () =>
+    ok({ revoked: 2 }, 'Other sessions signed out.')
+  ),
   // Any other current password gets the API's own 400.
   http.post('/api/v1/auth/change-password', async ({ request }) => {
     const body = (await request.json()) as { currentPassword?: unknown }

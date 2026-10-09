@@ -31,3 +31,11 @@ test('puts a wrong current password on its own field', async ({ page }) => {
   await expect(current).toHaveAttribute('aria-invalid', 'true')
   await expect(page.getByText('Current password is incorrect.')).toHaveCount(1)
 })
+
+test('signs out other sessions from the profile page', async ({ page }) => {
+  await page.goto('/e2e/harness/?path=/profile')
+
+  await page.getByRole('button', { name: 'Sign out other sessions' }).click()
+
+  await expect(page.getByText('Signed out 2 other sessions.')).toBeVisible()
+})
