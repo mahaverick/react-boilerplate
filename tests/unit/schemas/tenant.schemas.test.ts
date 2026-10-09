@@ -6,6 +6,7 @@ import {
   slugSchema,
   tenantSettingsFormSchema,
   updateTenantSchema,
+  updateTenantSettingsSchema,
 } from '@/schemas/tenant.schemas'
 
 describe('slugSchema', () => {
@@ -205,11 +206,48 @@ describe('tenant text fields: the API safeText rule', () => {
       ['website', 'Website contains characters that are not allowed'],
     ])
   })
+})
 
-  it('leaves timezone and locale unchecked, as the API does', () => {
-    expect(
-      tenantSettingsFormSchema.safeParse({ timezone: 'UTC\u{1B}', locale: 'en', metadata: '' })
-        .success
-    ).toBe(true)
+describe('tenant settings: timezone and locale', () => {
+  const base = { timezone: 'Europe/London', locale: 'en-GB', metadata: '' }
+
+  /** The messages for one field, from the form schema and the PATCH body schema. */
+  function messagesFor(field: 'timezone' | 'locale', value: string) {
+    const form = tenantSettingsFormSchema.safeParse({ ...base, [field]: value })
+    const body = updateTenantSettingsSchema.safeParse({ [field]: value })
+    return [form, body].map((result) => result.error?.issues.map((issue) => issue.message))
+  }
+
+  it.each([
+    ['timezone', 'Etc/\u{202E}gnp', 'Timezone contains characters that are not allowed'],
+    ['timezone', 'UTC\nX', 'Timezone contains characters that are not allowed'],
+    ['locale', 'en\u{7}', 'Locale contains characters that are not allowed'],
+  ])('refuses a control or bidi character in %s', (field, value, message) => {
+    for (const messages of messagesFor(field as 'timezone' | 'locale', value)) {
+      expect(messages?.[0]).toBe(message)
+    }
+  })
+
+  it.each([
+    ['timezone', 'Not a zone', 'Timezone must be a time zone name such as Europe/Paris.'],
+    ['timezone', 'Mars/Olympus_Mons', 'Timezone must be a time zone name such as Europe/Paris.'],
+    ['timezone', '+05:30', 'Timezone must be a time zone name such as Europe/Paris.'],
+    ['locale', 'english', 'Locale must be a language tag such as en or en-US.'],
+    ['locale', 'en_GB', 'Locale must be a language tag such as en or en-US.'],
+  ])('refuses %s %j by its shape', (field, value, message) => {
+    for (const messages of messagesFor(field as 'timezone' | 'locale', value)) {
+      expect(messages).toEqual([message])
+    }
+  })
+
+  it.each(['UTC', 'Europe/London', 'America/Argentina/Buenos_Aires', 'Etc/GMT+5', '+0530'])(
+    'accepts the time zone %s',
+    (timezone) => {
+      expect(tenantSettingsFormSchema.safeParse({ ...base, timezone }).success).toBe(true)
+    }
+  )
+
+  it.each(['en', 'en-GB', 'zh-Hant-TW', 'es-419'])('accepts the locale %s', (locale) => {
+    expect(tenantSettingsFormSchema.safeParse({ ...base, locale }).success).toBe(true)
   })
 })

@@ -91,10 +91,7 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
                 onChange={(e) => field.handleChange(e.target.value)}
               />
             </FormControl>
-            <FormDescription>
-              An IANA name such as Europe/London. The API stores it as written and does not check it
-              against a zone database — neither does this form, so that the two agree.
-            </FormDescription>
+            <FormDescription>A time zone name such as Europe/London.</FormDescription>
             <FormMessage />
           </FormItem>
         )}

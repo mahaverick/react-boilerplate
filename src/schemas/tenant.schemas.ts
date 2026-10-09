@@ -186,14 +186,87 @@ export const updateMemberRoleSchema = z.object({ role: z.enum(MEMBERSHIP_ROLES) 
 
 export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>
 
+/** A time zone name's letters, digits and `_+-/`, as the API checks first. */
+const TIMEZONE_PATTERN = /^[A-Za-z0-9_+\-/]+$/
+
+/** A BCP 47 language tag's common shape (`en`, `en-GB`, `zh-Hant-TW`), as the API checks first. */
+const LOCALE_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/
+
 /**
- * `PATCH /tenants/:slug/settings`. `timezone` and `locale` are bounded to
- * their column widths only; like the API, this does not check for a real IANA
- * zone or BCP 47 tag.
+ * Whether `value` names a time zone this browser knows (an IANA name such as
+ * `Europe/Paris`, an alias such as `UTC`, or `Etc/GMT+5`), in the
+ * letters-digits-`_+-/` shape, as the API's `isTimeZoneName` checks it. Names
+ * match case-insensitively, and a colon-free UTC offset (`+0530`) is a name to
+ * `Intl`; the colon form `+05:30` fails the shape check.
+ * @param value - The trimmed candidate.
+ * @returns True when the value is a usable time zone name.
+ */
+function isTimeZoneName(value: string): boolean {
+  if (!TIMEZONE_PATTERN.test(value)) return false
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Whether `value` is a BCP 47 language tag of the common shape that `Intl`
+ * accepts, as the API's `isLocaleTag` checks it.
+ * @param value - The trimmed candidate.
+ * @returns True when the value is a usable locale tag.
+ */
+function isLocaleTag(value: string): boolean {
+  if (!LOCALE_PATTERN.test(value)) return false
+  try {
+    return Intl.getCanonicalLocales(value).length === 1
+  } catch {
+    return false
+  }
+}
+
+/** The timezone field: trimmed, capped, `safeText`, and a known time zone name, with the API's messages. */
+function timezoneText() {
+  return z
+    .string()
+    .trim()
+    .max(
+      MAX_TENANT_TIMEZONE_LENGTH,
+      `Timezone must be at most ${MAX_TENANT_TIMEZONE_LENGTH} characters.`
+    )
+    .refine(safeText(), notAllowedMessage('Timezone'))
+    .refine(
+      (value) => value === '' || isTimeZoneName(value),
+      'Timezone must be a time zone name such as Europe/Paris.'
+    )
+}
+
+/** The locale field: trimmed, capped, `safeText`, and a BCP 47 tag, with the API's messages. */
+function localeText() {
+  return z
+    .string()
+    .trim()
+    .max(MAX_TENANT_LOCALE_LENGTH, `Locale must be at most ${MAX_TENANT_LOCALE_LENGTH} characters.`)
+    .refine(safeText(), notAllowedMessage('Locale'))
+    .refine(
+      (value) => value === '' || isLocaleTag(value),
+      'Locale must be a language tag such as en or en-US.'
+    )
+}
+
+/**
+ * `PATCH /tenants/:slug/settings`. `timezone` must name a time zone and
+ * `locale` must be a BCP 47 tag, both within their column widths, as the API
+ * checks them.
  */
 export const updateTenantSettingsSchema = z.object({
-  timezone: optionalText(MAX_TENANT_TIMEZONE_LENGTH, 'Timezone'),
-  locale: optionalText(MAX_TENANT_LOCALE_LENGTH, 'Locale'),
+  timezone: timezoneText()
+    .transform((value) => (value === '' ? undefined : value))
+    .optional(),
+  locale: localeText()
+    .transform((value) => (value === '' ? undefined : value))
+    .optional(),
   metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 })
 
@@ -229,21 +302,7 @@ export const metadataTextSchema = z.string().transform((text, ctx) => {
  * report "Settings updated." while keeping the old value.
  */
 export const tenantSettingsFormSchema = z.object({
-  timezone: z
-    .string()
-    .trim()
-    .min(1, 'Timezone is required.')
-    .max(
-      MAX_TENANT_TIMEZONE_LENGTH,
-      `Timezone must be at most ${MAX_TENANT_TIMEZONE_LENGTH} characters.`
-    ),
-  locale: z
-    .string()
-    .trim()
-    .min(1, 'Locale is required.')
-    .max(
-      MAX_TENANT_LOCALE_LENGTH,
-      `Locale must be at most ${MAX_TENANT_LOCALE_LENGTH} characters.`
-    ),
+  timezone: timezoneText().refine((value) => value !== '', 'Timezone is required.'),
+  locale: localeText().refine((value) => value !== '', 'Locale is required.'),
   metadata: metadataTextSchema,
 })
