@@ -343,9 +343,43 @@ describe('sign out other sessions', () => {
     mockProviders(['email', 'google'], false)
     renderProfile()
 
-    expect(
-      await (await section()).findByRole('button', { name: 'Sign out other sessions' })
-    ).toBeEnabled()
+    const button = await (
+      await section()
+    ).findByRole('button', {
+      name: 'Sign out other sessions',
+    })
+    expect(button).toBeEnabled()
+    expect(button).toHaveAccessibleDescription(
+      'Signs you out on every other browser and device. You stay signed in here.'
+    )
+  })
+
+  it('switches the button off while it signs out, so a second click sends nothing', async () => {
+    mockProviders(['email'], true)
+    let calls = 0
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    server.use(
+      http.post('/api/v1/auth/sessions/revoke-others', async () => {
+        calls += 1
+        await held
+        return ok({ revoked: 1 }, 'Other sessions signed out.')
+      })
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    const security = await section()
+    await user.click(await security.findByRole('button', { name: 'Sign out other sessions' }))
+    const pending = await security.findByRole('button', { name: 'Signing out…' })
+    expect(pending).toBeDisabled()
+    await user.click(pending)
+    release()
+
+    expect(await screen.findByText('Signed out 1 other session.')).toBeInTheDocument()
+    expect(calls).toBe(1)
   })
 
   it('shows the server’s message when it is refused', async () => {

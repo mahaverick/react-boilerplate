@@ -2,6 +2,7 @@
  * @file The members tab of a tenant: the member list with role and removal
  * controls, and, for owners and admins, the invite form and pending invitations.
  */
+import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -50,8 +51,10 @@ import {
 } from '@/constants/roles'
 import { useFocusAfter } from '@/hooks/use-focus-after'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { statusFrom } from '@/lib/api-error'
 import { writeFailureMessage } from '@/lib/write-failure'
 import {
+  dropTenantCache,
   memberName,
   ownerCount,
   useLeaveTenant,
@@ -75,6 +78,9 @@ const LEAVE_WARNING =
 
 /** Added for an owner or admin, the roles that can have sent invitations: leaving revokes them. */
 const INVITATIONS_REVOKED_ON_LEAVE = 'Pending invitations you sent are revoked.'
+
+/** What a leave says when the API answers 404: the membership was already gone. */
+const NO_LONGER_A_MEMBER = 'You are no longer a member of this tenant.'
 
 /** The reason the last owner's own controls are switched off. */
 const LAST_OWNER_REASON = 'A tenant must always have an owner. Add another owner first.'
@@ -176,11 +182,13 @@ function RoleCell({
  * the caller's own membership route (`useLeaveTenant`). For the last owner it
  * is a disabled Leave button described by the row's explanation in `RoleCell`
  * (`isLastOwner` implies `isSelf`). An owner or admin leaving is told the
- * invitations they sent are revoked, as the server does. After leaving, the
- * page navigates to `/tenants`, because the tenant's routes answer 404 to a
- * caller with neither a membership nor a platform role. It uses
- * `mutateAsync`, because the refetch unmounts this row first and `mutate`'s
- * callbacks skip an unmounted observer.
+ * invitations they sent are revoked, as the server does. After leaving, or
+ * when the API answers 404 because the membership was already gone, the page
+ * navigates to `/tenants`, because the tenant's routes answer 404 to a caller
+ * with neither a membership nor a platform role, and only then drops the
+ * tenant's cache, so no query still mounted on the tenant refetches it. Both
+ * use `mutateAsync`, because the refetch can unmount this row first and
+ * `mutate`'s callbacks skip an unmounted observer.
  */
 function RemoveMemberButton({
   slug,
@@ -203,10 +211,29 @@ function RemoveMemberButton({
 }) {
   const removeMember = useRemoveMember(slug)
   const leaveTenant = useLeaveTenant(slug)
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
   const name = memberName(member)
   const isPending = isSelf ? leaveTenant.isPending : removeMember.isPending
+
+  /** Leaves, then lands on the tenant list and forgets the tenant; other failures stay here. */
+  async function leave() {
+    try {
+      await leaveTenant.mutateAsync()
+      setIsOpen(false)
+      toast.success('You left this tenant.')
+    } catch (error) {
+      setIsOpen(false)
+      if (statusFrom(error) !== 404) {
+        toast.error(writeFailureMessage(error))
+        return
+      }
+      toast.success(NO_LONGER_A_MEMBER)
+    }
+    await navigate({ to: '/tenants' })
+    dropTenantCache(queryClient, slug)
+  }
 
   if (isLastOwner) {
     return (
@@ -256,15 +283,15 @@ function RemoveMemberButton({
             variant="destructive"
             disabled={isPending}
             onClick={() => {
-              const action = isSelf
-                ? leaveTenant.mutateAsync()
-                : removeMember.mutateAsync(member.user.id)
-              action.then(
+              if (isSelf) {
+                void leave()
+                return
+              }
+              removeMember.mutateAsync(member.user.id).then(
                 () => {
                   setIsOpen(false)
-                  toast.success(isSelf ? 'You left this tenant.' : `${name} removed.`)
-                  if (isSelf) void navigate({ to: '/tenants' })
-                  else onRemoved()
+                  toast.success(`${name} removed.`)
+                  onRemoved()
                 },
                 (error: unknown) => {
                   setIsOpen(false)

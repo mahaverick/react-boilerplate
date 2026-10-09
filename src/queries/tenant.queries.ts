@@ -1,4 +1,10 @@
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import type { MembershipRole } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
@@ -288,20 +294,43 @@ export function useUpdateMemberRole(slug: string) {
 
 /**
  * Leaves a tenant: `DELETE /tenants/:slug/membership`, open to every role but
- * the tenant's last owner (409 `LAST_OWNER`). It drops the tenant's whole
- * cache prefix rather than refetching queries a former member cannot read,
- * and leaving the platform tenant refreshes the stored user's platformRole.
+ * the tenant's last owner (409 `LAST_OWNER`). On success, or on a 404 (the
+ * membership was already gone), it refetches the tenant list, which the
+ * switcher reads, and leaving the platform tenant refreshes the stored user's
+ * platformRole. A 409 refetches the member list, since another owner changed
+ * under the page. The tenant's own cache is dropped by the page with
+ * `dropTenantCache` once it has left the tenant's routes: dropped any earlier,
+ * a still-mounted observer would refetch it.
  */
 export function useLeaveTenant(slug: string) {
   const queryClient = useQueryClient()
+  const afterLeaving = async () => {
+    await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+    if (slug === PLATFORM_TENANT_SLUG) await refreshProfile(queryClient)
+  }
   return useMutation({
     mutationFn: async () => apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/membership`),
-    onSuccess: async () => {
-      queryClient.removeQueries({ queryKey: tenantKeys.detail(slug) })
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
-      if (slug === PLATFORM_TENANT_SLUG) await refreshProfile(queryClient)
+    onSuccess: afterLeaving,
+    onError: async (error) => {
+      const status = statusFrom(error)
+      if (status === 404) await afterLeaving()
+      else if (status === 409) {
+        await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
+      }
     },
   })
+}
+
+/**
+ * Drops a tenant's whole cache prefix (detail, members, settings,
+ * invitations and the rest), for a tenant the caller can no longer read.
+ * Call it after navigating away from the tenant's routes, so no mounted
+ * query refetches what it drops.
+ * @param queryClient - The app's query client.
+ * @param slug - The tenant left.
+ */
+export function dropTenantCache(queryClient: QueryClient, slug: string): void {
+  queryClient.removeQueries({ queryKey: tenantKeys.detail(slug) })
 }
 
 /**

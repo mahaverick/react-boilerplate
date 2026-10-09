@@ -490,9 +490,9 @@ describe('member mutations and the caller’s own profile', () => {
   })
 
   describe('useLeaveTenant', () => {
-    it('leaves through the membership route and drops the whole tenant cache prefix', async () => {
+    it('leaves through the membership route and refetches the tenant list', async () => {
+      client.setQueryData(tenantKeys.list, [])
       client.setQueryData(tenantKeys.detail('acme'), { id: TENANT_ID })
-      client.setQueryData(tenantKeys.members('acme'), [])
       server.use(
         http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.'))
       )
@@ -501,8 +501,57 @@ describe('member mutations and the caller’s own profile', () => {
       result.current.mutate()
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
+      // The page drops the tenant's cache once it has left the tenant's routes (`dropTenantCache`).
+      expect(client.getQueryState(tenantKeys.detail('acme'))?.data).toEqual({ id: TENANT_ID })
+    })
+
+    it('refetches the member list when leaving is refused with a 409', async () => {
+      client.setQueryData(tenantKeys.list, [])
+      client.setQueryData(tenantKeys.members('acme'), [])
+      server.use(
+        http.delete('/api/v1/tenants/acme/membership', () =>
+          fail(
+            'You are the last owner: make someone else an owner before you leave.',
+            409,
+            'LAST_OWNER'
+          )
+        )
+      )
+
+      const { result } = renderHook(() => tenantQueries.useLeaveTenant('acme'), { wrapper })
+      result.current.mutate()
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      expect(client.getQueryState(tenantKeys.members('acme'))?.isInvalidated).toBe(true)
+      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(false)
+    })
+
+    it('refetches the tenant list when the membership was already gone (404)', async () => {
+      client.setQueryData(tenantKeys.list, [])
+      client.setQueryData(tenantKeys.members('acme'), [])
+      server.use(
+        http.delete('/api/v1/tenants/acme/membership', () => fail('Tenant not found', 404))
+      )
+
+      const { result } = renderHook(() => tenantQueries.useLeaveTenant('acme'), { wrapper })
+      result.current.mutate()
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
+      expect(client.getQueryState(tenantKeys.members('acme'))?.isInvalidated).toBe(false)
+    })
+
+    it('drops the whole tenant cache prefix with dropTenantCache', () => {
+      client.setQueryData(tenantKeys.detail('acme'), { id: TENANT_ID })
+      client.setQueryData(tenantKeys.members('acme'), [])
+      client.setQueryData(tenantKeys.list, [])
+
+      tenantQueries.dropTenantCache(client, 'acme')
+
       expect(client.getQueryState(tenantKeys.detail('acme'))).toBeUndefined()
       expect(client.getQueryState(tenantKeys.members('acme'))).toBeUndefined()
+      expect(client.getQueryState(tenantKeys.list)?.data).toEqual([])
     })
 
     it('refreshes the profile after leaving the platform tenant', async () => {
