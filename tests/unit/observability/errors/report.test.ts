@@ -509,6 +509,31 @@ describe('waiting for analytics to settle', () => {
     await drain()
     expect(sentEvents()[1]?.distinct_id).toBe('user-a')
   })
+
+  it('beacons an error that is still waiting for analytics to settle when the page goes away', async () => {
+    settled.mockReturnValue(new Promise(() => {})) // analytics has not settled yet
+    report(appError('crash during load'), 'window', false)
+    await vi.advanceTimersByTimeAsync(100)
+    dispatchEvent(new Event('pagehide'))
+    expect(beacon).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(await (beacon.mock.calls[0]?.[1] as Blob).text()) as {
+      batch: ExceptionEvent[]
+    }
+    expect(body.batch).toHaveLength(1)
+    expect(body.batch[0]?.properties.$process_person_profile).toBe(false)
+  })
+
+  it('does not send a beaconed error a second time when analytics settles later', async () => {
+    let settle: (identity: AnalyticsIdentity | null) => void = () => {}
+    settled.mockReturnValue(new Promise((resolve) => (settle = resolve)))
+    report(appError('crash during load'), 'window', false)
+    await vi.advanceTimersByTimeAsync(100)
+    dispatchEvent(new Event('pagehide'))
+    settle(CONSENTED)
+    await drain()
+    expect(beacon).toHaveBeenCalledTimes(1)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('the identity across a navigation inside the same tenant', () => {

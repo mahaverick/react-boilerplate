@@ -87,6 +87,8 @@ let settleGate: Promise<void> | undefined
 /** Set once analytics has settled; until then, an event built after the settle cap is anonymous without asking again. */
 let hasAnalyticsSettled = false
 let queue: ExceptionEvent[] = []
+/** Built events still waiting for their identity; `pagehide` beacons them anonymous. */
+const awaitingIdentity = new Set<PendingEvent>()
 let flushTimer: ReturnType<typeof setTimeout> | undefined
 const retrying = new Map<ExceptionEvent[], ReturnType<typeof setTimeout>>()
 let isPageHideInstalled = false
@@ -326,11 +328,17 @@ function enqueue(event: ExceptionEvent): void {
   else flushTimer ??= setTimeout(flush, BATCH_WINDOW_MS)
 }
 
-/** On `pagehide`, everything not yet sent, and every batch waiting to retry, goes by beacon. */
+/**
+ * On `pagehide`, everything not yet sent, every batch waiting to retry, and
+ * every event still waiting for its identity (anonymous, as its identity is
+ * not known yet) goes by beacon.
+ */
 function sendOnPageHide(): void {
   // A listener that throws reaches window `error`, which would report the reporter itself.
   try {
     const unsent = queue.splice(0)
+    for (const event of awaitingIdentity) unsent.push(withIdentity(event, null))
+    awaitingIdentity.clear()
     for (const [batch, timer] of retrying) {
       clearTimeout(timer)
       unsent.push(...batch)
@@ -405,14 +413,17 @@ export function report(
           : { $current_url: scrubUrl(sanitizeUrl(location.href, ANALYTICS_URL_QUERY_ALLOWLIST)) }),
       },
     }
+    awaitingIdentity.add(event)
     // The identity is read when it settles, so it counts only if nothing changed it since this error.
     void resolveIdentity().then(
       (identity) => {
+        // Already beaconed on pagehide.
+        if (!awaitingIdentity.delete(event)) return
         const isOwn = !isStale && identityEpoch() === notedEpoch
         enqueue(withIdentity(event, isOwn ? identity : null))
       },
       () => {
-        enqueue(withIdentity(event, null))
+        if (awaitingIdentity.delete(event)) enqueue(withIdentity(event, null))
       }
     )
   } catch {
@@ -427,6 +438,7 @@ export function resetReporterForTests(): void {
   settleGate = undefined
   hasAnalyticsSettled = false
   queue = []
+  awaitingIdentity.clear()
   if (flushTimer !== undefined) clearTimeout(flushTimer)
   flushTimer = undefined
   for (const timer of retrying.values()) clearTimeout(timer)
