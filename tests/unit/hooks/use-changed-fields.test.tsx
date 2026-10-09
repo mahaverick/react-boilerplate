@@ -93,4 +93,21 @@ describe('useChangedFields', () => {
     })
     expect(result.current.serverErrors.formErrors).toEqual(['Something broke.'])
   })
+
+  it('clears field errors left by an earlier save when a later one changed nothing', () => {
+    const { result } = renderHook(() => useTracked({ firstName: 'Ada', lastName: 'Byron' }))
+    act(() => {
+      result.current.serverErrors.setFieldError('firstName', ['First name is too long.'])
+    })
+    expect(result.current.serverErrors.fieldErrors).toEqual({
+      firstName: ['First name is too long.'],
+    })
+
+    act(() => {
+      result.current.changedBody({ firstName: 'Ada', lastName: 'Byron' })
+    })
+
+    expect(result.current.serverErrors.fieldErrors).toEqual({})
+    expect(result.current.serverErrors.formErrors).toEqual([UNCHANGED])
+  })
 })
