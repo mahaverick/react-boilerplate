@@ -13,9 +13,21 @@ function useTracked(loaded: { firstName: string; lastName: string }) {
 }
 
 describe('useChangedFields', () => {
-  it('keeps the baseline it mounted with when the loaded values change', () => {
+  it('follows the loaded values while nothing is edited', () => {
     const { result, rerender } = renderHook(({ loaded }) => useTracked(loaded), {
       initialProps: { loaded: { firstName: 'Ada', lastName: 'Byron' } },
+    })
+    rerender({ loaded: { firstName: 'Ada', lastName: 'King' } })
+
+    expect(result.current.baseline).toEqual({ firstName: 'Ada', lastName: 'King' })
+  })
+
+  it('freezes the baseline at the first edit, so a later refetch does not move it', () => {
+    const { result, rerender } = renderHook(({ loaded }) => useTracked(loaded), {
+      initialProps: { loaded: { firstName: 'Ada', lastName: 'Byron' } },
+    })
+    act(() => {
+      result.current.listeners.onChange()
     })
     rerender({ loaded: { firstName: 'Ada', lastName: 'King' } })
 
@@ -23,6 +35,18 @@ describe('useChangedFields', () => {
     expect(result.current.changes.parse({ firstName: 'Augusta', lastName: 'Byron' })).toEqual({
       firstName: 'Augusta',
     })
+  })
+
+  it('freezes on a blur too, which TanStack counts as touching a field', () => {
+    const { result, rerender } = renderHook(({ loaded }) => useTracked(loaded), {
+      initialProps: { loaded: { firstName: 'Ada', lastName: 'Byron' } },
+    })
+    act(() => {
+      result.current.listeners.onBlur()
+    })
+    rerender({ loaded: { firstName: 'Ada', lastName: 'King' } })
+
+    expect(result.current.baseline).toEqual({ firstName: 'Ada', lastName: 'Byron' })
   })
 
   it('moves the baseline only when rebased, after a save', () => {

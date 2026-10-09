@@ -208,6 +208,24 @@ describe('profile page', () => {
     })
   })
 
+  it('shows a refetch on a form nobody has touched', async () => {
+    let served = { ...testUser, firstName: 'Ada', lastName: 'Byron' }
+    useAuthStore.setState({ user: served })
+    server.use(http.get('/api/v1/profile', () => ok(served, 'Profile retrieved.')))
+    renderProfile()
+
+    const last = await screen.findByLabelText('Last name')
+    await waitFor(() => {
+      expect(last).toHaveValue('Byron')
+    })
+    served = { ...served, lastName: 'King' }
+    await act(() => queryClient.refetchQueries({ queryKey: profileKeys.detail }))
+
+    await waitFor(() => {
+      expect(last).toHaveValue('King')
+    })
+  })
+
   it('refuses to submit an empty name without touching the network', async () => {
     let called = false
     server.use(

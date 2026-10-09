@@ -571,6 +571,34 @@ describe('tenant detail', () => {
     })
   })
 
+  it('shows a refetch on a form nobody has touched, and still asks for a change', async () => {
+    mockTenant('owner')
+    let served = TENANT
+    let patches = 0
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(served, 'owner'), 'Tenant retrieved.')
+      ),
+      http.patch('/api/v1/tenants/acme', () => {
+        patches += 1
+        return ok(served, 'Tenant updated.')
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+
+    await screen.findByLabelText('Name')
+    served = { ...TENANT, website: 'https://other.example' }
+    await act(() => queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme') }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Website')).toHaveValue('https://other.example')
+    })
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
+    expect(patches).toBe(0)
+  })
+
   /**
    * The settings twin of the members-tab retry test: a settings failure
    * has its own retry, which must reach the SETTINGS query and leave the

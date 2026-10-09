@@ -53,10 +53,10 @@ function metadataText(metadata: Record<string, unknown> | null): string {
 /**
  * The settings form for owners and admins. Its schema's output is the PATCH
  * body: the metadata textarea parses to an object, or `null` to clear it. Only
- * the fields the user changed since the form opened (or last saved) are
- * checked and sent, so a stored value that today's rules refuse does not block
- * saving the others. With nothing changed, Save sends nothing and asks for a
- * change instead.
+ * the fields the user changed from the stored values (as loaded until the
+ * first edit, or as last saved) are checked and sent, so a stored value that
+ * today's rules refuse does not block saving the others. With nothing changed,
+ * Save sends nothing and asks for a change instead.
  */
 function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettings }) {
   const updateSettings = useUpdateTenantSettings(slug)
