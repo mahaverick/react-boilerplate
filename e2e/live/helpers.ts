@@ -155,15 +155,42 @@ async function portFreedWithin(port: string, timeoutMs: number): Promise<boolean
   return true
 }
 
+/** The port a developer's own express listens on, which `restartApi` never kills. */
+const DEV_API_PORT = '4040'
+
+/**
+ * Why `restartApi` would refuse to run here, or `null` when it may. It kills
+ * whatever listens on the API port and starts `pnpm dev` in `E2E_API_DIR`,
+ * so it needs an explicit opt-in (`E2E_ALLOW_API_RESTART=1`) and an explicit
+ * `E2E_API_DIR`, and never touches :4040, the port a developer's own
+ * `pnpm dev` holds.
+ * @returns The refusal, naming what to change, or `null`.
+ */
+export function apiRestartRefusal(): string | null {
+  const port = new URL(API_ORIGIN).port || '80'
+  if (port === DEV_API_PORT) {
+    return `restartApi kills whatever listens on :${port}, the dev server's port: point E2E_API_ORIGIN at an express you started on another port`
+  }
+  if (process.env.E2E_ALLOW_API_RESTART !== '1') {
+    return `restartApi kills whatever listens on :${port} and starts pnpm dev in E2E_API_DIR: set E2E_ALLOW_API_RESTART=1 for an express you started`
+  }
+  if (process.env.E2E_API_DIR === undefined) {
+    return 'restartApi starts pnpm dev in E2E_API_DIR: set it to the checkout of the express you started, not the default sibling checkout'
+  }
+  return null
+}
+
 /**
  * Stops whatever is listening on the API port, then starts a new one.
  *
  * Kills by PORT rather than by a pid this process spawned, because the API is
- * normally started by hand (`pnpm dev` in express-boilerplate) and the SSE
- * test has to be able to restart THAT. `tsx watch` spawns a child, so the
- * whole process group goes.
+ * started outside the test run and the SSE test has to be able to restart
+ * THAT. `tsx watch` spawns a child, so the whole process group goes. Refuses,
+ * by throwing, unless `apiRestartRefusal` allows it.
  */
 export async function restartApi(): Promise<void> {
+  const refusal = apiRestartRefusal()
+  if (refusal !== null) throw new Error(refusal)
   const port = new URL(API_ORIGIN).port || '80'
 
   /**

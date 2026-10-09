@@ -535,7 +535,11 @@ the fake PostHog the suite starts on `FAKE_POSTHOG_PORT` (4063). posthog-js drop
 from a Playwright browser (`navigator.webdriver`, the `HeadlessChrome` brand) unless the test
 uses `HUMAN_USER_AGENT` and `passPosthogBotFilter`, and holds back the replay of a page nobody
 has clicked. Never run `e2e/nginx/sse.test.ts` against an express you did not start:
-`restartApi()` kills whatever listens on the API port.
+`restartApi()` kills whatever listens on the API port and starts `pnpm dev` in `E2E_API_DIR`.
+It refuses, by throwing, unless `E2E_ALLOW_API_RESTART=1` and `E2E_API_DIR` are both set, and
+always for port 4040, a developer's own `pnpm dev`; the SSE test skips with that reason
+instead. So the test needs an express you started on another port, named by
+`E2E_API_ORIGIN`, `E2E_API_DIR` and the container's `API_UPSTREAM`.
 
 **`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom
 cannot compute at all — over every surface reachable without a backend, in **both themes**:
