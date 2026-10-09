@@ -1,3 +1,8 @@
+/**
+ * @file scrubText against the shared vectors (tests/fixtures/error-scrub-vectors.json),
+ * which are express-boilerplate's byte for byte, plus the properties no single
+ * vector shows: idempotence, the length cap and the bounded scan.
+ */
 import { describe, expect, it } from 'vitest'
 import { SCRUB_VALUE_MAX, scrubText, TRUNCATION_MARKER } from '@/observability/errors/scrub'
 import vectors from '@/tests/fixtures/error-scrub-vectors.json'
@@ -161,10 +166,12 @@ describe('scrubText', () => {
       `token: ${'a pwd: '.repeat(4 * SCRUB_VALUE_MAX)}`.slice(0, 4 * SCRUB_VALUE_MAX - 1) + ' ',
     ],
   ])('scans a 4 KB input of %s in bounded time', (_shape, text) => {
-    expect(text.length).toBeGreaterThan(3 * SCRUB_VALUE_MAX)
+    // Every shape fills the scan cap without passing it, so scanned keeps it whole.
+    expect(text.length).toBeGreaterThan(4 * SCRUB_VALUE_MAX - 30)
+    expect(text.length).toBeLessThanOrEqual(4 * SCRUB_VALUE_MAX)
     const started = performance.now()
     scrubText(text)
-    // Proves no rule backtracks super-linearly on a text at the scan cap; the slowest shape measured about 0.5 s under jsdom, so 5 s keeps 10x headroom.
+    // Proves the worst shapes stay bounded at the scan cap: several are quadratic, and only SCAN_MAX keeps them cheap; the slowest measured under 60 ms idle and about 0.5 s under load in jsdom, so 5 s keeps 10x headroom.
     expect(performance.now() - started).toBeLessThan(5000)
   })
 

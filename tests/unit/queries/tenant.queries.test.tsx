@@ -571,6 +571,25 @@ describe('member mutations and the caller’s own profile', () => {
       })
     })
 
+    it('refreshes the profile when the platform membership was already gone (404)', async () => {
+      signInAs(USER_ID)
+      client.setQueryData(tenantKeys.list, [])
+      server.use(
+        http.delete('/api/v1/tenants/platform/membership', () => fail('Tenant not found', 404)),
+        http.get('/api/v1/profile', () => ok({ ...testUser, platformRole: null }, 'Profile.'))
+      )
+      useAuthStore.setState({ user: { ...testUser, id: USER_ID, platformRole: 'viewer' } })
+
+      const { result } = renderHook(() => tenantQueries.useLeaveTenant('platform'), { wrapper })
+      result.current.mutate()
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      await waitFor(() => {
+        expect(useAuthStore.getState().user?.platformRole).toBeNull()
+      })
+      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
+    })
+
     it('does not ask for the profile after leaving any other tenant', async () => {
       let profileCalls = 0
       server.use(
