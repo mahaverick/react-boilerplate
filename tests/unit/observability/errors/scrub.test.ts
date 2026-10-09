@@ -137,6 +137,29 @@ describe('scrubText', () => {
     ],
     ['quoted snippets', '"x" '.repeat(SCRUB_VALUE_MAX)],
     ['a dotted local part', `${'a.'.repeat(2 * SCRUB_VALUE_MAX - 10)}@b `],
+    [
+      'a reset path of repeated key=null fields',
+      `/reset/${'token=null,'.repeat(4 * SCRUB_VALUE_MAX)}`.slice(0, 4 * SCRUB_VALUE_MAX - 1) + ' ',
+    ],
+    [
+      'a replaced value joined to a fragment of path segments',
+      `/x/pwd=[a b]#${'a/'.repeat(4 * SCRUB_VALUE_MAX)}`.slice(0, 4 * SCRUB_VALUE_MAX - 1) + ' ',
+    ],
+    [
+      'nested open arrays',
+      `token: ${'a = [x '.repeat(4 * SCRUB_VALUE_MAX)}`.slice(0, 4 * SCRUB_VALUE_MAX - 1) + ' ',
+    ],
+    [
+      'a value over repeated reset paths with an &code field',
+      `password=${'/reset/a&code="x y" '.repeat(4 * SCRUB_VALUE_MAX)}`.slice(
+        0,
+        4 * SCRUB_VALUE_MAX - 1
+      ) + ' ',
+    ],
+    [
+      'a value running through repeated keys',
+      `token: ${'a pwd: '.repeat(4 * SCRUB_VALUE_MAX)}`.slice(0, 4 * SCRUB_VALUE_MAX - 1) + ' ',
+    ],
   ])('scans a 4 KB input of %s in bounded time', (_shape, text) => {
     expect(text.length).toBeGreaterThan(3 * SCRUB_VALUE_MAX)
     const started = performance.now()
