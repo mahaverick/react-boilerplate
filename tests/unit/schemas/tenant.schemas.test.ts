@@ -237,6 +237,8 @@ describe('tenant settings: timezone and locale', () => {
     ['timezone', '+05:30', 'Timezone must be a time zone name such as Europe/Paris.'],
     ['locale', 'english', 'Locale must be a language tag such as en or en-US.'],
     ['locale', 'en_GB', 'Locale must be a language tag such as en or en-US.'],
+    // The tag's shape passes; Intl refuses the repeated region subtag.
+    ['locale', 'en-GB-GB', 'Locale must be a language tag such as en or en-US.'],
   ])('refuses %s %j by its shape', (field, value, message) => {
     for (const messages of messagesFor(field as 'timezone' | 'locale', value)) {
       expect(messages).toEqual([message])
@@ -324,6 +326,7 @@ describe('tenant logo and website: http or https URLs only', () => {
     ['website', 'call us maybe', 'Website must be an http or https URL.'],
     ['website', 'https://bank.example@evil.example/', 'Website must be an http or https URL.'],
     ['website', 'https://user:pw@host.example/', 'Website must be an http or https URL.'],
+    ['website', 'https://:pw@host.example/', 'Website must be an http or https URL.'],
     [
       'website',
       String.raw`https://evil.example\@good.example/`,
@@ -335,6 +338,15 @@ describe('tenant logo and website: http or https URLs only', () => {
       const result = schema.safeParse({ ...base, [field]: value })
       expect(result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])).toEqual([
         [field, message],
+      ])
+    }
+  })
+
+  it('gives a refused character alone its message, not the URL message too, as the API does', () => {
+    for (const schema of [newTenantSchema, updateTenantSchema]) {
+      const result = schema.safeParse({ ...base, website: 'javascript:\u{202E}' })
+      expect(result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])).toEqual([
+        ['website', 'Website contains characters that are not allowed'],
       ])
     }
   })
