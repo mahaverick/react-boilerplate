@@ -75,6 +75,13 @@ describe('docker/check-image.sh --check-bundle', () => {
     expect(checkBundle(`o,release:"1.2.0",e${POSTHOG_JS_READ}`, '1.2.0').status).toBe(0)
   })
 
+  it.each([
+    ['a destructuring read', '({_posthogReleaseId:e}=globalThis);'],
+    ['a ternary', 'x=t?e._posthogReleaseId:y;'],
+  ])('passes %s of the id, which writes nothing', (_label, read) => {
+    expect(checkBundle(`release:"${RELEASE}";${read}`).status).toBe(0)
+  })
+
   it('passes a comparison with the id, which assigns nothing', () => {
     const result = checkBundle(`release:"${RELEASE}";if(e._posthogReleaseId===t)x()`)
     expect(result.status).toBe(0)

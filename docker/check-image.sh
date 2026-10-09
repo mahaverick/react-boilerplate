@@ -30,9 +30,10 @@ check_release() {
 
 # posthog-cli's inject must stay release-less: a write to _posthogReleaseId
 # is one it made. That is an assignment (`=`, `||=`, `??=` or `&&=`; dotted or
-# bracketed, spaced or not) or an object-literal key. posthog-js only reads it.
+# bracketed, spaced or not) or an object-literal key given a string. A read,
+# destructuring and ternaries included, writes nothing. posthog-js only reads it.
 check_release_less() {
-  if grep -qE "_posthogReleaseId[\"'\`]?\]?[[:space:]]*(\|\||\?\?|&&)?=([^=]|$)|_posthogReleaseId[\"'\`]?[[:space:]]*:" "$1"; then
+  if grep -qE "_posthogReleaseId[\"'\`]?\]?[[:space:]]*(\|\||\?\?|&&)?=([^=]|$)|_posthogReleaseId[\"'\`]?[[:space:]]*:[[:space:]]*[\"'\`]" "$1"; then
     problem "a chunk carries an injected release id: inject must stay release-less"
   fi
 }
