@@ -123,6 +123,28 @@ describe('scrubText', () => {
     expect(performance.now() - started).toBeLessThan(2000)
   })
 
+  it.each([
+    ['a slash run', `/${'a/'.repeat(2 * SCRUB_VALUE_MAX)}`.slice(0, 4 * SCRUB_VALUE_MAX - 1) + ' '],
+    ['repeated userinfo', 'a://b@ '.repeat(4 * SCRUB_VALUE_MAX).slice(0, 4 * SCRUB_VALUE_MAX)],
+    [
+      'unbroken userinfo',
+      'a://b@'.repeat(4 * SCRUB_VALUE_MAX).slice(0, 4 * SCRUB_VALUE_MAX - 1) + ' ',
+    ],
+    ['repeated keys', 'token=token= '.repeat(4 * SCRUB_VALUE_MAX).slice(0, 4 * SCRUB_VALUE_MAX)],
+    [
+      'an unclosed key detail',
+      `Key (a)=(${'(x'.repeat(2 * SCRUB_VALUE_MAX)}`.slice(0, 4 * SCRUB_VALUE_MAX - 1) + ' ',
+    ],
+    ['quoted snippets', '"x" '.repeat(SCRUB_VALUE_MAX)],
+    ['a dotted local part', `${'a.'.repeat(2 * SCRUB_VALUE_MAX - 10)}@b `],
+  ])('scans a 4 KB input of %s in bounded time', (_shape, text) => {
+    expect(text.length).toBeGreaterThan(3 * SCRUB_VALUE_MAX)
+    const started = performance.now()
+    scrubText(text)
+    // Proves no rule backtracks super-linearly on a text at the scan cap; the slowest shape measured about 0.5 s under jsdom, so 5 s keeps 10x headroom.
+    expect(performance.now() - started).toBeLessThan(5000)
+  })
+
   it('keeps a production frame URL whole', () => {
     const frame = `${location.origin}/assets/route-error-boundary-component-DH5dBeoM.js`
     expect(scrubText(frame)).toBe(frame)
