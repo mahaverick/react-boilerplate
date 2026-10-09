@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from 'react'
 import { installMaintenanceRecovery, markMaintenanceViewed } from '@/lib/maintenance-mode'
 import { track } from '@/observability/analytics'
 import { maintenanceStatusKey, useMaintenanceStatus } from '@/queries/maintenance-status.queries'
-import { useMaintenanceMode } from '@/states/maintenance-mode.store'
+import { useMaintenanceMode, useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { MaintenancePage } from './maintenance-page'
 import { ReadOnlyBanner } from './read-only-banner'
 
@@ -29,7 +29,8 @@ export function MaintenanceBanner() {
  * holds the recovery that runs when `full` ends (`installMaintenanceRecovery`,
  * bound to the router rendering it), and reads the status again whenever a
  * response header has switched the mode on without saying since when or why,
- * cancelling an older read still in flight so its answer cannot revert the mode.
+ * cancelling an older read still in flight so its answer cannot revert the mode;
+ * a header that turns the mode off again cancels that read in turn.
  * It reports `maintenance_page_viewed` once per tab session for each
  * maintenance period, keyed on its `since`, through the analytics consent
  * rules like every other event. A period whose start is not known yet is
@@ -56,6 +57,10 @@ export function MaintenanceGate({ children }: { children: ReactNode }) {
     })
     return () => {
       isCancelled = true
+      // A read sent before a header turned the mode off would put the old mode back, through its answer and its own header.
+      if (useMaintenanceModeStore.getState().mode === 'off') {
+        void queryClient.cancelQueries({ queryKey: maintenanceStatusKey })
+      }
     }
   }, [mode, since, refetch, queryClient])
 

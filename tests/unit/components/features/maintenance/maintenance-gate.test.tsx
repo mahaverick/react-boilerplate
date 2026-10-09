@@ -345,6 +345,42 @@ describe('read-only maintenance', () => {
     expect(calls - before).toBe(0)
   })
 
+  it('drops a status read in flight when a header turns the mode off, so its late answer cannot put read_only back', async () => {
+    signIn()
+    renderAppAt('/dashboard')
+    await waitFor(() =>
+      expect(queryClient.getQueryState(['maintenance-status'])?.status).toBe('success')
+    )
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    let isAnswered = false
+    let isRequested = false
+    server.use(
+      http.get('/api/v1/status/maintenance', async () => {
+        isRequested = true
+        await held
+        isAnswered = true
+        // Served before the switch, delivered after it.
+        return HttpResponse.json(
+          {
+            success: true,
+            message: 'Maintenance status retrieved.',
+            statusCode: 200,
+            data: { mode: 'read_only', message: null, since: SINCE },
+          },
+          { headers: { 'Maintenance-Mode': 'read_only' } }
+        )
+      })
+    )
+    act(() => useMaintenanceModeStore.getState().setFromHeader('read_only'))
+    await waitFor(() => expect(isRequested).toBe(true))
+    act(() => useMaintenanceModeStore.getState().setFromHeader('off'))
+    release()
+    await waitFor(() => expect(isAnswered).toBe(true))
+    await act(() => settle(200, 'a dropped answer has no event to wait on'))
+    expect(useMaintenanceModeStore.getState().mode).toBe('off')
+  })
+
   it('collapses to its summary and expands again', async () => {
     signIn()
     serveStatus('read_only')
