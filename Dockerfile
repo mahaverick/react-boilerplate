@@ -7,7 +7,7 @@ WORKDIR /app
 # Node 26 move is a version bump only. The pnpm version comes
 # from package.json's packageManager field (corepack install, below) — the
 # one place it is written. It must be pnpm 12: pnpm-workspace.yaml uses
-# allowBuilds and minimumReleaseAgeExclude, which older pnpm ignores in
+# allowBuilds and minimumReleaseAge, which older pnpm ignores in
 # silence, and allowBuilds is what lets msw's postinstall run at all.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN npm i -g corepack@0.36.0 && corepack enable
