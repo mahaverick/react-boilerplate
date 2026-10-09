@@ -124,6 +124,39 @@ const REPORTER_CHUNK = /\/assets\/report-[^/]+\.js$/
 /** The reporter's batch window (`BATCH_WINDOW_MS` in report.ts). */
 const BATCH_WINDOW_MS = 2_000
 
+/**
+ * Every property an `$exception` may carry: the reporter's own and the
+ * session ids `@posthog/core` adds. Nothing else (no title, no form value)
+ * can carry text out.
+ */
+const EXCEPTION_PROPERTIES = new Set([
+  '$exception_list',
+  '$exception_level',
+  'app',
+  'origin',
+  'release',
+  'environment',
+  'route_id',
+  '$current_url',
+  '$session_id',
+  '$window_id',
+  '$process_person_profile',
+])
+
+/**
+ * Asserts that the fake holds exactly `count` exceptions after one more batch
+ * window: a poll that just reached `count` cannot see a later event.
+ * @param fake - The fake PostHog.
+ * @param count - The exceptions it must hold.
+ */
+async function expectExactlyAfterBatch(fake: FakePosthog, count: number): Promise<void> {
+  await settle(
+    BATCH_WINDOW_MS + 1_000,
+    'absence has no event: one reporter batch window and its send'
+  )
+  expect(exceptions(fake)).toHaveLength(count)
+}
+
 test.describe('error tracking against a fake PostHog', () => {
   test.use({ userAgent: HUMAN_USER_AGENT })
 
@@ -152,6 +185,7 @@ test.describe('error tracking against a fake PostHog', () => {
       ).toBeVisible()
 
       await expect.poll(() => exceptions(fake).length, POLL).toBe(1)
+      await expectExactlyAfterBatch(fake, 1)
       const [event] = exceptions(fake)
       expect(event?.path).toBe('/batch/')
       expect(event?.distinctId).toBe(USER_ID)
@@ -191,6 +225,7 @@ test.describe('error tracking against a fake PostHog', () => {
       // Try again renders the menu again, which throws again: a new crash, one more event.
       await alert.getByRole('button', { name: 'Try again' }).click()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(2)
+      await expectExactlyAfterBatch(fake, 2)
 
       const events = exceptions(fake)
       for (const event of events) {
@@ -237,6 +272,7 @@ test.describe('error tracking against a fake PostHog', () => {
 
       releasePosthog()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(1)
+      await expectExactlyAfterBatch(fake, 1)
       expect(exceptions(fake)[0]?.distinctId).toBe(USER_ID)
     }
   )
@@ -314,6 +350,8 @@ test.describe('error tracking against a fake PostHog', () => {
         page.getByRole('heading', { name: 'Something went wrong', level: 1 })
       ).toBeVisible()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(2)
+      // Read before the synthetic title, which replay records and $pageview sends; react's titles carry at most the slug, already in the URL.
+      const egress = fake.bodies()
       // A third, with the probes in the title and a form field.
       await page.evaluate(
         ({ email, token }) => {
@@ -327,13 +365,18 @@ test.describe('error tracking against a fake PostHog', () => {
       )
       await page.getByRole('alert').getByRole('button', { name: 'Try again' }).click()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(3)
+      await expectExactlyAfterBatch(fake, 3)
 
       const [event, second] = exceptions(fake)
       expect(event?.properties.$current_url).toMatch(/\/dashboard$/)
       expect(second?.properties.$current_url).toMatch(/\/tenants\/\[email\]$/)
+      for (const crash of exceptions(fake)) {
+        expect(
+          Object.keys(crash.properties).filter((key) => !EXCEPTION_PROPERTIES.has(key))
+        ).toEqual([])
+      }
       const payload = JSON.stringify(exceptions(fake))
       for (const probe of PROBES) expect(payload, `"${probe}" reached PostHog`).not.toContain(probe)
-      const egress = fake.bodies()
       for (const probe of [PROBE_TOKEN, encodeURIComponent(PROBE_EMAIL)]) {
         expect(egress, `"${probe}" reached PostHog`).not.toContain(probe)
       }
