@@ -251,3 +251,62 @@ describe('tenant settings: timezone and locale', () => {
     expect(tenantSettingsFormSchema.safeParse({ ...base, locale }).success).toBe(true)
   })
 })
+
+describe('tenant settings: metadata is bounded', () => {
+  /** An object nested `depth` levels deep: `{ a: { a: … {} } }`. */
+  function nested(depth: number): Record<string, unknown> {
+    let value: Record<string, unknown> = {}
+    for (let level = 1; level < depth; level += 1) value = { a: value }
+    return value
+  }
+
+  it('refuses metadata over 16 KB as JSON', () => {
+    const big = JSON.stringify({ blob: 'x'.repeat(16_384) })
+    expect(metadataTextSchema.safeParse(big).error?.issues[0]?.message).toBe(
+      'Metadata must be at most 16384 characters as JSON.'
+    )
+    expect(
+      updateTenantSettingsSchema.safeParse({ metadata: { blob: 'x'.repeat(16_384) } }).success
+    ).toBe(false)
+  })
+
+  it('accepts exactly 16 384 characters as JSON, and refuses one more', () => {
+    // {"blob":"…"} is 11 characters of frame.
+    const atCap = { blob: 'x'.repeat(16_384 - 11) }
+    const overCap = { blob: 'x'.repeat(16_384 - 10) }
+    expect(updateTenantSettingsSchema.safeParse({ metadata: atCap }).success).toBe(true)
+    expect(metadataTextSchema.safeParse(JSON.stringify(atCap)).success).toBe(true)
+    expect(updateTenantSettingsSchema.safeParse({ metadata: overCap }).success).toBe(false)
+  })
+
+  it('refuses metadata nested more than 10 levels deep, and accepts 10', () => {
+    expect(metadataTextSchema.safeParse(JSON.stringify(nested(11))).error?.issues[0]?.message).toBe(
+      'Metadata must be nested at most 10 levels deep.'
+    )
+    expect(updateTenantSettingsSchema.safeParse({ metadata: nested(11) }).success).toBe(false)
+    expect(metadataTextSchema.safeParse(JSON.stringify(nested(10))).success).toBe(true)
+    expect(updateTenantSettingsSchema.safeParse({ metadata: nested(10) }).success).toBe(true)
+  })
+
+  it('reports only the depth for metadata both too deep and too large, as the API does', () => {
+    const deepAndLarge = { ...nested(11), blob: 'x'.repeat(16_384) }
+    expect(
+      metadataTextSchema
+        .safeParse(JSON.stringify(deepAndLarge))
+        .error?.issues.map((issue) => issue.message)
+    ).toEqual(['Metadata must be nested at most 10 levels deep.'])
+  })
+
+  it('refuses a NUL in a key or a string value', () => {
+    expect(metadataTextSchema.safeParse('{"a\\u0000b":1}').error?.issues[0]?.message).toBe(
+      'Metadata contains characters that are not allowed'
+    )
+    expect(updateTenantSettingsSchema.safeParse({ metadata: { a: 'x\u{0}' } }).success).toBe(false)
+  })
+
+  it('counts an array as a level', () => {
+    expect(metadataTextSchema.safeParse(JSON.stringify({ a: [[[[[[[[[[1]]]]]]]]]] })).success).toBe(
+      false
+    )
+  })
+})

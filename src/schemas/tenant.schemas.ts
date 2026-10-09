@@ -186,6 +186,12 @@ export const updateMemberRoleSchema = z.object({ role: z.enum(MEMBERSHIP_ROLES) 
 
 export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>
 
+/** The most characters `metadata` may take as JSON: every member downloads it with the settings. */
+export const MAX_TENANT_METADATA_LENGTH = 16_384
+
+/** The deepest `metadata` may nest; its own object is level 1. */
+export const MAX_TENANT_METADATA_DEPTH = 10
+
 /** A time zone name's letters, digits and `_+-/`, as the API checks first. */
 const TIMEZONE_PATTERN = /^[A-Za-z0-9_+\-/]+$/
 
@@ -226,6 +232,59 @@ function isLocaleTag(value: string): boolean {
   }
 }
 
+/**
+ * Walks a parsed JSON value once, iteratively, as the API's `scanJson` does:
+ * whether a key or string holds U+0000 (which Postgres `jsonb` refuses), and
+ * how deeply it nests (a bare primitive is 0, an object or array one more
+ * than its deepest child).
+ * @param value - A value `JSON.parse` produced.
+ * @returns What the walk found.
+ */
+function scanJson(value: unknown): { hasNul: boolean; depth: number } {
+  const scan = { hasNul: false, depth: 0 }
+  const pending: { node: unknown; depth: number }[] = [{ node: value, depth: 0 }]
+  for (let item = pending.pop(); item !== undefined; item = pending.pop()) {
+    const { node, depth } = item
+    if (typeof node === 'string') {
+      if (node.includes('\u{0}')) scan.hasNul = true
+      continue
+    }
+    if (typeof node !== 'object' || node === null) continue
+    scan.depth = Math.max(scan.depth, depth + 1)
+    for (const [key, child] of Object.entries(node)) {
+      if (key.includes('\u{0}')) scan.hasNul = true
+      pending.push({ node: child, depth: depth + 1 })
+    }
+  }
+  return scan
+}
+
+/**
+ * Adds the API's metadata bounds to `ctx` as issues, with its messages: at
+ * most `MAX_TENANT_METADATA_DEPTH` levels deep, else at most
+ * `MAX_TENANT_METADATA_LENGTH` characters as JSON, and no U+0000. The size is
+ * measured only once the depth passes, as the API measures it.
+ * @param value - The metadata object.
+ * @param ctx - The refinement context to report on.
+ */
+function checkMetadataBounds(value: Record<string, unknown>, ctx: z.RefinementCtx): void {
+  const scan = scanJson(value)
+  if (scan.depth > MAX_TENANT_METADATA_DEPTH) {
+    ctx.addIssue({
+      code: 'custom',
+      message: `Metadata must be nested at most ${MAX_TENANT_METADATA_DEPTH} levels deep.`,
+    })
+  } else if (JSON.stringify(value).length > MAX_TENANT_METADATA_LENGTH) {
+    ctx.addIssue({
+      code: 'custom',
+      message: `Metadata must be at most ${MAX_TENANT_METADATA_LENGTH} characters as JSON.`,
+    })
+  }
+  if (scan.hasNul) {
+    ctx.addIssue({ code: 'custom', message: 'Metadata contains characters that are not allowed' })
+  }
+}
+
 /** The timezone field: trimmed, capped, `safeText`, and a known time zone name, with the API's messages. */
 function timezoneText() {
   return z
@@ -258,7 +317,7 @@ function localeText() {
 /**
  * `PATCH /tenants/:slug/settings`. `timezone` must name a time zone and
  * `locale` must be a BCP 47 tag, both within their column widths, as the API
- * checks them.
+ * checks them; `metadata` is bounded in size and depth.
  */
 export const updateTenantSettingsSchema = z.object({
   timezone: timezoneText()
@@ -267,7 +326,11 @@ export const updateTenantSettingsSchema = z.object({
   locale: localeText()
     .transform((value) => (value === '' ? undefined : value))
     .optional(),
-  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+  metadata: z
+    .record(z.string(), z.unknown())
+    .superRefine(checkMetadataBounds)
+    .nullable()
+    .optional(),
 })
 
 export type UpdateTenantSettingsInput = z.infer<typeof updateTenantSettingsSchema>
@@ -291,7 +354,9 @@ export const metadataTextSchema = z.string().transform((text, ctx) => {
     ctx.addIssue({ code: 'custom', message: 'Metadata must be a JSON object.' })
     return z.NEVER
   }
-  return parsed as Record<string, unknown>
+  const metadata = parsed as Record<string, unknown>
+  checkMetadataBounds(metadata, ctx)
+  return metadata
 })
 
 /**
