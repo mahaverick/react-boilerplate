@@ -64,7 +64,7 @@ test('preflights the SSE stream promptly, rather than holding it open', async ({
 test('withholds the grant header from an origin that is not allowed', async ({ request }) => {
   const response = await request.fetch(`${APP_ORIGIN}/api/v1/auth/login`, {
     method: 'OPTIONS',
-    headers: { Origin: 'https://evil.example', 'Access-Control-Request-Method': 'POST' },
+    headers: { Origin: 'https://evil.test', 'Access-Control-Request-Method': 'POST' },
   })
   expect(response.headers()['access-control-allow-origin']).toBeUndefined()
 })

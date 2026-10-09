@@ -46,20 +46,20 @@ describe('sanitizeEventUrls', () => {
       event: '$autocapture',
       properties: {
         $current_url: 'https://app.example.com/register?email=pii-probe%40example.test&tab=x',
-        $referrer: 'https://site.example/p?ref=probe-ref',
+        $referrer: 'https://site.test/p?ref=probe-ref',
         $session_entry_url: 'https://app.example.com/a?token=probe-token',
-        $external_click_url: 'https://elsewhere.example/?q=probe-ref',
+        $external_click_url: 'https://elsewhere.test/?q=probe-ref',
         $pathname: '/register',
         $elements: [{ tag_name: 'a', attr__href: '/x?token=probe-token' }],
         $elements_chain:
           'a:attr__href="/x?token=probe-token"href="/x?token=probe-token"nth-child="1"',
         $heatmap_data: { 'https://app.example.com/a?token=probe-token': [{ x: 1 }] },
         $set: { $current_url: 'https://app.example.com/a?token=probe-token' },
-        $set_once: { $initial_referrer: 'https://site.example/p?ref=probe-ref' },
+        $set_once: { $initial_referrer: 'https://site.test/p?ref=probe-ref' },
         count: 3,
       },
       $set: { $initial_current_url: 'https://app.example.com/a?email=pii-probe' },
-      $set_once: { $initial_referrer: 'https://site.example/p?ref=probe-ref' },
+      $set_once: { $initial_referrer: 'https://site.test/p?ref=probe-ref' },
     }
 
     const sanitized = sanitizeEventUrls(event, ALLOW)
@@ -172,7 +172,7 @@ describe('sanitizeEventUrls over the events the pinned posthog-js really builds'
       '/register?email=pii-probe%40example.test&token=probe-token&tab=x#frag-probe'
     )
     Object.defineProperty(document, 'referrer', {
-      value: 'https://site.example/p?ref=probe-ref',
+      value: 'https://site.test/p?ref=probe-ref',
       configurable: true,
     })
     const raw: CaptureResult[] = []
