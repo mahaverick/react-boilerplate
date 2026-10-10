@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/mahaverick/react-boilerplate/compare/v1.9.0...v1.9.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **errors:** take express's scrubber, prune dead code and add knip to CI ([#66](https://github.com/mahaverick/react-boilerplate/issues/66)) ([de969e8](https://github.com/mahaverick/react-boilerplate/commit/de969e830a5939dd1d8a383987768ee37d976f09))
+
 ## [1.9.0](https://github.com/mahaverick/react-boilerplate/compare/v1.8.0...v1.9.0) (2026-10-10)
 
 
