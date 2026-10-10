@@ -525,7 +525,8 @@ and the teardown message names the endpoint.
 express under test, never assume `:4040`). `live/flags.test.ts` also needs `E2E_FLAGS_SET_CMD`,
 an executable run as `<cmd> <key> <value>` that leaves the fake PostHog serving that definition
 (`example_beta_page` `on`|`off`, `example_cta_experiment` `control`|`bold`, the latter active at
-100 % rollout); with `E2E_LIVE=1` and the variable unset it fails rather than skips. Accounts are registered and verified through mailpit — login stays 401
+100 % rollout); with `E2E_LIVE=1` and the variable unset it fails rather than skips. Accounts are registered and verified through mailpit (`E2E_MAILPIT_ORIGIN`, default
+`http://localhost:8025`) — login stays 401
 until the address is verified, and the link only exists in the email. Each run uses a **fresh
 address**, because the login limiter is keyed `ip:email` at five attempts per fifteen minutes
 and a fixed address would rate-limit every rerun.
@@ -537,7 +538,10 @@ tears it down. The tests tagged `@no-api` (headers, the CSP, the theme script, t
 `routeCollectToFake`) need no backend and also run in CI's `e2e` job, against the image with nothing behind
 `/api`, started with `POSTHOG_KEY=phc_test_key_not_real`, `APP_ENVIRONMENT=ci` and
 `ANALYTICS_HANDOFF_ORIGINS=https://www.example.test` (the analytics tests expect exactly those);
-the rest need a live API and run only locally. The project exists first for a reason worth
+the rest need a live API and run only locally. `errors.test.ts` expects each report's release to
+be `E2E_RELEASE` (default `dev`, the release of an image built with no `GIT_SHA`), and the live
+`cors.test.ts` sends `E2E_ALLOWED_ORIGIN` (default `http://localhost:5173`), which must be in the
+express's CORS allowlist. The project exists first for a reason worth
 keeping: **the Vite dev proxy does not propagate an upstream close.**
 A `curl -N` at it stays open after the API is killed, so the reading side of the client's
 `fetch` body stream never sees `done: true`, `parseSseStream`'s generator never returns, and

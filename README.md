@@ -21,7 +21,8 @@ that a new project starts here rather than at `create-vite`.
 
 - **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ does not ship Corepack, so this works on 24 and 26 alike). `pnpm install` refuses an older Node.
 - The **API running on `:4040`** — see below
-- **Express version:** react 1.8 and later need **express 2.0.0 or later**:
+- **Express version:** react 1.8 and later need **express 2.0.0 or later**,
+  3.x included (its breaking changes touch nothing this app reads):
   leaving a tenant and signing out other sessions use routes added in 2.0.0,
   and against 1.x a leave would wrongly report that you had already left.
   React 1.7 and earlier were built against express 1.x and work with its last
