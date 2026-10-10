@@ -1258,6 +1258,9 @@ describe('a member who is already gone', () => {
     expect(await screen.findByText(GONE)).toBeInTheDocument()
     await waitFor(() => expect(reads.count).toBe(2))
     await waitFor(() => expect(screen.queryByRole('cell', { name: /Vic/ })).toBeNull())
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Members', level: 2 })).toHaveFocus()
+    )
   })
 
   it.each([

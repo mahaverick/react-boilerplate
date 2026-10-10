@@ -245,7 +245,7 @@ function RemoveMemberButton({
   isLastOwner: boolean
   /** The row's one last-owner explanation, rendered by `RoleCell`. */
   reasonId: string
-  /** Called once another member's removal has succeeded and the list has refetched. */
+  /** Called once another member's removal has succeeded, or found them already gone, and the list has refetched. */
   onRemoved: () => void
 }) {
   const removeMember = useRemoveMember(slug)
@@ -342,6 +342,7 @@ function RemoveMemberButton({
                 (error: unknown) => {
                   setIsOpen(false)
                   toast.error(memberWriteFailureMessage(error))
+                  if (isMemberNotFound(error)) onRemoved()
                 }
               )
             }}
@@ -377,7 +378,7 @@ function MemberRow({
   myUserId: string | undefined
   /** The other owners the API counts toward the last-owner rule, besides the caller. */
   otherOwners: number
-  /** Called once removing another member has succeeded. */
+  /** Called once removing another member has succeeded, or found them already gone. */
   onRemoved: () => void
   /**
    * Render a stacked card instead of a table row, for phones, where the
