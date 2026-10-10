@@ -340,8 +340,7 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   image must delete `*.map` first.
 - **Scrub rules change in express first.** `scrub.ts` is express's
   `error-scrubber.service.ts` byte for byte (`cmp`), and both test the same
-  vector file; copy the
-  file, never edit it here alone.
+  vector file; copy the file, never edit it here alone.
 
 ## Never install
 
@@ -560,10 +559,10 @@ and the teardown message names the endpoint.
 express under test, never assume `:4040`). `live/flags.test.ts` also needs `E2E_FLAGS_SET_CMD`,
 an executable run as `<cmd> <key> <value>` that leaves the fake PostHog serving that definition
 (`example_beta_page` `on`|`off`, `example_cta_experiment` `control`|`bold`, the latter active at
-100 % rollout); with `E2E_LIVE=1` and the variable unset it fails rather than skips. Accounts are registered and verified through mailpit (`E2E_MAILPIT_ORIGIN`, default
-`http://localhost:8025`) — login stays 401
-until the address is verified, and the link only exists in the email. Each run uses a **fresh
-address**, because the login limiter is keyed `ip:email` at five attempts per fifteen minutes
+100 % rollout); with `E2E_LIVE=1` and the variable unset it fails rather than skips. Accounts are registered
+and verified through mailpit (`E2E_MAILPIT_ORIGIN`, default `http://localhost:8025`); login
+stays 401 until the address is verified, and the link only exists in the email. Each run uses
+a **fresh address**, because the login limiter is keyed `ip:email` at five attempts per fifteen minutes
 and a fixed address would rate-limit every rerun.
 
 **`nginx`** runs against the PRODUCTION image — `pnpm test:e2e:nginx` builds it, runs it on
@@ -576,7 +575,7 @@ tears it down. The tests tagged `@no-api` (headers, the CSP, the theme script, t
 the rest need a live API and run only locally. `errors.test.ts` expects each report's release to
 be `E2E_RELEASE` (default `dev`, the release of an image built with no `GIT_SHA`), and the live
 `cors.test.ts` sends `E2E_ALLOWED_ORIGIN` (default `http://localhost:5173`), which must be in the
-express's CORS allowlist. The project exists first for a reason worth
+CORS allowlist of the express under test. The project exists first for a reason worth
 keeping: **the Vite dev proxy does not propagate an upstream close.**
 A `curl -N` at it stays open after the API is killed, so the reading side of the client's
 `fetch` body stream never sees `done: true`, `parseSseStream`'s generator never returns, and

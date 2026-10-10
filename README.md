@@ -534,7 +534,7 @@ were off.
   is off; a route's `beforeLoad` calls `requireClientFlag`, which answers not
   found. The API route behind it is gated by express, which is what actually
   refuses.
-- **Experiments.** Reading an experiment flag reports its exposure once per
+- **Experiments.** Reading an experiment flag through `useVariant` reports its exposure once per
   tab session; express records `$feature_flag_called` when the user matched a
   release condition or is in the holdout. Every browser event
   carries `$feature/<key>` for the metrics.
@@ -648,7 +648,7 @@ does not catch:
   `%2F` (`abc/def%2Fghi@example.com` keeps `abc/`), or when it follows an
   address character directly (a letter, digit, `.`, `%`, `+`, `-`, `_`, `/` or
   `@`: `jane@example.com/<secret>@…`, `u.<secret>@…`);
-- a secret-named key that the path-token, query or fragment rule took into its
+- a secret-named key that an earlier rule took into its
   placeholder when the key's word starts more than 80 characters before the
   placeholder ends, and an Authorization or Cookie key taken in the same way
   (`/reset/x.tscookie = …` keeps its value);
