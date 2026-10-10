@@ -138,12 +138,6 @@ export const MEMBER_NOT_FOUND = 'member_not_found'
 /** The message of that 404, the only sign of it from an API older than 2.1.0. */
 export const MEMBER_NOT_FOUND_MESSAGE = 'Member not found'
 
-/** 404 on preview and accept: invalid, expired, revoked or already used. */
-export const INVITATION_INVALID = 'invitation_invalid'
-
-/** 403 on accept: the signed-in account's email is not the invited one. */
-export const INVITATION_EMAIL_MISMATCH = 'invitation_email_mismatch'
-
 /** 403 on accept: the signed-in account is the invited one, but its email is unverified. */
 export const INVITATION_EMAIL_UNVERIFIED = 'invitation_email_unverified'
 
