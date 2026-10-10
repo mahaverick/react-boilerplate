@@ -593,7 +593,7 @@ sent.
   unsettled after 10 s) it is anonymous: a new distinct id per event and no
   person profile. An earlier anonymous crash is never re-attributed.
 - **Scrubbing.** Exception types, values, frame file names and function names
-  go through the same rules as express-boilerplate's
+  go through express-boilerplate's scrubber, held here byte for byte
   (`src/observability/errors/scrub.ts`, tested against the shared
   `tests/fixtures/error-scrub-vectors.json`): Postgres key details and echoed
   values, URL credentials, query strings, fragments other than line or
@@ -647,12 +647,10 @@ does not catch:
   `%2F` (`abc/def%2Fghi@example.com` keeps `abc/`), or when it follows an
   address character directly (a letter, digit, `.`, `%`, `+`, `-`, `_`, `/` or
   `@`: `jane@example.com/<secret>@…`, `u.<secret>@…`);
-- a quoted value whose key sits inside a URL query that an encoded key's value
-  runs into (`secret%3Dhttps://…?a=1/api_key="…"` keeps the quoted value);
-- a key name glued to the end of the segment after `/reset/`, `/verify/`,
-  `/invite/` or `/accept/`, which goes into `[token]` with the segment and
-  leaves the value after it in view (`/app/reset/x.tsrefresh_token = …`
-  becomes `/app/reset/[token] = …`);
+- a secret-named key that the path-token, query or fragment rule took into its
+  placeholder when the key's word starts more than 80 characters before the
+  placeholder ends, and an Authorization or Cookie key taken in the same way
+  (`/reset/x.tscookie = …` keeps its value);
 - the parameters other than secret-named ones of an Authorization or Cookie
   value opened by an escaped quote and a scheme (`\"OAuth username="…",
 realm="…"` keeps `username` and `realm`; `oauth_signature`, `oauth_token`,

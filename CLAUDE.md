@@ -304,8 +304,9 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
 - **No source map is served.** The image deletes them and `nginx.conf`'s
   `.map` location answers 404 regardless; any deploy of `dist/` outside the
   image must delete `*.map` first.
-- **Scrub rules change in express first.** `scrub.ts` is a port of express's
-  `error-scrubber.service.ts`, and both test the same vector file; copy the
+- **Scrub rules change in express first.** `scrub.ts` is express's
+  `error-scrubber.service.ts` byte for byte (`cmp`), and both test the same
+  vector file; copy the
   file, never edit it here alone.
 
 ## Never install
