@@ -153,8 +153,8 @@ const MEMBERS_ERROR =
  * `isLastOwner` is only true for an owner acting on their own membership,
  * which the predicates always leave as a select, so the explanation always
  * renders when it is needed. The change uses `mutateAsync`, as removal does: a
- * member already gone refetches the list, which unmounts this cell before
- * `mutate`'s per-call callbacks could run, and `onGone` moves focus on.
+ * member already gone refetches the list, which can unmount this cell before
+ * `mutate`'s per-call callbacks run, and `onGone` moves focus on.
  */
 function RoleCell({
   slug,
