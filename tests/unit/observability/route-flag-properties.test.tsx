@@ -16,6 +16,7 @@ import {
   initAnalytics,
   resetAnalyticsForTests,
 } from '@/observability/analytics/analytics'
+import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
 import { resetFlagHooksForTests, useFeaturePropertiesSync } from '@/observability/flags/flag-hooks'
 import { ensureFlags } from '@/observability/flags/flag-query'
 import {
@@ -23,7 +24,6 @@ import {
   installFlagScopeReset,
   installRouteFeatureProperties,
 } from '@/observability/flags/flag-scope'
-import { forgetFeatureProperties } from '@/observability/flags/register'
 import { installRouteAnalytics } from '@/observability/route-analytics'
 import { ok, testFlags } from '@/tests/mocks/handlers'
 import { analyticsConfigFor, instance, resetFakePosthog, sdk } from '@/tests/mocks/posthog'

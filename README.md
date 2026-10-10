@@ -523,11 +523,11 @@ tenant page, `GET /api/v1/flags` elsewhere, and the matching
 both reads answer every flag's fallback, so the app behaves as if every flag
 were off.
 
-- **Reading.** `useFlag(key)`, `useVariant(key)` and `<Flag name variant?>`
-  from `src/observability/flags/`. Each shows the fallback while the values
-  load or after a failed read. The `_app` loader warms the page's scope, and
-  values refetch on a tenant switch, on focus after five minutes and every
-  ten minutes.
+- **Reading.** `useVariant(key)` for a multivariate flag and `useFlagValues()`
+  for every flag's value, from `src/observability/flags/flag-hooks.ts`. Each
+  shows the fallback while the values load or after a failed read. The `_app`
+  loader warms the page's scope, and values refetch on a tenant switch, on
+  focus after five minutes and every ten minutes.
 - **Gating.** A tenant tab or sidebar item takes `flag` and is hidden while it
   is off; a route's `beforeLoad` calls `requireClientFlag`, which answers not
   found. The API route behind it is gated by express, which is what actually

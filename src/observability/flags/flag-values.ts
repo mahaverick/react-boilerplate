@@ -1,5 +1,5 @@
 /**
- * @file Pure helpers over `CLIENT_FLAGS`: each flag's definition and fallback,
+ * @file Pure helpers over `CLIENT_FLAGS`: the keys and each flag's fallback,
  * the server's answer checked against them, and a list filtered by flag.
  */
 import { CLIENT_FLAGS } from './flag-keys'
@@ -36,15 +36,6 @@ function typedAs<T>(value: unknown): T {
  */
 export function clientFlagKeys(): ClientFlagKey[] {
   return Object.keys(definitions) as ClientFlagKey[]
-}
-
-/**
- * The mirrored registry entry of a flag.
- * @param key - A flag this app reads.
- * @returns Its definition.
- */
-export function clientFlagDefinition(key: ClientFlagKey): ClientFlagDefinition {
-  return definitionOf(key)
 }
 
 /**

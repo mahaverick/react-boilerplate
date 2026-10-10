@@ -5,7 +5,6 @@ import type {
   ClientFlagValues,
 } from '@/observability/flags/flag-types'
 import {
-  clientFlagDefinition,
   clientFlagFallback,
   clientFlagKeys,
   fallbackFlags,
@@ -34,7 +33,6 @@ describe('flag definitions', () => {
   it('gives false or the first variant as the fallback', () => {
     expect(clientFlagFallback(key('test_bool'))).toBe(false)
     expect(clientFlagFallback(key('test_exp'))).toBe('control')
-    expect(clientFlagDefinition(key('test_plain'))).toMatchObject({ variants: ['a', 'b'] })
   })
 
   it('knows which flags are experiments', () => {

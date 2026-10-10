@@ -1,11 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import * as analytics from '@/observability/analytics'
+import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
 import type { ClientFlagKey } from '@/observability/flags/flag-types'
-import {
-  featurePropertyName,
-  forgetFeatureProperties,
-  syncFeatureProperties,
-} from '@/observability/flags/register'
+import { featurePropertyName, syncFeatureProperties } from '@/observability/flags/register'
 import { testFlagKey } from '@/tests/fixtures/test-client-flags'
 
 vi.mock('@/observability/flags/flag-keys', async () => ({
