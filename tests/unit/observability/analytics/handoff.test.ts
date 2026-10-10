@@ -48,14 +48,14 @@ describe('readHandoff', () => {
     [
       'the referrer is not allowlisted',
       search({ ph_did: DID }),
-      'https://evil.example/',
+      'https://evil.test/',
       [SITE],
       false,
     ],
     [
       'the referrer is a lookalike subdomain',
       search({ ph_did: DID }),
-      'https://www.example.com.evil.example/',
+      'https://www.example.com.evil.test/',
       [SITE],
       false,
     ],
@@ -82,7 +82,7 @@ describe('readHandoff', () => {
   })
 
   it('records only accepted ids, so a refused one can still be accepted later', () => {
-    expect(readHandoff(search({ ph_did: DID }), 'https://evil.example/', [SITE], false)).toEqual({})
+    expect(readHandoff(search({ ph_did: DID }), 'https://evil.test/', [SITE], false)).toEqual({})
     expect(readHandoff(search({ ph_did: DID }), `${SITE}/`, [SITE], true)).toEqual({})
     expect(window.localStorage.getItem(CONSUMED_HANDOFFS_KEY)).toBeNull()
     expect(readHandoff(search({ ph_did: DID }), `${SITE}/`, [SITE], false)).toEqual({

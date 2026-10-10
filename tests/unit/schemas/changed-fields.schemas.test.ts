@@ -28,7 +28,7 @@ describe('changedFieldsOf', () => {
     const result = changedFieldsOf(updateTenantSchema, stored).safeParse({
       ...stored,
       logo: 'javascript:alert(2)',
-      website: 'https://user:pw@host.example/',
+      website: 'https://user:pw@host.test/',
     })
     expect(issuesOf(result)).toEqual([
       ['logo', 'Logo must be an http or https URL.'],

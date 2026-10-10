@@ -21,7 +21,20 @@ that a new project starts here rather than at `create-vite`.
 
 - **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ does not ship Corepack, so this works on 24 and 26 alike). `pnpm install` refuses an older Node.
 - The **API running on `:4040`** — see below
-- **react 1.x works with express 1.x.**
+- **Express version:** react 1.8 and later need **express 2.0.0 or later**:
+  leaving a tenant and signing out other sessions use routes added in 2.0.0,
+  and against 1.x a leave would wrongly report that you had already left.
+  React 1.7 and earlier were built against express 1.x and work with its last
+  release, 1.9.0.
+- **The members page reads two things that need express 2.1.0 or later**: the
+  `member_not_found` code on a role change or removal whose member is already
+  gone, and `user.active` on the platform tenant's member list, which the
+  last-owner check counts as express does (only active owners there; every
+  owner on a customer tenant). Against an older express it falls back to the
+  404's `Member not found` message and counts every platform owner as active,
+  and express's 409 still refuses a leave, removal or demotion that would
+  leave the platform tenant with no active owner, or a customer tenant with
+  no owner (a deactivated one still counts there).
 
 ## Getting started
 
@@ -497,7 +510,7 @@ live half needs an express 1.5.0+ behind the image: start express with
 `POSTHOG_ASSETS_HOST` both `http://127.0.0.1:4063` and
 `ANALYTICS_DRAIN_INTERVAL_MS=1000`, run the image with the same three
 settings and `API_UPSTREAM` pointing at that express, then
-`E2E_LIVE=1 E2E_NGINX=1 E2E_ANALYTICS=1 E2E_NGINX_ORIGIN=<image origin> E2E_API_ORIGIN=<express origin> E2E_API_DIR=<express checkout> pnpm exec playwright test --project=nginx e2e/nginx/analytics.test.ts`.
+`E2E_LIVE=1 E2E_NGINX=1 E2E_ANALYTICS=1 E2E_NGINX_ORIGIN=<image origin> E2E_API_ORIGIN=<express origin> pnpm exec playwright test --project=nginx e2e/nginx/analytics.test.ts`.
 The suite starts the fake PostHog on :4063 itself (`E2E_FAKE_POSTHOG_PORT`
 moves it).
 

@@ -8,7 +8,7 @@ import {
 import type { MembershipRole } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
-import { codeFrom, statusFrom } from '@/lib/api-error'
+import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
 import { refreshProfile } from '@/queries/profile.queries'
 import type {
@@ -20,6 +20,8 @@ import type {
 import { useAuthStore } from '@/states/auth.store'
 import {
   INVITATION_CONFLICT,
+  MEMBER_NOT_FOUND,
+  MEMBER_NOT_FOUND_MESSAGE,
   type ApiSuccess,
   type TenantAccess,
   type TenantInvitation,
@@ -61,7 +63,17 @@ export interface TenantMembership {
  */
 export interface TenantMember {
   membership: TenantMembership
-  user: { id: string; email: string; firstName: string | null; lastName: string | null }
+  user: {
+    id: string
+    email: string
+    firstName: string | null
+    lastName: string | null
+    /**
+     * False for a deactivated account. Only the platform tenant's list carries
+     * it (express 2.1.0 or later); a missing value means active.
+     */
+    active?: boolean
+  }
 }
 
 /** One row of `GET /tenants`: the tenant plus the caller's membership role in it. */
@@ -268,9 +280,23 @@ export function useRevokeInvitation(slug: string) {
 }
 
 /**
+ * Whether a role change or removal found its target no longer a member: the
+ * `member_not_found` code first, then, from an API older than 2.1.0 that sends
+ * no code, the bare 404 message.
+ * @param error - The failed request's error.
+ * @returns `true` when the member is gone.
+ */
+export function isMemberNotFound(error: unknown): boolean {
+  const code = codeFrom(error)
+  if (code !== undefined) return code === MEMBER_NOT_FOUND
+  return statusFrom(error) === 404 && messageFrom(error) === MEMBER_NOT_FOUND_MESSAGE
+}
+
+/**
  * Changes a member's role. The caller may have changed their own, which the
  * detail and the list both carry, so both refresh; a self change in the
- * platform tenant also refreshes the stored user's platformRole.
+ * platform tenant also refreshes the stored user's platformRole. A target
+ * already gone (`isMemberNotFound`) refreshes the member list.
  */
 export function useUpdateMemberRole(slug: string) {
   const queryClient = useQueryClient()
@@ -287,6 +313,11 @@ export function useUpdateMemberRole(slug: string) {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
       if (slug === PLATFORM_TENANT_SLUG && userId === useAuthStore.getState().user?.id) {
         await refreshProfile(queryClient)
+      }
+    },
+    onError: async (error) => {
+      if (isMemberNotFound(error)) {
+        await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
       }
     },
   })
@@ -335,7 +366,8 @@ export function dropTenantCache(queryClient: QueryClient, slug: string): void {
 
 /**
  * Removes another member, then refetches the member list and the tenant
- * list. Leaving, which removes yourself, is `useLeaveTenant`.
+ * list; a target already gone (`isMemberNotFound`) refetches the member list
+ * too. Leaving, which removes yourself, is `useLeaveTenant`.
  */
 export function useRemoveMember(slug: string) {
   const queryClient = useQueryClient()
@@ -345,6 +377,11 @@ export function useRemoveMember(slug: string) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
       await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+    },
+    onError: async (error) => {
+      if (isMemberNotFound(error)) {
+        await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
+      }
     },
   })
 }
@@ -370,9 +407,27 @@ export function useUpdateTenantSettings(slug: string) {
   })
 }
 
-/** How many owners a member list holds — the last-owner guard's input. */
-export function ownerCount(members: TenantMember[] | undefined): number {
-  return (members ?? []).filter((member) => member.membership.role === 'owner').length
+/**
+ * How many owners besides `userId` the API counts toward the last-owner rule:
+ * every listed owner on a customer tenant, deactivated or not, and on the
+ * platform tenant only those whose account is active (a missing `active`
+ * counts as active), as express's `countOwners` and `countActiveOwners` do.
+ * @param members - The member list.
+ * @param userId - The owner acting on their own membership.
+ * @param isPlatform - Whether this is the platform tenant.
+ * @returns The other owners that count.
+ */
+export function otherOwnerCount(
+  members: TenantMember[] | undefined,
+  userId: string | undefined,
+  isPlatform: boolean
+): number {
+  return (members ?? []).filter(
+    (member) =>
+      member.membership.role === 'owner' &&
+      member.user.id !== userId &&
+      (!isPlatform || member.user.active !== false)
+  ).length
 }
 
 /** "Ada Lovelace", or the email when the member has no name on file. */

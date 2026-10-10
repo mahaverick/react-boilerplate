@@ -100,6 +100,20 @@ function mockTenant(myRole: MembershipRole, members: ReturnType<typeof member>[]
   )
 }
 
+/** `mockTenant` for the platform tenant, whose removals and leaves also revoke elsewhere. */
+function mockPlatformTenant(myRole: MembershipRole, members: ReturnType<typeof member>[]) {
+  const platform = { ...TENANT, name: 'Platform', slug: 'platform' }
+  server.use(
+    http.get('/api/v1/tenants', () =>
+      ok([{ tenant: platform, role: myRole, isPlatform: true }], 'Tenants retrieved.')
+    ),
+    http.get('/api/v1/tenants/platform', () =>
+      ok(tenantDetail(platform, myRole), 'Tenant retrieved.')
+    ),
+    http.get('/api/v1/tenants/platform/members', () => ok(members, 'Members retrieved.'))
+  )
+}
+
 function renderAppAt(path: string): AnyRouter {
   const router = createRouter({
     routeTree,
@@ -971,6 +985,39 @@ describe('the remove and leave dialogs', () => {
     )
   })
 
+  it('tells an owner removing a platform member that their invitations in other tenants go too', async () => {
+    mockPlatformTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_2, 'admin', 'Ada')])
+    const user = userEvent.setup()
+    renderAppAt('/tenants/platform/members')
+
+    await user.click((await rowFor('Ada')).getByRole('button', { name: 'Remove' }))
+    expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+      'Ada X loses staff access immediately. Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there. If their address is on an auto-join domain, they rejoin as a viewer at their next sign-in.'
+    )
+  })
+
+  it('tells a platform viewer leaving that an auto-join domain brings them back', async () => {
+    mockPlatformTenant('viewer', [member(ME, 'viewer', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
+    const user = userEvent.setup()
+    renderAppAt('/tenants/platform/members')
+
+    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+      'You lose staff access immediately. An owner or admin will have to invite you back, unless your address is on an auto-join domain: then you rejoin as a viewer at your next sign-in.'
+    )
+  })
+
+  it('tells a platform admin leaving that their invitations in other tenants go too', async () => {
+    mockPlatformTenant('admin', [member(ME, 'admin', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
+    const user = userEvent.setup()
+    renderAppAt('/tenants/platform/members')
+
+    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+      'You lose staff access immediately. An owner or admin will have to invite you back, unless your address is on an auto-join domain: then you rejoin as a viewer at your next sign-in. Pending invitations you sent here are revoked, and so are any you sent in other tenants for a role you can no longer grant there.'
+    )
+  })
+
   it.each(['manager', 'editor', 'viewer'] as const)(
     'lets the %s leave through the membership route, then lands on the tenant list',
     async (role) => {
@@ -1163,6 +1210,279 @@ describe('the remove and leave dialogs', () => {
     ).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/tenants/acme/members')
     expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
+  })
+})
+
+describe('a member who is already gone', () => {
+  const GONE = 'That member is no longer in this tenant.'
+
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  /** Serves a list holding Vic until the first write, then without; counts the list reads. */
+  function serveVicThenNone() {
+    const reads = { count: 0 }
+    mockTenant('owner', [])
+    server.use(
+      http.get('/api/v1/tenants/acme/members', () => {
+        reads.count += 1
+        const vic = reads.count === 1 ? [member(USER_ID_3, 'viewer', 'Vic')] : []
+        return ok([member(ME, 'owner', 'Me'), ...vic], 'Members retrieved.')
+      })
+    )
+    return reads
+  }
+
+  it.each([
+    ['the member_not_found code', () => fail('No such member here', 404, 'member_not_found')],
+    ['an older API’s bare 404 message', () => fail('Member not found', 404)],
+  ])('says so and refreshes the list when a removal meets %s', async (_answer, answer) => {
+    const reads = serveVicThenNone()
+    server.use(http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, answer))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click((await rowFor('Vic')).getByRole('button', { name: 'Remove' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' })
+    )
+
+    expect(await screen.findByText(GONE)).toBeInTheDocument()
+    await waitFor(() => expect(reads.count).toBe(2))
+    await waitFor(() => expect(screen.queryByRole('cell', { name: /Vic/ })).toBeNull())
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Members', level: 2 })).toHaveFocus()
+    )
+  })
+
+  it.each([
+    ['the member_not_found code', () => fail('No such member here', 404, 'member_not_found')],
+    ['an older API’s bare 404 message', () => fail('Member not found', 404)],
+  ])('says so and refreshes the list when a role change meets %s', async (_answer, answer) => {
+    const reads = serveVicThenNone()
+    server.use(http.patch(`/api/v1/tenants/acme/members/${USER_ID_3}`, answer))
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click((await rowFor('Vic')).getByRole('combobox', { name: 'Role for Vic X' }))
+    await user.click(await screen.findByRole('option', { name: 'Editor' }))
+
+    expect(await screen.findByText(GONE)).toBeInTheDocument()
+    await waitFor(() => expect(reads.count).toBe(2))
+    await waitFor(() => expect(screen.queryByRole('cell', { name: /Vic/ })).toBeNull())
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Members', level: 2 })).toHaveFocus()
+    )
+  })
+
+  it('keeps the server’s message for any other 404, and does not refetch', async () => {
+    const reads = serveVicThenNone()
+    server.use(
+      http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, () => fail('Tenant not found', 404))
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click((await rowFor('Vic')).getByRole('button', { name: 'Remove' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' })
+    )
+
+    expect(await screen.findByText('Tenant not found')).toBeInTheDocument()
+    expect(screen.queryByText(GONE)).toBeNull()
+    expect(reads.count).toBe(1)
+  })
+
+  it('reads another code first, even with the old message', async () => {
+    serveVicThenNone()
+    server.use(
+      http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, () =>
+        fail('Member not found', 404, 'some_other_code')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme/members')
+
+    await user.click((await rowFor('Vic')).getByRole('button', { name: 'Remove' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' })
+    )
+
+    expect(await screen.findByText('Member not found')).toBeInTheDocument()
+    expect(screen.queryByText(GONE)).toBeNull()
+  })
+})
+
+describe('the last owner, counted as the API counts', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  /** A member row with the platform tenant's `active` flag. */
+  function withActive(row: ReturnType<typeof member>, active: boolean) {
+    return { ...row, user: { ...row.user, active } }
+  }
+
+  it('treats an inactive co-owner on the platform tenant as no owner at all', async () => {
+    mockPlatformTenant('owner', [
+      withActive(member(ME, 'owner', 'Me'), true),
+      withActive(member(USER_ID_4, 'owner', 'Otto'), false),
+    ])
+    renderAppAt('/tenants/platform/members')
+
+    const me = await rowFor('Me')
+    expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeDisabled()
+    expect(me.getByRole('button', { name: 'Leave' })).toBeDisabled()
+  })
+
+  it('counts an active co-owner on the platform tenant', async () => {
+    mockPlatformTenant('owner', [
+      withActive(member(ME, 'owner', 'Me'), true),
+      withActive(member(USER_ID_4, 'owner', 'Otto'), true),
+    ])
+    renderAppAt('/tenants/platform/members')
+
+    const me = await rowFor('Me')
+    expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeEnabled()
+    expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
+  })
+
+  it('counts a platform co-owner whose row has no active flag, as an older API sends', async () => {
+    mockPlatformTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
+    renderAppAt('/tenants/platform/members')
+
+    const me = await rowFor('Me')
+    expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
+  })
+
+  it('counts only the other owners on the platform tenant, whatever the leaver’s own flag', async () => {
+    mockPlatformTenant('owner', [
+      withActive(member(ME, 'owner', 'Me'), false),
+      withActive(member(USER_ID_4, 'owner', 'Otto'), true),
+    ])
+    renderAppAt('/tenants/platform/members')
+
+    const me = await rowFor('Me')
+    expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
+  })
+
+  it('counts every owner on a customer tenant, an inactive one included', async () => {
+    mockTenant('owner', [
+      withActive(member(ME, 'owner', 'Me'), true),
+      withActive(member(USER_ID_4, 'owner', 'Otto'), false),
+    ])
+    renderAppAt('/tenants/acme/members')
+
+    const me = await rowFor('Me')
+    expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeEnabled()
+    expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
+  })
+})
+
+describe('a customer tenant reached through platform access', () => {
+  const STAFF_VIEW = 'You’re viewing this tenant as staff. Make changes from the staff console.'
+
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  /** The tenant as staff reach it: an effective role through platform access, and no membership. */
+  function mockStaffView(role: MembershipRole) {
+    server.use(
+      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(TENANT, role, 'platform'), 'Tenant retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/members', () =>
+        ok(
+          [member(USER_ID_4, 'owner', 'Otto'), member(USER_ID_3, 'viewer', 'Vic')],
+          'Members retrieved.'
+        )
+      ),
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok([testInvitation], 'Invitations retrieved.')
+      )
+    )
+  }
+
+  it.each(['owner', 'admin'] as const)(
+    'shows a staff %s the members and pending invitations with no write control',
+    async (role) => {
+      mockStaffView(role)
+      renderAppAt('/tenants/acme/members')
+
+      const vic = await rowFor('Vic')
+      expect(screen.getByText(STAFF_VIEW)).toBeInTheDocument()
+      expect(vic.getByText('Viewer')).toBeInTheDocument()
+      expect(within(screen.getByRole('main')).queryByRole('combobox')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
+      expect(screen.queryByRole('heading', { name: 'Invite a member' })).toBeNull()
+      expect(screen.queryByRole('textbox', { name: 'Email' })).toBeNull()
+      expect(
+        await screen.findByRole('heading', { name: 'Pending invitations' })
+      ).toBeInTheDocument()
+      expect(await screen.findByText('invitee@b.com')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Resend invitation/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^Revoke invitation/ })).toBeNull()
+      expect(screen.queryByRole('columnheader', { name: 'Actions' })).toBeNull()
+      expect(
+        within(vic.getByText('Viewer').closest('tr') as HTMLElement).getAllByRole('cell')
+      ).toHaveLength(3)
+    }
+  )
+
+  it('says nothing about the staff console to a staff viewer, who could not change members there either', async () => {
+    mockStaffView('viewer')
+    renderAppAt('/tenants/acme/members')
+
+    await rowFor('Vic')
+    expect(screen.queryByText(STAFF_VIEW)).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Actions' })).toBeNull()
+  })
+
+  it('keeps every control, and says nothing about staff, for a member', async () => {
+    mockStaffView('owner')
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(TENANT, 'owner', 'member'), 'Tenant retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/members', () =>
+        ok([member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')], 'Members retrieved.')
+      )
+    )
+    renderAppAt('/tenants/acme/members')
+
+    const vic = await rowFor('Vic')
+    expect(vic.getByRole('combobox', { name: 'Role for Vic X' })).toBeEnabled()
+    expect(vic.getByRole('button', { name: 'Remove' })).toBeEnabled()
+    expect(screen.getByRole('heading', { name: 'Invite a member' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText(STAFF_VIEW)).toBeNull()
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument()
   })
 })
 

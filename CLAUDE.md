@@ -45,6 +45,16 @@ pages — the platform-access banner, the Staff filter on each tenant's Activity
 tab — and the **Platform** menu item (the platform tenant's Members and
 Invitations pages) until Apex's directory work replaces that item.
 
+**On a customer tenant reached through platform access (`access === 'platform'`), the
+Members tab is read-only**: no role change, removal, invite, resend or revoke, and for a
+staff owner or admin one line in the members card points to the staff console (a staff
+viewer's role allows those writes nowhere, so they get no such line). From express 2.0.0, those routes
+answer staff there with `REAUTH_REQUIRED` or `REASON_REQUIRED` unless the sign-in is recent
+and a reason comes with the request (`requireRecentAuthAndReasonOnPlatformAccess`), and only
+Apex has that reason and step-up flow. The member list and the pending invitations stay
+readable. Staff who are also members of the tenant reach it with `access: 'member'` and keep
+their controls, as does everyone on the platform tenant's own pages.
+
 ## Commands
 
 | Command              | What it does                                                                                       |
@@ -141,6 +151,13 @@ nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
   value, not the sentence. A page that renders a new kind of person data gets
   its fixture in the harness's `?pii=probe` mode and a scan in
   `e2e/fixtures/pii.test.ts`; without that, the guard cannot see it.
+- **Replay masks attributes by name, not by `<Pii>`**, which cannot wrap one.
+  `maskReplayAttribute` (`mask-attribute.ts`, passed as `session_recording.maskAttributeFn`)
+  turns `aria-label`, `title`, `alt`, `placeholder`, `srcdoc`, every `data-*`, an `href` with a
+  query or a `mailto:`/`tel:` scheme, and a `src` or `srcset` with a query into `***`, and rrweb applies it
+  to the full snapshot and to added nodes and attribute changes alike. That is why an
+  accessible name may carry an address ("Resend invitation to …"); an attribute outside that
+  list may not. `e2e/nginx/analytics.test.ts` pins `aria-label` on all three paths.
 - **Only `src/observability/analytics/` imports posthog-js**, and only
   `analytics.ts` imports it as a value, through `import()`. `pnpm check:bundle`
   fails if it reaches the first-visit chunks.
@@ -534,8 +551,47 @@ be tested here, not against `pnpm dev`.
 the fake PostHog the suite starts on `FAKE_POSTHOG_PORT` (4063). posthog-js drops every event
 from a Playwright browser (`navigator.webdriver`, the `HeadlessChrome` brand) unless the test
 uses `HUMAN_USER_AGENT` and `passPosthogBotFilter`, and holds back the replay of a page nobody
-has clicked. Never run `e2e/nginx/sse.test.ts` against an express you did not start:
-`restartApi()` kills whatever listens on the API port.
+has clicked. `E2E_API_DIR` (default `../express-boilerplate`) is the checkout of the express
+under test, where `grantPlatformRole` runs `pnpm platform:grant`; for the default :4040 live
+run that is the main checkout. Only `restartApi` refuses the main checkout.
+
+**The SSE reconnect test restarts an express**, so it runs only by hand. `restartApi()`
+stops the listeners on the `E2E_API_ORIGIN` port and starts `pnpm dev` in the resolved
+`E2E_API_DIR` with `APP_PORT` set to that port, so the new server never falls back to its
+checkout's `.env` port. The rules are `restartPlan` and `stopListenersIn` in
+`scripts/api-restart-guard.mjs`, unit-tested with mocked processes and file system in
+`tests/unit/api-restart-guard.test.ts`. It refuses, by throwing: an origin that is not http(s)
+with an explicit port; port 4040 (a developer's own `pnpm dev`); a run without
+`E2E_ALLOW_API_RESTART=1`; an empty `E2E_API_DIR`; a directory that resolves to the main
+checkout (`../express-boilerplate`); and one that is not a git worktree (no `.git` file), which
+refuses a standalone clone too. It signals nothing unless every listener on the port has its
+working directory inside that worktree. `e2e/nginx/sse.test.ts` skips with the reason instead,
+so `pnpm test:e2e:nginx` always skips it.
+
+To run it, give express a worktree with its own `.env`, built from `.env.example` and never a
+copy of the main checkout's: `APP_PORT=4999`,
+`DATABASE_URL=postgres://boilerplate:boilerplate@127.0.0.1:5433/boilerplate_sse` (a database
+of its own on the compose Postgres) and `REDIS_KEY_PREFIX=express-sse`, so the run's accounts
+and keys stay out of the dev database and keyspace. Then:
+
+```sh
+git -C ../express-boilerplate worktree add ../express-sse
+docker exec express-boilerplate-postgres-1 createdb -U boilerplate boilerplate_sse
+# In ../express-sse: write its .env as above, then
+#   pnpm install && pnpm db:migrate && pnpm dev
+docker build -t react-boilerplate:e2e .
+docker run -d --name rb-e2e-sse -p 8089:8080 --read-only --tmpfs /tmp \
+  --add-host=api:host-gateway -e API_UPSTREAM=http://api:4999 react-boilerplate:e2e
+E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
+  E2E_API_ORIGIN=http://localhost:4999 E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
+  pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
+docker rm -f rb-e2e-sse
+# Stop the `pnpm dev` you started in ../express-sse (Ctrl-C): the run stopped only its
+# server process, and its watcher would restart one into the port. The run's own restarted
+# server is detached; it recorded the process group, and the file goes once it is stopped:
+PID_FILE="$(node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
+kill -TERM -"$(cat "$PID_FILE")" && rm -f "$PID_FILE"
+```
 
 **`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom
 cannot compute at all — over every surface reachable without a backend, in **both themes**:
@@ -555,7 +611,7 @@ contrast too — which token a component puts on which surface decides the ratio
 alone — and composition changes on every feature, so run this before merging UI work, not only when a
 token moves. **Do not eyeball a contrast change — run the script.**
 
-`restartApi()` kills by port with `-sTCP:LISTEN` and escalates SIGTERM→SIGKILL. Both details
+`restartApi()` finds listeners by port with `-sTCP:LISTEN` and escalates SIGTERM→SIGKILL. Both details
 are load-bearing: `pnpm dev` is `tsx watch`, whose CHILD holds the port and survives a
 group SIGTERM, and without `-sTCP:LISTEN` lsof also lists the Vite proxy as a client of that
 port and the kill takes the dev server down too.

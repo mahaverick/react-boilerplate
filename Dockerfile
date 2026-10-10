@@ -7,7 +7,7 @@ WORKDIR /app
 # Node 26 move is a version bump only. The pnpm version comes
 # from package.json's packageManager field (corepack install, below) — the
 # one place it is written. It must be pnpm 12: pnpm-workspace.yaml uses
-# allowBuilds and minimumReleaseAgeExclude, which older pnpm ignores in
+# allowBuilds and minimumReleaseAge, which older pnpm ignores in
 # silence, and allowBuilds is what lets msw's postinstall run at all.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN npm i -g corepack@0.36.0 && corepack enable
@@ -66,8 +66,8 @@ RUN pnpm build
 RUN POSTHOG_CLI_TOKEN=phx_inject_placeholder POSTHOG_CLI_ENV_ID=0 \
     pnpm exec posthog-cli sourcemap inject --directory dist
 # Declared just before the upload, so a change to where the maps go re-runs
-# only the upload, not `pnpm build` or inject: an ARG is part of every later
-# RUN's cache key.
+# only the upload and the map deletion after it, not `pnpm build` or inject:
+# an ARG is part of every later RUN's cache key.
 ARG POSTHOG_SOURCEMAP_PROJECTS=
 ARG POSTHOG_CLI_HOST=https://us.posthog.com
 # The token is a BuildKit secret: never in a layer or in `docker history`.

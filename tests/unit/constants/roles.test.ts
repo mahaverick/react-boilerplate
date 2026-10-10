@@ -116,16 +116,16 @@ describe('canManageTenant', () => {
 
 describe('isLastOwnerBlocked', () => {
   it('blocks an owner acting on their own membership when they are the only owner', () => {
-    expect(isLastOwnerBlocked({ targetRole: 'owner', isSelf: true, ownerCount: 1 })).toBe(true)
+    expect(isLastOwnerBlocked({ targetRole: 'owner', isSelf: true, otherOwners: 0 })).toBe(true)
   })
 
   it('allows it once a second owner exists', () => {
-    expect(isLastOwnerBlocked({ targetRole: 'owner', isSelf: true, ownerCount: 2 })).toBe(false)
+    expect(isLastOwnerBlocked({ targetRole: 'owner', isSelf: true, otherOwners: 1 })).toBe(false)
   })
 
   it('does not block acting on somebody else, or on a non-owner membership', () => {
-    expect(isLastOwnerBlocked({ targetRole: 'owner', isSelf: false, ownerCount: 1 })).toBe(false)
-    expect(isLastOwnerBlocked({ targetRole: 'admin', isSelf: true, ownerCount: 1 })).toBe(false)
+    expect(isLastOwnerBlocked({ targetRole: 'owner', isSelf: false, otherOwners: 0 })).toBe(false)
+    expect(isLastOwnerBlocked({ targetRole: 'admin', isSelf: true, otherOwners: 0 })).toBe(false)
   })
 })
 

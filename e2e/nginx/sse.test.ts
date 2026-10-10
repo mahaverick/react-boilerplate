@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test'
-import { API_ORIGIN, apiIsReady, freshEmail, restartApi, signIn } from '../live/helpers'
+import {
+  API_ORIGIN,
+  apiIsReady,
+  apiRestartRefusal,
+  freshEmail,
+  restartApi,
+  signIn,
+} from '../live/helpers'
 
 /**
  * **The SSE stream reconnects after a real backend restart.**
@@ -19,24 +26,30 @@ import { API_ORIGIN, apiIsReady, freshEmail, restartApi, signIn } from '../live/
  * `proxy_buffering off` — which is the path the behaviour actually ships
  * on.
  *
- * Needs the container and a live API. `pnpm test:e2e:nginx` does the whole
- * thing; `beforeAll` says so if something is missing.
+ * Needs the container and a live API that this run may restart: an express
+ * started from a git worktree on a port other than :4040, named by
+ * `E2E_API_ORIGIN`, `E2E_API_DIR` and the container's `API_UPSTREAM`, with
+ * `E2E_ALLOW_API_RESTART=1`. Without that it skips, saying why; CLAUDE.md
+ * "End-to-end tests" has the command, and `beforeAll` says so if the API is
+ * missing.
  */
 
 const APP_ORIGIN = process.env.E2E_NGINX_ORIGIN ?? 'http://localhost:8088'
 
 test.skip(process.env.E2E_LIVE !== '1', 'needs the nginx container — run pnpm test:e2e:nginx')
+const restartRefusal = apiRestartRefusal()
+test.skip(restartRefusal !== null, restartRefusal ?? '')
 
 test.beforeAll(async () => {
   if (!(await apiIsReady())) {
     throw new Error(
-      `No API at ${API_ORIGIN}. Start it: cd ../express-boilerplate && docker compose up -d && pnpm db:migrate && pnpm dev`
+      `No API at ${API_ORIGIN}. Start the worktree express on that port, as CLAUDE.md "End-to-end tests" describes for the SSE reconnect test`
     )
   }
   const served = await fetch(APP_ORIGIN).catch(() => null)
   if (!served?.ok) {
     throw new Error(
-      `No app at ${APP_ORIGIN}. Build and run the image: docker build -t react-boilerplate:e2e . && docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp --add-host=api:host-gateway react-boilerplate:e2e`
+      `No app at ${APP_ORIGIN}. Run the image with API_UPSTREAM at the worktree express, as CLAUDE.md "End-to-end tests" describes for the SSE reconnect test`
     )
   }
 })

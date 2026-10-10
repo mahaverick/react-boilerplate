@@ -101,18 +101,18 @@ describe('rawFromViteEnv', () => {
 describe('handoff origin normalisation', () => {
   it('canonicalises case and the default port so a referrer origin matches', () => {
     const { config, invalid } = parseRuntimeConfig({
-      ANALYTICS_HANDOFF_ORIGINS: 'https://WWW.Example.com,https://x.com:443,https://y.com:8443',
+      ANALYTICS_HANDOFF_ORIGINS: 'https://WWW.Example.com,https://x.test:443,https://y.test:8443',
     })
     expect(invalid).toEqual([])
     expect(config.analyticsHandoffOrigins).toEqual([
       'https://www.example.com',
-      'https://x.com',
-      'https://y.com:8443',
+      'https://x.test',
+      'https://y.test:8443',
     ])
     // Each referrer hands off its own id: an accepted id is refused the second time.
     for (const [referrer, did] of [
       ['https://www.example.com/blog', '01a0fc35-b7ee-7b93-b550-d8a7f98e30be'],
-      ['https://x.com/', '01a0fc35-b7ee-7b93-b550-d8a7f98e30bf'],
+      ['https://x.test/', '01a0fc35-b7ee-7b93-b550-d8a7f98e30bf'],
     ] as const) {
       expect(
         readHandoff({ search: `?ph_did=${did}` }, referrer, config.analyticsHandoffOrigins, false)
@@ -122,7 +122,7 @@ describe('handoff origin normalisation', () => {
 
   it('refuses a list with a port no URL can carry, as unset', () => {
     const { config, invalid } = parseRuntimeConfig({
-      ANALYTICS_HANDOFF_ORIGINS: 'https://x.com:99999',
+      ANALYTICS_HANDOFF_ORIGINS: 'https://x.test:99999',
     })
     expect(invalid).toEqual(['ANALYTICS_HANDOFF_ORIGINS'])
     expect(config.analyticsHandoffOrigins).toEqual([])
