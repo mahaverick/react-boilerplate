@@ -104,9 +104,10 @@ const PLATFORM_INVITATIONS_REVOKED_ON_REMOVE =
   'Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there. If their address is on an auto-join domain, they rejoin as a viewer at their next sign-in.'
 
 /**
- * What the members card says to staff who reached a customer tenant through
- * platform access: express refuses their member and invitation writes here
- * without a staff reason, which only the staff console sends.
+ * What the members card says to a staff owner or admin who reached a customer
+ * tenant through platform access: express refuses their member and invitation
+ * writes here without a staff reason, which only the staff console sends. A
+ * staff viewer is told nothing, since their role allows those writes nowhere.
  */
 const STAFF_VIEW = 'You’re viewing this tenant as staff. Make changes from the staff console.'
 
@@ -151,7 +152,9 @@ const MEMBERS_ERROR =
  * on it would never open, and Base UI's Tooltip sets no `role="tooltip"`.
  * `isLastOwner` is only true for an owner acting on their own membership,
  * which the predicates always leave as a select, so the explanation always
- * renders when it is needed.
+ * renders when it is needed. The change uses `mutateAsync`, as removal does: a
+ * member already gone refetches the list, which unmounts this cell before
+ * `mutate`'s per-call callbacks could run, and `onGone` moves focus on.
  */
 function RoleCell({
   slug,
@@ -160,6 +163,7 @@ function RoleCell({
   isSelf,
   isLastOwner,
   reasonId,
+  onGone,
 }: {
   slug: string
   member: TenantMember
@@ -168,6 +172,8 @@ function RoleCell({
   isLastOwner: boolean
   /** The row's one last-owner explanation, which this cell renders. */
   reasonId: string
+  /** Called once a role change found the member already gone and the list has refetched. */
+  onGone: () => void
 }) {
   const updateRole = useUpdateMemberRole(slug)
   const targetRole = member.membership.role
@@ -184,12 +190,13 @@ function RoleCell({
         disabled={isLastOwner || updateRole.isPending}
         onValueChange={(value: string | null) => {
           if (value === null || value === targetRole) return
-          updateRole.mutate(
-            { userId: member.user.id, role: value as MembershipRole },
-            {
-              onSuccess: () =>
-                toast.success(`${name} is now ${ROLE_LABELS[value as MembershipRole]}.`),
-              onError: (error) => toast.error(memberWriteFailureMessage(error)),
+          updateRole.mutateAsync({ userId: member.user.id, role: value as MembershipRole }).then(
+            () => {
+              toast.success(`${name} is now ${ROLE_LABELS[value as MembershipRole]}.`)
+            },
+            (error: unknown) => {
+              toast.error(memberWriteFailureMessage(error))
+              if (isMemberNotFound(error)) onGone()
             }
           )
         }}
@@ -414,6 +421,7 @@ function MemberRow({
       isSelf={isSelf}
       isLastOwner={isLastOwner}
       reasonId={reasonId}
+      onGone={onRemoved}
     />
   )
   const remove = canRemove ? (
@@ -454,7 +462,7 @@ function MemberRow({
         <Pii>{member.user.email}</Pii>
       </TableCell>
       <TableCell>{role}</TableCell>
-      <TableCell className="text-right">{remove}</TableCell>
+      {!readOnly && <TableCell className="text-right">{remove}</TableCell>}
     </TableRow>
   )
 }
@@ -510,7 +518,9 @@ function TenantMembersTab() {
             </h2>
           </CardTitle>
           <CardDescription>Everyone with access to this tenant.</CardDescription>
-          {isStaffView && <p className="text-sm text-muted-foreground">{STAFF_VIEW}</p>}
+          {isStaffView && myRole && canManageTenant(myRole) && (
+            <p className="text-sm text-muted-foreground">{STAFF_VIEW}</p>
+          )}
         </CardHeader>
         <CardContent>
           {members.isError || isRoleError || (!isRolePending && !myRole) ? (
@@ -554,7 +564,7 @@ function TenantMembersTab() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {!isStaffView && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>

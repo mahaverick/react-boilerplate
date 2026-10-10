@@ -1277,6 +1277,10 @@ describe('a member who is already gone', () => {
 
     expect(await screen.findByText(GONE)).toBeInTheDocument()
     await waitFor(() => expect(reads.count).toBe(2))
+    await waitFor(() => expect(screen.queryByRole('cell', { name: /Vic/ })).toBeNull())
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Members', level: 2 })).toHaveFocus()
+    )
   })
 
   it('keeps the server’s message for any other 404, and does not refetch', async () => {
@@ -1442,8 +1446,21 @@ describe('a customer tenant reached through platform access', () => {
       expect(await screen.findByText('invitee@b.com')).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /^Resend invitation/ })).toBeNull()
       expect(screen.queryByRole('button', { name: /^Revoke invitation/ })).toBeNull()
+      expect(screen.queryByRole('columnheader', { name: 'Actions' })).toBeNull()
+      expect(
+        within(vic.getByText('Viewer').closest('tr') as HTMLElement).getAllByRole('cell')
+      ).toHaveLength(3)
     }
   )
+
+  it('says nothing about the staff console to a staff viewer, who could not change members there either', async () => {
+    mockStaffView('viewer')
+    renderAppAt('/tenants/acme/members')
+
+    await rowFor('Vic')
+    expect(screen.queryByText(STAFF_VIEW)).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Actions' })).toBeNull()
+  })
 
   it('keeps every control, and says nothing about staff, for a member', async () => {
     mockStaffView('owner')
@@ -1465,6 +1482,7 @@ describe('a customer tenant reached through platform access', () => {
       await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
     ).toBeInTheDocument()
     expect(screen.queryByText(STAFF_VIEW)).toBeNull()
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument()
   })
 })
 
