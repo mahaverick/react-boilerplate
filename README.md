@@ -33,7 +33,8 @@ that a new project starts here rather than at `create-vite`.
   owner on a customer tenant). Against an older express it falls back to the
   404's `Member not found` message and counts every platform owner as active,
   and express's 409 still refuses a leave, removal or demotion that would
-  leave no active owner.
+  leave the platform tenant with no active owner, or a customer tenant with
+  no owner (a deactivated one still counts there).
 
 ## Getting started
 
