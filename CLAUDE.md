@@ -559,9 +559,10 @@ working directory inside that worktree. `e2e/nginx/sse.test.ts` skips with the r
 so `pnpm test:e2e:nginx` always skips it.
 
 To run it, give express a worktree with its own `.env`, built from `.env.example` and never a
-copy of the main checkout's: `APP_PORT=4999`, a `DATABASE_URL` naming a database of its own
-(`boilerplate_sse` below, on the compose Postgres) and `REDIS_KEY_PREFIX=express-sse`, so the
-run's accounts and keys stay out of the dev database and keyspace. Then:
+copy of the main checkout's: `APP_PORT=4999`,
+`DATABASE_URL=postgres://boilerplate:boilerplate@127.0.0.1:5433/boilerplate_sse` (a database
+of its own on the compose Postgres) and `REDIS_KEY_PREFIX=express-sse`, so the run's accounts
+and keys stay out of the dev database and keyspace. Then:
 
 ```sh
 git -C ../express-boilerplate worktree add ../express-sse
@@ -575,8 +576,11 @@ E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
   E2E_API_ORIGIN=http://localhost:4999 E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
   pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
 docker rm -f rb-e2e-sse
-# The run leaves its restarted server running, detached; it recorded the process group:
-kill -TERM -"$(cat "$(node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid")"
+# Stop the `pnpm dev` you started in ../express-sse (Ctrl-C): the run stopped only its
+# server process, and its watcher would restart one into the port. The run's own restarted
+# server is detached; it recorded the process group, and the file goes once it is stopped:
+PID_FILE="$(node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
+kill -TERM -"$(cat "$PID_FILE")" && rm -f "$PID_FILE"
 ```
 
 **`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom

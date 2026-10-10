@@ -29,3 +29,8 @@ export declare function respawnOptions(
   env: Record<string, string | undefined>
 }
 export declare function restartedPidFile(tmpdir: string, port: string): string
+export declare function forgetRestartedServer(
+  origin: string,
+  tmpdir: string,
+  remove: (path: string) => void
+): void

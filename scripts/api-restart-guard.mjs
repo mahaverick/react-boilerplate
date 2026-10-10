@@ -172,3 +172,15 @@ export function respawnOptions(dir, port, env) {
 export function restartedPidFile(tmpdir, port) {
   return `${tmpdir}/react-e2e-restarted-api-${port}.pid`
 }
+
+/**
+ * Deletes the pid file an earlier restart on this origin's port left, so a
+ * run that fails before it starts a server leaves no stale pid to kill.
+ * @param origin - `E2E_API_ORIGIN`.
+ * @param tmpdir - The system temporary directory.
+ * @param remove - Deletes a file, doing nothing when it is missing.
+ */
+export function forgetRestartedServer(origin, tmpdir, remove) {
+  const port = explicitPortOf(origin)
+  if (port !== null) remove(restartedPidFile(tmpdir, port))
+}

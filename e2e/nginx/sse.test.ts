@@ -43,13 +43,13 @@ test.skip(restartRefusal !== null, restartRefusal ?? '')
 test.beforeAll(async () => {
   if (!(await apiIsReady())) {
     throw new Error(
-      `No API at ${API_ORIGIN}. Start it: cd ../express-boilerplate && docker compose up -d && pnpm db:migrate && pnpm dev`
+      `No API at ${API_ORIGIN}. Start the worktree express on that port, as CLAUDE.md "End-to-end tests" describes for the SSE reconnect test`
     )
   }
   const served = await fetch(APP_ORIGIN).catch(() => null)
   if (!served?.ok) {
     throw new Error(
-      `No app at ${APP_ORIGIN}. Build and run the image: docker build -t react-boilerplate:e2e . && docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp --add-host=api:host-gateway react-boilerplate:e2e`
+      `No app at ${APP_ORIGIN}. Run the image with API_UPSTREAM at the worktree express, as CLAUDE.md "End-to-end tests" describes for the SSE reconnect test`
     )
   }
 })

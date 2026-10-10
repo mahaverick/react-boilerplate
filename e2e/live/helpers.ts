@@ -1,5 +1,5 @@
 import { execFile as execFileCallback, spawn } from 'node:child_process'
-import { realpathSync, statSync, writeFileSync } from 'node:fs'
+import { realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -7,6 +7,7 @@ import { expect, type Page } from '@playwright/test'
 import type { MembershipRole } from '@/constants/roles'
 import {
   cwdFromLsofFields,
+  forgetRestartedServer,
   respawnOptions,
   restartedPidFile,
   restartPlan,
@@ -219,9 +220,13 @@ async function cwdOf(pid: number): Promise<string | null> {
  * new server starts in the resolved worktree with `APP_PORT` set to the
  * checked port, so it never falls back to its `.env` port (4040 by default).
  * That server stays running, detached; its pid, which is also its process
- * group, is written to `restartedPidFile(os.tmpdir(), port)`.
+ * group, is written to `restartedPidFile(os.tmpdir(), port)`, after any file
+ * an earlier run left there is deleted.
  */
 export async function restartApi(): Promise<void> {
+  forgetRestartedServer(API_ORIGIN, tmpdir(), (file) => {
+    rmSync(file, { force: true })
+  })
   const plan = apiRestartPlan()
   if ('refusal' in plan) throw new Error(plan.refusal)
   const { port, dir } = plan

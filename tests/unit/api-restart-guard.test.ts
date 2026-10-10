@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   cwdFromLsofFields,
   explicitPortOf,
+  forgetRestartedServer,
   isWithin,
   respawnOptions,
   restartedPidFile,
@@ -205,5 +206,19 @@ describe('respawnOptions', () => {
 describe('restartedPidFile', () => {
   it('names one file per port in the temporary directory', () => {
     expect(restartedPidFile('/tmp/t', '4999')).toBe('/tmp/t/react-e2e-restarted-api-4999.pid')
+  })
+})
+
+describe('forgetRestartedServer', () => {
+  it('deletes the pid file for the origin’s port', () => {
+    const remove = vi.fn<(path: string) => void>()
+    forgetRestartedServer('http://localhost:4999', '/tmp/t', remove)
+    expect(remove.mock.calls).toEqual([['/tmp/t/react-e2e-restarted-api-4999.pid']])
+  })
+
+  it('deletes nothing for an origin without an explicit port', () => {
+    const remove = vi.fn<(path: string) => void>()
+    forgetRestartedServer('http://localhost', '/tmp/t', remove)
+    expect(remove).not.toHaveBeenCalled()
   })
 })
