@@ -7,7 +7,7 @@
  */
 
 /** What a masked attribute's value is replaced with. */
-export const MASKED_ATTRIBUTE_VALUE = '***'
+const MASKED_ATTRIBUTE_VALUE = '***'
 
 const MASKED_ATTRIBUTES: ReadonlySet<string> = new Set([
   'aria-label',

@@ -1,4 +1,3 @@
-export declare const DEV_API_PORT: string
 export declare function explicitPortOf(origin: string): string | null
 export declare function restartPlan(input: {
   origin: string

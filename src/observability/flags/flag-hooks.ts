@@ -10,7 +10,6 @@ import { reportExposure } from './exposure'
 import { flagsQueryOptions } from './flag-query'
 import { useFlagScope } from './flag-scope'
 import type {
-  BooleanClientFlagKey,
   ClientFlagKey,
   ClientFlagValue,
   ClientFlagValues,
@@ -44,7 +43,7 @@ export function useFlagValues(): ClientFlagValues {
  * @param key - A flag this app reads.
  * @returns Its value, or its fallback while loading or after a failure.
  */
-export function useFlagValue<K extends ClientFlagKey>(key: K): ClientFlagValue<K> {
+function useFlagValue<K extends ClientFlagKey>(key: K): ClientFlagValue<K> {
   const scope = useFlagScope()
   const { data } = useQuery(flagsQueryOptions(scope))
   const isLoaded = data !== undefined
@@ -55,15 +54,6 @@ export function useFlagValue<K extends ClientFlagKey>(key: K): ClientFlagValue<K
   }, [isLoaded, key, scope, value])
 
   return value
-}
-
-/**
- * A boolean flag.
- * @param key - A boolean flag this app reads.
- * @returns True only when the server says so.
- */
-export function useFlag(key: BooleanClientFlagKey): boolean {
-  return useFlagValue(key) === true
 }
 
 /**

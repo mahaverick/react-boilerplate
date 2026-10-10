@@ -12,8 +12,6 @@ import { registeredFeatureProperties } from './feature-property-names'
 import type { ClientFlagKey } from './flag-types'
 import { clientFlagKeys } from './flag-values'
 
-export { forgetFeatureProperties } from './feature-property-names'
-
 /**
  * The super property that carries a flag's value.
  * @param key - A flag this app reads.

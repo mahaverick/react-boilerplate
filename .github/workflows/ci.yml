@@ -44,6 +44,9 @@ jobs:
       - run: pnpm exec eslint . --max-warnings 0
       - run: pnpm lint
       - run: pnpm lint:docs
+      # Unused files, exports, types and dependencies; knip.jsonc says why
+      # each ignored finding is not dead code.
+      - run: pnpm knip
       - run: pnpm typecheck
 
   test:

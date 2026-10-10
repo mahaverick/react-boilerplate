@@ -18,8 +18,8 @@ import { settle } from '../timing'
 const execFile = promisify(execFileCallback)
 
 export const API_ORIGIN = process.env.E2E_API_ORIGIN ?? 'http://localhost:4040'
-export const MAILPIT_ORIGIN = process.env.E2E_MAILPIT_ORIGIN ?? 'http://localhost:8025'
-export const API_DIR = process.env.E2E_API_DIR ?? '../express-boilerplate'
+const MAILPIT_ORIGIN = process.env.E2E_MAILPIT_ORIGIN ?? 'http://localhost:8025'
+const API_DIR = process.env.E2E_API_DIR ?? '../express-boilerplate'
 
 /** The password every e2e account uses. Long enough for the register schema. */
 export const PASSWORD = 'a very long passphrase for e2e'

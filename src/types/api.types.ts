@@ -50,7 +50,7 @@ export const ACCESS_TOKEN_EXPIRED = 'ACCESS_TOKEN_EXPIRED'
 export const REAUTH_REQUIRED = 'REAUTH_REQUIRED'
 
 /** The maintenance modes express enforces, mildest first. */
-export const MAINTENANCE_MODES = ['off', 'read_only', 'full'] as const
+const MAINTENANCE_MODES = ['off', 'read_only', 'full'] as const
 
 /** One of `MAINTENANCE_MODES`. */
 export type MaintenanceMode = (typeof MAINTENANCE_MODES)[number]
@@ -81,7 +81,7 @@ export interface MaintenanceStatus {
  * `invitedBy` on a pending-invitation row, or `null` once the inviter's
  * account is gone (the column is `on delete set null`).
  */
-export interface InvitationInviter {
+interface InvitationInviter {
   id: string
   firstName: string | null
   lastName: string | null
@@ -138,26 +138,20 @@ export const MEMBER_NOT_FOUND = 'member_not_found'
 /** The message of that 404, the only sign of it from an API older than 2.1.0. */
 export const MEMBER_NOT_FOUND_MESSAGE = 'Member not found'
 
-/** 404 on preview and accept: invalid, expired, revoked or already used. */
-export const INVITATION_INVALID = 'invitation_invalid'
-
-/** 403 on accept: the signed-in account's email is not the invited one. */
-export const INVITATION_EMAIL_MISMATCH = 'invitation_email_mismatch'
-
 /** 403 on accept: the signed-in account is the invited one, but its email is unverified. */
 export const INVITATION_EMAIL_UNVERIFIED = 'invitation_email_unverified'
 
 /** How an audit entry's actor reached the tenant. `system` is a script, with no actor. */
-export type AuditAccess = 'member' | 'platform' | 'system'
+type AuditAccess = 'member' | 'platform' | 'system'
 
 /** The actor on an audit entry. `name` is the email when the actor has no name on file. */
-export interface AuditActor {
+interface AuditActor {
   id: string
   name: string
   email: string
 }
 
-export interface AuditTarget {
+interface AuditTarget {
   type: 'tenant' | 'membership' | 'invitation' | 'settings' | 'user'
   id: string
 }
@@ -182,7 +176,7 @@ export interface AuditPage<T extends AuditEntry> {
 }
 
 /** One sign-in method linked to the account, as `GET /auth/providers` lists it. */
-export interface AuthProviderLink {
+interface AuthProviderLink {
   /** `'email'` or `'google'`. A string, so a new provider renders rather than breaks. */
   provider: string
   /** ISO timestamp of when the method was linked. */
@@ -199,10 +193,10 @@ export interface AuthProviders {
 }
 
 /** Where a tenant is in onboarding, as a member sees it; `stuck` reads `in_progress` and `awaiting_owner` reads `not_tracked`. */
-export type TenantOnboardingState = 'in_progress' | 'complete' | 'dismissed' | 'not_tracked'
+type TenantOnboardingState = 'in_progress' | 'complete' | 'dismissed' | 'not_tracked'
 
 /** Who completed a step: the server from an event, a member, or platform staff. */
-export type OnboardingSource = 'auto' | 'customer' | 'staff'
+type OnboardingSource = 'auto' | 'customer' | 'staff'
 
 /**
  * One step of `GET /tenants/:slug/onboarding`, in the server registry's order.

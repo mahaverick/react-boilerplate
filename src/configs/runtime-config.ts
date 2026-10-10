@@ -38,7 +38,7 @@ const HTTPS_ORIGIN = 'https://[A-Za-z0-9.-]+(:[0-9]{1,5})?'
  * same expressions and refuses to start the container on a mismatch. An empty
  * value always means "unset".
  */
-export const RUNTIME_CONFIG_PATTERNS: Readonly<Record<RuntimeConfigKey, RegExp>> = {
+const RUNTIME_CONFIG_PATTERNS: Readonly<Record<RuntimeConfigKey, RegExp>> = {
   POSTHOG_KEY: /^phc_[A-Za-z0-9_-]{8,128}$/,
   POSTHOG_UI_HOST: new RegExp(`^${HTTPS_ORIGIN}$`),
   ANALYTICS_CONSENT_MODE: /^(opt_out|required|off)$/,

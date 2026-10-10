@@ -21,7 +21,8 @@ that a new project starts here rather than at `create-vite`.
 
 - **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ does not ship Corepack, so this works on 24 and 26 alike). `pnpm install` refuses an older Node.
 - The **API running on `:4040`** — see below
-- **Express version:** react 1.8 and later need **express 2.0.0 or later**:
+- **Express version:** react 1.8 and later need **express 2.0.0 or later**,
+  3.x included (its breaking changes touch nothing this app reads):
   leaving a tenant and signing out other sessions use routes added in 2.0.0,
   and against 1.x a leave would wrongly report that you had already left.
   React 1.7 and earlier were built against express 1.x and work with its last
@@ -109,6 +110,7 @@ and reads the analytics settings from `.env` under their `VITE_` names
 | `pnpm test:watch`     | Vitest in watch mode                                                                                                                                                                                                                       |
 | `pnpm format`         | `prettier --write`                                                                                                                                                                                                                         |
 | `pnpm check:bundle`   | Builds in memory; fails on one JS chunk, first-visit JS over budget or holding posthog-js or `@posthog/core`, the error listener over 1 KB gzipped, or devtools in a chunk. CI runs it                                                     |
+| `pnpm knip`           | Unused files, exports, types and dependencies (`knip.jsonc` lists the ignores and why). CI runs it                                                                                                                                         |
 | `pnpm lint:docs`      | History phrasing and broken links in markdown and config comments. CI runs it                                                                                                                                                              |
 | `pnpm test:e2e`       | Playwright `fixtures` project against the MSW harness; no backend needed. CI runs it                                                                                                                                                       |
 | `pnpm test:e2e:live`  | Playwright `live` project; needs express at `E2E_API_ORIGIN` (default :4040); `flags.test.ts` also needs `E2E_FLAGS_SET_CMD` (`<cmd> <key> <value>`; `example_beta_page` on\|off, `example_cta_experiment` control\|bold at 100 % rollout) |
@@ -523,16 +525,16 @@ tenant page, `GET /api/v1/flags` elsewhere, and the matching
 both reads answer every flag's fallback, so the app behaves as if every flag
 were off.
 
-- **Reading.** `useFlag(key)`, `useVariant(key)` and `<Flag name variant?>`
-  from `src/observability/flags/`. Each shows the fallback while the values
-  load or after a failed read. The `_app` loader warms the page's scope, and
-  values refetch on a tenant switch, on focus after five minutes and every
-  ten minutes.
+- **Reading.** `useVariant(key)` for a multivariate flag and `useFlagValues()`
+  for every flag's value, from `src/observability/flags/flag-hooks.ts`. Each
+  shows the fallback while the values load or after a failed read. The `_app`
+  loader warms the page's scope, and values refetch on a tenant switch, on
+  focus after five minutes and every ten minutes.
 - **Gating.** A tenant tab or sidebar item takes `flag` and is hidden while it
   is off; a route's `beforeLoad` calls `requireClientFlag`, which answers not
   found. The API route behind it is gated by express, which is what actually
   refuses.
-- **Experiments.** Reading an experiment flag reports its exposure once per
+- **Experiments.** Reading an experiment flag through `useVariant` reports its exposure once per
   tab session; express records `$feature_flag_called` when the user matched a
   release condition or is in the holdout. Every browser event
   carries `$feature/<key>` for the metrics.
@@ -592,7 +594,7 @@ sent.
   unsettled after 10 s) it is anonymous: a new distinct id per event and no
   person profile. An earlier anonymous crash is never re-attributed.
 - **Scrubbing.** Exception types, values, frame file names and function names
-  go through the same rules as express-boilerplate's
+  go through express-boilerplate's scrubber, held here byte for byte
   (`src/observability/errors/scrub.ts`, tested against the shared
   `tests/fixtures/error-scrub-vectors.json`): Postgres key details and echoed
   values, URL credentials, query strings, fragments other than line or
@@ -646,12 +648,10 @@ does not catch:
   `%2F` (`abc/def%2Fghi@example.com` keeps `abc/`), or when it follows an
   address character directly (a letter, digit, `.`, `%`, `+`, `-`, `_`, `/` or
   `@`: `jane@example.com/<secret>@…`, `u.<secret>@…`);
-- a quoted value whose key sits inside a URL query that an encoded key's value
-  runs into (`secret%3Dhttps://…?a=1/api_key="…"` keeps the quoted value);
-- a key name glued to the end of the segment after `/reset/`, `/verify/`,
-  `/invite/` or `/accept/`, which goes into `[token]` with the segment and
-  leaves the value after it in view (`/app/reset/x.tsrefresh_token = …`
-  becomes `/app/reset/[token] = …`);
+- a secret-named key that an earlier rule took into its
+  placeholder when the key's word starts more than 80 characters before the
+  placeholder ends, and an Authorization or Cookie key taken in the same way
+  (`/reset/x.tscookie = …` keeps its value);
 - the parameters other than secret-named ones of an Authorization or Cookie
   value opened by an escaped quote and a scheme (`\"OAuth username="…",
 realm="…"` keeps `username` and `realm`; `oauth_signature`, `oauth_token`,

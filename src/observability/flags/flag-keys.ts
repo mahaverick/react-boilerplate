@@ -6,13 +6,6 @@
  */
 import type { ClientFlagDefinition } from './flag-types'
 
-export type {
-  BooleanClientFlagKey,
-  ClientFlagKey,
-  ClientVariantOf,
-  MultivariateClientFlagKey,
-} from './flag-types'
-
 /** The flags this app reads, keyed by their registry key. */
 export const CLIENT_FLAGS = {
   example_beta_page: { kind: 'boolean', fallback: false, experiment: false },

@@ -1,24 +1,19 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, renderHook, screen, waitFor } from '@testing-library/react'
+import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as analytics from '@/observability/analytics'
 import { resetExposureForTests } from '@/observability/flags/exposure'
-import { Flag } from '@/observability/flags/flag'
+import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
 import {
   resetFlagHooksForTests,
   useFeaturePropertiesSync,
-  useFlag,
   useFlagValues,
   useVariant,
 } from '@/observability/flags/flag-hooks'
-import type {
-  BooleanClientFlagKey,
-  MultivariateClientFlagKey,
-} from '@/observability/flags/flag-types'
+import type { MultivariateClientFlagKey } from '@/observability/flags/flag-types'
 import { fallbackFlags } from '@/observability/flags/flag-values'
-import { forgetFeatureProperties } from '@/observability/flags/register'
 import { testFlagKey } from '@/tests/fixtures/test-client-flags'
 import { settle } from '@/tests/fixtures/timing'
 import { server } from '@/tests/mocks/server'
@@ -32,13 +27,7 @@ vi.mock('@/observability/flags/flag-scope', async (importOriginal) => ({
   useFlagScope: () => ({ kind: 'none' }),
 }))
 
-const BOOL = testFlagKey<BooleanClientFlagKey>('test_bool')
 const EXP = testFlagKey<MultivariateClientFlagKey>('test_exp')
-
-/** A variant name typed for any app's slice; an empty slice's variant type is `never`. */
-function variant(name: string): never {
-  return name as never
-}
 const PLAIN = testFlagKey<MultivariateClientFlagKey>('test_plain')
 
 let queryClient: QueryClient
@@ -85,20 +74,20 @@ afterEach(() => {
   resetExposureForTests()
 })
 
-describe('useFlag and useVariant', () => {
-  it('return the fallbacks while the flags load', () => {
+describe('useVariant', () => {
+  it('returns the fallback while the flags load', () => {
     serveFlags(null)
-    const { result } = renderHook(() => [useFlag(BOOL), useVariant(EXP)] as const, { wrapper })
-    expect(result.current).toEqual([false, 'control'])
+    const { result } = renderHook(() => useVariant(EXP), { wrapper })
+    expect(result.current).toBe('control')
   })
 
-  it('return the server values once loaded', async () => {
-    serveFlags({ test_bool: true, test_exp: 'bold' })
-    const { result } = renderHook(() => [useFlag(BOOL), useVariant(EXP)] as const, { wrapper })
-    await waitFor(() => expect(result.current).toEqual([true, 'bold']))
+  it('returns the server value once loaded', async () => {
+    serveFlags({ test_exp: 'bold' })
+    const { result } = renderHook(() => useVariant(EXP), { wrapper })
+    await waitFor(() => expect(result.current).toBe('bold'))
   })
 
-  it('return the fallbacks after a failed read', async () => {
+  it('returns the fallback after a failed read', async () => {
     server.use(
       http.get('/api/v1/flags', () =>
         HttpResponse.json({ success: false, message: 'Boom', statusCode: 500 }, { status: 500 })
@@ -107,12 +96,12 @@ describe('useFlag and useVariant', () => {
     const { result } = renderHook(
       () => {
         const values = useFlagValues()
-        return { bool: useFlag(BOOL), values }
+        return { variant: useVariant(EXP), values }
       },
       { wrapper }
     )
     await waitFor(() => expect(queryClient.getQueryState(['flags', 'none'])?.status).toBe('error'))
-    expect(result.current.bool).toBe(false)
+    expect(result.current.variant).toBe('control')
     expect(result.current.values).toEqual(fallbackFlags())
   })
 })
@@ -132,11 +121,9 @@ describe('exposure from the hooks', () => {
   })
 
   it('reports nothing for a flag that is not an experiment', async () => {
-    serveFlags({ test_plain: 'b', test_bool: true })
-    const { result } = renderHook(() => [useVariant(PLAIN), useFlag(BOOL)] as const, {
-      wrapper,
-    })
-    await waitFor(() => expect(result.current).toEqual(['b', true]))
+    serveFlags({ test_plain: 'b' })
+    const { result } = renderHook(() => useVariant(PLAIN), { wrapper })
+    await waitFor(() => expect(result.current).toBe('b'))
     await settle(200, 'absence has no event: a batch would have been sent by now')
     expect(exposures).toEqual([])
   })
@@ -147,33 +134,6 @@ describe('exposure from the hooks', () => {
     await vi.waitFor(() => expect(exposures).toEqual([['test_exp']]))
     await settle(200, 'absence has no event: a second batch would have been sent by now')
     expect(exposures).toHaveLength(1)
-  })
-})
-
-describe('<Flag>', () => {
-  it('renders nothing while loading, then the children of a flag that is on', async () => {
-    serveFlags({ test_bool: true })
-    render(<Flag name={BOOL}>Shown</Flag>, { wrapper })
-    expect(screen.queryByText('Shown')).not.toBeInTheDocument()
-    expect(await screen.findByText('Shown')).toBeInTheDocument()
-  })
-
-  it('renders the children of the matching variant only', async () => {
-    serveFlags({ test_exp: 'bold' })
-    render(
-      <>
-        <Flag name={EXP} variant={variant('bold')}>
-          Bold
-        </Flag>
-        <Flag name={EXP} variant={variant('calm')}>
-          Calm
-        </Flag>
-      </>,
-      { wrapper }
-    )
-    expect(await screen.findByText('Bold')).toBeInTheDocument()
-    expect(screen.queryByText('Calm')).not.toBeInTheDocument()
-    await vi.waitFor(() => expect(exposures).toEqual([['test_exp']]))
   })
 })
 
