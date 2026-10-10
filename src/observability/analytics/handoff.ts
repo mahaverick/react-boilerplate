@@ -7,7 +7,7 @@
  */
 
 /** The two query parameters a website appends. */
-export const HANDOFF_PARAMS = ['ph_did', 'ph_sid'] as const
+const HANDOFF_PARAMS = ['ph_did', 'ph_sid'] as const
 
 /** The localStorage key listing the handoff ids this browser has already accepted. */
 export const CONSUMED_HANDOFFS_KEY = 'analytics_handoff_consumed'

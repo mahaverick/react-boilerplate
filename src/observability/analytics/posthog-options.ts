@@ -19,7 +19,7 @@ import { sanitizeEventUrls, sanitizeUrl } from './url-sanitizer'
  * turned off (`capture_pageview`): the router captures each one once the
  * route has resolved, so a pageview never precedes the state it describes.
  */
-export const POSTHOG_DEFAULTS = '2026-08-30'
+const POSTHOG_DEFAULTS = '2026-08-30'
 
 /**
  * The class `<Pii>` puts on every rendered name, address and initial.

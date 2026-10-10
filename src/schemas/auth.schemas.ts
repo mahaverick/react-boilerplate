@@ -20,7 +20,7 @@ export const emailSchema = z
   .max(MAX_EMAIL_LENGTH, `Email must be at most ${MAX_EMAIL_LENGTH} characters.`)
 
 /** Registration, reset and change-password policy. NOT used for login or verify-email. */
-export const newPasswordSchema = z
+const newPasswordSchema = z
   .string()
   .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`)
   .refine(

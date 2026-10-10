@@ -4,7 +4,6 @@
  */
 export {
   ANALYTICS_PROXY_PATH,
-  type AnalyticsConsent,
   type AnalyticsIdentity,
   type AnalyticsTenantAccess,
   capturePageview,
@@ -36,10 +35,5 @@ export {
   type AnalyticsConsentMode,
   isAnalyticsAvailable,
 } from './config'
-export {
-  type AnalyticsKey,
-  analyticsKey,
-  type BrowserEvent,
-  type BrowserEventProps,
-} from './events'
+export { type AnalyticsKey, analyticsKey, type BrowserEvent } from './events'
 export { PII_CLASS_NAME } from './posthog-options'

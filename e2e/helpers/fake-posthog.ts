@@ -47,7 +47,7 @@ export const FAKE_POSTHOG_PORT = Number(process.env.E2E_FAKE_POSTHOG_PORT ?? 406
 export const REPLAY_UPLOAD_TIMEOUT_MS = 15_000
 
 /** One request as the fake received it, its body decoded to text. */
-export interface FakePosthogRequest {
+interface FakePosthogRequest {
   method: string
   /** The path, without the query string. */
   path: string
@@ -120,7 +120,7 @@ function expandNested(value: unknown): unknown {
  * @param raw - The request body as received.
  * @returns The body as text.
  */
-export function decodeBody(raw: Buffer): string {
+function decodeBody(raw: Buffer): string {
   let text: string
   if (isGzip(raw)) {
     text = gunzipSync(raw).toString('utf8')
