@@ -23,7 +23,7 @@ const MAX_SLUG_LENGTH = 100
  * (tenant.constants.ts). Each collides with a plausible route segment, would
  * mislead as an organization's identifier, or masquerades as another value.
  */
-export const RESERVED_SLUGS = [
+const RESERVED_SLUGS = [
   'admin',
   'api',
   'app',
@@ -220,16 +220,11 @@ export const inviteMemberSchema = z.object({
 
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>
 
-/** `PATCH /tenants/:slug/members/:userId`. */
-export const updateMemberRoleSchema = z.object({ role: z.enum(MEMBERSHIP_ROLES) })
-
-export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>
-
 /** The most characters `metadata` may take as JSON: every member downloads it with the settings. */
-export const MAX_TENANT_METADATA_LENGTH = 16_384
+const MAX_TENANT_METADATA_LENGTH = 16_384
 
 /** The deepest `metadata` may nest; its own object is level 1. */
-export const MAX_TENANT_METADATA_DEPTH = 10
+const MAX_TENANT_METADATA_DEPTH = 10
 
 /** A time zone name's letters, digits and `_+-/`, as the API checks first. */
 const TIMEZONE_PATTERN = /^[A-Za-z0-9_+\-/]+$/

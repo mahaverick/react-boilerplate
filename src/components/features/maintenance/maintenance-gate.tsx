@@ -9,7 +9,7 @@ import { MaintenancePage } from './maintenance-page'
 import { ReadOnlyBanner } from './read-only-banner'
 
 /** The signed-in shell's route; its layout draws the read-only banner itself (`MaintenanceBanner`). */
-export const APP_SHELL_ROUTE_ID = '/_app'
+const APP_SHELL_ROUTE_ID = '/_app'
 
 /**
  * The read-only banner while maintenance is `read_only`, nothing otherwise.

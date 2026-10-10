@@ -15,7 +15,7 @@ export interface TenantAuditFilters {
  * The tenant log sits under `['tenants', slug]`, so a tenant update that
  * invalidates the detail without `exact` refreshes its log too.
  */
-export const auditKeys = {
+const auditKeys = {
   tenant: (slug: string, filters: TenantAuditFilters) =>
     ['tenants', slug, 'audit-log', filters] as const,
 }

@@ -33,7 +33,7 @@ function isRouteTenant(data: unknown): data is RouteTenant {
  * @param router - The app's router, after a resolve.
  * @returns The tenant id and how the user reached it, or null.
  */
-export function resolvedTenant(router: AnyRouter): RouteTenant | null {
+function resolvedTenant(router: AnyRouter): RouteTenant | null {
   const match = router.state.matches.find((entry) => entry.routeId === TENANT_ROUTE_ID)
   if (match?.status !== 'success') return null
   const data: unknown = match.loaderData

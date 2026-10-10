@@ -5,7 +5,7 @@
  */
 
 /** The port a developer's own express listens on, which a restart never touches. */
-export const DEV_API_PORT = '4040'
+const DEV_API_PORT = '4040'
 
 /**
  * The explicit port of an http(s) origin, or `null` for any other origin: a

@@ -21,7 +21,7 @@ export const ANALYTICS_APP = 'react'
 export const ANALYTICS_URL_QUERY_ALLOWLIST: readonly string[] = ['tab']
 
 /** Whether `ANALYTICS_CONSENT_MODE` is honoured; an app that says no always runs `opt_out`. */
-export const SUPPORTS_CONSENT_MODES = true
+const SUPPORTS_CONSENT_MODES = true
 
 /**
  * Whether a website's anonymous id may be handed off into this app

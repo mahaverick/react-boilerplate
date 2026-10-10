@@ -45,7 +45,7 @@ export async function watchCspViolations(page: Page): Promise<string[]> {
 }
 
 /** Where the nginx project's container is expected to be serving. */
-export const APP_ORIGIN = process.env.E2E_NGINX_ORIGIN ?? 'http://localhost:8088'
+const APP_ORIGIN = process.env.E2E_NGINX_ORIGIN ?? 'http://localhost:8088'
 
 /** Fails fast, with the command to run, when no container is serving. */
 export async function requireServedApp(): Promise<void> {

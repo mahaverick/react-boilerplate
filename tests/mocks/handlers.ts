@@ -47,7 +47,7 @@ export const testInvitationPreview: InvitationPreview = {
 }
 
 /** The four default registry steps express serves, in its order, none done. */
-export const TEST_ONBOARDING_STEPS: readonly OnboardingStepView[] = [
+const TEST_ONBOARDING_STEPS: readonly OnboardingStepView[] = [
   {
     key: 'configure_settings',
     title: 'Configure your settings',
