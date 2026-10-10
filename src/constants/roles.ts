@@ -79,16 +79,16 @@ export function canManageTenant(actorRole: MembershipRole): boolean {
 export function isLastOwnerBlocked({
   targetRole,
   isSelf,
-  ownerCount,
+  otherOwners,
 }: {
   /** The target member's current role. */
   targetRole: MembershipRole
   /** Whether the actor and the target are the same user. */
   isSelf: boolean
-  /** How many owners this tenant has. */
-  ownerCount: number
+  /** How many other owners the API counts (`otherOwnerCount`). */
+  otherOwners: number
 }): boolean {
-  return isSelf && targetRole === 'owner' && ownerCount <= 1
+  return isSelf && targetRole === 'owner' && otherOwners === 0
 }
 
 /**

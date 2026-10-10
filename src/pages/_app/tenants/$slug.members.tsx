@@ -56,8 +56,9 @@ import { statusFrom } from '@/lib/api-error'
 import { writeFailureMessage } from '@/lib/write-failure'
 import {
   dropTenantCache,
+  isMemberNotFound,
   memberName,
-  ownerCount,
+  otherOwnerCount,
   useLeaveTenant,
   useMembers,
   useMyRole,
@@ -101,6 +102,19 @@ const INVITATIONS_REVOKED_ON_REMOVE = 'Pending invitations they sent are revoked
  */
 const PLATFORM_INVITATIONS_REVOKED_ON_REMOVE =
   'Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there. If their address is on an auto-join domain, they rejoin as a viewer at their next sign-in.'
+
+/** What a role change or removal says when its target is no longer a member. */
+const MEMBER_GONE = 'That member is no longer in this tenant.'
+
+/**
+ * The toast for a failed role change or removal: `MEMBER_GONE` for a target
+ * already gone, otherwise `writeFailureMessage`.
+ * @param error - The failed request's error.
+ * @returns The message.
+ */
+function memberWriteFailureMessage(error: unknown): string {
+  return isMemberNotFound(error) ? MEMBER_GONE : writeFailureMessage(error)
+}
 
 /** What a leave says when the API answers 404: the membership was already gone. */
 const NO_LONGER_A_MEMBER = 'You are no longer a member of this tenant.'
@@ -168,7 +182,7 @@ function RoleCell({
             {
               onSuccess: () =>
                 toast.success(`${name} is now ${ROLE_LABELS[value as MembershipRole]}.`),
-              onError: (error) => toast.error(writeFailureMessage(error)),
+              onError: (error) => toast.error(memberWriteFailureMessage(error)),
             }
           )
         }}
@@ -327,7 +341,7 @@ function RemoveMemberButton({
                 },
                 (error: unknown) => {
                   setIsOpen(false)
-                  toast.error(writeFailureMessage(error))
+                  toast.error(memberWriteFailureMessage(error))
                 }
               )
             }}
@@ -353,7 +367,7 @@ function MemberRow({
   member,
   myRole,
   myUserId,
-  owners,
+  otherOwners,
   onRemoved,
   asCard = false,
 }: {
@@ -361,7 +375,8 @@ function MemberRow({
   member: TenantMember
   myRole: MembershipRole
   myUserId: string | undefined
-  owners: number
+  /** The other owners the API counts toward the last-owner rule, besides the caller. */
+  otherOwners: number
   /** Called once removing another member has succeeded. */
   onRemoved: () => void
   /**
@@ -372,7 +387,7 @@ function MemberRow({
 }) {
   const targetRole = member.membership.role
   const isSelf = member.user.id === myUserId
-  const isLastOwner = isLastOwnerBlocked({ targetRole, isSelf, ownerCount: owners })
+  const isLastOwner = isLastOwnerBlocked({ targetRole, isSelf, otherOwners })
   const canRemove =
     isSelf || (canManageTenant(myRole) && canActorModifyTarget(myRole, targetRole, isSelf))
   const reasonId = `last-owner-${member.membership.id}`
@@ -457,7 +472,7 @@ function TenantMembersTab() {
   const members = useMembers(slug)
   const { role: myRole, isPending: isRolePending, isError: isRoleError, retry } = useMyRole(slug)
   const myUserId = useAuthStore((state) => state.user?.id)
-  const owners = ownerCount(members.data)
+  const otherOwners = otherOwnerCount(members.data, myUserId, slug === PLATFORM_TENANT_SLUG)
   const isMobile = useIsMobile()
   const focus = useFocusAfter<'heading'>()
   const onRemoved = () => {
@@ -504,7 +519,7 @@ function TenantMembersTab() {
                   member={member}
                   myRole={myRole}
                   myUserId={myUserId}
-                  owners={owners}
+                  otherOwners={otherOwners}
                   onRemoved={onRemoved}
                 />
               ))}
@@ -527,7 +542,7 @@ function TenantMembersTab() {
                     member={member}
                     myRole={myRole}
                     myUserId={myUserId}
-                    owners={owners}
+                    otherOwners={otherOwners}
                     onRemoved={onRemoved}
                   />
                 ))}

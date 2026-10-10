@@ -22,6 +22,14 @@ that a new project starts here rather than at `create-vite`.
 - **Node 24** and **pnpm 12** (`npm i -g corepack@0.36.0 && corepack enable` — pnpm's version comes from `packageManager` in package.json; Node 25+ does not ship Corepack, so this works on 24 and 26 alike). `pnpm install` refuses an older Node.
 - The **API running on `:4040`** — see below
 - **react 1.x works with express 1.x.**
+- **The members page reads two things that need express 2.1.0 or later**: the
+  `member_not_found` code on a role change or removal whose member is already
+  gone, and `user.active` on the platform tenant's member list, which the
+  last-owner check counts as express does (only active owners there; every
+  owner on a customer tenant). Against an older express it falls back to the
+  404's `Member not found` message and counts every platform owner as active,
+  and express's 409 still refuses a leave, removal or demotion that would
+  leave no active owner.
 
 ## Getting started
 

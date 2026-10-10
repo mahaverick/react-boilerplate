@@ -128,6 +128,16 @@ export const INVITATION_CONFLICT = 'invitation_conflict'
 /** 404 on resend and revoke: the invitation stopped being pending meanwhile. */
 export const INVITATION_NOT_FOUND = 'invitation_not_found'
 
+/**
+ * 404 on a role change or removal: the target is not a member of the tenant
+ * (express 2.1.0 or later). Older APIs answer the same 404 with no code and
+ * `MEMBER_NOT_FOUND_MESSAGE`.
+ */
+export const MEMBER_NOT_FOUND = 'member_not_found'
+
+/** The message of that 404, the only sign of it from an API older than 2.1.0. */
+export const MEMBER_NOT_FOUND_MESSAGE = 'Member not found'
+
 /** 404 on preview and accept: invalid, expired, revoked or already used. */
 export const INVITATION_INVALID = 'invitation_invalid'
 
