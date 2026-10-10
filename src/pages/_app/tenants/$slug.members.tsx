@@ -103,6 +103,13 @@ const INVITATIONS_REVOKED_ON_REMOVE = 'Pending invitations they sent are revoked
 const PLATFORM_INVITATIONS_REVOKED_ON_REMOVE =
   'Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there. If their address is on an auto-join domain, they rejoin as a viewer at their next sign-in.'
 
+/**
+ * What the members card says to staff who reached a customer tenant through
+ * platform access: express refuses their member and invitation writes here
+ * without a staff reason, which only the staff console sends.
+ */
+const STAFF_VIEW = 'You’re viewing this tenant as staff. Make changes from the staff console.'
+
 /** What a role change or removal says when its target is no longer a member. */
 const MEMBER_GONE = 'That member is no longer in this tenant.'
 
@@ -369,6 +376,7 @@ function MemberRow({
   myRole,
   myUserId,
   otherOwners,
+  readOnly,
   onRemoved,
   asCard = false,
 }: {
@@ -378,6 +386,8 @@ function MemberRow({
   myUserId: string | undefined
   /** The other owners the API counts toward the last-owner rule, besides the caller. */
   otherOwners: number
+  /** Staff through platform access: the row offers no role change and no removal. */
+  readOnly: boolean
   /** Called once removing another member has succeeded, or found them already gone. */
   onRemoved: () => void
   /**
@@ -390,10 +400,13 @@ function MemberRow({
   const isSelf = member.user.id === myUserId
   const isLastOwner = isLastOwnerBlocked({ targetRole, isSelf, otherOwners })
   const canRemove =
-    isSelf || (canManageTenant(myRole) && canActorModifyTarget(myRole, targetRole, isSelf))
+    !readOnly &&
+    (isSelf || (canManageTenant(myRole) && canActorModifyTarget(myRole, targetRole, isSelf)))
   const reasonId = `last-owner-${member.membership.id}`
 
-  const role = (
+  const role = readOnly ? (
+    <span>{ROLE_LABELS[targetRole]}</span>
+  ) : (
     <RoleCell
       slug={slug}
       member={member}
@@ -471,7 +484,14 @@ function MemberRow({
 function TenantMembersTab() {
   const { slug } = Route.useParams()
   const members = useMembers(slug)
-  const { role: myRole, isPending: isRolePending, isError: isRoleError, retry } = useMyRole(slug)
+  const {
+    role: myRole,
+    access,
+    isPending: isRolePending,
+    isError: isRoleError,
+    retry,
+  } = useMyRole(slug)
+  const isStaffView = access === 'platform'
   const myUserId = useAuthStore((state) => state.user?.id)
   const otherOwners = otherOwnerCount(members.data, myUserId, slug === PLATFORM_TENANT_SLUG)
   const isMobile = useIsMobile()
@@ -490,6 +510,7 @@ function TenantMembersTab() {
             </h2>
           </CardTitle>
           <CardDescription>Everyone with access to this tenant.</CardDescription>
+          {isStaffView && <p className="text-sm text-muted-foreground">{STAFF_VIEW}</p>}
         </CardHeader>
         <CardContent>
           {members.isError || isRoleError || (!isRolePending && !myRole) ? (
@@ -508,7 +529,7 @@ function TenantMembersTab() {
             </div>
           ) : (members.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No one has access to this tenant yet. Invite someone below.
+              No one has access to this tenant yet.{!isStaffView && ' Invite someone below.'}
             </p>
           ) : isMobile ? (
             <ul className="grid gap-3">
@@ -521,6 +542,7 @@ function TenantMembersTab() {
                   myRole={myRole}
                   myUserId={myUserId}
                   otherOwners={otherOwners}
+                  readOnly={isStaffView}
                   onRemoved={onRemoved}
                 />
               ))}
@@ -544,6 +566,7 @@ function TenantMembersTab() {
                     myRole={myRole}
                     myUserId={myUserId}
                     otherOwners={otherOwners}
+                    readOnly={isStaffView}
                     onRemoved={onRemoved}
                   />
                 ))}
@@ -553,7 +576,10 @@ function TenantMembersTab() {
         </CardContent>
       </Card>
 
-      {myRole && canManageTenant(myRole) && (
+      {myRole && canManageTenant(myRole) && isStaffView && (
+        <PendingInvitations slug={slug} myRole={myRole} readOnly />
+      )}
+      {myRole && canManageTenant(myRole) && !isStaffView && (
         <>
           <Card>
             <CardHeader>

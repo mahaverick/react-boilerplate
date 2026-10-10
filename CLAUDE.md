@@ -45,6 +45,15 @@ pages — the platform-access banner, the Staff filter on each tenant's Activity
 tab — and the **Platform** menu item (the platform tenant's Members and
 Invitations pages) until Apex's directory work replaces that item.
 
+**On a customer tenant reached through platform access (`access === 'platform'`), the
+Members tab is read-only**: no role change, removal, invite, resend or revoke, and one line
+in the members card sends staff to the staff console. From express 2.0.0, those routes
+answer staff there with `REAUTH_REQUIRED` or `REASON_REQUIRED` unless the sign-in is recent
+and a reason comes with the request (`requireRecentAuthAndReasonOnPlatformAccess`), and only
+Apex has that reason and step-up flow. The member list and the pending invitations stay
+readable. Staff who are also members of the tenant reach it with `access: 'member'` and keep
+their controls, as does everyone on the platform tenant's own pages.
+
 ## Commands
 
 | Command              | What it does                                                                                       |

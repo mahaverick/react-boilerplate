@@ -837,6 +837,22 @@ describe('open overlays', () => {
     await expectNoViolations()
   })
 
+  it('has no violations on the members page as staff through platform access', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(TENANT, 'owner', 'platform'), 'Tenant retrieved.')
+      )
+    )
+    renderAppAt('/tenants/acme/members')
+    await screen.findByRole('table')
+    await screen.findByText('invitee@b.com')
+
+    expect(
+      screen.getByText('You’re viewing this tenant as staff. Make changes from the staff console.')
+    ).toBeInTheDocument()
+    await expectNoViolations()
+  })
+
   it('has no violations with the member list stacked as cards on a phone', async () => {
     // A second render path is a second chance to ship a duplicate id or an unlabelled control, and it is the path the table tests never touch.
     setViewportWidth(390)

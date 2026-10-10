@@ -1390,6 +1390,84 @@ describe('the last owner, counted as the API counts', () => {
   })
 })
 
+describe('a customer tenant reached through platform access', () => {
+  const STAFF_VIEW = 'You’re viewing this tenant as staff. Make changes from the staff console.'
+
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  /** The tenant as staff reach it: an effective role through platform access, and no membership. */
+  function mockStaffView(role: MembershipRole) {
+    server.use(
+      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(TENANT, role, 'platform'), 'Tenant retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/members', () =>
+        ok(
+          [member(USER_ID_4, 'owner', 'Otto'), member(USER_ID_3, 'viewer', 'Vic')],
+          'Members retrieved.'
+        )
+      ),
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok([testInvitation], 'Invitations retrieved.')
+      )
+    )
+  }
+
+  it.each(['owner', 'admin'] as const)(
+    'shows a staff %s the members and pending invitations with no write control',
+    async (role) => {
+      mockStaffView(role)
+      renderAppAt('/tenants/acme/members')
+
+      const vic = await rowFor('Vic')
+      expect(screen.getByText(STAFF_VIEW)).toBeInTheDocument()
+      expect(vic.getByText('Viewer')).toBeInTheDocument()
+      expect(within(screen.getByRole('main')).queryByRole('combobox')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
+      expect(screen.queryByRole('heading', { name: 'Invite a member' })).toBeNull()
+      expect(screen.queryByRole('textbox', { name: 'Email' })).toBeNull()
+      expect(
+        await screen.findByRole('heading', { name: 'Pending invitations' })
+      ).toBeInTheDocument()
+      expect(await screen.findByText('invitee@b.com')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Resend invitation/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^Revoke invitation/ })).toBeNull()
+    }
+  )
+
+  it('keeps every control, and says nothing about staff, for a member', async () => {
+    mockStaffView('owner')
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(TENANT, 'owner', 'member'), 'Tenant retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/members', () =>
+        ok([member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')], 'Members retrieved.')
+      )
+    )
+    renderAppAt('/tenants/acme/members')
+
+    const vic = await rowFor('Vic')
+    expect(vic.getByRole('combobox', { name: 'Role for Vic X' })).toBeEnabled()
+    expect(vic.getByRole('button', { name: 'Remove' })).toBeEnabled()
+    expect(screen.getByRole('heading', { name: 'Invite a member' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText(STAFF_VIEW)).toBeNull()
+  })
+})
+
 describe('a stale sign-in on a platform-tenant write', () => {
   const SIGN_IN_AGAIN = 'For your security, sign out and sign in again before making this change.'
   const stale = () => fail('Confirm your identity to continue', 401, REAUTH_REQUIRED)

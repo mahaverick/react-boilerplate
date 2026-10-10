@@ -205,11 +205,14 @@ function InvitationItem({
   slug,
   invitation,
   myRole,
+  readOnly,
   onRevoked,
 }: {
   slug: string
   invitation: TenantInvitation
   myRole: MembershipRole
+  /** Staff through platform access: no Resend and no Revoke. */
+  readOnly: boolean
   onRevoked: () => void
 }) {
   const reasonId = canActorGrantRole(myRole, invitation.role)
@@ -227,22 +230,24 @@ function InvitationItem({
           Expires {expiresOn(invitation.expiresAt)}
         </span>
       </div>
-      <div className="grid gap-1">
-        <div className="flex gap-2">
-          <ResendInvitationButton slug={slug} invitation={invitation} reasonId={reasonId} />
-          <RevokeInvitationButton
-            slug={slug}
-            invitation={invitation}
-            reasonId={reasonId}
-            onRevoked={onRevoked}
-          />
+      {!readOnly && (
+        <div className="grid gap-1">
+          <div className="flex gap-2">
+            <ResendInvitationButton slug={slug} invitation={invitation} reasonId={reasonId} />
+            <RevokeInvitationButton
+              slug={slug}
+              invitation={invitation}
+              reasonId={reasonId}
+              onRevoked={onRevoked}
+            />
+          </div>
+          {reasonId && (
+            <p id={reasonId} className="text-xs text-muted-foreground">
+              {GRANT_REASON}
+            </p>
+          )}
         </div>
-        {reasonId && (
-          <p id={reasonId} className="text-xs text-muted-foreground">
-            {GRANT_REASON}
-          </p>
-        )}
-      </div>
+      )}
     </li>
   )
 }
@@ -251,9 +256,18 @@ function InvitationItem({
  * Invitations sent and not yet accepted. Mount it for owners and admins
  * only: the list endpoint is `requireRole('owner', 'admin')`, and mounting it
  * is what issues the request. A successful revoke moves focus to this heading,
- * since the row that held the button is gone.
+ * since the row that held the button is gone. `readOnly` lists the invitations
+ * with no Resend or Revoke, for staff through platform access.
  */
-export function PendingInvitations({ slug, myRole }: { slug: string; myRole: MembershipRole }) {
+export function PendingInvitations({
+  slug,
+  myRole,
+  readOnly = false,
+}: {
+  slug: string
+  myRole: MembershipRole
+  readOnly?: boolean
+}) {
   const invitations = useInvitations(slug)
   const focus = useFocusAfter<'heading'>()
 
@@ -287,6 +301,7 @@ export function PendingInvitations({ slug, myRole }: { slug: string; myRole: Mem
                 slug={slug}
                 invitation={invitation}
                 myRole={myRole}
+                readOnly={readOnly}
                 onRevoked={() => {
                   focus.focusAfter('heading')
                 }}
