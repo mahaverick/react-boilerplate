@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/mahaverick/react-boilerplate/compare/v1.8.0...v1.9.0) (2026-10-10)
+
+
+### Features
+
+* **members:** staff read-only view, member_not_found and active owners, and P1 follow-ups ([#64](https://github.com/mahaverick/react-boilerplate/issues/64)) ([9d46e88](https://github.com/mahaverick/react-boilerplate/commit/9d46e884805c1569800d0ec53e89979766224c5d))
+
 ## [1.8.0](https://github.com/mahaverick/react-boilerplate/compare/v1.7.0...v1.8.0) (2026-10-09)
 
 
