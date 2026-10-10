@@ -23,11 +23,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint . && prettier --check \"**/*.{ts,tsx,js,jsx,mjs,css,json,md,html}\"",
+    "lint": "eslint . && prettier --check \"**/*.{ts,tsx,js,jsx,mjs,css,json,jsonc,md,html}\"",
     "lint:docs": "node scripts/lint-docs.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && pnpm typecheck:e2e",
     "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,css,json,md,html}\"",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,css,json,jsonc,md,html}\"",
     "test": "vitest --watch=false",
     "test:coverage": "vitest --watch=false --coverage",
     "test:watch": "vitest",
@@ -114,7 +114,7 @@
       "eslint --fix --max-warnings 0 --no-warn-ignored",
       "prettier --write"
     ],
-    "*.{css,json,md,html}": [
+    "*.{css,json,jsonc,md,html}": [
       "prettier --write"
     ]
   }
