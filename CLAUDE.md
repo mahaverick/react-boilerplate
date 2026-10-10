@@ -66,10 +66,44 @@ their controls, as does everyone on the platform tenant's own pages.
 | `pnpm test`          | Vitest, one pass                                                                                   |
 | `pnpm test:coverage` | Vitest with coverage; fails under 88/82/86/89 (statements/branches/functions/lines), as CI runs it |
 | `pnpm format`        | prettier --write                                                                                   |
+| `pnpm knip`          | Unused files, exports, types and dependencies; CI runs it                                          |
 
 The gate is **0 errors and 0 warnings**: verify with
 `pnpm exec eslint . --max-warnings 0`, not with a bare `pnpm lint`, whose
 eslint half exits 0 on warnings.
+
+## Dead code (knip)
+
+`pnpm knip` fails on an unused file, export, type or dependency, and CI's
+`lint` job runs it. knip is pinned to an exact version: a release can report
+new kinds of finding, so it moves deliberately. `knip.jsonc` is knip's
+defaults plus a few ignores, each with its reason beside it; JSON allows no
+comments, which is why it is `.jsonc`. In short:
+
+- **`src/components/ui/**` exports and types.** Vendored shadcn output keeps
+  each primitive's full export list so `shadcn add` can restore and upgrade
+  it. A vendored file nothing imports still fails: delete it.
+- **Type findings in `src/observability/analytics/index.ts`.** The barrel is
+  byte-identical with apex's, and apex imports `BrowserEvent` from it.
+- **Files nothing imports by design:** `scripts/*.d.mts` (the `.mjs`
+  scripts' types), `public/mockServiceWorker.js` (MSW's worker, fetched by the
+  e2e harness) and `.styleseed/palettes/members.css` (hashed by StyleSeed's
+  manifest).
+- **`break`** is a shell builtin in `test:e2e:nginx`, and **`@posthog/cli`** is
+  run by name in the Dockerfile and `docker/upload-sourcemaps.sh`.
+
+When it reports something:
+
+- An export used only in its own file loses `export`; a symbol used nowhere is
+  deleted, and a re-export nobody imports leaves its barrel.
+- An export a test imports is used: knip counts tests, so a test seam stays
+  exported. `pnpm knip --production` (not in CI) lists the exports only tests
+  import.
+- A `.mjs` export is removed from its `.d.mts` in the same change.
+- In a file byte-identical with apex's, change both apps when apex's knip
+  reports the same finding; when only this app's does, add an ignore naming
+  apex's use instead.
+- An ignore without a reason beside it does not go in.
 
 ## Git hooks
 
