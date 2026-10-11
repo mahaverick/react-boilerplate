@@ -6,7 +6,7 @@
 import type { Page } from '@playwright/test'
 import { afterPageTask } from '../timing'
 
-/** The policy `nginx.conf` sends on the responses it answers itself, character for character. */
+/** The policy `nginx.conf` sends when the response carries none of its own, character for character. */
 export const CONTENT_SECURITY_POLICY =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 
