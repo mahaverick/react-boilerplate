@@ -12,6 +12,7 @@ import { server } from '@/tests/mocks/server'
 const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/
 const SESSION_ID = '01a0fc35-b7fe-7546-a76f-fea28a1f3cbe'
 
+/** An axios client with the production interceptors installed. */
 function makeClient() {
   const client = axios.create({ baseURL: '/api/v1', withCredentials: true })
   installInterceptors(client)

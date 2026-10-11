@@ -36,7 +36,7 @@ const ACME = {
 
 const LOGOUT_FAILED = "Couldn't sign out. Check your connection and try again."
 
-/** Every way POST /auth/logout can fail WITHOUT the server saying the session is over. */
+/** Every way POST /auth/logout can fail without the server saying the session is over. */
 const LOGOUT_FAILURES: [string, () => Response][] = [
   ['the API cannot be reached', () => HttpResponse.error()],
   ['a 503 from a restarting upstream', () => fail('Service Unavailable', 503)],
@@ -47,9 +47,9 @@ const LOGOUT_FAILURES: [string, () => Response][] = [
 ]
 
 /**
- * Driven through a real RouterProvider: the layout reads `useMatches()` for
- * its breadcrumbs and renders `<Link>` nav items, neither of which exists
- * outside a router.
+ * Mounts the real route tree at `path`: the layout reads `useMatches()` for its breadcrumbs
+ * and renders `<Link>` nav items, neither of which works outside a router. The returned
+ * router also carries `unmount`.
  */
 function renderAppAt(path: string): AnyRouter & { unmount: () => void } {
   const router = createRouter({
@@ -70,7 +70,7 @@ describe('AppLayout', () => {
     resetSessionForTests()
     queryClient.clear()
     useSidebarStore.setState({ isCollapsed: false })
-    // Already bootstrapped, so __root's beforeLoad returns immediately and _app's guard lets the layout render.
+    // Bootstrapped, so __root's beforeLoad returns at once and _app's guard lets the layout render.
     useAuthStore.setState({
       accessToken: 'access-token',
       user: testUser,
@@ -90,7 +90,7 @@ describe('AppLayout', () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
 
-    // SidebarInset already IS a <main>. A second <main> around the Outlet would be an axe `landmark-no-duplicate-main` failure.
+    // SidebarInset is already a <main>; a second one around the Outlet would fail axe's `landmark-no-duplicate-main`.
     expect(screen.getAllByRole('main')).toHaveLength(1)
   })
 
@@ -117,15 +117,14 @@ describe('AppLayout', () => {
     const breadcrumb = await screen.findByRole('navigation', { name: 'breadcrumb' })
 
     expect(within(breadcrumb).getByText('Profile')).toBeInTheDocument()
-    // The layout route itself contributes no crumb: `_app` is pathless.
+    // `_app` is pathless and contributes no crumb.
     expect(within(breadcrumb).queryByText('Dashboard')).not.toBeInTheDocument()
   })
 
   /**
-   * All three breadcrumb parts, in order: `Tenants` is synthesised by the
-   * builder (no match produces it, because the list route is a sibling of
-   * the detail route), `acme` comes from the dynamic route's own crumb
-   * function, `Members` from the leaf.
+   * `Tenants` is added by the breadcrumb builder, because no match produces it (the list
+   * route is a sibling of the detail route); `acme` comes from the dynamic route's crumb
+   * function and `Members` from the leaf.
    */
   it('shows a breadcrumb trail on a DYNAMIC route', async () => {
     server.use(
@@ -144,7 +143,6 @@ describe('AppLayout', () => {
       .filter((text) => text !== '')
     expect(trail).toEqual(['Tenants', 'acme', 'Members'])
 
-    // And the ancestor is a real link back to the list, not decoration.
     expect(within(breadcrumb).getByRole('link', { name: 'Tenants' })).toHaveAttribute(
       'href',
       '/tenants'
@@ -163,14 +161,11 @@ describe('AppLayout', () => {
   })
 
   /**
-   * The header's whole content sits inside `TenantSwitcher`'s own
-   * `<nav aria-label="Tenant">` landmark, which is why axe's `region` rule
-   * passes over it (see tenant-switcher.tsx). This asserts a narrower
-   * invariant on top of that: every text node here is ALSO inside a button
-   * or a link, so nothing renders as bare text sitting next to the widget it
-   * belongs to. Every TEXT node, not every element: an ancestor `ul`
-   * legitimately "contains" text that belongs to a button several levels
-   * down.
+   * The header's content sits inside `TenantSwitcher`'s `<nav aria-label="Tenant">`
+   * landmark, which is why axe's `region` rule passes over it. On top of that, every text
+   * node must be inside a button or a link, so no bare text sits beside the widget it
+   * belongs to. It walks text nodes, not elements, because an ancestor `ul` would "contain"
+   * text that belongs to a button several levels down.
    */
   it('keeps every piece of sidebar-header content inside a widget', async () => {
     renderAppAt('/dashboard')
@@ -194,16 +189,16 @@ describe('AppLayout', () => {
     await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Profile' }))
 
-    // A real router navigation, not a click handler that only closes the menu.
+    // The route must change, which a handler that only closes the menu would not do.
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/profile')
     })
   })
 
   /**
-   * `window.location.assign` is non-configurable in jsdom, so vi.spyOn on it
-   * throws "Cannot redefine property". Replacing the whole `location` object
-   * is the way in; `afterEach` puts the real one back.
+   * `window.location.assign` is non-configurable in jsdom, so `vi.spyOn` on it throws
+   * "Cannot redefine property"; the whole `location` object is replaced and `afterEach`
+   * puts the real one back.
    */
   it('signs out from the account menu', async () => {
     server.use(http.post('/api/v1/auth/logout', () => ok(null, 'Signed out.')))
@@ -225,8 +220,8 @@ describe('AppLayout', () => {
     expect(assign).toHaveBeenCalledWith('/login')
   })
 
+  /** Replaces `window.location` with a copy whose `assign` is a spy, which it returns; jsdom's own cannot be spied on. */
   function stubAssign() {
-    // Same reason as the test above: jsdom's assign cannot be spied on.
     const assign = vi.fn()
     Object.defineProperty(window, 'location', {
       configurable: true,
@@ -235,13 +230,14 @@ describe('AppLayout', () => {
     return assign
   }
 
+  /** Signs out through the app layout's account menu, as a user does. */
   async function clickSignOut() {
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
   }
 
-  // The server never revoked the session, so clearing it here would leave a live refresh cookie behind a UI that claims the user signed out.
+  // The server never revoked the session, so clearing it here would leave a live refresh cookie behind a UI that says the user signed out.
   it.each(LOGOUT_FAILURES)(
     'keeps the session and says so when sign-out fails on %s',
     async (_label, respond) => {
@@ -300,7 +296,7 @@ describe('AppLayout', () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
 
-    // The provider is controlled by the store, so a collapsed store means a collapsed sidebar on first paint rather than after a click.
+    // The provider is controlled by the store, so the sidebar is collapsed on first paint, not after a click.
     expect(document.querySelector('[data-state="collapsed"]')).not.toBeNull()
   })
 
@@ -346,12 +342,10 @@ describe('AppLayout', () => {
 })
 
 /**
- * `theme: 'system'` following a LIVE OS change.
- *
- * The listener sits in AppLayout rather than in ThemeToggle, and the mobile
- * case below is the whole reason: under `md` the sidebar renders into a Sheet
- * (a Base UI Dialog.Popup with no `keepMounted`), so ThemeToggle does not
- * exist while the drawer is closed. An effect inside it would be desktop-only.
+ * `theme: 'system'` following a live OS change. The listener sits in AppLayout, not in
+ * ThemeToggle: under `md` the sidebar renders into a Sheet (a Base UI Dialog.Popup with no
+ * `keepMounted`), so ThemeToggle does not exist while the drawer is closed and an effect
+ * inside it would work on desktop only.
  */
 describe('AppLayout system theme', () => {
   const DARK_QUERY = '(prefers-color-scheme: dark)'
@@ -362,9 +356,8 @@ describe('AppLayout system theme', () => {
   let originalMatchMedia: typeof window.matchMedia
 
   /**
-   * A `matchMedia` stub whose listeners actually fire, unlike
-   * `tests/setup.ts`'s. It also answers the `(max-width: …)` query that
-   * `useIsMobile` asks, so setting `innerWidth` is enough to pick a viewport.
+   * A `matchMedia` stub whose listeners fire, unlike the one in `tests/setup.ts`. It also
+   * answers the `(max-width: …)` query `useIsMobile` asks, so setting `innerWidth` picks a viewport.
    */
   function installMatchMedia() {
     window.matchMedia = ((query: string) => ({
@@ -395,6 +388,7 @@ describe('AppLayout system theme', () => {
     })
   }
 
+  /** Picks the viewport width the `matchMedia` stub reports; `afterEach` restores the real one. */
   function setViewportWidth(width: number) {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
   }
@@ -414,7 +408,7 @@ describe('AppLayout system theme', () => {
     useThemeStore.setState({ theme: 'system' })
     darkListeners = new Set()
     prefersDark = false
-    // Bound, because `@typescript-eslint/unbound-method` rightly objects to lifting a method off its object — and restoring it is all it is for.
+    // Bound because `@typescript-eslint/unbound-method` rejects lifting a method off its object, and the copy is only used to restore it.
     originalMatchMedia = window.matchMedia.bind(window)
     installMatchMedia()
   })
@@ -445,7 +439,7 @@ describe('AppLayout system theme', () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
 
-    // The premise, asserted rather than assumed: below `md` the closed drawer means no ThemeToggle in the document at all. If this ever starts failing, the listener could go back down into the control.
+    // The premise: below `md` the closed drawer leaves no ThemeToggle in the document. If this fails, the listener could move into the control.
     expect(screen.queryByRole('button', { name: /Change theme/ })).not.toBeInTheDocument()
 
     osSwitchesTo(true)
@@ -458,7 +452,6 @@ describe('AppLayout system theme', () => {
     await screen.findByRole('heading', { name: /Welcome back/ })
 
     osSwitchesTo(true)
-    // The user asked for light. The OS does not get a vote.
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 
@@ -470,7 +463,7 @@ describe('AppLayout system theme', () => {
 
     unmount()
     document.documentElement.classList.remove('dark')
-    // Asserted by behaviour rather than by counting listeners: sonner's <Toaster> registers on the same query, so the count is never just ours.
+    // Asserted by behaviour, not by counting listeners: sonner's <Toaster> registers on the same query, so the count is never just ours.
     osSwitchesTo(true)
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })

@@ -18,6 +18,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/** Mounts the real route tree on `/profile`. */
 function renderProfile() {
   const router = createRouter({
     routeTree,
@@ -90,7 +91,7 @@ describe('profile page', () => {
     })
   })
 
-  /** A stored first name the name rule now refuses, saved before the rule existed. */
+  /** Serves a user whose stored first name (it contains a zero-width space) fails the name rule, as for a name saved before that rule existed. */
   function mockLegacyName() {
     const legacy = { ...testUser, firstName: 'Ad\u{200B}a', lastName: 'Byron' }
     useAuthStore.setState({ user: legacy })

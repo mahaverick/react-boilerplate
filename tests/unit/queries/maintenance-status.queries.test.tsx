@@ -23,7 +23,7 @@ const ANSWERS = {
   readOnly: () =>
     ok({ mode: 'read_only', message: 'Back at 11', since: SINCE }, 'Maintenance status.'),
   off: () => ok({ mode: 'off', message: null, since: null }, 'Maintenance status.'),
-  // nginx's own page while the API is down mid-deploy.
+  // nginx's own page while the API is down during a deploy.
   badGateway: () =>
     HttpResponse.text('<html>502 Bad Gateway</html>', {
       status: 502,
@@ -51,6 +51,7 @@ function serveStatus(...sequence: (keyof typeof ANSWERS)[]) {
   return served
 }
 
+/** The maintenance mode the store currently holds. */
 function mode() {
   return useMaintenanceModeStore.getState().mode
 }
@@ -107,6 +108,7 @@ describe('fetchMaintenanceStatus', () => {
 describe('useMaintenanceStatus', () => {
   let client: QueryClient
 
+  /** Provides the per-test `client` to the hook under test. */
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
@@ -115,7 +117,7 @@ describe('useMaintenanceStatus', () => {
     client = new QueryClient()
     useMaintenanceModeStore.setState({ mode: 'off', message: null, since: null })
     vi.spyOn(Math, 'random').mockReturnValue(0.5)
-    // The query's own interval timer is what these tests are about; nothing else is faked.
+    // Only the interval timers are faked, since the query's own interval is what these tests exercise.
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
   })
 
@@ -132,7 +134,7 @@ describe('useMaintenanceStatus', () => {
     expect(served.calls).toBe(1)
 
     await act(() => vi.advanceTimersByTimeAsync(POLL_MS * 3))
-    // The barrier: a refetch of our own. Had the interval fired, this would be a third call.
+    // The barrier: a refetch of our own. Had the interval fired, this would be the third call.
     await act(() => result.current.refetch())
     expect(served.calls).toBe(2)
   })

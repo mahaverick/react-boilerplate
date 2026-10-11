@@ -1,6 +1,7 @@
 import type { AuditAction } from '@/constants/audit-actions'
 import type { MembershipRole } from '@/constants/roles'
 
+/** The envelope of a successful API response; `data` carries the payload. */
 export interface ApiSuccess<T> {
   success: true
   message: string
@@ -8,21 +9,22 @@ export interface ApiSuccess<T> {
   data: T
 }
 
+/** The body of an error response: branch on `code` or `statusCode`, and show `message` to the person. */
 export interface ApiErrorBody {
   success: false
   message: string
   statusCode: number
-  /** Stable machine-readable discriminator, e.g. ACCESS_TOKEN_EXPIRED. */
+  /** Stable machine-readable discriminator, e.g. `ACCESS_TOKEN_EXPIRED`. */
   code?: string
-  /** Field-level validator detail, shaped by the backend's Zod flatten. */
+  /** Field-level validator detail: a message array per invalid field, plus `formErrors` for an issue that names no single field. */
   errors?: Record<string, string[]>
   requestId: string
 }
 
 /**
- * `toPublicUser` on the server (AuthenticatedUser plus createdAt), plus the
- * caller's role in the platform tenant. `platformRole` is `null` for everyone
- * who is not staff; test it with `isStaff`, never by truthiness of a copy.
+ * The server's `ProfileResponse`: the user's public fields plus their role in
+ * the platform tenant. `platformRole` is `null` for everyone who is not staff;
+ * test it with `isStaff`, never by truthiness of a copy.
  */
 export interface User {
   id: string
@@ -31,13 +33,14 @@ export interface User {
   lastName: string | null
   createdAt: string
   platformRole: MembershipRole | null
-  /** The profile's "Share usage analytics" switch, off. Stops browser analytics only. */
+  /** True when the user turned the profile's "Share usage analytics" switch off. Stops browser analytics only. */
   analyticsOptOut: boolean
 }
 
 /** How the caller reached a tenant: as one of its members, or as platform staff. */
 export type TenantAccess = 'member' | 'platform'
 
+/** `code` on the 401 for an expired access token, which the interceptor answers by refreshing the session and replaying the request. */
 export const ACCESS_TOKEN_EXPIRED = 'ACCESS_TOKEN_EXPIRED'
 
 /**
@@ -60,10 +63,10 @@ export function isMaintenanceMode(value: unknown): value is MaintenanceMode {
   return typeof value === 'string' && (MAINTENANCE_MODES as readonly string[]).includes(value)
 }
 
-/** 503 on every customer route while maintenance is `full`, and on a non-staff sign-in. */
+/** `code` on the 503 while maintenance is `full`, on customer routes and on a non-staff sign-in. */
 export const MAINTENANCE_MODE = 'MAINTENANCE_MODE'
 
-/** 503 on a write while maintenance is `read_only`. */
+/** `code` on the 503 for a write while maintenance is `read_only`. */
 export const READ_ONLY_MODE = 'READ_ONLY_MODE'
 
 /**
@@ -116,16 +119,17 @@ export interface AcceptedInvitation {
   role: MembershipRole
 }
 
-/** 409 on invite: that address already belongs to a member of this tenant. */
+/** `code` on the 409 for an invite to an address that already belongs to a member of this tenant. */
 export const ALREADY_MEMBER = 'already_member'
 
 /**
- * 409 on invite: two invitations for the same address raced, and this one
- * lost. Retrying after a refresh is safe.
+ * `code` on the 409 for an invite that lost a race with another invitation for
+ * the same address. The revoke-and-reinsert runs in one transaction, so
+ * retrying after a refresh is safe.
  */
 export const INVITATION_CONFLICT = 'invitation_conflict'
 
-/** 404 on resend and revoke: the invitation stopped being pending meanwhile. */
+/** `code` on the 404 for a resend or revoke of an invitation that is no longer pending. */
 export const INVITATION_NOT_FOUND = 'invitation_not_found'
 
 /**
@@ -138,7 +142,7 @@ export const MEMBER_NOT_FOUND = 'member_not_found'
 /** The message of that 404, the only sign of it from an API older than 2.1.0. */
 export const MEMBER_NOT_FOUND_MESSAGE = 'Member not found'
 
-/** 403 on accept: the signed-in account is the invited one, but its email is unverified. */
+/** `code` on the 403 for an accept by the invited account while its email is unverified. */
 export const INVITATION_EMAIL_UNVERIFIED = 'invitation_email_unverified'
 
 /** How an audit entry's actor reached the tenant. `system` is a script, with no actor. */
@@ -151,6 +155,7 @@ interface AuditActor {
   email: string
 }
 
+/** What an audit entry's action was done to. */
 interface AuditTarget {
   type: 'tenant' | 'membership' | 'invitation' | 'settings' | 'user'
   id: string

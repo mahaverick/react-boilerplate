@@ -16,13 +16,16 @@ import type {
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, AuthProviders, User } from '@/types/api.types'
 
+/** What `POST /auth/login` answers: the access token and the signed-in user. */
 interface AuthPayload {
   accessToken: string
   user: User
 }
 
+/** The key of the caller's linked sign-in methods (`useAuthProviders`), under an `auth` prefix of its own. */
 export const authKeys = { providers: ['auth', 'providers'] as const }
 
+/** Signs in with email and password and puts the access token and user in the auth store. */
 export function useLogin() {
   const login = useAuthStore((s) => s.login)
   return useMutation({
@@ -40,6 +43,7 @@ export function useRegister() {
   })
 }
 
+/** Asks for a password-reset email. The API answers 202 whether or not the address has an account. */
 export function useForgotPassword() {
   return useMutation({
     mutationFn: async (input: ForgotPasswordInput) =>
@@ -58,6 +62,7 @@ export function useResetPassword() {
   })
 }
 
+/** Confirms an address with the token from the verification email. */
 export function useVerifyEmail() {
   return useMutation({
     mutationFn: async (input: VerifyEmailInput) =>
@@ -65,6 +70,7 @@ export function useVerifyEmail() {
   })
 }
 
+/** Asks the API for a fresh verification link; it answers the same whether or not the address belongs to an unverified account, so success says nothing about the address. */
 export function useResendVerification() {
   return useMutation({
     mutationFn: async (input: ResendVerificationInput) =>
@@ -114,11 +120,13 @@ export function useRevokeOtherSessions() {
 const LOGOUT_FAILED_MESSAGE = "Couldn't sign out. Check your connection and try again."
 
 /**
- * Signs out server-side first; the local session ends only once the server's has.
+ * Signs out server-side first; the local session ends only once the server's
+ * has, or the server answers 401 (its session is already over).
  * `returnTo` is the same-origin path to land on afterwards, `/login` by default.
  */
 export function useLogout({ returnTo = ROUTES.login }: { returnTo?: string } = {}) {
   const logout = useAuthStore((s) => s.logout)
+  /** Ends this tab's session, tells the other tabs, and loads `returnTo` as a full page. */
   const endSession = () => {
     logout()
     broadcastLogout()

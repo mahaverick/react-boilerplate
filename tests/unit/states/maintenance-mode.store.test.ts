@@ -3,6 +3,7 @@ import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 
 const SINCE = '2026-10-06T10:42:00.000Z'
 
+/** The store's three data fields, without its actions, for whole-state assertions. */
 function state() {
   const { mode, message, since } = useMaintenanceModeStore.getState()
   return { mode, message, since }

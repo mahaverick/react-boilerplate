@@ -18,6 +18,7 @@ import { server } from '@/tests/mocks/server'
 const SINCE = '2026-10-06T10:42:00.000Z'
 const LATER = '2026-10-06T12:00:00.000Z'
 
+/** Mounts the real route tree at `path` and returns its router, so a test can read where it ended up. */
 function renderAppAt(path: string) {
   const router = createRouter({
     routeTree,
@@ -62,6 +63,7 @@ function fullRefusal() {
   )
 }
 
+/** A signed-in, bootstrapped session, so the app routes render. */
 function signIn() {
   useAuthStore.setState({
     accessToken: 'access-token',
@@ -71,6 +73,7 @@ function signIn() {
   })
 }
 
+/** Waits for the full-page maintenance screen. */
 const findMaintenancePage = () => screen.findByRole('heading', { name: 'We’ll be back soon' })
 
 beforeEach(() => {
@@ -163,7 +166,7 @@ describe('full maintenance', () => {
     const router = renderAppAt('/profile')
     await findMaintenancePage()
 
-    // The poll's answer, as it lands; the recovery's own refetch reads it too.
+    // The poll's answer arrives as the store update below; the recovery's own refetch reads this handler too.
     serveStatus('off')
     act(() =>
       useMaintenanceModeStore.getState().setFromStatus({ mode: 'off', message: null, since: null })
@@ -279,6 +282,7 @@ describe('read-only maintenance', () => {
 
   it('is not reverted by an older read still in flight when a header says read_only', async () => {
     signIn()
+    /** Lets the held first read answer; replaced once `held` is created. */
     let release: () => void = () => undefined
     const held = new Promise<void>((resolve) => {
       release = resolve
@@ -351,6 +355,7 @@ describe('read-only maintenance', () => {
     await waitFor(() =>
       expect(queryClient.getQueryState(['maintenance-status'])?.status).toBe('success')
     )
+    /** Lets the held status read answer; replaced once `held` is created. */
     let release: () => void = () => {}
     const held = new Promise<void>((resolve) => (release = resolve))
     let isAnswered = false
@@ -360,7 +365,7 @@ describe('read-only maintenance', () => {
         isRequested = true
         await held
         isAnswered = true
-        // Served before the switch, delivered after it.
+        // Held until after the header turns the mode off, then answers read_only.
         return HttpResponse.json(
           {
             success: true,
@@ -436,7 +441,7 @@ describe('maintenance_page_viewed', () => {
       expect(track).toHaveBeenCalledWith('maintenance_page_viewed', { mode: 'full' })
     )
 
-    // The same period again, as a later poll reports it: not a second event.
+    // The same period reported again by a later poll is not a second event.
     act(() =>
       useMaintenanceModeStore
         .getState()

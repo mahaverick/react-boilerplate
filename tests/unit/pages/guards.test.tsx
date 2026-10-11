@@ -38,7 +38,7 @@ describe('session bootstrap', () => {
     await bootstrapSession()
     const s = useAuthStore.getState()
     expect(s.isAuthenticated).toBe(false)
-    // The critical assertion: bootstrapped must be TRUE even on failure, or a guard waiting on it would hang forever instead of redirecting.
+    // Bootstrapped must be true even on failure, or a guard waiting on it would hang instead of redirecting.
     expect(s.isBootstrapped).toBe(true)
   })
 
@@ -79,6 +79,7 @@ describe('session bootstrap', () => {
   })
 })
 
+/** A successful refresh response carrying `fresh-token`. */
 function HttpResponseOk() {
   return new Response(
     JSON.stringify({
@@ -92,16 +93,11 @@ function HttpResponseOk() {
 }
 
 /**
- * The guards themselves, driven through a real RouterProvider.
- *
- * The bootstrap tests above prove `bootstrapSession()` settles correctly. They
- * do NOT prove the guards wait for it, which is the whole point of putting the
- * await in __root's beforeLoad rather than a useEffect. These do.
- *
- * Every refresh handler here is DELAYED. That is what makes the tests
- * load-bearing: if a guard ran before the session settled it would observe an
- * empty store, and the signed-in case below would leave the user sitting on
- * /login instead of moving them to /dashboard.
+ * The guards themselves, through a real RouterProvider. The bootstrap tests above prove
+ * `bootstrapSession()` settles correctly; these prove the guards wait for it, which is why
+ * the await is in __root's beforeLoad rather than a useEffect. Every refresh handler here
+ * is delayed: a guard that ran before the session settled would see an empty store and
+ * leave a signed-in user on /login instead of moving them to /dashboard.
  */
 describe('route guards', () => {
   let snapshots: { isAuthenticated: boolean; isBootstrapped: boolean }[] = []
@@ -115,12 +111,7 @@ describe('route guards', () => {
       isAuthenticated: false,
       isBootstrapped: false,
     })
-    /**
-     * Record what the store looked like on every read. The LAST read of a
-     * navigation is always a guard's — bootstrapSession() runs first and
-     * the guards run after it — so asserting on it proves no guard
-     * observed a half-restored store.
-     */
+    // Records the store on every read. The last read of a navigation is a guard's, since bootstrapSession() runs first, so asserting on it proves no guard saw a half-restored store.
     snapshots = []
     getState = useAuthStore.getState.bind(useAuthStore)
     vi.spyOn(useAuthStore, 'getState').mockImplementation(() => {
@@ -137,6 +128,7 @@ describe('route guards', () => {
     vi.restoreAllMocks()
   })
 
+  /** Mounts the real route tree at `path` and returns the router. */
   function renderAt(path: string): AnyRouter {
     const router = createRouter({
       routeTree,
@@ -165,7 +157,7 @@ describe('route guards', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/login')
     })
-    // Asserted by VALUE, not merely by presence. Nothing consumes this param until the login page, so this assertion is the only thing holding it in place.
+    // Asserted by value, not presence: nothing consumes this param until the login page, so this assertion alone holds it in place.
     expect(router.state.location.search).toEqual({ redirect: '/dashboard' })
     expectGuardSawSettledStore()
   })
@@ -204,16 +196,12 @@ describe('route guards', () => {
 })
 
 /**
- * `/reset-password` and `/verify-email` are TOP-LEVEL file routes, deliberately
- * outside `_auth`.
- *
- * Under `_auth` its guard would send an authenticated visitor to /dashboard —
- * so a user already signed in on this browser who clicks the link in their
- * inbox would be bounced and the token never consumed. Moving them under
- * `/auth/` would have been the tidy fix and the wrong one: the backend builds
- * these links as `${WEB_URL}/reset-password?token=` and
- * `${WEB_URL}/verify-email?token=` with no prefix, so the paths must not move.
- * These tests hold both halves in place — no guard, and the same URLs.
+ * `/reset-password` and `/verify-email` are top-level file routes, deliberately outside
+ * `_auth`: its guard would send an authenticated visitor to /dashboard, so a user already
+ * signed in on this browser who clicks the emailed link would be bounced and the token never
+ * consumed. The paths must not move under a prefix either, because the backend builds these
+ * links as `${WEB_URL}/reset-password?token=` and `${WEB_URL}/verify-email?token=`. These
+ * tests hold both halves in place: no guard, and the same URLs.
  */
 describe('token routes outside the auth guard', () => {
   beforeEach(() => {
@@ -224,7 +212,7 @@ describe('token routes outside the auth guard', () => {
       isAuthenticated: false,
       isBootstrapped: false,
     })
-    // A valid cookie: this visitor IS signed in, which is the whole point.
+    // A valid cookie, so this visitor is signed in, which is the case `_auth` would redirect.
     server.use(
       http.post('/api/v1/auth/refresh', async () => {
         await delay(20)
@@ -234,6 +222,7 @@ describe('token routes outside the auth guard', () => {
     )
   })
 
+  /** Mounts the real route tree at `path` and returns the router. */
   function renderAt(path: string): AnyRouter {
     const router = createRouter({
       routeTree,
@@ -252,7 +241,7 @@ describe('token routes outside the auth guard', () => {
     const router = renderAt('/reset-password?token=reset-token')
 
     expect(await screen.findByText('Choose a new password')).toBeInTheDocument()
-    // Vacuous unless they really are signed in — that is the case `_auth` would have redirected.
+    // Meaningful only if they really are signed in.
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
     expect(router.state.location.pathname).toBe('/reset-password')
   })

@@ -18,10 +18,12 @@ import { server } from '@/tests/mocks/server'
 describe('onboarding queries', () => {
   let client: QueryClient
 
+  /** Provides the per-test `client` to the hook under test. */
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
 
+  /** Whether the cached query under `key` is marked stale. */
   function isInvalidated(key: readonly unknown[]) {
     return client.getQueryState(key)?.isInvalidated
   }

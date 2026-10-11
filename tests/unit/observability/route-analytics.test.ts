@@ -56,6 +56,7 @@ const PLATFORM = 'register({"tenant_access":"platform"})'
 const LEAVE_TENANT = ['resetGroups()', 'unregister("tenant_access")']
 
 describe('installRouteAnalytics', () => {
+  /** Removes the route analytics `start` installed; replaced on each start. */
   let uninstall: () => void = () => {}
 
   beforeEach(() => {
@@ -67,6 +68,7 @@ describe('installRouteAnalytics', () => {
     uninstall()
   })
 
+  /** Starts route analytics on a router at `initialPath` and initialises analytics only after that router has loaded, so a test controls what has happened before init. */
   async function start(initialPath: string) {
     const router = makeRouter(initialPath)
     uninstall = installRouteAnalytics(router)

@@ -25,10 +25,9 @@ const unreadRow: Notification = {
 }
 
 /**
- * Driven through a real RouterProvider on `/dashboard`, not by rendering the
- * bell standalone: it lives in the app shell's header (`app-layout.tsx`), so
- * it is mounted on EVERY authenticated page — which is why a false empty
- * state here would be the widest-reaching of any surface in this file.
+ * Mounts the real route tree on `/dashboard` rather than the bell alone: the bell is in the
+ * app shell's header (`app-layout.tsx`), so it is on every authenticated page and a false
+ * empty state here would reach all of them.
  */
 function renderShell() {
   const router = createRouter({
@@ -43,11 +42,7 @@ function renderShell() {
   )
 }
 
-/**
- * The menu's contents only exist once it is open, and the trigger's accessible
- * name CHANGES with the state under test — so it is matched on its stable
- * prefix rather than on the whole label.
- */
+/** Opens the menu, whose contents exist only while open. The trigger's accessible name changes with the state under test, so it is matched on its stable prefix. */
 async function openBell() {
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: /^Notifications,/ }))
@@ -67,14 +62,10 @@ describe('NotificationBell', () => {
   })
 
   /**
-   * THE MENU OPENS AT ALL — asserted directly, not assumed.
-   *
-   * `DropdownMenuLabel` is Base UI's `Menu.GroupLabel`, which throws
-   * "MenuGroupContext is missing" unless a `Menu.Group` is above it. A
-   * wrong composition here throws on every route and the root boundary
-   * replaces the app with "Something went wrong!" — and the trigger's own
-   * accessible name (the only other assertion on the bell) still passes
-   * with the menu closed, so nothing else in this file would catch it.
+   * `DropdownMenuLabel` is Base UI's `Menu.GroupLabel`, which throws "MenuGroupContext is
+   * missing" unless a `Menu.Group` is above it. A wrong composition throws on every route
+   * and the root boundary replaces the app with "Something went wrong!", while a closed
+   * menu still has its accessible name, so only opening it catches this.
    */
   it('opens without taking the page down with it', async () => {
     renderShell()
@@ -99,10 +90,8 @@ describe('NotificationBell', () => {
   })
 
   /**
-   * The default handler answers an empty page, so this is the genuine
-   * "nothing has been sent to you" case — and it must keep saying so.
-   * Without this half, the test below could be satisfied by "never claim
-   * emptiness" rather than "claim it only when it is true".
+   * The default handler answers an empty page, so this is the genuine empty case. Without
+   * this half, the failure test below could pass by never claiming emptiness at all.
    */
   it('says the inbox is empty when it really is empty', async () => {
     renderShell()
@@ -110,33 +99,31 @@ describe('NotificationBell', () => {
 
     expect(await screen.findByText('You have no notifications.')).toBeInTheDocument()
     expect(screen.queryByText('Notifications could not be loaded.')).not.toBeInTheDocument()
-    // A count of zero that a request actually established IS announced.
+    // A zero count that a request established is announced.
     expect(screen.getByRole('button', { name: 'Notifications, 0 unread' })).toBeInTheDocument()
   })
 
   /**
-   * A false-empty surface on every page: `flattenPages(undefined)` is `[]`
-   * for a failed load exactly as it is for an empty inbox, so without this
-   * the menu would state "You have no notifications." on the strength of a
-   * request that never answered — in the same layout where
-   * `/notifications` renders its own error about the SAME query.
+   * `flattenPages(undefined)` is `[]` for a failed load exactly as for an empty inbox, so
+   * without this the menu would say "You have no notifications." on the strength of a
+   * request that never answered, while `/notifications` shows an error for the same query.
    */
   it('says the list FAILED, not that the inbox is empty, when the query errors', async () => {
     server.use(http.get('/api/v1/notifications', () => fail('Something went wrong', 500)))
     renderShell()
     await openBell()
 
-    // The queryClient is `retry: 1`, so a failed load is attempted a second time (after react-query's ~1s backoff) before the error state is reached at all. `asyncUtilTimeout` in tests/setup.ts has to cover both attempts.
+    // The queryClient is `retry: 1`, so the error state arrives only after a second attempt (about 1 s of react-query backoff); `asyncUtilTimeout` in tests/setup.ts covers both.
     expect(await screen.findByText('Notifications could not be loaded.')).toBeInTheDocument()
     expect(screen.queryByText('You have no notifications.')).not.toBeInTheDocument()
-    // And the label does not announce a figure nothing established. "0 unread" here would be the same false claim the menu text would otherwise make, told to a screen reader on every page in the app.
+    // The label must not announce a count nothing established: "0 unread" would be the same false claim, read by a screen reader on every page.
     expect(screen.getByRole('button', { name: 'Notifications, count unavailable' })).toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'Notifications, 0 unread' })
     ).not.toBeInTheDocument()
   })
 
-  // Beyond the error/empty pair, mirroring the same loading branch in the tenant switcher: a menu opened mid-flight must not claim an empty inbox.
+  // Mirrors the tenant switcher's loading branch: a menu opened mid-flight must not claim an empty inbox.
   it('says the list is still loading when the menu opens mid-flight', async () => {
     server.use(http.get('/api/v1/notifications', async () => delay('infinite')))
     renderShell()

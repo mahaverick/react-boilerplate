@@ -20,9 +20,9 @@ vi.mock('@/observability/errors', async (importOriginal) => ({
 }))
 
 /**
- * The app router's route-state options, applied to a small tree of its own.
- * No route in the real tree has a loader that fails on demand, and `$slug`
- * has an `errorComponent` of its own, so the defaults are driven here.
+ * The app router's route-state options, applied to a small tree of its own: no route in the
+ * real tree has a loader that fails on demand, and `$slug` has its own `errorComponent`, so
+ * the defaults are driven here.
  */
 function renderTree(
   loader: () => unknown,
@@ -62,14 +62,15 @@ function renderTree(
 }
 
 /**
- * Records whether the pending screen was ever in the DOM, however briefly.
- * Reads `addedNodes` off each mutation record rather than querying the live
- * DOM in the callback: React can insert the pending screen and remove it
- * again within the same batch, before the observer callback ever runs, and
- * a query at callback time would miss it entirely.
+ * Records whether the pending screen was ever in the DOM, however briefly. It reads
+ * `addedNodes` off each mutation record rather than querying the live DOM in the callback,
+ * because React can insert the pending screen and remove it within one batch, before the
+ * observer runs, and a query at callback time would miss it.
+ * @returns A function that stops watching and reports whether the screen was seen.
  */
 function watchForPending(): () => boolean {
   let seen = false
+  /** Whether `node` is, or contains, the pending screen. */
   const matchesPending = (node: Node) =>
     node instanceof HTMLElement &&
     (node.matches('[role="status"][aria-label="Loading"]') ||
@@ -121,6 +122,7 @@ describe('route errors', () => {
     // React reports the caught render error on the console; that is expected here.
     vi.spyOn(console, 'error').mockImplementation(() => {})
     let failing = true
+    /** Throws while `failing`, to exercise the route error card. */
     function Flaky() {
       if (failing) throw new Error('render exploded')
       return <h1>Page</h1>
@@ -276,13 +278,7 @@ describe('pending navigation', () => {
     const router = renderTree(() => gate, '/')
     await screen.findByRole('heading', { level: 1, name: 'Home' })
 
-    /**
-     * Fakes only the clock the router reads: setTimeout and Date.now.
-     * setImmediate stays real because React's async act flushes on it.
-     * While setTimeout is fake, `findBy` and `waitFor` would hang (their
-     * final drain is a setTimeout nothing advances), so this section
-     * asserts synchronously.
-     */
+    // Fakes only the clock the router reads (setTimeout, Date); setImmediate stays real because React's async act flushes on it. With setTimeout faked, `findBy` and `waitFor` would hang on their final drain, so this section asserts synchronously.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     router.history.push('/page')
     await act(() => vi.advanceTimersByTimeAsync(defaultPendingMs - 1))
@@ -290,7 +286,7 @@ describe('pending navigation', () => {
     await act(() => vi.advanceTimersByTimeAsync(1))
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
 
-    // The loader settles the instant the pending screen appears; the page must still wait out the whole defaultPendingMinMs floor, to the ms.
+    // The loader settles as soon as the pending screen appears, yet the page must wait out the whole defaultPendingMinMs floor, to the millisecond.
     release()
     await act(() => vi.advanceTimersByTimeAsync(defaultPendingMinMs - 1))
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()

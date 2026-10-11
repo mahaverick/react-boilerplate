@@ -8,7 +8,6 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tailwindcss from 'eslint-plugin-tailwindcss'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
-import jsdocPending from './jsdoc-pending.json' with { type: 'json' }
 import { commentStyleRule } from './scripts/comment-style.mjs'
 
 const SLEEP_MESSAGE =
@@ -37,11 +36,6 @@ const JSDOC_CONTEXTS = [
   'TSTypeAliasDeclaration',
   'ExportNamedDeclaration[declaration.type="VariableDeclaration"]',
 ]
-/**
- * Files whose comments are not yet converted, keyed by plan task; each
- * comment PR deletes its key.
- */
-const PENDING = Object.values(jsdocPending).flat()
 
 export default tseslint.config(
   {
@@ -437,18 +431,5 @@ export default tseslint.config(
     files: ['src/components/ui/!(form|sonner).tsx'],
     rules: { 'jsdoc/require-jsdoc': 'off', 'jsdoc/require-description': 'off' },
   },
-  ...(PENDING.length > 0
-    ? [
-        {
-          files: PENDING,
-          rules: {
-            'jsdoc/require-jsdoc': 'off',
-            'jsdoc/require-description': 'off',
-            'jsdoc/check-param-names': 'off',
-            'jsdoc/no-types': 'off',
-          },
-        },
-      ]
-    : []),
   prettier
 )

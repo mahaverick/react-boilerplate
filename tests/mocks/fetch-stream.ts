@@ -2,12 +2,10 @@ import { vi } from 'vitest'
 import type { ApiErrorBody } from '@/types/api.types'
 
 /**
- * A refused CONNECT — the response `fetch()` resolves to when the server
- * declines the connection outright (a 401, a 500), as opposed to `fail()`
- * below, which fails a stream already open. `body`, when given, matches this
- * codebase's `ApiErrorBody` envelope, exactly as `errorHandler`
- * (express-boilerplate's error.middleware.ts) actually serializes a
- * rejection.
+ * A refused connect: the response `fetch()` resolves to when the server declines the
+ * connection outright (a 401, a 500), as opposed to `MockFetchStream.fail`, which fails a
+ * stream already open. A given `body` uses the `ApiErrorBody` envelope, as express's
+ * `errorHandler` (`error.middleware.ts`) serializes a rejection.
  */
 export interface ConnectRefusal {
   status: number
@@ -19,11 +17,8 @@ export interface ConnectRefusal {
 let queuedConnectRefusal: ConnectRefusal | null = null
 
 /**
- * Make the NEXT `MockFetchStream` constructed answer its `fetch()` caller
- * with a non-ok response instead of the ordinary streaming 200 — the connect
- * itself refused, exactly as `!response.ok` looks to
- * `useNotificationStream`. Consumed once: it affects only the very next
- * connect, never a later reconnect.
+ * Makes the next `MockFetchStream` answer its `fetch()` caller with a non-ok response
+ * instead of the streaming 200. Consumed once: a later reconnect is not refused.
  * @param refusal - The status (and, optionally, JSON body) the refused connect resolves with.
  */
 export function queueConnectRefusal(refusal: ConnectRefusal): void {
@@ -31,14 +26,10 @@ export function queueConnectRefusal(refusal: ConnectRefusal): void {
 }
 
 /**
- * Enough of a `fetch` streaming response to drive `useNotificationStream`
- * over its fetch transport, and no more.
- *
- * One instance per `connect()` call, captured on `instances` so a test can
- * inspect what was actually sent (the URL, the `Authorization` and
- * `Last-Event-ID` headers) and control what comes back — a frame, a clean
- * end, a mid-stream failure, or (via `queueConnectRefusal`) a non-ok
- * CONNECT response — without a real network call or a real server.
+ * Enough of a `fetch` streaming response to drive `useNotificationStream` without a
+ * network. One instance per connect, kept on `instances` so a test can read what was sent
+ * (the URL, the `Authorization` and `Last-Event-ID` headers) and control what comes back:
+ * a frame, a clean end, a mid-stream failure or, via `queueConnectRefusal`, a refused connect.
  */
 export class MockFetchStream {
   static instances: MockFetchStream[] = []
@@ -58,7 +49,7 @@ export class MockFetchStream {
       this.aborted = true
     })
 
-    // Consumed once: only the very next connect is refused. Every later reconnect — including the one this same failure schedules — gets the ordinary streaming 200 below, unless the test queues another refusal.
+    // Consumed here, so the reconnect this refusal schedules gets the streaming 200 unless the test queues another.
     const refusal = queuedConnectRefusal
     queuedConnectRefusal = null
     if (refusal) {
@@ -85,7 +76,7 @@ export class MockFetchStream {
     MockFetchStream.instances.push(this)
   }
 
-  /** Send one complete SSE frame, exactly as the server would — the trailing blank line is added here. */
+  /** Sends one complete SSE frame, adding the trailing blank line that ends it. */
   dispatch(event: { id?: string; event?: string; data: string }): void {
     const lines = [
       event.id === undefined ? null : `id: ${event.id}`,
@@ -95,29 +86,23 @@ export class MockFetchStream {
     this.push(`${lines.join('\n')}\n\n`)
   }
 
-  /** Push a raw, unformatted chunk — for the rare test that cares about framing itself. */
+  /** Pushes a raw chunk, for a test about framing itself. */
   push(chunk: string): void {
     this.controller?.enqueue(this.encoder.encode(chunk))
   }
 
-  /**
-   * End the stream the way the server closing the connection would: the
-   * hook's `for await` loop exits normally, and it reconnects.
-   */
+  /** Ends the stream as a server closing the connection would: the hook's loop exits normally and it reconnects. */
   end(): void {
     this.controller?.close()
   }
 
-  /**
-   * Fail the stream: the pending `read()` inside `parseSseStream` rejects,
-   * which the hook's `for await` loop surfaces as a thrown error, caught by
-   * its own `catch` and turned into the same reconnect.
-   */
+  /** Fails the open stream: the pending read rejects, and the hook's `catch` schedules a reconnect. */
   fail(error: unknown = new Error('stream error')): void {
     this.controller?.error(error)
   }
 }
 
+/** Flattens any `HeadersInit` shape into a plain record, so a test can assert on a header by name. */
 function headersToRecord(headers: HeadersInit | undefined): Record<string, string> {
   if (!headers) return {}
   if (headers instanceof Headers) return Object.fromEntries(headers.entries())
@@ -133,19 +118,14 @@ export function latestFetchStream(): MockFetchStream {
 }
 
 /**
- * Install a `fetch` stub that answers only `matchUrl` — the notification
- * stream endpoint — with a `MockFetchStream`. Nothing else in these tests
- * calls `fetch` directly: `apiClient` is axios, which resolves to the XHR
- * adapter under jsdom and is intercepted by msw independently of this stub.
- * A call to any other URL is therefore a bug in the test, not a real request
- * to let through, so it throws rather than falling back to a real network
- * call — which surfaces here as the hook's own `catch` swallowing the throw
- * and every `MockFetchStream.instances` assertion in the test failing
- * because nothing was ever recorded, not as the throw itself reaching the
- * test's own stack.
+ * Installs a `fetch` stub that answers only `matchUrl`, the notification stream endpoint,
+ * with a `MockFetchStream`. `apiClient` is axios, which uses the XHR adapter under jsdom and
+ * is intercepted by msw, so a direct `fetch` to any other URL is a test bug and throws. The
+ * hook's own `catch` swallows that throw, so it shows up as `MockFetchStream.instances`
+ * assertions failing because nothing was recorded.
  */
 export function stubStreamFetch(matchUrl: string): void {
-  // Reset here, not left to bleed from a previous test: this is the one function every test in this suite already calls from `beforeEach`.
+  // Reset here so a refusal queued by one test cannot reach the next; every stream test calls this from `beforeEach`.
   queuedConnectRefusal = null
   vi.stubGlobal(
     'fetch',

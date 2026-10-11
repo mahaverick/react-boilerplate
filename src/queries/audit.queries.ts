@@ -4,16 +4,18 @@ import { apiClient, unwrap } from '@/http/client'
 import { statusFrom } from '@/lib/api-error'
 import type { ApiSuccess, AuditEntry, AuditPage } from '@/types/api.types'
 
+/** Narrows a tenant's audit log by action, actor or access path; a field left out filters nothing. */
 export interface TenantAuditFilters {
   action?: AuditAction
   actorUserId?: string
-  /** "Staff": everything done under platform access. */
+  /** Only entries written under platform access, which the activity page labels "Staff". */
   access?: 'platform'
 }
 
 /**
- * The tenant log sits under `['tenants', slug]`, so a tenant update that
- * invalidates the detail without `exact` refreshes its log too.
+ * The key of one tenant's audit log, filters included, under the tenant's
+ * `['tenants', slug]` prefix: invalidating `tenantKeys.detail(slug)` without
+ * `exact` refreshes the log too.
  */
 const auditKeys = {
   tenant: (slug: string, filters: TenantAuditFilters) =>
@@ -23,7 +25,7 @@ const auditKeys = {
 /** The API's default page; its cap is 100. */
 const PAGE_SIZE = 50
 
-/** A tenant's activity. Effective owners and admins only; anyone else gets a 403. */
+/** A tenant's activity log, newest first, a page at a time. Effective owners and admins only; anyone else gets a 403. */
 export function useTenantAuditLog(
   slug: string,
   filters: TenantAuditFilters,
@@ -50,7 +52,7 @@ export function useTenantAuditLog(
   })
 }
 
-/** Every loaded page, flattened. */
+/** The entries of every loaded page, in order. */
 export function flattenAuditPages<T extends AuditEntry>(
   data: InfiniteData<AuditPage<T>> | undefined
 ): T[] {

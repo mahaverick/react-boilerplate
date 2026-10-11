@@ -27,16 +27,11 @@ import { server } from '@/tests/mocks/server'
 const STREAM_URL = `${API_PREFIX}/notifications/stream`
 
 /**
- * What the server actually puts on a `notification` frame's `data:` line —
- * NOT a list row. `toStreamPayload` (notification-stream.controller.ts)
- * narrows the row to these six fields, dropping `userId` (the connection is
- * already scoped to one user) and `metadata`.
- *
- * Typed by subtraction from `Notification` rather than through a
- * hand-written interface of its own: the hook invalidates the query instead
- * of writing frames into the cache, so no production code reads this shape
- * at all — but the frame is still narrower than a row, and saying so here
- * keeps the fixture honest without shipping a type for it.
+ * What the server puts on a `notification` frame's `data:` line, which is not a list row:
+ * `toStreamPayload` (notification-stream.controller.ts) narrows the row to these six
+ * fields, dropping `userId` (the connection is already scoped to one user) and `metadata`.
+ * Typed by subtraction from `Notification` because no production code reads this shape:
+ * the hook invalidates the query instead of writing frames into the cache.
  */
 const streamPayload: Omit<Notification, 'userId' | 'metadata'> = {
   id: NOTIFICATION_ID,
@@ -47,7 +42,7 @@ const streamPayload: Omit<Notification, 'userId' | 'metadata'> = {
   createdAt: '2026-09-21T10:00:00.000Z',
 }
 
-/** The same notification as a LIST row: it carries userId and metadata too. */
+/** The same notification as a list row, which carries `userId` and `metadata` too. */
 const listRow: Notification = {
   id: NOTIFICATION_ID,
   userId: testUser.id,
@@ -60,12 +55,10 @@ const listRow: Notification = {
 }
 
 describe('useNotificationStream', () => {
-  /**
-   * Hoisted, not created inside the wrapper: a client built per render would
-   * be a different cache on every re-render, and these tests inspect it.
-   */
+  /** Hoisted, not created in the wrapper: a client built per render would be a new cache on every re-render, and these tests inspect it. */
   let client: QueryClient
 
+  /** Provides the per-test `client` to the hook under test. */
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
@@ -86,18 +79,17 @@ describe('useNotificationStream', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    // The toast spy is on a module shared by every test, unlike the per-test client's.
+    // The toast spy is on a module shared by every test, unlike the per-test client.
     vi.restoreAllMocks()
-    // Restores whatever fetch setup.ts's own globals had before this test's stub, not `undefined`.
+    // Restores the `fetch` that existed before this test's stub, not `undefined`.
     vi.unstubAllGlobals()
     client.clear()
   })
 
   /**
-   * The whole point of the fetch transport: `EventSource` could only
-   * authenticate via `?token=`, which lands in browser history, `Referer`
-   * and any log that records request lines. `fetch` can set headers, so the
-   * credential moves to one instead.
+   * The reason for the fetch transport: `EventSource` could only authenticate via
+   * `?token=`, which lands in browser history, `Referer` and request-line logs, while
+   * `fetch` can send the credential in a header.
    */
   it('sends the access token as a Bearer header, never in the URL', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
@@ -109,10 +101,9 @@ describe('useNotificationStream', () => {
   })
 
   /**
-   * There is nothing to replay yet — this hook has not seen an id. The
-   * header must be ABSENT, not present-and-empty: `EventSource` never gave a
-   * server a way to tell "no id yet" from "id is the empty string", and this
-   * transport must not reintroduce that ambiguity.
+   * Nothing to replay yet, as no id has been seen. The header must be absent, not empty:
+   * `EventSource` gave a server no way to tell "no id yet" from "id is the empty string",
+   * and this transport must not reintroduce that ambiguity.
    */
   it('sends no Last-Event-ID on the very first connect', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
@@ -122,17 +113,15 @@ describe('useNotificationStream', () => {
   })
 
   /**
-   * A reconnect tells the server what it missed, so the server's replay can
-   * actually fire. A wrong id here means silently duplicated or silently
-   * missed notifications, so the header must carry the id from the event
-   * that ACTUALLY ARRIVED — not the first connect (which sent none) and not
-   * a stale one from an earlier delivery.
+   * A reconnect tells the server what it missed, so its replay can fire. A wrong id means
+   * duplicated or missed notifications, so the header must carry the id of the event that
+   * arrived, not a stale one from an earlier delivery.
    */
   it('sends Last-Event-ID with the id of the last delivered event, on reconnect', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
     client.setQueryData(notificationKeys.list, { pages: [{ notifications: [] }], pageParams: [] })
 
-    // Let the initial connect's own refetchList() settle before isolating the delivered event's effect, same reason as the unnamed-frame test below.
+    // Wait for the initial connect's own refetch before isolating the delivered event's effect, as in the unnamed-frame test below.
     await waitFor(() =>
       expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(true)
     )
@@ -168,10 +157,9 @@ describe('useNotificationStream', () => {
   })
 
   /**
-   * The check is against `event.event`, not against every frame — the
-   * server writes `event: notification`, and a frame with no event name
-   * must not be treated as one. Registered the wrong way, this hook would be
-   * inert with no error anywhere; this test is what catches that.
+   * The server writes `event: notification`, and the hook checks `event.event`, so a frame
+   * with no event name is not treated as one. A wrong event name would leave the hook inert
+   * with no error anywhere; this test is what catches that.
    */
   it('delivers a NAMED `notification` frame into the query cache', async () => {
     const { result } = renderHook(
@@ -204,17 +192,13 @@ describe('useNotificationStream', () => {
   })
 
   /**
-   * The connect itself invalidates the list once (see the next test); this
-   * waits for that to settle before isolating the frame-level effect below,
-   * so the spy only counts invalidations the two dispatched frames cause.
+   * The connect itself invalidates the list once (see the next test), so the test waits for
+   * that before spying, and the spy counts only what the two dispatched frames cause.
    *
-   * A frame with no `event:` line parses to `event: undefined`, which is
-   * what an unnamed frame becomes — the server never sends one, but this
-   * must be a no-op if it ever did. Asserted on the spy, not on
-   * `isInvalidated` alone: a fixed-length flush cannot prove a negative (it
-   * only proves nothing has arrived yet), but a call count pinned at exactly
-   * one after the second frame proves the first one never invalidated
-   * anything.
+   * A frame with no `event:` line parses to `event: undefined`; the server never sends one,
+   * but it must be a no-op. Asserted on the spy, not on `isInvalidated`: waiting a fixed
+   * time cannot prove a negative, but a count of exactly one after the second frame proves
+   * the first invalidated nothing.
    */
   it('ignores an unnamed frame, and invalidates on a named one', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
@@ -232,11 +216,9 @@ describe('useNotificationStream', () => {
   })
 
   /**
-   * A reconnect sends `Last-Event-ID`, so the server can replay what it
-   * missed, but the very first connect has no id yet and definitely gets
-   * none — refetching on every connect is what covers that one case. React
-   * Query dedupes this against whatever else invalidates around it, so the
-   * common case costs nothing.
+   * A reconnect sends `Last-Event-ID` so the server can replay, but the first connect has
+   * no id and gets no replay, so refetching on every connect covers that case. React Query
+   * dedupes the invalidation against others around it.
    */
   it('invalidates the list on every successful connect, which is what recovers the very first connect', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
@@ -248,10 +230,9 @@ describe('useNotificationStream', () => {
   })
 
   /**
-   * A backend that accepts the connection and immediately drops it ends the
-   * stream with no frame ever delivered. If that reset the backoff, the
-   * retry would stay pinned at one second — and each retry calls
-   * ensureSession(), which rotates the refresh cookie. Only a delivered
+   * A backend that accepts the connection and drops it ends the stream with no frame
+   * delivered. If that reset the backoff, the retry would stay pinned at one second, and
+   * each retry calls ensureSession(), which rotates the refresh cookie. Only a delivered
    * notification frame may reset it.
    */
   it('does NOT let a connect with no delivered frame reset the backoff', async () => {
@@ -264,10 +245,10 @@ describe('useNotificationStream', () => {
     })
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
 
-    // The connection came up, then ended with nothing delivered — exactly the flapping case.
+    // The connection came up and ended with nothing delivered: the flapping case.
     latest().end()
 
-    // One second is no longer enough: the interval has doubled to two.
+    // One second is not enough now: the interval has doubled to two.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
     })
@@ -280,11 +261,9 @@ describe('useNotificationStream', () => {
   })
 
   /**
-   * `EventSource` collapsed a refused connect and a mid-stream drop into a
-   * single `onerror`; `fetch` distinguishes them, and a non-ok CONNECT
-   * response is the case not covered anywhere else — every other test in
-   * this file fails via `latest().fail()`, a MID-STREAM rejection, after the
-   * connect already succeeded with `status: 200`.
+   * `EventSource` collapsed a refused connect and a mid-stream drop into one `onerror`;
+   * `fetch` tells them apart. A non-ok connect response is covered only here: the other
+   * failure tests use `latest().fail()`, a mid-stream rejection after a 200 connect.
    */
   it('treats a non-ok connect response as a refused connect, not a delivered frame, and recovers exactly like a mid-stream failure', async () => {
     server.use(
@@ -308,10 +287,10 @@ describe('useNotificationStream', () => {
     renderHook(() => useNotificationStream(), { wrapper })
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
 
-    // No frame ever arrives from a refused connect: `!response.ok` throws before the `for await` loop and before the unconditional `refetchList()` every successful connect makes (see "invalidates the list on every successful connect" above), so nothing here ever invalidates the list.
+    // `!response.ok` throws before the `for await` loop and before the `refetchList()` every successful connect makes (see "invalidates the list on every successful connect"), so a refused connect invalidates nothing.
     expect(invalidate).not.toHaveBeenCalled()
 
-    // The same recovery a mid-stream failure gets: one backoff interval, then a reconnect that goes through ensureSession() first.
+    // Recovers like a mid-stream failure: one backoff interval, then a reconnect through ensureSession().
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
     })
@@ -359,7 +338,7 @@ describe('useNotificationStream', () => {
     })
 
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
-    // A full stream server is not a verdict on the session: the same token reconnects, with no refresh.
+    // A full stream server says nothing about the session, so the same token reconnects with no refresh.
     expect(latest().headers.Authorization).toBe('Bearer tok-a')
     expect(refreshes()).toBe(0)
     expect(toastError).not.toHaveBeenCalled()
@@ -368,7 +347,7 @@ describe('useNotificationStream', () => {
 
   it('waits out a 503 Retry-After in seconds, plus jitter, before reconnecting', async () => {
     const refreshes = countRefreshes()
-    // Jitter adds up to a fifth of the wait; half of that here, so 30s becomes 33s.
+    // Jitter adds up to a fifth of the wait; at 0.5 that is a tenth, so 30 s becomes 33 s.
     vi.spyOn(Math, 'random').mockReturnValue(0.5)
     queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': '30' } })
 
@@ -427,14 +406,14 @@ describe('useNotificationStream', () => {
 
   it('reconnects within six minutes of a Retry-After date a year ahead', async () => {
     countRefreshes()
-    // The most jitter there is: a fifth on top of the five-minute cap.
+    // Nearly the most jitter possible: a fifth on top of the five-minute cap.
     vi.spyOn(Math, 'random').mockReturnValue(0.999)
     const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60_000)
     queueConnectRefusal({ ...STREAM_CAPACITY, headers: { 'Retry-After': nextYear.toUTCString() } })
 
     renderHook(() => useNotificationStream(), { wrapper })
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
-    // Not at once either: a year is past setTimeout's ceiling, which would fire immediately.
+    // Not at once: an uncapped year-long delay exceeds setTimeout's 2^31-1 ms ceiling, which fires immediately.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(290_000)
     })
@@ -474,22 +453,20 @@ describe('useNotificationStream', () => {
 
     latest().fail()
 
-    // The first retry waits one backoff interval before reconnecting.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
     })
 
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
     expect(latest().headers.Authorization).toBe('Bearer fresh-token')
-    // Exactly two: the refreshed token re-runs the effect, and the effect re-run owns the reconnect. A second connect from inside the retry's own `.then` would open a third, immediately-torn-down connection.
+    // Exactly two: the refreshed token re-runs the effect, which owns the reconnect; a second connect from the retry's own `.then` would open a third connection that is torn down at once.
     expect(MockFetchStream.instances).toHaveLength(2)
   })
 
   /**
-   * The whole point of routing errors through ensureSession(): the API
-   * being briefly unreachable is not a verdict on the session. The first
-   * retry cannot reach the server, the session must survive that, and the
-   * second retry — one doubled interval later — must still happen.
+   * Errors go through ensureSession() because an API that is briefly unreachable is not a
+   * verdict on the session: the first retry cannot reach the server, the session must
+   * survive that, and the second retry, one doubled interval later, must still happen.
    */
   it('survives a transient outage and reconnects, without ending the session', async () => {
     let attempts = 0
@@ -506,13 +483,12 @@ describe('useNotificationStream', () => {
 
     latest().fail()
 
-    // Retry 1, at 1s: the API is down.
+    // Retry 1, at 1 s: the API is down.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
     })
     expect(attempts).toBe(1)
     expect(MockFetchStream.instances).toHaveLength(1)
-    // The session was never judged, so it is still here.
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
     expect(useAuthStore.getState().accessToken).toBe('tok-a')
 
@@ -527,11 +503,9 @@ describe('useNotificationStream', () => {
   })
 
   /**
-   * `logout()` clears the store and nothing else moves the user — no
-   * errorComponent, no store subscription, no router.invalidate, and
-   * `_app.beforeLoad` only runs on navigation — so without this redirect a
-   * still tab stays on /dashboard, signed out, showing cached data. jsdom's
-   * location is unforgeable, hence the stub.
+   * `logout()` clears the store and nothing else moves the user (`_app.beforeLoad` only
+   * runs on navigation), so without this redirect an idle tab stays on /dashboard, signed
+   * out, showing cached data. jsdom's location is unforgeable, hence the stub.
    */
   it('stops retrying once the session is genuinely dead, and sends the user to /login', async () => {
     const assign = vi.fn()
@@ -567,10 +541,10 @@ describe('useNotificationStream', () => {
       await vi.advanceTimersByTimeAsync(5_000)
     })
 
-    // ensureSession rejected and logged out; no second connection.
+    // ensureSession rejected and logged out, so there is no second connection.
     expect(MockFetchStream.instances).toHaveLength(1)
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
-    // The user is moved, carrying where they were.
+    // The redirect carries where the user was.
     expect(assign).toHaveBeenCalledWith(`/login?redirect=${encodeURIComponent('/dashboard')}`)
   })
 

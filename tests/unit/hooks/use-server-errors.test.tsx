@@ -85,10 +85,9 @@ function fieldOnlyFailure(): AxiosError {
 }
 
 /**
- * A form with nothing behind it, so the bridge itself is the subject rather
- * than a page's copy. `options` turns on the shapes that `<Form>` has to cope
- * with: a page that forgets `<FormError>`, a control that names itself, and a
- * page that passes its own handlers.
+ * A form with nothing behind it, so the bridge is the subject rather than a page's copy.
+ * The props switch on the shapes `<Form>` has to cope with: a page that forgets
+ * `<FormError>`, a control that names itself, and a page that passes its own handlers.
  */
 function Fixture({
   withFormError = true,
@@ -108,7 +107,7 @@ function Fixture({
   const form = useForm({
     defaultValues: { email: '', nickname: '' },
     onSubmit: async () => {
-      // A request's worth of delay, so the capture lands in a promise continuation, as it does on every page.
+      // Delays the capture into a promise continuation, as a real request does on every page.
       await Promise.resolve()
       if (failure) serverErrors.capture(failure())
     },
@@ -159,6 +158,7 @@ function Fixture({
   )
 }
 
+/** Submits the form under test and returns the `userEvent` instance, so a test can keep typing in the same session. */
 async function submit() {
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Save' }))
@@ -192,7 +192,7 @@ describe('the server-error bridge in <Form>', () => {
         expect.arrayContaining(['Those two do not go together.'])
       )
     })
-    // The detail really is invisible — that is what the warning is for.
+    // The detail is invisible without `<FormError>`, which is what the warning is for.
     expect(screen.queryByText('Those two do not go together.')).not.toBeInTheDocument()
   })
 
@@ -211,7 +211,7 @@ describe('the server-error bridge in <Form>', () => {
     const user = await submit()
 
     expect(await screen.findByText('Already taken.')).toBeInTheDocument()
-    // Left to itself, the change event would carry name="explicit" and clear nothing — the error would sit there while the user retyped the address.
+    // Left alone, the change event would carry name="explicit" and clear nothing, so the error would stay while the user retyped.
     expect(screen.getByLabelText('Email')).toHaveAttribute('name', 'email')
     await user.type(screen.getByLabelText('Email'), 'a')
     await waitFor(() => {
@@ -226,7 +226,7 @@ describe('the server-error bridge in <Form>', () => {
     render(<Fixture onChange={onChange} onSubmit={onSubmit} />)
     const user = await submit()
 
-    // Both of the bridge's jobs still happen: submission ran (it is what captured the error) and clearing still works.
+    // The page's own handlers do not displace the bridge's: submission ran (it captured the error) and clearing still works.
     expect(onSubmit).toHaveBeenCalled()
     expect(await screen.findByText('Already taken.')).toBeInTheDocument()
 
@@ -247,7 +247,7 @@ describe('the server-error bridge in <Form>', () => {
     const email = screen.getByLabelText('Email')
     expect(email).toHaveAttribute('aria-describedby', message.id)
     expect(email).toHaveAttribute('aria-invalid', 'true')
-    // The form-level message stays the live region.
+    // The form-level message is the live region.
     expect(
       screen.getByText('Those two do not go together.').closest('[role="alert"]')
     ).not.toBeNull()
@@ -279,7 +279,7 @@ describe('focus after submit', () => {
   })
 
   it('moves focus to the first field a server error names, described by its message', async () => {
-    // The frame fires at once: the worst case, a frame that arrives before React's own scheduled render. Only a committed error can be found then.
+    // The frame fires at once, before React's own scheduled render, so only an error already committed can be found.
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       callback(0)
       return 0
@@ -297,7 +297,7 @@ describe('focus after submit', () => {
     render(<Fixture failure={null} />)
     await submit()
 
-    // Two frames: the focus step runs one frame after the submit settles.
+    // Two frames, because the focus step runs one frame after the submit settles.
     await act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))))
     await act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))))
     expect(screen.getByRole('button', { name: 'Save' })).toHaveFocus()
@@ -308,7 +308,7 @@ describe('setFieldError', () => {
   it('adds to what capture set in the same tick, and clears like any other', () => {
     const { result } = renderHook(() => useServerErrors())
 
-    // A capture and a hand-set field message in one tick, before React renders in between.
+    // A capture and a hand-set field message in one tick, with no render between them.
     act(() => {
       result.current.capture(validationFailure())
       result.current.setFieldError('nickname', ['Taken by a member.'])
@@ -362,6 +362,7 @@ describe('capture', () => {
     const toastError = vi.spyOn(toast, 'error')
     const { result } = renderHook(() => useServerErrors())
     const config = { headers: new AxiosHeaders() }
+    /** A 503 carrying the read-only-mode refusal body. */
     const refusal = () =>
       new AxiosError('Service Unavailable', '503', config, null, {
         data: {

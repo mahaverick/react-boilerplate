@@ -42,6 +42,7 @@ const INVALID = 'This invitation is invalid or has expired.'
 const MISMATCH = 'This invitation was sent to a different email address.'
 const UNVERIFIED = 'Verify your email address before accepting this invitation.'
 
+/** Mounts the real route tree at `path` and returns the router. */
 function renderAt(path: string): AnyRouter {
   const router = createRouter({
     routeTree,
@@ -56,6 +57,7 @@ function renderAt(path: string): AnyRouter {
   return router as AnyRouter
 }
 
+/** A signed-in, bootstrapped session whose address is `email`. */
 function signIn(email = testUser.email) {
   useAuthStore.setState({
     accessToken: 'access-token',
@@ -153,7 +155,7 @@ describe('accept page: the link itself', () => {
     let attempt = 0
     countPreviews(() => {
       attempt += 1
-      // Two failures: the preview retries a non-404 once by itself.
+      // Two failures, because the preview retries a non-404 once by itself.
       return attempt <= 2
         ? fail('Something went wrong.', 500)
         : ok(testInvitationPreview, 'Invitation retrieved.')
@@ -251,7 +253,7 @@ describe('accept page, signed in', () => {
   it('lands an existing member on the tenant, without claiming the invited role', async () => {
     signIn()
     mockTenantRoute()
-    // Invited as editor, already an admin: the server keeps the admin role and answers with it.
+    // Invited as editor but already an admin: the server keeps the admin role and answers with it.
     server.use(
       http.post('/api/v1/invitations/accept', () =>
         ok({ tenant: { name: 'Acme Corp', slug: 'acme' }, role: 'admin' }, 'Accepted.')
@@ -347,12 +349,12 @@ describe('accept page, signed in', () => {
     expect(alert).toHaveTextContent(/verification email/)
     expect(alert).not.toHaveTextContent(/different email address/)
     expect(router.state.location.pathname).toBe('/invitations/accept')
-    // A 403 is not a session verdict.
+    // A 403 judges the invitation, not the session.
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
   it('shows the server’s mismatch 403 without telling a mismatched account to verify', async () => {
-    // The addresses matched here, so the server's copy is the only account of it.
+    // The signed-in address matches the invitation, so the client sees no mismatch and the server's copy is the only account of it.
     signIn()
     server.use(
       http.post('/api/v1/invitations/accept', () =>

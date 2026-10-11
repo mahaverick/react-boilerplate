@@ -28,8 +28,8 @@ import {
 } from '@/types/api.types'
 
 /**
- * A whole `tenants` row, as the API returns it: no projection, so every column
- * is on the wire, the soft-delete bookkeeping included.
+ * A `tenants` row as the API returns it: every column but the onboarding
+ * bookkeeping, the soft-delete columns included.
  */
 export interface Tenant {
   id: string
@@ -58,8 +58,9 @@ export interface TenantMembership {
 }
 
 /**
- * One row of `GET /tenants/:slug/members`. `user` is a four-column projection
- * on the server, never the whole users row, so no `passwordHash`.
+ * One row of `GET /tenants/:slug/members`. `user` is a projection of the users
+ * row (id, email and names, plus `active` on the platform tenant), so no
+ * `passwordHash`.
  */
 export interface TenantMember {
   membership: TenantMembership
@@ -80,7 +81,7 @@ export interface TenantMember {
 export interface TenantWithRole {
   tenant: Tenant
   role: MembershipRole
-  /** The platform tenant's row, which the switcher leaves out and the user menu links instead. */
+  /** The platform tenant's row, which the tenant switcher leaves out: staff reach it from the user menu. */
   isPlatform: boolean
 }
 
@@ -106,8 +107,8 @@ export interface TenantSettings {
 /**
  * The tenant query keys. `['tenants']` is a prefix of every other key, so
  * invalidating it without `exact: true` refetches every open detail, member
- * and settings query too. Each mutation invalidates the narrowest key that
- * changed, with `exact: true` when it means the list alone.
+ * and settings query too. A mutation that means the list alone passes
+ * `exact: true`.
  */
 export const tenantKeys = {
   list: ['tenants'] as const,
@@ -119,6 +120,7 @@ export const tenantKeys = {
   onboarding: (slug: string) => ['tenants', slug, 'onboarding'] as const,
 }
 
+/** The tenants the caller is a member of, each with their role in it. */
 export function useTenants() {
   return useQuery({
     queryKey: tenantKeys.list,
@@ -133,8 +135,9 @@ export function useTenants() {
  * would be retried (the query client's `retry: 1`), refetched on mount, and
  * thrown by `ensureQueryData` in `$slug.tsx`'s loader into the error boundary.
  * Every other failure still rejects and reaches the boundary. A 404 also
- * invalidates the tenant list (exact key only, so the detail is not refetched),
- * because the page reads the list to tell a suspended tenant from a missing one.
+ * invalidates the tenant list (exact key only, so the detail is not
+ * refetched), because the page reads the list to tell a suspended tenant from
+ * a missing one.
  */
 export function tenantQueryOptions(slug: string) {
   return queryOptions({
@@ -154,6 +157,7 @@ export function tenantQueryOptions(slug: string) {
   })
 }
 
+/** One tenant's detail, with the caller's role and access; `null` for a 404. */
 export function useTenant(slug: string) {
   return useQuery(tenantQueryOptions(slug))
 }
@@ -162,7 +166,7 @@ export function useTenant(slug: string) {
  * The caller's effective role in one tenant, and how they reached it, read off
  * `GET /tenants/:slug` rather than the tenant list: staff visiting a tenant
  * they are not in have no list row, and the detail carries the role the API
- * enforces. Every role-gated control reads this.
+ * enforces. Role-gated controls read this.
  *
  * Three states. `isPending` is not known yet (render a skeleton). `isError` is
  * a failed refetch with the cached row still in place (say so and offer a
@@ -189,6 +193,7 @@ export function useMyRole(slug: string): {
   }
 }
 
+/** Creates a tenant with the caller as its owner, then refetches the tenant list. */
 export function useCreateTenant() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -211,6 +216,7 @@ export function useUpdateTenant(slug: string) {
   })
 }
 
+/** A tenant's members, each with their membership and a projection of their user. */
 export function useMembers(slug: string) {
   return useQuery({
     queryKey: tenantKeys.members(slug),
@@ -251,7 +257,7 @@ export function useInviteMember(slug: string) {
   })
 }
 
-/** A new link and a fresh expiry; the old link stops working. */
+/** Resends a pending invitation with a new link and a fresh expiry; the old link stops working. */
 export function useResendInvitation(slug: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -283,8 +289,6 @@ export function useRevokeInvitation(slug: string) {
  * Whether a role change or removal found its target no longer a member: the
  * `member_not_found` code first, then, from an API older than 2.1.0 that sends
  * no code, the bare 404 message.
- * @param error - The failed request's error.
- * @returns `true` when the member is gone.
  */
 export function isMemberNotFound(error: unknown): boolean {
   const code = codeFrom(error)
@@ -335,6 +339,7 @@ export function useUpdateMemberRole(slug: string) {
  */
 export function useLeaveTenant(slug: string) {
   const queryClient = useQueryClient()
+  /** Refetches the tenant list, and the stored user's platformRole when the platform tenant was left. */
   const afterLeaving = async () => {
     await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
     if (slug === PLATFORM_TENANT_SLUG) await refreshProfile(queryClient)
@@ -357,8 +362,6 @@ export function useLeaveTenant(slug: string) {
  * invitations and the rest), for a tenant the caller can no longer read.
  * Call it after navigating away from the tenant's routes, so no mounted
  * query refetches what it drops.
- * @param queryClient - The app's query client.
- * @param slug - The tenant left.
  */
 export function dropTenantCache(queryClient: QueryClient, slug: string): void {
   queryClient.removeQueries({ queryKey: tenantKeys.detail(slug) })
@@ -386,6 +389,7 @@ export function useRemoveMember(slug: string) {
   })
 }
 
+/** A tenant's settings. Anyone who can open the tenant may read them; saving is limited to owners and admins. */
 export function useTenantSettings(slug: string) {
   return useQuery({
     queryKey: tenantKeys.settings(slug),
@@ -394,6 +398,7 @@ export function useTenantSettings(slug: string) {
   })
 }
 
+/** Saves the fields of a tenant's settings it is given, then refetches the settings. */
 export function useUpdateTenantSettings(slug: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -415,7 +420,6 @@ export function useUpdateTenantSettings(slug: string) {
  * @param members - The member list.
  * @param userId - The owner acting on their own membership.
  * @param isPlatform - Whether this is the platform tenant.
- * @returns The other owners that count.
  */
 export function otherOwnerCount(
   members: TenantMember[] | undefined,

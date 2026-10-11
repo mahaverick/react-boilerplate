@@ -16,6 +16,7 @@ import { TENANT_ID } from '@/tests/fixtures/ids'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
+/** A router over the real route tree and the memory history at `path`. */
 function buildRouter(path: string) {
   return createRouter({
     routeTree,
@@ -24,6 +25,7 @@ function buildRouter(path: string) {
   })
 }
 
+/** Mounts the real route tree at `path` and returns the router. */
 function renderAppAt(path: string) {
   const router = buildRouter(path)
   render(
@@ -95,7 +97,7 @@ describe('page titles', () => {
     await waitFor(() => {
       expect(document.title).toBe('Profile · React Boilerplate')
     })
-    // One title element, not a stale one left beside the new one.
+    // One title element, not a stale one beside the new one.
     expect(document.querySelectorAll('title')).toHaveLength(1)
   })
 
@@ -142,7 +144,7 @@ describe('page titles', () => {
     const pages = (Object.values(router.routesById) as AnyRoute[]).filter(
       (route) => !route.isRoot && !hasChildren(route) && route.options.component !== undefined
     )
-    // Not vacuous: the filter really found the pages.
+    // The filter must have found the pages, or the check below would pass on none.
     expect(pages.map((route) => String(route.id))).toContain('/_app/profile')
     const untitled = pages
       .filter((route) => typeof route.options.head !== 'function')

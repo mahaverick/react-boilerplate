@@ -27,6 +27,7 @@ function Harness({
 
 describe('useFocusAfter', () => {
   let focus: FocusAfter<'a' | 'b'>
+  /** Stores the hook's api for the test to call. */
   const take = (value: FocusAfter<'a' | 'b'>) => {
     focus = value
   }

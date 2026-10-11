@@ -40,6 +40,7 @@ describe('installFlagScopeReset', () => {
     },
   } as unknown as AnyRouter
 
+  /** Sets the route params and fires the router's resolved listener, as a navigation settling does. */
   function resolveAt(next: Record<string, string>) {
     params = next
     onResolved?.()

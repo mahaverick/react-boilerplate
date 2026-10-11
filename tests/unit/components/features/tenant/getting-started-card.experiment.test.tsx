@@ -34,6 +34,7 @@ const TENANT = {
 /** Every exposure POST body's keys, in arrival order. */
 let exposures: string[][]
 
+/** Serves the tenant to `role` through `access`, with the CTA experiment assigned `variant`, and records each exposure POST. */
 function mockTenant(variant: 'control' | 'bold', role: MembershipRole, access: TenantAccess) {
   server.use(
     http.get('/api/v1/tenants', () =>
@@ -55,6 +56,7 @@ function mockTenant(variant: 'control' | 'bold', role: MembershipRole, access: T
   )
 }
 
+/** Mounts the real route tree on the acme overview, where the Getting started card renders. */
 function renderOverview() {
   const router = createRouter({
     routeTree,
@@ -68,6 +70,7 @@ function renderOverview() {
   )
 }
 
+/** The Getting started card, found by its heading. */
 async function findCard(): Promise<HTMLElement> {
   const heading = await screen.findByRole('heading', { name: 'Getting started', level: 2 })
   const card = heading.closest('[data-slot="card"]')
