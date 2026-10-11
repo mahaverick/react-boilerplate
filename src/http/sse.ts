@@ -26,7 +26,7 @@ const MAX_BUFFER_LENGTH = 1024 * 1024
  * (`useNotificationStream`), which reconnects.
  * @param body - The response body stream.
  * @yields Each complete frame, in order.
- * @throws {Error} When `buffer` exceeds `MAX_BUFFER_LENGTH` without ever completing a frame.
+ * @throws When the unfinished tail passes `MAX_BUFFER_LENGTH` without completing a frame.
  */
 export async function* parseSseStream(
   body: ReadableStream<Uint8Array>

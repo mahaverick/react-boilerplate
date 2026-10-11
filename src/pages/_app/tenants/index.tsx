@@ -26,6 +26,7 @@ import { useServerErrors } from '@/hooks/use-server-errors'
 import { useCreateTenant, useTenants, type TenantWithRole } from '@/queries/tenant.queries'
 import { newTenantSchema, slugSchema } from '@/schemas/tenant.schemas'
 
+/** The caller's tenant list and the form to create another. */
 export const Route = createFileRoute('/_app/tenants/')({
   head: () => ({ meta: [{ title: pageTitle('Tenants') }] }),
   staticData: { crumb: 'Tenants' },

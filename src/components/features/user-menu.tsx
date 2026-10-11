@@ -25,18 +25,19 @@ function displayName(user: User | null): string {
   return fullName(user) ?? user?.email ?? 'Account'
 }
 
+/** The one or two letters shown in the avatar: the name initials, else the email's first letter. */
 function initials(user: User | null): string {
   const letters = [user?.firstName?.[0], user?.lastName?.[0]].filter(Boolean).join('')
   return (letters || user?.email?.[0] || '?').toUpperCase()
 }
 
 /**
- * The account menu in the sidebar footer. Below `md` its trigger collapses to
- * the avatar, so the aria-label names it (Base UI's Tooltip emits no
- * role="tooltip" or aria-describedby); the label is on the rendered element,
- * whose own props win under useRender. For staff it links the platform tenant,
- * whose Members and Invitations pages are staff management; everything else
- * for staff is in Apex.
+ * The account menu in the sidebar footer. Its trigger shows only the avatar
+ * when the sidebar is collapsed to icons, so the aria-label names it (Base
+ * UI's Tooltip emits no role="tooltip" or aria-describedby); the label is on
+ * the rendered element, whose own props win under useRender. For
+ * staff it links the platform tenant, whose Members and Invitations pages are
+ * staff management; everything else for staff is in Apex.
  */
 export function UserMenu({ user }: { user: User | null }) {
   const logout = useLogout()

@@ -28,7 +28,7 @@ export function MaintenanceBanner() {
  * status endpoint (`useMaintenanceStatus`) for as long as the app is open,
  * holds the recovery that runs when `full` ends (`installMaintenanceRecovery`,
  * bound to the router rendering it), and reads the status again whenever a
- * response header has switched the mode on without saying since when or why,
+ * response header has switched the mode on without its start time or message,
  * cancelling an older read still in flight so its answer cannot revert the mode;
  * a header that turns the mode off again cancels that read in turn.
  * It reports `maintenance_page_viewed` once per tab session for each

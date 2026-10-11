@@ -40,9 +40,11 @@ const GRANT_REASON = 'Only an owner can resend or revoke an invitation for this 
 const NO_LONGER_PENDING = 'That invitation is no longer pending.'
 
 /**
- * What a failed resend or revoke tells the reader. Anything but the 404 is
- * the server's own message, a 403 for a role the actor can't grant included.
- * The list refetches either way (the hooks' `onSettled`).
+ * What a failed resend or revoke tells the reader: "no longer pending" for
+ * `invitation_not_found`, otherwise `writeFailureMessage`, which is the
+ * server's own message (a 403 for a role the actor can't grant included)
+ * unless the sign-in is too old. The list refetches either way (the hooks'
+ * `onSettled`).
  */
 function actionFailure(error: unknown): string {
   return codeFrom(error) === INVITATION_NOT_FOUND ? NO_LONGER_PENDING : writeFailureMessage(error)
@@ -194,9 +196,9 @@ function RevokeInvitationButton({
 /**
  * One pending invitation.
  *
- * A stacked item at every width rather than a table row with a card twin:
- * one render path keeps every id unique, and there is no fixed-width table
- * to scroll off a phone screen.
+ * One list item at every width rather than a table row with a card twin: one
+ * render path keeps every id unique, and there is no fixed-width table to
+ * scroll off a phone screen.
  *
  * When the actor may not grant the invitation's role, Resend and Revoke are
  * both off and the reason renders once, under them, with both pointing at it.

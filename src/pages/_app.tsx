@@ -16,9 +16,10 @@ import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
  * rejects, so a failed read renders the page with fallbacks.
  *
  * While maintenance is `full` the guard does not redirect: a page loaded then
- * restores the token but not the profile, which the API refuses, and the
- * maintenance screen covers the route anyway. The guard runs again when the
- * mode ends (`MaintenanceGate`'s recovery), so the user stays on this URL.
+ * may hold no user, because its session restore failed without a verdict, and
+ * a redirect would lose the URL. The maintenance screen covers the route
+ * meanwhile, and the guard runs again when the mode ends (`MaintenanceGate`'s
+ * recovery), so the user stays on this URL.
  */
 export const Route = createFileRoute('/_app')({
   beforeLoad: ({ location }) => {

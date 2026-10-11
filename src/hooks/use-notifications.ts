@@ -60,10 +60,10 @@ const NOTIFICATION_EVENT = 'notification'
  *
  * The stream is read with `fetch`, so the access token travels in a header,
  * never the URL (browser history, a Referer, request-line logs). Each
- * reconnect sends `Last-Event-ID` so the server can replay what was missed,
- * and every connect refetches the list, which covers the first connect (no
- * id, no replay). `fetch` has no built-in reconnect, so every reconnect is
- * `scheduleReconnect`'s, under a doubling backoff.
+ * reconnect sends the last id seen as `Last-Event-ID` so the server can replay
+ * what was missed, and every accepted connect refetches the list, which covers
+ * the first connect (no id, no replay). `fetch` has no built-in reconnect, so
+ * every reconnect is `scheduleReconnect`'s, under a doubling backoff.
  *
  * The backoff resets only when a notification arrives, never on a successful
  * connect: a backend that accepts and then closes with no frames would
@@ -98,15 +98,22 @@ export function useNotificationStream(): void {
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let cancelled = false
 
+    /** Marks the cached notification list stale so it refetches. */
     const refetchList = () => {
       void queryClient.invalidateQueries({ queryKey: notificationKeys.list })
     }
 
+    /** Handles one notification frame: the stream is healthy, so the backoff resets and the list refetches. */
     const onNotification = () => {
       backoffRef.current = INITIAL_BACKOFF_MS
       refetchList()
     }
 
+    /**
+     * Queues the next connect after the backoff (and a refusal's `Retry-After`), doubling the backoff.
+     * @param token - The access token the dropped connection used.
+     * @param refusal - The server's refusal, when the connect was refused rather than dropped.
+     */
     const scheduleReconnect = (token: string, refusal?: StreamRefusedError) => {
       if (cancelled) return
       const backoff = backoffRef.current
@@ -143,6 +150,11 @@ export function useNotificationStream(): void {
       }, delay)
     }
 
+    /**
+     * Opens the stream with `token` and feeds its frames to the list; a failure or an
+     * end of stream schedules a reconnect.
+     * @param token - The bearer token for this connection.
+     */
     const connect = (token: string) => {
       if (cancelled) return
       const controller = new AbortController()

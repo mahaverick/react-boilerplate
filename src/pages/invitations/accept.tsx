@@ -82,6 +82,7 @@ function InvitationCard({
   )
 }
 
+/** The way out of every state that is not signing in, signing out or accepting. */
 function HomeLink() {
   return (
     <Link to={ROUTES.home} className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
@@ -90,6 +91,7 @@ function HomeLink() {
   )
 }
 
+/** The panel for a link that cannot be used: malformed, revoked, expired or already used. */
 function InvalidInvitation({ message }: { message: string }) {
   return (
     <InvitationCard title="This invitation can’t be used" description={message}>
@@ -132,7 +134,8 @@ function SignedOut({ token, invitation }: { token: string; invitation: Invitatio
 /**
  * Signed in as a different address. Signing out returns here signed out, the
  * state that offers "Log in". The home link is a way out that is not signing
- * out, and the state's only link, which axe's `bypass` rule needs.
+ * out, and the state's only link, which axe's `bypass` rule needs to apply at
+ * all.
  */
 function WrongAccount({
   token,
@@ -171,7 +174,8 @@ function WrongAccount({
  * accept by the same member also succeeds. The success toast names no role,
  * because the response carries the member's current role, which for an
  * existing member is not the one offered. The home link is a way out that is
- * not accepting, and the state's only link, which axe's `bypass` rule needs.
+ * not accepting, and the state's only link, which axe's `bypass` rule needs to
+ * apply at all.
  */
 function AcceptPanel({ token, invitation }: { token: string; invitation: InvitationPreview }) {
   const accept = useAcceptInvitation()
@@ -179,6 +183,7 @@ function AcceptPanel({ token, invitation }: { token: string; invitation: Invitat
   const [refusal, setRefusal] = useState<{ message: string; unverified: boolean } | null>(null)
   const [gone, setGone] = useState<string | null>(null)
 
+  /** Accepts the invitation, then opens the tenant; a 404 or 403 becomes a panel state, other failures a toast. */
   async function onAccept() {
     setRefusal(null)
     try {
@@ -272,6 +277,7 @@ function InvitationForToken({ token }: { token: string }) {
   return <AcceptPanel token={token} invitation={invitation} />
 }
 
+/** Chooses the state for the `?token=` value: missing, malformed, or a token to look up. */
 function AcceptInvitationPage() {
   const { token } = Route.useSearch()
 

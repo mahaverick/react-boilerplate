@@ -20,6 +20,7 @@ import {
   type NotificationPreference,
 } from '@/queries/notification.queries'
 
+/** The notification inbox and the read-only delivery preferences. */
 export const Route = createFileRoute('/_app/notifications')({
   head: () => ({ meta: [{ title: pageTitle('Notifications') }] }),
   staticData: { crumb: 'Notifications' },
@@ -47,10 +48,10 @@ function humanize(type: string): string {
 }
 
 /**
- * One notification. The Unread badge is decoration on a state the row's text
- * already carries. The icon-only buttons are named by their aria-labels (Base
- * UI's Tooltip emits no role="tooltip" or aria-describedby), which name the
- * notification, since the page renders many.
+ * One notification. The Unread badge puts the state in text, so it is not
+ * carried by the row's tint alone. The icon-only buttons are named by their
+ * aria-labels (Base UI's Tooltip emits no role="tooltip" or aria-describedby),
+ * which include the notification's title, since the page renders many.
  */
 function NotificationRow({ notification }: { notification: Notification }) {
   const markRead = useMarkRead()
@@ -114,6 +115,7 @@ function PreferenceRow({ preference }: { preference: NotificationPreference }) {
   )
 }
 
+/** The read-only preference matrix, with its own load, error and empty states. */
 function PreferencesCard() {
   const preferences = usePreferences()
 

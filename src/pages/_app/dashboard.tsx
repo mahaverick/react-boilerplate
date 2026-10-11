@@ -4,12 +4,14 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/ca
 import { pageTitle } from '@/constants/app'
 import { useAuthStore } from '@/states/auth.store'
 
+/** The signed-in landing page, an empty placeholder for derived projects to fill. */
 export const Route = createFileRoute('/_app/dashboard')({
   head: () => ({ meta: [{ title: pageTitle('Dashboard') }] }),
   staticData: { crumb: 'Dashboard' },
   component: DashboardPage,
 })
 
+/** Greets the signed-in user by first name, else by email. */
 function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const name = user?.firstName ?? user?.email ?? 'there'

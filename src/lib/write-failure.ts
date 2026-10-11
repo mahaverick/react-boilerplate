@@ -9,9 +9,9 @@ export const SIGN_IN_AGAIN =
   'For your security, sign out and sign in again before making this change.'
 
 /**
- * The message for a failed write on the platform tenant's members or
- * invitations, which the API refuses with `REAUTH_REQUIRED` when the sign-in is
- * too old. Every other failure keeps the server's own message.
+ * The message for a failed write: the prompt to sign in again when the API
+ * refused with `REAUTH_REQUIRED` (a sign-in too old for a staff write on the
+ * platform tenant's members or invitations), otherwise the server's own message.
  */
 export function writeFailureMessage(error: unknown): string {
   return codeFrom(error) === REAUTH_REQUIRED ? SIGN_IN_AGAIN : messageFrom(error)

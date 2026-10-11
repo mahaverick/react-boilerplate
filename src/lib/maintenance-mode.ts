@@ -26,6 +26,7 @@ function headerValue(headers: unknown): unknown {
  * changes the outcome: a failure still rejects with its own error.
  */
 export function installMaintenanceModeInterceptor(client: AxiosInstance): void {
+  /** The store's current state, read afresh on each response. */
   const store = () => useMaintenanceModeStore.getState()
   client.interceptors.response.use(
     (response) => {
@@ -50,12 +51,12 @@ export function installMaintenanceModeInterceptor(client: AxiosInstance): void {
 
 /**
  * When `full` ends, puts the user back where they were. The session is
- * re-validated first: a page loaded during `full` could not finish its
- * restore, since the refresh succeeded but the profile read was refused, so
- * the store holds no user. `ensureSession` signs the store out only on an
- * auth verdict; any other failure leaves it as it is. Then every route
- * guard and loader runs again against the real session, on the URL the user
- * never left, and every query refetches. Returns the cleanup.
+ * re-validated first: a page loaded during `full` may hold no user, because
+ * its restore failed without a verdict (an unreachable API, say) and a
+ * failure like that leaves the store as it was. `ensureSession` signs the
+ * store out only on an auth verdict. Then every route guard and loader runs
+ * again against the real session, on the URL the user never left, and every
+ * active query refetches. Returns the cleanup.
  * @param router - The app's router.
  * @param queryClient - The client holding the page's queries.
  */
@@ -72,7 +73,7 @@ export function installMaintenanceRecovery(
   })
 }
 
-/** In-memory marks, so a tab without `sessionStorage` still reports once. */
+/** In-memory marks, so a tab whose `sessionStorage` is blocked still reports once per page load. */
 const viewed = new Set<string>()
 
 /**

@@ -26,8 +26,8 @@ const SUPPORTS_CONSENT_MODES = true
 /**
  * Whether a website's anonymous id may be handed off into this app
  * (`ANALYTICS_HANDOFF_ORIGINS`): yes, so a visit that starts on the marketing
- * site keeps its history. The handoff parameters are removed from the address
- * bar either way.
+ * site keeps its history. It is read only in `opt_out` consent mode, and the
+ * handoff parameters are removed from the address bar either way.
  */
 export const SUPPORTS_HANDOFF = true
 

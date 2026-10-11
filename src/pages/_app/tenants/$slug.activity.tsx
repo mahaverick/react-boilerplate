@@ -25,6 +25,7 @@ import {
 } from '@/queries/audit.queries'
 import { memberName, tenantKeys, useMembers, useMyRole } from '@/queries/tenant.queries'
 
+/** The Activity tab, which lists a tenant's audit log for owners and admins. */
 export const Route = createFileRoute('/_app/tenants/$slug/activity')({
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Activity · ${params.slug}`) }] }),
   staticData: { crumb: 'Activity' },
@@ -45,6 +46,7 @@ const ACTIVITY_TABLE = analyticsKey('activity')
  */
 const OWNERS_AND_ADMINS_MESSAGE = 'Only this tenant’s owners and admins can see its activity.'
 
+/** The action filter's label for a select value; `All actions` for the no-filter value. */
 function actionLabel(value: string): string {
   return isAuditAction(value) ? AUDIT_ACTION_LABELS[value] : 'All actions'
 }
@@ -83,6 +85,7 @@ function TenantActivity({ slug }: { slug: string }) {
     track('table_filtered', { table: ACTIVITY_TABLE })
   }
 
+  /** The actor filter's label for a select value: a member's name, `Staff` or `Anyone`. */
   function actorLabel(value: string): string {
     if (value === ANY) return 'Anyone'
     if (value === STAFF) return 'Staff'
@@ -148,6 +151,7 @@ function TenantActivity({ slug }: { slug: string }) {
   )
 }
 
+/** The tab's role gate: loading, failed lookup, not allowed, or the log. */
 function TenantActivityTab() {
   const { slug } = Route.useParams()
   const { role, isPending, isError, retry } = useMyRole(slug)

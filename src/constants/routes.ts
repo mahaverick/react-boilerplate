@@ -1,13 +1,16 @@
 /**
- * The API's path prefix, fixed rather than configurable, and the one place the
- * JavaScript side writes it: the axios base, the notification stream's `fetch`
- * URL and the Google OAuth anchor all derive from it. nginx.conf hardcodes it
- * too, in `location /api/v1/notifications/stream` (the stream's buffering and
- * its query-stripping log format), so moving the API means changing this
- * constant and nginx.conf in one change. The dev proxy forwards all of `/api`.
+ * The API's path prefix, fixed rather than configurable, and where the
+ * JavaScript side writes it for the app's own API calls: the axios base, the
+ * notification stream's `fetch` URL and the Google OAuth anchor all derive
+ * from it (the analytics proxy path repeats it). nginx.conf hardcodes it too,
+ * in `location /api/v1/notifications/stream` (the stream's buffering and its
+ * query-stripping log format) and `location /api/v1/collect/`, so moving the
+ * API means changing this constant and nginx.conf in one change. The dev proxy
+ * forwards all of `/api`.
  */
 export const API_PREFIX = '/api/v1'
 
+/** The app's own paths, `as const` so a `to:` built from them is checked against the route tree. */
 export const ROUTES = {
   home: '/',
   login: '/login',

@@ -10,7 +10,7 @@ declare const analyticsKeyBrand: unique symbol
 /** A fixed, code-defined key (`onboarding_open_settings`), never user input. */
 export type AnalyticsKey = string & { readonly [analyticsKeyBrand]: 'AnalyticsKey' }
 
-/** Characters no fixed key needs and an address, a sentence or a URL always has. */
+/** Characters no fixed key needs, which an address, a sentence or a URL carries. */
 type ForbiddenKeyCharacter = ' ' | '@' | '.' | '/' | ':' | '?' | '=' | '&' | '#'
 
 /** `K` when it is a lowercase string literal free of forbidden characters, otherwise `never`. */

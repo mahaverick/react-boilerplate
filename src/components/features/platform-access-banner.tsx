@@ -8,8 +8,8 @@ import { ROUTES } from '@/constants/routes'
  * as a member. Not dismissible: it says whose data this is and on what
  * authority, and that stays true for as long as the page is open.
  *
- * `bg-muted` with `text-foreground`: the measured AA pair. Muted text on a
- * muted surface measures 4.35:1, below AA.
+ * `text-foreground` on `bg-muted`, not muted text, which clears AA on that
+ * surface by little (4.82:1, `globals.css`).
  */
 export function PlatformAccessBanner({
   tenantName,

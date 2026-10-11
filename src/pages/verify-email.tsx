@@ -37,6 +37,7 @@ export const Route = createFileRoute('/verify-email')({
   component: VerifyEmailPage,
 })
 
+/** Confirms the emailed token with the account password, and offers a fresh link once a try fails. */
 function VerifyEmailPage() {
   const { token } = Route.useSearch()
   const navigate = useNavigate()

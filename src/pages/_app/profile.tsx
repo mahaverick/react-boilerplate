@@ -26,6 +26,7 @@ import { useProfile, useUpdateProfile } from '@/queries/profile.queries'
 import { updateProfileSchema } from '@/schemas/profile.schemas'
 import type { User } from '@/types/api.types'
 
+/** The signed-in user's profile: name form, security and privacy sections. */
 export const Route = createFileRoute('/_app/profile')({
   head: () => ({ meta: [{ title: pageTitle('Profile') }] }),
   staticData: { crumb: 'Profile' },
@@ -66,8 +67,8 @@ function ProfilePage() {
 }
 
 /**
- * The name form and the read-only email and join date; PATCH /profile changes
- * the names alone. Only a name the user changed from the stored names (as
+ * The name form and the read-only email and join date; this form sends the
+ * names alone. Only a name the user changed from the stored names (as
  * loaded until the first edit, blur or save attempt, or as last saved) is
  * checked and sent, so a stored name that today's rules refuse does not block
  * changing the other, and a refetch does not send a stale name back.

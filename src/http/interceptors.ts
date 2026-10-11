@@ -12,6 +12,7 @@ import { useAuthStore } from '@/states/auth.store'
 import { ACCESS_TOKEN_EXPIRED, REAUTH_REQUIRED, type ApiErrorBody } from '@/types/api.types'
 
 declare module 'axios' {
+  /** Per-request options that this module's response interceptor reads. */
   interface AxiosRequestConfig {
     /**
      * Opts a request out of both the 401 retry path and the 401 verdict path.
@@ -70,8 +71,8 @@ function rejectMalformedJsonResponse(response: AxiosResponse): AxiosResponse {
 
 /**
  * Whether `config` is a call to this app's own API: same origin, under
- * `API_PREFIX`. Only those carry the trace and session headers; an absolute
- * URL to anywhere else never does.
+ * `API_PREFIX`. Only those carry the trace and analytics-session headers; an
+ * absolute URL to anywhere else never does.
  */
 function isApiRequest(client: AxiosInstance, config: InternalAxiosRequestConfig): boolean {
   try {
@@ -157,7 +158,7 @@ export function installInterceptors(client: AxiosInstance): void {
         return Promise.reject(error)
       }
 
-      // `_retried` stops an endpoint that 401s unconditionally from looping.
+      // `_retried` stops an endpoint that always answers ACCESS_TOKEN_EXPIRED from looping.
       if (!isExpired || !config || config._retried) {
         return Promise.reject(error)
       }
