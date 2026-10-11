@@ -63,6 +63,7 @@ describe('local/comment-style', () => {
       '"SPA" and a spaced standard id',
       '/** The SPA shell follows NIST SP 800-63B. */\nexport const a = 1\n',
     ],
+    ['"I18n" as a word', '/** Formats a date for the I18n layer. */\nexport const a = 1\n'],
     [
       '"previously issued to"',
       '/** Revokes the token previously issued to this session. */\nexport const a = 1\n',
