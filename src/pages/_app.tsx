@@ -15,11 +15,12 @@ import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
  * navigation that commits, never for a hover preload. `ensureFlags` never
  * rejects, so a failed read renders the page with fallbacks.
  *
- * While maintenance is `full` the guard does not redirect: a page loaded then
- * may hold no user, because its session restore failed without a verdict, and
- * a redirect would lose the URL. The maintenance screen covers the route
+ * While maintenance is `full` the guard does not redirect, so the user keeps
+ * the page they had instead of landing on /login. The API lets the refresh
+ * and profile reads through in `full`, so a page with no user here is the rare
+ * case, such as an unreachable API. The maintenance screen covers the route
  * meanwhile, and the guard runs again when the mode ends (`MaintenanceGate`'s
- * recovery), so the user stays on this URL.
+ * recovery).
  */
 export const Route = createFileRoute('/_app')({
   beforeLoad: ({ location }) => {

@@ -7,7 +7,7 @@
 
 /** Descending authority. Mirrors MEMBERSHIP_ROLES on the server. */
 export const MEMBERSHIP_ROLES = ['owner', 'admin', 'manager', 'editor', 'viewer'] as const
-/** A tenant membership role. */
+/** A role a tenant membership can hold; one of `MEMBERSHIP_ROLES`. */
 export type MembershipRole = (typeof MEMBERSHIP_ROLES)[number]
 
 /** The invite form's default role. */

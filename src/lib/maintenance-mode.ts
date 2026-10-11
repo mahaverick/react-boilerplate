@@ -50,10 +50,12 @@ export function installMaintenanceModeInterceptor(client: AxiosInstance): void {
 }
 
 /**
- * When `full` ends, puts the user back where they were. The session is
- * re-validated first: a page loaded during `full` may hold no user, because
- * its restore failed without a verdict (an unreachable API, say) and a
- * failure like that leaves the store as it was. `ensureSession` signs the
+ * When `full` ends, puts the user back where they were. The `_app` guard does
+ * not redirect during `full`, so the user keeps the page they had instead of
+ * landing on /login. The API lets the refresh and profile reads through in
+ * `full`, so a page with no user is the rare case, such as an unreachable API:
+ * its restore failed without a verdict, and a failure like that leaves the
+ * store as it was. The session is therefore re-validated first. `ensureSession` signs the
  * store out only on an auth verdict. Then every route guard and loader runs
  * again against the real session, on the URL the user never left, and every
  * active query refetches. Returns the cleanup.

@@ -356,7 +356,11 @@ export function FormControl({ children }: { children: React.ReactElement<{ name?
   })
 }
 
-/** Helper text for a field. */
+/**
+ * Helper text under a field. `FormControl` points `aria-describedby` only at
+ * the error message, and only while there is an error, so this text is not
+ * announced with the control.
+ */
 export function FormDescription({ className, ...props }: React.ComponentProps<'p'>) {
   return <p className={cn('text-sm text-muted-foreground', className)} {...props} />
 }

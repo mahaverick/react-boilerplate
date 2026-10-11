@@ -13,7 +13,6 @@ const cryptoBytes: RandomBytes = (length) => crypto.getRandomValues(new Uint8Arr
 /**
  * `length` random bytes as lowercase hex, never all zeros.
  * @param length - The byte count; the result has twice as many characters.
- * @param randomBytes - The byte source.
  */
 function randomHex(length: number, randomBytes: RandomBytes): string {
   let hex: string

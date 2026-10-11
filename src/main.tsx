@@ -1,7 +1,9 @@
 /**
  * @file The entry point. React mounts only after `router.load()` settles, so
  * index.html's static splash stays up until the first commit already has a
- * real match (or an error match). `finally` mounts React whether `load()`
+ * real match (or an error match). `createRoot().render()` clears `#root` on
+ * its first commit and the router renders nothing until a match exists, so
+ * mounting earlier would blank the splash. `finally` mounts React whether `load()`
  * resolves or rejects, and the trailing `catch` logs a rejection of `load()`
  * or a throw from the mount (say `#root` missing), which would otherwise
  * strand the splash with nothing saying why. Analytics starts after that
