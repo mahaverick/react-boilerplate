@@ -87,7 +87,8 @@ done
 # A bad value stops the container: started detached, as it ships, it must exit
 # non-zero, and its log must name the variable without showing the value. The
 # probe matches none of the patterns (uppercase, underscores, no scheme), so
-# finding it anywhere in the log fails.
+# the container refuses it; and it is unique, so finding it anywhere in the log
+# means the value leaked.
 probe='PII_PROBE_VALUE'
 for var in POSTHOG_KEY POSTHOG_UI_HOST ANALYTICS_CONSENT_MODE ANALYTICS_HANDOFF_ORIGINS APP_ENVIRONMENT; do
   docker run -d --name "$name-bad" --read-only --tmpfs /tmp --add-host=api:127.0.0.1 \
@@ -112,6 +113,8 @@ for var in POSTHOG_KEY POSTHOG_UI_HOST ANALYTICS_CONSENT_MODE ANALYTICS_HANDOFF_
   esac
 done
 
+# Started with run-time settings, passed the way every deployment passes them:
+# plain environment variables.
 docker run -d --name "$name" -p "127.0.0.1:$port:8080" --read-only --tmpfs /tmp \
   --add-host=api:127.0.0.1 -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=check \
   -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test "$image" >/dev/null

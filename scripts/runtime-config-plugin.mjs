@@ -2,8 +2,9 @@
  * @file A Vite plugin that serves `/runtime-config.js` from the dev and
  * preview servers, so index.html loads a real file on every server. The image
  * gets that file from docker/10-runtime-config.sh; here it is rendered from the
- * same names with a `VITE_` prefix (`.env`, or the shell) and defines the same
- * `window.__APP_CONFIG__` shape.
+ * same names with a `VITE_` prefix (`.env`, or the shell), the values dev reads
+ * from `import.meta.env`, and defines the same `window.__APP_CONFIG__` shape.
+ * The app reads this file only in a production bundle, as under `vite preview`.
  */
 
 /** The settings by container name; a test keeps this list equal to `RUNTIME_CONFIG_KEYS`. */

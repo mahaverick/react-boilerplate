@@ -124,7 +124,7 @@ describe('scrubText', () => {
     expect(text.length).toBeGreaterThan(3500)
     const started = performance.now()
     scrubText(text)
-    // Proves the rules do not backtrack super-linearly on a text near the scan cap; it takes under 5 ms idle, so 2 s keeps over 100x headroom.
+    // Proves the rules do not backtrack super-linearly on a text near the scan cap; it takes under 5 ms idle and about 50 ms under load, so 2 s keeps about 40x headroom.
     expect(performance.now() - started).toBeLessThan(2000)
   })
 

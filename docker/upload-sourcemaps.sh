@@ -76,7 +76,7 @@ for project in $(printf '%s' "$projects" | tr ',' ' '); do
   # new to send. Per line and adjacent, so a count elsewhere in the output
   # ("Found 74 existing source map files") or a "none already present" does
   # not excuse it. Not caught: one line that says both, such as "No source
-  # maps found. Release 2 already exists", because the wording is undocumented.
+  # maps found. Release 2 already exists", which the second grep excuses.
   if printf '%s\n' "$output" | grep -Ei 'uploaded 0+([^0-9.]|$)|no source ?maps? (were )?found' \
     | grep -Eiv '[1-9][0-9]* (chunks? |source ?maps? |files? )?(already (uploaded|present|exist)|existing)' \
     | grep -q .; then
