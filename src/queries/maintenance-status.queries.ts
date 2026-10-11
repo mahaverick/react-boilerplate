@@ -4,6 +4,7 @@ import { apiClient, unwrap } from '@/http/client'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { isMaintenanceMode, type ApiSuccess, type MaintenanceStatus } from '@/types/api.types'
 
+/** The key of the public maintenance status, under a `maintenance-status` prefix of its own. */
 export const maintenanceStatusKey = ['maintenance-status'] as const
 
 /**
@@ -16,6 +17,7 @@ export function maintenancePollInterval(random: () => number = Math.random): num
   return MAINTENANCE_POLL_BASE_MS + Math.floor(random() * MAINTENANCE_POLL_JITTER_MS)
 }
 
+/** `value` when it is a string, else `null`: the status body is untrusted JSON. */
 function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' ? value : null
 }
@@ -50,7 +52,7 @@ export async function fetchMaintenanceStatus(signal?: AbortSignal): Promise<Main
  * while the mode is `full`, so the maintenance page notices the end by itself.
  * The interval follows the store, not the query's data, so a failed poll (an
  * nginx 502 mid-deploy, a body that is not JSON) never stops the next one.
- * Not retried: the next poll is the retry.
+ * Not retried; while the mode is `full`, the next poll is the retry.
  */
 export function useMaintenanceStatus(): UseQueryResult<MaintenanceStatus> {
   const isFull = useMaintenanceModeStore((state) => state.mode === 'full')

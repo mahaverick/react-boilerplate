@@ -1,8 +1,9 @@
 /**
- * @file The tenant form schemas, mirroring the API's tenant.validators.ts
- * field for field so a form rejects locally what the API would reject. Each
- * ceiling is its column's width: over-long input reaching the database is a
- * Postgres 22001 (a 500), not a 400.
+ * @file The tenant form schemas, mirroring the API's tenant.validators.ts so a
+ * form rejects locally what the API would reject (the API also requires an
+ * invitee's address to have a dotted domain, which `inviteMemberSchema` does
+ * not check). Each string ceiling is its column's width: over-long input
+ * reaching the database is a Postgres 22001 (a 500), not a 400.
  */
 import { z } from 'zod'
 import { MEMBERSHIP_ROLES } from '@/constants/roles'
@@ -20,8 +21,9 @@ const MAX_SLUG_LENGTH = 100
 
 /**
  * Slugs no tenant may register, mirroring the API's `RESERVED_SLUGS`
- * (tenant.constants.ts). Each collides with a plausible route segment, would
- * mislead as an organization's identifier, or masquerades as another value.
+ * (tenant.constants.ts): route segments under `/tenants/:slug/...`,
+ * misleading public identifiers, strings that read as other values, and
+ * `platform`, the staff tenant's slug.
  */
 const RESERVED_SLUGS = [
   'admin',
@@ -187,6 +189,7 @@ export const newTenantSchema = z.object({
   website: optionalText(MAX_TENANT_WEBSITE_LENGTH, 'Website', 'url'),
 })
 
+/** A validated `POST /tenants` body. */
 export type NewTenantInput = z.infer<typeof newTenantSchema>
 
 /**
@@ -206,6 +209,7 @@ export const updateTenantSchema = z.object({
   website: clearableText(MAX_TENANT_WEBSITE_LENGTH, 'Website', 'url'),
 })
 
+/** A validated `PATCH /tenants/:slug` body. */
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>
 
 /**
@@ -218,6 +222,7 @@ export const inviteMemberSchema = z.object({
   role: z.enum(MEMBERSHIP_ROLES),
 })
 
+/** A validated `POST /tenants/:slug/invitations` body. */
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>
 
 /** The most characters `metadata` may take as JSON: every member downloads it with the settings. */
@@ -367,6 +372,7 @@ export const updateTenantSettingsSchema = z.object({
     .optional(),
 })
 
+/** A validated `PATCH /tenants/:slug/settings` body. */
 export type UpdateTenantSettingsInput = z.infer<typeof updateTenantSettingsSchema>
 
 /**

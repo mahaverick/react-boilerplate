@@ -3,7 +3,7 @@ import { apiClient, unwrap } from '@/http/client'
 import { tenantKeys } from '@/queries/tenant.queries'
 import type { ApiSuccess } from '@/types/api.types'
 
-/** `GET /tenants/:slug/beta`: the reference flag-gated route, open only while `example_beta_page` is on. */
+/** `GET /tenants/:slug/beta`: the reference flag-gated route, open only while the `example_beta_page` flag is on. */
 interface TenantBeta {
   slug: string
   /** When the server answered, ISO 8601. */
@@ -11,10 +11,9 @@ interface TenantBeta {
 }
 
 /**
- * The beta route's answer, under the tenant prefix so the tenant's other
- * removals drop it too. A 404 means the flag closed since the page opened.
- * @param slug - The tenant.
- * @returns Options for `useQuery`.
+ * The beta route's answer, keyed under the tenant's detail key so
+ * `dropTenantCache` removes it with the rest. A 404 means the flag is off: a
+ * closed gate answers the unknown-route 404.
  */
 function tenantBetaQueryOptions(slug: string) {
   return queryOptions({
@@ -24,11 +23,7 @@ function tenantBetaQueryOptions(slug: string) {
   })
 }
 
-/**
- * The beta route's answer for a tenant.
- * @param slug - The tenant.
- * @returns The query.
- */
+/** Reads the beta route for a tenant; it rejects with a 404 while the flag is off. */
 export function useTenantBeta(slug: string) {
   return useQuery(tenantBetaQueryOptions(slug))
 }

@@ -12,6 +12,7 @@ export function tenantOnboardingQueryOptions(slug: string) {
   })
 }
 
+/** A tenant's onboarding checklist, refetched whenever one of the three writes settles. */
 export function useTenantOnboarding(slug: string) {
   return useQuery(tenantOnboardingQueryOptions(slug))
 }
@@ -32,7 +33,7 @@ function useOnboardingWrite<TVariables>(slug: string, path: (variables: TVariabl
   })
 }
 
-/** Marks a manual step done; a member-scoped one completes for the caller alone. */
+/** Marks a manual step done; a member-scoped one completes for the caller alone. Members only, not staff through platform access. */
 export function useCompleteOnboardingStep(slug: string) {
   return useOnboardingWrite<string>(slug, (stepKey) => `/steps/${stepKey}/complete`)
 }

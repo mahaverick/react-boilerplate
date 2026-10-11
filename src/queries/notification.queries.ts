@@ -9,9 +9,9 @@ import { apiClient, unwrap } from '@/http/client'
 import type { ApiSuccess } from '@/types/api.types'
 
 /**
- * One row of `GET /api/v1/notifications`: a whole `notifications` row, with no
- * projection. `body` is NOT NULL. `metadata` is nullable `jsonb` with no shape
- * of its own on the server, so its values stay `unknown` here.
+ * One row of `GET /api/v1/notifications`: a `notifications` row without its
+ * internal columns. `body` is NOT NULL. `metadata` is nullable `jsonb` with no
+ * shape of its own on the server, so its values stay `unknown` here.
  */
 export interface Notification {
   id: string
@@ -36,8 +36,8 @@ export interface NotificationPage {
 
 /**
  * One notification type's resolved channel preferences: an entry of the
- * server's `PreferenceMatrix`, which lists every known type once, with
- * defaults filled in for types the user has no row for.
+ * server's `PreferenceMatrix`, which lists each type the caller can see once,
+ * with both channels on for a type the user has no row for.
  */
 export interface NotificationPreference {
   notificationType: string
@@ -51,9 +51,9 @@ interface PreferencesPayload {
 }
 
 /**
- * The list and the preferences share the `all` prefix, so each list
- * operation names `list`. `list` is not a prefix of `preferences`, so a list
- * invalidation or cancel never reaches the preferences query.
+ * The notification query keys. `list` and `preferences` both sit under `all`,
+ * so each list operation names `list`: it is not a prefix of `preferences`, so
+ * invalidating or cancelling the list never reaches the preferences query.
  */
 export const notificationKeys = {
   all: ['notifications'] as const,
@@ -64,6 +64,7 @@ export const notificationKeys = {
 /** The API's own default page size; its cap is 100. */
 const PAGE_SIZE = 20
 
+/** The inbox, newest first, a page at a time. */
 export function useNotifications() {
   return useInfiniteQuery({
     queryKey: notificationKeys.list,
@@ -115,6 +116,7 @@ function optimisticallyUpdatePages(
   return snapshot
 }
 
+/** Marks one notification read. The row shows read at once and is restored if the request fails. */
 export function useMarkRead() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -140,6 +142,7 @@ export function useMarkRead() {
   })
 }
 
+/** Marks every notification read; the list refetches once the request settles. */
 export function useMarkAllRead() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -149,6 +152,7 @@ export function useMarkAllRead() {
   })
 }
 
+/** Deletes one notification. The row leaves the list at once and returns if the request fails. */
 export function useDeleteNotification() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -167,6 +171,7 @@ export function useDeleteNotification() {
   })
 }
 
+/** The caller's channel preferences, one entry per notification type they can see. */
 export function usePreferences() {
   return useQuery({
     queryKey: notificationKeys.preferences,
@@ -177,7 +182,7 @@ export function usePreferences() {
 }
 
 /**
- * Upsert one type's channel preferences. The body is `{ preferences: [entry] }`,
+ * Upserts one type's channel preferences. The body is `{ preferences: [entry] }`,
  * an array of whole entries, with both channel booleans, as the API requires.
  *
  * Unused by the UI: the API's `CONFIGURABLE_NOTIFICATION_TYPES` (every type

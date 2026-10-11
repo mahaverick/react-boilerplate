@@ -4,6 +4,7 @@ import type { UpdateProfileInput } from '@/schemas/profile.schemas'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 
+/** The key of the caller's profile, which `refreshProfile` and the update mutations write the returned user into. */
 export const profileKeys = { detail: ['profile'] as const }
 
 /**
@@ -11,9 +12,7 @@ export const profileKeys = { detail: ['profile'] as const }
  * caller's own platform membership (accepting an invitation, a self role
  * change or self-removal in the platform tenant) shows without a reload.
  *
- * A failed refresh is swallowed, leaving the store stale until the next fetch:
- * it runs from a mutation's `onSuccess`, where a rejection would fail the
- * mutation that just succeeded.
+ * A failed refresh is swallowed, leaving the store stale until the next fetch.
  */
 export async function refreshProfile(queryClient: QueryClient): Promise<void> {
   try {
@@ -22,15 +21,16 @@ export async function refreshProfile(queryClient: QueryClient): Promise<void> {
     const { accessToken, login } = useAuthStore.getState()
     if (accessToken) login(accessToken, user)
   } catch {
-    // Swallowed: a rejection would fail the mutation that just succeeded.
+    // Swallowed: this runs from a mutation's `onSuccess`, where a rejection would fail the mutation that just succeeded.
   }
 }
 
+/** The caller's profile, painted from the stored user while it refetches. */
 export function useProfile() {
   return useQuery({
     queryKey: profileKeys.detail,
     queryFn: async () => unwrap(await apiClient.get<ApiSuccess<User>>('/profile')),
-    /** Paints from the user the session bootstrap stored, not empty inputs. */
+    /** Paints from the user already in the auth store, not empty inputs. */
     initialData: () => useAuthStore.getState().user ?? undefined,
   })
 }
@@ -53,6 +53,7 @@ export function useUpdateAnalyticsOptOut() {
   })
 }
 
+/** Updates the caller's profile fields (`PATCH /profile`) and stores the returned user. */
 export function useUpdateProfile() {
   const queryClient = useQueryClient()
   return useMutation({

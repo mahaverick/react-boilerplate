@@ -22,21 +22,21 @@ import { installRouteAnalytics } from '@/observability/route-analytics'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 
-// Before any request: the session restore's own answers carry the mode.
+// Before any request: the session restore's own answers carry the maintenance mode.
 installMaintenanceModeInterceptor(apiClient)
 
+/** The app's query client: results stay fresh 30 seconds and a failed query is retried once. */
 export const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
 })
 
 /**
- * Restore the session once per page load. The access token is memory-only, so
- * every reload starts signed out; without this, `_app` would bounce a
- * signed-in user to /login. ensureSession() dedupes concurrent callers and
- * signs the store out on an auth verdict, so this only starts the cross-tab
- * logout listener and the analytics identity subscription, and flips
- * isBootstrapped, whether or not the refresh worked. A restore that ends with
- * no user also drops any person posthog-js still holds from an earlier visit
+ * Restores the session once per page load and then marks the store
+ * bootstrapped, whether or not the refresh worked. The access token is
+ * memory-only, so every reload starts signed out; without this, `_app` would
+ * bounce a signed-in user to /login. Also starts the cross-tab logout listener
+ * and the analytics identity subscription. A restore that ends with no user
+ * drops any person posthog-js still holds from an earlier visit
  * (`forgetStaleIdentity`), before the first page view: whoever is at the
  * browser now is not known to be them. After a failure that judged nothing
  * (a 502, say) the person is kept if another open tab answers that it is
@@ -61,6 +61,7 @@ export async function bootstrapSession(): Promise<void> {
   }
 }
 
+/** The app's router. Its context carries the query client for route loaders. */
 export const router = createRouter({
   routeTree,
   context: { queryClient },
@@ -80,6 +81,7 @@ installRouteFeatureProperties(router, queryClient)
 setErrorRouteSource(() => router.state.matches.at(-1)?.routeId)
 
 declare module '@tanstack/react-router' {
+  /** Types the app's router for `Link`, `useNavigate` and the other typed hooks. */
   interface Register {
     router: typeof router
   }

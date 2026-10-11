@@ -8,6 +8,7 @@ import {
   type READ_ONLY_MODE,
 } from '@/types/api.types'
 
+/** The maintenance mode and the owner's notice for it, with the setters for each way the app hears of a change. */
 interface MaintenanceModeState {
   mode: MaintenanceMode
   /** The owner's message for customers, plain text, or `null` when none is known. */
@@ -19,8 +20,9 @@ interface MaintenanceModeState {
    * (no header, a value an older or newer API sends) changes nothing: an
    * nginx 502 page carries no header and must never end maintenance. A cached
    * response carries the header it was stored with, which may be stale, so the
-   * status read sends `Cache-Control: no-cache`. A new mode drops the message and start time, which belonged
-   * to the old one, until the status endpoint or a 503 body supplies them.
+   * status read sends `Cache-Control: no-cache`. A different mode drops the
+   * message and start time, which belonged to the old one, until the status
+   * endpoint or a 503 body supplies them.
    */
   setFromHeader: (value: unknown) => void
   /** Applies a `GET /status/maintenance` answer, which is complete. */
@@ -32,6 +34,7 @@ interface MaintenanceModeState {
   setFromError: (code: typeof MAINTENANCE_MODE | typeof READ_ONLY_MODE, body: unknown) => void
 }
 
+/** `value` when it is a string, else `null`: a 503 body is untrusted JSON. */
 function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' ? value : null
 }

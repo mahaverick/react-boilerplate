@@ -6,6 +6,7 @@ import { refreshProfile } from '@/queries/profile.queries'
 import { tenantKeys } from '@/queries/tenant.queries'
 import type { AcceptedInvitation, ApiSuccess, InvitationPreview } from '@/types/api.types'
 
+/** The key of an invite link's preview, one entry per token, under an `invitations` prefix of its own. */
 export const invitationKeys = {
   preview: (token: string) => ['invitations', 'preview', token] as const,
 }
@@ -19,7 +20,7 @@ export const invitationKeys = {
  * access logs.
  *
  * A 404 is the answer ("invalid or expired"), so it is not retried; anything
- * else is retried once, as the app's query client does.
+ * else is retried once.
  */
 export function useInvitationPreview(token: string | undefined) {
   return useQuery({

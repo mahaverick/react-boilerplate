@@ -6,21 +6,6 @@
     "scripts/lint-docs.mjs",
     "src/observability/errors/scrub.ts"
   ],
-  "R3": [
-    "src/queries/audit.queries.ts",
-    "src/queries/auth.queries.ts",
-    "src/queries/beta.queries.ts",
-    "src/queries/invitation.queries.ts",
-    "src/queries/maintenance-status.queries.ts",
-    "src/queries/notification.queries.ts",
-    "src/queries/onboarding.queries.ts",
-    "src/queries/profile.queries.ts",
-    "src/queries/tenant.queries.ts",
-    "src/router.tsx",
-    "src/schemas/tenant.schemas.ts",
-    "src/states/maintenance-mode.store.ts",
-    "src/types/api.types.ts"
-  ],
   "R4": [
     "tests/fixtures/ids.ts",
     "tests/fixtures/non-verdict-failures.ts",
