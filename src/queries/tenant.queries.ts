@@ -81,7 +81,7 @@ export interface TenantMember {
 export interface TenantWithRole {
   tenant: Tenant
   role: MembershipRole
-  /** The platform tenant's row, which the tenant switcher leaves out. */
+  /** The platform tenant's row, which the tenant switcher leaves out: staff reach it from the user menu. */
   isPlatform: boolean
 }
 

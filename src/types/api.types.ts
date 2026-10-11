@@ -122,7 +122,11 @@ export interface AcceptedInvitation {
 /** `code` on the 409 for an invite to an address that already belongs to a member of this tenant. */
 export const ALREADY_MEMBER = 'already_member'
 
-/** `code` on the 409 for an invite that lost a race with another invitation for the same address. */
+/**
+ * `code` on the 409 for an invite that lost a race with another invitation for
+ * the same address. The revoke-and-reinsert runs in one transaction, so
+ * retrying after a refresh is safe.
+ */
 export const INVITATION_CONFLICT = 'invitation_conflict'
 
 /** `code` on the 404 for a resend or revoke of an invitation that is no longer pending. */
