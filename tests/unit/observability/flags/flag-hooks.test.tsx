@@ -33,6 +33,7 @@ const PLAIN = testFlagKey<MultivariateClientFlagKey>('test_plain')
 let queryClient: QueryClient
 let exposures: string[][]
 
+/** Gives the hook under test the shared query client. */
 function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 }

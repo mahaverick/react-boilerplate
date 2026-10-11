@@ -34,12 +34,14 @@ const AS_USER_A: AnalyticsIdentity = {
 }
 const fetchMock = vi.fn<typeof fetch>()
 
+/** An error whose stack names this app's bundle, as a production build's does. */
 function appError(message: string): Error {
   const error = new TypeError(message)
   error.stack = `TypeError: ${message}\n    at render (${location.origin}/assets/index-abc123.js:1:200)`
   return error
 }
 
+/** Every event sent by fetch so far, from the request bodies. */
 function sentEvents(): ExceptionEvent[] {
   return fetchMock.mock.calls.flatMap(([, init]) => {
     const body = JSON.parse(typeof init?.body === 'string' ? init.body : '') as {
@@ -65,10 +67,11 @@ afterEach(() => {
 })
 
 describe('an error noted before the reporter loads', () => {
+  /** Notes an error as user A, applies `change`, lets the reporter load, and returns the events it sent. */
   async function replayAfter(change: () => void): Promise<ExceptionEvent[]> {
     noteError(appError('noted as user A'), 'window', false)
     change()
-    // The reporter's chunk loads after the change, well inside the staleness window.
+    // The reporter's chunk loads after the change, well inside STALE_ERROR_MS.
     await vi.waitFor(() => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     })

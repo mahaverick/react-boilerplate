@@ -1,3 +1,11 @@
+/**
+ * @file The reference flags against a real express with feature flags on and a
+ * fake PostHog serving its definitions. It needs express 1.8.0 or later with
+ * `POSTHOG_FEATURE_FLAGS_KEY` set, at `E2E_API_ORIGIN` (the helpers' default is
+ * :4040, but point it at the express under test), and Mailpit for the account
+ * helpers. It is skipped unless `E2E_LIVE=1`, and `E2E_FLAGS_SET_CMD` must
+ * name the executable that changes a flag (see `cmd`).
+ */
 import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
 import { expect, test } from '@playwright/test'
@@ -14,31 +22,21 @@ import {
   logIn,
 } from './helpers'
 
-/**
- * The reference flags against a real express with feature flags on and a fake
- * PostHog serving its definitions. Needs express 1.8.0 or later with
- * `POSTHOG_FEATURE_FLAGS_KEY` set, at `E2E_API_ORIGIN` (the helpers' default is
- * :4040, but point it at the express under test), and Mailpit for the account
- * helpers. It is skipped unless `E2E_LIVE=1`. Run it with `pnpm test:e2e:live`.
- *
- * The live suite has no way to change the fake PostHog's flag definitions, so
- * this spec takes one from the environment. `E2E_FLAGS_SET_CMD` is an
- * executable that is run as `<cmd> <flag-key> <value>` and must leave the fake
- * serving that definition, then exit 0. The values are `on` or `off` for
- * `example_beta_page`, and `control` or `bold` for `example_cta_experiment`
- * (a multivariate flag the command keeps active at 100 % rollout). Express
- * reads definitions on a 30 s timer, so every assertion that follows a change
- * polls for up to 45 s. With `E2E_LIVE=1` and no variable the spec fails: a
- * live run that cannot change a flag has not checked the flags.
- */
-
 test.skip(process.env.E2E_LIVE !== '1', 'live backend required — run pnpm test:e2e:live')
 
+/**
+ * The executable that changes a flag in the fake PostHog, from `E2E_FLAGS_SET_CMD`.
+ * It is run as `<cmd> <flag-key> <value>` and must leave the fake serving that
+ * definition, then exit 0. The values are `on` or `off` for `example_beta_page`,
+ * and `control` or `bold` for `example_cta_experiment` (a multivariate flag the
+ * command keeps active at 100 % rollout). With `E2E_LIVE=1` and no variable the
+ * spec fails: a live run that cannot change a flag has not checked the flags.
+ */
 const cmd: string = process.env.E2E_FLAGS_SET_CMD ?? ''
 
 const execFile = promisify(execFileCallback)
 
-/** Longest wait for express to pick up a changed definition: one 30 s fetch, plus margin. */
+/** Longest wait for express to pick up a changed definition: it fetches every 30 s, plus margin. */
 const DEFINITIONS_WAIT = 45_000
 
 test.beforeAll(async () => {
@@ -54,6 +52,7 @@ test.beforeAll(async () => {
   }
 })
 
+/** Sets a flag's value in the fake PostHog through `E2E_FLAGS_SET_CMD`, rejecting if the command fails or takes over 30 s. */
 async function setFlag(key: string, value: string): Promise<void> {
   await execFile(cmd, [key, value], { timeout: 30_000 })
 }
@@ -70,6 +69,7 @@ test('flag changes reach the tab, the page, the API and the exposure report', as
   const token = await apiLogin(owner)
   await createTenant(token, { name: `E2E ${slug}`, slug })
 
+  /** The status the API answers the gated beta route with. */
   const beta = () => apiRequest(token, 'GET', `/tenants/${slug}/beta`).then((r) => r.status)
   await expect
     .poll(beta, { message: 'the API never opened the beta route', timeout: DEFINITIONS_WAIT })
@@ -101,13 +101,12 @@ test('flag changes reach the tab, the page, the API and the exposure report', as
   await settle(3000, 'absence has no event: a second exposure batch would have been sent by now')
   expect(exposures).toHaveLength(1)
 
-  // Beta on: the tab, the page, and the gated route's 200.
   const tabs = page.getByRole('navigation', { name: 'Tenant sections' })
   await tabs.getByRole('link', { name: 'Beta' }).click()
   await expect(page.getByText(`Beta features are on for ${slug}.`)).toBeVisible()
   expect(betaReads).toEqual([200])
 
-  // Beta off: the API refuses once express has fetched the new definitions.
+  // The API refuses only once express has fetched the changed definitions.
   await setFlag('example_beta_page', 'off')
   await expect
     .poll(beta, { message: 'the API kept answering the beta route', timeout: DEFINITIONS_WAIT })

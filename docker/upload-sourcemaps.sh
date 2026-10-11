@@ -1,9 +1,9 @@
 #!/bin/sh
 # Uploads dist/'s source maps to every PostHog project in
 # POSTHOG_SOURCEMAP_PROJECTS, one posthog-cli run per project, after the
-# Dockerfile's inject. Unset projects skip the upload; set projects with no
-# token, no maps to upload, or any failed, skipped or empty upload, fail the
-# build, so an image whose maps are missing is never pushed. The token is
+# Dockerfile's inject. With no projects set it skips the upload. With projects
+# set, a missing token, no maps, or any failed, skipped or empty upload fails
+# the build, so an image whose maps are missing is never pushed. The token is
 # read from the BuildKit secret file and never printed.
 set -eu
 
@@ -51,20 +51,20 @@ if ! find "$directory" -name '*.map' -type f | grep -q .; then
 fi
 
 for project in $(printf '%s' "$projects" | tr ',' ' '); do
-  # No --release-* flags: in event mode they record nothing (the events carry
-  # the release). No --no-fail and no `|| true`: a failed upload fails the build.
-  # The output is captured, then printed, so it can be read for skipped chunks.
+  # No --release-* flags: the CLI's default event mode keeps the maps
+  # release-independent, and each event carries its own release. No --no-fail
+  # and no `|| true`: a failed upload fails the build. The output is captured,
+  # then printed, so it can be read for skipped chunks.
   if ! output=$(POSTHOG_CLI_TOKEN=$token POSTHOG_CLI_ENV_ID=$project "$cli" sourcemap upload --directory "$directory" 2>&1); then
     if [ -n "$output" ]; then printf '%s\n' "$output" >&2; fi
     echo "sourcemaps: upload to project $project failed" >&2
     exit 1
   fi
   if [ -n "$output" ]; then printf '%s\n' "$output"; fi
-  # The CLI exits 0 after skipping a chunk as too large, or after finding
-  # nothing to upload, and either chunk would then ship with no map behind
-  # it: its output is the only sign. Its exact wording is not documented, so
-  # any "too large" fails unless that line's count is an explicit zero
-  # ("skipped 0 too large").
+  # A chunk skipped as too large would ship with no map behind it, and the
+  # CLI's output is the only sign. Its exact wording is not documented, so any
+  # "too large" line fails unless its count is an explicit zero ("skipped 0
+  # too large").
   if printf '%s\n' "$output" | grep -i 'too large' \
     | grep -Eiv '(^|[^0-9])0[^0-9]{0,8}too large|too large[^0-9]{0,8}0([^0-9]|$)' | grep -q .; then
     echo "sourcemaps: posthog-cli skipped chunks as too large for project $project" >&2
@@ -76,7 +76,7 @@ for project in $(printf '%s' "$projects" | tr ',' ' '); do
   # new to send. Per line and adjacent, so a count elsewhere in the output
   # ("Found 74 existing source map files") or a "none already present" does
   # not excuse it. Not caught: one line that says both, such as "No source
-  # maps found. Release 2 already exists"; the CLI's wording is undocumented.
+  # maps found. Release 2 already exists", which the second grep excuses.
   if printf '%s\n' "$output" | grep -Ei 'uploaded 0+([^0-9.]|$)|no source ?maps? (were )?found' \
     | grep -Eiv '[1-9][0-9]* (chunks? |source ?maps? |files? )?(already (uploaded|present|exist)|existing)' \
     | grep -q .; then

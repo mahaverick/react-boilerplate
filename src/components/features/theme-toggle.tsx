@@ -16,9 +16,8 @@ const OPTIONS: { value: Theme; label: string; Icon: typeof Sun }[] = [
 
 /**
  * The theme menu. The listener that makes `theme: 'system'` follow the OS is
- * in AppLayout, because this unmounts below `md`. Icon-only, and Base UI's
- * Tooltip is no accessible name, so the aria-label names it, on the rendered
- * element, whose own props win under useRender.
+ * in AppLayout, because this unmounts while the mobile drawer is closed. It is
+ * icon-only, so its `aria-label` is its accessible name.
  */
 export function ThemeToggle() {
   const theme = useThemeStore((s) => s.theme)

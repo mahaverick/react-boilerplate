@@ -1,8 +1,7 @@
 /**
- * @file NOT vendored, despite living under src/components/ui/: the registry's
- * sonner.tsx imports `next-themes` and an icon module that exists only inside
- * shadcn's monorepo, so this one reads the Zustand theme store instead. Do not
- * `shadcn add sonner`.
+ * @file Hand-written, not vendored, despite living under src/components/ui/:
+ * it reads the Zustand theme store rather than `next-themes`, which this app
+ * does not install. Do not `shadcn add sonner` over it.
  */
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 import { cn } from '@/lib/utils'

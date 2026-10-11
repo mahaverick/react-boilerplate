@@ -3,8 +3,9 @@ import { notAllowedMessage, safeText } from '@/schemas/safe-text.schemas'
 
 const MIN_PASSWORD_LENGTH = 8
 /**
- * bcrypt hashes at most 72 bytes and ignores the rest, so the API refuses a
- * longer password. Counted in bytes, not characters: one emoji is four.
+ * bcrypt uses only the first 72 bytes of a password and ignores the rest, so
+ * two passwords sharing that prefix would hash identically; the API refuses a
+ * longer password instead. Counted in bytes, not characters: one emoji is four.
  */
 const MAX_PASSWORD_BYTES = 72
 const MAX_EMAIL_LENGTH = 320
@@ -12,6 +13,7 @@ const MAX_NAME_LENGTH = 100
 
 const encoder = new TextEncoder()
 
+/** The email field's rule. The address is trimmed and lowercased before it is checked and sent. */
 export const emailSchema = z
   .string()
   .trim()
@@ -19,7 +21,7 @@ export const emailSchema = z
   .email('Enter a valid email address.')
   .max(MAX_EMAIL_LENGTH, `Email must be at most ${MAX_EMAIL_LENGTH} characters.`)
 
-/** Registration, reset and change-password policy. NOT used for login or verify-email. */
+/** The policy for a password being set: registration, reset and change-password. Login and verify-email apply none. */
 const newPasswordSchema = z
   .string()
   .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`)
@@ -42,12 +44,14 @@ function nameSchema(label: string) {
     .optional()
 }
 
+/** The sign-in form's values. */
 export const loginSchema = z.object({
   email: emailSchema,
   /** No policy: this is compared against a stored hash, as on the API. */
   password: z.string().min(1, 'Password is required.'),
 })
 
+/** The registration form's values; both names are optional. */
 export const registerSchema = z.object({
   email: emailSchema,
   password: newPasswordSchema,
@@ -55,8 +59,10 @@ export const registerSchema = z.object({
   lastName: nameSchema('Last name'),
 })
 
+/** The forgot-password form's values. */
 export const forgotPasswordSchema = z.object({ email: emailSchema })
 
+/** The reset form's values: the mailed token and the new password, entered twice. */
 export const resetPasswordSchema = z
   .object({
     token: z.string().min(1, 'Token is required.'),
@@ -68,12 +74,14 @@ export const resetPasswordSchema = z
     path: ['confirmPassword'],
   })
 
+/** The verify-email form's values: the mailed token and the account's password. */
 export const verifyEmailSchema = z.object({
   token: z.string().min(1, 'Token is required.'),
   /** Required by the API; no policy, since it is compared against a stored hash. */
   password: z.string().min(1, 'Password is required.'),
 })
 
+/** The resend-verification form's values. */
 export const resendVerificationSchema = z.object({ email: emailSchema })
 
 /**
@@ -91,10 +99,17 @@ export const changePasswordSchema = z
     path: ['confirmPassword'],
   })
 
+/** What the sign-in form submits, after parsing. */
 export type LoginInput = z.infer<typeof loginSchema>
+/** What the registration form submits, after parsing. */
 export type RegisterInput = z.infer<typeof registerSchema>
+/** What the forgot-password form submits, after parsing. */
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>
+/** What the reset form submits, after parsing. */
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
+/** What the verify-email form submits, after parsing. */
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>
+/** What the resend-verification form submits, after parsing. */
 export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>
+/** What the change-password form submits, after parsing. */
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>

@@ -63,6 +63,7 @@ export function formErrorsFrom(error: unknown): string[] {
   return allErrorsFrom(error)[FORM_ERRORS_KEY] ?? []
 }
 
+/** The envelope's `errors` map, or an empty one when the failure carried none. */
 function allErrorsFrom(error: unknown): Record<string, string[]> {
   if (error instanceof AxiosError) {
     const body = error.response?.data as ApiErrorBody | undefined

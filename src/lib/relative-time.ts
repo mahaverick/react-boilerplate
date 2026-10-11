@@ -9,7 +9,11 @@ const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['second', 1],
 ]
 
-/** "3 minutes ago", "yesterday", in the reader's own locale. `now` is for tests. */
+/**
+ * "3 minutes ago", "yesterday" or "in 2 hours", in the reader's own locale;
+ * "just now" within 45 seconds and "at an unknown time" for a date that does
+ * not parse. `now` is for tests.
+ */
 export function relativeTime(iso: string, now: number = Date.now()): string {
   const then = new Date(iso).getTime()
   if (Number.isNaN(then)) return 'at an unknown time'

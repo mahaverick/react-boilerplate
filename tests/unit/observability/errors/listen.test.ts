@@ -236,6 +236,7 @@ describe('the route source', () => {
 describe('a crashed route tree the router re-renders', () => {
   it('is one crash: the re-render after the router canonicalises the URL is not noted again', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    /** A layout whose render always throws. */
     function CrashingLayout(): never {
       throw new TypeError('name.trim is not a function')
     }
@@ -271,13 +272,13 @@ describe('a crashed route tree the router re-renders', () => {
     await vi.waitFor(() => {
       expect(reported).toHaveBeenCalled()
     })
-    // The replaced match reset the error boundary, so React caught a second, new error object…
+    // The replaced match reset the error boundary, so React caught a second, new error object.
     const caught = log.mock.calls
       .map(([error]: unknown[]) => error)
       .filter((error) => error instanceof TypeError)
     expect(caught).toHaveLength(2)
     expect(caught[0]).not.toBe(caught[1])
-    // …and error tracking noted only the first.
+    // Error tracking noted only the first.
     expect(reported).toHaveBeenCalledTimes(1)
     expect(reported).toHaveBeenCalledWith(
       caught[0],

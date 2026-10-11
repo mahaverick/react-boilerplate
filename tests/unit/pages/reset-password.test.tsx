@@ -21,6 +21,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/** Renders the real route tree at `path`, as a visitor reaches it. */
 function renderAt(path: string): AnyRouter {
   const router = createRouter({
     routeTree,
@@ -48,12 +49,7 @@ describe('reset-password page', () => {
     server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
   })
 
-  /**
-   * The wire shape, asserted on the intercepted body rather than read off the
-   * mutation: `confirmPassword` is a client-side concern and must not be
-   * posted, and a refactor to `apiClient.post(url, input)` would send it
-   * without any test noticing.
-   */
+  // Asserted on the intercepted body: `confirmPassword` is client-side only, and a refactor to `apiClient.post(url, input)` would send it unnoticed.
   it('posts the token and password only — never confirmPassword', async () => {
     let body: unknown
     server.use(

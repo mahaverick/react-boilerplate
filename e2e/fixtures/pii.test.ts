@@ -1,16 +1,13 @@
+/**
+ * @file The DOM half of the analytics PII guard. With `?pii=probe` the harness
+ * gives every person the probe's name and an address starting `pii-probe`, and
+ * on each page, with each name-bearing popup open, every text node containing a
+ * probe must sit inside an element carrying both `ph-sensitive` and `ph-mask`
+ * (what `<Pii>` renders). The network half, which reads what leaves the browser,
+ * is `e2e/nginx/analytics.test.ts`.
+ */
 import type { Page } from '@playwright/test'
 import { expect, test } from '../hermetic'
-
-/**
- * The DOM half of the analytics PII guard. The harness, with `?pii=probe`,
- * gives every person in its fixtures the probe's name and an address
- * starting `pii-probe`. On each page, and with each name-bearing popup open,
- * every text node that contains a probe must sit inside an element carrying
- * both `ph-sensitive` and `ph-mask` (what `<Pii>` renders): autocapture then
- * drops it from a clicked ancestor's `$el_text`, and replay masks it. The
- * network half, which reads what really leaves the browser, is
- * `e2e/nginx/analytics.test.ts`.
- */
 
 /** Each name part alone (the dashboard greets by first name) and the address prefix. */
 const PROBES = ['Pii', 'Probe', 'pii-probe']
@@ -18,11 +15,13 @@ const PROBES = ['Pii', 'Probe', 'pii-probe']
 /** A token the accept page's schema takes, so it renders the preview. */
 const TOKEN = 'pii-probe-token-'.padEnd(43, 'x')
 
+/** What a page scan found: how many probe text nodes are masked, and a description of each unmasked one. */
 interface ProbeScan {
   masked: number
   unmasked: string[]
 }
 
+/** Sorts the page's text nodes that contain a probe into masked (inside `.ph-sensitive.ph-mask`) and unmasked. */
 async function scanProbes(page: Page): Promise<ProbeScan> {
   return page.evaluate((probes) => {
     const scan: ProbeScan = { masked: 0, unmasked: [] }
@@ -45,6 +44,7 @@ async function expectAllMasked(page: Page, atLeast: number): Promise<void> {
   expect(scan.masked).toBeGreaterThanOrEqual(atLeast)
 }
 
+/** The harness URL for `path` in `?pii=probe` mode, with `extra` appended to the query. */
 function harness(path: string, extra = ''): string {
   return `/e2e/harness/?pii=probe&path=${path}${extra}`
 }

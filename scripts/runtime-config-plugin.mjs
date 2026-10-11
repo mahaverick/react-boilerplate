@@ -1,14 +1,13 @@
 /**
  * @file A Vite plugin that serves `/runtime-config.js` from the dev and
- * preview servers. In the image, docker/10-runtime-config.sh writes that file
- * from the container's environment; here it is rendered from the same names
- * with a `VITE_` prefix (`.env`, or the shell), the values
- * src/configs/runtime-config.ts reads outside a production bundle. index.html
- * then loads a real file on every server, and the browser sees the same
- * `window.__APP_CONFIG__` shape the image writes.
+ * preview servers, so index.html loads a real file on every server. The image
+ * gets that file from docker/10-runtime-config.sh; here it is rendered from the
+ * same names with a `VITE_` prefix (`.env`, or the shell), the values dev reads
+ * from `import.meta.env`, and defines the same `window.__APP_CONFIG__` shape.
+ * The app reads this file only in a production bundle, as under `vite preview`.
  */
 
-/** The settings, by container name: the same list as `RUNTIME_CONFIG_KEYS`. */
+/** The settings by container name; a test keeps this list equal to `RUNTIME_CONFIG_KEYS`. */
 export const RUNTIME_CONFIG_NAMES = [
   'POSTHOG_KEY',
   'POSTHOG_UI_HOST',
@@ -18,9 +17,11 @@ export const RUNTIME_CONFIG_NAMES = [
 ]
 
 /**
- * The file's text for `env`.
- * @param env - Vite's resolved env (`VITE_*` and its own keys).
- * @returns `window.__APP_CONFIG__ = Object.freeze({...})`, every value a JSON string.
+ * The text of `/runtime-config.js` for `env`: each listed setting as a string,
+ * empty when unset. `JSON.stringify` escapes the values, so a quote or newline
+ * in one cannot end its string literal.
+ * @param env - Vite's resolved env: the `VITE_*` variables and Vite's own keys.
+ * @returns A `window.__APP_CONFIG__ = Object.freeze({...})` statement.
  */
 export function renderRuntimeConfig(env) {
   const values = Object.fromEntries(
@@ -33,12 +34,16 @@ export function renderRuntimeConfig(env) {
 }
 
 /**
- * The plugin.
- * @returns A Vite plugin answering `GET /runtime-config.js` on the dev and preview servers.
+ * A Vite plugin that serves the rendered `/runtime-config.js`, uncached, on the
+ * dev and preview servers. The body is rendered once, when the config
+ * resolves, so it holds the env as of server start.
  */
 export function runtimeConfigPlugin() {
   let body = renderRuntimeConfig({})
-  /** @param {{ middlewares: { use: Function } }} server - The dev or preview server. */
+  /**
+   * Mounts the `/runtime-config.js` handler on a dev or preview server.
+   * @param server - The server whose middleware stack gets the handler.
+   */
   const serve = (server) => {
     server.middlewares.use('/runtime-config.js', (_request, response) => {
       response.setHeader('Content-Type', 'application/javascript')

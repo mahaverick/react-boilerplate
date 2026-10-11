@@ -73,6 +73,7 @@ const STEP_LINKS: ReadonlyMap<
 
 /** The focus targets this card moves between when an action replaces its own button. */
 type CardFocusKey = 'card' | 'all-set' | 'show' | `step:${string}`
+/** The focus handle the card's parts share, typed to its targets. */
 type CardFocus = FocusAfter<CardFocusKey>
 
 /** What the viewer may do here: staff through platform access may read, never act. */
@@ -85,6 +86,7 @@ interface Viewer {
   isOwner: boolean
 }
 
+/** Derives what a viewer may do from their role and how they reached the tenant. */
 function viewerFor(role: MembershipRole, access: TenantAccess): Viewer {
   const isMember = access === 'member'
   return {
@@ -220,6 +222,7 @@ function StepAction({
   return <StepLink slug={slug} link={link} />
 }
 
+/** One checklist row: its marker, title (a focus target), description and action. */
 function StepItem({
   slug,
   step,
@@ -330,6 +333,7 @@ function ShowGettingStarted({ slug, focus }: { slug: string; focus: CardFocus })
   )
 }
 
+/** The completion notice shown for 24 hours after the last required step; its heading is a focus target. */
 function AllSetCard({ focus }: { focus: CardFocus }) {
   return (
     <Card>

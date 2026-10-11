@@ -1,19 +1,18 @@
 /**
  * @file The entry point. React mounts only after `router.load()` settles, so
  * index.html's static splash stays up until the first commit already has a
- * real match (or an error match): `createRoot().render()` clears the
- * container on its first commit, and the router renders nothing until a match
- * exists. `finally` mounts React whether `load()` resolves or rejects, and the
- * trailing `catch` logs both a rejection of `load()` and a synchronous throw
- * from the mount (say `#root` missing), which would otherwise strand the
- * splash with nothing saying why. Analytics starts after the first load, so
- * the restored session's identity is queued before posthog-js loads. The
- * error listeners are installed before anything else can throw, and the root
- * hands React's caught and uncaught errors to error tracking.
+ * real match (or an error match). `createRoot().render()` clears `#root` on
+ * its first commit and the router renders nothing until a match exists, so
+ * mounting earlier would blank the splash. `finally` mounts React whether `load()`
+ * resolves or rejects, and the trailing `catch` logs a rejection of `load()`
+ * or a throw from the mount (say `#root` missing), which would otherwise
+ * strand the splash with nothing saying why. Analytics starts after that
+ * first load, so the restored session's identity is queued before posthog-js
+ * loads.
  */
 // First import: must run before any module builds a Zod schema (see the file).
 import '@/lib/zod-jitless'
-// Second: the error listeners, before any other module evaluates.
+// Second: the error listeners, before the rest of the app's modules evaluate.
 import '@/observability/errors/install'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'

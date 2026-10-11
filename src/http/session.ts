@@ -45,8 +45,8 @@ export class SessionIdentityChangedError extends Error {
  * - **5xx**: nginx answers 502/503 through a rolling restart, and the SSE
  *   stream reconnects through `ensureSession()`, so every open tab would sign
  *   out on every deploy.
- * - **429**: `/auth/refresh` is rate limited, and the stream calls
- *   `ensureSession()` on a schedule across every tab.
+ * - **429**: `/auth/refresh` is rate limited, and every tab's stream calls
+ *   `ensureSession()` when it drops.
  * - **A malformed 200**: `rejectMalformedJsonResponse` throws an `AxiosError`
  *   that carries a response.
  * - **No response**: a network error, DNS failure, axios timeout or abort.
@@ -63,9 +63,10 @@ export function isAuthVerdict(error: unknown): boolean {
 /**
  * Move the browser to /login after a session has ended: the one place that
  * navigation is written, for the 401 interceptor (interceptors.ts), the SSE
- * reconnect (`useNotificationStream`) and a logout broadcast from another tab.
- * `_app.beforeLoad` runs only on navigation, so without this a signed-out tab
- * would stay where it was, showing cached data.
+ * reconnect (`useNotificationStream`), the analytics identity check and a
+ * logout broadcast from another tab. `_app.beforeLoad` runs only on
+ * navigation, so without this a signed-out tab would stay where it was,
+ * showing cached data.
  *
  * The caller's `pathname + search + hash` goes into `?redirect=`, as `_app`'s
  * guard does, and `login.tsx` reads it back through `safeRedirect`, which
@@ -94,6 +95,7 @@ const AUTH_CHANNEL = 'auth'
 /** Web Lock name that serialises POST /auth/refresh across tabs. */
 const REFRESH_LOCK = 'auth-refresh'
 
+/** A message on the auth channel; `type: 'logout'` is the only one this app sends. */
 interface AuthMessage {
   type?: string
 }
@@ -102,6 +104,7 @@ interface AuthMessage {
 let channel: BroadcastChannel | null = null
 let uninstallListener: (() => void) | null = null
 
+/** This tab's auth channel, opened on first use; null where BroadcastChannel does not exist. */
 function authChannel(): BroadcastChannel | null {
   if (typeof BroadcastChannel === 'undefined') return null
   channel ??= new BroadcastChannel(AUTH_CHANNEL)
@@ -119,6 +122,7 @@ export function installAuthBroadcastListener(): () => void {
   const target = authChannel()
   if (!target) return () => {}
 
+  /** Ends this tab's session on a logout message from another tab. */
   const onMessage = (event: MessageEvent<AuthMessage | null>) => {
     // A tab already signed out (on /login, say) has nothing to end and must not reload.
     if (event.data?.type !== 'logout' || !useAuthStore.getState().isAuthenticated) return
@@ -141,17 +145,19 @@ let uninstallAnalyticsIdentity: (() => void) | null = null
  * another tab, or a refresh that failed with one. A different user, or none,
  * resets first, so the next person's events never carry the last one's
  * distinct id, and drops every flag value and exposure mark the last one had,
- * so nobody sees another person's flags; a user is then identified by id alone after their own opt-out
- * is applied, so an opted-out user's identify is never captured. When
- * analytics reports that another tab signed a different person in under this
- * one, the session is refreshed: a refresh that returns that person signs this
- * tab out (`SessionIdentityChangedError`); one that returns this tab's user
- * confirms it to analytics (`confirmSignedInUser`); a failed one is retried
- * on analytics' next recheck. Idempotent; returns the cleanup.
+ * so nobody sees another person's flags. A user is then identified by id
+ * alone, after their own opt-out is applied, so an opted-out user's identify
+ * is not captured. When analytics reports that another tab signed a different
+ * person in under this one, the session is refreshed: a refresh that returns
+ * that person signs this tab out (`SessionIdentityChangedError`); one that
+ * returns this tab's user confirms it to analytics (`confirmSignedInUser`); a
+ * failed one is retried on analytics' next recheck. Idempotent; returns the
+ * cleanup.
  * @param queryClient - The client holding the flag queries.
  */
 export function installAnalyticsIdentity(queryClient: QueryClient): () => void {
   if (uninstallAnalyticsIdentity) return uninstallAnalyticsIdentity
+  /** Brings analytics' identity and the flag caches in step with a change of the store's user. */
   const apply = (user: User | null, previous: User | null) => {
     if (previous && previous.id !== user?.id) {
       resetAnalytics()
@@ -205,7 +211,7 @@ let inFlight: Promise<string> | null = null
  * as someone else signs itself out, rather than carry on as them, and leaves
  * the other tab signed in.
  * @returns The new access token.
- * @throws The failure of either request, rethrown.
+ * @throws The failure of either request, rethrown, or `SessionIdentityChangedError`.
  */
 async function refreshSession(): Promise<string> {
   try {
@@ -224,7 +230,7 @@ async function refreshSession(): Promise<string> {
 
     const profile = unwrap(profileResponse)
     const current = useAuthStore.getState().user
-    // The catch below signs this tab out (no broadcast for this error); the 401 interceptor then redirects instead of replaying as them.
+    // The catch below signs this tab out without a broadcast; callers redirect to /login on this verdict rather than carry on as them.
     if (current && current.id !== profile.id) throw new SessionIdentityChangedError()
 
     useAuthStore.getState().login(accessToken, profile)
@@ -268,7 +274,7 @@ export function ensureSession(): Promise<string> {
   return inFlight
 }
 
-/** Test-only: drop the cached promise, this tab's broadcast channel and the analytics subscription. */
+/** Test-only: drop the cached promise, the auth and analytics listeners and this tab's broadcast channel. */
 export function resetSessionForTests(): void {
   inFlight = null
   uninstallAnalyticsIdentity?.()

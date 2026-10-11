@@ -7,9 +7,10 @@ type PiiElement = 'span' | 'div' | 'p' | 'pre' | 'dd' | 'li'
 
 /**
  * Marks a person's name, email address, initials or an invitation address so
- * analytics never captures it: `ph-sensitive` keeps it out of a clicked
- * parent's `$el_text`, `ph-mask` masks it in session replay. Wrap only the PII
- * itself, not the sentence around it, so replay keeps the rest readable.
+ * analytics does not capture it: `PII_CLASS_NAME` adds `ph-sensitive`, which
+ * keeps the text out of a clicked parent's `$el_text`, and `ph-mask`, which
+ * masks it in session replay. Wrap only the PII itself, not the sentence
+ * around it, so replay keeps the rest readable.
  */
 export function Pii({
   as: Element = 'span',

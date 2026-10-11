@@ -22,9 +22,10 @@ const PREVIEW_COUNT = 5
  * The count comes from the loaded pages (the API has no unread-count
  * endpoint) and is unknown, not zero, until data exists. It lives in the
  * trigger's label, because Base UI's Tooltip emits neither role="tooltip" nor
- * aria-describedby and the badge is not a name; the label says "count
- * unavailable" rather than "0 unread" when nothing has loaded. The label sits
- * on the rendered element, whose own props win under useRender.
+ * aria-describedby and the badge is aria-hidden, so neither would carry it;
+ * the label says "count unavailable" rather than "0 unread" when nothing has
+ * loaded. The label sits on the rendered element, whose own props win under
+ * useRender.
  *
  * The `DropdownMenuGroup` is required: `DropdownMenuLabel` is Base UI's
  * `Menu.GroupLabel`, which throws outside a `Menu.Group`. The group also

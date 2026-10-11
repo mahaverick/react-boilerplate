@@ -13,10 +13,10 @@ import { analyticsConfigFor, stopPersisting } from '@/tests/mocks/posthog'
 import { server } from '@/tests/mocks/server'
 
 /**
- * The facade over the real, pinned posthog-js (no stand-in), for the one
- * behaviour of the SDK the facade exists to undo: `reset()` drops every
- * `register()`ed property, so without the facade the next person's events
- * would not say which app or environment they came from.
+ * The facade over the real, pinned posthog-js (no stand-in), for the SDK
+ * behaviour it undoes: `reset()` drops every `register()`ed property, so
+ * without the facade the next person's events would not say which app or
+ * environment they came from.
  */
 describe('the facade over the pinned posthog-js', () => {
   afterEach(() => {
@@ -53,14 +53,15 @@ describe('the facade over the pinned posthog-js', () => {
 
 /**
  * `required` mode over the real SDK: posthog-js drops every capture while the
- * banner is unanswered, the router's pageview of the landing page included,
- * and its own pageviews are off, so the facade captures the page on screen
- * when the banner is answered. Each test loads a fresh SDK and facade.
+ * banner is unanswered, the router's landing page view included, and its own
+ * page views are off, so the facade captures the page on screen when the
+ * banner is answered. Each test loads a fresh SDK and facade.
  */
 describe('the banner answer over the pinned posthog-js', () => {
   let facade: typeof import('@/observability/analytics/analytics')
   let instance: PostHog
 
+  /** Loads a fresh SDK and facade in `required` mode with the banner unanswered; returns the events captured from then on. */
   async function loadRequired(): Promise<CaptureResult[]> {
     server.use(http.all('http://localhost:3000/api/v1/collect/*', () => HttpResponse.json({})))
     vi.resetModules()

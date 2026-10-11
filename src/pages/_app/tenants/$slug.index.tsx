@@ -28,6 +28,7 @@ import { formatDate } from '@/lib/format'
 import { useMyRole, useTenant, useUpdateTenant, type Tenant } from '@/queries/tenant.queries'
 import { updateTenantSchema } from '@/schemas/tenant.schemas'
 
+/** The tenant's Overview tab, its default child route. */
 export const Route = createFileRoute('/_app/tenants/$slug/')({
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Overview · ${params.slug}`) }] }),
   staticData: { crumb: 'Overview' },
@@ -49,6 +50,7 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
   )
 }
 
+/** The tenant's details as a read-only list, for members who may not edit them. */
 function TenantDetails({ tenant }: { tenant: Tenant }) {
   return (
     <dl className="grid gap-4 sm:grid-cols-2">
@@ -64,12 +66,13 @@ function TenantDetails({ tenant }: { tenant: Tenant }) {
 
 /**
  * The edit form. Owner and admin only: `PATCH /tenants/:slug` is gated
- * `requireRole('owner', 'admin')`. There is no slug field, since the API's
- * `updateTenantSchema` omits it. Only the fields the user changed from the
- * row (as loaded until the first edit, blur or save attempt, or as last saved)
- * are checked and sent, so a stored value that today's rules refuse does not block saving the
- * others, and a refetch that brings another admin's change does not send it
- * back. With nothing changed, Save sends nothing and asks for a change instead.
+ * `requireRole('owner', 'admin')`. There is no slug field, since
+ * `updateTenantSchema` omits it, as the server's does. Only the fields the
+ * user changed from the row (as loaded until the first edit, blur or save
+ * attempt, or as last saved) are checked and sent, so a stored value that
+ * today's rules refuse does not block saving the others, and a refetch that
+ * brings another admin's change does not send it back. With nothing changed,
+ * Save sends nothing and asks for a change instead.
  * The changed fields are parsed before posting, so an emptied box goes over as
  * `null` and clears the column: `''` would be a 400, and an omitted key would
  * keep the old value.

@@ -10,6 +10,7 @@ import {
 } from '@/lib/api-error'
 import type { ApiErrorBody } from '@/types/api.types'
 
+/** An Axios error whose response carries `body`, as the API's error envelope arrives. */
 function axiosErrorWith(body: ApiErrorBody): AxiosError {
   const config = { headers: new AxiosHeaders() }
   return new AxiosError(body.message, String(body.statusCode), config, null, {
@@ -25,7 +26,7 @@ const VALIDATION_FAILURE = axiosErrorWith({
   success: false,
   message: 'Validation failed.',
   statusCode: 422,
-  // Exactly the shape the backend builds from z.flattenError: {...fieldErrors, ...(formErrors.length > 0 && { formErrors })}.
+  // The backend's shape: `z.flattenError`'s field errors, plus `formErrors` when there are any.
   errors: {
     email: ['Enter a valid email address.'],
     formErrors: ['Passwords do not match.'],
@@ -44,11 +45,7 @@ describe('api-error', () => {
   })
 
   it('keeps the reserved formErrors key out of the field errors', () => {
-    /**
-     * The load-bearing assertion: `formErrors` is the ONE key in `errors`
-     * that is not a field name. Left in, it would render an error against
-     * an input called "formErrors", which no form has.
-     */
+    // `formErrors` is the one key in `errors` that is not a field name; left in, it would render against an input called "formErrors".
     expect(fieldErrorsFrom(VALIDATION_FAILURE)).toEqual({
       email: ['Enter a valid email address.'],
     })

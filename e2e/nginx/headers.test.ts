@@ -1,16 +1,15 @@
+/**
+ * @file The production image's response headers, on the responses it serves
+ * without a backend. Tagged `@no-api`, so CI runs it against the container with
+ * nothing behind `/api`. `/api/` responses are left out: with a live API they
+ * carry express's own security headers instead.
+ */
 import { expect, test, type APIRequestContext } from '@playwright/test'
 import { requireServedApp, SECURITY_HEADERS } from './csp'
 
-/**
- * The production image's response headers, on the responses it serves without
- * a backend. Tagged `@no-api`, so CI runs it against the container with
- * nothing behind `/api`. `/api/` responses are left out: with a live API they
- * also carry express's own security headers.
- */
-
 test.beforeAll(requireServedApp)
 
-/** The entry chunk index.html names: a real, content-hashed asset. */
+/** The path of the entry chunk index.html names: a real, content-hashed asset. */
 async function entryChunk(request: APIRequestContext): Promise<string> {
   const html = await (await request.get('/')).text()
   const chunk = /\/assets\/index-[\w-]+\.js/.exec(html)?.[0]
@@ -81,12 +80,7 @@ test(
   'the theme script is loaded by a plain, blocking script tag',
   { tag: '@no-api' },
   async ({ request }) => {
-    /**
-     * Pinned against the served bundle, not the source: `type="module"` or
-     * `async`/`defer` would let the bundle paint before the theme class is
-     * set, which is exactly the flash-of-wrong-theme this tag exists to
-     * prevent — and `script-src 'self'` still allows any of them.
-     */
+    // Pinned against the served HTML: `type="module"`, `async` or `defer` would let the page paint before the theme class is set, and `script-src 'self'` allows all three.
     const html = await (await request.get('/')).text()
     expect(html).toContain('<script src="/theme-init.js"></script>')
   }

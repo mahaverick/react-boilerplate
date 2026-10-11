@@ -1,26 +1,25 @@
-import type { BrowserContext } from '@playwright/test'
-import { expect, FALLBACK_HEADER, test } from '../hermetic'
-
 /**
- * Maintenance mode through the harness, in a real browser. The harness leaves
- * the status read unmocked, so these tests answer it, and the write they
+ * @file Maintenance mode through the harness, in a real browser. The harness
+ * leaves the status read unmocked, so these tests answer it, and the write they
  * refuse, with `context.route`, which Playwright consults before the hermetic
  * fallback. Each answer carries `FALLBACK_HEADER` and the `Maintenance-Mode`
- * header express sets on every response. Express's own side, the gate and the
- * mode switch, needs the live stack.
+ * header express sets on every response.
  */
+import type { BrowserContext } from '@playwright/test'
+import { expect, FALLBACK_HEADER, test } from '../hermetic'
 
 const SINCE = '2026-10-06T10:42:00.000Z'
 const MESSAGE = 'Upgrading the database. Back by 11:00.'
 
+/** The modes express reports in `Maintenance-Mode`. */
 type Mode = 'off' | 'read_only' | 'full'
 
 const HARNESS_ACME = '/e2e/harness/?path=/tenants/acme'
 
 /**
- * The dev server transforms a lazily loaded route's modules on first request,
- * which has taken past 5s under load (the contrast suite measured past 7s);
- * each test's first page assertion waits this long, below the 30s test timeout.
+ * How long a test's first page assertion waits for the dev server to transform
+ * a lazily loaded route on its first request, which has taken over 5s under
+ * load (over 7s in the contrast suite). It stays below Playwright's 30s test timeout.
  */
 const COLD_TRANSFORM_BUDGET_MS = 20_000
 

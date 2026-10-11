@@ -1,3 +1,10 @@
+/**
+ * @file The enforced Content-Security-Policy against the real bundle. Tagged
+ * `@no-api`: CI runs these against the container with nothing behind `/api`, so
+ * the session bootstrap's refresh answers 502 and the page still has to render.
+ * The sign-in test and the dark-scheme theme-script test also assert the policy
+ * header, or "no violation" would pass on an image that sends no policy at all.
+ */
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { afterFontsAndFrames } from '../timing'
 import {
@@ -7,19 +14,12 @@ import {
   watchCspViolations,
 } from './csp'
 
-/**
- * The enforced Content-Security-Policy against the real bundle. Tagged
- * `@no-api`: CI runs these against the container with nothing behind `/api`,
- * so the session bootstrap's refresh answers 502 and the page still has to
- * render. Each test asserts the policy header too, or "no violation" would
- * pass on an image that sends no policy at all.
- */
-
 test.beforeAll(requireServedApp)
 
 /**
- * Records, from now on, every script chunk `page` fetches that index.html
- * does not load up front: the chunks the router loads on demand.
+ * Records every script chunk `page` fetches after this call that index.html
+ * does not name: the chunks the router loads on demand. The returned list keeps
+ * filling.
  */
 async function recordOnDemandChunks(page: Page, request: APIRequestContext): Promise<string[]> {
   const html = await (await request.get('/')).text()
@@ -45,12 +45,7 @@ test(
     await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
     // sonner injects a <style> element: the page really exercised style-src.
     await expect(page.locator('head style')).not.toHaveCount(0)
-    /**
-     * The heading means the root beforeLoad's refresh has settled and the
-     * route's lazy chunk has run. A late violation can still come from the
-     * webfont or a lazily loaded chunk, so wait for the fonts and one page
-     * task.
-     */
+    // The heading means the refresh has settled and the route's lazy chunk has run; a late violation can still come from the webfont or a lazy chunk, so wait for the fonts and one page task.
     await expect.poll(() => onDemand.length).toBeGreaterThan(0)
     await afterFontsAndFrames(page)
     await flushCspReports(page)

@@ -2,17 +2,46 @@ import js from '@eslint/js'
 import tanstackRouter from '@tanstack/eslint-plugin-router'
 import prettier from 'eslint-config-prettier'
 import checkFile from 'eslint-plugin-check-file'
+import jsdoc from 'eslint-plugin-jsdoc'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tailwindcss from 'eslint-plugin-tailwindcss'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
+import jsdocPending from './jsdoc-pending.json' with { type: 'json' }
 import { commentStyleRule } from './scripts/comment-style.mjs'
 
 const SLEEP_MESSAGE =
   'Wait on a condition, not a duration: findBy*/waitFor/vi.waitFor, expect.poll or a web-first assertion in e2e, fake timers, or settle(ms, reason) from @/tests/fixtures/timing (e2e: ./timing) when nothing can be observed.'
 const NETWORKIDLE_MESSAGE =
   "networkidle waits on every request the page makes, including ones this test does not care about. Assert what the page renders (a heading's toBeVisible) or wait for the one response that matters."
+
+/**
+ * Every named function, method and class; inline callbacks and constructors
+ * are exempt by construction.
+ */
+const NAMED_FUNCTIONS = [
+  'FunctionDeclaration',
+  'TSDeclareFunction',
+  'ClassDeclaration',
+  'MethodDefinition:not([kind="constructor"]):not([value.body=null])',
+  'TSAbstractMethodDefinition',
+  'VariableDeclarator > ArrowFunctionExpression',
+  'VariableDeclarator > FunctionExpression',
+  'PropertyDefinition > ArrowFunctionExpression',
+]
+/** Named functions plus interfaces, type aliases and exported consts. */
+const JSDOC_CONTEXTS = [
+  ...NAMED_FUNCTIONS,
+  'TSInterfaceDeclaration',
+  'TSTypeAliasDeclaration',
+  'ExportNamedDeclaration[declaration.type="VariableDeclaration"]',
+]
+/**
+ * Files whose comments are not yet converted, keyed by plan task; each
+ * comment PR deletes its key.
+ */
+const PENDING = Object.values(jsdocPending).flat()
 
 export default tseslint.config(
   {
@@ -51,9 +80,9 @@ export default tseslint.config(
      * Root-level configs get no type information (only the src/, tests/ and e2e/
      * blocks set typed parser options), so typed rules throw on them: they are
      * linted syntactically only, and listed by name so this block never covers
-     * a file under src/. The tailwind rules are off because the plugin's own
-     * `files` glob matches them, and without `cssConfigPath` (scoped to src/)
-     * it falls back to 'src/style.css' and throws ENOENT.
+     * a file under src/. The Tailwind rules are off because the plugin's own
+     * `files` glob matches them and, without `cssConfigPath` (set only for
+     * src/), it falls back to 'src/style.css' and throws ENOENT.
      */
     files: [
       'eslint.config.js',
@@ -79,7 +108,7 @@ export default tseslint.config(
     /**
      * The pre-paint theme script: a classic browser script served as-is from
      * public/, outside every tsconfig, so it is linted syntactically only. The
-     * tailwind rules are off for the reason given on the root-config block.
+     * Tailwind rules are off for the reason given on the root-config block.
      */
     files: ['public/theme-init.js'],
     extends: [tseslint.configs.disableTypeChecked],
@@ -104,7 +133,7 @@ export default tseslint.config(
   {
     /**
      * The e2e suite and its fixture harness, with typed linting: e2e/tsconfig.json
-     * lets `projectService` find these files. The tailwind rules are off for the
+     * lets `projectService` find these files. The Tailwind rules are off for the
      * reason given on the root-config block.
      */
     files: ['e2e/**/*.{ts,tsx}'],
@@ -183,7 +212,7 @@ export default tseslint.config(
     /**
      * The Vitest suite, with typed linting (tsconfig.app.json includes tests/)
      * and the same react-hooks rules as src/, since tests render components and
-     * call hooks. The tailwind rules are off for the reason given on the
+     * call hooks. The Tailwind rules are off for the reason given on the
      * root-config block.
      */
     files: ['tests/**/*.{ts,tsx}'],
@@ -303,8 +332,8 @@ export default tseslint.config(
   ...tanstackRouter.configs['flat/recommended'],
   {
     /**
-     * Vendored shadcn output: linting it churns the diff on every upstream
-     * re-add, and its class strings are upstream's. This block must come after
+     * Vendored shadcn output: these rules would rewrite upstream's class strings
+     * and churn the diff on every re-add. This block must come after
      * tailwindcss.configs.recommended, whose own `files` glob is not stopped by
      * the `ignores` on the settings block.
      */
@@ -359,7 +388,7 @@ export default tseslint.config(
       'tailwindcss/important-modifier-suffix': 'warn',
       'tailwindcss/no-arbitrary-value': 'off',
       'tailwindcss/no-contradicting-classname': 'error',
-      /** `toaster` is sonner's own class, the hook its stylesheet targets. */
+      /** `toaster` is a marker class that sonner.tsx sets beside `group`; no Tailwind class defines it. */
       'tailwindcss/no-custom-classname': ['warn', { whitelist: ['toaster'] }],
       'tailwindcss/no-unnecessary-arbitrary-value': 'warn',
     },
@@ -375,5 +404,51 @@ export default tseslint.config(
     plugins: { local: { rules: { 'comment-style': commentStyleRule } } },
     rules: { 'local/comment-style': 'error' },
   },
+  {
+    // Every named function, method and class carries a JSDoc purpose line; tags only where they add what types cannot.
+    files: ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'],
+    plugins: { jsdoc },
+    rules: {
+      'jsdoc/require-jsdoc': [
+        'error',
+        {
+          publicOnly: false,
+          require: { FunctionDeclaration: false },
+          contexts: JSDOC_CONTEXTS,
+          checkConstructors: false,
+          // lint-staged runs eslint --fix, and this fixer inserts blank stubs.
+          enableFixer: false,
+        },
+      ],
+      'jsdoc/require-description': ['error', { contexts: JSDOC_CONTEXTS }],
+      'jsdoc/no-blank-blocks': ['error', { enableFixer: false }],
+      'jsdoc/check-param-names': ['error', { checkDestructured: false }],
+      'jsdoc/check-tag-names': ['error', { typed: true }],
+      'jsdoc/no-types': 'error',
+    },
+  },
+  {
+    // .d.mts mirrors its .mjs exports; a second JSDoc copy would drift.
+    files: ['scripts/**/*.d.mts'],
+    rules: { 'jsdoc/require-jsdoc': 'off' },
+  },
+  {
+    // Vendored shadcn/Base UI output stays as upstream ships it.
+    files: ['src/components/ui/!(form|sonner).tsx'],
+    rules: { 'jsdoc/require-jsdoc': 'off', 'jsdoc/require-description': 'off' },
+  },
+  ...(PENDING.length > 0
+    ? [
+        {
+          files: PENDING,
+          rules: {
+            'jsdoc/require-jsdoc': 'off',
+            'jsdoc/require-description': 'off',
+            'jsdoc/check-param-names': 'off',
+            'jsdoc/no-types': 'off',
+          },
+        },
+      ]
+    : []),
   prettier
 )

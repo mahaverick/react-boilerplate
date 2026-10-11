@@ -8,9 +8,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 /**
  * docker/upload-sourcemaps.sh, run by `sh` as the image's build stage runs
  * it, against a stand-in posthog-cli that records each run's arguments and
- * environment, prints `CLI_OUTPUT` when set, and exits with the code its
- * test chose. It runs in a temporary directory whose `dist` holds one source
- * map, as the build stage's does after inject.
+ * environment, prints `CLI_OUTPUT` when set, and exits 1 for the projects in
+ * `FAIL_PROJECTS`. It runs in a temporary directory whose `dist` holds one
+ * source map, as the build stage's does after inject.
  */
 
 const SCRIPT = path.resolve(import.meta.dirname, '../../../docker/upload-sourcemaps.sh')
@@ -40,6 +40,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
+/** Runs the script in the temporary directory with `env`; `token` goes in the secret file, and `null` leaves the file missing. */
 function runScript(env: Record<string, string>, token: string | null = TOKEN) {
   const tokenFile = path.join(dir, 'token')
   if (token !== null) writeFileSync(tokenFile, token)

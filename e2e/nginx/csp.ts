@@ -1,11 +1,16 @@
+/**
+ * @file The Content-Security-Policy and security headers `nginx.conf` sends,
+ * as the nginx e2e tests expect them, and helpers that collect CSP violations
+ * from a page.
+ */
 import type { Page } from '@playwright/test'
 import { afterPageTask } from '../timing'
 
-/** The policy nginx.conf sends, character for character. */
+/** The policy `nginx.conf` sends when the response carries none of its own, character for character. */
 export const CONTENT_SECURITY_POLICY =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 
-/** Every security header nginx.conf sets on its server block, with its exact value. */
+/** Every security header `nginx.conf` sets on its server block, with the value it sends when the response carries none of its own. */
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'content-security-policy': CONTENT_SECURITY_POLICY,
   'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
@@ -16,9 +21,10 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
 }
 
 /**
- * Collects every CSP violation on `page` from now on, across navigations. The
- * listener is an init script, so it is in place before any of a document's own
- * scripts run. Console errors naming the policy are collected as well.
+ * Collects every CSP violation `page` reports after this call, across
+ * navigations, into the returned list, which keeps filling. The listener is an init script, so it
+ * is in place before any of a document's own scripts run. Console errors naming
+ * the policy are collected as well.
  */
 export async function watchCspViolations(page: Page): Promise<string[]> {
   const violations: string[] = []
@@ -58,8 +64,8 @@ export async function requireServedApp(): Promise<void> {
 }
 
 /**
- * Waits for one round trip to the page, so a violation report sent before it
- * has reached the test. Call it before asserting on the collected list.
+ * Waits for one round trip to the page, so a violation the page queued before it
+ * has reached the list. Call it before asserting on the list.
  */
 export async function flushCspReports(page: Page): Promise<void> {
   await afterPageTask(page)

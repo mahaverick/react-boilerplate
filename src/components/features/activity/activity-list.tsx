@@ -21,6 +21,7 @@ const MORE_ERROR =
  */
 const REFETCH_ERROR = 'We could not refresh the activity. What is listed above may be out of date.'
 
+/** The entries and the load state `ActivityList` renders, as a paginated audit query reports them. */
 export interface ActivityListProps<T extends AuditEntry> {
   entries: T[]
   isPending: boolean
@@ -67,9 +68,10 @@ function ActivityRow<T extends AuditEntry>({ entry }: { entry: T }) {
 }
 
 /**
- * A tenant's audit log, newest first (the Activity tab). The same states as every list here: in
- * flight, failed, empty, and loaded with a keyboard-reachable Load more. The
- * error is checked before the empty state, since `[]` is what both look like.
+ * A tenant's audit log, newest first (the Activity tab). The same states as every list
+ * here: in flight, failed, empty, and loaded with a keyboard-reachable Load
+ * more. The error is checked before the empty state, since `[]` is what both
+ * look like.
  */
 export function ActivityList<T extends AuditEntry>({
   entries,

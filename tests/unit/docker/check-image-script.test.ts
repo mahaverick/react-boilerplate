@@ -23,6 +23,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
+/** Runs the script's `--check-bundle` mode on a bundle with these contents, for the release the build defines. */
 function checkBundle(bundle: string, release = RELEASE) {
   const file = path.join(dir, 'bundle.js')
   writeFileSync(file, bundle)

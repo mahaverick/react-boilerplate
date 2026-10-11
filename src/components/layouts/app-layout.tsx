@@ -56,6 +56,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: ROUTES.tenants, label: 'Tenants', Icon: Building2 },
 ]
 
+/** One breadcrumb link: the page's label and the path it opens. */
 interface Crumb {
   /** Stable across renders: one crumb per matched route. */
   key: string
@@ -124,12 +125,13 @@ function isNavActive(pathname: string, to: string): boolean {
  *
  * It holds the one mount of the notification stream, of the `$feature/*`
  * super-property sync (`useFeaturePropertiesSync`), and of the listener that
- * makes `theme: 'system'` follow the OS (the theme store samples
- * `prefers-color-scheme` once, at import). All three live here, not in the sidebar:
- * below `md` the `Sidebar` renders into a `Sheet`, whose content unmounts
- * while the drawer is closed, so anything inside it would be dead on phones.
- * The theme toggle is a sibling of the user menu for the same reason: inside
- * the dropdown it would unmount whenever the menu closed.
+ * makes `theme: 'system'` follow the OS: it calls `setTheme('system')` on each
+ * `prefers-color-scheme` change, and the theme store samples that setting on
+ * each `setTheme`. All three live here, not in the sidebar: below `md` the
+ * `Sidebar` renders into a `Sheet`, whose content unmounts while the drawer is
+ * closed, so anything inside it would be dead on phones. The theme toggle is a
+ * sibling of the user menu, not an item in its dropdown, which unmounts its
+ * content whenever the menu closes.
  *
  * The primary navigation sits in its own `nav` landmark, since `Sidebar`
  * renders plain divs, and each item renders as the anchor itself, so it is
@@ -159,6 +161,7 @@ export function AppLayout() {
   useEffect(() => {
     if (theme !== 'system') return
     const media = window.matchMedia('(prefers-color-scheme: dark)')
+    /** Re-applies the `system` theme so the document class follows the OS. */
     const onChange = () => setTheme('system')
     media.addEventListener('change', onChange)
     return () => media.removeEventListener('change', onChange)

@@ -15,11 +15,13 @@ import {
 /** The layout route every tenant page sits under; its loader resolves the tenant. */
 export const TENANT_ROUTE_ID = '/_app/tenants/$slug'
 
+/** The tenant a resolved page belongs to, and how the user reached it. */
 interface RouteTenant {
   id: string
   access: AnalyticsTenantAccess
 }
 
+/** Whether tenant-route loader data has the shape analytics needs to group by. */
 function isRouteTenant(data: unknown): data is RouteTenant {
   if (typeof data !== 'object' || data === null) return false
   const { id, access } = data as Record<string, unknown>
@@ -42,9 +44,9 @@ function resolvedTenant(router: AnyRouter): RouteTenant | null {
 
 /**
  * Subscribes analytics to the router's resolves. Every resolve sets or
- * clears the tenant group, a reload of the same page included; only a new
- * path is a page view, as posthog-js counts them. Install it before the
- * router's first load, so the first page is counted too.
+ * clears the tenant group, a reload of the same page included; only a changed
+ * path captures a page view. Install it before the router's first load, so the
+ * first page is counted too.
  * @param router - The app's router.
  * @returns The unsubscribe.
  */

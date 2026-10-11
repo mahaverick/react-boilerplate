@@ -31,6 +31,7 @@ import {
 } from '@/queries/tenant.queries'
 import { tenantSettingsFormSchema } from '@/schemas/tenant.schemas'
 
+/** The Settings tab: timezone, locale and metadata, editable by owners and admins. */
 export const Route = createFileRoute('/_app/tenants/$slug/settings')({
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Settings · ${params.slug}`) }] }),
   staticData: { crumb: 'Settings' },

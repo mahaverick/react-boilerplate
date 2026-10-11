@@ -15,6 +15,7 @@ const DID = '01a0fc35-b7ee-7b93-b550-d8a7f98e30be'
 const SID = '01a0fc35-b7fe-7546-a76f-fea28a1f3cbe'
 const OTHER_DID = '01a0fc35-b7ee-7b93-b550-d8a7f98e30bf'
 
+/** A `location`-like object whose search string carries `params`. */
 function search(params: Record<string, string>) {
   return { search: `?${new URLSearchParams(params).toString()}` }
 }

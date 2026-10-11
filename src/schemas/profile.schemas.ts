@@ -7,9 +7,10 @@ const MAX_NAME_LENGTH = 100
 const SHARED_NAME_MESSAGE = notAllowedMessage('This field')
 
 /**
- * The two fields the API's updateProfileSchema accepts; it strips any other
- * key, so email and every other user column cannot change here. A name the
- * form sends may not be blank, where the API also takes `null`.
+ * The profile form's two name fields, which the API's updateProfileSchema
+ * accepts beside `analyticsOptOut`; it strips any other key, so email and
+ * every other user column cannot change here. A name the form sends may not be
+ * blank, where the API also takes `null`.
  */
 export const updateProfileSchema = z.object({
   firstName: z
@@ -26,4 +27,5 @@ export const updateProfileSchema = z.object({
     .refine(safeText(), SHARED_NAME_MESSAGE),
 })
 
+/** What the profile form submits, after parsing. */
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>

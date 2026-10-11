@@ -8,12 +8,12 @@ import { defineConfig, devices } from '@playwright/test'
  * no layout: the member table scrolls rather than crushing, the webfont loads,
  * the empty state says something.
  *
- * `live` runs against a real express-boilerplate on :4040 through the Vite
- * proxy, and is skipped unless `E2E_LIVE=1`. It covers what needs a real
- * server, cookie jar and reload: a reload keeps you signed in, the SSE stream
- * reconnects after a backend restart, and the refresh cookie carries the flags
- * the SPA assumes, its `Secure` flag set by express's `COOKIE_SECURE` (default
- * from `APP_ENV`), which no `X-Forwarded-Proto` header changes.
+ * `live` runs against a real express-boilerplate (`E2E_API_ORIGIN`, default
+ * :4040) through the Vite proxy, and is skipped unless `E2E_LIVE=1`. It covers
+ * what needs a real server, cookie jar and reload: a reload keeps you signed in
+ * and the refresh cookie carries the path and flags the SPA assumes, its
+ * `Secure` flag set by express's `COOKIE_SECURE` (default from `APP_ENV`),
+ * which no `X-Forwarded-Proto` header changes.
  *
  * Tests are `*.test.ts`, not Playwright's default `*.spec.ts`, which
  * `check-file/filename-blocklist` rejects.
@@ -25,16 +25,16 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
-  /** Under CI, ci.yml uploads the html report from playwright-report/ when e2e fails. */
+  /** Under CI, ci.yml's e2e job uploads the html report from playwright-report/ when it fails. */
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
   },
   /**
-   * Reuses a running dev server or starts one. Skipped for the `nginx` project,
-   * which serves the production bundle from a container; `webServer` has no
-   * per-project form, so the switch is an env var.
+   * Starts the dev server, reusing a running one outside CI. Skipped for the
+   * `nginx` project, which serves the production bundle from a container;
+   * `webServer` has no per-project form, so the switch is an env var.
    */
   webServer: process.env.E2E_NGINX
     ? undefined
@@ -56,8 +56,8 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     /**
-     * Colour contrast, which jsdom cannot compute (no layout, no cascade), so the
-     * unit a11y gate disables every colour rule. Opt-in and not run in CI: run
+     * Colour contrast, which jsdom cannot compute (no layout), so the unit a11y
+     * gate disables every colour rule. Opt-in and not run in CI: run
      * `pnpm test:contrast` before merging UI work, since component composition
      * can break contrast as well as a palette change.
      */

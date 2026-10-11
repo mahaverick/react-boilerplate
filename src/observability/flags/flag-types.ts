@@ -19,6 +19,7 @@ export type ClientFlagDefinition =
       readonly experiment: boolean
     }
 
+/** This app's flag registry slice, as a type. */
 type ClientFlags = typeof CLIENT_FLAGS
 
 /** A flag this app reads. */

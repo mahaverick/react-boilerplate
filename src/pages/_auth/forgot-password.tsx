@@ -18,6 +18,7 @@ import { fieldValue } from '@/hooks/use-form-field'
 import { useForgotPassword } from '@/queries/auth.queries'
 import { forgotPasswordSchema } from '@/schemas/auth.schemas'
 
+/** The forgot-password route, inside the signed-out `_auth` layout. */
 export const Route = createFileRoute('/_auth/forgot-password')({
   head: () => ({ meta: [{ title: pageTitle('Forgot password') }] }),
   component: ForgotPasswordPage,
@@ -31,6 +32,7 @@ export const Route = createFileRoute('/_auth/forgot-password')({
  */
 const SENT_MESSAGE = 'If that address has an account, a reset email has been sent.'
 
+/** The email form; whatever the outcome, it then shows `SENT_MESSAGE`. */
 function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false)
   const forgotPassword = useForgotPassword()

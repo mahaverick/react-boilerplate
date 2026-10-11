@@ -1,3 +1,16 @@
+/**
+ * @file Analytics through the production image, started with the run-time
+ * settings CI gives it (`POSTHOG_KEY=phc_test_key_not_real`,
+ * `APP_ENVIRONMENT=ci`, `ANALYTICS_HANDOFF_ORIGINS=https://www.example.test`;
+ * `pnpm test:e2e:nginx` starts it the same way). The `@no-api` tests run in CI
+ * with nothing behind `/api`, a fake PostHog answering posthog-js's
+ * `/api/v1/collect` traffic through Playwright in place of express's proxy. The
+ * rest are the live half (`E2E_LIVE=1 E2E_ANALYTICS=1`), which needs an express
+ * 1.5.0+ behind the image with `POSTHOG_PROJECT_KEY=phc_test_key_not_real` and
+ * `POSTHOG_HOST`/`POSTHOG_ASSETS_HOST` at this suite's fake PostHog on
+ * `FAKE_POSTHOG_PORT` (4063); the README's "Analytics (PostHog)" section has
+ * the steps.
+ */
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import {
   clickUntilReplayed,
@@ -28,25 +41,6 @@ import {
   watchCspViolations,
 } from './csp'
 
-/**
- * Analytics through the production image, started with the run-time
- * settings CI gives it: `POSTHOG_KEY=phc_test_key_not_real`,
- * `APP_ENVIRONMENT=ci` and `ANALYTICS_HANDOFF_ORIGINS=https://www.example.test`
- * (`pnpm test:e2e:nginx` starts it the same way).
- *
- * The `@no-api` tests run in CI with nothing behind `/api`: nginx's own
- * `/runtime-config.js` and `/api/v1/collect/` locations, and posthog-js in
- * the real bundle under the real policy, its `/api/v1/collect` traffic
- * answered by a fake PostHog through Playwright in place of express's proxy.
- *
- * The rest are the live half (`E2E_LIVE=1 E2E_ANALYTICS=1`): an express
- * 1.5.0+ behind the image with `POSTHOG_PROJECT_KEY=phc_test_key_not_real`
- * and `POSTHOG_HOST`/`POSTHOG_ASSETS_HOST` at this suite's fake PostHog on
- * `FAKE_POSTHOG_PORT` (4063), which then receives the browser's traffic
- * through express's proxy and express's own drain on `/batch/`. The steps
- * are in the README's "Analytics (PostHog)" section.
- */
-
 /** The origin the CI container allowlists for the handoff (`ANALYTICS_HANDOFF_ORIGINS`). */
 const HANDOFF_ORIGIN = 'https://www.example.test'
 
@@ -57,7 +51,7 @@ const PROBE_EMAIL = 'pii-probe@example.test'
 /** What must never reach PostHog: each name part, the address prefix, the token. */
 const PROBES = ['Pii', 'Probe', 'pii-probe', PROBE_TOKEN]
 
-/** A W3C traceparent's trace id. */
+/** The trace id of a sampled W3C traceparent, or undefined when the header is absent or malformed. */
 function traceIdOf(traceparent: string | undefined): string | undefined {
   return /^00-([0-9a-f]{32})-[0-9a-f]{16}-01$/.exec(traceparent ?? '')?.[1]
 }
@@ -134,11 +128,12 @@ const STUB_TENANTS = {
 
 /**
  * Answers the API for a signed-in user with two tenants, with nothing behind
- * `/api`: the restore, the profile, the tenant list and each tenant's detail;
- * every other API call gets a 404, which no page treats as a sign-out.
+ * `/api`: the restore, the profile, the flags, the tenant list and each tenant's
+ * detail; every other API call gets a 404, which no page treats as a sign-out.
  * `/api/v1/collect` falls through to the fake PostHog.
  */
 async function stubSignedInApi(page: Page): Promise<void> {
+  /** An express envelope as a `route.fulfill` response: success with `data` for 200, else the error shape. */
   const envelope = (data: unknown, status = 200) => ({
     status,
     contentType: 'application/json',
@@ -148,6 +143,7 @@ async function stubSignedInApi(page: Page): Promise<void> {
         : { success: false, message: 'Not found', statusCode: status }
     ),
   })
+  /** A stub tenant as the list and detail endpoints return it. */
   const tenantRow = (slug: keyof typeof STUB_TENANTS) => ({
     ...STUB_TENANTS[slug],
     slug,
@@ -222,6 +218,7 @@ function tenantOf(event: FakePosthogEvent | undefined): unknown {
   return (event?.properties.$groups as Record<string, unknown> | undefined)?.tenant
 }
 
+/** A verified account named `Pii Probe`, as its address, access token and user id. */
 async function probeAccount(request: APIRequestContext, suffix: string) {
   const email = `pii-probe-${suffix}-${Date.now()}@example.test`
   await createVerifiedUser(email)
@@ -234,6 +231,7 @@ async function probeAccount(request: APIRequestContext, suffix: string) {
   return { email, token, id: data.id }
 }
 
+/** Signs out through the account menu and waits for the sign-in page. */
 async function signOut(page: Page): Promise<void> {
   await page.getByRole('button', { name: /Account menu for/ }).click()
   await page.getByRole('menuitem', { name: 'Sign out' }).click()
@@ -487,7 +485,6 @@ test.describe('analytics against a fake PostHog', () => {
       await expect.poll(() => pageviewsOf(fake, '/profile').length, poll).toBe(2)
       expect(tenantOf(pageviewsOf(fake, '/profile')[1])).toBeUndefined()
 
-      // Every page event this walk sent was grouped by the page it came from.
       const pageEvents = new Set(['$pageview', '$pageleave', '$autocapture', 'tenant_switched'])
       for (const event of fake.events()) {
         const pathname = event.properties.$pathname
@@ -523,16 +520,7 @@ test.describe('analytics against a fake PostHog', () => {
       await stubSignedInApi(page)
       const poll = { intervals: [500], timeout: 30_000 }
 
-      /**
-       * posthog-js 1.435.6 persists one JSON object in localStorage under
-       * `ph_<token>_posthog` (the app sets no `persistence_name`). Its flag
-       * cache lives in two of that object's fields, `$enabled_feature_flags`
-       * (a key to value map) and `$active_feature_flags` (the keys); each
-       * event then gets `$feature/<key>` from them. The same object also holds
-       * every `register()`ed super property at its top level, where another
-       * tab can leave a `$feature/<key>` of its own. Seeded before any page
-       * script runs, as a returning visitor's browser would hold it.
-       */
+      // posthog-js persists one JSON object under `ph_<token>_posthog`: its flag cache in `$enabled_feature_flags` and `$active_feature_flags`, and every `register()`ed super property at the top level, where another tab can leave a `$feature/<key>`. Seeded before any page script, as a returning visitor's browser holds it.
       await page.addInitScript(() => {
         window.localStorage.setItem(
           'ph_phc_test_key_not_real_posthog',
@@ -726,7 +714,7 @@ test.describe('analytics end to end, through express', () => {
     const traceId = traceIdOf(traceparents[0])
     expect(traceId, 'the sign-in request carried a traceparent').toBeDefined()
 
-    // The account was set up with an API sign-in of its own, so the browser's is the one on its trace.
+    // probeAccount signed in through the API too, so the trace id picks out the browser's sign-in.
     let signedIn: FakePosthogEvent | undefined
     await expect
       .poll(
@@ -767,7 +755,11 @@ test.describe('analytics end to end, through express', () => {
     const userA = await probeAccount(request, 'a')
     const userB = await probeAccount(request, 'b')
 
-    // A page closed by an earlier test can still flush into the shared fake, so only these two count.
+    /**
+     * The distinct ids of the browser's `$identify` events for the two users, in
+     * arrival order. A page closed by an earlier test can still flush into the
+     * shared fake, so only these two count.
+     */
     const identified = () =>
       fake
         .events()

@@ -1,6 +1,6 @@
 import { MEMBERSHIP_ROLES, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
 
-/** Every action the API writes to its audit log. An action the server adds still renders, through the fallback sentence. */
+/** The audit actions this app has wording for. An action the server writes that is not listed still renders, through the fallback sentence. */
 export const AUDIT_ACTIONS = [
   'tenant.created',
   'tenant.updated',
@@ -21,8 +21,10 @@ export const AUDIT_ACTIONS = [
   'user.errors_viewed',
   'tenant.errors_viewed',
 ] as const
+/** An audit action this app has wording for. */
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
+/** Whether a string from the API is an action this app has wording for. */
 export function isAuditAction(value: string): value is AuditAction {
   return (AUDIT_ACTIONS as readonly string[]).includes(value)
 }
@@ -49,17 +51,21 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'tenant.errors_viewed': 'Tenant errors viewed',
 }
 
+/** An audit row's per-action metadata, whose shape the server owns, so it is read defensively. */
 type Metadata = Record<string, unknown>
 
+/** A string value under `key`, or undefined when it is missing or not a string. */
 function text(metadata: Metadata, key: string): string | undefined {
   const value = metadata[key]
   return typeof value === 'string' ? value : undefined
 }
 
+/** Whether a metadata string is one of the known membership roles. */
 function isMembershipRole(value: string): value is MembershipRole {
   return (MEMBERSHIP_ROLES as readonly string[]).includes(value)
 }
 
+/** The reader-facing label of the role under `key`; an unrecognised role shows as sent. */
 function roleLabel(metadata: Metadata, key: string): string {
   const value = text(metadata, key)
   if (value === undefined) return 'an unknown role'
@@ -96,6 +102,7 @@ function recipients(metadata: Metadata): string {
   return count === 1 ? '1 owner' : `${String(count)} owners`
 }
 
+/** The sentence for each action, built from the row's metadata. */
 const SENTENCES: Record<AuditAction, (metadata: Metadata) => string> = {
   'tenant.created': (m) => `created the tenant “${text(m, 'name') ?? 'unnamed'}”`,
   'tenant.updated': (m) => `updated the tenant${changedFields(m)}`,
@@ -134,9 +141,9 @@ export function auditSentence(entry: { action: string; metadata: Metadata }): st
 
 /**
  * Who acted: their name, else their email, else the system (scripts have no
- * actor). Structural rather than importing `AuditActor`: `api.types` imports
- * this module's `AuditAction`, so the reverse import would be circular. An
- * `id` field, present on the real actor, is accepted but not required.
+ * actor). Typed structurally, as `AuditActor` is not exported from
+ * `api.types`, which itself imports this module's `AuditAction`. An `id`
+ * field, present on the real actor, is accepted but not required.
  */
 export function actorName(actor: { id?: string; name: string; email: string } | null): string {
   if (actor === null) return 'System'

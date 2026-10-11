@@ -24,6 +24,7 @@ function variant(name: string): never {
 }
 const NONE = { kind: 'none' } as const
 
+/** Serves `GET /flags` with these values over the fallbacks. */
 function serveFlags(overrides: Record<string, boolean | string>) {
   server.use(
     http.get('/api/v1/flags', () =>
@@ -37,6 +38,7 @@ function serveFlags(overrides: Record<string, boolean | string>) {
   )
 }
 
+/** What `promise` rejects with, or `undefined` if it resolves. */
 async function thrown(promise: Promise<void>): Promise<unknown> {
   try {
     await promise

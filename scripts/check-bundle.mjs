@@ -9,20 +9,20 @@ import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { build } from 'vite'
 
-/** The measured first-visit JS plus 10%. Raise it only with a measured reason. */
+/** The ceiling for first-visit JS in bytes. Raise it only with a measured reason. */
 const ENTRY_BUDGET_BYTES = 628_790
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module
- * ids, not code: in production both packages export a stub that returns null,
- * so a leaked chunk's code carries none of the package's name.
+ * ids, not code: outside development both packages export a stub that returns
+ * null, so a leaked chunk's code would not name them.
  */
 const DEVTOOLS_MODULE =
   /[\\/]@tanstack[\\/](react-query-devtools|query-devtools|react-router-devtools|router-devtools-core)[\\/]/
 
 /**
  * A posthog-js module, by its node_modules path. The analytics facade imports
- * it with a dynamic `import()`, so it must sit in a lazy chunk of its own.
+ * it with a dynamic `import()`, so it must stay out of the first-visit chunks.
  */
 const POSTHOG_MODULE = /[\\/]posthog-js[\\/]/
 
@@ -35,7 +35,7 @@ const POSTHOG_CORE_MODULE = /[\\/]@posthog[\\/]core[\\/]/
 /** The entry-chunk error listener, which every page pays for. */
 const ERROR_LISTENER_MODULE = /[\\/]src[\\/]observability[\\/]errors[\\/]listen\.ts$/
 
-/** The error listener's rendered code in the entry chunk, gzipped; measured at 960 bytes. */
+/** The ceiling for the error listener's rendered code in the entry chunk, gzipped. */
 const ERROR_LISTENER_BUDGET_GZIP_BYTES = 1024
 
 const output = await build({
@@ -59,6 +59,10 @@ if (entries.length !== 1) {
   failures.push(`expected one entry chunk, found ${entries.length}`)
 } else {
   const initial = new Set()
+  /**
+   * Adds `fileName` and, recursively, every chunk it statically imports to `initial`.
+   * @param fileName - A chunk's file name.
+   */
   const visit = (fileName) => {
     if (initial.has(fileName)) return
     initial.add(fileName)

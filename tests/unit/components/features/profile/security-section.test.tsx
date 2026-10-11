@@ -30,6 +30,7 @@ function renderProfile() {
   return router
 }
 
+/** Serves the account's sign-in methods: these providers, and whether it has a password. */
 function mockProviders(providers: string[], hasPassword: boolean) {
   server.use(
     http.get('/api/v1/auth/providers', () =>
@@ -44,10 +45,12 @@ function mockProviders(providers: string[], hasPassword: boolean) {
   )
 }
 
+/** The Security region, once the profile route has rendered it. */
 async function section() {
   return within(await screen.findByRole('region', { name: 'Security' }))
 }
 
+/** Fills in the change-password form, confirming with `next` unless told otherwise, and submits it. */
 async function fillAndSubmit(current: string, next: string, confirm = next) {
   const user = userEvent.setup()
   await user.type(await screen.findByLabelText('Current password'), current)
@@ -237,7 +240,7 @@ describe('security section', () => {
     server.use(
       http.get('/api/v1/auth/providers', () => {
         calls += 1
-        // Two failures: the router's client retries once by itself.
+        // Two failures: the query client retries once by itself.
         return calls <= 2
           ? fail('Something went wrong.', 500)
           : ok(
@@ -274,10 +277,9 @@ describe('security section', () => {
     expect(useAuthStore.getState().accessToken).toBe('access-token')
     expect(await screen.findByRole('region', { name: 'Security' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/profile')
-    // The next request still succeeds.
     await act(() => queryClient.refetchQueries({ queryKey: authKeys.providers }))
     expect(queryClient.getQueryState(authKeys.providers)?.status).toBe('success')
-    // A successful password change keeps this device's own access token; it must never trigger a refresh to get there.
+    // A password change keeps this device's token, so it must never trigger a refresh.
     expect(refreshCalls).toBe(0)
   })
 })
@@ -357,6 +359,7 @@ describe('sign out other sessions', () => {
   it('switches the button off while it signs out, so a second click sends nothing', async () => {
     mockProviders(['email'], true)
     let calls = 0
+    /** Lets the held revoke request answer. */
     let release = () => {}
     const held = new Promise<void>((resolve) => {
       release = resolve

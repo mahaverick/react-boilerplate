@@ -34,7 +34,7 @@ export function useChangedFields<Shape extends z.core.$ZodShape>(
   const changes = changedFieldsOf(schema, baseline)
 
   /**
-   * The PATCH body of the changed fields, or `null` after putting
+   * The request body of the changed fields, or `null` after putting
    * `unchangedMessage` in the form-level errors when nothing changed.
    */
   function changedBody(value: z.input<z.ZodObject<Shape>>) {

@@ -10,6 +10,7 @@ import { useAuthStore } from '@/states/auth.store'
 import { fail } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
+/** Renders the real route tree at `path`, as a visitor reaches it. */
 function renderAppAt(path: string) {
   const router = createRouter({
     routeTree,
@@ -37,7 +38,7 @@ describe('the catch-all route', () => {
     server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
   })
 
-  // Nothing upstream matched, so no `_app`/`_auth` layout rendered a `<main>` for it: this route supplies its own.
+  // Nothing matched, so no `_app` or `_auth` layout supplies a `<main>`: this route brings its own.
   it('renders exactly one main landmark for an unknown URL', async () => {
     renderAppAt('/definitely-not-a-page')
 

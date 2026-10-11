@@ -1,17 +1,16 @@
 /**
  * @file The app's run-time configuration: the settings that differ between
- * environments while the image stays the same. The container's
+ * environments while the image stays the same. In production the container's
  * `docker/10-runtime-config.sh` validates its environment at start and writes
- * `/runtime-config.js`, which index.html loads before the bundle and which
- * sets `window.__APP_CONFIG__`. A production bundle reads only that; the dev
- * server and the unit tests read the same names with a `VITE_` prefix from
- * `import.meta.env`, and Vite's dev server serves a matching
- * `/runtime-config.js` (vite.config.ts). Either way the values go through
- * `parseRuntimeConfig`, which applies the entrypoint's patterns again, so a
- * value the container would have refused never configures the app.
+ * `/runtime-config.js`, which index.html loads before the bundle to set
+ * `window.__APP_CONFIG__`; the dev server and the unit tests read the same
+ * names with a `VITE_` prefix from `import.meta.env`. Either way the values go
+ * through `parseRuntimeConfig`, which applies the entrypoint's patterns again,
+ * so a value the container would have refused never configures the app.
  */
 
 declare global {
+  /** The page's window, with the global that `/runtime-config.js` sets. */
   interface Window {
     /** Written by `/runtime-config.js`; absent when that file did not load. */
     __APP_CONFIG__?: Readonly<Record<string, unknown>>
@@ -70,9 +69,11 @@ const DEFAULT_UI_HOST = 'https://us.posthog.com'
 const DEFAULT_ENVIRONMENT = 'development'
 
 /**
- * Each setting's valid value, or undefined when it is unset, empty or invalid.
+ * Splits raw settings into those that match their pattern and the names of
+ * those that do not. A setting that is unset, empty or not a string is in
+ * neither.
  * @param raw - `window.__APP_CONFIG__`, or the dev server's env mapped to container names.
- * @returns Valid values by key.
+ * @returns The valid values by key, and the names of the keys that failed their pattern.
  */
 function validValues(raw: Readonly<Record<string, unknown>>): {
   values: Partial<Record<RuntimeConfigKey, string>>
@@ -107,7 +108,8 @@ function canonicalOrigins(list: string): string[] | undefined {
  * Builds the configuration from raw values keyed by container name. An
  * invalid value is treated as unset, except a consent mode, which fails
  * closed: an unrecognised one turns analytics `off` rather than falling back
- * to capturing.
+ * to capturing. A handoff list containing an origin that `URL` refuses is
+ * dropped whole and recorded in `invalid`.
  * @param raw - Raw values; anything that is not a string counts as unset.
  * @returns The configuration and the names of the values that were refused.
  */

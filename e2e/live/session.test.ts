@@ -1,3 +1,10 @@
+/**
+ * @file Session behaviours that need a real server, cookie jar and reload: a
+ * reload keeps the user signed in with exactly one refresh, and the refresh
+ * cookie carries the path and flags the SPA assumes. It needs a live
+ * express-boilerplate (`E2E_API_ORIGIN`, default :4040) with its docker services,
+ * so the file is skipped unless `E2E_LIVE=1`; run it with `pnpm test:e2e:live`.
+ */
 import { expect, test } from '@playwright/test'
 import {
   API_ORIGIN,
@@ -9,16 +16,6 @@ import {
   waitForApi,
 } from './helpers'
 
-/**
- * Session behaviours that need a real server, a real cookie jar and a real
- * reload to verify — each is also unit-tested, but a real reload is
- * something no unit-test harness can provide.
- *
- * Requires a live express-boilerplate on :4040 plus its docker services, so
- * the whole file is skipped unless `E2E_LIVE=1`. Run it with
- * `pnpm test:e2e:live`.
- */
-
 test.skip(process.env.E2E_LIVE !== '1', 'live backend required — run pnpm test:e2e:live')
 
 test.beforeAll(async () => {
@@ -29,13 +26,7 @@ test.beforeAll(async () => {
   }
 })
 
-/**
- * The access token is memory-only by design (CLAUDE.md), so a reload starts
- * unauthenticated and the root route's beforeLoad has to restore the
- * session from the refresh cookie before any guard runs. If that ordering
- * is wrong the reader is bounced to /login, which is the whole risk this
- * pins.
- */
+// The access token is memory-only, so a reload starts unauthenticated and the root route's beforeLoad must restore the session from the refresh cookie before any guard runs, or the user is bounced to /login.
 test('a reload keeps you signed in, and refreshes exactly once', async ({ page }) => {
   await signIn(page, freshEmail())
 
@@ -47,7 +38,7 @@ test('a reload keeps you signed in, and refreshes exactly once', async ({ page }
   await page.reload()
   await expect(page).not.toHaveURL(/login/, { timeout: 15_000 })
 
-  // EXACTLY one: `ensureSession()` is the only caller of /auth/refresh, and its single-flight wrapper is what makes N concurrent 401s produce one refresh.
+  // Exactly one: `ensureSession()` is the only caller of /auth/refresh and single-flights concurrent 401s.
   expect(refreshes).toHaveLength(1)
 })
 
@@ -70,17 +61,11 @@ test('the refresh cookie is scoped and flagged as the SPA assumes', async ({ req
   expect(cookie).toMatch(/SameSite=Strict/i)
 
   /**
-   * `X-Forwarded-Proto` does NOT drive this cookie's Secure flag: express's
+   * `X-Forwarded-Proto` does not drive this cookie's Secure flag: express's
    * `isCookieSecure(env)` (env.config.ts) returns
    * `COOKIE_SECURE ?? APP_ENV !== 'local'` and never reads `req.secure`, so
-   * no request header can change it. Sending the header changes nothing,
-   * which is what this asserts.
-   *
-   * TRUST_PROXY decides how much of X-Forwarded-For to believe for
-   * `req.ip`, which the IP-keyed rate limiters consume. With
-   * X-Forwarded-Proto it also decides `req.secure`, which only the OAuth
-   * session cookie depends on: express-session silently skips a Secure
-   * cookie on a non-HTTPS request.
+   * sending the header must change nothing. The header can set `req.secure`
+   * (given TRUST_PROXY), but only the OAuth session cookie depends on that.
    */
   const forwarded = await request.post(`${API_ORIGIN}/api/v1/auth/login`, {
     headers: { 'X-Forwarded-Proto': 'https' },
@@ -92,6 +77,6 @@ test('the refresh cookie is scoped and flagged as the SPA assumes', async ({ req
     .find((h) => h.name.toLowerCase() === 'set-cookie')?.value
   expect(forwardedCookie).not.toMatch(/;\s*Secure/i)
 
-  // And neither cookie is Secure under APP_ENV=local with COOKIE_SECURE unset, which is how express's .env.example sets the live backend up. That is deliberate: a browser refuses a Secure cookie over http://, so a hard-coded true would make local cookie login impossible.
+  // Neither cookie is Secure under APP_ENV=local with COOKIE_SECURE unset, which is how express's .env.example sets up the live backend.
   expect(cookie).not.toMatch(/;\s*Secure/i)
 })

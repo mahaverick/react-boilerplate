@@ -67,6 +67,7 @@ function appError(message: string, at = 'renderWidget', line = 1): Error {
 
 /** An error with a 50-frame stack and a cause with another, each frame unique to `index`. */
 function deepError(index: number): Error {
+  /** 50 stack frames named by `prefix`, `index` and the frame number. */
   const frames = (prefix: string) =>
     Array.from(
       { length: 50 },
@@ -201,6 +202,7 @@ describe('report', () => {
   })
 
   it('sends the consented identity when nothing changed it before analytics settled', async () => {
+    /** Settles the pending analytics wait with an identity, or `null` for none. */
     let settle: (identity: AnalyticsIdentity | null) => void = () => {}
     settled.mockReturnValue(new Promise((resolve) => (settle = resolve)))
     report(appError('before settle'), 'window', false)
@@ -219,6 +221,7 @@ describe('report', () => {
       },
     ],
   ])('sends anonymous when %s before analytics settled', async (_label, change) => {
+    /** Settles the pending analytics wait with an identity, or `null` for none. */
     let settle: (identity: AnalyticsIdentity | null) => void = () => {}
     settled.mockReturnValue(new Promise((resolve) => (settle = resolve)))
     report(appError('before settle'), 'window', false)
@@ -448,7 +451,7 @@ describe('report', () => {
         BATCH_SIZE
       )
     }
-    // Every chunk leaves in one flush, so all are in flight together.
+    // Every chunk of one flush is in flight together, so their sum is what the quota limits.
     expect(keepaliveBytes).toBeLessThanOrEqual(KEEPALIVE_QUOTA_BYTES)
     expect(sentEvents()).toHaveLength(BATCH_SIZE)
   })
@@ -484,7 +487,7 @@ describe('waiting for analytics to settle', () => {
     const actual = await vi.importActual<typeof import('@/observability/analytics')>(
       '@/observability/analytics'
     )
-    // The real whenAnalyticsSettled, with analytics never loaded: each call while unsettled parks a waiter in its module Set, cleared only when analytics settles.
+    // The real whenAnalyticsSettled with analytics never loaded: each call parks a waiter in a module Set that only settling clears.
     let parked = 0
     settled.mockImplementation(() => {
       parked += 1
@@ -502,6 +505,7 @@ describe('waiting for analytics to settle', () => {
   })
 
   it('reads the identity again once analytics settles after the cap', async () => {
+    /** Settles the pending analytics wait with an identity, or `null` for none. */
     let settle: (identity: AnalyticsIdentity | null) => void = () => {}
     const late = new Promise<AnalyticsIdentity | null>((resolve) => (settle = resolve))
     settled.mockReturnValue(late)
@@ -530,6 +534,7 @@ describe('waiting for analytics to settle', () => {
   })
 
   it('does not send a beaconed error a second time when analytics settles later', async () => {
+    /** Settles the pending analytics wait with an identity, or `null` for none. */
     let settle: (identity: AnalyticsIdentity | null) => void = () => {}
     settled.mockReturnValue(new Promise((resolve) => (settle = resolve)))
     report(appError('crash during load'), 'window', false)
@@ -555,6 +560,7 @@ describe('keepalive bodies in flight', () => {
   })
 
   it('a deep error beside a pending keepalive goes plain, and keepalive again once that settles', async () => {
+    /** Completes the held first fetch. */
     let finish: (response: Response) => void = () => {}
     fetchMock.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
     for (const index of [0, 1, 2]) report(deepError(index), 'window', false)
@@ -595,6 +601,7 @@ describe('the identity across a navigation inside the same tenant', () => {
 })
 
 describe('isIgnoredError', () => {
+  /** An Axios response with this status. */
   const response = (status: number) => ({
     status,
     statusText: '',

@@ -1,3 +1,8 @@
+/**
+ * @file The enforced policy over the parts of the app that need a live API: the
+ * signed-in shell with its notification stream open, and a tenant page. It needs
+ * the container and express on :4040, and `pnpm test:e2e:nginx` runs it.
+ */
 import { expect, test } from '@playwright/test'
 import {
   API_ORIGIN,
@@ -15,12 +20,6 @@ import {
   requireServedApp,
   watchCspViolations,
 } from './csp'
-
-/**
- * The enforced policy over the parts of the app that need a live API: the
- * signed-in shell with its notification stream open, and a tenant page.
- * Needs the container and express on :4040; `pnpm test:e2e:nginx` runs it.
- */
 
 test.skip(process.env.E2E_LIVE !== '1', 'needs a live API — set E2E_LIVE=1 (pnpm test:e2e:nginx)')
 

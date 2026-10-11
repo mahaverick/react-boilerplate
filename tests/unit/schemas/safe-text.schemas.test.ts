@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeMultilineText, safeText } from '@/schemas/safe-text.schemas'
 
-// The same cases as express's tests/unit/validators/safe-text.validators.test.ts.
+// Mirrors express's tests/unit/validators/safe-text.validators.test.ts, so both sides accept and refuse the same kinds of text.
 describe('safeText', () => {
   it('rejects a Cc control character', () => {
     expect(safeText()('a\u{0}b')).toBe(false)
@@ -69,7 +69,6 @@ describe('safeText', () => {
     }
   })
 
-  // The same strings express's joiner rule was checked against.
   it.each([
     ['a Persian word with a non-joiner', 'می\u{200C}خواهم'],
     ['a Devanagari conjunct with a joiner', 'क\u{94D}\u{200D}ष'],

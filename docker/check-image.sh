@@ -17,10 +17,10 @@ problem() {
   fail=1
 }
 
-# The release must be in the bundle at the one place the build defines it,
-# report.ts's `release: __APP_RELEASE__`, which minifies to `release:"<sha>"`
-# in any quotes. A bare "<sha>" anywhere would pass on an unrelated literal
-# such as `dev`. Matched as a fixed string, so a `.` in the release is a dot.
+# The release must sit where the build defines it, report.ts's
+# `release: __APP_RELEASE__`, which minifies to `release:"<sha>"` in any quote
+# style: a bare "<sha>" elsewhere would pass on an unrelated literal such as
+# `dev`. Matched as a fixed string, so a `.` in the release is a dot.
 check_release() {
   for quote in '"' "'" '`'; do
     grep -qF "release:$quote$2$quote" "$1" && return 0
@@ -28,10 +28,11 @@ check_release() {
   problem "the release \"$2\" is not in the bundle where the build defines it"
 }
 
-# posthog-cli's inject must stay release-less: a write to _posthogReleaseId
-# is one it made. That is an assignment (`=`, `||=`, `??=` or `&&=`; dotted or
-# bracketed, spaced or not) or an object-literal key given a string. A read,
-# destructuring and ternaries included, writes nothing. posthog-js only reads it.
+# posthog-cli's inject must stay release-less, so any write to
+# _posthogReleaseId is one it made: an assignment (`=`, `||=`, `??=` or `&&=`;
+# dotted or bracketed, spaced or not) or an object-literal key given a string.
+# A read, in a destructuring or a ternary, writes nothing; posthog-js only
+# reads it.
 check_release_less() {
   if grep -qE "_posthogReleaseId[\"'\`]?\]?[[:space:]]*(\|\||\?\?|&&)?=([^=]|$)|_posthogReleaseId[\"'\`]?[[:space:]]*:[[:space:]]*[\"'\`]" "$1"; then
     problem "a chunk carries an injected release id: inject must stay release-less"
@@ -64,9 +65,8 @@ header() {
   { grep -i "^$1:" "$2" || true; } | head -n 1 | cut -d' ' -f2- | tr -d '\r'
 }
 
-# --- API_UPSTREAM is validated before nginx starts ---------------------------
-# `nginx -t` as the command, so every run ends by itself. The message is what
-# proves the check ran: `nginx -t` fails on its own for some of these values.
+# `nginx -t` as the command, so every run ends by itself. The message proves
+# the check ran: `nginx -t` also fails on its own for some of these values.
 for good in http://api:4040 https://api.example.com; do
   if ! out=$(docker run --rm --add-host=api:127.0.0.1 --add-host=api.example.com:127.0.0.1 \
     -e "API_UPSTREAM=$good" "$image" nginx -t 2>&1); then
@@ -84,11 +84,11 @@ for bad in 'http://api:4040/' 'http://api:4040/v1' 'api:4040' '' 'http://$host' 
   esac
 done
 
-# --- The run-time configuration is validated before nginx starts -------------
-# A bad value stops the container: started detached, exactly as it ships, it
-# must exit non-zero, and its log must name the variable without showing the
-# value. The probe value is unique, so finding it anywhere in the log fails,
-# and it matches none of the patterns (uppercase, underscores, no scheme).
+# A bad value stops the container: started detached, as it ships, it must exit
+# non-zero, and its log must name the variable without showing the value. The
+# probe matches none of the patterns (uppercase, underscores, no scheme), so
+# the container refuses it; and it is unique, so finding it anywhere in the log
+# means the value leaked.
 probe='PII_PROBE_VALUE'
 for var in POSTHOG_KEY POSTHOG_UI_HOST ANALYTICS_CONSENT_MODE ANALYTICS_HANDOFF_ORIGINS APP_ENVIRONMENT; do
   docker run -d --name "$name-bad" --read-only --tmpfs /tmp --add-host=api:127.0.0.1 \
@@ -113,9 +113,8 @@ for var in POSTHOG_KEY POSTHOG_UI_HOST ANALYTICS_CONSENT_MODE ANALYTICS_HANDOFF_
   esac
 done
 
-# --- The container: unprivileged, on 8080 ------------------------------------
-# Started with run-time settings, passed the way every deployment passes
-# them: plain environment variables.
+# Started with run-time settings, passed the way every deployment passes them:
+# plain environment variables.
 docker run -d --name "$name" -p "127.0.0.1:$port:8080" --read-only --tmpfs /tmp \
   --add-host=api:127.0.0.1 -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=check \
   -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test "$image" >/dev/null
@@ -130,13 +129,12 @@ if ! curl -sf -o /dev/null "$base/"; then
 fi
 
 [ "$(docker inspect -f '{{.Config.User}}' "$image")" = 101 ] || problem "the image's user is not 101"
-# Real and effective uid of every process in the container, nginx's master
-# and workers included.
+# Real and effective uid of every process, nginx's master and workers included.
 uids=$(docker exec "$name" sh -c 'cat /proc/[0-9]*/status 2>/dev/null | awk "/^Uid:/ { print \$2; print \$3 }"' | sort -u)
 [ "$uids" = 101 ] || problem "processes run as uid(s): $(echo $uids)"
 
-# --- Read-only root: the config is rendered under /tmp -----------------------
 [ "$(docker inspect -f '{{.HostConfig.ReadonlyRootfs}}' "$name")" = true ] || problem "the root filesystem is writable"
+# The config is rendered under /tmp at start, so the root filesystem can be read-only.
 docker exec "$name" nginx -T >"$work/nginx-T" 2>&1 || true
 grep -q '^# configuration file /tmp/nginx/conf.d/default.conf:' "$work/nginx-T" \
   || problem "the server config was not rendered into /tmp/nginx/conf.d"
@@ -145,7 +143,6 @@ grep -q 'location /api/ {' "$work/nginx-T" || problem "the /api/ location is not
 status=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/health")
 [ "$status" = 502 ] || problem "/api/ with no API behind it answered $status, not 502"
 
-# --- Security headers on pages and assets ------------------------------------
 asset=$({ curl -sf "$base/" || true; } | { grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' || true; } | head -n 1)
 [ -n "$asset" ] || problem "index.html names no /assets/index-*.js entry chunk"
 csp="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
@@ -165,7 +162,6 @@ Server|nginx
 EOF
 done
 
-# --- /api/ responses carry each security header once --------------------------
 # Two of a header leave a browser enforcing neither cleanly (two COOP lines do
 # not parse). With no API behind it, nginx's own 502 carries nginx's set; behind
 # an API that sends its own, as express's helmet does, the response keeps the
@@ -180,8 +176,9 @@ for field in $security_fields; do
   count=$(header_count "$field" "$work/headers")
   [ "$count" = 1 ] || problem "/api/ with no API behind it: $field sent $count times, not once"
 done
-# A stand-in API: this image's nginx, answering every path with helmet's
-# values for the five headers helmet sets, and no Permissions-Policy.
+# A stand-in API: this image's nginx, answering every path with the values
+# express's helmet sends for five of nginx's six security headers, and no
+# Permissions-Policy, which helmet does not send.
 api_port=$((port + 1))
 cat >"$work/stub.conf" <<'STUB'
 pid /tmp/stub.pid;
@@ -239,7 +236,6 @@ curl -s -D "$work/headers" -o /dev/null "$base/theme-init.js"
 [ "$(header Content-Type "$work/headers")" = application/javascript ] || problem "/theme-init.js is not served as JavaScript"
 [ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/theme-init.js is not no-store"
 
-# --- Source maps, chunk ids and the release ----------------------------------
 # The build stage uploads the maps and deletes them: none may ship. The prune
 # keeps find out of the kernel's own trees.
 maps=$(docker run --rm --entrypoint sh "$image" -c \
@@ -256,7 +252,6 @@ grep -q '_posthogChunkIds' "$work/entry.js" || problem "$asset has no injected c
 grep -q '^//# chunkId=' "$work/entry.js" || problem "$asset has no chunkId comment"
 check_release_less "$work/bundle.js"
 
-# --- The run-time configuration, written at start under /tmp -----------------
 curl -s -D "$work/headers" -o "$work/body" "$base/runtime-config.js"
 [ "$(header Content-Type "$work/headers")" = application/javascript ] \
   || problem "/runtime-config.js is not served as JavaScript"
@@ -277,7 +272,7 @@ case $(curl -sf "$base/" || true) in
   *) problem "index.html does not load /runtime-config.js" ;;
 esac
 
-# --- A missing asset is a 404 that no cache keeps ----------------------------
+# A missing asset is a real 404 that no cache keeps: no Cache-Control, and not index.html.
 status=$(curl -s -D "$work/headers" -o "$work/body" -w '%{http_code}' "$base/assets/does-not-exist.js")
 [ "$status" = 404 ] || problem "a missing asset answered $status, not 404"
 if grep -q 'id="root"' "$work/body"; then problem "a missing asset was answered with index.html"; fi

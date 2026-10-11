@@ -68,6 +68,7 @@ import {
 } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 
+/** The Members tab: the tenant's member list with role, remove and leave actions, and its pending invitations. */
 export const Route = createFileRoute('/_app/tenants/$slug/members')({
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Members · ${params.slug}`) }] }),
   staticData: { crumb: 'Members' },
@@ -235,13 +236,13 @@ function RoleCell({
  * (`isLastOwner` implies `isSelf`). An owner or admin leaving, and anyone
  * removing a member, is told the invitations sent are revoked, as the server
  * does; on the platform tenant, so are those beyond the sender's remaining
- * authority in other tenants. After leaving, or
- * when the API answers 404 because the membership was already gone, the page
- * navigates to `/tenants`, because the tenant's routes answer 404 to a caller
- * with neither a membership nor a platform role, and only then drops the
- * tenant's cache, so no query still mounted on the tenant refetches it. Both
- * use `mutateAsync`, because the refetch can unmount this row first and
- * `mutate`'s callbacks skip an unmounted observer.
+ * authority in other tenants. After leaving, or when the API answers 404
+ * because the membership was already gone, the page navigates to `/tenants`,
+ * because the tenant's routes answer 404 to a caller with neither a
+ * membership nor a platform role, and only then drops the tenant's cache, so
+ * no query still mounted on the tenant refetches it. Both use `mutateAsync`,
+ * because the refetch can unmount this row first and `mutate`'s callbacks
+ * skip an unmounted observer.
  */
 function RemoveMemberButton({
   slug,
@@ -476,7 +477,7 @@ function MemberRow({
  *   never shows a skeleton, which would wait forever with no retry.
  * - A skeleton while either query is pending.
  * - The empty message, only after the error branch, because a failed load and
- *   an empty tenant both give `[]` (the same order as `notifications.tsx`).
+ *   an empty tenant both give `[]` (as in `notifications.tsx`).
  * - Cards on a phone, because the scrolling table puts the Actions column and
  *   the last-owner explanation off-screen; otherwise the table. The layout is
  *   picked in JS with `useIsMobile`, the hook the sidebar uses, because
@@ -504,6 +505,7 @@ function TenantMembersTab() {
   const otherOwners = otherOwnerCount(members.data, myUserId, slug === PLATFORM_TENANT_SLUG)
   const isMobile = useIsMobile()
   const focus = useFocusAfter<'heading'>()
+  /** Moves focus to the heading once the row that held the focused control is gone. */
   const onRemoved = () => {
     focus.focusAfter('heading')
   }

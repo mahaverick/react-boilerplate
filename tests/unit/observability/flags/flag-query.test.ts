@@ -23,6 +23,7 @@ const NONE = { kind: 'none' } as const
 const TENANT = { kind: 'tenant', slug: 'acme' } as const
 const PLATFORM = { kind: 'platform' } as const
 
+/** A successful `GET /flags` response carrying `flags`. */
 function envelope(flags: unknown) {
   return HttpResponse.json({
     success: true,

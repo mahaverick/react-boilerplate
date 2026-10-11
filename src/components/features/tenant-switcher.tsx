@@ -18,6 +18,7 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui
 import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useTenants } from '@/queries/tenant.queries'
 
+/** One row of the switcher: a tenant the caller belongs to. */
 interface TenantOption {
   id: string
   name: string
@@ -25,11 +26,13 @@ interface TenantOption {
   suspended: boolean
 }
 
+/** A labelled run of options, the shape the combobox's grouped `items` take. */
 interface OptionGroup {
   label: string
   items: TenantOption[]
 }
 
+/** Whether the tenant's name or slug contains the search text; an empty search matches all. */
 function matches(option: TenantOption, query: string): boolean {
   const needle = query.trim().toLowerCase()
   return needle === '' || option.name.toLowerCase().includes(needle) || option.slug.includes(needle)

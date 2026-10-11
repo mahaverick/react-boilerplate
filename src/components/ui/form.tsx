@@ -78,9 +78,9 @@ const RenderedFieldsContext = React.createContext<RenderedFields | null>(null)
  * counted per name, because two fields may share one and unmounting one must
  * not make the other disappear.
  *
- * On submit, once every submit settles, the first invalid control takes focus
- * so its described-by message is read. Client errors are committed by then,
- * and so are server errors: the hook commits them with flushSync.
+ * Once `handleSubmit` settles, the first `aria-invalid` control takes focus on
+ * the next frame, so its described-by message is read. Server errors are in
+ * the DOM by then: `useServerErrors` commits them with `flushSync`.
  */
 export function Form({
   form,
@@ -188,8 +188,8 @@ export function Form({
 /**
  * `AnyFormApi` is `form-core`'s `FormApi`, which has no `Field` — that is
  * added by react-form's `useForm`. Narrowing to just the shape used here
- * keeps `FormField` usable with any form without threading ten generics
- * through every page.
+ * keeps `FormField` usable with any form without threading the field API's
+ * generic parameters through every page.
  */
 type FieldComponent = React.ComponentType<{
   name: string
@@ -202,7 +202,7 @@ type FieldComponent = React.ComponentType<{
  *
  * Each value is a Standard Schema (a Zod schema, in this project) or a
  * validator function. Typed as `unknown` for the same reason `FieldComponent`
- * above is hand-rolled: naming the real generic types would thread ten
+ * above is hand-rolled: naming the real generic types would thread their
  * parameters through every page, and this bridge's whole job is to keep them
  * out of the call sites.
  */
@@ -280,10 +280,12 @@ function FieldProvider({
   return <FormFieldContext.Provider value={value}>{children}</FormFieldContext.Provider>
 }
 
+/** The wrapper for one field's label, control, description and message. */
 export function FormItem({ className, ...props }: React.ComponentProps<'div'>) {
   return <div className={cn('grid gap-2', className)} {...props} />
 }
 
+/** The field's label, tied to its control by `htmlFor` and shown in the destructive colour while the field has errors. */
 export function FormLabel({ className, ...props }: React.ComponentProps<typeof Label>) {
   const { errors, formItemId } = useFormField()
   return (
@@ -297,7 +299,7 @@ export function FormLabel({ className, ...props }: React.ComponentProps<typeof L
 }
 
 /**
- * Wires the id and the aria wiring onto whatever control it is given.
+ * Wires the field's id, name and aria attributes onto whatever control it is given.
  *
  * Base UI has no `Slot` component — `useRender` is its equivalent, and this
  * is the same call shape the vendored primitives (breadcrumb, badge) use.
@@ -354,6 +356,11 @@ export function FormControl({ children }: { children: React.ReactElement<{ name?
   })
 }
 
+/**
+ * Helper text under a field. `FormControl` points `aria-describedby` only at
+ * the error message, and only while there is an error, so this text is not
+ * announced with the control.
+ */
 export function FormDescription({ className, ...props }: React.ComponentProps<'p'>) {
   return <p className={cn('text-sm text-muted-foreground', className)} {...props} />
 }
@@ -376,10 +383,10 @@ function issueText(issue: unknown): string {
  * The form-level failure: the `errors` map's reserved `formErrors` key, or
  * the response's own message when it carried no field detail.
  *
- * Rendered above the submit button, and the one place a submit failure is
- * announced: pages raise no toast for it. It registers whether or not there
- * is anything to show, so `<Form>`'s dev warning fires only when this
- * component is absent.
+ * Rendered above the submit button; it is where a submit failure is announced
+ * (a read-only refusal is a toast instead: `useServerErrors`). It registers
+ * whether or not there is anything to show, so `<Form>`'s dev warning fires
+ * only when this component is absent.
  */
 export function FormError({ className, ...props }: React.ComponentProps<'div'>) {
   const serverErrors = React.useContext(ServerErrorsContext)
