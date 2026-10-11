@@ -67,7 +67,7 @@ export interface PosthogOptionsInput {
    * cleared.
    */
   guardEvent?: (event: CaptureResult) => CaptureResult | null
-  /** Runs once the SDK has loaded. */
+  /** Runs once the SDK has loaded, before it sends any event, so queued identity is applied first. */
   onLoaded: (instance: PostHogInterface) => void
 }
 

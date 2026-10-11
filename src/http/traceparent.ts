@@ -1,7 +1,7 @@
 /**
- * @file A W3C `traceparent` header value per API call, so the browser chooses
- * the trace id. There is no tracing SDK: the ids are random and the flags
- * always say "sampled".
+ * @file A W3C `traceparent` header value per API call, so the server's span
+ * joins a trace the browser chose. There is no tracing SDK: the ids are
+ * random and the flags always say "sampled".
  */
 
 /** `length` random bytes. */

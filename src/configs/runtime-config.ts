@@ -73,7 +73,7 @@ const DEFAULT_ENVIRONMENT = 'development'
  * those that do not. A setting that is unset, empty or not a string is in
  * neither.
  * @param raw - `window.__APP_CONFIG__`, or the dev server's env mapped to container names.
- * @returns Valid values by key.
+ * @returns The valid values by key, and the names of the keys that failed their pattern.
  */
 function validValues(raw: Readonly<Record<string, unknown>>): {
   values: Partial<Record<RuntimeConfigKey, string>>
@@ -108,8 +108,8 @@ function canonicalOrigins(list: string): string[] | undefined {
  * Builds the configuration from raw values keyed by container name. An
  * invalid value is treated as unset, except a consent mode, which fails
  * closed: an unrecognised one turns analytics `off` rather than falling back
- * to capturing. A handoff list holding an origin `URL` refuses is dropped
- * whole.
+ * to capturing. A handoff list containing an origin that `URL` refuses is
+ * dropped whole and recorded in `invalid`.
  * @param raw - Raw values; anything that is not a string counts as unset.
  * @returns The configuration and the names of the values that were refused.
  */

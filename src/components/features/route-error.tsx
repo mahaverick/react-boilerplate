@@ -41,7 +41,7 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
     )
   }
 
-  /** Re-runs the route's loaders, then clears the error boundary. */
+  /** Try again: clears the error boundary only after the loaders have re-run. */
   async function retry() {
     await router.invalidate()
     reset()
@@ -61,7 +61,7 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
   )
 }
 
-/** The error screen's card: a title, a description, an optional detail block and the actions. */
+/** The shared frame of both error screens, so the reload and retry variants look alike; `detail` is shown only in development. */
 function RouteErrorCard({
   title,
   description,

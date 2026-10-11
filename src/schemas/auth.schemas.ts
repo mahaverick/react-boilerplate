@@ -3,8 +3,9 @@ import { notAllowedMessage, safeText } from '@/schemas/safe-text.schemas'
 
 const MIN_PASSWORD_LENGTH = 8
 /**
- * bcrypt cannot hash more than 72 bytes, so the API refuses a longer password.
- * Counted in bytes, not characters: one emoji is four.
+ * bcrypt uses only the first 72 bytes of a password and ignores the rest, so
+ * two passwords sharing that prefix would hash identically; the API refuses a
+ * longer password instead. Counted in bytes, not characters: one emoji is four.
  */
 const MAX_PASSWORD_BYTES = 72
 const MAX_EMAIL_LENGTH = 320
@@ -12,7 +13,7 @@ const MAX_NAME_LENGTH = 100
 
 const encoder = new TextEncoder()
 
-/** An email address: trimmed, lowercased, valid and at most 320 characters. */
+/** The email field's rule. The address is trimmed and lowercased before it is checked and sent. */
 export const emailSchema = z
   .string()
   .trim()

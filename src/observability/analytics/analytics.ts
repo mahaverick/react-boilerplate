@@ -2,7 +2,8 @@
  * @file The analytics facade, the only module the app calls. posthog-js is
  * loaded by `initAnalytics` with a dynamic `import()`, so none of it is in the
  * entry chunk and a page with no key never fetches it. Calls made before it
- * has loaded are queued and replayed in order when it does; with no key, or
+ * has loaded are queued and replayed in order when it does, before any event
+ * is sent, so queued identity is applied first; with no key, or
  * consent mode `off`, every call is a no-op. A throwing SDK call is swallowed:
  * analytics never fails a user action.
  */
