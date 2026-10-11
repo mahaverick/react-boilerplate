@@ -2,17 +2,46 @@ import js from '@eslint/js'
 import tanstackRouter from '@tanstack/eslint-plugin-router'
 import prettier from 'eslint-config-prettier'
 import checkFile from 'eslint-plugin-check-file'
+import jsdoc from 'eslint-plugin-jsdoc'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tailwindcss from 'eslint-plugin-tailwindcss'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
+import jsdocPending from './jsdoc-pending.json' with { type: 'json' }
 import { commentStyleRule } from './scripts/comment-style.mjs'
 
 const SLEEP_MESSAGE =
   'Wait on a condition, not a duration: findBy*/waitFor/vi.waitFor, expect.poll or a web-first assertion in e2e, fake timers, or settle(ms, reason) from @/tests/fixtures/timing (e2e: ./timing) when nothing can be observed.'
 const NETWORKIDLE_MESSAGE =
   "networkidle waits on every request the page makes, including ones this test does not care about. Assert what the page renders (a heading's toBeVisible) or wait for the one response that matters."
+
+/**
+ * Every named function, method and class; inline callbacks and constructors
+ * are exempt by construction.
+ */
+const NAMED_FUNCTIONS = [
+  'FunctionDeclaration',
+  'TSDeclareFunction',
+  'ClassDeclaration',
+  'MethodDefinition:not([kind="constructor"]):not([value.body=null])',
+  'TSAbstractMethodDefinition',
+  'VariableDeclarator > ArrowFunctionExpression',
+  'VariableDeclarator > FunctionExpression',
+  'PropertyDefinition > ArrowFunctionExpression',
+]
+/** Named functions plus interfaces, type aliases and exported consts. */
+const JSDOC_CONTEXTS = [
+  ...NAMED_FUNCTIONS,
+  'TSInterfaceDeclaration',
+  'TSTypeAliasDeclaration',
+  'ExportNamedDeclaration[declaration.type="VariableDeclaration"]',
+]
+/**
+ * Files whose comments are not yet converted, keyed by plan task; each
+ * comment PR deletes its key.
+ */
+const PENDING = Object.values(jsdocPending).flat()
 
 export default tseslint.config(
   {
@@ -375,5 +404,51 @@ export default tseslint.config(
     plugins: { local: { rules: { 'comment-style': commentStyleRule } } },
     rules: { 'local/comment-style': 'error' },
   },
+  {
+    // Every named function, method and class carries a JSDoc purpose line; tags only where they add what types cannot.
+    files: ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'],
+    plugins: { jsdoc },
+    rules: {
+      'jsdoc/require-jsdoc': [
+        'error',
+        {
+          publicOnly: false,
+          require: { FunctionDeclaration: false },
+          contexts: JSDOC_CONTEXTS,
+          checkConstructors: false,
+          // lint-staged runs eslint --fix, and this fixer inserts blank stubs.
+          enableFixer: false,
+        },
+      ],
+      'jsdoc/require-description': ['error', { contexts: JSDOC_CONTEXTS }],
+      'jsdoc/no-blank-blocks': ['error', { enableFixer: false }],
+      'jsdoc/check-param-names': ['error', { checkDestructured: false }],
+      'jsdoc/check-tag-names': ['error', { typed: true }],
+      'jsdoc/no-types': 'error',
+    },
+  },
+  {
+    // .d.mts mirrors its .mjs exports; a second JSDoc copy would drift.
+    files: ['scripts/**/*.d.mts'],
+    rules: { 'jsdoc/require-jsdoc': 'off' },
+  },
+  {
+    // Vendored shadcn/Base UI output stays as upstream ships it.
+    files: ['src/components/ui/!(form|sonner).tsx'],
+    rules: { 'jsdoc/require-jsdoc': 'off', 'jsdoc/require-description': 'off' },
+  },
+  ...(PENDING.length > 0
+    ? [
+        {
+          files: PENDING,
+          rules: {
+            'jsdoc/require-jsdoc': 'off',
+            'jsdoc/require-description': 'off',
+            'jsdoc/check-param-names': 'off',
+            'jsdoc/no-types': 'off',
+          },
+        },
+      ]
+    : []),
   prettier
 )
