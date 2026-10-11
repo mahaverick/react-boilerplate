@@ -22,6 +22,7 @@ import { syncFeatureProperties } from './register'
 /** One shared fallback record, so readers see a stable object while nothing has loaded. */
 let fallbacks: ClientFlagValues | null = null
 
+/** The shared fallback record, built on first use. */
 function sharedFallbacks(): ClientFlagValues {
   fallbacks ??= fallbackFlags()
   return fallbacks

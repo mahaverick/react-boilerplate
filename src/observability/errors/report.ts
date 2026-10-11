@@ -44,13 +44,13 @@ export const FINGERPRINT_LIMIT = 5
 /** Events in one page life; past it nothing more is built. */
 export const PAGE_LIMIT = 30
 
-/** Events per request. */
+/** The most events in one request. */
 export const BATCH_SIZE = 10
 
-/** How long an event waits for others to share its request. */
+/** How long the first queued event waits for others to share its request. */
 export const BATCH_WINDOW_MS = 2_000
 
-/** The one retry of a batch that failed on the network or with a 5xx. */
+/** How long a batch that failed on the network or with a 5xx waits before its one retry. */
 export const RETRY_DELAY_MS = 5_000
 
 /** Exceptions kept from a `cause` chain, the thrown one first. */
@@ -86,6 +86,7 @@ export interface ExceptionEvent {
   properties: Record<string, unknown>
 }
 
+/** A built event whose identity is not attached yet. */
 type PendingEvent = Omit<ExceptionEvent, 'distinct_id'>
 
 let builder: ErrorPropertiesBuilder | undefined
@@ -103,6 +104,7 @@ const retrying = new Map<ExceptionEvent[], ReturnType<typeof setTimeout>>()
 let keepaliveBytesInFlight = 0
 let isPageHideInstalled = false
 
+/** The `message` of an error-like value, the value itself when it is a string, else undefined. */
 function messageOf(input: unknown): string | undefined {
   if (typeof input === 'string') return input
   if (typeof input !== 'object' || input === null) return undefined
@@ -148,6 +150,7 @@ export function isAppFrame(filename: string | undefined, origin = location.origi
   }
 }
 
+/** A frame with `in_app` recomputed and its filename and function scrubbed. */
 function scrubFrame(frame: StackFrame): StackFrame {
   return {
     ...frame,
@@ -208,6 +211,12 @@ function scrubUrl(url: string): string {
   return `${scrubText(url.slice(0, queryStart))}${url.slice(queryStart)}`
 }
 
+/**
+ * Builds PostHog's exception list for an error, creating the builder on first use.
+ * @param error - The noted error, as received.
+ * @param handled - Recorded as the exception mechanism's `handled`.
+ * @returns The exception list, the thrown exception first.
+ */
 function build(error: unknown, handled: boolean): Exception[] {
   builder ??= new ErrorPropertiesBuilder(
     [
@@ -226,11 +235,12 @@ function build(error: unknown, handled: boolean): Exception[] {
 }
 
 /**
- * The identity for an event built now. The first call waits for analytics
- * to settle, at most `SETTLE_CAP_MS`; once that wait is over, later calls
- * read the identity without waiting, and get null while analytics is still
- * unsettled. Only the first call asks analytics to tell it when it settles,
- * so errors after the cap leave nothing waiting on a load that may never end.
+ * The identity for an event built now. Calls share one wait for analytics to
+ * settle, at most `SETTLE_CAP_MS` from the first call; once that wait is over,
+ * later calls read the identity without waiting, and get null while analytics
+ * is still unsettled. Only the first call asks analytics to tell it when it
+ * settles, so errors after the cap leave nothing waiting on a load that may
+ * never end.
  */
 function resolveIdentity(): Promise<AnalyticsIdentity | null> {
   settleGate ??= new Promise((resolve) => {
@@ -245,11 +255,11 @@ function resolveIdentity(): Promise<AnalyticsIdentity | null> {
 }
 
 /**
- * The event with its identity: the consented person, session, window and
- * tenant group; or, without consent, a fresh distinct id of its own and no
- * person profile.
+ * The event with its identity: the person's distinct id and the session,
+ * window and tenant group ids that are known; or, for null, a fresh distinct id
+ * of its own and no person profile.
  * @param event - The built event.
- * @param identity - From `whenAnalyticsSettled`, or null.
+ * @param identity - From `whenAnalyticsSettled`, or null for an anonymous event.
  * @returns The event to send.
  */
 export function withIdentity(
@@ -275,22 +285,25 @@ export function withIdentity(
   }
 }
 
+/** The proxy's batch endpoint on this page's origin. */
 function batchUrl(): string {
   return `${location.origin}${ANALYTICS_PROXY_PATH}/batch/`
 }
 
+/** A request body: the project key and the batch, as JSON. */
 function batchBody(batch: ExceptionEvent[]): string {
   return JSON.stringify({ api_key: getAnalyticsConfig().key, batch })
 }
 
+/** The UTF-8 size of a string in bytes. */
 function byteLength(text: string): number {
   return new TextEncoder().encode(text).length
 }
 
 /**
- * Takes the next request's events off the front of a list: at most
- * `BATCH_SIZE`, and at most `BATCH_MAX_BYTES` once serialized (an event too
- * big alone still goes alone).
+ * Removes the next request's events from the front of a list and returns them:
+ * at most `BATCH_SIZE`, and at most `BATCH_MAX_BYTES` once serialized (an
+ * event too big alone still goes alone).
  */
 function takeBatch(events: ExceptionEvent[]): ExceptionEvent[] {
   let bytes = byteLength(batchBody([]))
@@ -305,9 +318,10 @@ function takeBatch(events: ExceptionEvent[]): ExceptionEvent[] {
 
 /**
  * Posts one batch, retrying once after a network failure or a 5xx. The
- * request asks for `keepalive`, so it outlives the page, only while it fits
- * in what is left of `KEEPALIVE_QUOTA_BYTES` beside the reporter's other
- * keepalive requests in flight; otherwise it goes as a plain request.
+ * request asks for `keepalive`, so it outlives the page, only while it is
+ * within `BATCH_MAX_BYTES` and fits in what is left of `KEEPALIVE_QUOTA_BYTES`
+ * beside the reporter's other keepalive requests in flight; otherwise it goes
+ * as a plain request.
  * @param batch - The events to send.
  * @param canRetry - False for the retry itself.
  */
@@ -327,7 +341,7 @@ async function send(batch: ExceptionEvent[], canRetry: boolean): Promise<void> {
     })
     if (response.status < 500) return
   } catch {
-    // A network failure: retried once below, like a 5xx.
+    // A network failure is retried once below, like a 5xx.
   } finally {
     keepaliveBytesInFlight -= keepaliveBytes
   }
@@ -341,12 +355,14 @@ async function send(batch: ExceptionEvent[], canRetry: boolean): Promise<void> {
   )
 }
 
+/** Sends everything queued, in requests cut by `takeBatch`, and stops the flush timer. */
 function flush(): void {
   if (flushTimer !== undefined) clearTimeout(flushTimer)
   flushTimer = undefined
   while (queue.length > 0) void send(takeBatch(queue), true)
 }
 
+/** Queues an event; a full batch is sent at once, otherwise the flush timer is started if it is not running. */
 function enqueue(event: ExceptionEvent): void {
   queue.push(event)
   if (queue.length >= BATCH_SIZE) flush()
@@ -456,7 +472,7 @@ export function report(
   }
 }
 
-/** Test-only: forget the throttle, the queue, the settle wait and the timers. */
+/** Test-only: forget the throttle, the queue, the settle wait, the timers and the `pagehide` listener. */
 export function resetReporterForTests(): void {
   fingerprintCounts.clear()
   accepted = 0

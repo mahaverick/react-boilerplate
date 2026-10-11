@@ -1,11 +1,10 @@
 /**
  * @file The analytics facade, the only module the app calls. posthog-js is
- * loaded with a dynamic `import()` by `initAnalytics`, so none of it is in the
- * entry chunk and a page with no key never fetches it. Calls made before the SDK has loaded
- * are queued in order and replayed inside its `loaded` callback, which runs
- * before any event; with no key, or consent mode `off`, every call
- * is a no-op. A throwing SDK call is swallowed: analytics never fails a user
- * action.
+ * loaded by `initAnalytics` with a dynamic `import()`, so none of it is in the
+ * entry chunk and a page with no key never fetches it. Calls made before it
+ * has loaded are queued and replayed in order when it does; with no key, or
+ * consent mode `off`, every call is a no-op. A throwing SDK call is swallowed:
+ * analytics never fails a user action.
  */
 import type { CaptureResult, PostHog, PostHogInterface } from 'posthog-js'
 import { bumpIdentityEpoch, identityEpoch } from '@/observability/identity-epoch'
@@ -69,6 +68,7 @@ const IDENTITY_REGISTRY_KEY = 'analytics-identity-registry'
  */
 const IDENTITY_REGISTRY_TTL_MS = 60_000
 
+/** One tab's record that it identified a person, and when. */
 interface IdentityRegistryEntry {
   distinctId: string
   at: number
@@ -81,21 +81,25 @@ interface IdentityRegistryEntry {
  */
 export const SUPERSEDED_RECHECK_MS = 5000
 
+/** A call on the SDK, deferred until it has loaded. */
 type Command = (client: PostHogInterface) => void
 
 /**
- * Calls held before the SDK loads. Past this, the oldest queued event
- * capture is dropped to make room; identity, reset, group and consent calls
- * are never dropped, so the queue can exceed the cap only by those.
+ * The most calls held before the SDK loads. Past it, the oldest queued event
+ * capture is dropped to make room (or the new capture, when none is queued);
+ * identity, reset, group and consent calls are never dropped, so the queue can
+ * exceed the cap only by those.
  */
 export const MAX_QUEUED_COMMANDS = 100
 
+/** A command waiting for the SDK, and whether the queue may shed it. */
 interface QueuedCommand {
   command: Command
   /** Only an event capture may be dropped when the queue is full. */
   isDroppable: boolean
 }
 
+/** A tenant group and how the user reached it. */
 interface AppliedTenant {
   id: string
   access: AnalyticsTenantAccess
@@ -172,15 +176,18 @@ export interface AnalyticsIdentity {
 
 export { identityEpoch }
 
+/** Wakes every caller waiting on `whenAnalyticsSettled`. */
 function notifySettled(): void {
   for (const waiter of settledWaiters) waiter()
   settledWaiters.clear()
 }
 
+/** Tells the consent subscribers that consent or the load state changed. */
 function notifyConsent(): void {
   for (const listener of consentListeners) listener()
 }
 
+/** Runs a command on the SDK; a throw is swallowed, as analytics never fails a user action. */
 function execute(command: Command, instance: PostHogInterface): void {
   try {
     command(instance)
@@ -189,6 +196,12 @@ function execute(command: Command, instance: PostHogInterface): void {
   }
 }
 
+/**
+ * Runs a command now when the SDK is ready, discards it when analytics is
+ * inert, and otherwise queues it in order.
+ * @param command - The call on the SDK.
+ * @param isDroppable - True for an event capture, which a full queue may shed.
+ */
 function run(command: Command, isDroppable = false): void {
   if (status === 'ready' && client) {
     execute(command, client)
@@ -203,7 +216,7 @@ function run(command: Command, isDroppable = false): void {
   queue.push({ command, isDroppable })
 }
 
-/** How many times a registry change re-reads storage that another tab changed under it before writing anyway. */
+/** The most times a registry change is computed from storage that another tab changed under it before it is written anyway. */
 const IDENTITY_REGISTRY_WRITE_ATTEMPTS = 3
 
 /**
@@ -251,12 +264,12 @@ function readIdentityRegistry(): IdentityRegistryEntry[] {
  * Changes the registry: `add` is recorded (replacing any entry for the same
  * id) and the ids in `remove` are taken out; expired entries are dropped and
  * the list is cut to `MAX_SIBLING_IDENTITIES` on the way. Every tab of this
- * app writes the one key, so the change is applied to what storage holds
- * right before the write: when the text read to compute it has changed by
- * then, the change is computed again from the new text, so an entry another
- * tab wrote in between is kept. After `IDENTITY_REGISTRY_WRITE_ATTEMPTS`
- * such changes it writes anyway, and an entry written in that last window is
- * lost: storage has no compare-and-set, so the race is narrowed, not closed.
+ * app writes the one key, so when the stored text has changed since the
+ * change was computed, it is computed again from the new text, which keeps an
+ * entry another tab wrote in between. It is computed at most
+ * `IDENTITY_REGISTRY_WRITE_ATTEMPTS` times and then written anyway, so an
+ * entry written in that last window is lost: storage has no compare-and-set,
+ * so the race is narrowed, not closed.
  * @param change - The entry to add and the ids to remove.
  */
 function changeIdentityRegistry(change: {
@@ -327,6 +340,7 @@ function openIdentityChannel(): void {
   })
 }
 
+/** Tells this app's other tabs which person this tab identified; a failed post is ignored. */
 function announceIdentity(distinctId: string): void {
   try {
     identityChannel?.postMessage({ type: 'identified', distinctId })
@@ -349,6 +363,7 @@ function supersede(): void {
   for (const listener of supersededListeners) listener()
 }
 
+/** Turns analytics off for this page load: drops the queue and wakes the callers waiting on settle. */
 function becomeInert(): void {
   status = 'inert'
   queue = []
@@ -381,7 +396,8 @@ function applyTenant(ph: PostHogInterface): void {
  * `$feature/*`, overriding the server's values the flags module registers.
  * The super properties are registered next, and any tenant group a previous
  * page load persisted is dropped: the tenant comes from the route this load
- * resolves, never from storage another tab wrote.
+ * resolves, never from storage another tab wrote. The queued calls then run
+ * in order.
  */
 function onLoaded(instance: PostHogInterface): void {
   client = instance
@@ -397,11 +413,12 @@ function onLoaded(instance: PostHogInterface): void {
 }
 
 /**
- * `reset()` also clears the super properties, the tenant group and
+ * Resets the SDK's person and takes this tab's person out of the identity
+ * registry. `reset()` also clears the super properties, the tenant group and
  * posthog-js's consent, so all three are put back after it: the next
  * person's events still say which app, environment and tenant page they come
- * from, and the browser's consent answer stands. Sign-out clears
- * `appliedTenant` before calling this.
+ * from, and the browser's consent answer stands. `resetAnalytics` clears
+ * `appliedTenant` before calling this, so a sign-out keeps no tenant group.
  */
 function resetKeepingConsent(ph: PostHogInterface): void {
   if (signedInUserId !== null) unregisterIdentity(signedInUserId)
@@ -433,8 +450,8 @@ function applyIdentity(ph: PostHogInterface, userId: string): void {
 /**
  * Puts back the super properties and tenant group something else cleared
  * under this tab (a reset by a sibling sharing the identity cookie). Runs in
- * a microtask, never inside the event that found the change, and at most
- * once per task.
+ * a microtask, never inside the event that found the change; calls made before
+ * it runs share one repair.
  */
 function scheduleRepair(): void {
   if (isRepairScheduled) return
@@ -451,14 +468,14 @@ function scheduleRepair(): void {
 /**
  * Identifies the signed-in user again after something else changed the
  * identity cookie, `IDENTITY_REPAIR_DELAY_MS` later, and only if the change
- * still stands then and is foreign. A sign-out in this tab (another tab's
- * logout broadcast landing) cancels it. A change to a person another tab of
- * this app identified, announced on the channel or recorded in the storage
- * registry (written before the identify, so normally visible before the
- * cookie change, and narrowing the race a stalled event loop opens), is that
- * tab's legitimate sign-in: this tab is then superseded instead, and the app
- * signs it out, never fighting the other tab.
- * Only a foreign identity, such as one a website sharing the cookie set, is
+ * still stands then and is foreign. A sign-out in this tab before then
+ * cancels it. A change to a person another tab
+ * of this app identified, announced on the channel or recorded in the storage
+ * registry, is that tab's legitimate sign-in: this tab is superseded
+ * instead, and the app signs it out, never fighting the other tab. The
+ * registry is written before the identify, so it is normally visible before
+ * the cookie change, which narrows the race a stalled event loop opens. Only
+ * a foreign identity, such as one a website sharing the cookie set, is
  * repaired.
  */
 function scheduleIdentityRepair(): void {
@@ -575,10 +592,11 @@ function guardEvent(captured: CaptureResult): CaptureResult | null {
 }
 
 /**
- * Loads and starts posthog-js, once. Reads and strips the handoff parameters
- * first, whatever the configuration, so they never stay in the address bar.
- * Call it after the session restore has settled: the identity the restore
- * queues is then applied before the first `$pageview`.
+ * Loads and starts posthog-js, once. Strips the handoff parameters first,
+ * whatever the configuration, so they never stay in the address bar; they are
+ * read only when handoff is supported, a key is set and consent mode is
+ * `opt_out`. Call it after the session restore has settled: the identity the
+ * restore queues is then applied before the first `$pageview`.
  * @param config - Defaults to this page's run-time configuration.
  */
 export async function initAnalytics(config: AnalyticsConfig = getAnalyticsConfig()): Promise<void> {
@@ -643,8 +661,8 @@ export function capturePageview(): void {
 }
 
 /**
- * Identifies the signed-in user by id alone: person properties are set by the
- * server, where a browser cannot forge them. A different person already
+ * Identifies the signed-in user by id alone: no person properties are sent
+ * from the browser, which could forge them. A different person already
  * identified in this browser is reset first, so the new user's events never
  * carry the old distinct id.
  * @param userId - The API's user id.
@@ -665,9 +683,9 @@ export function identifyUser(userId: string): void {
  * the session, such as a 502 during a deploy), the person is kept when
  * another tab of this app answers that it is signed in as them: resetting
  * the shared identity would split that tab's replay. The question goes out
- * at once and the answer is read when the SDK has loaded; with no answer by
- * then the person is forgotten, so an unanswered question never leaves a
- * stale person in place.
+ * at once and the answer is read when the command runs, once the SDK has
+ * loaded; with no answer by then the person is forgotten, so an unanswered
+ * question never leaves a stale person in place.
  * @param options - `keepIfAnotherTabHoldsThem`, false by default.
  */
 export function forgetStaleIdentity(options: { keepIfAnotherTabHoldsThem?: boolean } = {}): void {
@@ -719,8 +737,8 @@ export function yieldSharedIdentity(): void {
  * Puts the following events in the tenant's group, with `tenant_access`
  * saying how the user reached it. Moving to a different tenant than the last
  * one grouped since sign-in also sends `tenant_switched`, even with other
- * pages in between; the same tenant again does nothing. Group properties are
- * set by the server only.
+ * pages in between; the same tenant again does nothing. No group
+ * properties are sent from the browser, which could forge them.
  * @param tenantId - The tenant whose page this is.
  * @param access - `platform` when staff reached it through platform access.
  */
@@ -751,8 +769,8 @@ export function clearTenantGroup(): void {
 /**
  * Registers flag values as `$feature/<flag>` super properties, so every
  * following event, autocapture and page views included, carries them for
- * experiment metrics. They are registered again after a sibling's reset and
- * dropped by any reset of the person. While this tab is superseded they are
+ * experiment metrics. They are registered again after a sibling's reset, and
+ * dropped on sign-out and when a stale person is forgotten. While this tab is superseded they are
  * kept for its events only: the SDK, and the storage it shares with the tab
  * that superseded it, are left alone. A no-op when analytics is inert.
  * @param properties - `$feature/<flag>` names and their values.
@@ -787,10 +805,10 @@ export function unregisterFeatureProperties(names: readonly FeaturePropertyName[
 /**
  * Forgets the person and the tenant: sign-out, forced or chosen. The consent
  * answer survives. A tab superseded by another tab's sign-in forgets its own
- * state only: resetting the SDK would sign that other tab's person out of
- * the shared identity too. Any `$feature/*` property the SDK still holds
- * from this tab's user stays there, and the event guard keeps it off every
- * event this tab sends.
+ * state only, because resetting the SDK would sign that other tab's person
+ * out of the shared identity too; any `$feature/*` property the SDK still
+ * holds from this tab's user then stays there, and the event guard keeps it
+ * off every event this tab sends.
  */
 export function resetAnalytics(): void {
   bumpIdentityEpoch()
@@ -819,9 +837,9 @@ export function resetAnalytics(): void {
  * The app's answer to a supersession that did not end the session: the
  * refresh returned `userId`, this tab's own user, so the session cookie is
  * still theirs. The tab stops being superseded and, if the identity cookie
- * still holds someone else, identifies its user again; the other tab, whose
- * own refresh returns this user too, is then the one superseded and signed
- * out. A different id does nothing: that refresh signs this tab out.
+ * still holds someone else, identifies its user again, which supersedes the
+ * other tab in turn. A different id does nothing: that refresh signs this tab
+ * out.
  * @param userId - The user the refresh returned.
  */
 export function confirmSignedInUser(userId: string): void {
@@ -988,7 +1006,7 @@ export function getAnalyticsSessionIdFor(userId: string | null): string | undefi
 
 /**
  * The identity an exception may carry right now, or null when it must be
- * anonymous: no consent (in `required` mode, until granted; in `opt_out`
+ * anonymous: the SDK is not loaded, no consent (in `required` mode, until granted; in `opt_out`
  * mode, after an opt-out), a superseded tab, or a person posthog-js holds
  * that is not this tab's signed-in user.
  */

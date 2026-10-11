@@ -53,6 +53,7 @@ const DEPTH_LIMITED = '[depth limit]'
 /** Replay snapshots are rrweb data, not event URLs; masking happens in the recorder. */
 const SKIPPED_KEYS: ReadonlySet<string> = new Set(['$snapshot_data'])
 
+/** Sanitizes the `href` and `attr__href` of each element in an `$elements` list. */
 function sanitizeElements(elements: unknown[], allowlist: readonly string[]): unknown[] {
   return elements.map((element: unknown) => {
     if (typeof element !== 'object' || element === null || Array.isArray(element)) return element
@@ -65,6 +66,7 @@ function sanitizeElements(elements: unknown[], allowlist: readonly string[]): un
   })
 }
 
+/** Sanitizes the URL keys of `$heatmap_data`; the values pass through. */
 function sanitizeHeatmapData(data: unknown, allowlist: readonly string[]): unknown {
   if (typeof data !== 'object' || data === null) return data
   const result: Record<string, unknown> = {}
@@ -74,6 +76,11 @@ function sanitizeHeatmapData(data: unknown, allowlist: readonly string[]): unkno
   return result
 }
 
+/**
+ * Sanitizes every absolute http(s) string inside a value. `$elements`,
+ * `$elements_chain` and `$heatmap_data` are handled by their shape, and an
+ * object or array nested `MAX_SANITIZE_DEPTH` levels deep is replaced.
+ */
 function sanitizeValue(value: unknown, allowlist: readonly string[], depth: number): unknown {
   if (typeof value === 'string') {
     return ABSOLUTE_HTTP_URL.test(value) ? sanitizeUrl(value, allowlist) : value
@@ -104,6 +111,7 @@ function sanitizeValue(value: unknown, allowlist: readonly string[], depth: numb
   return result
 }
 
+/** `sanitizeValue` over an optional record, keeping an absent one absent. */
 function sanitizeRecord(
   record: Record<string, unknown> | undefined,
   allowlist: readonly string[]

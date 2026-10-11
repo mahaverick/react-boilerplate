@@ -1,8 +1,4 @@
-/**
- * The messages a failed dynamic import throws, matched by prefix: Chromium's,
- * Firefox's and Safari's. TanStack Router's own lazy-component reload matches
- * the same three.
- */
+/** The messages a failed dynamic import throws, matched by prefix: Chromium's, Firefox's and Safari's. */
 const CHUNK_LOAD_MESSAGES = [
   'Failed to fetch dynamically imported module',
   'error loading dynamically imported module',

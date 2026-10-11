@@ -9,8 +9,8 @@ import type { ApiSuccess } from '@/types/api.types'
  * The base is the relative, fixed `API_PREFIX`: the SPA is served same-origin
  * with the API (Vite's proxy in dev, nginx in prod), the only topology it
  * supports. nginx's CSP allows `connect-src 'self'` only, and the refresh
- * cookie is set on whichever origin answers `/api` (with secure cookies and no
- * COOKIE_DOMAIN, a host-only `__Host-` cookie).
+ * cookie belongs to whichever origin answers `/api` (with secure cookies and
+ * no COOKIE_DOMAIN, a host-only `__Host-` cookie).
  *
  * The 30s timeout exists because axios has none by default, so a request that
  * never answers would leave its mutation pending and its button disabled
@@ -24,7 +24,7 @@ export const apiClient: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-/** Strip the success envelope, which every endpoint on this API returns. */
+/** The payload of a success response: the `data` of the envelope that wraps every success body. */
 export function unwrap<T>(response: AxiosResponse<ApiSuccess<T>>): T {
   return response.data.data
 }

@@ -1,10 +1,8 @@
 import { Button } from '@/components/ui/button'
 
 /**
- * The message every tenant tab shows when the role lookup fails. One
- * definition, because every tenant tab gates on the same query and a reader
- * moving between them should not get a different account of the same
- * failure.
+ * The message the tenant tabs show when the role lookup they gate on fails.
+ * One definition, so every tab words the same failure the same way.
  */
 export const ROLE_ERROR =
   'We could not load your role in this tenant, so its controls are hidden until we can.'
@@ -12,7 +10,7 @@ export const ROLE_ERROR =
 /**
  * What a screen shows when something it needs could not be loaded: not a
  * skeleton, which would promise data that is not arriving. `role="alert"`
- * announces the failure, and the retry control puts the next move in reach.
+ * announces the failure, and the button calls `onRetry`.
  */
 export function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (

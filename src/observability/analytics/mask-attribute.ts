@@ -1,8 +1,8 @@
 /**
- * @file Session replay's attribute mask. Replay records every attribute of
- * every element, and the ones named here are where a person's name or address
- * ends up: `aria-label="Remove Jane Doe"`, `title`, `alt`, `placeholder`,
- * `data-*`, an iframe's `srcdoc` (a whole HTML document), a `mailto:` or `tel:` link, or an href, `src` or `srcset` whose
+ * @file Session replay's attribute mask. The attributes it masks are where a
+ * person's name or address ends up: `aria-label="Remove Jane Doe"`, `title`,
+ * `alt`, `placeholder`, `data-*`, an iframe's `srcdoc` (a whole HTML
+ * document), a `mailto:` or `tel:` href, and an href, `src` or `srcset` whose
  * query string can carry a token.
  */
 

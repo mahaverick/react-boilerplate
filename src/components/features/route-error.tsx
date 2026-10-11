@@ -16,12 +16,12 @@ import { noteError } from '@/observability/errors'
 /**
  * The router-wide error screen, for any route without its own `errorComponent`.
  * A chunk that failed to load offers a reload, since only a reload picks up a
- * new deploy's file names. Try again calls `router.invalidate()`, which re-runs
- * the loaders and replaces the failed match, then `reset()`. The error's own
+ * new deploy's file names. Any other error offers Try again, which runs
+ * `router.invalidate()` to re-run the loaders, then `reset()`. The error's own
  * message is shown in development only: in production it can carry server or
- * stack detail that means nothing to the reader. The error goes to error
- * tracking on mount: the router catches loader errors outside React's root
- * hooks, and one React did see is noted only once.
+ * stack detail that means nothing to the reader. The error is noted on mount
+ * because a loader error can reach this screen without passing React's root
+ * error hooks; `noteError` ignores one those hooks already noted.
  */
 export function RouteError({ error, reset }: ErrorComponentProps) {
   const router = useRouter()
@@ -41,6 +41,7 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
     )
   }
 
+  /** Re-runs the route's loaders, then clears the error boundary. */
   async function retry() {
     await router.invalidate()
     reset()
@@ -60,6 +61,7 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
   )
 }
 
+/** The error screen's card: a title, a description, an optional detail block and the actions. */
 function RouteErrorCard({
   title,
   description,

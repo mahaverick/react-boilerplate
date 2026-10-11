@@ -13,11 +13,11 @@ import { maskReplayAttribute } from './mask-attribute'
 import { sanitizeEventUrls, sanitizeUrl } from './url-sanitizer'
 
 /**
- * The newest `defaults` posthog-js 1.435.6 knows: history-API pageviews and
- * pageleaves, hash-stripped URLs, and `captureJsonLd: true`, which the
- * session-recording options below turn back off. Its automatic pageviews are
- * turned off (`capture_pageview`): the router captures each one once the
- * route has resolved, so a pageview never precedes the state it describes.
+ * The newest `defaults` the pinned posthog-js knows. They include
+ * `capture_pageview: 'history_change'` and `session_recording.captureJsonLd:
+ * true`, which the options below turn off. The router captures each pageview
+ * once the route has resolved, so a pageview never precedes the state it
+ * describes.
  */
 const POSTHOG_DEFAULTS = '2026-08-30'
 
@@ -49,7 +49,7 @@ export const CUSTOM_PERSONAL_DATA_PROPERTIES: readonly string[] = [
 
 /** Everything `buildPosthogOptions` needs from outside. */
 export interface PosthogOptionsInput {
-  /** Absolute: posthog-js calls `new URL` on it. */
+  /** An absolute URL. */
   apiHost: string
   uiHost: string
   consentMode: 'opt_out' | 'required'
@@ -67,21 +67,20 @@ export interface PosthogOptionsInput {
    * cleared.
    */
   guardEvent?: (event: CaptureResult) => CaptureResult | null
-  /** Runs once the SDK has loaded, before it sends any event. */
+  /** Runs once the SDK has loaded. */
   onLoaded: (instance: PostHogInterface) => void
 }
 
 /**
- * The init options. posthog-js does no flag work
+ * The init options. posthog-js evaluates no flags
  * (`advanced_disable_feature_flags`): express evaluates every flag, and
  * `advanced_disable_flags` is not used because it also stops remote config,
- * so session replay would never start. `required` adds
- * `cookieless_mode: 'on_reject'`: until the
- * banner is answered nothing is captured, and a refusal leaves only
- * cookieless, server-hashed counts. posthog-js 1.435 has no `cookie_domain`
- * option; `cross_subdomain_cookie` finds the registrable domain itself.
- * `persistence_name` and `cross_subdomain_cookie` decide whether this app
- * shares its browser identity with a sibling app on the same project key.
+ * so session replay would never start. `required` mode adds
+ * `cookieless_mode: 'on_reject'`, so a refusal leaves only cookieless,
+ * server-hashed counts. posthog-js has no `cookie_domain` option;
+ * `cross_subdomain_cookie` decides the cookie's domain. `persistence_name`
+ * and `cross_subdomain_cookie` decide whether this app shares its browser
+ * identity with a sibling app on the same project key.
  * @param input - See `PosthogOptionsInput`.
  * @returns A partial `PostHogConfig` for `posthog.init`.
  */

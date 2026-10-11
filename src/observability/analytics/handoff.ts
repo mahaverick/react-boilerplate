@@ -29,6 +29,7 @@ export interface HandoffResult {
   bootstrap?: HandoffBootstrap
 }
 
+/** The origin of a URL, or null when it does not parse. */
 function originOf(url: string): string | null {
   try {
     return new URL(url).origin
@@ -118,6 +119,7 @@ function persistenceName(key: string, configuredName?: string): string {
   return `ph_${key.replace(/\+/g, 'PL').replace(/\//g, 'SL').replace(/=/g, 'EQ')}_posthog`
 }
 
+/** The `$user_state` in a serialized posthog-js persistence blob, or undefined when it has none or is not JSON. */
 function userStateIn(serialized: string | null | undefined): unknown {
   if (!serialized) return undefined
   try {

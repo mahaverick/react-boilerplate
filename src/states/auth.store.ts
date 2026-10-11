@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { User } from '@/types/api.types'
 
+/** The session's state and the actions that change it. */
 interface AuthState {
   accessToken: string | null
   user: User | null
@@ -13,6 +14,7 @@ interface AuthState {
   setBootstrapped: () => void
 }
 
+/** The signed-in session: the access token and the user, held in memory only. */
 export const useAuthStore = create<AuthState>()((set) => ({
   accessToken: null,
   user: null,

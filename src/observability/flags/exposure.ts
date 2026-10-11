@@ -10,7 +10,7 @@ import { flagScopeId } from './flag-query'
 import { flagsPathFor, type FlagScope } from './flag-scope'
 import type { ClientFlagKey } from './flag-types'
 
-/** How long reports gather before one POST per scope carries them. */
+/** How long reports gather before they are sent, as one POST per scope and chunk of keys. */
 export const EXPOSURE_BATCH_MS = 50
 
 /** The most keys one exposure POST carries; the endpoint refuses more. */
@@ -19,6 +19,7 @@ export const MAX_EXPOSURE_KEYS = 10
 /** The `sessionStorage` key prefix marking a scope, key and value as reported. */
 export const EXPOSURE_DEDUPE_PREFIX = 'ph_flag_exp:'
 
+/** The keys waiting to be reported for one scope. */
 interface PendingBatch {
   scope: FlagScope
   keys: Set<string>
@@ -29,6 +30,7 @@ const reported = new Set<string>()
 const pending = new Map<string, PendingBatch>()
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 
+/** `sessionStorage`, or null where reading it throws. */
 function sessionStore(): Storage | null {
   try {
     return window.sessionStorage
@@ -37,6 +39,7 @@ function sessionStore(): Storage | null {
   }
 }
 
+/** Whether a mark was already reported, in memory or in session storage. */
 function isReported(mark: string): boolean {
   if (reported.has(mark)) return true
   try {
@@ -47,6 +50,7 @@ function isReported(mark: string): boolean {
   }
 }
 
+/** Records a mark in memory and, best effort, in session storage. */
 function markReported(mark: string): void {
   reported.add(mark)
   try {
@@ -56,6 +60,7 @@ function markReported(mark: string): void {
   }
 }
 
+/** Sends the pending keys, one POST per scope in chunks of `MAX_EXPOSURE_KEYS`; a failed POST is dropped. */
 function flush(): void {
   flushTimer = null
   const batches = [...pending.values()]

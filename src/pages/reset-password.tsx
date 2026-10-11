@@ -37,6 +37,7 @@ export const Route = createFileRoute('/reset-password')({
   component: ResetPasswordPage,
 })
 
+/** The new-password form for a mailed token; without a token it points to the forgot-password page. */
 function ResetPasswordPage() {
   const { token } = Route.useSearch()
   const navigate = useNavigate()

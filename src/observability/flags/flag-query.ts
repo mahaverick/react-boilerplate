@@ -40,7 +40,7 @@ export function flagKeyFor(scope: FlagScope): readonly string[] {
 }
 
 /**
- * A scope as one string, for the exposure dedupe and effect dependencies.
+ * A scope as one string, for the exposure dedupe.
  * @param scope - The scope.
  * @returns `tenant:<slug>`, `none` or `platform`.
  */

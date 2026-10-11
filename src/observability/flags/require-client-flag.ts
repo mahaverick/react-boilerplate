@@ -1,6 +1,6 @@
 /**
  * @file The route guard for a flag-gated page: the page does not exist while
- * its flag is off, as the gated API route answers 404 for it.
+ * its flag is off.
  */
 import type { QueryClient } from '@tanstack/react-query'
 import { notFound } from '@tanstack/react-router'
@@ -11,8 +11,8 @@ import type { ClientFlagKey, ClientFlagValue } from './flag-types'
 /**
  * For a route's `beforeLoad`: throws `notFound()` unless the flag has the
  * expected value. It loads the scope's values itself, since `beforeLoad` runs
- * before any loader, and a failed load means the fallback, so a gated page is
- * closed whenever the flags cannot be read.
+ * before any loader. A failed load means the fallbacks, so a page gated on a
+ * boolean flag is closed whenever the flags cannot be read.
  * @param queryClient - The app's query client.
  * @param scope - The scope the page reads its flags in.
  * @param key - The gating flag.

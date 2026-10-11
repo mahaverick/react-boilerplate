@@ -40,7 +40,7 @@ export function clientFlagKeys(): ClientFlagKey[] {
 
 /**
  * The value a flag takes when the server's answer is missing, failed or not
- * loaded yet: false, or the flag's first variant.
+ * loaded yet: false, or the flag's declared `fallback` variant.
  * @param key - A flag this app reads.
  * @returns Its fallback.
  */
@@ -67,6 +67,7 @@ export function fallbackFlags(): ClientFlagValues {
   return typedAs<ClientFlagValues>(values)
 }
 
+/** Whether a value is what the flag takes: a boolean, or one of the flag's variants. */
 function isValidValue(definition: ClientFlagDefinition, value: unknown): value is boolean | string {
   if (definition.kind === 'boolean') return typeof value === 'boolean'
   return typeof value === 'string' && definition.variants.includes(value)

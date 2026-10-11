@@ -8,6 +8,7 @@ export const MAIN_CONTENT_ID = 'main'
  * itself and cancels the hash navigation, so the URL and history stay as they were.
  */
 export function SkipLink() {
+  /** Focuses the main landmark itself instead of following the hash link. */
   function skip(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault()
     document.getElementById(MAIN_CONTENT_ID)?.focus()

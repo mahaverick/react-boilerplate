@@ -8,6 +8,7 @@ import { identityEpoch } from '@/observability/identity-epoch'
 /** Where an error was noticed; sent as the event's `origin`. */
 export type ErrorOrigin = 'window' | 'rejection' | 'react' | 'router' | 'chunk_load'
 
+/** The reporter chunk's entry point; `notedAt` and `notedEpoch` are set for an error that was buffered. */
 type Reporter = (
   error: unknown,
   origin: ErrorOrigin,
@@ -19,13 +20,13 @@ type Reporter = (
 /** Errors held until the reporter has loaded; later ones are dropped. */
 export const ERROR_BUFFER_LIMIT = 20
 
-/** When `requestIdleCallback` is missing, the reporter loads this long after install. */
+/** The longest the reporter's load waits after install: the idle callback's timeout, or the `setTimeout` delay where that is missing. */
 export const IDLE_LOAD_FALLBACK_MS = 3000
 
 /**
- * How long a re-throw counts as the crash it repeats. A crashed route re-renders
- * when the router replaces its match (the router's error boundary resets on a
- * new match), and throws a new error object with the same stack.
+ * How long a second error with the same name, message and stack counts as a
+ * re-throw of the crash it repeats. A route that crashes again throws a new
+ * error object each time, so the `seen` set alone would miss it.
  */
 export const RETHROW_WINDOW_MS = 1000
 
@@ -38,6 +39,7 @@ let isLoading = false
 let isInstalled = false
 let readRouteId: (() => string | undefined) | undefined
 
+/** Loads the reporter chunk once and hands it the buffered errors; a failed load can be retried. */
 function load(): void {
   if (reporter || isLoading) return
   isLoading = true
@@ -72,8 +74,9 @@ function isRethrow(error: object): boolean {
 
 /**
  * Hands one error to the reporter, or buffers it until the reporter loads.
- * The same error object is noted once, whichever source sees it first, and so
- * is a re-throw of the same crash (see `RETHROW_WINDOW_MS`). Never throws.
+ * An error object is noted once, whichever source sees it first, and so is a
+ * re-throw of the same crash (see `RETHROW_WINDOW_MS`); an error that is not
+ * an object is not deduplicated. Never throws.
  * @param error - What was thrown or rejected, as received.
  * @param origin - Where it was noticed.
  * @param handled - True when the app already shows the user an error screen.
@@ -117,10 +120,7 @@ export function installErrorListeners(): void {
   }
 }
 
-/**
- * React 19 root options for `createRoot`: every error React catches or fails
- * to catch is noted, and still logged to the console as React's defaults do.
- */
+/** React 19 root options for `createRoot`: every error React catches or fails to catch is noted, then logged with `console.error`. */
 export const rootErrorOptions = {
   onUncaughtError: (error: unknown): void => {
     noteError(error, 'react', false)
@@ -154,7 +154,7 @@ export function currentRouteId(): string | undefined {
   }
 }
 
-/** Test-only: forget the buffer, the reporter, the route source and the recent re-throw keys. */
+/** Test-only: forget the buffer, the reporter and its loading flag, the route source and the recent re-throw keys. */
 export function resetErrorListenForTests(): void {
   buffer.length = 0
   recent.clear()

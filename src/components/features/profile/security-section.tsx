@@ -88,9 +88,9 @@ export function SecuritySection() {
 }
 
 /**
- * Read-only: the API has no endpoint to unlink a method. A Google sign-up has
- * an 'email' row too, so `hasPassword` alone decides whether "Email &
- * password" is listed.
+ * The account's sign-in methods. Read-only: the API has no endpoint to unlink
+ * a method. A Google sign-up has an 'email' row too, so `hasPassword` alone
+ * decides whether "Email & password" is listed.
  */
 function SignInMethods({ providers, hasPassword }: AuthProviders) {
   const linked = providers.filter((link) => link.provider !== 'email')
@@ -142,6 +142,10 @@ function OtherSessions() {
   )
 }
 
+/**
+ * The change-password form. The API's two single-field 400s are shown under
+ * their field; any other failure goes through `serverErrors.capture`.
+ */
 function ChangePasswordForm() {
   const changePassword = useChangePassword()
   const serverErrors = useServerErrors()
