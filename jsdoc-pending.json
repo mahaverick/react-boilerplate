@@ -1,9 +1,1 @@
-{
-  "RT": [
-    "commitlint.config.js",
-    "scripts/comment-style.mjs",
-    "scripts/history-patterns.mjs",
-    "scripts/lint-docs.mjs",
-    "src/observability/errors/scrub.ts"
-  ]
-}
+{}
