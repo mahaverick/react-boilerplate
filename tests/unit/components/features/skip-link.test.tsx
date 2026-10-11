@@ -11,6 +11,7 @@ import { useAuthStore } from '@/states/auth.store'
 import { fail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
+/** Mounts the real route tree at `path`. */
 function renderAppAt(path: string) {
   const router = createRouter({
     routeTree,

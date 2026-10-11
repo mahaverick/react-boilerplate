@@ -65,12 +65,10 @@ describe('ensureSession', () => {
   })
 
   /**
-   * A 401 is a VERDICT: the refresh cookie is dead, so clearing the session
-   * is the only correct answer. A transport failure is not a verdict about
-   * anything — the session may be perfectly good and this call simply could
-   * not ask. Signing the user out on it means a few seconds of downtime ends
-   * a working session, which useNotificationStream turns into a routine
-   * occurrence because it reconnects through ensureSession().
+   * A 401 is a verdict: the refresh cookie is dead, so clearing the session is the only
+   * answer. A transport failure judges nothing; the session may be fine and this call just
+   * could not ask. Signing out on it would end a working session after a few seconds of
+   * downtime, routinely, because `useNotificationStream` reconnects through ensureSession().
    */
   it('rejects WITHOUT logging out when the API cannot be reached', async () => {
     useAuthStore.getState().login('live-token', testUser)
@@ -84,7 +82,7 @@ describe('ensureSession', () => {
     expect(s.user).toEqual(testUser)
   })
 
-  // The predicate is "the server JUDGED the credentials", not "the server answered". These three all answer, and none of them is a judgment.
+  // The predicate is "the server judged the credentials", not "the server answered". Every case here answers, and none of them judges.
   it.each(NON_VERDICT_FAILURES)('rejects WITHOUT logging out on %s', async (_label, respond) => {
     useAuthStore.getState().login('live-token', testUser)
     server.use(http.post('/api/v1/auth/refresh', () => respond()))
@@ -105,7 +103,7 @@ describe('ensureSession', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
-  // The rejected attempt must not wedge the next one: the SSE reconnect path depends on simply trying again once the API is back.
+  // A rejected attempt must not wedge the next: the SSE reconnect path relies on trying again once the API is back.
   it('succeeds on the next attempt once the API returns', async () => {
     useAuthStore.getState().login('live-token', testUser)
     let attempts = 0
@@ -138,12 +136,10 @@ describe('ensureSession', () => {
     expect(refreshCount).toBe(2)
   })
   /**
-   * The profile fetch inside refreshSession() must carry the FRESH token: if
-   * the request interceptor overwrote it with the stale token still in the
-   * store, /profile would 401 with ACCESS_TOKEN_EXPIRED, the response
-   * interceptor would call ensureSession(), and that would return the very
-   * promise awaiting this profile request — a permanent self-wait, not an
-   * error.
+   * The profile fetch inside refreshSession() must carry the fresh token. If the request
+   * interceptor overwrote it with the stale one still in the store, /profile would 401 with
+   * ACCESS_TOKEN_EXPIRED, the response interceptor would call ensureSession(), and that
+   * would return the promise awaiting this very request: a permanent self-wait, not an error.
    */
   it('does not deadlock when a stale token is still in the store', async () => {
     useAuthStore.getState().login('stale', testUser)
@@ -159,12 +155,10 @@ describe('ensureSession', () => {
     expect(useAuthStore.getState().user).toEqual(testUser)
   })
   /**
-   * The single-flight promise must clear itself on REJECTION too, not only
-   * on success. `.then()` in place of `.finally()` passes every other test
-   * in this file — they each call resetSessionForTests() first — while
-   * leaking the rejected promise and wedging the session permanently.
-   * Deliberately no resetSessionForTests() between the two halves: that is
-   * the whole point.
+   * The single-flight promise must clear itself on rejection too, not only on success.
+   * `.then()` in place of `.finally()` would pass every other test here, since each calls
+   * resetSessionForTests() first, while leaking the rejected promise and wedging the session
+   * for good. So there is deliberately no resetSessionForTests() between the two halves.
    */
   it('allows a new refresh after the previous one REJECTED', async () => {
     let refreshCount = 0
@@ -185,13 +179,11 @@ describe('ensureSession', () => {
   })
 
   /**
-   * /profile is behind requireAuth and the backend's auth middleware emits
-   * ACCESS_TOKEN_EXPIRED, so a fresh token judged expired — clock skew, a
-   * near-zero TTL, a key-rotation race — lands here. Without `skipAuthRetry`
-   * the response interceptor calls ensureSession() and awaits the promise
-   * awaiting this very request: no rejection, no logout, no redirect, just a
-   * wedged session. The short timeout makes a regression fail red in 2s
-   * instead of hanging the run.
+   * /profile is behind requireAuth, whose middleware emits ACCESS_TOKEN_EXPIRED, so a fresh
+   * token judged expired (clock skew, a near-zero TTL, a key-rotation race) lands here.
+   * Without `skipAuthRetry` the response interceptor would call ensureSession() and await
+   * the promise awaiting this very request: no rejection, no logout, no redirect, a wedged
+   * session. The 2 s test timeout makes a regression fail instead of hanging the run.
    */
   it('rejects rather than hanging when its own profile call 401s as expired', async () => {
     useAuthStore.getState().login('stale', testUser)
@@ -207,9 +199,10 @@ describe('ensureSession', () => {
 })
 
 /**
- * A minimal LockManager: one queue per name, each callback starting only after
- * the previous holder settled. That is the part of the Web Locks API
- * ensureSession relies on; jsdom ships none.
+ * Installs a minimal `navigator.locks`: one queue per name, each callback starting only
+ * after the previous holder settled, which is the part of the Web Locks API ensureSession
+ * relies on and jsdom lacks.
+ * @returns The lock names requested, in order.
  */
 function stubLocks(): string[] {
   const requested: string[] = []
@@ -247,6 +240,7 @@ describe('across tabs', () => {
   /** Channels standing in for OTHER tabs; this tab's own channel is session.ts's. */
   let otherTabs: BroadcastChannel[] = []
 
+  /** Opens a channel standing in for another tab and records what it receives. */
   function openOtherTab() {
     const tab = new BroadcastChannel('auth')
     const received: unknown[] = []
@@ -281,7 +275,7 @@ describe('across tabs', () => {
     vi.unstubAllGlobals()
   })
 
-  // POST /auth/refresh rotates the SHARED cookie. Two tabs refreshing at once present the same token twice, and the second is reuse.
+  // POST /auth/refresh rotates the shared cookie, so two tabs refreshing at once present the same token twice and the second is reuse.
   it('serialises refreshes from different tabs under the auth-refresh lock', async () => {
     const requested = stubLocks()
     let active = 0
@@ -298,7 +292,7 @@ describe('across tabs', () => {
       })
     )
 
-    // Each tab has its own single-flight promise; dropping inFlight between the two calls models a second tab rather than a second caller in this one.
+    // Each tab has its own single-flight promise; resetting between the calls models a second tab, not a second caller in this one.
     const firstTab = ensureSession()
     resetSessionForTests()
     const secondTab = ensureSession()
@@ -344,7 +338,7 @@ describe('across tabs', () => {
     expect(assign).toHaveBeenCalledTimes(1)
   })
 
-  // A tab already signed out (sitting on /login, say) has nothing to end, and redirecting it would only reload the page.
+  // A tab already signed out (on /login, say) has nothing to end, and redirecting it would only reload the page.
   it('ignores a logout broadcast while already signed out', async () => {
     const assign = stubLocation(ROUTES.login)
     installAuthBroadcastListener()
@@ -426,7 +420,7 @@ describe('across tabs', () => {
     expect(useAuthStore.getState().user?.id).toBe(USER_ID_2)
   })
 
-  // A failed refresh that is not a verdict left the session alive everywhere.
+  // Without a verdict the session stays alive in every tab, so there is nothing to tell them.
   it('does not broadcast when the refresh fails without a verdict', async () => {
     useAuthStore.getState().login('live-token', testUser)
     const probe = openOtherTab()
@@ -439,7 +433,7 @@ describe('across tabs', () => {
     expect(probe.received).toEqual([{ type: 'sentinel' }])
   })
 
-  // Tab B (this one, never signed in) sent its bootstrap refresh before tab A signed in, so it 401s. That is B's own absent session, not a verdict on A's — broadcasting it would sign A out of a perfectly good session.
+  // Tab B, never signed in, sent its bootstrap refresh before tab A signed in, so it 401s. That is B's own absent session, not a verdict on A's; broadcasting it would sign A out of a good session.
   it('does not broadcast a refresh 401 on a tab that was never signed in', async () => {
     const probe = openOtherTab()
     server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
@@ -460,7 +454,7 @@ describe('across tabs', () => {
     expect(() => broadcastLogout()).not.toThrow()
     const cleanup = installAuthBroadcastListener()
     expect(() => cleanup()).not.toThrow()
-    // The verdict path still signs this tab out without a channel to tell.
+    // The verdict path still signs this tab out, with no channel to tell others.
     await expect(ensureSession()).rejects.toThrow()
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
   })

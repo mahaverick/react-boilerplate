@@ -21,6 +21,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/** Mounts the real route tree at `path` and returns the router. */
 function renderAt(path: string): AnyRouter {
   const router = createRouter({
     routeTree,
@@ -63,7 +64,7 @@ describe('verify-email page', () => {
     expect(toastError).not.toHaveBeenCalled()
   })
 
-  /** The password is NOT optional here — the backend requires it. */
+  /** The password is required here: the backend rejects the verification without it. */
   it('posts the token from the link together with the password', async () => {
     let body: unknown
     server.use(

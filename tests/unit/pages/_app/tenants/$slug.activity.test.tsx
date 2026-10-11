@@ -51,6 +51,7 @@ const MEMBERS = [
   },
 ]
 
+/** An audit entry with the given fields over a member-access default, so a test sets only what it is about. */
 function entry(
   fields: Pick<AuditEntry, 'id' | 'action' | 'metadata'> & Partial<AuditEntry>
 ): AuditEntry {
@@ -77,7 +78,7 @@ const STAFF_CHANGE = entry({
   target: { type: 'settings', id: TENANT_ID },
   metadata: { changed: ['timezone'] },
 })
-// The API falls back to the email AS the actor's name when no name is on file, so a nameless actor's `name` equals their `email` — never `''`.
+// The API uses the email as the actor's name when no name is on file, so a nameless actor's `name` equals their `email` and is never `''`.
 const NAMELESS = entry({
   id: AUDIT_ID_3,
   occurredAt: '2026-09-25T11:00:00.000Z',
@@ -86,6 +87,7 @@ const NAMELESS = entry({
   metadata: { role: 'viewer', emailDomain: 'b.com' },
 })
 
+/** Serves the acme tenant to `role` through `access`, with its member list. */
 function mockTenant(role: MembershipRole, access: TenantAccess = 'member') {
   server.use(
     http.get('/api/v1/tenants/acme', () =>
@@ -95,6 +97,7 @@ function mockTenant(role: MembershipRole, access: TenantAccess = 'member') {
   )
 }
 
+/** One page of the audit log in the API's envelope; a `nextCursor` means more follow. */
 function page(entries: AuditEntry[], nextCursor: string | null = null) {
   return ok({ entries, nextCursor }, 'Audit log retrieved.')
 }
@@ -112,6 +115,7 @@ function mockLog(respond: (url: URL) => Response | Promise<Response>) {
   return seen
 }
 
+/** Mounts the real route tree at `path`. */
 function renderAppAt(path: string) {
   const router = createRouter({
     routeTree,
@@ -166,7 +170,6 @@ describe('tenant activity tab', () => {
     expect(document.querySelector('time[datetime="2026-09-25T09:00:00.000Z"]')).not.toBeNull()
   })
 
-  // The route is `requireRole('owner', 'admin')` on the EFFECTIVE role.
   it('shows a nameless actor’s email once, not twice', async () => {
     mockTenant('owner')
     mockLog(() => page([NAMELESS]))
@@ -177,6 +180,7 @@ describe('tenant activity tab', () => {
     expect(row.getAllByText('nameless@b.com')).toHaveLength(1)
   })
 
+  // The route is `requireRole('owner', 'admin')` on the effective role, so a staff admin passes.
   it('lets a staff admin read it under platform access', async () => {
     mockTenant('admin', 'platform')
     mockLog(() => page([CREATED]))
@@ -204,7 +208,7 @@ describe('tenant activity tab', () => {
     })
     renderAppAt('/tenants/acme/activity')
 
-    // The log's own request is out (so the role skeleton is gone), and nothing has answered it.
+    // The log's own request is out, so the role skeleton is gone, and nothing has answered it.
     await waitFor(() => {
       expect(seen).toHaveLength(1)
     })
@@ -273,7 +277,7 @@ describe('tenant activity tab', () => {
     await user.click(await screen.findByRole('option', { name: 'Settings changed' }))
     await user.click(screen.getByRole('combobox', { name: 'Filter by who acted' }))
     await user.click(await screen.findByRole('option', { name: 'A B' }))
-    // Choosing the value already selected is not a change.
+    // Choosing the already-selected value is not a change, so no second event.
     await user.click(screen.getByRole('combobox', { name: 'Filter by who acted' }))
     await user.click(await screen.findByRole('option', { name: 'A B' }))
 
@@ -346,7 +350,7 @@ describe('tenant activity tab', () => {
     expect(screen.queryByRole('button', { name: 'Load more activity' })).not.toBeInTheDocument()
   })
 
-  // A failed NEXT page keeps what is already listed, and says so.
+  // A failed next page keeps what is already listed, and says so.
   it('keeps the loaded page when the next one fails, and says the list may be incomplete', async () => {
     mockTenant('owner')
     mockLog((url) =>
@@ -365,11 +369,7 @@ describe('tenant activity tab', () => {
     expect(screen.getByText(/changed the settings/)).toBeInTheDocument()
   })
 
-  /**
-   * A REFRESH failure is a different event from a "Load more" failure: no
-   * new page was being appended, so what's on screen is not necessarily
-   * complete, but nothing said it was incomplete either.
-   */
+  /** A refresh failure differs from a "Load more" failure: no page was being appended, so what is on screen may be stale, which a "could not load more" message would misstate. */
   it('shows a refresh failure separately from a "Load more" failure, and retries with a fresh fetch', async () => {
     mockTenant('owner')
     let attempt = 0
@@ -381,7 +381,7 @@ describe('tenant activity tab', () => {
     renderAppAt('/tenants/acme/activity')
     await screen.findByText(/changed the settings/)
 
-    // Leaving the tab and returning unmounts and remounts the log's own query. `staleTime: 0` means the remount refetches on its own — a REFRESH, never a "Load more" (there is no next page here to load).
+    // Leaving the tab and returning remounts the log's query, and `staleTime: 0` makes the remount refetch on its own: a refresh, never a "Load more" (there is no next page).
     await user.click(screen.getByRole('link', { name: 'Overview' }))
     await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
     await user.click(screen.getByRole('link', { name: 'Activity' }))
@@ -398,7 +398,7 @@ describe('tenant activity tab', () => {
     })
   })
 
-  // The route's role check already passed on cached data; a fresh 403 means the effective role changed server-side since then.
+  // The route's role check passed on cached data, so a fresh 403 means the effective role changed on the server.
   it('says the tenant’s activity is owners-and-admins only when the log answers 403, and does not retry', async () => {
     mockTenant('owner')
     const seen = mockLog(() => fail('Forbidden', 403))
@@ -411,10 +411,9 @@ describe('tenant activity tab', () => {
   })
 
   /**
-   * A 403 here means the cached role is stale, so the tab gate
-   * (`useMyRole`, reading the same `tenantKeys.detail` key) must refetch
-   * too — otherwise the tab keeps rendering on the role that no longer
-   * holds.
+   * A 403 means the cached role is stale, so the tab gate (`useMyRole`, reading the same
+   * `tenantKeys.detail` key) must refetch too, or the tab keeps rendering on a role that no
+   * longer holds.
    */
   it('invalidates the tenant detail when the log answers 403, so the tab gate refreshes', async () => {
     let detailCalls = 0
@@ -429,7 +428,7 @@ describe('tenant activity tab', () => {
     renderAppAt('/tenants/acme/activity')
     await screen.findByText('Only this tenant’s owners and admins can see its activity.')
 
-    // The initial load is one request; a second means the effect fired, whether or not it landed before this text appeared.
+    // The initial load is one request, so a second means the invalidation fired, whether or not it landed before this text appeared.
     await waitFor(() => {
       expect(detailCalls).toBeGreaterThan(1)
     })

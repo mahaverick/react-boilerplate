@@ -13,6 +13,7 @@ import {
   type PosthogOptionsInput,
 } from '@/observability/analytics/posthog-options'
 
+/** A complete options input for `buildPosthogOptions`, with any field overridden. */
 function input(overrides: Partial<PosthogOptionsInput> = {}): PosthogOptionsInput {
   return {
     apiHost: 'https://app.example.com/api/v1/collect',
@@ -59,7 +60,7 @@ describe('buildPosthogOptions', () => {
       },
     })
     expect(options.custom_personal_data_properties).not.toBe(CUSTOM_PERSONAL_DATA_PROPERTIES)
-    // advanced_disable_flags would also stop remote config, and session replay with it.
+    // `advanced_disable_flags` would also stop remote config, and session replay with it.
     expect(options).not.toHaveProperty('advanced_disable_flags')
   })
 

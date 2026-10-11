@@ -25,6 +25,7 @@ import { server } from '@/tests/mocks/server'
 describe('invitation queries', () => {
   let client: QueryClient
 
+  /** Provides the per-test `client` to the hook under test. */
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
@@ -62,7 +63,7 @@ describe('invitation queries', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(result.current.data).toEqual(testInvitationPreview)
       expect(body).toEqual({ token: TEST_INVITATION_TOKEN })
-      // Never in the URL, where logs and history would keep it.
+      // The token stays out of the URL, where logs and history would keep it.
       expect(search).toBe('')
       expect(authorization).toBeNull()
     })
@@ -170,7 +171,7 @@ describe('invitation queries', () => {
     })
 
     it('refetches a cached tenant list that nothing is observing', async () => {
-      // The accept page doesn't observe the list, and an invalidation alone only refetches active queries.
+      // The accept page does not observe the list, and an invalidation alone refetches only active queries.
       let listCalls = 0
       const joined = [{ tenant: { id: TENANT_ID, slug: 'acme' }, role: 'editor' }]
       server.use(
@@ -179,7 +180,7 @@ describe('invitation queries', () => {
           return ok(listCalls === 1 ? [] : joined, 'Tenants retrieved.')
         })
       )
-      // Loaded earlier by a page that has since unmounted, as when the reader visited /tenants before opening the link.
+      // Loaded by a page that then unmounted, as when the reader visited /tenants before opening the link.
       const tenants = renderHook(() => useTenants(), { wrapper })
       await waitFor(() => expect(tenants.result.current.isSuccess).toBe(true))
       tenants.unmount()
@@ -224,7 +225,7 @@ describe('invitation queries', () => {
 
       await waitFor(() => expect(result.current.isError).toBe(true))
       expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(false)
-      // A 403 is not a session verdict.
+      // A 403 judges the invitation, not the session.
       expect(useAuthStore.getState().isAuthenticated).toBe(true)
     })
   })

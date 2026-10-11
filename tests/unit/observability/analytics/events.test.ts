@@ -9,9 +9,9 @@ import {
 } from '@/observability/analytics/events'
 
 /**
- * Compile-time contract of the registry, checked by `pnpm typecheck` (tests/
- * is in tsconfig.app.json). Each `@ts-expect-error` fails the typecheck if the
- * line under it starts compiling. The calls never run: `track` is inert here.
+ * Compile-time contract of the registry, checked by `pnpm typecheck` (tests/ is in
+ * tsconfig.app.json). Each `@ts-expect-error` fails the typecheck if the line under it
+ * starts compiling. The calls never run: `track` is inert here.
  */
 describe('the browser event registry', () => {
   it('brands a literal key and keeps its value', () => {
@@ -53,6 +53,7 @@ describe('the browser event registry', () => {
       mode: 'full' | 'read_only'
     }>()
 
+    /** Typecheck-only calls: each `@ts-expect-error` below must stay an error. They are never invoked. */
     const calls = () => {
       track('tenant_switched')
       track('onboarding_checklist_opened', { required_done: 1, required_total: 2 })

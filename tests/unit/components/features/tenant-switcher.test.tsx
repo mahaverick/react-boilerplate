@@ -18,6 +18,7 @@ import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
+/** A tenant row as `GET /tenants` and `GET /tenants/:slug` carry it, active and with no optional fields set. */
 function tenantRow(id: string, name: string, slug: string) {
   return {
     id,
@@ -39,9 +40,8 @@ const BETA = tenantRow(TENANT_ID_2, 'Beta Inc', 'beta')
 const PLATFORM = { ...tenantRow(PLATFORM_TENANT_ID, 'Platform', 'platform'), isPlatform: true }
 
 /**
- * Driven through a real RouterProvider: the switcher reads
- * `useParams({ strict: false })` and navigates, neither of which exists
- * outside a router.
+ * Mounts the real route tree at `path` and returns the router: the switcher reads
+ * `useParams({ strict: false })` and navigates, neither of which works outside a router.
  */
 function renderShell(path = '/dashboard'): AnyRouter {
   const router = createRouter({
@@ -57,7 +57,7 @@ function renderShell(path = '/dashboard'): AnyRouter {
   return router as AnyRouter
 }
 
-/** The options only exist once the popup is open. */
+/** Opens the switcher and waits for its popup, since the options exist only while it is open. */
 async function openSwitcher() {
   const user = userEvent.setup()
   await user.click(await screen.findByRole('combobox', { name: /^Switch tenant/ }))
@@ -65,6 +65,7 @@ async function openSwitcher() {
   return user
 }
 
+/** Signs in as `testUser` with the given staff role, `null` for an ordinary user. */
 function signInAs(platformRole: 'viewer' | null) {
   useAuthStore.setState({
     accessToken: 'access-token',
@@ -132,11 +133,7 @@ describe('TenantSwitcher', () => {
     expect(screen.getByRole('option', { name: /Acme Corp/ })).toBeInTheDocument()
   })
 
-  /**
-   * The platform tenant is a membership like any other, and the list
-   * carries it. It is linked from the user menu instead, never switched to
-   * as if it were a customer.
-   */
+  /** The list carries the platform tenant like any membership, but it is linked from the user menu instead and never switched to as a customer. */
   it('leaves the platform tenant out of Your tenants', async () => {
     signInAs('viewer')
     server.use(
@@ -270,7 +267,7 @@ describe('TenantSwitcher', () => {
     })
   })
 
-  // Staff have no list row for a tenant they reached by platform access, so the label comes from the tenant the route has already loaded.
+  // Staff have no list row for a tenant reached by platform access, so the label comes from the tenant the route already loaded.
   it('names a tenant opened by platform access in the trigger', async () => {
     server.use(
       http.get('/api/v1/tenants/globex', () =>

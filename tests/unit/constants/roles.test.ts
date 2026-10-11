@@ -28,12 +28,7 @@ describe('canActorModifyTarget', () => {
   })
 
   it('blocks an admin from acting on their OWN admin membership', () => {
-    /**
-     * `isSelf` does not rescue an admin target: the backend's matrix
-     * answers "no" for an admin target whatever `isSelf` says, so an admin
-     * cannot even remove themselves. Pinned because it is the one cell
-     * where the self exception people expect does not exist.
-     */
+    // The backend's matrix answers "no" for an admin target whatever `isSelf` says: the one cell where the expected self exception does not exist.
     expect(canActorModifyTarget('admin', 'admin', true)).toBe(false)
   })
 
@@ -50,7 +45,7 @@ describe('canActorModifyTarget', () => {
   })
 
   it('denies every other actor role against every target, self or not', () => {
-    // The whole fail-closed row, not just its first cell: manager, editor and viewer never reach these endpoints at all.
+    // The whole fail-closed row: role changes are owner-only and removals owner-or-admin, so manager, editor and viewer never get through.
     for (const actor of ['manager', 'editor', 'viewer'] as const) {
       for (const target of MEMBERSHIP_ROLES) {
         expect(canActorModifyTarget(actor, target, false)).toBe(false)
@@ -130,7 +125,7 @@ describe('isLastOwnerBlocked', () => {
 })
 
 describe('canViewActivity', () => {
-  // The audit-log route is `requireRole('owner', 'admin')` on the EFFECTIVE role, so a staff admin passes and a staff viewer does not.
+  // The audit-log route is `requireRole('owner', 'admin')` on the effective role, so a staff admin passes and a staff viewer does not.
   it('allows owners and admins only', () => {
     expect(MEMBERSHIP_ROLES.filter((role) => canViewActivity(role))).toEqual(['owner', 'admin'])
   })
@@ -141,7 +136,7 @@ describe('isStaff', () => {
     for (const role of MEMBERSHIP_ROLES) expect(isStaff(role)).toBe(true)
   })
 
-  // `undefined` is what a missing `platformRole` field reads as: not staff, rather than a crash or a guess.
+  // A missing `platformRole` field reads as `undefined`, which must mean not staff.
   it('is false for null and for a missing field', () => {
     expect(isStaff(null)).toBe(false)
     expect(isStaff(undefined)).toBe(false)

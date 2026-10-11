@@ -38,6 +38,7 @@ import { server } from '@/tests/mocks/server'
 describe('tenant invitation queries', () => {
   let client: QueryClient
 
+  /** Provides the per-test `client` to the hook under test. */
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
@@ -50,6 +51,7 @@ describe('tenant invitation queries', () => {
     client.setQueryData(tenantKeys.onboarding('acme'), testOnboarding())
   }
 
+  /** Whether the cached query under `key` is marked stale. */
   function isInvalidated(key: readonly unknown[]) {
     return client.getQueryState(key)?.isInvalidated
   }
@@ -262,7 +264,7 @@ describe('tenant invitation queries', () => {
   })
 
   it('no longer offers direct add', () => {
-    // POST /tenants/:slug/members is gone from the API.
+    // The API has no POST /tenants/:slug/members route.
     expect('useAddMember' in tenantQueries).toBe(false)
   })
 })
@@ -283,6 +285,7 @@ const DETAIL_TENANT = {
 describe('useMyRole', () => {
   let client: QueryClient
 
+  /** Provides the per-test `client` to the hook under test. */
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
@@ -298,7 +301,7 @@ describe('useMyRole', () => {
     })
   })
 
-  // Under platform access the caller has no membership, so the tenant LIST does not carry this tenant at all: the role has to come from the detail.
+  // Under platform access the caller has no membership, so the tenant list does not carry this tenant and the role has to come from the detail.
   it('reads the effective role and the access path from GET /tenants/:slug', async () => {
     let listCalls = 0
     server.use(
@@ -330,7 +333,7 @@ describe('useMyRole', () => {
     expect(result.current.role).toBeUndefined()
   })
 
-  // A 404 is a VALUE (`null`), so this is "settled, and no role here".
+  // A 404 resolves to the value `null`, so this is "settled, and no role here".
   it('settles with no role after a 404', async () => {
     server.use(http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404)))
 
@@ -362,10 +365,12 @@ describe('useMyRole', () => {
 describe('member mutations and the caller’s own profile', () => {
   let client: QueryClient
 
+  /** Provides the per-test `client` to the hook under test. */
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
 
+  /** Signs in as `testUser` with the id `userId`. */
   function signInAs(userId: string) {
     useAuthStore.setState({
       accessToken: 'access-token',

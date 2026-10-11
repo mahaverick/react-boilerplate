@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseSseStream, type SseEvent } from '@/http/sse'
 
+/** A stream that delivers each chunk as its own read, then closes. */
 function streamOf(...chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
   return new ReadableStream({
@@ -21,7 +22,7 @@ describe('parseSseStream', () => {
   })
 
   it('reassembles a frame split across chunks', async () => {
-    // The case a naive split-per-chunk parser gets wrong, and the reason the buffer survives across reads.
+    // A parser that splits each chunk on its own gets this wrong; it is why the buffer survives across reads.
     const events = []
     for await (const event of parseSseStream(streamOf('data: sp', 'lit\n\n'))) {
       events.push(event)
@@ -49,11 +50,9 @@ describe('parseSseStream', () => {
   })
 
   /**
-   * Nothing in this stack emits CRLF today, but it is legal SSE, and a
-   * `\n\n` split against a `\r\n\r\n` stream matches nothing at all: the
-   * buffer would grow forever and every frame would be silently dropped
-   * when the stream ends. No partial delivery, no error — just a
-   * connection that looks alive and never delivers.
+   * Nothing in this stack emits CRLF, but it is legal SSE, and a `\n\n` split matches
+   * nothing in a `\r\n\r\n` stream: no frame is delivered and no error is raised, on a
+   * connection that looks alive, until the buffer cap throws.
    */
   it('parses a CRLF-terminated frame, not just LF', async () => {
     const events = []
@@ -77,20 +76,15 @@ describe('parseSseStream', () => {
     ])
   })
 
-  /**
-   * No `\n\n` anywhere in this stream — exactly a server that never closes
-   * a frame. Without a cap, `buffer` would grow for as long as the stream
-   * stays open; native `EventSource` parsed line-by-line and had no such
-   * failure mode at all.
-   */
+  /** No `\n\n` anywhere in this stream, as from a server that never closes a frame: without a cap, `buffer` would grow for as long as the stream stays open. */
   it('throws once a frame with no blank line grows past the buffer cap, rather than growing forever', async () => {
     const chunk = `data: ${'x'.repeat(64 * 1024)}\n`
     const runaway = new ReadableStream<Uint8Array>({
       start(controller) {
         const encoder = new TextEncoder()
-        // 17 * 64KiB > 1 MiB, still well under it after 16.
+        // Each chunk is 64 KiB plus 7 characters, so the 16th already takes the buffer past the 1 MiB cap.
         for (let i = 0; i < 17; i += 1) controller.enqueue(encoder.encode(chunk))
-        // Deliberately never closed and never sends a blank line — closing it would let the generator return normally before the cap is ever reached, which is not the case this test exists to cover.
+        // Never closed and no blank line: closing it would let the generator return normally before the cap is reached.
       },
     })
 
@@ -102,15 +96,13 @@ describe('parseSseStream', () => {
   })
 
   /**
-   * The cap measures what is RETAINED after framing, not what arrived. A
-   * single chunk carrying more than a megabyte of perfectly complete
-   * frames is a big burst, not a frame that never ends — checking the
-   * pre-split buffer would throw here, blame "no complete frame", and
-   * discard every one of them.
+   * The cap measures what is retained after framing, not what arrived. A chunk of more than
+   * a megabyte of complete frames is a burst, not a frame that never ends; checking the
+   * pre-split buffer would throw here and discard every one of them.
    */
   it('delivers a burst of complete frames larger than the cap instead of mistaking it for a runaway', async () => {
     const frame = `data: ${'y'.repeat(16 * 1024)}\n\n`
-    const burst = frame.repeat(80) // ~1.3 MiB, all of it complete frames
+    const burst = frame.repeat(80) // about 1.25 MiB, all complete frames
     const events: SseEvent[] = []
 
     for await (const event of parseSseStream(streamOf(burst))) events.push(event)

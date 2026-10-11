@@ -19,15 +19,15 @@ import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /**
- * The preferences card is read-only today, because every notification type is
- * non-configurable server-side. These tests are what keep the WIRE SHAPE
- * honest regardless: the endpoints are nothing like the flat
- * `Record<string, boolean>` they are easy to assume, and nothing in the UI
- * exercises them directly. See useUpdatePreferences' own comment.
+ * The preferences card is read-only because every notification type is non-configurable
+ * server-side, so nothing in the UI exercises the preference endpoints. These tests keep
+ * their wire shape honest: it is nothing like the flat `Record<string, boolean>` that is easy
+ * to assume. See useUpdatePreferences' own comment.
  */
 describe('notification preference queries', () => {
   let client: QueryClient
 
+  /** Provides the per-test `client` to the hook under test. */
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
@@ -44,11 +44,7 @@ describe('notification preference queries', () => {
   })
 
   it('unwraps the matrix out of its `preferences` key', async () => {
-    /**
-     * GET answers `{ preferences: [...] }`, not a bare array — and the
-     * matrix always lists EVERY known type with defaults resolved, not
-     * just the rows this user has explicitly set.
-     */
+    // GET answers `{ preferences: [...] }`, not a bare array, and the matrix lists every known type with defaults resolved, not just the rows this user has set.
     server.use(
       http.get('/api/v1/notifications/preferences', () =>
         ok(
@@ -71,7 +67,7 @@ describe('notification preference queries', () => {
   })
 
   it('PUTs a whole entry inside a `preferences` array', async () => {
-    // `updatePreferencesSchema` requires an array (min 1) of entries carrying BOTH channel booleans. A flat body, or one channel on its own, is a 400.
+    // `updatePreferencesSchema` requires an array (min 1) of entries carrying both channel booleans; a flat body, or one channel alone, is a 400.
     let body: unknown
     server.use(
       http.put('/api/v1/notifications/preferences', async ({ request }) => {
@@ -115,6 +111,7 @@ describe('notification list mutations', () => {
   let listRequests: number
   let preferenceRequests: number
 
+  /** Provides the per-test `client` to the hook under test. */
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
@@ -180,7 +177,7 @@ describe('notification list mutations', () => {
       await run(result.current)
     })
 
-    // The list really was invalidated, so the assertions below are not vacuous.
+    // The list was invalidated, so the assertions below are not vacuous.
     await waitFor(() => {
       expect(listRequests).toBeGreaterThan(listBefore)
     })

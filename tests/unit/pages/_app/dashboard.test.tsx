@@ -8,6 +8,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { testUser } from '@/tests/mocks/handlers'
 
+/** Mounts the real route tree on `/dashboard`. */
 function renderDashboard() {
   const router = createRouter({
     routeTree,
@@ -53,7 +54,7 @@ describe('dashboard page', () => {
     renderDashboard()
     await screen.findByRole('heading', { level: 1 })
 
-    // Scoped to the page, not the document. The claim is "the dashboard shows no tenant" — a document-wide query would also fail from a Tenants nav item in the shell, which is out of scope for this page.
+    // Scoped to the page because the claim is that the dashboard shows no tenant; a document-wide query would also match the shell's Tenants nav item.
     expect(within(screen.getByRole('main')).queryByText(/tenant/i)).not.toBeInTheDocument()
   })
 })

@@ -23,6 +23,7 @@ afterEach(() => {
 
 const REGISTER_MESSAGE = 'If that address can be registered, a verification email has been sent.'
 
+/** Mounts the real route tree at `path` and returns the router. */
 function renderRegisterAt(path: string): AnyRouter {
   const router = createRouter({
     routeTree,
@@ -50,6 +51,7 @@ function arriveSignedOut() {
   server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
 }
 
+/** Types the email and password and clicks Create account. */
 async function fillAndSubmit(email: string, password: string) {
   const user = userEvent.setup()
   await user.type(await screen.findByLabelText('Email'), email)
@@ -135,7 +137,7 @@ describe('register page', () => {
   })
 
   it('prefills the address from ?email=, and posts it', async () => {
-    // How an invitation's "Create account" arrives.
+    // This is how an invitation's "Create account" link arrives.
     let body: unknown
     server.use(
       http.post('/api/v1/auth/register', async ({ request }) => {

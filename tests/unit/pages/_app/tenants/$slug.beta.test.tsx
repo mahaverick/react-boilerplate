@@ -31,6 +31,7 @@ let betaReads: number
 /** How many times `GET /tenants/acme/flags` was asked. */
 let flagReads: number
 
+/** Serves the acme tenant to its owner, with the beta flag on or off and the beta endpoint answering. */
 function mockTenant(isBetaOn: boolean) {
   server.use(
     http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants.')),

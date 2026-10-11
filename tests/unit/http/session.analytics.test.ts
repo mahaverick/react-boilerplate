@@ -27,6 +27,7 @@ vi.mock('posthog-js', async () => {
 const userA = { ...testUser, id: USER_ID }
 const userB = { ...testUser, id: USER_ID_2, email: 'b@b.com' }
 
+/** An axios client with the production interceptors installed. */
 function makeClient() {
   const client = axios.create({ baseURL: '/api/v1' })
   installInterceptors(client)
@@ -136,7 +137,7 @@ describe('analytics identity follows the session', () => {
     ['someone else is signed in', userB],
   ])('sends no session header while PostHog still holds user A and %s', async (_case, user) => {
     useAuthStore.setState({ user, accessToken: user ? 'token' : null })
-    // After the store change, which identifies the store's user: PostHog then adopts A from elsewhere.
+    // Set after the store change, which identifies the store's user, so PostHog then adopts A from elsewhere.
     sdk.distinctId = USER_ID
     sdk.userState = 'identified'
     const seen = echoSessionHeader()
@@ -239,7 +240,7 @@ describe('analytics identity follows the session', () => {
     useAuthStore.getState().login('token', userA)
     vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign: vi.fn() })
     server.use(http.get('/api/v1/profile', () => ok(userB, 'Profile retrieved.')))
-    // The other tab identified B on the shared identity.
+    // Another tab identified B on the shared identity.
     sdk.distinctId = USER_ID_2
     sdk.calls = []
     await expect(ensureSession()).rejects.toThrow()

@@ -19,6 +19,7 @@ import { server } from '@/tests/mocks/server'
 
 const SINCE = '2026-10-06T10:42:00.000Z'
 
+/** An axios client with both the auth and the maintenance-mode interceptors installed. */
 function makeClient() {
   const client = axios.create({ baseURL: '/api/v1' })
   installInterceptors(client)
@@ -26,6 +27,7 @@ function makeClient() {
   return client
 }
 
+/** The maintenance mode the store currently holds. */
 function mode() {
   return useMaintenanceModeStore.getState().mode
 }
@@ -144,6 +146,7 @@ describe('the maintenance interceptor', () => {
 })
 
 describe('recovery when full maintenance ends', () => {
+  /** Removes the recovery subscription `install` set up; replaced on each install. */
   let uninstall: () => void = () => {}
 
   beforeEach(() => {
@@ -160,6 +163,7 @@ describe('recovery when full maintenance ends', () => {
     uninstall()
   })
 
+  /** Installs recovery against a stub router and a spied query client, and returns the spies. */
   function install() {
     const invalidate = vi.fn(() => Promise.resolve())
     const queryClient = new QueryClient()
@@ -198,7 +202,7 @@ describe('recovery when full maintenance ends', () => {
     useMaintenanceModeStore.getState().setFromHeader('read_only')
     useMaintenanceModeStore.getState().setFromHeader('full')
     useMaintenanceModeStore.getState().setFromStatus({ mode: 'full', message: 'x', since: SINCE })
-    // The barrier: the one change that does leave full.
+    // The barrier: the one change here that leaves full.
     useMaintenanceModeStore.getState().setFromStatus({ mode: 'off', message: null, since: null })
 
     await vi.waitFor(() => expect(invalidate).toHaveBeenCalled())

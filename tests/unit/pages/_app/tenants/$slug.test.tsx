@@ -56,6 +56,7 @@ const SETTINGS = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
+/** Serves the acme tenant, its list entry, members and settings, with the caller holding `myRole` through `access`. */
 function mockTenant(myRole: MembershipRole, access: TenantAccess = 'member') {
   server.use(
     http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: myRole }], 'Tenants retrieved.')),
@@ -67,6 +68,7 @@ function mockTenant(myRole: MembershipRole, access: TenantAccess = 'member') {
   )
 }
 
+/** Mounts the real route tree at `path` and returns the router. */
 function renderAppAt(path: string): AnyRouter {
   const router = createRouter({
     routeTree,
@@ -93,12 +95,6 @@ describe('tenant detail', () => {
     })
   })
 
-  /**
-   * `tenantQueryOptions` says a 404 becomes `null` and that every OTHER
-   * failure still rejects and still reaches the boundary. Without a
-   * configured boundary, a 500 would reach TanStack's bare default
-   * instead: the raw error text, no retry, none of the app's chrome.
-   */
   it('ends on the suspended panel when the cached list still says active', async () => {
     let listFetches = 0
     queryClient.setQueryData(tenantKeys.list, [{ tenant: TENANT, role: 'owner' }])
@@ -139,6 +135,11 @@ describe('tenant detail', () => {
     expect(await screen.findByText(/not one of yours/)).toBeInTheDocument()
   })
 
+  /**
+   * `tenantQueryOptions` turns a 404 into `null`, and every other failure still rejects and
+   * reaches the boundary. Without a configured boundary a 500 would reach TanStack's bare
+   * default: the raw error text, no retry, none of the app's chrome.
+   */
   it('renders the route error boundary, with a retry, for a non-404 failure', async () => {
     server.use(
       http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
@@ -149,7 +150,7 @@ describe('tenant detail', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load this tenant/i)
     expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
-    // Not the 404 panel: the tenant may be perfectly fine and unreachable.
+    // Not the 404 panel: the tenant may exist and merely be unreachable.
     expect(screen.queryByText(/Tenant not available/i)).not.toBeInTheDocument()
   })
 
@@ -250,7 +251,7 @@ describe('tenant detail', () => {
 
     const heading = await screen.findByRole('heading', { name: 'Tenant not available' })
     expect(heading).toBeInTheDocument()
-    // The API answers the SAME 404 for "no such tenant" and "you are not a member", and this page must not guess between them — saying "you are not a member of ghost" would confirm that ghost exists.
+    // The API answers the same 404 for "no such tenant" and "you are not a member", so the page must not guess between them: "you are not a member of ghost" would confirm ghost exists.
     expect(screen.queryByText(/not a member/i)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Back to your tenants' })).toBeInTheDocument()
   })
@@ -293,7 +294,7 @@ describe('tenant detail', () => {
     mockTenant('viewer')
     renderAppAt('/tenants/acme')
 
-    // Awaited: the role arrives with the tenant detail, and until then the tab shows a skeleton rather than guessing read-only.
+    // Awaited: the role arrives with the tenant detail, and until then the tab shows a skeleton instead of guessing read-only.
     expect(await screen.findByText('Anvils')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
   })
@@ -341,7 +342,7 @@ describe('tenant detail', () => {
     await waitFor(() => {
       expect(patched).not.toBeNull()
     })
-    // `null` CLEARS the column. `undefined` would mean "leave it alone" and the description the user just deleted would come straight back.
+    // `null` clears the column; `undefined` would mean "leave it alone" and the deleted description would come back.
     expect(patched).toMatchObject({ description: null })
   })
 
@@ -391,9 +392,10 @@ describe('tenant detail', () => {
   })
 
   /**
-   * Stored values the client's rules now refuse, saved before those rules
-   * existed: the forms send only what the user changed, so the old value
-   * neither blocks a save of another field nor goes back over the wire.
+   * Serves stored values the client's rules refuse (a `javascript:` logo, a zero-width space,
+   * an unknown timezone, an underscore locale), as data saved under looser rules would be.
+   * The forms send only what the user changed, so such a value neither blocks a save of
+   * another field nor goes back over the wire.
    */
   function mockLegacyTenant() {
     mockTenant('owner')
@@ -745,10 +747,9 @@ describe('tenant detail', () => {
   })
 
   /**
-   * The settings twin of the members-tab retry test: a settings failure
-   * has its own retry, which must reach the SETTINGS query and leave the
-   * tenant detail alone. The detail is the role's source, and refetching
-   * it instead would risk silently changing the role mid-retry.
+   * The settings twin of the members-tab retry test: a settings failure has its own retry,
+   * which must reach the settings query and leave the tenant detail alone. The detail is
+   * the role's source, and refetching it would risk changing the role mid-retry.
    */
   it('retries the SETTINGS, not the tenant detail, when the settings are what failed', async () => {
     let settingsCalls = 0
@@ -771,7 +772,7 @@ describe('tenant detail', () => {
     expect(alert).toHaveTextContent(/could not load this tenant’s settings/i)
     expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
 
-    // Two: the queryClient is `retry: 1`.
+    // Two calls because the queryClient is `retry: 1`.
     await waitFor(() => {
       expect(settingsCalls).toBe(2)
     })
@@ -798,12 +799,12 @@ describe('tenant detail', () => {
       'href',
       '/tenants'
     )
-    // The effective role is what gates: a staff viewer gets the read-only view.
+    // The effective role gates the view, so a staff viewer gets the read-only one.
     expect(await screen.findByText('Anvils')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
   })
 
-  // Membership wins, and a member is never told they are "staff" here.
+  // Membership wins: a member is never told they are staff here.
   it('shows no staff banner to a member', async () => {
     mockTenant('owner')
     renderAppAt('/tenants/acme')
@@ -822,6 +823,7 @@ describe('tenant detail', () => {
 })
 
 describe('tenant analytics group', () => {
+  /** Removes the route analytics a test installed; replaced on each install. */
   let uninstall: () => void = () => {}
 
   beforeEach(() => {
@@ -839,7 +841,7 @@ describe('tenant analytics group', () => {
     uninstall()
   })
 
-  /** The app's tree with the router-driven analytics the app installs on its own router. */
+  /** Mounts the app's tree, then installs on its router the route analytics the real app installs. */
   function renderWithRouteAnalytics(path: string) {
     const router = renderAppAt(path)
     uninstall = installRouteAnalytics(router)

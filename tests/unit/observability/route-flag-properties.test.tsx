@@ -47,6 +47,7 @@ const NO_TENANT = GLOBEX
 /** Each capture, with the `$feature/*` super properties the SDK held when it was made. */
 let captures: { event: string; features: Record<string, unknown> }[]
 
+/** The `$feature/*` super properties the fake SDK currently holds. */
 function featuresHeld(): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(sdk.properties).filter(([name]) => name.startsWith('$feature/'))
@@ -54,16 +55,17 @@ function featuresHeld(): Record<string, unknown> {
 }
 
 /**
- * The app's shape: a pathless `_app` layout whose loader warms the flags of
- * the page it is entered on and whose component mounts the `$feature/*`
- * sync, the tenant layout under it, and the router subscriptions
- * `router.tsx` installs, in its order. Nothing is rendered until `mount`.
+ * Builds the app's shape: a pathless `_app` layout whose loader warms the flags of the page
+ * it is entered on and whose component mounts the `$feature/*` sync, the tenant layout
+ * under it, and the router subscriptions `router.tsx` installs, in its order. Nothing
+ * renders until `mount`.
  */
 function buildApp(initialPath: string) {
   const queryClient = new QueryClient()
   const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
     component: Outlet,
   })
+  /** The `_app` layout component: mounts the `$feature/*` sync above the page. */
   function AppShell() {
     useFeaturePropertiesSync()
     return <Outlet />
@@ -126,6 +128,7 @@ function indexesOf(prefix: string): number[] {
 }
 
 const ANALYTICS = analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real' })
+/** Tears down the app the running test built; replaced by each test that builds one. */
 let cleanup: () => void = () => {}
 
 beforeEach(() => {
@@ -167,16 +170,17 @@ describe('the landing page view, booted as main.tsx boots', () => {
 })
 
 /**
- * These pass with the sync in a passive effect too: router stores reach
- * React through `useSyncExternalStore`, so the commit of a navigation is
- * sync-lane and React flushes its passive effects before `onResolved`. The
- * layout effect, and the `onLoad` sync before it, are defence in depth.
+ * These would pass with the sync in a passive effect too: router stores reach React through
+ * `useSyncExternalStore`, so a navigation commits in the sync lane and React flushes its
+ * passive effects before `onResolved`. The layout effect, and the `onLoad` sync before it,
+ * are defence in depth.
  */
 describe('$feature/* across a change of flag scope', () => {
   beforeEach(async () => {
     await initAnalytics(ANALYTICS)
   })
 
+  /** Renders the app on acme and waits until its flag values are held and its pageview carries them; returns the router. */
   async function startOnAcme() {
     const app = renderApp('/tenants/acme')
     cleanup = app.cleanup

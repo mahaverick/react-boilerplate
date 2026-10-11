@@ -406,6 +406,7 @@ function beforeSend(event: CaptureResult): CaptureResult | null {
   return hook(event)
 }
 
+/** A capture result for `name` with the given properties, as the SDK hands it to `before_send`. */
 function eventOf(name: string, properties: Record<string, unknown>): CaptureResult {
   return { uuid: 'u', event: name, properties }
 }

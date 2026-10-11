@@ -92,6 +92,7 @@ function member(id: string, role: MembershipRole, firstName: string) {
 /** `testUser.id` is `USER_ID`, so this is always "me". */
 const ME = USER_ID
 
+/** Serves the acme tenant, its list entry and its members, with the caller holding `myRole`. */
 function mockTenant(myRole: MembershipRole, members: ReturnType<typeof member>[]) {
   server.use(
     http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: myRole }], 'Tenants retrieved.')),
@@ -114,6 +115,7 @@ function mockPlatformTenant(myRole: MembershipRole, members: ReturnType<typeof m
   )
 }
 
+/** Mounts the real route tree at `path` and returns the router. */
 function renderAppAt(path: string): AnyRouter {
   const router = createRouter({
     routeTree,
@@ -136,10 +138,7 @@ async function rowFor(name: string) {
   return within(row)
 }
 
-/**
- * `tests/setup.ts`'s `matchMedia` stub answers `useIsMobile`'s `max-width`
- * query from `window.innerWidth`, so setting the width is what decides.
- */
+/** Picks the viewport `useIsMobile` reports: the `matchMedia` stub in `tests/setup.ts` answers its `max-width` query from `window.innerWidth`. */
 function setViewportWidth(width: number) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
 }
@@ -198,7 +197,7 @@ describe('members tab permissions', () => {
     renderAppAt('/tenants/acme/members')
 
     const vic = await rowFor('Vic')
-    // Role CHANGE is owner-only — the route is gated requireRole('owner') — even though the matrix lets this admin REMOVE the same viewer.
+    // Role change is owner-only (the route is gated `requireRole('owner')`) even though the matrix lets this admin remove the same viewer.
     expect(vic.queryByRole('combobox')).not.toBeInTheDocument()
     expect(vic.getByRole('button', { name: 'Remove' })).toBeEnabled()
 
@@ -221,7 +220,7 @@ describe('members tab permissions', () => {
 
     await user.click(await screen.findByRole('combobox', { name: 'Role' }))
     const options = (await screen.findAllByRole('option')).map((option) => option.textContent)
-    // canActorGrantRole: an admin may grant anything EXCEPT owner and admin.
+    // `canActorGrantRole`: an admin may grant anything except owner and admin.
     expect(options).toEqual(['Manager', 'Editor', 'Viewer'])
   })
 
@@ -249,13 +248,13 @@ describe('members tab permissions', () => {
     const vic = await rowFor('Vic')
     expect(vic.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
     expect((await rowFor('Me')).getByRole('button', { name: 'Leave' })).toBeEnabled()
-    // Scoped to `main`: the sidebar's tenant switcher is a combobox too, on every authenticated page, and is not what this test is about.
+    // Scoped to `main` because the sidebar's tenant switcher is a combobox on every authenticated page.
     const main = within(screen.getByRole('main'))
     expect(main.queryByRole('combobox')).not.toBeInTheDocument()
     expect(main.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
     expect(main.queryByRole('heading', { name: 'Invite a member' })).not.toBeInTheDocument()
     expect(main.queryByRole('heading', { name: 'Pending invitations' })).not.toBeInTheDocument()
-    // The list route is owner/admin only, so a viewer's page never asks it.
+    // The invitations list route is owner/admin only, so a viewer's page never asks for it.
     expect(invitationCalls).toBe(0)
   })
 
@@ -264,10 +263,10 @@ describe('members tab permissions', () => {
     renderAppAt('/tenants/acme/members')
 
     const me = await rowFor('Me')
-    // The backend answers 409 here. The UI must not invite that error.
+    // The backend answers 409 here, so the UI must not offer the action.
     expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeDisabled()
     expect(me.getByRole('button', { name: 'Leave' })).toBeDisabled()
-    // ONCE per row, not once per disabled control: the Leave button points at the role cell's copy through aria-describedby rather than repeating the same sentence underneath itself.
+    // Once per row, not once per disabled control: Leave points at the role cell's copy through aria-describedby instead of repeating the sentence.
     expect(
       me.getAllByText('A tenant must always have an owner. Add another owner first.')
     ).toHaveLength(1)
@@ -289,10 +288,10 @@ describe('members tab permissions', () => {
   })
 
   /**
-   * At 390px the four-column table scrolls horizontally and puts both the
-   * Actions column and the last-owner explanation past the right edge. The
-   * card path is ONE render path chosen in JS, not a CSS `sm:hidden` pair:
-   * two paths in the DOM would mean two role selects sharing one id.
+   * At 390px the four-column table scrolls horizontally and puts the Actions column and the
+   * last-owner explanation past the right edge. The card layout is one render path chosen in
+   * JS, not a CSS `sm:hidden` pair, because two paths in the DOM would give two role selects
+   * the same id.
    */
   it('stacks members as cards on a phone, so no control sits off-screen', async () => {
     setViewportWidth(390)
@@ -301,16 +300,11 @@ describe('members tab permissions', () => {
 
     expect(await screen.findByText('Cleo X')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
-    // The controls that were off-screen are present and reachable.
     expect(screen.getByRole('combobox', { name: 'Role for Cleo X' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
   })
 
-  /**
-   * A header row over nothing is the "blank void for no data" tell. The
-   * error branch above still runs FIRST: [] means "no members" only once
-   * we know the request answered.
-   */
+  /** A header row over nothing reads as missing data. The error branch above still runs first: `[]` means "no members" only once the request is known to have answered. */
   it('says the list is empty rather than showing a bare table header', async () => {
     mockTenant('owner', [])
     renderAppAt('/tenants/acme/members')
@@ -319,7 +313,7 @@ describe('members tab permissions', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
-  // The role comes from the tenant detail, not the tenant LIST, so a list failure (the switcher's problem) must not take the tab's controls with it.
+  // The role comes from the tenant detail, not the tenant list, so a list failure (the switcher's problem) must not take the tab's controls with it.
   it('keeps the role-gated controls when the tenant LIST fails', async () => {
     server.use(
       http.get('/api/v1/tenants', () => fail('Something went wrong.', 500)),
@@ -338,10 +332,10 @@ describe('members tab permissions', () => {
   })
 
   /**
-   * The role's error state, reachable only through a failed refetch. A FIRST load
-   * that fails is the layout's error boundary, so the tab never mounts. A
-   * REFETCH that fails keeps the cached row, the layout keeps rendering, and
-   * the tab has to say what it no longer knows instead of spinning a skeleton.
+   * The role's error state is reachable only through a failed refetch: a failed first load
+   * is the layout's error boundary, so the tab never mounts. A failed refetch keeps the
+   * cached row and the layout, so the tab has to say what it no longer knows instead of
+   * showing a skeleton.
    */
   it('renders an error with a working retry when the role cannot be refreshed', async () => {
     let detailFails = false
@@ -374,7 +368,7 @@ describe('members tab permissions', () => {
     detailFails = false
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
 
-    // A NEW detail request, and the controls it gates come back with it.
+    // A new detail request, and the controls it gates come back with it.
     await waitFor(() => {
       expect(detailCalls).toBeGreaterThan(before)
     })
@@ -383,10 +377,9 @@ describe('members tab permissions', () => {
   })
 
   /**
-   * The retry has to reach THE QUERY THAT FAILED, and the only proof of that
-   * is a new request on the wire, counted. The members failure's retry must
-   * refetch the members and leave the tenant detail (the role's source)
-   * untouched.
+   * The retry must reach the query that failed, and the proof is a counted new request: the
+   * members failure's retry refetches the members and leaves the tenant detail (the role's
+   * source) untouched.
    */
   it('retries the MEMBER LIST, not the tenant detail, when the members are what failed', async () => {
     let memberCalls = 0
@@ -440,7 +433,7 @@ describe('members tab permissions', () => {
       await queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme'), exact: true })
     })
 
-    // Stacked rather than chained: picking one branch would mean picking a winner whose retry cannot fix the loser.
+    // Stacked rather than chained: showing only one would pick a winner whose retry cannot fix the other failure.
     await waitFor(() => {
       expect(screen.getAllByRole('alert')).toHaveLength(2)
     })
@@ -495,14 +488,14 @@ describe('the invite form role select', () => {
 
     const trigger = await screen.findByRole('combobox', { name: 'Role' })
     const label = screen.getByText('Role', { selector: 'label' })
-    // `FormControl`'s id lands on the Select's trigger BUTTON, so the label points at a visible control.
+    // `FormControl`'s id lands on the Select's trigger button, so the label points at a visible control.
     expect(label).toHaveAttribute('for', trigger.id)
     expect(trigger.tagName).toBe('BUTTON')
   })
 
   it('clears the server’s verdict on the role when the select changes', async () => {
     server.use(
-      // A field-level verdict on `role`, which is what the clearing rule is about. `fail()` carries no `errors` map, so this one is built here.
+      // A field-level verdict on `role`, which is what the clearing rule is about; `fail()` carries no `errors` map, so it is built here.
       http.post('/api/v1/tenants/acme/invitations', () =>
         HttpResponse.json(
           {
@@ -523,12 +516,7 @@ describe('the invite form role select', () => {
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
     await screen.findByText('That role is not yours to grant.')
 
-    /**
-     * Base UI's selection does NOT bubble a change event to the <form>, so
-     * <Form>'s own clearing rule never fires for this control — the page
-     * calls clearField by hand. Without that line this message would sit
-     * there while the user changed the very field it is about.
-     */
+    // Base UI's selection does not bubble a change event to the <form>, so <Form>'s clearing rule never fires here and the page calls clearField by hand; without that the message would stay while the user changed its field.
     await user.click(screen.getByRole('combobox', { name: 'Role' }))
     await user.click(await screen.findByRole('option', { name: 'Editor' }))
 
@@ -606,10 +594,9 @@ describe('inviting, and the pending invitations', () => {
       expect(email).toHaveAccessibleDescription('That person is already a member.')
     })
     expect(email).toHaveAttribute('aria-invalid', 'true')
-    // Once: inline. A toast as well would say the same thing twice.
+    // Inline only: a toast as well would say the same thing twice.
     expect(screen.getAllByText('That person is already a member.')).toHaveLength(1)
 
-    // Changing the address clears it, like any other server verdict.
     await user.type(email, 'x')
     await waitFor(() => {
       expect(screen.queryByText('That person is already a member.')).not.toBeInTheDocument()
@@ -686,7 +673,7 @@ describe('inviting, and the pending invitations', () => {
     expect(first.getByText(/^Editor · Invited by/)).toHaveTextContent('Editor · Invited by A B')
     expect(first.getByText('A B')).toHaveClass('ph-sensitive', 'ph-mask')
     expect(first.getByText(/^Expires /)).toBeInTheDocument()
-    // An inviter whose account is gone is `null`, not a crash.
+    // An inviter whose account is gone is `null` and must not crash the row.
     const second = within(screen.getByText('old@b.com').closest('li') as HTMLElement)
     expect(second.getByText(/^Viewer · Invited by/)).toHaveTextContent(
       'Viewer · Invited by A teammate'
@@ -706,7 +693,7 @@ describe('inviting, and the pending invitations', () => {
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () => {
         calls += 1
-        // Two failures: the router's client retries once by itself.
+        // Two failures, because the router's client retries once by itself.
         return calls <= 2
           ? fail('Something went wrong.', 500)
           : ok([testInvitation], 'Invitations retrieved.')
@@ -751,14 +738,14 @@ describe('inviting, and the pending invitations', () => {
 
     expect(await screen.findByText('Invitation resent to invitee@b.com.')).toBeInTheDocument()
     expect(resent).toBe(INVITATION_ID)
-    // The expiry moved, so the list is fetched again.
+    // The expiry moved, so the list is refetched.
     await waitFor(() => {
       expect(listCalls).toBeGreaterThan(1)
     })
   })
 
   it('shows the server’s message when a resend is refused, e.g. a 403', async () => {
-    // Offered to an owner, and refused anyway: the server has the last word.
+    // The control is offered to an owner and the server refuses anyway: the server has the last word.
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () =>
         ok(
@@ -891,7 +878,6 @@ describe('inviting, and the pending invitations', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
     )
-    // The app's AlertDialog, not a browser confirm().
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveAccessibleName('Revoke the invitation to invitee@b.com?')
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
@@ -955,7 +941,7 @@ describe('inviting, and the pending invitations', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Revoke' }))
 
     expect(await screen.findByText('That invitation is no longer pending.')).toBeInTheDocument()
-    // Someone else revoked or it was accepted: the row goes either way.
+    // Someone else revoked it or it was accepted, so the row goes either way.
     expect(
       await screen.findByText('No invitations are waiting to be accepted.')
     ).toBeInTheDocument()
@@ -1063,6 +1049,7 @@ describe('the remove and leave dialogs', () => {
 
   it('switches Leave off while the leave is in flight, so a second click sends nothing', async () => {
     let left = 0
+    /** Lets the held leave request answer; replaced once `held` is created. */
     let release = () => {}
     const held = new Promise<void>((resolve) => {
       release = resolve
@@ -1096,6 +1083,7 @@ describe('the remove and leave dialogs', () => {
   it('forgets the tenant it left without asking the API for it again', async () => {
     let hasLeft = false
     const afterLeaving: string[] = []
+    /** Notes every request made after the leave answered. */
     const record = ({ request }: { request: Request }) => {
       if (hasLeft) afterLeaving.push(`${request.method} ${new URL(request.url).pathname}`)
     }
@@ -1488,6 +1476,7 @@ describe('a customer tenant reached through platform access', () => {
 
 describe('a stale sign-in on a platform-tenant write', () => {
   const SIGN_IN_AGAIN = 'For your security, sign out and sign in again before making this change.'
+  /** The refusal for a sign-in too old to change the platform tenant. */
   const stale = () => fail('Confirm your identity to continue', 401, REAUTH_REQUIRED)
 
   beforeEach(() => {

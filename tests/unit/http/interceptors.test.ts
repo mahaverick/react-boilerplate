@@ -13,13 +13,13 @@ import { server } from '@/tests/mocks/server'
 import { ACCESS_TOKEN_EXPIRED, REAUTH_REQUIRED, type ApiSuccess } from '@/types/api.types'
 
 /**
- * Handlers below that 401 unconditionally stop after this many attempts. If
- * `_retried` ever regresses, the retry loop is unbounded: the reviewer's run
- * hit 400+ attempts and had to be killed. Capping the HANDLER turns that into
- * a fast assertion failure instead of a wedged CI worker.
+ * Handlers below that 401 unconditionally stop after this many attempts. If `_retried`
+ * regressed, the retry loop would be unbounded; capping the handler turns that into a fast
+ * assertion failure instead of a wedged CI worker.
  */
 const RETRY_CAP = 5
 
+/** An axios client with the production interceptors installed, so each test drives them directly. */
 function makeClient() {
   const client = axios.create({ baseURL: '/api/v1', withCredentials: true })
   installInterceptors(client)
@@ -40,11 +40,9 @@ describe('auth interceptors', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   /**
-   * jsdom's window.location is unforgeable, so assign() cannot be spied on.
-   *
-   * The spread copies the real location's fields; `href`, `pathname`,
-   * `search` and `hash` are then set explicitly so the stub carries the
-   * test's own URL, which `redirectToLogin` reads to build `?redirect=`.
+   * Replaces `window.location` with a stub and returns its `assign` spy; jsdom's own
+   * `assign` cannot be spied on. `href`, `pathname`, `search` and `hash` are set to the
+   * test's URL because `redirectToLogin` reads them to build `?redirect=`.
    */
   function stubLocation(pathname = '/widgets', search = '', hash = '') {
     const assign = vi.fn()
@@ -152,7 +150,7 @@ describe('auth interceptors', () => {
 
   it('does not retry a 401 that lacks the expiry code', async () => {
     useAuthStore.getState().login('tok', testUser)
-    // That 401 is now a verdict, which navigates; keep jsdom's navigation stub quiet.
+    // This 401 is a verdict and navigates, so stub the navigation.
     stubLocation()
     let attempts = 0
     server.use(
@@ -182,10 +180,9 @@ describe('auth interceptors', () => {
     expect(attempts).toBe(2)
   })
   /**
-   * The forced logout carries the caller's whole location, query and all:
-   * `_app`'s guard already writes `?redirect=` on the navigations it blocks
-   * and login.tsx already consumes it, so a forced logout that dropped it
-   * would be the one door into /login that forgets where the user was.
+   * The forced logout carries the caller's whole location, query included: `_app`'s guard
+   * writes `?redirect=` on the navigations it blocks and login.tsx consumes it, so a forced
+   * logout that dropped it would be the one way into /login that forgets where the user was.
    */
   it('redirects to the login page, preserving the location, when the refresh fails', async () => {
     useAuthStore.getState().login('stale', testUser)
@@ -210,7 +207,7 @@ describe('auth interceptors', () => {
       `${ROUTES.login}?redirect=${encodeURIComponent('/tenants/acme/members?page=2#roles')}`
     )
     expect(useAuthStore.getState().accessToken).toBeNull()
-    // Refresh's own 401 (skipAuthRetry) is not re-judged or retried: exactly one call.
+    // The refresh's own 401 (skipAuthRetry) is neither judged again nor retried, so exactly one call.
     expect(refreshCalls).toBe(1)
   })
 
@@ -234,10 +231,8 @@ describe('auth interceptors', () => {
   })
 
   /**
-   * The mirror of the test above: when the refresh could not REACH the
-   * API, the session was never judged, so the store still holds it, and
-   * navigating to /login here would throw the user out of a session that
-   * is still valid.
+   * The mirror of the test above: when the refresh cannot reach the API the session was
+   * never judged, so redirecting to /login would throw the user out of a valid session.
    */
   it('does not redirect when the refresh could not reach the API', async () => {
     useAuthStore.getState().login('live-token', testUser)
@@ -259,7 +254,7 @@ describe('auth interceptors', () => {
     expect(useAuthStore.getState().accessToken).toBe('live-token')
   })
 
-  // The redirect follows the same rule as the logout, and has to: a session left intact by session.ts but bounced to /login from here is signed out just the same, only through a different door.
+  // The redirect follows the same rule as the logout: a session session.ts leaves intact but this bounces to /login is signed out just the same.
   it.each(NON_VERDICT_FAILURES)('does not redirect on %s', async (_label, respond) => {
     useAuthStore.getState().login('live-token', testUser)
     const assign = stubLocation()
@@ -280,7 +275,7 @@ describe('auth interceptors', () => {
     expect(useAuthStore.getState().accessToken).toBe('live-token')
   })
 
-  // The replay is outside the refresh try/catch on purpose: a retried request that fails on its own merits must not bounce a still-valid session.
+  // The replay sits outside the refresh try/catch, so a retried request that fails on its own merits does not bounce a valid session.
   it('does not redirect when the refresh worked but the replay failed', async () => {
     useAuthStore.getState().login('stale', testUser)
     const assign = stubLocation()
@@ -300,7 +295,7 @@ describe('auth interceptors', () => {
     expect(useAuthStore.getState().accessToken).toBe('fresh-token')
   })
 
-  // A 401 without ACCESS_TOKEN_EXPIRED, on a request that carried a token, is the server judging that token: revoked, deactivated, or simply invalid.
+  // A 401 without ACCESS_TOKEN_EXPIRED on a request that carried a token is the server judging that token: revoked, deactivated or invalid.
   it('logs out and redirects on a plain 401 (no code) to an authenticated request', async () => {
     useAuthStore.getState().login('tok', testUser)
     const assign = stubLocation('/tenants', '?page=2')
@@ -354,7 +349,7 @@ describe('auth interceptors', () => {
     expect(assign).not.toHaveBeenCalled()
   })
 
-  // refreshSession()'s own calls carry skipAuthRetry, and the stale token too. Judging them here would redirect from inside bootstrap and double-handle the 401.
+  // refreshSession()'s own calls carry skipAuthRetry and the stale token; judging them here would redirect from inside bootstrap and handle the 401 twice.
   it('does not judge a 401 on a skipAuthRetry request, even with a token attached', async () => {
     useAuthStore.getState().login('tok', testUser)
     const assign = stubLocation()

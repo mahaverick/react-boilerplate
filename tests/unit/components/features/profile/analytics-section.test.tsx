@@ -20,6 +20,7 @@ const REQUIRED = analyticsConfigFor({
   ANALYTICS_CONSENT_MODE: 'required',
 })
 
+/** Renders the section for `user` and `config` inside a query client whose mutations do not retry. */
 function renderSection(user: User, config = OPT_OUT) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
   return render(

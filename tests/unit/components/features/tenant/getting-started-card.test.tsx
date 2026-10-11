@@ -58,6 +58,7 @@ function mockTenant(
   )
 }
 
+/** Mounts the real route tree on the acme overview, where the Getting started card renders. */
 function renderOverview() {
   const router = createRouter({
     routeTree,
@@ -80,10 +81,7 @@ async function findCard(): Promise<HTMLElement> {
   return card
 }
 
-/**
- * The barrier for a negative check: the checklist response is in the cache,
- * then one settle for the render that follows it, which has no event.
- */
+/** The barrier for a negative check: the checklist is in the cache, then one settle for the render that follows, which has no event. */
 async function onboardingLoaded() {
   await waitFor(() => {
     expect(queryClient.getQueryState(tenantKeys.onboarding('acme'))?.status).toBe('success')
@@ -147,7 +145,6 @@ describe('Getting started card', () => {
     expect(within(card).getByText('1 of 2 required')).toBeInTheDocument()
     expect(within(stepRow(card, 'Configure your settings')).getByText('Done')).toBeInTheDocument()
     expect(within(stepRow(card, 'Invite a teammate')).getByText('Not done')).toBeInTheDocument()
-    // A done step offers nothing more.
     expect(within(stepRow(card, 'Configure your settings')).queryByRole('link')).toBeNull()
     expect(within(card).queryByRole('checkbox')).toBeNull()
   })
@@ -191,7 +188,6 @@ describe('Getting started card', () => {
       expect(
         within(stepRow(card, 'A teammate joins')).queryByText('An owner or admin can do this')
       ).toBeNull()
-      // Their own member step is still theirs to mark.
       expect(
         within(card).getByRole('button', { name: 'Mark done: Read the getting started guide' })
       ).toBeInTheDocument()
@@ -304,7 +300,6 @@ describe('Getting started card', () => {
     await user.click(within(card).getByRole('button', { name: 'Dismiss' }))
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveAccessibleName('Dismiss getting started?')
-    // Opening the confirmation posts nothing.
     expect(posted).toEqual([])
 
     await user.click(within(dialog).getByRole('button', { name: 'Dismiss' }))
@@ -480,7 +475,7 @@ describe('Getting started card', () => {
     renderOverview()
 
     expect(await screen.findByRole('button', { name: 'Save changes' })).toBeInTheDocument()
-    // Two: the query client is `retry: 1`.
+    // Two calls because the query client is `retry: 1`.
     await waitFor(() => {
       expect(calls).toBe(2)
     })
