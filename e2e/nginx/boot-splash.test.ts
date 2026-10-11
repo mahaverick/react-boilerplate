@@ -1,12 +1,11 @@
+/**
+ * @file The static splash in index.html's #root, against the production image.
+ * It is styled by the stylesheet linked in `<head>`, so it must paint with the
+ * bundle blocked, and React must replace it once the bundle runs.
+ */
 import { expect, test } from '@playwright/test'
 import { settle } from '../timing'
 import { flushCspReports, requireServedApp, watchCspViolations } from './csp'
-
-/**
- * The static splash in index.html's #root, against the production image. It
- * is styled by the stylesheet linked in <head>, so it must paint with the
- * bundle blocked, and React must replace it once the bundle runs.
- */
 
 test.beforeAll(requireServedApp)
 
@@ -49,16 +48,11 @@ test('the app replaces the splash once it renders', { tag: '@no-api' }, async ({
   await page.goto('/login')
   await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
   await expect(page.locator('.boot-splash')).toHaveCount(0)
-  // The document title the real browser sets once the bundle has run and the route's head() has applied, not merely the <title> index.html ships.
+  // The title the router sets once the bundle has run, not the <title> index.html ships.
   await expect(page).toHaveTitle('Sign in · React Boilerplate')
 })
 
-/**
- * No backend needed: the refresh call is intercepted in the browser before
- * it ever reaches nginx. It holds well past defaultPendingMs (300) so a
- * boot sequence that renders before the load resolves has time to blank
- * #root and show the router's own pending screen before this settles.
- */
+// The refresh is held well past `defaultPendingMs` (300), so a boot that renders before the load resolves has time to blank #root and show the router's pending screen.
 test(
   'the served app never blanks #root or shows a second spinner while the root beforeLoad is slow',
   { tag: '@no-api' },
@@ -72,23 +66,7 @@ test(
       })
     })
 
-    /**
-     * Installed at document-create time, before any of the page's own
-     * scripts run — before `document.documentElement` even exists, which is
-     * why this observes `document` itself (always a valid Node) rather than
-     * waiting on an element that isn't there yet. `#root` is looked up
-     * fresh in each callback, so the empty check only starts meaning
-     * anything once it exists. Keys `__sawRoutePending` on `aria-label`,
-     * not `role`, because the splash itself carries `role="status"` too.
-     * `__mutations` counts every callback invocation, so a browser where
-     * the observer never ran at all — and so never had a chance to flip
-     * either flag — fails loudly instead of passing on two flags that both
-     * stayed false by default. Emptiness is read live, once per callback,
-     * on purpose: React's first commit sets `#root.textContent = ''` and
-     * inserts the app in the same task, so a per-record check would flag
-     * every correct boot. Only an empty #root that is still empty when a
-     * callback runs can be painted.
-     */
+    // Runs before any page script, before `document.documentElement` exists, so it observes `document` itself.
     await page.addInitScript(() => {
       const win = window as unknown as {
         __rootWasEmpty: boolean
@@ -97,8 +75,10 @@ test(
       }
       win.__rootWasEmpty = false
       win.__sawRoutePending = false
+      // Counts callbacks, so an observer that never ran fails loudly instead of passing on two flags that stayed false.
       win.__mutations = 0
 
+      /** Whether `node` is, or contains, the router's pending screen; keyed on aria-label, not role, because the splash also carries role="status". */
       const isRoutePending = (node: Node) =>
         node instanceof HTMLElement &&
         (node.matches('[role="status"][aria-label="Loading"]') ||
@@ -106,6 +86,7 @@ test(
 
       const observer = new MutationObserver((mutations) => {
         win.__mutations += 1
+        // Emptiness is read live, once per callback: React's first commit clears #root and inserts the app in the same task, so a per-record check would flag every correct boot.
         const root = document.getElementById('root')
         if (root && root.childElementCount === 0) win.__rootWasEmpty = true
         for (const mutation of mutations) {

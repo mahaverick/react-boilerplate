@@ -1,3 +1,11 @@
+/**
+ * @file Error tracking through the production image, started as CI starts it
+ * (`POSTHOG_KEY=phc_test_key_not_real`, `APP_ENVIRONMENT=ci`) with nothing
+ * behind `/api`: the API is stubbed here, and `/api/v1/collect` reaches a fake
+ * PostHog through Playwright. A crash has to come from the bundle's own code to
+ * pass the in-app filter, so each one is a stubbed profile whose `firstName` is
+ * a number: `fullName()` calls `.trim()` on it while the account menu renders.
+ */
 import { expect, test, type Page, type Route } from '@playwright/test'
 import {
   clickUntilReplayed,
@@ -11,16 +19,6 @@ import {
 import { settle } from '../timing'
 import { requireServedApp } from './csp'
 
-/**
- * Error tracking through the production image, started as CI starts it
- * (`POSTHOG_KEY=phc_test_key_not_real`, `APP_ENVIRONMENT=ci`) with nothing
- * behind `/api`: the API is stubbed here, and `/api/v1/collect` reaches a
- * fake PostHog through Playwright. A crash has to come from the bundle's own
- * code to pass the in-app filter, so each one is a stubbed profile whose
- * `firstName` is a number: the account menu's `.trim()` throws on it while
- * rendering, as a real malformed response would make it.
- */
-
 /** The `GIT_SHA` the image under test was built with; CI's e2e image takes none. */
 const RELEASE = process.env.E2E_RELEASE ?? 'dev'
 
@@ -28,12 +26,13 @@ const USER_ID = '01a0fc35-0000-7000-8000-0000000005e1'
 const TENANT_ID = '01a0fc35-0000-7000-8000-000000000a0e'
 const PROBE_EMAIL = 'pii-probe@example.test'
 const PROBE_TOKEN = 'pii-probe-token-'.padEnd(43, 'x')
-/** What must never reach PostHog: the address, its local part, the name, the token. */
+/** What must never reach PostHog: the address, its local part, the last name, the token. */
 const PROBES = [PROBE_EMAIL, 'pii-probe', 'Probe', PROBE_TOKEN]
 
-/** posthog-js's logger prefix: in its own lazy chunk, and in no chunk of the app's. */
+/** posthog-js's logger prefix, which identifies the chunk that holds it. */
 const POSTHOG_JS_MARKER = '[PostHog.js]'
 
+/** What the stubbed API answers for the signed-in user. */
 interface StubOptions {
   /** A number makes the account menu throw while rendering. */
   firstName?: string | number
@@ -42,6 +41,7 @@ interface StubOptions {
   tenantDetail?: 'ok' | 500 | 'network'
 }
 
+/** An express envelope as a `route.fulfill` response: success with `data` for 200, else the error shape with `status`. */
 function envelope(data: unknown, status = 200) {
   return {
     status,
@@ -127,7 +127,7 @@ const BATCH_WINDOW_MS = 2_000
 
 /**
  * Every property an `$exception` may carry: the reporter's own and the
- * session ids `@posthog/core` adds. Nothing else (no title, no form value)
+ * identity ones `withIdentity` adds. Nothing else (no title, no form value)
  * can carry text out.
  */
 const EXCEPTION_PROPERTIES = new Set([
@@ -243,6 +243,7 @@ test.describe('error tracking against a fake PostHog', () => {
     'a crash before posthog-js has loaded still arrives, with the user once analytics settles',
     { tag: '@no-api' },
     async ({ page }) => {
+      /** Lets the held posthog-js chunk through; replaced by the promise's resolver below. */
       let releasePosthog: () => void = () => {}
       const posthogHeld = new Promise<void>((resolve) => {
         releasePosthog = resolve
@@ -345,16 +346,14 @@ test.describe('error tracking against a fake PostHog', () => {
       ).toBeVisible()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(1)
 
-      // A second crash with the address in the path.
       await page.goto(`/tenants/${PROBE_EMAIL}`)
       const crashed = page.getByRole('heading', { name: 'Something went wrong', level: 1 })
       await expect(crashed).toBeVisible()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(2)
       // The barrier: a replay upload from this page, so the read below covers a known flush.
       await clickUntilReplayed(fake, crashed, `/tenants/${PROBE_EMAIL}`)
-      // Read before the synthetic title, which replay records and $pageview sends; react's titles carry at most the slug, already in the URL.
+      // Read before the synthetic title is set: replay records it and `$pageview` sends it, while the app's own titles carry at most the slug, already in the URL.
       const egress = fake.bodies()
-      // A third, with the probes in the title and a form field.
       await page.evaluate(
         ({ email, token }) => {
           document.title = `${email} ${token}`

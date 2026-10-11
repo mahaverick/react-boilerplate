@@ -1,3 +1,8 @@
+/**
+ * @file Helpers for the `live` e2e project: accounts and tenants made through a
+ * real express's API and Mailpit, a sign-in through the UI, and a guarded
+ * restart of the express under test.
+ */
 import { execFile as execFileCallback, spawn } from 'node:child_process'
 import { realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -17,6 +22,7 @@ import { settle } from '../timing'
 
 const execFile = promisify(execFileCallback)
 
+/** Where the express under test listens: `E2E_API_ORIGIN`, default :4040. */
 export const API_ORIGIN = process.env.E2E_API_ORIGIN ?? 'http://localhost:4040'
 const MAILPIT_ORIGIN = process.env.E2E_MAILPIT_ORIGIN ?? 'http://localhost:8025'
 const API_DIR = process.env.E2E_API_DIR ?? '../express-boilerplate'
@@ -25,28 +31,27 @@ const API_DIR = process.env.E2E_API_DIR ?? '../express-boilerplate'
 export const PASSWORD = 'a very long passphrase for e2e'
 
 /**
- * A fresh address per run, because the login limiter is keyed `ip:email`
- * (`rate-limit.middleware.ts:loginRateLimitKey`) at five attempts per fifteen
- * minutes. A fixed address would pass once and then rate-limit every rerun
- * for the rest of the window, which reads as a broken test rather than a
- * spent bucket.
+ * A unique e2e address per call, because the login limiter is keyed `ip:email`
+ * (`rate-limit.constants.ts:loginRateLimitKey`) at five attempts per fifteen
+ * minutes. A fixed address would rate-limit reruns for the rest of the window,
+ * which reads as a broken test rather than a spent bucket.
  */
 export function freshEmail(): string {
   return `e2e-${Date.now()}-${Math.floor(Math.random() * 1e4)}@example.com`
 }
 
+/** `fetch`, resolved to the status and the parsed JSON body, which is `null` when the body is not JSON. */
 async function json(url: string, init?: RequestInit) {
   const response = await fetch(url, init)
   return { status: response.status, body: (await response.json().catch(() => null)) as unknown }
 }
 
 /**
- * Registers an account and verifies it, so the browser can sign in.
+ * Registers an account through the API and verifies it, so the browser can sign in.
  *
- * Verification is NOT optional here: `/auth/register` answers 202 with
- * "If that address can be registered…" and login stays 401 until the address
- * is verified. The link only exists in the email, so mailpit is a required
- * part of this stack rather than a convenience.
+ * Verification is required: `/auth/register` answers 202 with "If that address
+ * can be registered…" and login stays 401 until the address is verified. The
+ * link only exists in the email, so Mailpit is a required part of this stack.
  */
 export async function createVerifiedUser(email: string): Promise<void> {
   const registered = await json(`${API_ORIGIN}/api/v1/auth/register`, {
@@ -60,12 +65,7 @@ export async function createVerifiedUser(email: string): Promise<void> {
 
   const token = await verificationTokenFor(email)
 
-  /**
-   * BOTH fields. `verifyEmailSchema` requires `token` AND `password`, and
-   * the controller deliberately rethrows a validation failure as the same
-   * "Invalid or expired verification token" a bad token gets — so omitting
-   * the password looks exactly like a dead token and tells you nothing.
-   */
+  // Both fields: express answers a body that fails `verifyEmailSchema` with the same "Invalid or expired verification token" a bad token gets, so omitting the password looks like a dead token.
   const verified = await json(`${API_ORIGIN}/api/v1/auth/verify-email`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -90,9 +90,8 @@ async function verificationTokenInMailpit(email: string): Promise<string> {
 }
 
 /**
- * Polls mailpit for the verification link and returns its token. A mailpit
- * that is down fails at once: `expect.poll` does not retry a callback that
- * throws.
+ * Polls Mailpit for the verification link and returns its token. A Mailpit that
+ * is down fails at once: `expect.poll` does not retry a callback that throws.
  */
 async function verificationTokenFor(email: string): Promise<string> {
   let token = ''
@@ -124,6 +123,7 @@ export async function apiIsReady(): Promise<boolean> {
   }
 }
 
+/** Polls until the API answers its readiness probe, failing after `timeoutMs`. */
 export async function waitForApi(timeoutMs = 60_000): Promise<void> {
   await expect
     .poll(apiIsReady, {
@@ -135,9 +135,9 @@ export async function waitForApi(timeoutMs = 60_000): Promise<void> {
 }
 
 /**
- * Every pid LISTENING on `port`. `-sTCP:LISTEN` is load-bearing: without it
- * lsof also lists CLIENTS with an open socket to this port, and the Vite dev
- * server proxying /api is one of them. Killing that takes the whole run down.
+ * Every pid listening on `port`. `-sTCP:LISTEN` is load-bearing: without it
+ * lsof also lists clients with an open socket to the port, and the Vite dev
+ * server proxying /api is one. Killing that takes the whole run down.
  */
 async function listeningPids(port: string): Promise<number[]> {
   const { stdout } = await execFile('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN']).catch(() => ({
@@ -146,6 +146,7 @@ async function listeningPids(port: string): Promise<number[]> {
   return stdout.split('\n').filter(Boolean).map(Number)
 }
 
+/** Sends `signal` to each pid, ignoring one that has already exited. */
 function signalAll(pids: number[], signal: NodeJS.Signals): void {
   for (const pid of pids) {
     try {
@@ -213,15 +214,15 @@ async function cwdOf(pid: number): Promise<string | null> {
 /**
  * Stops whatever is listening on the API port, then starts a new one.
  *
- * Finds the server by PORT rather than by a pid this process spawned,
- * because the API is started outside the test run and the SSE test has to be
- * able to restart THAT; it stops only listeners running inside the checked
- * worktree. Refuses, by throwing, unless `apiRestartRefusal` allows it. The
- * new server starts in the resolved worktree with `APP_PORT` set to the
- * checked port, so it never falls back to its `.env` port (4040 by default).
- * That server stays running, detached; its pid, which is also its process
- * group, is written to `restartedPidFile(os.tmpdir(), port)`, after any file
- * an earlier run left there is deleted.
+ * Finds the server by port rather than by a pid this process spawned, because
+ * the API is started outside the test run and the SSE test has to restart that
+ * one; it stops only listeners running inside the checked worktree. Refuses, by
+ * throwing, unless `apiRestartRefusal` allows it. The replacement server starts
+ * in the resolved worktree with `APP_PORT` set to the checked port, so it never falls
+ * back to its `.env` port (4040 by default). It stays running, detached; its
+ * pid, which is also its process group, is written to
+ * `restartedPidFile(os.tmpdir(), port)`, after any file an earlier run left
+ * there is deleted.
  */
 export async function restartApi(): Promise<void> {
   forgetRestartedServer(API_ORIGIN, tmpdir(), (file) => {
@@ -231,14 +232,7 @@ export async function restartApi(): Promise<void> {
   if ('refusal' in plan) throw new Error(plan.refusal)
   const { port, dir } = plan
 
-  /**
-   * Stop EVERY pid holding the port, not just the process group of the one
-   * found first: `pnpm dev` is `tsx watch`, whose CHILD is the real server,
-   * and a SIGTERM to the parent's group alone would leave it listening, so
-   * "reconnects after a restart" would measure a stream never interrupted.
-   * `stopListenersIn` signals only when every listener runs inside the
-   * worktree, SIGTERM first, then SIGKILL after 3 s.
-   */
+  // Stop every pid holding the port, not one process group: `pnpm dev` is `tsx watch`, whose child is the real server and would keep listening, so a "reconnects after a restart" test would measure a stream never interrupted.
   await stopListenersIn({
     port,
     dir,
@@ -257,7 +251,7 @@ export async function restartApi(): Promise<void> {
     })
     .toEqual([])
 
-  // Confirm it actually went down, or "reconnects after a restart" passes against a server that never stopped.
+  // Without this check, "reconnects after a restart" passes against a server that never stopped.
   await expect
     .poll(apiIsReady, {
       message: 'API did not stop; the restart test would be vacuous',
@@ -273,14 +267,14 @@ export async function restartApi(): Promise<void> {
 }
 
 /**
- * Signs an EXISTING, verified account in through the real UI, leaving the
- * browser with a real session and a real refresh cookie.
+ * Signs an existing, verified account in through the UI, leaving the browser
+ * with a real session and refresh cookie.
  *
- * The fields are matched by their EXACT label, never `/email/i`: with the
+ * The fields are matched by their exact label, never `/email/i`: with the
  * TanStack Router devtools open the dev server also renders route-match
- * buttons labelled "Open match details for /verify-email" (and, for
- * `/password/i`, forgot-password and reset-password), so a loose pattern
- * hits several elements and Playwright's strict mode throws.
+ * buttons labelled "Open match details for /verify-email" (and likewise for
+ * forgot-password and reset-password against `/password/i`), so a loose pattern
+ * matches several elements and Playwright's strict mode throws.
  */
 export async function logIn(page: Page, email: string): Promise<void> {
   await page.goto('/login')
@@ -290,16 +284,13 @@ export async function logIn(page: Page, email: string): Promise<void> {
   await expect(page).not.toHaveURL(/login/, { timeout: 15_000 })
 }
 
-/** Registers, verifies and signs in through the real UI. */
+/** Registers and verifies an account through the API, then signs it in through the UI. */
 export async function signIn(page: Page, email: string): Promise<void> {
   await createVerifiedUser(email)
   await logIn(page, email)
 }
 
-/**
- * An access token straight from the API, for requests the browser cannot
- * make for us: the SPA's token lives in memory only (CLAUDE.md).
- */
+/** An access token straight from the API, for requests made outside the browser: the SPA's token lives in memory only. */
 export async function apiLogin(email: string): Promise<string> {
   const response = await json(`${API_ORIGIN}/api/v1/auth/login`, {
     method: 'POST',
@@ -339,9 +330,10 @@ export async function createTenant(
 }
 
 /**
- * Gives a verified account a platform role through express's own bootstrap
- * script: the supported way in, and audited as `platform.member.granted`.
- * Must run BEFORE that account signs in: the role arrives with the session.
+ * Gives a verified account a platform role by running express's own bootstrap
+ * script in `E2E_API_DIR`, the supported way in, audited as
+ * `platform.member.granted`. It must run before the account signs in: the role
+ * arrives with the session.
  */
 export async function grantPlatformRole(email: string, role: MembershipRole): Promise<void> {
   await execFile('pnpm', ['platform:grant', email, role], { cwd: API_DIR, timeout: 60_000 })

@@ -80,9 +80,9 @@ export default tseslint.config(
      * Root-level configs get no type information (only the src/, tests/ and e2e/
      * blocks set typed parser options), so typed rules throw on them: they are
      * linted syntactically only, and listed by name so this block never covers
-     * a file under src/. The tailwind rules are off because the plugin's own
-     * `files` glob matches them, and without `cssConfigPath` (scoped to src/)
-     * it falls back to 'src/style.css' and throws ENOENT.
+     * a file under src/. The Tailwind rules are off because the plugin's own
+     * `files` glob matches them and, without `cssConfigPath` (set only for
+     * src/), it falls back to 'src/style.css' and throws ENOENT.
      */
     files: [
       'eslint.config.js',
@@ -108,7 +108,7 @@ export default tseslint.config(
     /**
      * The pre-paint theme script: a classic browser script served as-is from
      * public/, outside every tsconfig, so it is linted syntactically only. The
-     * tailwind rules are off for the reason given on the root-config block.
+     * Tailwind rules are off for the reason given on the root-config block.
      */
     files: ['public/theme-init.js'],
     extends: [tseslint.configs.disableTypeChecked],
@@ -133,7 +133,7 @@ export default tseslint.config(
   {
     /**
      * The e2e suite and its fixture harness, with typed linting: e2e/tsconfig.json
-     * lets `projectService` find these files. The tailwind rules are off for the
+     * lets `projectService` find these files. The Tailwind rules are off for the
      * reason given on the root-config block.
      */
     files: ['e2e/**/*.{ts,tsx}'],
@@ -212,7 +212,7 @@ export default tseslint.config(
     /**
      * The Vitest suite, with typed linting (tsconfig.app.json includes tests/)
      * and the same react-hooks rules as src/, since tests render components and
-     * call hooks. The tailwind rules are off for the reason given on the
+     * call hooks. The Tailwind rules are off for the reason given on the
      * root-config block.
      */
     files: ['tests/**/*.{ts,tsx}'],
@@ -332,8 +332,8 @@ export default tseslint.config(
   ...tanstackRouter.configs['flat/recommended'],
   {
     /**
-     * Vendored shadcn output: linting it churns the diff on every upstream
-     * re-add, and its class strings are upstream's. This block must come after
+     * Vendored shadcn output: these rules would rewrite upstream's class strings
+     * and churn the diff on every re-add. This block must come after
      * tailwindcss.configs.recommended, whose own `files` glob is not stopped by
      * the `ignores` on the settings block.
      */
@@ -388,7 +388,7 @@ export default tseslint.config(
       'tailwindcss/important-modifier-suffix': 'warn',
       'tailwindcss/no-arbitrary-value': 'off',
       'tailwindcss/no-contradicting-classname': 'error',
-      /** `toaster` is sonner's own class, the hook its stylesheet targets. */
+      /** `toaster` is a marker class that sonner.tsx sets beside `group`; no Tailwind class defines it. */
       'tailwindcss/no-custom-classname': ['warn', { whitelist: ['toaster'] }],
       'tailwindcss/no-unnecessary-arbitrary-value': 'warn',
     },

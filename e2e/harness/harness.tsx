@@ -1,29 +1,9 @@
 /**
- * The e2e fixture harness. Not part of the shipped app — nothing in `src/`
- * imports it, and `index.html` is the only Vite entry that builds.
- *
- * Playwright's `fixtures` project needs the REAL shell, the real router and
- * the real CSS in a real browser, but not a real backend. This boots the
- * actual router with MSW answering the same fixtures `tests/unit/a11y.test.tsx`
- * uses, and the same signed-in store state.
- *
- * `?state=loaded|empty|error|loading|soleowner` picks what the members
- * endpoint answers, which is how the e2e suite reaches the states that only
- * exist for one shape of data. `?state=viewer` or `?state=admin` makes the
- * harness user a viewer or admin of `acme`, with Cleo D its owner, so their
- * own row offers Leave.
- *
- * `?access=platform` signs the harness user in as a staff viewer who is not a
- * member of `acme`, so the tenant pages render under the platform access
- * banner.
- *
- * `?pii=probe` replaces every person in the fixtures with the analytics PII
- * probe (`Pii Probe`, `pii-probe…@example.test`), for the DOM PII guard in
- * `e2e/fixtures/pii.test.ts`.
- *
- * `?flags=network` leaves the flag reads, their exposure reports and the beta
- * route unmocked, so `e2e/fixtures/flags.test.ts` answers them itself with
- * `context.route`; otherwise every flag is at its fallback.
+ * @file The e2e fixture harness: the real shell, router and CSS in a real
+ * browser, with MSW answering the fixtures `tests/unit/a11y.test.tsx` uses and
+ * the same signed-in store state, so the `fixtures` project needs no backend.
+ * It is not part of the shipped app: nothing in `src/` imports it and
+ * `index.html` is the only Vite entry that builds.
  */
 import '@/lib/zod-jitless'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -138,10 +118,10 @@ const PREFERENCES = [
 ]
 
 /**
- * The Getting started checklist in progress, one required step done, so the
- * done and pending markers, the Optional badge, the links and Mark done are
- * all on the page. The member step's `completedAt` is the caller's own, and
- * the harness user has not marked it yet.
+ * The Getting started checklist in progress, with one required step done, so
+ * the done and pending markers, the Optional badge and Mark done are all on
+ * the page. The member step's `completedAt` is the caller's own, and the
+ * harness user has not marked it yet.
  */
 const ONBOARDING = {
   state: 'in_progress',
@@ -206,7 +186,10 @@ const testUser = {
   analyticsOptOut: false,
 }
 
-/** The name and address the PII guards search for; nothing may render them unmasked. */
+/**
+ * The name and address `?pii=probe` gives every person in the fixtures, for
+ * the DOM PII guard in `e2e/fixtures/pii.test.ts`; nothing may render them unmasked.
+ */
 const PROBE_NAME = { firstName: 'Pii', lastName: 'Probe' }
 const PROBE_EMAIL = 'pii-probe@example.test'
 
@@ -235,20 +218,27 @@ if (new URLSearchParams(location.search).get('pii') === 'probe') {
   Object.assign(AUDIT_ACTOR, { name: 'Pii Probe', email: PROBE_EMAIL })
 }
 
+/** An express success envelope as a `Response`. */
 function ok<T>(data: T, message = 'OK', statusCode = 200) {
   return Response.json({ success: true, message, statusCode, data })
 }
 
-// `?state=` picks which variant to render, so the empty and error states get screenshots too rather than only the happy path.
+/**
+ * `?state=` picks what the members endpoint answers: `loaded` (the default),
+ * `empty`, `error`, `loading` or `soleowner`. `viewer` or `admin` makes the
+ * harness user that role in `acme`, with Cleo D its owner, so their own row
+ * offers Leave. `suspended` lists the tenant as suspended and 404s its detail,
+ * as the API does.
+ */
 const state = new URLSearchParams(location.search).get('state') ?? 'loaded'
+/** `?access=platform` signs in a staff viewer who is not a member of `acme`, so tenant pages render under the platform access banner. */
 const asStaff = new URLSearchParams(location.search).get('access') === 'platform'
 if (asStaff) testUser.platformRole = 'viewer'
-// `?state=suspended` lists the tenant as suspended, and its own detail 404s, as the API does.
 const suspended = state === 'suspended'
 
 const SOLE_OWNER = [MEMBERS[0]]
 
-/** `?state=viewer|admin`: the harness user's role in `acme`, with Cleo D its owner. */
+/** The harness user's role in `acme` for `?state=viewer|admin`; Cleo D is then the owner. */
 const selfRole = state === 'viewer' || state === 'admin' ? state : null
 const NON_OWNER_MEMBERS = MEMBERS.map((entry, index) => ({
   ...entry,
@@ -258,6 +248,11 @@ const NON_OWNER_MEMBERS = MEMBERS.map((entry, index) => ({
 /** Every react flag at its fallback, as express answers when no flag is on. */
 const FLAG_FALLBACKS = { example_beta_page: false, example_cta_experiment: 'control' }
 
+/**
+ * `?flags=network` leaves the flag reads, their exposure reports and the beta
+ * route unmocked, so `e2e/fixtures/flags.test.ts` answers them with
+ * `context.route`; otherwise every flag is at its fallback.
+ */
 const flagHandlers =
   new URLSearchParams(location.search).get('flags') === 'network'
     ? []
@@ -295,7 +290,7 @@ const membersHandler =
             )
 
 const worker = setupWorker(
-  // The signed-in layout reads the page's flags on every route. Unmocked, they would reach the real API, 401, and sign the harness user out.
+  // The signed-in layout reads the page's flags on every route; unmocked, they 401 and sign the harness user out.
   ...flagHandlers,
   http.get('/api/v1/tenants', () =>
     ok(
@@ -330,15 +325,14 @@ const worker = setupWorker(
   ),
   membersHandler,
   http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.')),
-  // The members page lists pending invitations for an owner. Unmocked, this would reach the real API, 401, and sign the harness user out.
+  // The members page lists pending invitations for an owner; unmocked, this 401s and signs the harness user out.
   http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
   http.post('/api/v1/tenants/acme/invitations/:id/resend', () =>
     ok(null, 'If that address can be invited, an invitation has been sent.')
   ),
-  // The accept page's preview, for `?path=/invitations/accept&token=…`.
   http.post('/api/v1/invitations/preview', () => ok(INVITATION_PREVIEW, 'Invitation retrieved.')),
   http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
-  // Every overview mounts the Getting started card, staff's included. Unmocked, it would reach the real API, 401, and sign the harness user out.
+  // Every overview mounts the Getting started card, staff's included; unmocked, it 401s and signs the harness user out.
   http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
   http.get('/api/v1/tenants/acme/audit-log', () =>
     ok(
@@ -375,11 +369,9 @@ const worker = setupWorker(
     ok({ preferences: PREFERENCES }, 'Notification preferences retrieved.')
   ),
   /**
-   * A stream that STAYS OPEN. Answering 204 looks to the hook exactly like
-   * a dropped connection: it fires `error`, calls ensureSession(), and an
-   * unmocked refresh request would fall through to the real API, come back
-   * 401 and redirect the harness to /login mid-test. A test that is racing
-   * a redirect is not testing what it says it is.
+   * A stream that stays open. A 204 looks to the hook like a dropped
+   * connection, so it would call ensureSession() and reconnect on a backoff
+   * loop, and a test would race that traffic.
    */
   http.get(
     '/api/v1/notifications/stream',
@@ -392,7 +384,7 @@ const worker = setupWorker(
       )
   ),
   http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.')),
-  // /profile's Security section. Unmocked, it would reach the real API, 401, and sign the harness user out.
+  // /profile's Security section reads this; unmocked, it 401s and signs the harness user out.
   http.get('/api/v1/auth/providers', () =>
     ok(
       {
@@ -408,7 +400,6 @@ const worker = setupWorker(
   http.post('/api/v1/auth/sessions/revoke-others', () =>
     ok({ revoked: 2 }, 'Other sessions signed out.')
   ),
-  // Any other current password gets the API's own 400.
   http.post('/api/v1/auth/change-password', async ({ request }) => {
     const body = (await request.json()) as { currentPassword?: unknown }
     if (body.currentPassword === HARNESS_PASSWORD) return ok(null, 'Password has been changed.')
@@ -422,7 +413,7 @@ const worker = setupWorker(
       { status: 400 }
     )
   }),
-  // Belt and braces: nothing in the fixtures suite should ever reach the real backend, and a silent fall-through is how it would.
+  // A refresh with no handler would bypass MSW and 401, which signs the harness user out.
   http.post('/api/v1/auth/refresh', () =>
     ok({ accessToken: 'harness-token', user: testUser }, 'Session refreshed.')
   )
@@ -439,32 +430,20 @@ useAuthStore.setState({
 })
 
 /**
- * Which in-app route to mount. Defaults to the members page, which is what
- * every `?state=` fixture is about, so the fixtures suite needs no
- * changes. `?path=` exists for the contrast suite and
- * `fixtures/security.test.ts`, which need the other authenticated
- * surfaces: the handlers above already answer /profile, /auth/providers,
- * /notifications, /notifications/preferences, /tenants, /tenants/acme and
- * its /settings and /onboarding, so those pages render without a backend.
+ * `?path=` picks the in-app route to mount, defaulting to the members page
+ * that every `?state=` fixture is about. The contrast suite and
+ * `fixtures/security.test.ts` use it to reach the other authenticated
+ * surfaces, whose endpoints the handlers above answer.
  *
- * Only a same-origin absolute path is accepted. This harness is not
- * shipped (nothing in `src/` imports it, and `index.html` is the only Vite
- * entry that builds), but it does run against a real browser with a
- * signed-in store, and a query parameter that reached `replaceState`
- * unchecked would be an open-redirect shape worth never writing down in
- * the first place.
+ * Only a same-origin absolute path is accepted: the harness runs in a real
+ * browser with a signed-in store, and a query parameter that reached
+ * `replaceState` unchecked would be an open-redirect shape.
  */
 const requestedPath = new URLSearchParams(location.search).get('path')
 const targetPath =
   requestedPath && /^\/[^/\\]/.test(requestedPath) ? requestedPath : '/tenants/acme/members'
 
-/**
- * replaceState, NOT router.navigate: navigate before the router mounts
- * does a real navigation, and the dev server then answers
- * /tenants/acme/members with the SPA fallback (index.html -> main.tsx), so
- * the harness never runs. The router reads location on mount, so setting
- * it first is enough.
- */
+// replaceState, not router.navigate: before the router mounts, navigate does a real navigation and the dev server answers it with the SPA fallback (index.html), so the harness never runs.
 history.replaceState(null, '', targetPath + location.search)
 
 createRoot(document.getElementById('root')!).render(

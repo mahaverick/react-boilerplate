@@ -1,3 +1,9 @@
+/**
+ * @file Staff reach a tenant they are not a member of, act at exactly their
+ * platform role, and are seen doing it. It needs a live express with platform
+ * access (migration 0016, `pnpm platform:grant`), so it is skipped unless
+ * `E2E_LIVE=1`; run it with `pnpm test:e2e:live`.
+ */
 import { expect, test, type Page } from '@playwright/test'
 import {
   API_ORIGIN,
@@ -11,13 +17,6 @@ import {
   grantPlatformRole,
   logIn,
 } from './helpers'
-
-/**
- * Staff reach a tenant they are not a member of, act at
- * exactly their platform role, and are seen doing it. Needs express 3.1.0 or
- * later on :4040 (migration 0016, `pnpm platform:grant`), so it is skipped
- * unless `E2E_LIVE=1`. Run it with `pnpm test:e2e:live`.
- */
 
 test.skip(process.env.E2E_LIVE !== '1', 'live backend required — run pnpm test:e2e:live')
 
@@ -65,7 +64,7 @@ test('a staff viewer opens a tenant by URL, is told so, and cannot change it', a
   await expect(banner).toContainText(`You’re viewing ${name} as platform staff (Viewer).`)
   await expect(banner.getByRole('link', { name: 'Back to your tenants' })).toBeVisible()
 
-  // Edit controls are ABSENT for a viewer here: the read-only views render.
+  // Edit controls are absent for a viewer, not disabled: the read-only views render.
   await expect(
     page.getByText('These details are managed by the tenant’s owners and admins.')
   ).toBeVisible()
@@ -114,7 +113,6 @@ test('a staff admin changes a setting, and the owner sees it in Activity marked 
     await expect(row).toContainText('timezone')
     await expect(row.getByText('Staff', { exact: true })).toBeVisible()
 
-    // The owner's own action is theirs, and is not badged.
     const created = ownerPage.getByRole('listitem').filter({ hasText: 'created the tenant' })
     await expect(created.getByText('Staff', { exact: true })).toHaveCount(0)
   } finally {

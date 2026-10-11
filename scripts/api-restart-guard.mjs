@@ -9,8 +9,8 @@ const DEV_API_PORT = '4040'
 
 /**
  * The explicit port of an http(s) origin, or `null` for any other origin: a
- * port-less origin would aim the restart at :80 or :443, which some other
- * program holds.
+ * port-less origin would aim the restart at :80 or :443, not at an express this
+ * run started.
  * @param origin - The API origin, such as `http://localhost:4999`.
  * @returns The port, as a string, or `null`.
  */
@@ -126,10 +126,15 @@ export function isWithin(cwd, dir) {
  * @param input.cwdOf - A pid's working directory, or `null` when unknown.
  * @param input.signal - Sends a signal to a pid.
  * @param input.freedWithin - Whether the port has no listener within a time, in ms.
- * @returns Resolves once SIGKILL has been sent, if it was needed.
+ * @returns Resolves once the port is free after SIGTERM, or once SIGKILL has been sent.
  * @throws {Error} When a listener is outside `dir`, before any signal of that round.
  */
 export async function stopListenersIn({ port, dir, listeningPids, cwdOf, signal, freedWithin }) {
+  /**
+   * Sends signal `name` to every listener on the port, after checking that all of them run inside `dir`.
+   * @param name - The signal to send.
+   * @throws {Error} Before signalling anyone, when a listener is outside `dir`.
+   */
   const signalAllInside = async (name) => {
     const pids = await listeningPids(port)
     const outside = []

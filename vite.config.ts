@@ -16,9 +16,9 @@ export default defineConfig({
       autoCodeSplitting: true,
     }),
     /**
-     * The React Compiler through Babel (babel-plugin-react-compiler and
-     * @rolldown/plugin-babel), as @vitejs/plugin-react's README wires it.
-     * `react({ compiler: true })` would need oxc-transform-react, which is not
+     * The React Compiler through Babel (`babel-plugin-react-compiler` and
+     * `@rolldown/plugin-babel`), as `@vitejs/plugin-react`'s README wires it.
+     * `react({ compiler: true })` would need `oxc-transform-react`, which is not
      * a dependency.
      */
     react(),
@@ -32,9 +32,10 @@ export default defineConfig({
     runtimeConfigPlugin(),
     /**
      * Removes MSW's worker from `dist/`. It sits in `public/` so the dev server
-     * serves it from the root scope a service worker needs, and `public/` is
-     * copied verbatim into `dist/`. Deleted after the build rather than moved,
-     * because moving it breaks the scope the e2e fixture harness relies on.
+     * serves it at /mockServiceWorker.js, the root scope the e2e harness
+     * registers it under, and `public/` is copied verbatim into `dist/`. It is
+     * deleted after the build, not moved out of `public/`, which would change
+     * its path and scope.
      */
     {
       name: 'drop-msw-worker-from-build',

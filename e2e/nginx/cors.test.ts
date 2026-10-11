@@ -1,39 +1,26 @@
+/**
+ * @file The multi-frontend seam: a second frontend on another origin calling
+ * this API through the container, not this SPA's own traffic, which is
+ * same-origin and sends no preflight. It proves nginx forwards an `OPTIONS`
+ * promptly off a `proxy_read_timeout 24h` location, and that `allowedHeaders`
+ * lists `last-event-id`.
+ */
 import { expect, test } from '@playwright/test'
 import { API_ORIGIN, apiIsReady } from '../live/helpers'
 
-/**
- * A test of the MULTI-FRONTEND SEAM — the deployment where a second frontend
- * on another origin calls this API — not of this SPA's own traffic, which is
- * same-origin (CLAUDE.md, "The API prefix is fixed and relative") and never
- * sends a preflight at all. See `ALLOWED_ORIGIN`'s own comment below for why
- * `Origin: http://localhost:5173` is the right choice for that anyway: it
- * proves nginx forwards an `OPTIONS` promptly off a `proxy_read_timeout 24h`
- * location, and that `allowedHeaders` really lists `last-event-id`.
- */
+/** Where the container serves the app: `E2E_NGINX_ORIGIN`, default :8088. */
 const APP_ORIGIN = process.env.E2E_NGINX_ORIGIN ?? 'http://localhost:8088'
 
 /**
- * The origin the API's own allowlist actually grants — `WEB_URL` in
- * `express-boilerplate/.env` (`origin.utilities.ts`'s `isAllowedOrigin`),
- * not `APP_ORIGIN` above.
- *
- * Measured, not assumed: `APP_ORIGIN` (the container this suite drives, on
- * :8088) is deliberately NOT in that allowlist — a real deployment serves
- * the SPA and proxies `/api` on the SAME origin (CLAUDE.md, "The API prefix
- * is fixed and relative"), so the browser never sends a cross-origin
- * request to itself and `APP_ORIGIN` never needs listing. Sending
- * `Origin: APP_ORIGIN` therefore does not exercise "an allowed
- * cross-origin caller" at all; it exercises "an origin the allowlist
- * rejects", the same case the second test below covers: the `cors`
- * package's own origin check (`cors.config.ts`) declines to answer the
- * preflight at all when the origin is not allowed — it calls `next()`
- * rather than sending a response — so the OPTIONS request falls through
- * to `requireAuth` on this route, which rejects it with 401, not 204 —
- * confirmed against this exact container. Using the
- * allowlisted origin instead is what isolates the property this test
- * exists to prove — nginx passes an OPTIONS through to Express promptly
- * rather than holding it on the SSE location's `proxy_read_timeout 24h` —
- * from an unrelated allowlist decision.
+ * An origin in the API's allowlist (`WEB_URL`, `APEX_URL` or
+ * `CORS_ALLOWED_ORIGINS` of the express under test), not `APP_ORIGIN`: a real
+ * deployment serves the SPA and proxies `/api` on one origin, so `APP_ORIGIN`
+ * is deliberately not listed. For an origin outside the allowlist the `cors`
+ * package calls `next()` without answering the preflight, so the `OPTIONS` falls
+ * through to `requireAuth` and gets a 401, not a 204. An allowed origin isolates
+ * what the first test proves, that nginx passes an `OPTIONS` to express promptly
+ * rather than holding it on the SSE location's `proxy_read_timeout 24h`, from
+ * that allowlist decision.
  */
 const ALLOWED_ORIGIN = process.env.E2E_ALLOWED_ORIGIN ?? 'http://localhost:5173'
 
@@ -44,7 +31,7 @@ test.beforeAll(async () => {
 })
 
 test('preflights the SSE stream promptly, rather than holding it open', async ({ request }) => {
-  // That location carries `proxy_buffering off` and `proxy_read_timeout 24h`. A preflight must still be answered by Express and returned at once.
+  // That location has `proxy_buffering off` and `proxy_read_timeout 24h`, but a preflight must still be answered by express and returned at once.
   const started = Date.now()
   const response = await request.fetch(`${APP_ORIGIN}/api/v1/notifications/stream`, {
     method: 'OPTIONS',

@@ -1,17 +1,15 @@
+/**
+ * @file The reference flags through the harness, in a real browser. With
+ * `?flags=network` these tests answer the flag routes with `context.route`,
+ * because the MSW worker's pass-throughs are fetched by the service worker,
+ * which only a context route sees. Each answer carries `FALLBACK_HEADER`, or
+ * the hermetic teardown reports it as an escape.
+ */
 import type { BrowserContext } from '@playwright/test'
 import { expect, FALLBACK_HEADER, test } from '../hermetic'
 import { settle } from '../timing'
 
-/**
- * The reference flags through the harness, in a real browser. `?flags=network`
- * leaves the flag routes to these tests, which answer them with
- * `context.route`: the MSW worker's pass-throughs are fetched by the service
- * worker, which only a context route sees. Each answer carries
- * `FALLBACK_HEADER`, or the hermetic teardown reports it as an escape.
- * Express's own side, the 404 a closed gated route answers, is not exercised
- * here: that needs the live stack.
- */
-
+/** What the stubbed flag routes saw: the beta route's reads and each exposure report's keys. */
 interface FlagRoutes {
   /** `GET /tenants/acme/beta` calls. */
   betaReads: number
@@ -28,7 +26,7 @@ function envelope(data: unknown, message: string) {
   }
 }
 
-/** Serves the flag reads with these values, the beta route while it is on, and records exposures. */
+/** Stubs the flag reads with these values and the beta route (a 404 while its flag is off), and records the reads and exposures. */
 async function routeFlags(
   context: BrowserContext,
   flags: { example_beta_page: boolean; example_cta_experiment: 'control' | 'bold' }

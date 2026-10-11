@@ -20,6 +20,7 @@ const MAINTENANCE_OFF = {
   data: { mode: 'off', message: null, since: null },
 }
 
+/** Whether a request URL is an `/api` call, which the fallback answers. */
 function isApi(url: URL): boolean {
   return url.pathname.startsWith('/api/')
 }
@@ -37,6 +38,7 @@ function unauthorized(pathname: string) {
   }
 }
 
+/** What the auto-used `apiFallback` fixture hands a test. */
 type ApiFallback = {
   /** `METHOD /path` of every request the fallback answered, in order. */
   answered: string[]
@@ -44,18 +46,18 @@ type ApiFallback = {
 
 /**
  * Playwright's `test`, extended to answer every `/api` request that would
- * leave the browser — the MSW service worker's pass-throughs included —
- * with express's 401 envelope, except the maintenance status read, which gets
- * express's `off` answer. A route a test adds itself is registered
- * later, so Playwright consults it first; if it lets the request through
- * with `route.continue()`, that reaches the dev server's proxy and is only
- * caught at teardown, not blocked outright. A fulfilled response must carry
- * `FALLBACK_HEADER` or teardown counts it as an escape. The `request`
- * fixture's own calls are never routed or observed here.
+ * leave the browser, the MSW service worker's pass-throughs included, with
+ * express's 401 envelope, except the maintenance status read, which gets
+ * express's `off` answer. A route a test adds itself is registered later, so
+ * Playwright consults it first; if it lets a request through with
+ * `route.continue()`, that reaches the dev server's proxy and is caught only at
+ * teardown. A fulfilled response must carry `FALLBACK_HEADER` or teardown
+ * counts it as an escape. The `request` fixture's own calls are never routed or
+ * observed here.
  *
- * At teardown the test fails if an `/api` response came from anywhere but
- * this fallback or the service worker, or if the fallback answered anything
- * but the bootstrap refresh and the maintenance read: that is an endpoint the
+ * At teardown the test fails if an `/api` response came from anywhere but this
+ * fallback or the service worker, or if the fallback answered anything but the
+ * bootstrap refresh and the maintenance read, which means an endpoint the
  * harness left unmocked.
  */
 export const test = base.extend<{ apiFallback: ApiFallback }>({

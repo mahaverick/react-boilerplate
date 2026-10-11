@@ -1,15 +1,10 @@
-import { expect, test } from '../hermetic'
-
 /**
- * The checks jsdom cannot make, because it has no layout and no cascade.
- *
- * Everything here runs against the MSW harness in `e2e/harness/`, so it needs
- * no backend. `?state=` picks which answer the members endpoint gives.
- *
- * These assertions cover what a layout-blind unit suite cannot see: an
- * empty state that renders a bare table header, and a table whose controls
- * sit off-screen on a phone.
+ * @file The checks jsdom cannot make, because it has no layout: an empty state
+ * that renders a bare table header, and a table whose controls sit off-screen
+ * on a phone. They run against the MSW harness in `e2e/harness/`, so they need
+ * no backend, and `?state=` picks the members endpoint's answer.
  */
+import { expect, test } from '../hermetic'
 
 const DESKTOP = { width: 1440, height: 900 }
 const MOBILE = { width: 390, height: 844 }
@@ -21,7 +16,7 @@ test.describe('desktop', () => {
     await page.goto('/e2e/harness/')
     await expect(page.getByRole('row')).toHaveCount(3) // header + two members
 
-    // A silent webfont failure is the classic "looks cheap" tell and is invisible to every code-reading check: the class is still there, the family still resolves, and the glyphs are Times.
+    // A failed webfont load is invisible to code-reading checks: the class and font-family are unchanged and the text falls back to the generic sans-serif.
     const geist = await page.evaluate(() => document.fonts.check('16px "Geist Variable"'))
     expect(geist).toBe(true)
   })
@@ -65,13 +60,13 @@ test.describe('mobile', () => {
     await page.goto('/e2e/harness/')
     await expect(page.getByText('Cleo D')).toBeVisible()
 
-    // The table is what pushes Actions and the last-owner explanation past the right edge; the card path exists so nothing needs horizontal scroll.
+    // The table layout pushes Actions and the last-owner explanation past the right edge.
     await expect(page.getByRole('table')).toHaveCount(0)
 
     const remove = page.getByRole('button', { name: 'Remove' })
     await expect(remove).toBeInViewport()
 
-    // Nothing may overflow the viewport. This is the assertion that would catch a card layout regressing back into a wide row.
+    // Nothing may overflow the viewport: this catches a card layout regressing into a wide row.
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
     )

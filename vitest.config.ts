@@ -20,25 +20,25 @@ export default defineConfig({
      * `*.test.ts` files and run Playwright specs under jsdom.
      */
     include: ['tests/**/*.test.{ts,tsx}'],
-    // Node's BroadcastChannel crosses worker_threads, so 'threads' lets test files hear each other.
+    // Forks, not threads: Node's BroadcastChannel crosses worker_threads, so test files in the threads pool would hear each other.
     pool: 'forks',
     /**
      * Headroom over Vitest's 5s default: each test file gets its own worker and
      * jsdom, and on a cold CI machine a file that renders the whole route tree
      * can spend most of 5s before its first assertion. It must stay well above
-     * `asyncUtilTimeout` in tests/setup.ts, which bounds `findBy*`/`waitFor`.
-     * There is no `retry`: it would hide a race from the report, not fix it.
+     * `asyncUtilTimeout` in tests/setup.ts (5s), which bounds
+     * `findBy*`/`waitFor`. There is no `retry`: it would hide a race, not fix it.
      */
     testTimeout: 20_000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
-      /**
-       * Excludes the generated route tree, the mount-only entry, the dev-only
-       * devtools and the vendored shadcn files, by name: form.tsx and sonner.tsx
-       * in ui/ are ours and measured.
-       */
       include: ['src/**/*.{ts,tsx}'],
+      /**
+       * The generated route tree, the mount-only entry, the dev-only devtools
+       * and the vendored shadcn files, by name: form.tsx and sonner.tsx in ui/
+       * are ours and measured.
+       */
       exclude: [
         'src/routeTree.gen.ts',
         'src/main.tsx',
@@ -47,7 +47,7 @@ export default defineConfig({
         'src/components/ui/{input,input-group,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
         'src/components/ui/{table,tabs,textarea,tooltip}.tsx',
       ],
-      /** About seven points under the measured baseline, so a drop fails CI. */
+      /** About ten points under the measured coverage, so a large drop fails CI. */
       thresholds: { statements: 88, branches: 82, functions: 86, lines: 89 },
     },
   },
