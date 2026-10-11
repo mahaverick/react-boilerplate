@@ -8,9 +8,9 @@ import {
 import { analyticsConfigFor } from '@/tests/mocks/posthog'
 
 /**
- * Own file, so no other test in it can have loaded posthog-js first: the
- * module factory runs on the first `import('posthog-js')` in a file, so a
- * factory that never ran proves the SDK was never imported.
+ * Counts runs of the posthog-js mock factory, which runs on a file's first
+ * `import('posthog-js')`. This file holds only inert-mode tests, so a factory
+ * that never ran proves the SDK was never imported.
  */
 const factoryRan = vi.hoisted(() => vi.fn())
 

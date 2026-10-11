@@ -1,24 +1,23 @@
 #!/bin/sh
-# Run by the image's entrypoint after 05-prepare.sh and before
-# 20-envsubst-on-templates.sh: the entrypoint runs /docker-entrypoint.d/ in
-# name order, under `set -e`, so a non-zero exit here stops the container
-# before nginx starts. Writes the run-time configuration the bundle reads
+# Writes the run-time configuration the bundle reads
 # (src/configs/runtime-config.ts) to $RUNTIME_CONFIG_DIR/runtime-config.js,
-# which nginx.conf serves as /runtime-config.js.
+# which nginx.conf serves as /runtime-config.js. The entrypoint runs it after
+# 05-prepare.sh and before 20-envsubst-on-templates.sh, under `set -e`, so a
+# non-zero exit stops the container before nginx starts.
 #
-# Every value is checked against the same pattern as
-# src/configs/runtime-config.ts before it is written. The patterns admit no
-# quote, backslash, `<` or newline, so a value goes into the file as it is,
-# with no escaping; a value that does not match stops the container, so a typo
-# fails the rollout instead of quietly switching analytics off. An unset or
-# empty variable is written as "" and means "use the default". The error names
-# the variable and never prints its value.
+# Each value must match the pattern src/configs/runtime-config.ts applies. The
+# patterns admit no quote, backslash, `<` or newline, so a value is written as
+# it is, without escaping. A mismatch stops the container, so a typo fails the
+# rollout instead of quietly switching analytics off. An unset or empty
+# variable is written as "" and means "use the default". The error names the
+# variable and never prints its value.
 set -eu
 
 out_dir=${RUNTIME_CONFIG_DIR:-/tmp/runtime}
 https_origin='https://[A-Za-z0-9.-]+(:[0-9]{1,5})?'
 
-# check NAME VALUE PATTERN WHAT
+# check NAME VALUE PATTERN WHAT: exits 1, naming NAME and WHAT it must be,
+# unless VALUE is empty or matches PATTERN.
 check() {
   [ -z "$2" ] && return 0
   if [ "$(printf '%s' "$2" | wc -l)" -ne 0 ] || ! printf '%s\n' "$2" | grep -Eq "^($3)\$"; then

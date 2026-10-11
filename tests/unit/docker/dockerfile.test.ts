@@ -13,11 +13,7 @@ const LINES = readFileSync(path.resolve(import.meta.dirname, '../../../Dockerfil
   '\n'
 )
 
-/**
- * The index of the one line starting with `prefix`.
- * @param prefix - The start of the line.
- * @returns Its zero-based line index.
- */
+/** The zero-based index of the one line starting with `prefix`. */
 function lineOf(prefix: string): number {
   const found = LINES.flatMap((line, index) => (line.startsWith(prefix) ? [index] : []))
   expect(found, `one line starts with ${prefix}`).toHaveLength(1)

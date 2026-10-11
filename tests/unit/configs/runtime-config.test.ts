@@ -109,7 +109,7 @@ describe('handoff origin normalisation', () => {
       'https://x.test',
       'https://y.test:8443',
     ])
-    // Each referrer hands off its own id: an accepted id is refused the second time.
+    // Each referrer uses its own id, because an accepted id is refused the second time.
     for (const [referrer, did] of [
       ['https://www.example.com/blog', '01a0fc35-b7ee-7b93-b550-d8a7f98e30be'],
       ['https://x.test/', '01a0fc35-b7ee-7b93-b550-d8a7f98e30bf'],

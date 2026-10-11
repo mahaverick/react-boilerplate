@@ -1,9 +1,8 @@
 import { expect, test } from '../hermetic'
 
 /**
- * The Security section on /profile, through the harness. The harness accepts
- * one current password, `current-password`, and answers anything else with
- * the API's own 400.
+ * The Security section on /profile, through the harness, which accepts the one
+ * current password `current-password` and answers any other with a 400.
  */
 
 test('changes the password from the profile page', async ({ page }) => {

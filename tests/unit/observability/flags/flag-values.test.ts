@@ -18,7 +18,9 @@ vi.mock('@/observability/flags/flag-keys', async () => ({
   CLIENT_FLAGS: (await import('@/tests/fixtures/test-client-flags')).TEST_CLIENT_FLAGS,
 }))
 
+/** A test slice key typed as the app's own key type. */
 const key = (name: string) => testFlagKey<ClientFlagKey>(name)
+/** Test slice values typed as the app's own flag values. */
 const values = (record: Record<string, boolean | string>) => record as unknown as ClientFlagValues
 
 afterEach(() => {

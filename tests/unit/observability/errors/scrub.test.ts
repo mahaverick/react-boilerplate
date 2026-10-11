@@ -103,7 +103,7 @@ describe('scrubText', () => {
   it('returns quickly on a long run with no @', () => {
     const started = performance.now()
     scrubText('a'.repeat(1_000_000))
-    // Proves the scan cap bounds a megabyte input; the cap is SCAN_MAX (4 x SCRUB_VALUE_MAX), which costs a few ms, so 1 s is far above it.
+    // Proves the scan cap bounds a megabyte input: the cap is 4 x SCRUB_VALUE_MAX, which takes a few ms, so 1 s is far above it.
     expect(performance.now() - started).toBeLessThan(1000)
   })
 
@@ -124,7 +124,7 @@ describe('scrubText', () => {
     expect(text.length).toBeGreaterThan(3500)
     const started = performance.now()
     scrubText(text)
-    // Proves the rules do not backtrack super-linearly on a text at the scan cap; the audit measured about 50 ms, so 2 s keeps at least 40x headroom.
+    // Proves the rules do not backtrack super-linearly on a text near the scan cap; it takes under 5 ms idle, so 2 s keeps over 100x headroom.
     expect(performance.now() - started).toBeLessThan(2000)
   })
 
@@ -166,12 +166,12 @@ describe('scrubText', () => {
       `token: ${'a pwd: '.repeat(4 * SCRUB_VALUE_MAX)}`.slice(0, 4 * SCRUB_VALUE_MAX - 1) + ' ',
     ],
   ])('scans a 4 KB input of %s in bounded time', (_shape, text) => {
-    // Every shape fills the scan cap without passing it, so scanned keeps it whole.
+    // Every shape fills the scan cap without passing it, so the scan keeps it whole.
     expect(text.length).toBeGreaterThan(4 * SCRUB_VALUE_MAX - 30)
     expect(text.length).toBeLessThanOrEqual(4 * SCRUB_VALUE_MAX)
     const started = performance.now()
     scrubText(text)
-    // Proves the worst shapes stay bounded at the scan cap: several are quadratic, and only SCAN_MAX keeps them cheap; the slowest measured under 60 ms idle and about 0.5 s under load in jsdom, so 5 s keeps 10x headroom.
+    // Proves each shape stays bounded at the scan cap, which is what keeps the heavier shapes cheap; the slowest measured under 60 ms idle and about 0.5 s under load in jsdom, so 5 s keeps 10x headroom.
     expect(performance.now() - started).toBeLessThan(5000)
   })
 
@@ -261,6 +261,7 @@ describe('scrubText on fragments', () => {
 
   it('scrubs 200 random letters-then-digits fragments', () => {
     let seed = 12_345
+    /** The next pseudo-random integer below `limit`, from a fixed seed so the run repeats. */
     const next = (limit: number): number => {
       seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648
       return seed % limit
@@ -278,6 +279,7 @@ describe('scrubText on fragments', () => {
 
   it('gives the same text twice for 300 random lowercase and hex-letter fragments', () => {
     let seed = 54_321
+    /** The next pseudo-random integer below `limit`, from a fixed seed so the run repeats. */
     const next = (limit: number): number => {
       seed = (seed * 1_103_515 + 12_345) % 2_147_483_648
       return seed % limit

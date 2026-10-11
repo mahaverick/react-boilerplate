@@ -48,7 +48,7 @@ describe('$feature/* bookkeeping follows the session', () => {
     expect(sdk.properties).not.toHaveProperty('$feature/test_bool')
     sdk.calls = []
 
-    // A partial slice on purpose: before a reset forgot the registered names, this sync unregistered test_bool.
+    // A partial slice on purpose: had the reset not forgotten the registered names, this sync would unregister test_bool.
     syncFeatureProperties(values({ test_exp: 'calm' }))
 
     expect(sdk.calls).toEqual(['register({"$feature/test_exp":"calm"})'])

@@ -20,19 +20,20 @@ export function analyticsConfigFor(raw: Record<string, string> = {}): AnalyticsC
 }
 
 /**
- * Stops an SDK instance writing to the storage every test shares. Each test's
- * instances outlive it, and posthog-js debounces its persistence writes
- * (`persistence_save_debounce_ms`, 250 under these defaults): a write still
- * pending when a test ends lands after `afterEach` cleared storage, in a
- * later test, as a person that test never identified. Disabling persistence
- * cancels that write, and must come before storage is cleared: it also
- * removes the instance's storage. For tests that run the real posthog-js.
+ * Stops an SDK instance writing to the storage every test shares, for tests
+ * that run the real posthog-js. Each test's instances outlive it, and
+ * posthog-js debounces its persistence writes (`persistence_save_debounce_ms`,
+ * 250 under the facade's `defaults`): a write still pending when a test ends
+ * lands after `afterEach` cleared storage, in a later test, as a person that
+ * test never identified. Disabling persistence cancels that write, and must
+ * come before storage is cleared: it also removes the instance's storage.
  * @param instance - A real posthog-js instance a test created.
  */
 export function stopPersisting(instance: PostHog): void {
   instance.set_config({ disable_persistence: true })
 }
 
+/** The consent answer the fake holds: `pending` until an opt in or out. */
 type Consent = 'granted' | 'denied' | 'pending'
 
 /** What `init` received, and the instance it handed to `loaded`. */
@@ -50,6 +51,7 @@ export interface FakePosthogSdk {
   properties: Record<string, unknown>
 }
 
+/** The fake's state and call log; a test reads it and `resetFakePosthog` clears it. */
 export const sdk: FakePosthogSdk = {
   calls: [],
   initKey: undefined,
@@ -73,10 +75,12 @@ export function resetFakePosthog(): void {
   sdk.properties = {}
 }
 
+/** Logs one SDK call in `sdk.calls`, for a test to assert on. */
 function record(name: string, ...args: unknown[]): void {
   sdk.calls.push(`${name}(${args.map((arg) => JSON.stringify(arg)).join(', ')})`)
 }
 
+/** The instance the fake hands to `loaded`: each method records its call and updates `sdk`. */
 export const instance = {
   register: vi.fn((properties: Record<string, unknown>) => {
     record('register', properties)
@@ -135,6 +139,7 @@ export const instance = {
   },
 }
 
+/** The fake default export: `init` stores its arguments, calls `loaded` with `instance` and returns it. */
 export const posthogDefault = {
   init: vi.fn((key: string, options: Record<string, unknown>) => {
     sdk.initKey = key

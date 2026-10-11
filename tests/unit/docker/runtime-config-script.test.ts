@@ -28,6 +28,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
+/** Runs the script with `env` and only PATH besides, writing under a temporary `RUNTIME_CONFIG_DIR`. */
 function runScript(env: Record<string, string>) {
   return spawnSync('sh', [SCRIPT], {
     env: { PATH: process.env.PATH ?? '', RUNTIME_CONFIG_DIR: path.join(dir, 'runtime'), ...env },

@@ -8,7 +8,7 @@ import {
   slugify,
 } from '../../scripts/lint-docs.mjs'
 
-// built by concatenation on purpose: lint:docs scans this file too, and a joined literal filename would trip its own doc-citation check
+// Built by concatenation: lint:docs scans this file too, and a joined filename literal would trip its own doc-citation check.
 const MISSING = 'NOPE' + '.md'
 
 describe('slugify', () => {
@@ -29,7 +29,9 @@ describe('anchors', () => {
 
 describe('linkProblems', () => {
   const files = new Set(['README.md', 'CLAUDE.md'])
+  /** Whether a path is one of `files`. */
   const exists = (p: string): boolean => files.has(p)
+  /** The anchors of any linked file: only `cors`. */
   const readAnchors = (): Set<string> => new Set(['cors'])
 
   it('passes existing files, known anchors and external links', () => {

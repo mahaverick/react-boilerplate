@@ -19,11 +19,7 @@ const API_STREAMS_PER_PROCESS = 2000
 /** Connection slots left for pages, API calls and keep-alives beside the streams. */
 const HEADROOM = 1024
 
-/**
- * The one numeric value of directive `name`.
- * @param name - The nginx directive.
- * @returns Its value.
- */
+/** The numeric value of nginx directive `name`, which must be set exactly once. */
 function directive(name: string): number {
   const matches = [...CONF.matchAll(new RegExp(`^\\s*${name}\\s+(\\d+)\\s*;`, 'gm'))]
   expect(matches, `${name} is set exactly once`).toHaveLength(1)

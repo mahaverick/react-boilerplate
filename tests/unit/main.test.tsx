@@ -1,8 +1,7 @@
 /**
  * @file Mirrors main.tsx's boot sequence, StrictMode included, against a
- * router tree of its own — this suite cannot import main.tsx directly,
- * since that module renders the real app router into the real `document`
- * as an import side effect.
+ * router tree of its own: main.tsx renders the real app router into the real
+ * `document` as an import side effect, so this suite cannot import it.
  */
 import {
   createMemoryHistory,
@@ -21,6 +20,7 @@ import { settle } from '@/tests/fixtures/timing'
 /** Every root `boot` created, unmounted after each test before the DOM is cleared. */
 const roots: Root[] = []
 
+/** Loads `router`, then renders it in StrictMode into `container`, as main.tsx does. */
 function boot(container: HTMLElement, router: AnyRouter) {
   const root = createRoot(container)
   roots.push(root)

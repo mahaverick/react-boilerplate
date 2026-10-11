@@ -1,12 +1,12 @@
 /**
  * @file A stand-in for PostHog's ingest and assets hosts, for the e2e suites
- * that need analytics to really run. It serves posthog-js's own `dist/` as
- * the assets host, so the replay recorder and lazy extensions load exactly as
- * in production, answers the remote config with replay switched on, and
- * records every request body fully decoded: the transport's gzip or base64
- * layer, and the gzip strings replay nests inside its snapshot events. A
- * search of `bodies()` is therefore a search of everything that left the
- * browser (and express's own `/batch/` drain), as PostHog would receive it.
+ * that need analytics to really run. It serves posthog-js's own `dist/` as the
+ * assets host, so the replay recorder and lazy extensions load as in
+ * production, answers the remote config with replay on, and records every
+ * request body decoded: the transport's gzip or base64 layer and the gzip
+ * strings replay nests inside snapshot events. A search of `bodies()` is
+ * therefore a search of everything PostHog would receive, from the browser and
+ * from express's `/batch/` drain.
  */
 import { readFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
@@ -33,16 +33,17 @@ const REMOTE_CONFIG = {
 const INGEST_PATHS = ['/e/', '/i/v0/e/', '/s/', '/batch/', '/flags/', '/decide/']
 
 /**
- * The fixed port a live suite starts the fake on, which express's
- * `POSTHOG_HOST` and `POSTHOG_ASSETS_HOST` must name before the suite starts.
- * Express itself defaults to :4040 and the live e2e express to :4050.
+ * The fixed port a live suite starts the fake on (`E2E_FAKE_POSTHOG_PORT`
+ * overrides it): express's `POSTHOG_HOST` and `POSTHOG_ASSETS_HOST` must name
+ * it before the suite starts.
  */
 export const FAKE_POSTHOG_PORT = Number(process.env.E2E_FAKE_POSTHOG_PORT ?? 4063)
 
 /**
  * How long to wait for a replay upload after an interaction: posthog-js
- * 1.435.6 flushes its replay buffer on a 2 s timer and then sends it through
- * its request queue, so the upload lands seconds after the click.
+ * flushes its replay buffer on a 2 s timer, then sends it through its request
+ * queue (flushed every 3 s by default), so the upload lands seconds after the
+ * click.
  */
 export const REPLAY_UPLOAD_TIMEOUT_MS = 15_000
 
@@ -66,7 +67,7 @@ export interface FakePosthogEvent {
   properties: Record<string, unknown>
 }
 
-/** A running fake. */
+/** A running fake: the URL to point the app and express at, and what it has received. */
 export interface FakePosthog {
   /** `http://127.0.0.1:<port>`, for `POSTHOG_HOST` and `POSTHOG_ASSETS_HOST`. */
   url: string
@@ -81,6 +82,7 @@ export interface FakePosthog {
   close: () => Promise<void>
 }
 
+/** Whether `bytes` begin with gzip's magic number. */
 function isGzip(bytes: Buffer): boolean {
   return bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b
 }
@@ -115,10 +117,8 @@ function expandNested(value: unknown): unknown {
 }
 
 /**
- * The transport layer undone (gzip, a `data=` base64 form or plain), then
- * every nested gzip string expanded.
- * @param raw - The request body as received.
- * @returns The body as text.
+ * A request body as text: the transport layer undone (gzip, a `data=` base64
+ * form or plain), then every nested gzip string expanded.
  */
 function decodeBody(raw: Buffer): string {
   let text: string
@@ -138,24 +138,28 @@ function decodeBody(raw: Buffer): string {
   }
 }
 
+/** The whole request body. */
 async function readBody(request: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = []
   for await (const chunk of request) chunks.push(chunk as Buffer)
   return Buffer.concat(chunks)
 }
 
+/** Replies with `body`, open to any origin so the page's cross-origin requests succeed. */
 function send(response: ServerResponse, status: number, type: string, body: string | Buffer) {
   response.writeHead(status, { 'Content-Type': type, 'Access-Control-Allow-Origin': '*' })
   response.end(body)
 }
 
+/** The `/array/<token>/config.js` script: it sets `window._POSTHOG_REMOTE_CONFIG[token]` to the remote config. */
 function remoteConfigScript(token: string): string {
   const config = JSON.stringify({ token, config: REMOTE_CONFIG, siteApps: [] })
   return `(function(){window._POSTHOG_REMOTE_CONFIG=window._POSTHOG_REMOTE_CONFIG||{};window._POSTHOG_REMOTE_CONFIG[${JSON.stringify(token)}]=${config}})();`
 }
 
+/** Serves a file of posthog-js's `dist/` for `/static/*`, and refuses a path that leaves it. */
 async function serveStatic(pathname: string, response: ServerResponse): Promise<void> {
-  // posthog-js asks for `/static/<version>/<file>` first; the dist has one flat directory.
+  // posthog-js may ask for `/static/<version>/<file>`; the dist is one flat directory.
   const name = pathname.replace(/^\/static\/(?:\d+\.\d+\.\d+\/)?/, '')
   const file = path.normalize(path.join(POSTHOG_DIST, name))
   if (!file.startsWith(`${POSTHOG_DIST}${path.sep}`)) {
@@ -195,7 +199,6 @@ function eventsIn(request: FakePosthogRequest): FakePosthogEvent[] {
 /**
  * Starts the fake on 127.0.0.1.
  * @param port - A fixed port, when the API under test must be told the URL before the test starts; 0 picks a free one.
- * @returns The running fake.
  */
 export async function startFakePosthog(port = 0): Promise<FakePosthog> {
   const requests: FakePosthogRequest[] = []
@@ -273,8 +276,6 @@ export async function startFakePosthog(port = 0): Promise<FakePosthog> {
  * Answers every `/api/v1/collect/*` request `page` makes from `fake`, with the
  * prefix stripped as express's proxy strips it: for a test with nothing
  * behind `/api`. Only the browser's traffic reaches the fake this way.
- * @param page - The page under test.
- * @param fake - A running fake.
  */
 export async function routeCollectToFake(page: Page, fake: FakePosthog): Promise<void> {
   await page.route('**/api/v1/collect/**', async (route) => {
@@ -300,7 +301,6 @@ export const HUMAN_USER_AGENT =
  * while `navigator.webdriver` is true, as it always is under Playwright, or
  * while a `userAgentData` brand says `HeadlessChrome`. Call it before the
  * first navigation; pair it with `HUMAN_USER_AGENT`.
- * @param page - The page under test.
  */
 export async function passPosthogBotFilter(page: Page): Promise<void> {
   await page.addInitScript(() => {

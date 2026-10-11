@@ -1,3 +1,10 @@
+/**
+ * @file Covers `rejectMalformedJsonResponse`, the second response interceptor.
+ * A 2xx whose body is not the JSON object every endpoint promises (an empty
+ * string, or an HTML page from a poisoned cache entry or a misrouted proxy)
+ * must reject with an error naming the request, not resolve into `unwrap()`
+ * returning `undefined`.
+ */
 import axios, { AxiosError } from 'axios'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -8,13 +15,7 @@ import { ok } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { ApiSuccess } from '@/types/api.types'
 
-/**
- * Covers `rejectMalformedJsonResponse`, registered as the SECOND response
- * interceptor. A 2xx whose body is not the JSON object every endpoint
- * promises — an empty string, or an HTML page from a poisoned cache entry or
- * a misrouted proxy — must reject with a request-naming error instead of
- * silently resolving into `unwrap()` returning `undefined`.
- */
+/** A fresh axios client with the real interceptors installed. */
 function makeClient() {
   const client = axios.create({ baseURL: '/api/v1', withCredentials: true })
   installInterceptors(client)
@@ -22,7 +23,7 @@ function makeClient() {
 }
 
 describe('rejectMalformedJsonResponse', () => {
-  // Mirrors interceptors.test.ts's reset so these tests don't depend on auth/session state left over from another file.
+  // The reset interceptors.test.ts does, so these tests do not depend on auth or session state another file left.
   beforeEach(() => {
     resetSessionForTests()
     useAuthStore.setState({

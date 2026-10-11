@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-// A static import, not the glob below: Vite's import.meta.glob excludes the file that calls it from its own results, so this is the only way for this scan to cover itself too.
+// A static import rather than the glob below: Vite's import.meta.glob leaves the calling file out of its results, so this is how the scan covers itself.
 import ownSource from './no-bidi-characters.test.ts?raw'
 
 const BIDI_OVERRIDE = /[\u{202A}-\u{202E}\u{2066}-\u{2069}]/u
@@ -22,7 +22,7 @@ describe('raw bidi characters', () => {
 
   it('appear in no file under src, tests or e2e', () => {
     const paths = Object.keys(SOURCES)
-    // Not vacuous: the globs really found files under each of the three directories.
+    // Not vacuous: the globs found files under src and tests.
     expect(paths).toContain('/tests/unit/schemas/safe-text.schemas.test.ts')
     expect(paths).toContain('/src/main.tsx')
     const allSources: Record<string, string> = {

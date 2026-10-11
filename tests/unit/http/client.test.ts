@@ -7,40 +7,24 @@ import { server } from '@/tests/mocks/server'
 import type { ApiSuccess } from '@/types/api.types'
 
 describe('apiClient', () => {
-  /**
-   * This SPA is same-origin by design (CLAUDE.md) — the API answers a
-   * cross-origin caller too (cors.config.ts), but an absolute origin here
-   * would bypass the Vite dev proxy and diverge between environments, so
-   * pin the shape, not just the value.
-   */
+  // Same-origin by design (CLAUDE.md): an absolute origin would bypass the Vite dev proxy, so pin the shape, not just the value.
   it('is configured against a RELATIVE API prefix, never an absolute origin', () => {
     expect(apiClient.defaults.baseURL).toBe('/api/v1')
     expect(apiClient.defaults.baseURL).toMatch(/^\//)
     expect(apiClient.defaults.baseURL).not.toMatch(/^[a-z]+:\/\//i)
   })
 
-  // Without this axios omits the refresh cookie even same-origin, and /auth/refresh has nothing left to authenticate with.
+  // Same-origin requests carry the cookie regardless; this flag keeps it travelling if the API ever answers from another origin.
   it('sends credentials so the refresh cookie travels', () => {
     expect(apiClient.defaults.withCredentials).toBe(true)
   })
 
-  /**
-   * Axios has no timeout by default: a request that is accepted and then
-   * never answered hangs forever, leaving its mutation pending and its
-   * button disabled with nothing for the user to do.
-   */
+  // Axios has no timeout by default, so a request that is accepted and never answered would leave its mutation pending and its button disabled.
   it('bounds every request with a timeout', () => {
     expect(apiClient.defaults.timeout).toBe(30_000)
   })
 
-  /**
-   * Asserted on the outgoing request config rather than by letting a request
-   * actually time out: the timeout is enforced by the XHR/fetch adapter, and
-   * MSW's XMLHttpRequest interceptor proxies `ontimeout` without ever firing
-   * it, so no mocked request can be made to exceed one. What CAN break here is
-   * the default failing to reach an individual request — which is exactly what
-   * the adapter reads — so that is what is pinned.
-   */
+  // Asserted on the outgoing config, not by timing out: MSW's XMLHttpRequest interceptor never fires a timeout, so no mocked request can exceed one.
   it('puts that timeout on the requests it actually sends', async () => {
     const seen: (number | undefined)[] = []
     const interceptor = apiClient.interceptors.request.use((config) => {
