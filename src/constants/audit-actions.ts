@@ -21,7 +21,7 @@ export const AUDIT_ACTIONS = [
   'user.errors_viewed',
   'tenant.errors_viewed',
 ] as const
-/** One of the listed `AUDIT_ACTIONS`. */
+/** An audit action this app has wording for. */
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
 /** Whether a string from the API is an action this app has wording for. */

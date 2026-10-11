@@ -68,7 +68,7 @@ import {
 } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 
-/** The Members tab of a tenant. */
+/** The Members tab: the tenant's member list with role, remove and leave actions, and its pending invitations. */
 export const Route = createFileRoute('/_app/tenants/$slug/members')({
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Members · ${params.slug}`) }] }),
   staticData: { crumb: 'Members' },

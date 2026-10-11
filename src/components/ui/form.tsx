@@ -280,7 +280,7 @@ function FieldProvider({
   return <FormFieldContext.Provider value={value}>{children}</FormFieldContext.Provider>
 }
 
-/** Groups a field's label, control, description and message with a gap between them. */
+/** The wrapper for one field's label, control, description and message. */
 export function FormItem({ className, ...props }: React.ComponentProps<'div'>) {
   return <div className={cn('grid gap-2', className)} {...props} />
 }
@@ -356,7 +356,7 @@ export function FormControl({ children }: { children: React.ReactElement<{ name?
   })
 }
 
-/** Helper text for a field, in the muted colour. */
+/** Helper text for a field. */
 export function FormDescription({ className, ...props }: React.ComponentProps<'p'>) {
   return <p className={cn('text-sm text-muted-foreground', className)} {...props} />
 }

@@ -68,7 +68,7 @@ function ActivityRow<T extends AuditEntry>({ entry }: { entry: T }) {
 }
 
 /**
- * A tenant's audit log (the Activity tab). The same states as every list
+ * A tenant's audit log, newest first (the Activity tab). The same states as every list
  * here: in flight, failed, empty, and loaded with a keyboard-reachable Load
  * more. The error is checked before the empty state, since `[]` is what both
  * look like.
