@@ -51,7 +51,7 @@ function arriveSignedOut() {
   server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
 }
 
-/** Types the email and password and clicks Create account. */
+/** Submits the registration form the way a user does, through the labelled fields and the button. */
 async function fillAndSubmit(email: string, password: string) {
   const user = userEvent.setup()
   await user.type(await screen.findByLabelText('Email'), email)

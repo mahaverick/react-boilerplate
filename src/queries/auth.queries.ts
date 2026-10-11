@@ -70,7 +70,7 @@ export function useVerifyEmail() {
   })
 }
 
-/** Asks for a new verification email. */
+/** Asks the API for a fresh verification link; it answers the same whether or not the address belongs to an unverified account, so success says nothing about the address. */
 export function useResendVerification() {
   return useMutation({
     mutationFn: async (input: ResendVerificationInput) =>

@@ -34,8 +34,10 @@ export const queryClient = new QueryClient({
  * Restores the session once per page load and then marks the store
  * bootstrapped, whether or not the refresh worked. The access token is
  * memory-only, so every reload starts signed out; without this, `_app` would
- * bounce a signed-in user to /login. Also starts the cross-tab logout listener
- * and the analytics identity subscription. A restore that ends with no user
+ * bounce a signed-in user to /login. `ensureSession()` dedupes concurrent
+ * callers and signs the store out on an auth verdict, so this function only
+ * adds the cross-tab logout listener, the analytics identity subscription and
+ * the bootstrapped flag. A restore that ends with no user
  * drops any person posthog-js still holds from an earlier visit
  * (`forgetStaleIdentity`), before the first page view: whoever is at the
  * browser now is not known to be them. After a failure that judged nothing

@@ -46,7 +46,7 @@ function signedInResponse() {
   return ok({ accessToken: 'access-token', user: testUser }, 'Signed in.')
 }
 
-/** Types the email and password and clicks Sign in. */
+/** Submits the sign-in form the way a user does, through the labelled fields and the button. */
 async function fillAndSubmit(email: string, password: string) {
   const user = userEvent.setup()
   await user.type(await screen.findByLabelText('Email'), email)
@@ -352,8 +352,9 @@ describe('safeRedirect', () => {
    * Each of these starts with exactly one slash, so a `^/(?![/\\])`-shaped test passes it,
    * yet the URL standard resolves it off-origin: the first four because the parser strips
    * ASCII tab, LF and CR, leaving "//", the last three because dot segments collapse to "//".
-   * The guard cannot rely on the router to normalise them, since `useLogout` hands a path
-   * straight to `window.location.assign`.
+   * All are typeable into the URL bar as %09, %0A, %0D and ..%2F%2F. The result goes to
+   * `navigate({ href })`, and router-core takes a document navigation (`window.location`) for
+   * an href with a scheme, so the guard has to refuse anything off-origin itself.
    */
   it.each([
     ['tab', '/\t/evil.example'],

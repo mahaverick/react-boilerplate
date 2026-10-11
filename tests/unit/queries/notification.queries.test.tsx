@@ -44,7 +44,7 @@ describe('notification preference queries', () => {
   })
 
   it('unwraps the matrix out of its `preferences` key', async () => {
-    // GET answers `{ preferences: [...] }`, not a bare array, and the matrix lists every known type with defaults resolved, not just the rows this user has set.
+    // GET answers `{ preferences: [...] }`, not a bare array, and the matrix lists every type the caller can see, with defaults resolved, not just the rows this user has set.
     server.use(
       http.get('/api/v1/notifications/preferences', () =>
         ok(

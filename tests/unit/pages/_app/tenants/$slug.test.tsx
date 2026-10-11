@@ -841,7 +841,7 @@ describe('tenant analytics group', () => {
     uninstall()
   })
 
-  /** Mounts the app's tree, then installs on its router the route analytics the real app installs. */
+  /** Renders the app with the route analytics the real app installs, which the tenant group is set from. */
   function renderWithRouteAnalytics(path: string) {
     const router = renderAppAt(path)
     uninstall = installRouteAnalytics(router)

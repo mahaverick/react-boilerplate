@@ -147,12 +147,14 @@ let uninstallAnalyticsIdentity: (() => void) | null = null
  * distinct id, and drops every flag value and exposure mark the last one had,
  * so nobody sees another person's flags. A user is then identified by id
  * alone, after their own opt-out is applied, so an opted-out user's identify
- * is not captured. When analytics reports that another tab signed a different
- * person in under this one, the session is refreshed: a refresh that returns
- * that person signs this tab out (`SessionIdentityChangedError`); one that
- * returns this tab's user confirms it to analytics (`confirmSignedInUser`); a
- * failed one is retried on analytics' next recheck. Idempotent; returns the
- * cleanup.
+ * is not captured.
+ *
+ * When analytics reports that another tab signed a different person in under
+ * this one, the session is refreshed. A refresh that returns this tab's user
+ * confirms it to analytics (`confirmSignedInUser`). One that returns the other
+ * person (`SessionIdentityChangedError`) or fails with a 401 signs this tab
+ * out and sends it to /login. Any other failure leaves the tab as it is, for
+ * analytics' next recheck to retry. Idempotent; returns the cleanup.
  * @param queryClient - The client holding the flag queries.
  */
 export function installAnalyticsIdentity(queryClient: QueryClient): () => void {

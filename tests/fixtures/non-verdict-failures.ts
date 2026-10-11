@@ -3,8 +3,9 @@ import { fail } from '@/tests/mocks/handlers'
 
 /**
  * Every way `POST /auth/refresh` can fail without judging the caller's credentials. None of
- * these may end a session: `isAuthVerdict` (`src/http/session.ts`) treats only a 401
- * response as a verdict.
+ * these may end a session: `isAuthVerdict` (`src/http/session.ts`) treats a 401 response, or
+ * a refresh that returns a different user (`SessionIdentityChangedError`), as a verdict, and
+ * nothing else.
  *
  * One table, imported by both sides of that rule: `session.test.ts` asserts none of these
  * clears the store, and `interceptors.test.ts` asserts none of them redirects to /login. A

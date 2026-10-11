@@ -9,7 +9,7 @@ export interface ApiSuccess<T> {
   data: T
 }
 
-/** The envelope of an error response. */
+/** The body of an error response: branch on `code` or `statusCode`, and show `message` to the person. */
 export interface ApiErrorBody {
   success: false
   message: string

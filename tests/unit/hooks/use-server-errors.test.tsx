@@ -158,7 +158,7 @@ function Fixture({
   )
 }
 
-/** Clicks Save and returns the `userEvent` instance for follow-up typing. */
+/** Submits the form under test and returns the `userEvent` instance, so a test can keep typing in the same session. */
 async function submit() {
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Save' }))

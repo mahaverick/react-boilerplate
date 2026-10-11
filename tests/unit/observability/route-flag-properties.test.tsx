@@ -180,7 +180,7 @@ describe('$feature/* across a change of flag scope', () => {
     await initAnalytics(ANALYTICS)
   })
 
-  /** Renders the app on acme and waits until its flag values are held and its pageview carries them; returns the router. */
+  /** Puts the app on the acme tenant with its flags already held and its first pageview recorded, so a test starts from a settled state. */
   async function startOnAcme() {
     const app = renderApp('/tenants/acme')
     cleanup = app.cleanup

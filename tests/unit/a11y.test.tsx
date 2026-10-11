@@ -853,7 +853,7 @@ describe('open overlays', () => {
   })
 
   it('has no violations with the theme menu open inside the mobile sheet', async () => {
-    // ThemeToggle is in the sidebar footer, which the mobile sheet renders separately from the desktop sidebar; this grades the sheet's copy.
+    // Below `md` the sidebar, and the ThemeToggle in its footer, renders inside the sheet, so the menu is opened from there.
     setViewportWidth(500)
     const user = userEvent.setup()
     renderAppAt('/dashboard')

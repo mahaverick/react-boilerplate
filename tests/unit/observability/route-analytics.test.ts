@@ -68,7 +68,7 @@ describe('installRouteAnalytics', () => {
     uninstall()
   })
 
-  /** Installs route analytics on a router at `initialPath`, loads it, then initialises analytics, and returns the router. */
+  /** Starts route analytics on a router at `initialPath` and initialises analytics only after that router has loaded, so a test controls what has happened before init. */
   async function start(initialPath: string) {
     const router = makeRouter(initialPath)
     uninstall = installRouteAnalytics(router)

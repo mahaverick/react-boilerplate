@@ -12,8 +12,8 @@ interface TenantBeta {
 
 /**
  * The beta route's answer, keyed under the tenant's detail key so
- * `dropTenantCache` removes it with the rest. A 404 means the flag is off: a
- * closed gate answers the unknown-route 404.
+ * `dropTenantCache` removes it with the rest. While the flag is off it answers
+ * 404: a closed gate answers the unknown-route 404.
  */
 function tenantBetaQueryOptions(slug: string) {
   return queryOptions({

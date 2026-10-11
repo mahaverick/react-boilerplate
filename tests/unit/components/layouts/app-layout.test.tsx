@@ -230,7 +230,7 @@ describe('AppLayout', () => {
     return assign
   }
 
-  /** Opens the account menu and clicks Sign out. */
+  /** Signs out through the app layout's account menu, as a user does. */
   async function clickSignOut() {
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Account menu for A B' }))

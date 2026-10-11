@@ -389,7 +389,7 @@ export function useRemoveMember(slug: string) {
   })
 }
 
-/** A tenant's settings: time zone, locale and free-form metadata. */
+/** A tenant's settings. Anyone who can open the tenant may read them; saving is limited to owners and admins. */
 export function useTenantSettings(slug: string) {
   return useQuery({
     queryKey: tenantKeys.settings(slug),

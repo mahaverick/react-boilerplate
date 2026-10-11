@@ -163,7 +163,7 @@ describe('recovery when full maintenance ends', () => {
     uninstall()
   })
 
-  /** Installs recovery against a stub router and a spied query client, and returns the spies. */
+  /** Stands in for the app's router and query client, so a test sees what recovery invalidates without a real app. */
   function install() {
     const invalidate = vi.fn(() => Promise.resolve())
     const queryClient = new QueryClient()
