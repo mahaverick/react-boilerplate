@@ -42,11 +42,11 @@ export class SessionIdentityChangedError extends Error {
  * inactive. Every other failure judges nobody, and treating it as a verdict
  * signs out a user whose session is good:
  *
- * - **5xx**: nginx answers 502/503 through a rolling restart, and the SSE
- *   stream reconnects through `ensureSession()`, so every open tab would sign
- *   out on every deploy.
- * - **429**: `/auth/refresh` is rate limited, and every tab's stream calls
- *   `ensureSession()` when it drops.
+ * - **5xx**: nginx answers 502/503 through a rolling restart, and any tab that
+ *   refreshes during a deploy (a page load, an expired token) goes through
+ *   `ensureSession()`, so it would sign out.
+ * - **429**: `/auth/refresh` is rate limited, and every tab's interceptor and
+ *   bootstrap share that limit.
  * - **A malformed 200**: `rejectMalformedJsonResponse` throws an `AxiosError`
  *   that carries a response.
  * - **No response**: a network error, DNS failure, axios timeout or abort.
@@ -62,11 +62,10 @@ export function isAuthVerdict(error: unknown): boolean {
 
 /**
  * Move the browser to /login after a session has ended: the one place that
- * navigation is written, for the 401 interceptor (interceptors.ts), the SSE
- * reconnect (`useNotificationStream`), the analytics identity check and a
- * logout broadcast from another tab. `_app.beforeLoad` runs only on
- * navigation, so without this a signed-out tab would stay where it was,
- * showing cached data.
+ * navigation is written, for the 401 interceptor (interceptors.ts), the
+ * analytics identity check and a logout broadcast from another tab.
+ * `_app.beforeLoad` runs only on navigation, so without this a signed-out tab
+ * would stay where it was, showing cached data.
  *
  * The caller's `pathname + search + hash` goes into `?redirect=`, as `_app`'s
  * guard does, and `login.tsx` reads it back through `safeRedirect`, which
@@ -196,10 +195,10 @@ export function installAnalyticsIdentity(queryClient: QueryClient): () => void {
 
 /**
  * The single in-flight refresh. Every caller (bootstrap, the 401 interceptor,
- * the SSE reconnect) awaits this same promise, because POST /auth/refresh
- * rotates the refresh cookie and a second call presents the rotated token.
- * The API answers that with a sibling token within its 10s reuse grace window,
- * and revokes the whole session after it.
+ * any other code that calls `ensureSession()`) awaits this same promise,
+ * because POST /auth/refresh rotates the refresh cookie and a second call
+ * presents the rotated token. The API answers that with a sibling token within
+ * its 10s reuse grace window, and revokes the whole session after it.
  */
 let inFlight: Promise<string> | null = null
 
