@@ -193,6 +193,9 @@ export const handlers = [
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: [] }, 'Notification preferences retrieved.')
   ),
+  http.put('/api/v1/notifications/preferences', () =>
+    ok({ preferences: [] }, 'Notification preferences updated.')
+  ),
   /**
    * `useNotificationStream` reads this over `fetch`, not `EventSource`, so msw sees it, and
    * `AppLayout` opens it on every authenticated render, as with the defaults above. A body

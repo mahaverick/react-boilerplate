@@ -184,12 +184,10 @@ export function usePreferences() {
 /**
  * Upserts one type's channel preferences. The body is `{ preferences: [entry] }`,
  * an array of whole entries, with both channel booleans, as the API requires.
- *
- * Unused by the UI: the API's `CONFIGURABLE_NOTIFICATION_TYPES` (every type
- * minus those whose email may never be disabled) is empty, so this answers
- * 400 for every type and the preferences card renders read-only. When a
- * disableable type exists, `pages/_app/notifications.tsx` can offer the
- * control with this mutation as it is.
+ * Any visible type may switch `inAppEnabled` either way; `emailEnabled` must be
+ * `true`, since `false` is a 400 (email can never be turned off). The preferences
+ * card's in-app switch is the caller. There is no optimistic write: the matrix
+ * is refetched when the request settles, success or failure.
  */
 export function useUpdatePreferences() {
   const queryClient = useQueryClient()

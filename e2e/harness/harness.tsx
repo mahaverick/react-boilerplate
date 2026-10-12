@@ -368,6 +368,9 @@ const worker = setupWorker(
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: PREFERENCES }, 'Notification preferences retrieved.')
   ),
+  http.put('/api/v1/notifications/preferences', () =>
+    ok({ preferences: PREFERENCES }, 'Notification preferences updated.')
+  ),
   /**
    * A stream that stays open. A 204 has no body, so the hook treats it as a refused connect:
    * it reconnects with the same token on its backoff, and a test would race that traffic.
