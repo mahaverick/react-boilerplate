@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
+import { MIN_PASSWORD_LENGTH } from '@/schemas/auth.schemas'
 import { useAuthStore } from '@/states/auth.store'
 import { fail, ok } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -61,14 +62,23 @@ describe('reset-password page', () => {
     renderAt('/reset-password?token=tok-123')
 
     const user = userEvent.setup()
-    await user.type(await screen.findByLabelText('New password'), 'longenough8')
-    await user.type(screen.getByLabelText('Confirm new password'), 'longenough8')
+    await user.type(await screen.findByLabelText('New password'), 'a-long-enough-password')
+    await user.type(screen.getByLabelText('Confirm new password'), 'a-long-enough-password')
     await user.click(screen.getByRole('button', { name: 'Reset password' }))
 
     await waitFor(() => {
-      expect(body).toEqual({ token: 'tok-123', password: 'longenough8' })
+      expect(body).toEqual({ token: 'tok-123', password: 'a-long-enough-password' })
     })
     expect(body).not.toHaveProperty('confirmPassword')
+  })
+
+  it('states the 15-character floor from the schema constant', async () => {
+    renderAt('/reset-password?token=tok-123')
+
+    expect(
+      await screen.findByText(`It must be at least ${MIN_PASSWORD_LENGTH} characters long.`)
+    ).toBeInTheDocument()
+    expect(MIN_PASSWORD_LENGTH).toBe(15)
   })
 
   it('refuses to submit when the two passwords differ', async () => {
@@ -82,8 +92,8 @@ describe('reset-password page', () => {
     renderAt('/reset-password?token=tok-123')
 
     const user = userEvent.setup()
-    await user.type(await screen.findByLabelText('New password'), 'longenough8')
-    await user.type(screen.getByLabelText('Confirm new password'), 'different99')
+    await user.type(await screen.findByLabelText('New password'), 'a-long-enough-password')
+    await user.type(screen.getByLabelText('Confirm new password'), 'a-different-password-9')
     await user.click(screen.getByRole('button', { name: 'Reset password' }))
 
     expect(await screen.findByText('Passwords do not match.')).toBeInTheDocument()
@@ -98,8 +108,8 @@ describe('reset-password page', () => {
     renderAt('/reset-password?token=tok-123')
 
     const user = userEvent.setup()
-    await user.type(await screen.findByLabelText('New password'), 'longenough8')
-    await user.type(screen.getByLabelText('Confirm new password'), 'longenough8')
+    await user.type(await screen.findByLabelText('New password'), 'a-long-enough-password')
+    await user.type(screen.getByLabelText('Confirm new password'), 'a-long-enough-password')
     await user.click(screen.getByRole('button', { name: 'Reset password' }))
 
     const message = await screen.findByText('Invalid or expired reset link.')

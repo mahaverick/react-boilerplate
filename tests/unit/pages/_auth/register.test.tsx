@@ -65,7 +65,7 @@ describe('register page', () => {
   // The API answers 202 with `data: null` for every address, so the page must not read a user off the response.
   it('shows "Check your email" with the address after a 202 carrying data: null', async () => {
     renderRegisterAt('/register')
-    await fillAndSubmit('ada@b.com', 'secret123')
+    await fillAndSubmit('ada@b.com', 'a-long-enough-password')
 
     expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeInTheDocument()
     expect(screen.getByText(/We sent a verification link to/)).toHaveTextContent(
@@ -83,12 +83,12 @@ describe('register page', () => {
       })
     )
     renderRegisterAt('/register')
-    await fillAndSubmit('  Ada@B.COM  ', 'secret123')
+    await fillAndSubmit('  Ada@B.COM  ', 'a-long-enough-password')
 
     expect(await screen.findByText('ada@b.com')).toBeInTheDocument()
     expect(screen.queryByText(/Ada@B\.COM/)).not.toBeInTheDocument()
     // Empty optional names are dropped by the schema, not posted as ''.
-    expect(body).toEqual({ email: 'ada@b.com', password: 'secret123' })
+    expect(body).toEqual({ email: 'ada@b.com', password: 'a-long-enough-password' })
   })
 
   it("maps the server's 400 field errors onto the form and stays on it", async () => {
@@ -107,7 +107,7 @@ describe('register page', () => {
       )
     )
     renderRegisterAt('/register')
-    await fillAndSubmit('ada@b.com', 'secret123')
+    await fillAndSubmit('ada@b.com', 'a-long-enough-password')
 
     expect(await screen.findByText('Password is too long.')).toBeInTheDocument()
     const password = screen.getByLabelText('Password')
@@ -124,7 +124,7 @@ describe('register page', () => {
       )
     )
     renderRegisterAt('/register')
-    await fillAndSubmit('ada@b.com', 'secret123')
+    await fillAndSubmit('ada@b.com', 'a-long-enough-password')
 
     const message = await screen.findByText('Too many attempts. Please try again later.')
     expect(message.closest('form')).not.toBeNull()
@@ -149,11 +149,11 @@ describe('register page', () => {
 
     expect(await screen.findByLabelText('Email')).toHaveValue('ada@b.com')
     const user = userEvent.setup()
-    await user.type(screen.getByLabelText('Password'), 'secret123')
+    await user.type(screen.getByLabelText('Password'), 'a-long-enough-password')
     await user.click(screen.getByRole('button', { name: 'Create account' }))
 
     await waitFor(() => {
-      expect(body).toEqual({ email: 'ada@b.com', password: 'secret123' })
+      expect(body).toEqual({ email: 'ada@b.com', password: 'a-long-enough-password' })
     })
   })
 

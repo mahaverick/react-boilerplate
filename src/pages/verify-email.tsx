@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { AuthLayout } from '@/components/layouts/auth-layout'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -20,8 +20,11 @@ import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
+import { codeFrom, messageFrom } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 import { useResendVerification, useVerifyEmail } from '@/queries/auth.queries'
 import { resendVerificationSchema, verifyEmailSchema } from '@/schemas/auth.schemas'
+import { EMAIL_ALREADY_VERIFIED } from '@/types/api.types'
 
 /**
  * The email-verification page. Top level, not under `_auth`, whose guard would
@@ -44,6 +47,8 @@ function VerifyEmailPage() {
   const verifyEmail = useVerifyEmail()
   const resend = useResendVerification()
   const [failed, setFailed] = useState(false)
+  /** The server's message once the link proved already used, else `null`. */
+  const [alreadyVerified, setAlreadyVerified] = useState<string | null>(null)
   const serverErrors = useServerErrors()
 
   const form = useForm({
@@ -54,9 +59,17 @@ function VerifyEmailPage() {
       try {
         await verifyEmail.mutateAsync(verifyEmailSchema.parse(value))
         setFailed(false)
+        setAlreadyVerified(null)
         toast.success('Your email is verified. Sign in to continue.')
         await navigate({ to: ROUTES.login })
       } catch (submitError) {
+        if (codeFrom(submitError) === EMAIL_ALREADY_VERIFIED) {
+          // Not a failure to retry: the account is verified, so only sign-in is left.
+          setFailed(false)
+          setAlreadyVerified(messageFrom(submitError))
+          return
+        }
+        setAlreadyVerified(null)
         setFailed(true)
         serverErrors.capture(submitError)
       }
@@ -129,6 +142,17 @@ function VerifyEmailPage() {
               {verifyEmail.isPending ? 'Verifying…' : 'Verify email'}
             </Button>
           </Form>
+
+          {alreadyVerified !== null && (
+            <div className="mt-6 border-t pt-4">
+              <p role="status" className="text-sm">
+                {alreadyVerified}
+              </p>
+              <Link to={ROUTES.login} className={cn(buttonVariants(), 'mt-3 w-full')}>
+                Sign in
+              </Link>
+            </div>
+          )}
 
           {failed && (
             <div className="mt-6 border-t pt-4">

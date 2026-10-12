@@ -63,6 +63,9 @@ export function isMaintenanceMode(value: unknown): value is MaintenanceMode {
   return typeof value === 'string' && (MAINTENANCE_MODES as readonly string[]).includes(value)
 }
 
+/** `code` on the 409 verify-email answers for a used link whose account is already verified. */
+export const EMAIL_ALREADY_VERIFIED = 'email_already_verified'
+
 /** `code` on the 503 while maintenance is `full`, on customer routes and on a non-staff sign-in. */
 export const MAINTENANCE_MODE = 'MAINTENANCE_MODE'
 
