@@ -199,10 +199,9 @@ every path that repeats or hardcodes the prefix on the old one. This app's
 own users of the prefix are in [Routing](#routing-and-data-loading) and
 [Realtime](#realtime-this-app-only).
 
-**Interceptors**, installed by `installInterceptors` and, for maintenance
-mode, from `src/router.tsx`. The two request interceptors are independent of
-each other; the response interceptors run in the order they are registered,
-so the maintenance reader sees what the other two pass on:
+**Interceptors**, installed by `installInterceptors`. The two request
+interceptors are independent of each other; the response interceptors run
+in the order they are registered:
 
 | Direction | Order | Interceptor                   | Does                                                                                                                                                                |
 | --------- | ----- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -210,7 +209,6 @@ so the maintenance reader sees what the other two pass on:
 | Request   | –     | Trace headers                 | On a same-origin request under the prefix: a `traceparent` when the request has none (a replay keeps its own), and the analytics session id when one may be linked. |
 | Response  | 1     | 401 handling                  | Refreshes and replays once on an expired token; signs out on a verdict; leaves `REAUTH_REQUIRED` to the caller.                                                     |
 | Response  | 2     | `rejectMalformedJsonResponse` | Rejects a 2xx whose body is not a JSON object, such as an HTML page from a misrouted proxy.                                                                         |
-| Response  | 3     | Maintenance mode              | Reads the `Maintenance-Mode` header and a maintenance 503 into the store; never changes the outcome.                                                                |
 
 A replay goes through the whole chain again. The rules each step enforces,
 and why, are in [Sign-out rules](SECURITY.md#sign-out-rules).
@@ -428,8 +426,11 @@ The API enforces maintenance; the app shows it. The mode lives in
   would overwrite the newer mode a header just reported. A body with no
   known mode rejects, and a failed poll never stops the next one.
 
-The interceptor is installed from `src/router.tsx`, before the first
-request, and lives in `src/lib/` rather than `src/http/`, which is shared
+The interceptor is installed on `apiClient` from `src/router.tsx`, before
+the first request, after the interceptors of
+[The HTTP layer and session](#the-http-layer-and-session), so it sees what
+they pass on, a replay's answer included. It never changes a response's
+outcome. It lives in `src/lib/` rather than `src/http/`, which is shared
 with the sibling app and so carries no maintenance handling.
 
 `MaintenanceGate` wraps every route, in the root route's component:
