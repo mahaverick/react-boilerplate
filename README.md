@@ -640,7 +640,8 @@ does not catch:
 - vendor tokens with no rule (`ya29.`, `glpat-`, `hf_`, Google `1//` refresh
   tokens);
 - a host named like a package ref after `@` (`jane@main`, `jane@npm:`,
-  `jane@workspace:`);
+  `jane@workspace:`), though an AWS secret access key before it is replaced
+  (`[secret]@main`);
 - the domain of an email whose local part is a JWT (`[jwt]@example.com`);
 - the part before the last `/` of a run joined to an email address's local
   part when the run, with the local part's leading base64 characters, is under
