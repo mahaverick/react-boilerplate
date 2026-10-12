@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.3](https://github.com/mahaverick/react-boilerplate/compare/v1.9.2...v1.9.3) (2026-10-12)
+
+
+### Bug Fixes
+
+* close the P3 follow-ups (member.left, invite domain, sse wording, dead fixtures) ([#72](https://github.com/mahaverick/react-boilerplate/issues/72)) ([125e7c1](https://github.com/mahaverick/react-boilerplate/commit/125e7c139183c0bf5f8d42053fcc533ab99a7786))
+
 ## [1.9.2](https://github.com/mahaverick/react-boilerplate/compare/v1.9.1...v1.9.2) (2026-10-12)
 
 
