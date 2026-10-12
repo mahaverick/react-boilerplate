@@ -149,7 +149,7 @@ describe('useNotificationStream', () => {
     renderHook(() => useNotificationStream(), { wrapper })
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
 
-    act(() => useAuthStore.getState().setToken('tok-b'))
+    act(() => useAuthStore.setState({ accessToken: 'tok-b' }))
 
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
     expect(MockFetchStream.instances[0]!.aborted).toBe(true)

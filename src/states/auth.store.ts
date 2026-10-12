@@ -10,7 +10,6 @@ interface AuthState {
   isBootstrapped: boolean
   login: (token: string, user: User) => void
   logout: () => void
-  setToken: (token: string) => void
   setBootstrapped: () => void
 }
 
@@ -22,6 +21,5 @@ export const useAuthStore = create<AuthState>()((set) => ({
   isBootstrapped: false,
   login: (accessToken, user) => set({ accessToken, user, isAuthenticated: true }),
   logout: () => set({ accessToken: null, user: null, isAuthenticated: false }),
-  setToken: (accessToken) => set({ accessToken }),
   setBootstrapped: () => set({ isBootstrapped: true }),
 }))
