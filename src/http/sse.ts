@@ -7,9 +7,9 @@ export interface SseEvent {
 
 /**
  * The most characters (UTF-16 code units of the decoded text, not bytes) a
- * never-completing frame may buffer before the parser throws. Far
- * past any real notification payload, and small enough that hitting it costs
- * one reconnect.
+ * never-completing frame may buffer before the parser throws. Far past any
+ * real notification payload, and small enough that hitting it costs one
+ * reconnect.
  */
 const MAX_BUFFER_LENGTH = 1024 * 1024
 
