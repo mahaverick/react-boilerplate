@@ -1,13 +1,13 @@
 /**
  * @file The tenant form schemas, mirroring the API's tenant.validators.ts so a
- * form rejects locally what the API would reject (the API also requires an
- * invitee's address to have a dotted domain, which `inviteMemberSchema` does
- * not check). Each string ceiling is its column's width: over-long input
- * reaching the database is a Postgres 22001 (a 500), not a 400.
+ * form rejects locally what the API would reject. Each string ceiling is its
+ * column's width: over-long input reaching the database is a Postgres 22001
+ * (a 500), not a 400.
  */
 import { z } from 'zod'
 import { MEMBERSHIP_ROLES } from '@/constants/roles'
 import { emailSchema } from '@/schemas/auth.schemas'
+import { hostnameDomain } from '@/schemas/email-domain.schemas'
 import { normalizeMultilineText, notAllowedMessage, safeText } from '@/schemas/safe-text.schemas'
 
 const MAX_TENANT_NAME_LENGTH = 255
@@ -218,7 +218,9 @@ export type UpdateTenantInput = z.infer<typeof updateTenantSchema>
  * knows who is asking.
  */
 export const inviteMemberSchema = z.object({
-  email: emailSchema,
+  email: emailSchema.refine((email) => hostnameDomain(email) !== undefined, {
+    message: 'Email must have a valid domain.',
+  }),
   role: z.enum(MEMBERSHIP_ROLES),
 })
 

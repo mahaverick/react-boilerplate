@@ -310,8 +310,8 @@ export function FormLabel({ className, ...props }: React.ComponentProps<typeof L
  * - Native `input`/`textarea`: on the control. Fine.
  * - Base UI **Select**: wrap this around `SelectTrigger` (inside `Select.Root`,
  *   which carries the `name`) and the id lands on the VISIBLE
- *   `button[role="combobox"]`. Measured, and asserted in
- *   `tests/unit/pages/_app/tenants/$slug.members.test.tsx`.
+ *   `button[role="combobox"]`. Measured, and asserted by a
+ *   unit test that renders a Select inside `FormControl`.
  * - Base UI **Checkbox**: unmeasured, since nothing in this project wires a
  *   Checkbox into a form. If the id lands on the HIDDEN input rather than the
  *   visible `role="checkbox"` element, the label points at a control nobody
@@ -383,10 +383,9 @@ function issueText(issue: unknown): string {
  * The form-level failure: the `errors` map's reserved `formErrors` key, or
  * the response's own message when it carried no field detail.
  *
- * Rendered above the submit button; it is where a submit failure is announced
- * (a read-only refusal is a toast instead: `useServerErrors`). It registers
- * whether or not there is anything to show, so `<Form>`'s dev warning fires
- * only when this component is absent.
+ * Rendered above the submit button; it is where a submit failure is announced.
+ * It registers whether or not there is anything to show, so `<Form>`'s dev
+ * warning fires only when this component is absent.
  */
 export function FormError({ className, ...props }: React.ComponentProps<'div'>) {
   const serverErrors = React.useContext(ServerErrorsContext)
