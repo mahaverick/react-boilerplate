@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0](https://github.com/mahaverick/react-boilerplate/compare/v1.9.3...v2.0.0) (2026-10-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* **auth:** the register, reset-password, change-password and verify-email forms now refuse a password shorter than 15 characters, matching express-boilerplate 4.0.0. Sign-in still accepts existing shorter passwords.
+
+### Features
+
+* **auth:** raise the new-password minimum to 15 characters ([e0d97d3](https://github.com/mahaverick/react-boilerplate/commit/e0d97d3f11d8d82b632f3c756f15575c575842d0))
+* **auth:** show a sign-in link when a verify-email link was already used ([e0d97d3](https://github.com/mahaverick/react-boilerplate/commit/e0d97d3f11d8d82b632f3c756f15575c575842d0))
+
 ## [1.9.3](https://github.com/mahaverick/react-boilerplate/compare/v1.9.2...v1.9.3) (2026-10-12)
 
 
