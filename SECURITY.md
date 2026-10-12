@@ -374,7 +374,9 @@ rule changes in express first and is copied here, never edited here alone.
 It replaces Postgres key details and echoed input, URL credentials, query
 strings, fragments other than line or heading anchors, the token segment
 after `/reset/`, `/verify/`, `/invite/` or `/accept/`, Bearer, Basic and
-other Authorization credentials, Cookie values, secret-named keys' values,
+other Authorization credentials (Bearer and Basic with the unquoted or
+quoted `,key=value` or `;key=value` pairs glued to them), Cookie values,
+secret-named keys' values,
 JWTs, emails, PostHog and other vendor keys, IP addresses, `+`-prefixed phone
 numbers, and long hex and base64 runs, then cuts each text to 1024
 characters.
@@ -393,7 +395,13 @@ messages. Among what it leaves in place:
 - a camelCase `pin` (`userPin=1234`);
 - vendor tokens with no rule, such as `ya29.` and `glpat-`;
 - the text after a Bearer credential on an Authorization line
-  (`Bearer [token] extra` keeps `extra`).
+  (`Bearer [token] extra` keeps `extra`);
+- a `Bearer` or `Basic` glued to a letter from `g` to `z` or a `_`
+  (`xBearer abc`, `_Bearer abc`), and a fully URL-encoded header
+  (`Bearer%20abc%2Crefresh%3Dxyz`);
+- pairs after a credential that a secret key's value took
+  (`token=Bearer abc,refresh=xyz`), and a quoted pair value glued to more
+  text or split by a line break.
 
 The comments in `src/observability/errors/scrub.ts` list what each rule
 catches and what it misses.
