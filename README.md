@@ -96,7 +96,7 @@ empty one.
   so a typo fails the rollout instead of quietly switching analytics off.
   `API_UPSTREAM` is checked by `docker/05-prepare.sh`: no path, not even a
   trailing `/`, or the container stops with
-  `API_UPSTREAM must be scheme://host[:port] with no path, got: …`.
+  `05-prepare.sh: API_UPSTREAM must be scheme://host[:port] with no path; the value given does not match (not shown)`.
 - `getRuntimeConfig()` (`src/configs/runtime-config.ts`) applies the patterns
   again; the consent mode fails closed
   ([how](SECURITY.md#run-time-config-injection-safety)).

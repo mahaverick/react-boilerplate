@@ -79,7 +79,7 @@ for bad in 'http://api:4040/' 'http://api:4040/v1' 'api:4040' '' 'http://$host' 
     problem "accepted API_UPSTREAM=[$bad]"
   fi
   case $out in
-    *"API_UPSTREAM must be scheme://host[:port] with no path, got: $bad"*) ;;
+    *"05-prepare.sh: API_UPSTREAM must be scheme://host[:port] with no path; the value given does not match (not shown)"*) ;;
     *) problem "no validation message for API_UPSTREAM=[$bad]: $out" ;;
   esac
 done

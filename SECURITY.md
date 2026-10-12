@@ -240,7 +240,8 @@ patterns and defaults are in the
 - **`API_UPSTREAM` is checked too.** `docker/05-prepare.sh` refuses anything
   but `http(s)://host[:port]` with no path, and envsubst substitutes only
   that variable into `nginx.conf`, so a value can neither rewrite the
-  proxied URI nor inject nginx syntax or variables.
+  proxied URI nor inject nginx syntax or variables. Its refusal message
+  never shows the value.
 
 ## Analytics privacy
 
