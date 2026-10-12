@@ -9,13 +9,14 @@ import {
 import { INVITATION_ID, USER_ID, USER_ID_2 } from '@/tests/fixtures/ids'
 
 describe('AUDIT_ACTIONS', () => {
-  it('lists exactly the eighteen actions the API writes', () => {
+  it('lists exactly the nineteen actions the API writes', () => {
     expect([...AUDIT_ACTIONS].sort()).toEqual(
       [
         'invitation.accepted',
         'invitation.created',
         'invitation.resent',
         'invitation.revoked',
+        'member.left',
         'member.removed',
         'member.role_changed',
         'onboarding.dismissed',
@@ -57,6 +58,7 @@ describe('auditSentence', () => {
       'removed a member (Editor)',
     ],
     ['member.removed', { userId: USER_ID_2, role: 'editor', self: true }, 'left the tenant'],
+    ['member.left', { role: 'editor' }, 'left the tenant'],
     [
       'invitation.created',
       { role: 'viewer', emailDomain: 'example.com' },
