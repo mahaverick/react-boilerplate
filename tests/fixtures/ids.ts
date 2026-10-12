@@ -12,10 +12,6 @@
 export const TENANT_ID = '10000000-0000-4000-8000-000000000001'
 /** The second tenant ('Beta Inc', 'Globex') in the tenant switcher tests. */
 export const TENANT_ID_2 = '10000000-0000-4000-8000-000000000002'
-/** A third tenant; no test imports it. */
-export const TENANT_ID_3 = '10000000-0000-4000-8000-000000000003'
-/** A fourth tenant; no test imports it. */
-export const TENANT_ID_4 = '10000000-0000-4000-8000-000000000004'
 /**
  * The extra tenant ('Umbrella') that the switcher's "Your tenants" filter test lists beside Acme.
  */
@@ -89,5 +85,3 @@ export const AUDIT_ID_1 = '60000000-0000-4000-8000-000000000001'
 export const AUDIT_ID_2 = '60000000-0000-4000-8000-000000000002'
 /** The invitation entry whose actor has no name on file, in the activity tests. */
 export const AUDIT_ID_3 = '60000000-0000-4000-8000-000000000003'
-/** The platform-side audit entry (`...100`); no test imports it. */
-export const PLATFORM_AUDIT_ID = '60000000-0000-4000-8000-000000000100'
