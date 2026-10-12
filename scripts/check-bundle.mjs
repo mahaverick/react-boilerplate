@@ -1,7 +1,8 @@
 /**
  * @file Builds the app in memory and checks the chunks it would ship: more than
  * one JS chunk, first-visit JS (the entry chunk and its static imports) under
- * budget and free of posthog-js and `@posthog/core`, the error listener in the
+ * budget and free of posthog-js and `@posthog/core` (each of which must exist
+ * in some other chunk, or the check proves nothing), the error listener in the
  * entry chunk under its own budget, and no devtools module in any chunk. Run
  * with `pnpm check:bundle`.
  */
@@ -14,15 +15,15 @@ const ENTRY_BUDGET_BYTES = 628_790
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module
- * ids, not code: outside development both packages export a stub that returns
- * null, so a leaked chunk's code would not name them.
+ * ids, not code: outside development the packages export a component that
+ * returns null, so a leaked chunk's code carries none of the package's name.
  */
 const DEVTOOLS_MODULE =
   /[\\/]@tanstack[\\/](react-query-devtools|query-devtools|react-router-devtools|router-devtools-core)[\\/]/
 
 /**
  * A posthog-js module, by its node_modules path. The analytics facade imports
- * it with a dynamic `import()`, so it must stay out of the first-visit chunks.
+ * it with a dynamic `import()`, so it must sit in a lazy chunk of its own.
  */
 const POSTHOG_MODULE = /[\\/]posthog-js[\\/]/
 
@@ -35,7 +36,7 @@ const POSTHOG_CORE_MODULE = /[\\/]@posthog[\\/]core[\\/]/
 /** The entry-chunk error listener, which every page pays for. */
 const ERROR_LISTENER_MODULE = /[\\/]src[\\/]observability[\\/]errors[\\/]listen\.ts$/
 
-/** The ceiling for the error listener's rendered code in the entry chunk, gzipped. */
+/** The most the error listener's rendered code may weigh in the entry chunk, gzipped. */
 const ERROR_LISTENER_BUDGET_GZIP_BYTES = 1024
 
 const output = await build({
