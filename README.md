@@ -92,7 +92,7 @@ empty one.
   `API_UPSTREAM must be scheme://host[:port] with no path, got: …`.
 - `getRuntimeConfig()` (`src/configs/runtime-config.ts`) applies the patterns
   again; the consent mode fails closed
-  ([how](ARCHITECTURE.md#the-container-and-run-time-config)).
+  ([how](SECURITY.md#run-time-config-injection-safety)).
 - Every value is public: each browser receives `/runtime-config.js`. The PostHog
   key may come from a secret store but is not a secret.
 
