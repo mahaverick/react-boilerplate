@@ -220,19 +220,56 @@ describe('notifications page', () => {
     )
   })
 
-  it('disables the switch while the request is pending', async () => {
+  it('disables the switch while pending, and a second click or key press sends nothing', async () => {
     const user = userEvent.setup()
     useOnePreference(true)
-    server.use(http.put('/api/v1/notifications/preferences', () => delay('infinite')))
+    let puts = 0
+    server.use(
+      http.put('/api/v1/notifications/preferences', () => {
+        puts += 1
+        return delay('infinite')
+      })
+    )
     renderNotifications()
 
     await user.click(await screen.findByRole('switch', { name: /Verify email/ }))
-
+    // The disabled state is the barrier: past it, the click and keys below land on a disabled switch.
     await waitFor(() =>
       expect(screen.getByRole('switch', { name: /Verify email/ })).toHaveAttribute(
         'aria-disabled',
         'true'
       )
+    )
+    const toggle = screen.getByRole('switch', { name: /Verify email/ })
+    await user.click(toggle)
+    toggle.focus()
+    await user.keyboard(' ')
+    await user.keyboard('{Enter}')
+
+    expect(puts).toBe(1)
+    expect(screen.getByRole('switch', { name: /Verify email/ })).not.toBeChecked()
+  })
+
+  it('toggles from the keyboard with Space', async () => {
+    const user = userEvent.setup()
+    let body: unknown
+    useOnePreference(false)
+    server.use(
+      http.put('/api/v1/notifications/preferences', async ({ request }) => {
+        body = await request.json()
+        return ok({ preferences: [] }, 'Notification preferences updated.')
+      })
+    )
+    renderNotifications()
+    const toggle = await screen.findByRole('switch', { name: /Verify email/ })
+
+    toggle.focus()
+    await user.keyboard(' ')
+
+    await waitFor(() =>
+      expect(body).toEqual({
+        preferences: [{ notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true }],
+      })
     )
   })
 
@@ -240,14 +277,21 @@ describe('notifications page', () => {
     const user = userEvent.setup()
     useOnePreference(true)
     const error = vi.spyOn(toast, 'error')
+    let released = false
     server.use(
-      http.put('/api/v1/notifications/preferences', () =>
-        fail('This notification type does not exist.', 400)
-      )
+      http.put('/api/v1/notifications/preferences', async () => {
+        while (!released) await delay(10)
+        return fail('This notification type does not exist.', 400)
+      })
     )
     renderNotifications()
 
     await user.click(await screen.findByRole('switch', { name: /Verify email/ }))
+    // Held at the gate, the row shows the requested state.
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: /Verify email/ })).not.toBeChecked()
+    )
+    released = true
 
     await waitFor(() =>
       expect(error).toHaveBeenCalledWith('This notification type does not exist.')
