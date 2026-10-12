@@ -24,8 +24,9 @@ browser storage is readable by whoever runs the page, so:
   travels in an `Authorization` header, never a URL; the refresh token is an
   httpOnly cookie the client never reads.
 - **Shared browsers and multiple tabs.** One refresh cookie serves every tab,
-  and the analytics identity cookie can be shared with a website on a sibling
-  subdomain. A tab must never act as, or attribute events to, someone other
+  and, where the app's analytics configuration shares it
+  (`src/observability/analytics/config.ts`), the analytics identity cookie is
+  shared with a website on a sibling subdomain. A tab must never act as, or attribute events to, someone other
   than its own signed-in user.
 - **Third parties see as little as possible.** Analytics and error tracking
   go to PostHog through the API's `/api/v1/collect` proxy, after masking and
@@ -119,7 +120,7 @@ browser storage is readable by whoever runs the page, so:
 - **An already-verified link.** When `POST /auth/verify-email` answers 409
   with `email_already_verified`, the verify page
   (`src/pages/verify-email.tsx`) treats it as done, not as a failure: it shows
-  the API's message and a **Sign in** button to `/login`, and offers no
+  the API's message and a **Sign in** link to `/login`, and offers no
   resend. The resend form shows the same message whatever the API answers,
   so it never reveals whether an address needs verifying.
 
@@ -175,13 +176,20 @@ The policy is enforced, not report-only:
 - **No HSTS.** Whether TLS fronts this container, and which hosts the policy
   covers, is the TLS edge's to decide, so `Strict-Transport-Security` is set
   there, not in `nginx.conf`.
-- **Logs keep no query string.** The server-level access log format records
-  `$uri`, not `$request`, because every SPA route falls back to `index.html`,
-  including `/reset-password?token=…` and `/verify-email?token=…`, whose
-  tokens are credentials mailed to users. `Referrer-Policy: no-referrer`
-  keeps the page URL out of the logged referrer. The notification stream's
-  location also sets its error log level to `crit`, since nginx writes the
-  full request line, query string included, into upstream error messages.
+- **The access log keeps no query string.** Its server-level format
+  records `$uri`, not `$request`, because every SPA route falls back to
+  `index.html`, including `/reset-password?token=…` and
+  `/verify-email?token=…`, whose tokens are credentials mailed to users.
+  `Referrer-Policy: no-referrer` keeps the page URL out of the logged
+  referrer. The invitation preview posts its token in a request body, so it
+  stays out of URLs and logs (`src/queries/invitation.queries.ts`).
+- **The error log can keep one.** nginx writes the full request line, query
+  string included, into every upstream error message, and no log format
+  changes that. The error log runs at `notice` (`docker/nginx.main.conf`),
+  so an upstream failure under `location /api/` records the query. The
+  notification stream's location sets its error log level to `crit`, which
+  silences those messages there; no other location does (see
+  [Known gaps](#known-gaps)).
 - **No source map is served.** The image deletes every `.map` after the
   upload, and `nginx.conf` answers 404 for any `.map` path outside `/api/`
   even where a file exists. A deploy of `dist/` outside the image must
@@ -214,7 +222,7 @@ patterns and defaults are in the
 - **The bundle validates again.** `src/configs/runtime-config.ts` applies
   the same patterns. An invalid value counts as unset, except
   `ANALYTICS_CONSENT_MODE`, which fails closed to `off` rather than falling
-  back to capturing; a handoff origin list with one origin `URL` refuses is
+  back to capturing in an app whose `config.ts` honours consent modes; a handoff origin list with one origin `URL` refuses is
   dropped whole. Its console warning names the keys, never the values. A
   production bundle reads only `window.__APP_CONFIG__`, so no build-time
   value can configure it.
@@ -231,6 +239,15 @@ patterns and defaults are in the
 posthog-js loads only when a PostHog key is set and the consent mode is not
 `off`, through a dynamic `import()` kept out of the first-visit chunks
 (`pnpm check:bundle`). Without it every call is a no-op.
+
+Three behaviours depend on per-app constants in
+`src/observability/analytics/config.ts`, so the bullets that rely on them say
+so: whether consent modes are honoured (`SUPPORTS_CONSENT_MODES`; an app
+that says no always runs `opt_out`), whether the cross-domain handoff is
+read (`SUPPORTS_HANDOFF`), and whether the identity cookie is shared with
+sibling subdomains (`ANALYTICS_PERSISTENCE_NAME`,
+`ANALYTICS_CROSS_SUBDOMAIN_COOKIE`). The query-key allowlist is set there
+too.
 
 - **Typed events carry no free text.** Every event and its properties are
   declared in `src/observability/analytics/events.ts`. A property typed as
@@ -268,8 +285,8 @@ posthog-js loads only when a PostHog key is set and the consent mode is not
   redirect.
 - **Events never cross people** (`guardEvent` in
   `src/observability/analytics/analytics.ts`). posthog-js adopts the
-  identity cookie a sibling-subdomain website shares before every event, so
-  while a user is signed in, any event under another distinct id is dropped.
+  identity cookie before every event, and where `config.ts` shares that
+  cookie a sibling-subdomain website can change it, so while a user is signed in, any event under another distinct id is dropped.
   If another tab of this app identified that person (announced on the
   `analytics-identity` channel or written to a 60-second `localStorage`
   registry), this tab is superseded: it drops its events and refreshes its
@@ -279,13 +296,17 @@ posthog-js loads only when a PostHog key is set and the consent mode is not
 - **The session header never links another person.** `X-POSTHOG-SESSION-ID`
   is sent only while capture is on (in `required` mode, once consent is
   granted) and PostHog holds either nobody or the signed-in user.
-- **Consent.** In `opt_out` mode capture runs until the user turns off the
-  profile's analytics switch; in `required` mode nothing is captured until
-  the banner is accepted, and a refusal leaves only cookieless,
-  server-hashed counts (`cookieless_mode: 'on_reject'`). Each user's own
-  opt-out is applied before they are identified, so an opted-out user's
-  identify is never captured.
-- **The cross-domain handoff is narrow** (`handoff.ts`). A website may link
+- **Consent** (modes honoured per `config.ts`). In `opt_out` mode capture
+  runs until the user turns off the profile's analytics switch; in
+  `required` mode no analytics event is captured until the banner is
+  accepted, and a refusal leaves only cookieless, server-hashed counts
+  (`cookieless_mode: 'on_reject'`). Each user's own opt-out is applied
+  before they are identified, so an opted-out user's identify is never
+  captured. Consent holds back the SDK's own events and replay only:
+  exception reports and flag exposure are sent whatever the answer (see
+  below).
+- **The cross-domain handoff is narrow** (`handoff.ts`, read only where
+  `config.ts` enables it). A website may link
   in with `?ph_did=&ph_sid=` to continue an anonymous visit. It is accepted
   only in `opt_out` mode, only for UUIDs, only from a referrer origin in
   `ANALYTICS_HANDOFF_ORIGINS`, only while the browser holds no identified
@@ -296,13 +317,21 @@ posthog-js loads only when a PostHog key is set and the consent mode is not
 - **Guards.** `e2e/fixtures/pii.test.ts` checks that every probe name and
   address on the main pages sits inside `<Pii>`; `e2e/nginx/analytics.test.ts`
   searches everything that reached a fake PostHog, decoded, after a route
-  walk that includes `?token=` and `register?email=` URLs.
+  walk that includes token-carrying URLs.
+- **Flag exposure ignores consent.** The flag hooks report experiment keys,
+  never values, to the API's exposure endpoint whatever the analytics
+  consent (`src/observability/flags/exposure.ts`); the API re-evaluates each
+  key and records the exposure in PostHog for a user who matched a release
+  condition or is in the holdout.
 
 ## Error-tracking privacy
 
 Browser exceptions go to PostHog Error Tracking through the API's
-`/api/v1/collect/batch/` proxy, and only when a PostHog key is set and the
-consent mode is not `off` (`src/observability/errors/report.ts`).
+`/api/v1/collect/batch/` proxy whenever a PostHog key is set and the consent
+mode is not `off` (`src/observability/errors/report.ts`). The consent answer
+does not stop them: with consent pending or refused, or after a profile
+opt-out, an exception is still sent, anonymous. Only the SDK's own events and
+replay wait for consent.
 
 - **What is dropped before anything is built:** API and network failures
   (the API reports its own 5xx), aborts, ResizeObserver noise, a
@@ -313,11 +342,13 @@ consent mode is not `off` (`src/observability/errors/report.ts`).
   (`src/observability/errors/scrub.ts`). The page URL is reduced to the
   analytics allowlist's query keys, then its path is scrubbed. No request,
   header or form data is attached.
-- **Identity follows analytics consent.** An exception carries the user's
-  distinct id, session and tenant group only when analytics consent allows
-  and PostHog's person is this tab's user. Otherwise it is anonymous: a fresh
-  distinct id per event and no person profile. An error noted more than 10
-  seconds before it is sent, or before the user, the tenant group or the
+- **Identity follows analytics consent.** An exception carries PostHog's
+  distinct id, session and tenant group only when analytics consent allows,
+  the tab is not superseded, and PostHog's person is this tab's signed-in
+  user (or, while nobody is signed in, whoever PostHog holds, normally
+  anonymous). Otherwise it is anonymous: a fresh distinct id per event and
+  no person profile. An error noted more than 10 seconds before the lazy
+  reporter received it, or noted before the user, the tenant group or the
   tab's standing changed, is sent anonymous, so it is never attributed to
   the next person.
 - **Volume is capped:** 5 events per fingerprint and 30 per page life.
@@ -352,7 +383,8 @@ messages. Among what it leaves in place:
 - the text after a Bearer credential on an Authorization line
   (`Bearer [token] extra` keeps `extra`).
 
-express-boilerplate's `SECURITY.md` holds the exhaustive list of edge cases.
+The comments in `src/observability/errors/scrub.ts` list what each rule
+catches and what it misses.
 
 ## Known gaps
 
@@ -361,6 +393,12 @@ express-boilerplate's `SECURITY.md` holds the exhaustive list of edge cases.
   `https` as received, and sets no per-IP connection limit, since every request arrives
   from the TLS terminator's address (`docker/nginx.main.conf`). Expose the
   container only through that terminator.
+- **The error log can hold query strings.** An upstream error under
+  `location /api/` writes the full request line to the error log at the
+  `notice` level. That includes the Google OAuth callback, which the API
+  serves under `/api/` with its `code` and `state` in the query. The `code`
+  is single-use and short-lived, but it is a credential written to disk.
+  Only the notification stream's location lowers its error log to `crit`.
 - **HSTS is the edge's job.** See [CSP and headers](#csp-and-headers).
 - **Inline styles are allowed** (`style-src 'unsafe-inline'`), for sonner.
   An injected `<style>` cannot run script, but it can restyle the page.
@@ -381,3 +419,9 @@ express-boilerplate's `SECURITY.md` holds the exhaustive list of edge cases.
   replay under the CSP; it is a project setting, not enforced by this repo.
 - **Error scrubbing is regex-based** and misses free text; see
   [What it does not catch](#what-it-does-not-catch).
+
+## Reporting a vulnerability
+
+Report a security problem privately through GitHub's private vulnerability
+reporting on this repository: the **Security** tab, then **Report a
+vulnerability**. Do not open a public issue for a security problem.
