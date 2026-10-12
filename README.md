@@ -219,6 +219,35 @@ The SSE reconnect test restarts an express, so it runs only by hand, behind a
 guard that refuses to touch the main checkout. The steps and the guard's rules
 are in [CLAUDE.md](CLAUDE.md#end-to-end-tests).
 
+## Feature flags
+
+express evaluates every flag; this app only reads the values. How is in
+[Feature flags](ARCHITECTURE.md#feature-flags), and the rules are in
+[CLAUDE.md](CLAUDE.md#feature-flags). To add one:
+
+1. Add it to express's flag registry
+   (`express-boilerplate/src/constants/flags.constants.ts`) and run `flags:sync`
+   there.
+2. Copy its key, kind, variants, fallback and `experiment` into
+   `CLIENT_FLAGS` in `src/observability/flags/flag-keys.ts`.
+3. Copy its fallback into `TEST_FLAG_FALLBACKS` (`tests/mocks/handlers.ts`) and
+   the harness's `FLAG_FALLBACKS` (`e2e/harness/harness.tsx`).
+
+## Analytics (PostHog)
+
+Set `POSTHOG_KEY` to turn analytics on ([Run-time configuration](#run-time-configuration)).
+Events go through the API's `/api/v1/collect` proxy, never to PostHog directly.
+The mechanism is in [Analytics](ARCHITECTURE.md#analytics) and the privacy rules
+are in [Analytics privacy](SECURITY.md#analytics-privacy).
+
+`e2e/nginx/analytics.test.ts` runs against the production image started with the
+settings CI uses (`pnpm test:e2e:nginx` starts it the same way). Its `@no-api`
+tests run in CI with a fake PostHog answering `/api/v1/collect` through
+Playwright. Its live half needs `E2E_LIVE=1 E2E_ANALYTICS=1` and an express
+behind the image with `POSTHOG_PROJECT_KEY=phc_test_key_not_real` and
+`POSTHOG_HOST` and `POSTHOG_ASSETS_HOST` pointing at the suite's fake PostHog on
+port 4063 (`E2E_FAKE_POSTHOG_PORT` changes it).
+
 ## Docker
 
 ```bash
@@ -347,6 +376,8 @@ Releases use a GitHub App token, from the repo variable
 needs Contents and Pull requests read/write. GitHub never starts workflows from
 events `GITHUB_TOKEN` creates, so its release PRs would get no CI and its tags no
 image promotion. Do not fall back to it.
+
+### One-time setup
 
 Three manual steps, once:
 
