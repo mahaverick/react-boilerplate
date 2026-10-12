@@ -23,7 +23,7 @@ test.skip(process.env.E2E_LIVE !== '1', 'live backend required — run pnpm test
 test.beforeAll(async () => {
   if (!(await apiIsReady())) {
     throw new Error(
-      `No API at ${API_ORIGIN}. Start express 3.1.0+ first: cd ../express-boilerplate && pnpm db:migrate && pnpm dev`
+      `No API at ${API_ORIGIN}. Start express with its migrations applied (the suite grants platform roles itself, through pnpm platform:grant in E2E_API_DIR): cd ../express-boilerplate && pnpm db:migrate && pnpm dev`
     )
   }
 })
