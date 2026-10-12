@@ -237,11 +237,13 @@ const AXE_OPTIONS: axeCore.RunOptions = {
  * markup. Pinned as a set so a new one cannot appear unnoticed: `toHaveNoViolations` reads
  * only `violations`, so anything that quietly stops being evaluable would look like a pass.
  *
- * - `page-has-heading-one`, `landmark-one-main`: both query `[role=heading][aria-level=1]`,
- *   and jsdom's selector engine rejects an unquoted attribute value that starts with a
- *   digit, so `querySelectorAll` throws "Invalid selector". axe catches that and files the
- *   rule here, which `toHaveNoViolations` does not read, so both would pass vacuously.
- *   `expectNoViolations` asserts one `<main>` and one `<h1>` by hand instead.
+ * - `page-has-heading-one`, `landmark-one-main`: both set `passForModal`, so axe asks
+ *   `isModalOpen()`, which calls `document.elementsFromPoint`. axe polyfills that over
+ *   `document.elementFromPoint`, which jsdom does not implement either, so the check throws
+ *   and axe files both rules here ("Axe encountered an error"), which `toHaveNoViolations`
+ *   does not read, so both would pass vacuously. (With a dialog open, `isModalOpen` returns
+ *   before that call and both rules pass.) `expectNoViolations` asserts one `<main>` and one
+ *   `<h1>` by hand instead.
  * - `heading-order`: "Unable to determine previous heading" for the first
  *   heading in the tree. Nothing to fix.
  * - `aria-hidden-focus`: "Check that focusable elements are not tabbable in the
