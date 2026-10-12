@@ -395,11 +395,11 @@ catches and what it misses.
 ## Known gaps
 
 - **The container trusts its front.** nginx appends to the client's
-  `X-Forwarded-For` and passes on an `X-Forwarded-Proto` of `http` or
-  `https` as received, and sets no per-IP connection limit, since every
-  request arrives from the TLS terminator's address
-  (`docker/nginx.main.conf`). Expose the container only through that
-  terminator.
+  `X-Forwarded-For` and passes on a client-supplied `X-Forwarded-Proto` of
+  `http` or `https` in any letter case, lowercased (any other value becomes
+  `http`), and sets no per-IP connection limit, since every request arrives
+  from the TLS terminator's address (`docker/nginx.main.conf`). Expose the
+  container only through that terminator.
 - **The error log can hold query strings.** An upstream error under
   `location /api/` writes the full request line to the error log at the
   `notice` level. Where express's `APP_URL` is this container's host, that
