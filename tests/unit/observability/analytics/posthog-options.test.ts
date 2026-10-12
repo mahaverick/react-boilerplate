@@ -57,8 +57,10 @@ describe('buildPosthogOptions', () => {
         captureJsonLd: false,
         recordHeaders: false,
         recordBody: false,
+        captureCanvas: { recordCanvas: false },
       },
     })
+    expect(options.session_recording?.captureCanvas?.recordCanvas).toBe(false)
     expect(options.custom_personal_data_properties).not.toBe(CUSTOM_PERSONAL_DATA_PROPERTIES)
     // `advanced_disable_flags` would also stop remote config, and session replay with it.
     expect(options).not.toHaveProperty('advanced_disable_flags')

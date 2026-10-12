@@ -165,7 +165,9 @@ The policy is enforced, not report-only:
 - **Session replay starts no worker.** Recording `<canvas>` content would
   start a `blob:` worker, which `script-src 'self'` blocks (`worker-src`
   falls back to it). Keep canvas recording off in the PostHog project's
-  replay settings; `e2e/nginx/analytics.test.ts` asserts replay records under
+  replay settings. The options also pin
+  `session_recording.captureCanvas.recordCanvas: false`, which overrides the
+  project setting. `e2e/nginx/analytics.test.ts` asserts replay records under
   this policy with no worker and no violation.
 - **No location declares an `add_header`.** In nginx, a location that sets
   any header of its own inherits none of the server block's, so it would
@@ -430,8 +432,6 @@ catches and what it misses.
   the page titles page views carry. Where the PostHog project records network
   requests in replay, the paths of tenant-scoped API calls
   (`/tenants/:slug/…`) carry the tenant's slug.
-- **Canvas recording** in the PostHog project's replay settings would break
-  replay under the CSP; it is a project setting, not enforced by this repo.
 - **Error scrubbing is regex-based** and misses free text; see
   [What it does not catch](#what-it-does-not-catch).
 
