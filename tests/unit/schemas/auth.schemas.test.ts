@@ -17,10 +17,25 @@ describe('auth schemas', () => {
     expect(loginSchema.safeParse({ email: 'nope', password: 'secret123' }).success).toBe(false)
   })
 
-  it('register enforces the 8-character minimum', () => {
+  it('register enforces the 15-character minimum', () => {
     const base = { email: 'a@example.com', firstName: 'A', lastName: 'B' }
-    expect(registerSchema.safeParse({ ...base, password: 'short7c' }).success).toBe(false)
-    expect(registerSchema.safeParse({ ...base, password: 'longenough8' }).success).toBe(true)
+    expect(registerSchema.safeParse({ ...base, password: 'a'.repeat(14) }).success).toBe(false)
+    expect(registerSchema.safeParse({ ...base, password: 'a'.repeat(15) }).success).toBe(true)
+  })
+
+  it('counts the 15-character minimum in code points, as the API does', () => {
+    const base = { email: 'a@example.com', firstName: 'A', lastName: 'B' }
+    // 8 emoji are 8 code points (16 UTF-16 units, 32 bytes): under the floor.
+    expect(registerSchema.safeParse({ ...base, password: '😀'.repeat(8) }).success).toBe(false)
+    expect(registerSchema.safeParse({ ...base, password: '😀'.repeat(14) }).success).toBe(false)
+    // 15 emoji are 60 bytes, inside the 72-byte ceiling.
+    expect(registerSchema.safeParse({ ...base, password: '😀'.repeat(15) }).success).toBe(true)
+  })
+
+  it('login still accepts a short password, since existing ones may predate the floor', () => {
+    expect(loginSchema.safeParse({ email: 'a@example.com', password: 'nine-char' }).success).toBe(
+      true
+    )
   })
 
   it("register refuses a password past bcrypt's 72-byte ceiling", () => {
@@ -34,7 +49,7 @@ describe('auth schemas', () => {
   })
 
   it('register treats the names as optional, exactly as the backend does', () => {
-    const base = { email: 'a@example.com', password: 'longenough8' }
+    const base = { email: 'a@example.com', password: 'a-long-enough-password' }
     expect(registerSchema.safeParse(base).success).toBe(true)
     // An empty control means "not given": it is dropped, not posted as an empty string.
     const parsed = registerSchema.parse({ ...base, firstName: '  ', lastName: '' })
@@ -57,7 +72,10 @@ describe('auth schemas', () => {
 
   it('change-password verifies the current password without a policy', () => {
     // It is compared against the stored hash, like login's.
-    const base = { newPassword: 'longenough8', confirmPassword: 'longenough8' }
+    const base = {
+      newPassword: 'a-long-enough-password',
+      confirmPassword: 'a-long-enough-password',
+    }
     expect(changePasswordSchema.safeParse({ ...base, currentPassword: 'x' }).success).toBe(true)
     expect(changePasswordSchema.safeParse({ ...base, currentPassword: '' }).success).toBe(false)
   })
@@ -78,8 +96,8 @@ describe('auth schemas', () => {
   it('change-password flags a mismatched confirmation on that field', () => {
     const result = changePasswordSchema.safeParse({
       currentPassword: 'old-password',
-      newPassword: 'longenough8',
-      confirmPassword: 'different99',
+      newPassword: 'a-long-enough-password',
+      confirmPassword: 'a-different-password-9',
     })
     expect(result.success).toBe(false)
     expect(result.error?.issues[0]?.path).toEqual(['confirmPassword'])
@@ -88,7 +106,7 @@ describe('auth schemas', () => {
 })
 
 describe('register names: the API safeText rule', () => {
-  const base = { email: 'a@example.com', password: 'longenough8' }
+  const base = { email: 'a@example.com', password: 'a-long-enough-password' }
 
   it('rejects a control or bidi character, naming the field the way the API does', () => {
     const result = registerSchema.safeParse({

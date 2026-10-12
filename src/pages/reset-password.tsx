@@ -21,7 +21,7 @@ import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { cn } from '@/lib/utils'
 import { useResetPassword } from '@/queries/auth.queries'
-import { resetPasswordSchema } from '@/schemas/auth.schemas'
+import { MIN_PASSWORD_LENGTH, resetPasswordSchema } from '@/schemas/auth.schemas'
 
 /**
  * The password-reset page. Top level, not under `_auth`, whose guard would
@@ -92,7 +92,9 @@ function ResetPasswordPage() {
           <CardTitle>
             <h1>Choose a new password</h1>
           </CardTitle>
-          <CardDescription>It must be at least 8 characters long.</CardDescription>
+          <CardDescription>
+            It must be at least {MIN_PASSWORD_LENGTH} characters long.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form form={form} serverErrors={serverErrors}>

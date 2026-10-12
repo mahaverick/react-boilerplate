@@ -117,7 +117,7 @@ describe('security section', () => {
       })
     )
     renderProfile()
-    await fillAndSubmit('old-password', 'longenough8', 'different99')
+    await fillAndSubmit('old-password', 'a-long-enough-password', 'a-different-password-9')
 
     expect(await screen.findByText('Passwords do not match.')).toBeInTheDocument()
     expect(called).toBe(false)
@@ -135,7 +135,7 @@ describe('security section', () => {
     await fillAndSubmit('old-password', 'short')
 
     expect(
-      await screen.findByText('Password must be at least 8 characters long.')
+      await screen.findByText('Password must be at least 15 characters long.')
     ).toBeInTheDocument()
     expect(called).toBe(false)
   })
@@ -149,12 +149,12 @@ describe('security section', () => {
       })
     )
     renderProfile()
-    await fillAndSubmit('old-password', 'longenough8')
+    await fillAndSubmit('old-password', 'a-long-enough-password')
 
     expect(
       await screen.findByText('Password changed. Other sessions were signed out.')
     ).toBeInTheDocument()
-    expect(body).toEqual({ currentPassword: 'old-password', newPassword: 'longenough8' })
+    expect(body).toEqual({ currentPassword: 'old-password', newPassword: 'a-long-enough-password' })
     await waitFor(() => {
       expect(screen.getByLabelText('Current password')).toHaveValue('')
     })
@@ -168,7 +168,7 @@ describe('security section', () => {
       http.post('/api/v1/auth/change-password', () => fail('Current password is incorrect.', 400))
     )
     renderProfile()
-    await fillAndSubmit('wrong-password', 'longenough8')
+    await fillAndSubmit('wrong-password', 'a-long-enough-password')
 
     const current = screen.getByLabelText('Current password')
     await waitFor(() => {
@@ -186,7 +186,7 @@ describe('security section', () => {
       )
     )
     renderProfile()
-    await fillAndSubmit('longenough8', 'longenough8')
+    await fillAndSubmit('a-long-enough-password', 'a-long-enough-password')
 
     await waitFor(() => {
       expect(screen.getByLabelText('New password')).toHaveAccessibleDescription(
@@ -211,7 +211,7 @@ describe('security section', () => {
       )
     )
     renderProfile()
-    await fillAndSubmit('old-password', 'longenough8')
+    await fillAndSubmit('old-password', 'a-long-enough-password')
 
     await waitFor(() => {
       expect(screen.getByLabelText('New password')).toHaveAccessibleDescription(
@@ -228,7 +228,7 @@ describe('security section', () => {
       )
     )
     renderProfile()
-    await fillAndSubmit('old-password', 'longenough8')
+    await fillAndSubmit('old-password', 'a-long-enough-password')
 
     const message = await screen.findByText('Too many attempts. Please try again later.')
     expect(message.closest('[role="alert"]')).not.toBeNull()

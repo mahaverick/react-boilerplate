@@ -1,7 +1,11 @@
 import { z } from 'zod'
 import { notAllowedMessage, safeText } from '@/schemas/safe-text.schemas'
 
-const MIN_PASSWORD_LENGTH = 8
+/**
+ * The shortest password the API accepts when one is being set, in code points
+ * (zod's `.min` counts those, as the API does). Login applies none.
+ */
+export const MIN_PASSWORD_LENGTH = 15
 /**
  * bcrypt uses only the first 72 bytes of a password and ignores the rest, so
  * two passwords sharing that prefix would hash identically; the API refuses a
