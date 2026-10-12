@@ -104,6 +104,25 @@ describe('inviteMemberSchema', () => {
     })
   })
 
+  it('rejects a dotless domain, as the API does, and accepts a dotted one', () => {
+    const rejected = inviteMemberSchema.safeParse({ email: 'a@localhost', role: 'viewer' })
+    expect(rejected.success).toBe(false)
+    expect(inviteMemberSchema.safeParse({ email: 'a@example.com', role: 'viewer' }).success).toBe(
+      true
+    )
+  })
+
+  it('rejects a domain label over 63 characters with the API message', () => {
+    const result = inviteMemberSchema.safeParse({
+      email: `a@${'a'.repeat(64)}.com`,
+      role: 'viewer',
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((issue) => issue.message)).toContain(
+      'Email must have a valid domain.'
+    )
+  })
+
   it('rejects a role the server does not know', () => {
     expect(inviteMemberSchema.safeParse({ email: 'a@b.com', role: 'superuser' }).success).toBe(
       false
