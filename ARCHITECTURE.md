@@ -6,6 +6,11 @@ observability, maintenance mode and the container fit around it. What each
 part defends against is in [SECURITY.md](SECURITY.md); how to run, configure
 and deploy it is in [README.md](README.md).
 
+The HTTP layer, analytics, feature flags, error tracking and most of the
+container are shared with apex ([Sibling sync](#sibling-sync-with-apex)).
+Their sections describe the shared code; what only this app has sits in
+sections and subsections marked _this app only_.
+
 ## Layout of `src/`
 
 ```
@@ -51,8 +56,8 @@ its own chunk (`autoCodeSplitting`).
 `src/main.tsx` runs in this order:
 
 - **`@/lib/zod-jitless` is the first import**, before any module builds a
-  Zod schema: Zod's JIT probe would trip the CSP
-  ([CSP and headers](SECURITY.md#csp-and-headers)). `tests/setup.ts` and
+  Zod schema ([CSP and headers](SECURITY.md#csp-and-headers) says why).
+  `tests/setup.ts` and
   `e2e/harness/harness.tsx` import it first for the same reason.
 - **`@/observability/errors/install` is the second**, so the window `error`
   and `unhandledrejection` listeners exist before the rest of the app's
@@ -107,6 +112,10 @@ directly, and that is sound because the root route's `beforeLoad` has
 already awaited the session restore; a guard in a `useEffect` would see an
 empty store on every reload and redirect wrongly.
 
+The Google sign-in button on `/login` is a plain anchor to
+`GOOGLE_OAUTH_PATH`, which `src/constants/routes.ts` derives from
+`API_PREFIX`, so moving the prefix moves it too.
+
 **Loaders warm the query cache; components read it.** A loader calls
 `queryClient.ensureQueryData(...)` with the same options a component's
 `useQuery` uses, so the page renders from the cache. Two loaders do this:
@@ -142,8 +151,8 @@ function of the match's params, typed by the module augmentation in
 the list pages a detail page sits under in the reader's mind but not in the
 route tree.
 
-**Queries** live in `src/queries/`, one file per resource. Each exports a
-key factory and its hooks; `unwrap` (`src/http/client.ts`) returns the
+**Queries** live in `src/queries/`, one file per resource. Most export a
+key factory and their hooks, and the rest reuse another file's keys; `unwrap` (`src/http/client.ts`) returns the
 `data` of the API's success envelope. Keys nest by prefix, so invalidating a
 prefix refetches everything under it: `['tenants']` is a prefix of every
 tenant's detail, members, settings, invitations and onboarding, and a
@@ -177,30 +186,31 @@ credentials sent and a 30-second timeout. The timeout exists because axios
 has none by default, and a request that never answers would leave its
 mutation pending and its button disabled.
 
-**The prefix is fixed and same-origin.** It is written once, in
-`src/constants/routes.ts`; the axios base, the notification stream's URL
-and the Google OAuth anchor derive from it, and the analytics proxy path
-repeats it. The development server proxies `/api` to the API
-(`vite.config.ts`) and the container's nginx does the same, so the app only
-ever calls the origin that served it. nginx's locations for the stream and
-the analytics proxy hardcode `/api/v1`, so moving the prefix means changing
-`API_PREFIX` and `nginx.conf` in one change, plus the `/api/` location and
-the Vite proxy for a prefix outside `/api`. There is no environment variable
-for it: one that moved only the axios base would leave the stream, the
-OAuth anchor and nginx on the old prefix.
+**The prefix is fixed and same-origin.** It is written once, as
+`API_PREFIX` in `src/constants/routes.ts`; the axios base derives from it
+and the analytics proxy path repeats it. The development server proxies
+`/api` to the API (`vite.config.ts`) and the container's nginx does the
+same, so the app only ever calls the origin that served it. nginx's
+`location /api/v1/collect/` hardcodes `/api/v1`, so moving the prefix means
+changing `API_PREFIX` and `nginx.conf` in one change, plus the `/api/`
+location and the Vite proxy for a prefix outside `/api`. There is no
+environment variable for it: one that moved only the axios base would leave
+every path that repeats or hardcodes the prefix on the old one. This app's
+own users of the prefix are in [Routing](#routing-and-data-loading) and
+[Realtime](#realtime-this-app-only).
 
 **Interceptors**, installed by `installInterceptors` and, for maintenance
 mode, from `src/router.tsx`. The two request interceptors are independent of
 each other; the response interceptors run in the order they are registered,
 so the maintenance reader sees what the other two pass on:
 
-| Direction | Order | Interceptor                   | Does                                                                                                                   |
-| --------- | ----- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Request   | –     | Bearer token                  | Adds `Authorization: Bearer` from the auth store when the request has none.                                            |
-| Request   | –     | Trace headers                 | On a same-origin request under the prefix: a fresh `traceparent`, and the analytics session id when one may be linked. |
-| Response  | 1     | 401 handling                  | Refreshes and replays once on an expired token; signs out on a verdict; leaves `REAUTH_REQUIRED` to the caller.        |
-| Response  | 2     | `rejectMalformedJsonResponse` | Rejects a 2xx whose body is not a JSON object, such as an HTML page from a misrouted proxy.                            |
-| Response  | 3     | Maintenance mode              | Reads the `Maintenance-Mode` header and a maintenance 503 into the store; never changes the outcome.                   |
+| Direction | Order | Interceptor                   | Does                                                                                                                                                                |
+| --------- | ----- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Request   | –     | Bearer token                  | Adds `Authorization: Bearer` from the auth store when the request has none.                                                                                         |
+| Request   | –     | Trace headers                 | On a same-origin request under the prefix: a `traceparent` when the request has none (a replay keeps its own), and the analytics session id when one may be linked. |
+| Response  | 1     | 401 handling                  | Refreshes and replays once on an expired token; signs out on a verdict; leaves `REAUTH_REQUIRED` to the caller.                                                     |
+| Response  | 2     | `rejectMalformedJsonResponse` | Rejects a 2xx whose body is not a JSON object, such as an HTML page from a misrouted proxy.                                                                         |
+| Response  | 3     | Maintenance mode              | Reads the `Maintenance-Mode` header and a maintenance 503 into the store; never changes the outcome.                                                                |
 
 A replay goes through the whole chain again. The rules each step enforces,
 and why, are in [Sign-out rules](SECURITY.md#sign-out-rules).
@@ -229,7 +239,7 @@ Why each of these holds, and what breaks if it does not, is in
 [Token storage and refresh](SECURITY.md#token-storage-and-refresh) and
 [Sign-out rules](SECURITY.md#sign-out-rules).
 
-## Realtime
+## Realtime (this app only)
 
 The notification inbox follows the API's server-sent event stream at
 `/api/v1/notifications/stream`. Two pieces:
@@ -269,8 +279,12 @@ The hook's connection cycle:
 
 Each open stream holds two connections in nginx, the browser's and the one
 to the API, for as long as its tab is open; `docker/nginx.main.conf` sizes
-`worker_connections` for that. The stream's `location` in `nginx.conf` turns
-off buffering and raises the read timeout. The dev server's proxy does not
+`worker_connections` for that. `nginx.conf`'s
+`location /api/v1/notifications/stream` turns off buffering, empties the
+`Connection` header and raises the read timeout; it hardcodes the API
+prefix, so moving `API_PREFIX` means editing this location too. Its logging
+choices are in [CSP and headers](SECURITY.md#csp-and-headers). The dev
+server's proxy does not
 propagate an upstream close, so the reconnect path can only be exercised
 against the image (the `nginx` Playwright project).
 
@@ -296,12 +310,9 @@ value, through a dynamic `import()`. The rest of the app imports the barrel,
   and consent calls never are. With no PostHog key, or consent mode `off`,
   the facade turns inert and every call is a no-op. A throwing SDK call is
   swallowed: analytics never fails a user action.
-- **Page views come from the router.** posthog-js's own history page views
-  are off. `installRouteAnalytics` (`src/observability/route-analytics.ts`)
-  subscribes to the router's `onResolved`: it sets the tenant group from the
-  tenant route's loader data, or clears it, and only then captures
-  `$pageview` when the path changed. It is installed before the first load,
-  so the landing page is counted.
+- **Page views come from the app, not the SDK.** posthog-js's own history
+  page views are off; the app captures `$pageview` with `capturePageview()`
+  (this app's router hook: [Router hooks](#router-hooks-this-app-only)).
 - **Identity follows the auth store**, through `installAnalyticsIdentity` in
   `src/http/session.ts` ([The HTTP layer and session](#the-http-layer-and-session)).
 - **Per-app constants** sit at the top of
@@ -316,14 +327,13 @@ value, through a dynamic `import()`. The rest of the app imports the barrel,
 
 ### Feature flags
 
-The API is the only evaluator. The app reads values from three endpoints by
-scope (`src/observability/flags/flag-scope.ts`): `/tenants/:slug/flags` on a
-tenant page and `/flags` elsewhere; the shared module also knows
-`/platform/me/flags`, the staff scope the sibling app reads. posthog-js does
-no flag work.
+The API is the only evaluator; posthog-js does no flag work. Values are read
+per scope, and `src/observability/flags/flag-scope.ts`, which each app owns,
+says which scope a page reads and which endpoint answers it. This app's
+scopes are in [Router hooks](#router-hooks-this-app-only).
 
-- **The registry slice** is `CLIENT_FLAGS` in `flag-keys.ts`: the API
-  registry's entries this app reads, mirrored by hand, each with its kind,
+- **The registry slice** is `CLIENT_FLAGS` in `flag-keys.ts`, also per app:
+  the API registry's entries the app reads, mirrored by hand, each with its kind,
   variants, fallback and whether it is an experiment. A value the server
   sends for a key the slice lacks is dropped, and a missing or invalid value
   becomes that flag's fallback (`normalizeFlags`).
@@ -333,24 +343,41 @@ no flag work.
   read values with `useFlagValues()` and `useVariant(key)`
   (`flag-hooks.ts`), which show the fallback while loading and after a
   failure.
-- **Scope changes.** On a resolved navigation to a different tenant,
-  `installFlagScopeReset` drops every other scope's values and the exposure
-  dedupe, so returning to a tenant reads its flags afresh. It runs on
-  resolve, not in a loader, because a loader also runs for a hover preload.
-  A change of user drops every scope's values.
+- **A change of user** drops every scope's values and the exposure marks
+  ([The HTTP layer and session](#the-http-layer-and-session)).
 - **Exposure.** `useVariant` on an experiment flag, once its value came from
   the server, reports the key, never the value, to the scope's
   `/exposures` endpoint (`exposure.ts`): batched for 50 ms, at most 10 keys
   per request, once per scope, key and value in a tab session. The API
   re-evaluates and records the exposure.
 - **`$feature/*` super properties** carry each flag's value on every browser
-  event. They are synced at two points and never from a query or loader:
-  `useFeaturePropertiesSync` in `AppLayout`, in a layout effect, and the
-  router's `onLoad` (`installRouteFeatureProperties`), which fires before
-  `onResolved` captures the page view and never for a preload. The `onLoad`
-  sync is what gives the first page view its properties, since that load
-  runs before React mounts. A page outside the signed-in shell syncs to the
-  no-tenant scope's cached values, or to none.
+  event. `useFeaturePropertiesSync`, mounted once in the signed-in layout,
+  syncs them in a layout effect, never from a query or loader: a loader also
+  runs for a hover preload, whose scope is not the page's. The app's router
+  syncs them too before each page view.
+
+### Router hooks (this app only)
+
+`src/router.tsx` subscribes three hooks of this app's own to the router.
+All run on committed navigations, never in a loader, because a loader also
+runs for a hover preload.
+
+- **Page views and the tenant group.** `installRouteAnalytics`
+  (`src/observability/route-analytics.ts`) runs on `onResolved`: it sets the
+  tenant group from the tenant route's loader data, or clears it, and only
+  then captures `$pageview` when the path changed. It is installed before
+  the first load, so the landing page is counted.
+- **Flag scopes.** A tenant page reads `/tenants/:slug/flags` and every other
+  page `/flags` (`flagScopeFor` in `flag-scope.ts`). The `_app` loader warms
+  the scope the shell is entered on, and the tenant route's loader warms a
+  tenant's on a switch. On a resolved navigation to a different tenant,
+  `installFlagScopeReset` drops every other scope's values and the exposure
+  dedupe, so returning to a tenant reads its flags afresh.
+- **`$feature/*` before each page view.** `installRouteFeatureProperties`
+  syncs them on `onLoad`, which fires before `onResolved` captures the page
+  view and never for a preload. It is what gives the first page view its
+  properties, since that load runs before React mounts. A page outside the
+  signed-in shell syncs to the no-tenant scope's cached values, or to none.
 
 ### Error tracking
 
@@ -359,20 +386,18 @@ Error tracking is split so that every page pays almost nothing for it:
 - **`listen.ts`**, in the entry chunk, notes raw errors and nothing else:
   the window listeners, React's root `onUncaughtError` and `onCaughtError`
   (`rootErrorOptions`, passed to `createRoot`), and `noteError` for an error
-  screen that catches an error those hooks never see (`RouteError` and the
-  tenant route's error component). It dedupes by object and by a re-throw of
-  the same name, message and stack within a second, buffers up to 20 errors,
-  and loads the reporter on the first error or when the browser is idle
-  (within three seconds). It imports only `identity-epoch.ts`.
+  screen that catches an error those hooks never see (this app's are
+  `RouteError` and the tenant route's error component). It drops repeats,
+  buffers a few errors, and loads the reporter on the first error or when
+  the browser is idle. It imports only `identity-epoch.ts`.
   `pnpm check:bundle` caps it at 1 KB gzipped and keeps `@posthog/core` and
   posthog-js out of the first-visit chunks.
 - **`report.ts`**, lazy, filters each error, builds a `$exception` with
-  `@posthog/core`, scrubs it with `scrub.ts`, throttles it (5 per
-  fingerprint, 30 per page life), attaches an identity only when analytics
-  consent allows, and posts batches of up to 10 events within a 2-second
-  window to `/api/v1/collect/batch/`. A batch that fails on the network or
-  with a 5xx is retried once after 5 seconds; on `pagehide`, whatever is
-  left goes by `sendBeacon`.
+  `@posthog/core`, and scrubs, caps and attributes it as
+  [Error-tracking privacy](SECURITY.md#error-tracking-privacy) describes.
+  It posts batches to `/api/v1/collect/batch/`, retries a failed batch once,
+  and on `pagehide` sends whatever is left by `sendBeacon`. The batch,
+  retry and cap constants are at the top of the file.
 - **The reporter never imports the router.** `src/router.tsx` registers a
   route-id reader with `setErrorRouteSource`, so a crash in the router's own
   module can still be reported.
@@ -462,8 +487,8 @@ uid 101 on port 8080 and is built for a read-only root filesystem:
 everything it writes is under `/tmp`, which must be a writable tmpfs.
 
 - `docker/nginx.main.conf` replaces the image's `nginx.conf`: the pid file
-  and temp paths under `/tmp`, connection limits sized for the notification
-  stream, and an include of `/tmp/nginx/conf.d/*.conf`.
+  and temp paths under `/tmp`, connection limits (its comments give the
+  sizing), and an include of `/tmp/nginx/conf.d/*.conf`.
 - `nginx.conf` is the server block, installed as a template. At start, the
   image's entrypoint runs `/docker-entrypoint.d/` in name order:
   `docker/05-prepare.sh` creates the render directory and validates
@@ -473,17 +498,13 @@ everything it writes is under `/tmp`, which must be a writable tmpfs.
   else, so nginx's own variables survive. A failing script stops the
   container before nginx starts.
 
-`nginx.conf`'s locations:
-
-| Location                       | Serves                                                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `/api/v1/notifications/stream` | The SSE stream: no buffering, an empty `Connection` header, a 24-hour read timeout, query-free logging. |
-| `/api/`                        | Every other API call, proxied to `API_UPSTREAM` with no path on `proxy_pass`.                           |
-| `/api/v1/collect/`             | The analytics and error proxy: a 10 MB body limit, streamed rather than buffered, for replay batches.   |
-| `= /runtime-config.js`         | The file the entrypoint wrote under `/tmp`.                                                             |
-| `/assets/`                     | Hashed assets; a missing one is a real 404, not `index.html`.                                           |
-| Any `.map` outside `/api/`     | 404, even where a file exists.                                                                          |
-| `/`                            | The SPA fallback to `index.html`.                                                                       |
+`nginx.conf` proxies `/api/` to `API_UPSTREAM`, gives
+`/api/v1/collect/` a larger request body that streams to the API for replay
+batches, serves `/runtime-config.js` from where the entrypoint wrote it,
+answers a missing file under `/assets/` with a real 404 rather than
+`index.html`, and falls back to `index.html` for every other path. Each
+location's comment in `nginx.conf` gives its reason; the source map
+location is covered in [CSP and headers](SECURITY.md#csp-and-headers).
 
 Cache-Control is chosen by a `map` on the URI, not per location: hashed
 assets are immutable for a year, and `index.html`, `theme-init.js`, the
@@ -501,11 +522,12 @@ or a build argument. The flow:
    writes `window.__APP_CONFIG__ = Object.freeze({...})`.
 2. `index.html` loads `/runtime-config.js` before the bundle.
 3. `getRuntimeConfig()` (`src/configs/runtime-config.ts`), the app's only
-   reader, applies the same patterns again. A production bundle reads only
-   `window.__APP_CONFIG__`; the dev server, `pnpm preview` and the unit tests
-   read the same names with a `VITE_` prefix from `import.meta.env`, and
-   `scripts/runtime-config-plugin.mjs` serves a matching
-   `/runtime-config.js` on the dev and preview servers.
+   reader, applies the same patterns again. A production bundle, the one
+   `pnpm preview` serves included, reads only `window.__APP_CONFIG__`. The
+   dev server and the unit tests read the same names with a `VITE_` prefix
+   from `import.meta.env`. On the dev and preview servers,
+   `scripts/runtime-config-plugin.mjs` renders `/runtime-config.js` from
+   those `VITE_` names.
 
 A new setting goes into `RUNTIME_CONFIG_KEYS` and `RUNTIME_CONFIG_PATTERNS`,
 the entrypoint script with the same pattern, `RUNTIME_CONFIG_NAMES` in
@@ -515,8 +537,8 @@ in the [README's run-time configuration table](README.md#run-time-configuration)
 and why the values are safe to write unescaped is in
 [Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
 
-`docker/check-image.sh` checks a built image from outside: the user, the
-read-only root, the headers and the absence of source maps.
+`docker/check-image.sh` checks a built image from outside; what it checks
+is listed in [CSP and headers](SECURITY.md#csp-and-headers).
 
 ## Sibling sync with apex
 
@@ -526,7 +548,7 @@ request, and the description says what happened there.
 
 | Path                                                                                                                                                                                                                            | Why it must stay in step                                                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `src/http/*`                                                                                                                                                                                                                    | Session refresh single-flight, 401-verdict sign-out, the SSE parser, trace headers, analytics identity order           |
+| `src/http/*`, except `sse.ts` (this app only)                                                                                                                                                                                   | Session refresh single-flight, 401-verdict sign-out, trace headers, analytics identity order                           |
 | `src/lib/api-error.ts`                                                                                                                                                                                                          | Error envelope parsing                                                                                                 |
 | `src/schemas/auth.schemas.ts`, `src/schemas/safe-text.schemas.ts`                                                                                                                                                               | Mirror the API's validators                                                                                            |
 | `src/components/ui/form.tsx`, `src/components/ui/sonner.tsx`                                                                                                                                                                    | Hand-written, shared behaviour                                                                                         |
@@ -541,8 +563,8 @@ request, and the description says what happened there.
 | `nginx.conf`'s `.map` location                                                                                                                                                                                                  | No source map is ever served                                                                                           |
 | `docker/nginx.main.conf`, `pnpm-workspace.yaml`, `tests/unit/docker/check-image-script.test.ts`, `tests/unit/docker/nginx-main-conf.test.ts`                                                                                    | Same container limits, dependency overrides and script tests                                                           |
 | `src/components/features/profile/security-section.tsx` and its test                                                                                                                                                             | One sign-out-other-sessions section                                                                                    |
-| `src/schemas/changed-fields.schemas.ts`, `src/hooks/use-changed-fields.ts` and their tests                                                                                                                                      | Changed-field edit forms                                                                                               |
-| `eslint.config.js` rule set (not its file lists)                                                                                                                                                                                | Same conventions                                                                                                       |
+| `src/schemas/changed-fields.schemas.ts`, `src/hooks/use-changed-fields.ts`, `tests/unit/hooks/use-changed-fields.test.tsx`                                                                                                      | Changed-field edit forms; each app keeps its own schema test                                                           |
+| `eslint.config.js`'s shared conventions                                                                                                                                                                                         | Same conventions; each app adds its own import restrictions and file lists                                             |
 
 The error scrubber is also held in step with express-boilerplate; see
 [The scrubber](SECURITY.md#the-scrubber).
