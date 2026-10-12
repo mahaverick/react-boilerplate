@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.2](https://github.com/mahaverick/react-boilerplate/compare/v1.9.1...v1.9.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* **errors:** sync the scrubber with express (AWS key, email query, compass) ([#70](https://github.com/mahaverick/react-boilerplate/issues/70)) ([8cfd353](https://github.com/mahaverick/react-boilerplate/commit/8cfd3534acb40375ab9d2bcd5bd923d6e8c21163))
+
 ## [1.9.1](https://github.com/mahaverick/react-boilerplate/compare/v1.9.0...v1.9.1) (2026-10-10)
 
 
