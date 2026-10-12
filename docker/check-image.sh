@@ -153,7 +153,13 @@ curl -s -o /dev/null "$base/api/v1/auth/google/callback?code=CHECK_OAUTH_CODE&st
 curl -s -o /dev/null "$base/api/v1/auth/google/callback/?code=CHECK_OAUTH_CODE_SLASH&state=S"
 curl -s -o /dev/null "$base/api/V1/Auth/Google/Callback?code=CHECK_OAUTH_CODE_CASE&state=S"
 curl -s -o /dev/null "$base/api/v1/health?code=CHECK_CONTROL_QUERY&state=S"
-error_log=$(docker logs "$name" 2>&1)
+# Docker copies the container's stderr into its log asynchronously, so wait
+# briefly for the control line before judging.
+for _ in $(seq 25); do
+  error_log=$(docker logs "$name" 2>&1)
+  case $error_log in *CHECK_CONTROL_QUERY*) break ;; esac
+  sleep 0.2
+done
 case $error_log in
   *'[error]'*'request: "GET /api/v1/health?code=CHECK_CONTROL_QUERY'*) ;;
   *) problem "an upstream error under /api/ wrote no error line with its request" ;;

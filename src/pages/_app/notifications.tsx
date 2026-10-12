@@ -120,7 +120,8 @@ function PreferenceRow({ preference }: { preference: NotificationPreference }) {
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
       <span className="font-medium">{label}</span>
       <div className="flex items-center gap-6 text-sm text-muted-foreground">
-        {/* Read-only: the API stores email as always on (non-disableable types), so this is "On" today. */}
+        {/* Read-only: NON_DISABLEABLE_NOTIFICATION_TYPES (API) covers every type, */}
+        {/* so email is always on and this reads "On". */}
         <span>Email: {preference.emailEnabled ? 'On' : 'Off'}</span>
         <div className="flex items-center gap-2">
           <span id={labelId}>

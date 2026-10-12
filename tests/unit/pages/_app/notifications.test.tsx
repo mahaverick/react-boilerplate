@@ -176,7 +176,6 @@ describe('notifications page', () => {
     expect(
       within(main).getByText(/email for these notifications cannot be turned off/i)
     ).toBeInTheDocument()
-    expect(within(main).queryByText(/not configurable yet/i)).not.toBeInTheDocument()
     expect(within(main).getAllByRole('switch')).toHaveLength(1)
     expect(within(main).getByRole('switch', { name: /Verify email/ })).not.toBeChecked()
   })

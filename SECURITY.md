@@ -211,9 +211,9 @@ The policy is enforced, not report-only:
   once on proxied and unproxied responses, no source map in the image, a
   refused run-time setting that stops the container without printing its
   value, an upstream error on the Google OAuth callback (exact, with a
-  trailing slash, or in mixed case) that writes none of its query string to the log while another `/api/` path still logs its
-  request, and a bundle that carries its release and no release id written by
-  inject.
+  trailing slash, or in mixed case) that writes none of its query string to
+  the log while another `/api/` path still logs its request, and a bundle
+  that carries its release and no release id written by inject.
 
 ## Run-time config injection safety
 
@@ -376,10 +376,9 @@ strings, fragments other than line or heading anchors, the token segment
 after `/reset/`, `/verify/`, `/invite/` or `/accept/`, Bearer, Basic and
 other Authorization credentials (Bearer and Basic with the unquoted or
 quoted `,key=value` or `;key=value` pairs glued to them), Cookie values,
-secret-named keys' values,
-JWTs, emails, PostHog and other vendor keys, IP addresses, `+`-prefixed phone
-numbers, and long hex and base64 runs, then cuts each text to 1024
-characters.
+secret-named keys' values, JWTs, emails, PostHog and other vendor keys, IP
+addresses, `+`-prefixed phone numbers, and long hex and base64 runs, then cuts
+each text to 1024 characters.
 
 ### What it does not catch
 
