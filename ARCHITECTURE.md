@@ -585,9 +585,8 @@ The error scrubber is also held in step with express-boilerplate; see
 - **A manual dispatch from another branch** pushes the sha-tagged image
   only; the `main` tag and the `deploy` job run only from `main`.
 
-Because a release promotes a digest rather than rebuilding, source maps are
-uploaded only when an image is built: a PostHog project added later needs a
-rebuild on `main` before its frames are symbolicated. The one-time
-repository setup, the release flow and the one-origin rule for deployments
-are in the README's [Deploying](README.md#deploying) and
-[Releases](README.md#releases) sections.
+A release promotes a digest rather than rebuilding, so source maps are
+uploaded only when an image is built; the consequence is in the README's
+[Source maps](README.md#source-maps). The one-time repository setup, the release
+flow and the one-origin rule for deployments are in the README's
+[Deploying](README.md#deploying) and [Releases](README.md#releases) sections.

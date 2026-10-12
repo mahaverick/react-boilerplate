@@ -71,7 +71,9 @@ bundle is in
 and why the values are safe to write unescaped is in
 [Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
 
-Every variable is optional. An unset or empty one means its default.
+Every variable is optional. When one is unset, its default applies. An empty
+value means the default too, except `API_UPSTREAM`: the container refuses an
+empty one.
 
 | Container env               | Dev `.env`                       | Pattern                                       | Default                  | Meaning                                                                                                 |
 | --------------------------- | -------------------------------- | --------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------- |
@@ -83,19 +85,14 @@ Every variable is optional. An unset or empty one means its default.
 | `APP_ENVIRONMENT`           | `VITE_APP_ENVIRONMENT`           | `[a-z][a-z0-9-]` up to 32                     | `development`            | Sent as `environment` on every browser event and exception. Set it to express's `APP_ENV` value.        |
 
 - `docker/10-runtime-config.sh` checks every value against its pattern at start.
-  An invalid one **stops the container** with
-  `10-runtime-config.sh: POSTHOG_KEY must be …`. The message names the variable
-  and never prints the value, so a typo fails the rollout instead of quietly
-  switching analytics off.
-- `API_UPSTREAM` is checked by `docker/05-prepare.sh`: `http://` or `https://`, a
-  host (or a bracketed IPv6 address) and an optional port, with no path, not even
-  a trailing `/`. A path there makes nginx rewrite the URI, so express stops
-  matching its routes. Any other value stops the container with
+  An invalid one **stops the container** and names the variable, never its value,
+  so a typo fails the rollout instead of quietly switching analytics off.
+  `API_UPSTREAM` is checked by `docker/05-prepare.sh`: no path, not even a
+  trailing `/`, or the container stops with
   `API_UPSTREAM must be scheme://host[:port] with no path, got: …`.
-- The app reads the values only through `getRuntimeConfig()`
-  (`src/configs/runtime-config.ts`), which applies the same patterns again. An
-  invalid value there counts as unset, except a consent mode, which fails closed
-  to `off`.
+- `getRuntimeConfig()` (`src/configs/runtime-config.ts`) applies the patterns
+  again; the consent mode fails closed
+  ([how](ARCHITECTURE.md#the-container-and-run-time-config)).
 - Every value is public: each browser receives `/runtime-config.js`. The PostHog
   key may come from a secret store but is not a secret.
 
@@ -226,8 +223,9 @@ express evaluates every flag; this app only reads the values. How is in
 [CLAUDE.md](CLAUDE.md#feature-flags). To add one:
 
 1. Add it to express's flag registry
-   (`express-boilerplate/src/constants/flags.constants.ts`) and run `flags:sync`
-   there.
+   (`express-boilerplate/src/constants/flags.constants.ts`) with `client: true`
+   and `react` in `apps`, and run `flags:sync` there. Without both, express never
+   sends the flag to this app.
 2. Copy its key, kind, variants, fallback and `experiment` into
    `CLIENT_FLAGS` in `src/observability/flags/flag-keys.ts`.
 3. Copy its fallback into `TEST_FLAG_FALLBACKS` (`tests/mocks/handlers.ts`) and
@@ -240,13 +238,25 @@ Events go through the API's `/api/v1/collect` proxy, never to PostHog directly.
 The mechanism is in [Analytics](ARCHITECTURE.md#analytics) and the privacy rules
 are in [Analytics privacy](SECURITY.md#analytics-privacy).
 
-`e2e/nginx/analytics.test.ts` runs against the production image started with the
-settings CI uses (`pnpm test:e2e:nginx` starts it the same way). Its `@no-api`
-tests run in CI with a fake PostHog answering `/api/v1/collect` through
-Playwright. Its live half needs `E2E_LIVE=1 E2E_ANALYTICS=1` and an express
-behind the image with `POSTHOG_PROJECT_KEY=phc_test_key_not_real` and
-`POSTHOG_HOST` and `POSTHOG_ASSETS_HOST` pointing at the suite's fake PostHog on
-port 4063 (`E2E_FAKE_POSTHOG_PORT` changes it).
+`e2e/nginx/analytics.test.ts` runs against the production image started with
+the settings CI uses (`POSTHOG_KEY=phc_test_key_not_real`, `APP_ENVIRONMENT=ci`,
+`ANALYTICS_HANDOFF_ORIGINS=https://www.example.test`). Its `@no-api` tests run in
+CI with a fake PostHog answering `/api/v1/collect` through Playwright. The live
+half needs an express on `:4040` started with
+`POSTHOG_PROJECT_KEY=phc_test_key_not_real`, `POSTHOG_HOST` and
+`POSTHOG_ASSETS_HOST` both `http://127.0.0.1:4063`, and
+`ANALYTICS_DRAIN_INTERVAL_MS=1000`. Then:
+
+```bash
+E2E_ANALYTICS=1 pnpm test:e2e:nginx
+```
+
+The script builds the image with the settings above, sets `E2E_LIVE` and
+`E2E_NGINX` itself, and reaches the express on the host through
+`--add-host=api:host-gateway`. The suite starts the fake PostHog on :4063
+(`E2E_FAKE_POSTHOG_PORT` moves it). For an express elsewhere, run the image
+yourself with `API_UPSTREAM` pointing at it and set `E2E_NGINX_ORIGIN` and
+`E2E_API_ORIGIN`.
 
 ## Docker
 
@@ -317,8 +327,8 @@ the npm package, not the download.
 
 **One-time setup, per repository:**
 
-- Create a PostHog **personal API key** with the error-tracking write scope
-  (sourcemap upload) for the organisation, and store it as the repository
+- Create a PostHog **personal API key** that can upload source maps
+  for the organisation, and store it as the repository
   **secret `POSTHOG_CLI_TOKEN`**. It reaches the build as a BuildKit secret:
   never in a layer, an image or the provenance attestation.
 - Set the repository **variable `POSTHOG_SOURCEMAP_PROJECTS`** to a
@@ -336,13 +346,10 @@ an image is built: a release tag promotes the same digest and uploads nothing, s
 
 ## Deploying
 
-A push to `main` runs [`deploy.yml`](.github/workflows/deploy.yml), which calls
-`ci.yml` as a gate and, once it passes, builds and pushes
-`ghcr.io/<repo>:sha-<commit>` and `:main` to GHCR with an SBOM and build
-provenance attestation. The `deploy` job itself is a placeholder: no deployment
-target has been chosen. A manual `workflow_dispatch` from another branch only
-pushes the sha-tagged image; the `:main` tag and the `deploy` job run only from
-`main`. The pipeline's shape is in [Deploy](ARCHITECTURE.md#deploy).
+A push to `main` runs [`deploy.yml`](.github/workflows/deploy.yml): the CI
+gate, then an image build and push to GHCR, then a `deploy` job that is a
+placeholder because no deployment target has been chosen. The pipeline is in
+[Deploy](ARCHITECTURE.md#deploy).
 
 **Add protection rules to the `production` GitHub Environment** (Settings →
 Environments → `production`), at minimum required reviewers, before replacing the
