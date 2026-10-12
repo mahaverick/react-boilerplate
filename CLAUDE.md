@@ -1,712 +1,447 @@
 # CLAUDE.md
 
-Guidance for Claude Code (and any other agent) working in this repository.
-
-This file is not a tour of the codebase — the code says what it does, and the
-comments in it say why. What follows is the set of decisions that look wrong
-until you know the reason. Changing one
-of these is a deliberate act, not a tidy-up.
-
-## What this is
-
-A React 19 + TypeScript SPA that talks to the `express-boilerplate` API. Vite,
-TanStack Router (file-based), TanStack Query, TanStack Form, Zustand, Tailwind
-v4, Base UI via shadcn, axios, Zod v4, Vitest + Testing Library + MSW.
+Rules and gotchas for changing code in this repository. The decisions here look
+wrong until you know the reason; changing one is a deliberate act, not a tidy-up.
+How the app fits together is in [ARCHITECTURE.md](ARCHITECTURE.md), what it
+defends against is in [SECURITY.md](SECURITY.md), and how to run, configure and
+deploy it is in [README.md](README.md).
 
 ## Sibling sync
 
-`apex-boilerplate` (the staff dashboard) started as a copy of this repo. These
-paths hold the same behaviour in both; a change to one here means checking the
-other in the same PR, and the PR description says what happened there
-("ported in apex#N", or "not applicable because …").
+`apex-boilerplate` shares the HTTP layer, analytics, flags, error tracking, most
+of the container and several components with this app. When you change a shared
+path, change apex in the same PR, and say in the description what happened there
+("ported in apex#N", or "not applicable because …"). The paths are listed in
+[Sibling sync with apex](ARCHITECTURE.md#sibling-sync-with-apex).
 
-| Path                                                                                                                                                                                                                                 | Why it must stay in step                                                                                               |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `src/http/*`                                                                                                                                                                                                                         | Session refresh single-flight, 401-verdict sign-out, SSE transport, trace headers, analytics identity order            |
-| `src/lib/api-error.ts`                                                                                                                                                                                                               | Error envelope parsing                                                                                                 |
-| `src/schemas/auth.schemas.ts`, `src/schemas/safe-text.schemas.ts`                                                                                                                                                                    | Mirror the backend validators                                                                                          |
-| `src/components/ui/form.tsx`, `src/components/ui/sonner.tsx`                                                                                                                                                                         | Hand-written, shared behaviour                                                                                         |
-| `nginx.conf` security headers and CSP, and `location /api/v1/collect/`                                                                                                                                                               | Same threat model; same replay batch size                                                                              |
-| `src/observability/analytics/*`, except `config.ts`'s per-app constants and `events.ts`'s registry                                                                                                                                   | One PII, consent, handoff and identity contract for both apps                                                          |
-| `src/components/shared/pii.tsx`, `e2e/helpers/fake-posthog.ts`                                                                                                                                                                       | The masking class and the egress guard's fake PostHog                                                                  |
-| `src/observability/flags/**`, except `flag-keys.ts` (each app's registry slice) and `flag-scope.ts` (each app's scope), and `tests/unit/observability/flags/**` (except `flag-scope.test.ts`), `tests/fixtures/test-client-flags.ts` | One flag read, exposure and `$feature/*` contract; the tests mock `flag-keys` with test keys so they pass in both apps |
-| `docker/10-runtime-config.sh`, `src/configs/runtime-config.ts`, `scripts/runtime-config-plugin.mjs`, `nginx.conf`'s `location = /runtime-config.js`                                                                                  | One run-time configuration contract: the same variable names, patterns and file in both images                         |
-| `public/theme-init.js`, `src/lib/zod-jitless.ts`                                                                                                                                                                                     | CSP compatibility                                                                                                      |
-| `src/observability/errors/**`, `src/observability/identity-epoch.ts`, `tests/fixtures/error-scrub-vectors.json`                                                                                                                      | One capture, filter, scrub and consent contract; the vectors are express-boilerplate's, byte for byte                  |
-| `docker/upload-sourcemaps.sh`, `docker/check-image.sh`, `docker/posthog-cli.sha256`, `.github/workflows/deploy.yml`                                                                                                                  | One source map pipeline; `deploy.yml` is byte-identical in express-boilerplate too                                     |
-| `nginx.conf`'s `.map` location                                                                                                                                                                                                       | No source map is ever served                                                                                           |
-| `docker/nginx.main.conf`, `pnpm-workspace.yaml`, `tests/unit/docker/{check-image-script,nginx-main-conf}.test.ts`                                                                                                                    | Same container limits, dependency overrides and script tests                                                           |
-| `src/components/features/profile/security-section.tsx` and its test                                                                                                                                                                  | One sign-out-other-sessions section; apex adds `useRevokeOtherSessions` to its own `auth.queries.ts`                   |
-| `src/schemas/changed-fields.schemas.ts`, `src/hooks/use-changed-fields.ts` and their tests                                                                                                                                           | Changed-field edit forms; byte for byte wherever apex adopts them                                                      |
-| `eslint.config.js` rule set (not its file lists)                                                                                                                                                                                     | Same conventions                                                                                                       |
+## Staff on tenant pages
 
-Staff screens live in Apex. This app keeps the staff paths that live on tenant
-pages — the platform-access banner, the Staff filter on each tenant's Activity
-tab — and the **Platform** menu item (the platform tenant's Members and
-Invitations pages) until Apex's directory work replaces that item.
+Staff screens live in apex. This app keeps three staff surfaces that sit on tenant
+pages:
 
-**On a customer tenant reached through platform access (`access === 'platform'`), the
-Members tab is read-only**: no role change, removal, invite, resend or revoke, and for a
-staff owner or admin one line in the members card points to the staff console (a staff
-viewer's role allows those writes nowhere, so they get no such line). From express 2.0.0, those routes
-answer staff there with `REAUTH_REQUIRED` or `REASON_REQUIRED` unless the sign-in is recent
-and a reason comes with the request (`requireRecentAuthAndReasonOnPlatformAccess`), and only
-Apex has that reason and step-up flow. The member list and the pending invitations stay
-readable. Staff who are also members of the tenant reach it with `access: 'member'` and keep
-their controls, as does everyone on the platform tenant's own pages.
+- the platform-access banner;
+- the Staff filter and badge on a tenant's Activity tab;
+- the **Platform** menu item, for staff, which opens the platform tenant's pages.
 
-## Commands
+**A customer tenant reached through platform access (`access === 'platform'`)
+shows a read-only Members tab.** It offers no role change, removal, invite, resend
+or revoke. A staff owner or admin sees one line pointing to the staff console. The
+reason: express refuses those writes from staff without a recent sign-in and a
+reason (`requireRecentAuthAndReasonOnPlatformAccess`), and only apex has that
+step-up and reason flow. The member list and pending invitations stay readable.
+Staff who are members of the tenant (`access: 'member'`) keep their controls.
 
-| Command              | What it does                                                                                       |
-| -------------------- | -------------------------------------------------------------------------------------------------- |
-| `pnpm dev`           | Dev server on :5173, proxying `/api` to `:4040`                                                    |
-| `pnpm build`         | `tsc -b` then `vite build`                                                                         |
-| `pnpm lint`          | eslint **and** `prettier --check` — both must be clean                                             |
-| `pnpm typecheck`     | `tsc --noEmit` over `tsconfig.app.json`, then `e2e/tsconfig.json`                                  |
-| `pnpm test`          | Vitest, one pass                                                                                   |
-| `pnpm test:coverage` | Vitest with coverage; fails under 88/82/86/89 (statements/branches/functions/lines), as CI runs it |
-| `pnpm format`        | prettier --write                                                                                   |
-| `pnpm knip`          | Unused files, exports, types and dependencies; CI runs it                                          |
+## The gate
 
-The gate is **0 errors and 0 warnings**: verify with
-`pnpm exec eslint . --max-warnings 0`, not with a bare `pnpm lint`, whose
-eslint half exits 0 on warnings.
+- **0 errors and 0 warnings.** Check with `pnpm exec eslint . --max-warnings 0`,
+  as CI and the pre-push hook do. `pnpm lint`'s eslint half exits 0 on warnings.
+- `pnpm lint` also runs `prettier --check`, and CI runs `pnpm lint:docs`,
+  `pnpm knip`, `pnpm typecheck`, `pnpm test:coverage` (thresholds in
+  `vitest.config.ts`), `pnpm check:bundle` and the `e2e` and `docker` jobs. The scripts
+  are in [README.md](README.md).
 
 ## Dead code (knip)
 
-`pnpm knip` fails on an unused file, export, type or dependency, and CI's
-`lint` job runs it. knip is pinned to an exact version: a release can report
-new kinds of finding, so it moves deliberately. `knip.jsonc` is knip's
-defaults plus a few ignores, each with its reason beside it; JSON allows no
-comments, which is why it is `.jsonc`. In short:
-
-- **`src/components/ui/**` exports and types.** Vendored shadcn output keeps
-  each primitive's full export list so `shadcn add` can restore and upgrade
-  it. A vendored file nothing imports still fails: delete it.
-- **Type findings in `src/observability/analytics/index.ts`.** The barrel is
-  byte-identical with apex's, and apex imports `BrowserEvent` from it.
-- **Files nothing imports by design:** `scripts/*.d.mts` (the `.mjs`
-  scripts' types), `public/mockServiceWorker.js` (MSW's worker, fetched by the
-  e2e harness) and `.styleseed/palettes/members.css` (hashed by StyleSeed's
-  manifest).
-- **`break`** is a shell builtin in `test:e2e:nginx`, and **`@posthog/cli`** is
-  run by name in the Dockerfile and `docker/upload-sourcemaps.sh`.
+`pnpm knip` fails CI on an unused file, export, type or dependency. knip is pinned
+exactly, because a release can add new kinds of finding. Every ignore in
+`knip.jsonc` carries its reason beside it, which is why the file is `.jsonc`. An
+ignore without a reason does not go in.
 
 When it reports something:
 
-- An export used only in its own file loses `export`; a symbol used nowhere is
+- An export used only in its own file loses `export`. A symbol used nowhere is
   deleted, and a re-export nobody imports leaves its barrel.
-- An export a test imports is used: knip counts tests, so a test seam stays
-  exported. `pnpm knip --production` (not in CI) lists the exports only tests
-  import.
+- An export a test imports counts as used, so a test seam stays exported.
+  `pnpm knip --production` (not in CI) lists the exports only tests import.
 - A `.mjs` export is removed from its `.d.mts` in the same change.
-- In a file byte-identical with apex's, change both apps when apex's knip
-  reports the same finding; when only this app's does, add an ignore naming
-  apex's use instead.
-- An ignore without a reason beside it does not go in.
+- A vendored file under `src/components/ui/` that nothing imports still fails:
+  delete it. Only its export and type findings are ignored.
+- In a file shared with apex, change both apps when apex's knip reports the same
+  finding. When only this app's knip reports it, add an ignore that names apex's
+  use.
 
 ## Git hooks
 
-- **Tracked in `.husky/`, executable.** pre-commit: lockfile drift, lint-staged
-  (eslint `--fix --max-warnings 0` + prettier on staged files), `vitest --changed`.
-  commit-msg: commitlint (conventional commits). pre-push: the full lint gate,
-  typecheck and unit tests — **no e2e**, on purpose: a long pre-push hook can
-  outlast the SSH connection and drop the push. CI runs e2e.
-- **Hooks call `pnpm exec`, never `npx`** — `npx` on a fresh machine downloads
-  whatever version is newest, not the one this repo tested against.
-- **The hooks must stay committed.** `prepare` generates only husky's `_/`
-  directory, so if `git ls-files .husky` is ever empty, no hook runs locally.
+- **The hooks live in `.husky/` and must stay committed.** `prepare` generates only
+  husky's `_/` directory, so if `git ls-files .husky` is empty, no hook runs.
+- **pre-push runs no e2e.** A long pre-push hook can outlast the SSH connection and
+  drop the push. CI runs e2e.
+- **Hooks call `pnpm exec`, never `npx`.** On a fresh machine `npx` downloads the
+  newest version, not the one this repo tested against.
 
-## CI and deploy
+## CI
 
-`ci.yml` runs on PRs and is called by `deploy.yml` on push to `main` as the
-gate; then `deploy.yml` builds and pushes `ghcr.io/<repo>:sha-<commit>` and
-`:main` with SBOM and provenance attestations, then runs a placeholder
-`deploy` job bound to the `production` environment. Keep CI's concurrency
-group keyed on `github.event_name`, not `github.workflow`: when `deploy.yml`
-calls `ci.yml`, `github.workflow` is the caller's name. Non-PR runs are grouped
-per commit so a newer push never drops a pending one. A manual
-`workflow_dispatch` from a non-`main` branch pushes an sha-tagged image
-only — `:main` and the `deploy` job both run only from `main`.
+- **Key CI's concurrency group on `github.event_name`, not `github.workflow`.**
+  When `deploy.yml` calls `ci.yml`, `github.workflow` is the caller's name.
+  Non-PR runs are grouped per commit, so a newer push never drops a pending gate.
+- **A moderate advisory in a production dependency fails CI**
+  (`pnpm audit --prod --audit-level moderate`). Because `test` is a required
+  check, the advisory blocks every PR. Prefer an `overrides` entry in
+  `pnpm-workspace.yaml` that forces the patched version, with a comment naming the
+  advisory. When no patched version exists, `pnpm audit --ignore <GHSA>` writes the
+  ID under `auditConfig.ignoreGhsas`. Add a comment by hand with the reason and a
+  date to revisit.
+- The PR title must be a conventional commit: it becomes the squash commit that
+  release-please reads. How releases and images flow is in
+  [Deploy](ARCHITECTURE.md#deploy) and the [README](README.md#releases).
 
-- `gitleaks.yml` scans each PR's commits and each push to `main` for secrets.
-- `pr-title` — the PR title must be a conventional commit; it becomes the squash commit release-please reads.
-- `ci.yml`'s `test` job runs `pnpm audit --prod --audit-level moderate`: a moderate or worse advisory in a production dependency fails CI.
-  A second, non-blocking step runs `pnpm audit --audit-level critical` over dev dependencies too, so a critical advisory in build or test tooling shows on every run.
-  Because `test` is a required check, an advisory with no fixed version blocks every PR. Prefer an `overrides` entry in `pnpm-workspace.yaml` that forces the patched version (one GHSA comment per entry).
-  When no patched version exists, the escape hatch is `pnpm audit --ignore <GHSA>`,
-  which writes that one ID under `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`; add a comment there by hand giving the reason and a date to revisit.
+## Auth
 
-**Releases merge themselves.** `release.yml` queues release-please's PR with
-`--auto`, falling back to a direct merge if `--auto` is refused; the `main`
-ruleset (README, one-time setup) keeps either from skipping required checks.
-Its token is a GitHub App's (variable `RELEASE_APP_CLIENT_ID`, secret `RELEASE_APP_PRIVATE_KEY`; Contents
-and Pull requests read/write), not `GITHUB_TOKEN`, whose events start no
-workflow. The `vX.Y.Z` tag re-runs `deploy.yml`, whose `promote` job builds
-nothing: it waits for `:sha-<commit>` from `main`'s run and adds `:X.Y.Z`,
-`:X.Y` and `:X` to that same digest. Tag runs skip `ci`, `image` and `deploy`.
+Each rule's reason is in [Token storage and refresh](SECURITY.md#token-storage-and-refresh)
+and [Sign-out rules](SECURITY.md#sign-out-rules).
 
-## Auth — the rules that break silently when broken
+- **The API prefix is fixed and relative.** It is `API_PREFIX` in
+  `src/constants/routes.ts`. Add no environment variable for it, and never call an
+  absolute API URL ([The HTTP layer and session](ARCHITECTURE.md#the-http-layer-and-session)
+  lists everything that moves with it).
+- **The access token is memory-only.** It lives only in `auth.store`, and that
+  store never gets a `persist` middleware.
+- **`ensureSession()` is the only caller of `/auth/refresh`.** A second call site
+  brings back the refresh race, and the existing tests will not see it.
+- **Only an auth verdict signs a user out** (`isAuthVerdict`). If you widen it to
+  any error, every user is signed out during a deploy.
 
-- **The API prefix is fixed and relative** (`/api/v1`), written once as
-  `API_PREFIX` in `src/constants/routes.ts`. This SPA's own traffic is same-origin
-  by design — the dev server proxies `/api`, and the container's nginx does the
-  same — so an absolute URL fails at runtime in a way no test catches. Do not add an
-  environment variable for it: one that moves only the axios base leaves the
-  stream's URL, the Google OAuth anchor and nginx's SSE `location` on the old
-  prefix. Moving the prefix means changing `API_PREFIX` and `nginx.conf`'s SSE
-  `location` together; `vite.config.ts` proxies all of `/api`, so it changes
-  only for a prefix outside `/api`. **The backend is not actually CORS-blind** — its
-  `src/configs/cors.config.ts` (express-boilerplate) answers a cross-origin
-  caller, and its `allowedHeaders` entry for `Last-Event-ID` is the only reason
-  a second, cross-origin frontend's stream can replay on reconnect at all —
-  same-origin is simply what this particular SPA ships as.
-- **The access token is memory-only.** It lives in `auth.store` and nowhere
-  else. Never write it to `localStorage`, `sessionStorage`, a cookie or a query
-  string, and never add a `persist` middleware to that store. The refresh token
-  is an httpOnly cookie the browser owns; the client never reads it.
-- **`ensureSession()` is the only caller of `/auth/refresh`.** That single-flight
-  wrapper is what makes N concurrent 401s produce exactly one refresh. A second
-  call site anywhere — an interceptor, a retry, a bootstrap path — reintroduces
-  the thundering herd it exists to prevent, and the existing tests will not see
-  it.
-- **A user is signed out only by a 401 verdict**: a 401 on a request made by
-  `refreshSession()`, or a 401 WITHOUT `ACCESS_TOKEN_EXPIRED` or `REAUTH_REQUIRED` on any request
-  that carried a bearer token and no `skipAuthRetry` (interceptors.ts). Not
-  "the refresh failed", not "the server answered". A 502
-  during a rolling restart, a timeout, a dropped connection: none of those sign
-  anyone out. Widening this to any error is the single easiest way to log every
-  user out during a deploy.
+## Analytics
 
-## Analytics — the rules that leak PII when broken
+Each rule's reason is in [Analytics privacy](SECURITY.md#analytics-privacy).
 
-- **Every rendered person name, email address, avatar initial and invitation
-  address is wrapped in `<Pii>`** (`src/components/shared/pii.tsx`). Wrap the
-  value, not the sentence. A page that renders a new kind of person data gets
-  its fixture in the harness's `?pii=probe` mode and a scan in
-  `e2e/fixtures/pii.test.ts`; without that, the guard cannot see it.
-- **Replay masks attributes by name, not by `<Pii>`**, which cannot wrap one.
-  `maskReplayAttribute` (`mask-attribute.ts`, passed as `session_recording.maskAttributeFn`)
-  turns `aria-label`, `title`, `alt`, `placeholder`, `srcdoc`, every `data-*`, an `href` with a
-  query or a `mailto:`/`tel:` scheme, and a `src` or `srcset` with a query into `***`, and rrweb applies it
-  to the full snapshot and to added nodes and attribute changes alike. That is why an
-  accessible name may carry an address ("Resend invitation to …"); an attribute outside that
-  list may not. `e2e/nginx/analytics.test.ts` pins `aria-label` on all three paths.
+- **Wrap every rendered person name, email address, avatar initial and invitation
+  address in `<Pii>`.** Wrap the value, not the sentence. A page that renders a
+  new kind of person data needs a fixture in the harness's `?pii=probe` mode and a
+  scan in `e2e/fixtures/pii.test.ts`. Without them the guard cannot see it.
+- **An attribute may carry personal data only if `mask-attribute.ts` masks it.**
+  `e2e/nginx/analytics.test.ts` pins `aria-label` masking in the full snapshot and in later mutations.
 - **Only `src/observability/analytics/` imports posthog-js**, and only
   `analytics.ts` imports it as a value, through `import()`. `pnpm check:bundle`
-  fails if it reaches the first-visit chunks.
-- **A browser event is declared in `events.ts`** with fixed keys
-  (`analyticsKey('…')`), numbers, booleans or literal unions. A free `string`
-  property fails `REGISTRY_HAS_NO_FREE_STRINGS` at compile time; do not widen
-  it: a free string is how a name or a search term gets into an event.
-- **The browser never sets person or group properties.** `identify` takes the
-  id alone; `is_staff`, `platform_role` and the tenant's name are the server's,
-  where a customer cannot forge them from devtools.
-- **Captured URLs keep only `ANALYTICS_URL_QUERY_ALLOWLIST` keys.** Add a key
-  there only when its values can never be a token, an address or a redirect.
-- **`posthog.reset()` drops the super properties and the consent answer.**
-  `resetAnalytics`, `identifyUser` and `forgetStaleIdentity` go through
-  `resetKeepingConsent`, which registers `app` and `environment` again,
-  re-applies the current page's tenant group (sign-out clears it first) and
-  re-applies the consent; never call the SDK's `reset()` around it.
-- **Page views come from the router, not posthog-js.** `capture_pageview` is
-  off; `installRouteAnalytics` (registered in `router.tsx` before the first
-  load) sets or clears the tenant group from the resolved route's loader data
-  and only then captures `$pageview`. Turning the SDK's history page views
-  back on, or grouping from a component effect, files every page view under
-  the previous page's tenant.
-- **While a user is signed in, the facade drops any event under another
-  distinct id** (`guardEvent` in `analytics.ts`) and identifies the user again:
-  posthog-js adopts the identity cookie a sibling-subdomain website shares
-  before every event. Never loosen it to log-and-send. It repairs only
-  foreign identities: a person another tab of this app identified (announced
-  on the `analytics-identity` channel, and written first to a short-lived
-  `localStorage` registry, which narrows the race a stalled event loop
-  opens between the repair timer and the channel's message) supersedes this tab, which signs itself
-  out and never resets the SDK under the other tab.
-- **posthog-js minors wait for a human** (`renovate.json`). Before taking
-  one, run the tests that pin its internals: `url-sanitizer.test.ts`,
-  `handoff.test.ts` and `analytics.sdk.test.ts` (all run the real SDK) and
+  fails if it reaches a first-visit chunk.
+- **Declare every event in `events.ts`**, with no free `string` property. Do not
+  widen `REGISTRY_HAS_NO_FREE_STRINGS`.
+- **The browser never sets person or group properties.**
+- **Add a key to `ANALYTICS_URL_QUERY_ALLOWLIST` only when its values can never be
+  a token, an address or a redirect.**
+- **Never loosen `guardEvent` to log-and-send.**
+- **Never call the SDK's `reset()` directly.** It drops the super properties and
+  the consent answer. `resetKeepingConsent` restores both and the page's tenant
+  group.
+- **Page views come from the router, not posthog-js.** Turning the SDK's history
+  page views back on, or grouping from a component effect, files each page view
+  under the previous page's tenant
+  ([Router hooks](ARCHITECTURE.md#router-hooks-this-app-only)).
+- **posthog-js minors and majors wait for a human** (`renovate.json`). Before
+  taking one, run the suites that pin its internals: `url-sanitizer.test.ts`,
+  `handoff.test.ts` and `analytics.sdk.test.ts` (in
+  `tests/unit/observability/analytics/`, against the real SDK), and
   `e2e/nginx/analytics.test.ts`.
 
-## Feature flags — the rules that leak or lie when broken
+## Feature flags
 
-- **Express is the only evaluator.** The app reads values from the flags
-  endpoints (`src/observability/flags/`); posthog-js does no flag work
-  (`advanced_disable_feature_flags`), and nothing calls `getFeatureFlag`,
-  `isFeatureEnabled` or `onFeatureFlags`. Never switch to
-  `advanced_disable_flags`: it also stops remote config, so replay never
-  starts. Never pass `bootstrap.featureFlags`: posthog-js would put those
-  values on every event over the server's.
-- **A flag is a key in `flag-keys.ts` first.** It mirrors express's registry
-  entries with `client: true` and `react` in `apps`; a key it lacks is a
-  typecheck failure, and a key the server sends that it lacks is dropped.
-- **A gated page has a gated API route.** `requireClientFlag` only hides the
-  page; the API route behind it carries express's `requireFlag`, which
-  answers 404 while the flag is off.
-- **The browser reports exposure, the server records it.** The hooks send
-  experiment keys, never values, to the exposure endpoint, whatever the
-  analytics consent; express re-evaluates each key and records only a
-  matched condition or a holdout.
-- **`$feature/*` is registered from `useFeaturePropertiesSync` in
-  `AppLayout`, never from the query**: a loader also runs for a hovered
-  link's preload, and that scope is not the page's. Before each page view the
-  router syncs them too (`installRouteFeatureProperties`, on `onLoad`, which
-  fires before `onResolved` captures the page view and never for a preload):
-  `main.tsx` runs the first load before React mounts, so without it the
-  landing page view carries no `$feature/*`. The hook syncs in a layout
-  effect, which within a navigation also runs before `onResolved`; a passive
-  effect would be ordered before it only by React's flush timing. Pages
-  outside the shell, such as `/login`, `/reset-password` and
-  `/invitations/accept`, are synced to the no-tenant scope's cached values, or
-  to none, rather than keeping the last shell page's.
+How flags are read is in [Feature flags](ARCHITECTURE.md#feature-flags).
 
-## Maintenance mode — the rules that strand users when broken
+- **The API is the only evaluator.** Nothing calls posthog-js's `getFeatureFlag`,
+  `isFeatureEnabled` or `onFeatureFlags`. Keep `advanced_disable_feature_flags`.
+  Never switch to `advanced_disable_flags`: it also stops remote config, so replay
+  never starts. Never pass `bootstrap.featureFlags`: posthog-js would put those
+  values on every event, over the server's.
+- **A flag is a key in `flag-keys.ts` first**, mirroring express's registry entry.
+  A value the server sends for a key the slice lacks is dropped.
+- **A gated page has a gated API route.** `requireClientFlag` only hides the page.
+  Express's `requireFlag` is what refuses.
+- **Register `$feature/*` from a layout effect or a router hook, never from a
+  query or loader.** A loader also runs for a hover preload, whose scope is not the
+  page's.
 
-- **Only a known `Maintenance-Mode` value moves the mode.** A response with
-  no header (an nginx 502 page) or an unknown value changes nothing; only an
-  explicit `off` ends maintenance. A cached response carries the header it was
-  stored with, possibly stale, which is why the status read sends
-  `Cache-Control: no-cache`. Loosening this ends
-  maintenance on every deploy's first 502.
-- **The header is read in `src/lib/maintenance-mode.ts`, not `src/http/`.**
-  `src/http/*` is byte-shared with Apex, which ignores the header; the
-  interceptor is installed on `apiClient` from `router.tsx`, before the first
-  request.
-- **A maintenance 503 is never a sign-out.** The 401 rules above are
-  untouched by it, and `_app`/`_auth` do not redirect while the mode is
-  `full`: a page loaded then has a token but no profile, and the redirect
-  would lose the URL the recovery (`MaintenanceGate`) returns the user to.
-- **The maintenance page is imported statically** into `__root.tsx`, for the
-  reason the router's error screen is: it is needed exactly when the API is
-  failing.
+## Maintenance mode
+
+How it works is in [Maintenance mode](ARCHITECTURE.md#maintenance-mode).
+
+- **Only a known `Maintenance-Mode` value moves the mode.** A response with no
+  header, such as nginx's 502 page, or with an unknown value changes nothing. If you
+  loosen this, maintenance ends on every deploy's first 502.
+- **Read the header in `src/lib/maintenance-mode.ts`, never in `src/http/`.**
+  `src/http/` is shared with apex, which has no maintenance handling.
+- **A maintenance 503 is never a sign-out, and the layout guards never redirect
+  while the mode is `full`.** The URL is what recovery returns the user to. The API
+  lets the session restore through in `full`, so a page loaded then is signed in
+  as usual.
+- **`MaintenanceGate` and `MaintenancePage` stay statically imported** into
+  `__root.tsx`. They are needed exactly when the API is failing.
 
 ## The container
 
-- **nginx enforces a Content-Security-Policy with `script-src 'self'`.** There
-  is no inline script anywhere, and there must not be one: the pre-paint theme
-  script is `public/theme-init.js`, loaded by a blocking `<script src>`. A new
-  origin for scripts, styles, images, fonts or `fetch` means changing the policy
-  in `nginx.conf` in the same commit. The README's CSP section has the reasons
-  for each directive.
-- **`src/lib/zod-jitless.ts` is the first import in `main.tsx`, `tests/setup.ts`
-  and `e2e/harness/harness.tsx`**, because Zod's JIT probe trips `script-src 'self'`;
-  never fix that by adding `'unsafe-eval'` instead.
-- **It listens on 8080 as uid 101 and is built for a read-only root.** Everything
-  it writes is under `/tmp`, so it needs a writable `/tmp` (a tmpfs);
-  `docker/check-image.sh` checks all of this from outside.
-- **No `location` declares `add_header`.** One that did would silently drop
-  every security header — `nginx.conf`'s map comment says why.
-- **Nothing is configured at build time.** One image digest is promoted
-  through every environment, so a setting that differs between environments
-  is a container environment variable read at start, never a `VITE_*` value
-  or a build ARG. The Dockerfile's ARGs are per commit, not per environment:
-  `GIT_SHA` is the release, and the source map ARGs say where its maps go.
-  `docker/10-runtime-config.sh` validates each one and writes
-  `/runtime-config.js`; the app reads only `getRuntimeConfig()`
-  (`src/configs/runtime-config.ts`). A new setting goes into
-  `RUNTIME_CONFIG_KEYS` and `RUNTIME_CONFIG_PATTERNS`, the script (same
-  pattern), `RUNTIME_CONFIG_NAMES` in `scripts/runtime-config-plugin.mjs`,
-  `docker/check-image.sh`, `.env.example` and the README's table, in one
-  change. A pattern admits no quote, backslash, `<` or newline (the script
-  writes values unescaped), and the script's error names the variable,
-  never the value.
+The mechanism is in [The container and run-time config](ARCHITECTURE.md#the-container-and-run-time-config).
+The reasons are in [CSP and headers](SECURITY.md#csp-and-headers) and
+[Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
 
-## Error tracking — the rules that leak or go blind when broken
+- **No inline script, ever.** The CSP is `script-src 'self'`. A new origin for
+  scripts, styles, images, fonts or `fetch` means changing the policy in
+  `nginx.conf` in the same commit.
+- **`src/lib/zod-jitless.ts` is the first import** in `main.tsx`, `tests/setup.ts`
+  and `e2e/harness/harness.tsx`. Never fix Zod's JIT probe by adding
+  `'unsafe-eval'`.
+- **No `location` declares `add_header`.** One that did would drop every security
+  header.
+- **The image runs as uid 101 on a read-only root.** Everything it writes goes
+  under `/tmp`. `docker/check-image.sh` checks this from outside.
+- **Nothing is configured at build time.** A setting that differs between
+  environments is a run-time variable, never a `VITE_*` value or a build ARG. A new
+  setting touches every file the ARCHITECTURE section lists, in one change. Its
+  pattern admits no quote, backslash, `<` or newline, and the script's error names
+  the variable, never the value.
 
-- **`listen.ts` stays tiny and imports only `identity-epoch.ts`**, which
-  imports nothing. It is in every page's entry chunk (`pnpm check:bundle` caps it at 1 KB gzipped and keeps
-  `@posthog/core` out of first-visit chunks). Everything else is in the lazy
-  `report.ts`, which never imports the router: the router registers its
-  route source (`setErrorRouteSource`), so a crash in the router's own
-  module can still be reported.
-- **Inject stays release-less.** `posthog-cli sourcemap inject` in the
-  Dockerfile runs with a placeholder token, no `--release-*` flag and no
-  `.git` in the context (the Dockerfile refuses one). A release makes it
-  call PostHog and write a release id into every chunk, so an unchanged lazy
-  chunk would ship new bytes under its old hashed name.
-- **Four upload outcomes fail the build.** `docker/upload-sourcemaps.sh` has no
-  `|| true` and the CLI gets no `--no-fail`. It fails on: no `.map` files under
-  `dist/`; a chunk the CLI skipped as too large; nothing uploaded (unless the
-  same output line gives a non-zero "already uploaded" or existing count); and
-  a failed upload. Projects set with no token fails too. Never soften either: an image with no uploaded maps reports
-  unreadable frames, silently.
-- **A `@posthog/cli` version bump updates `docker/posthog-cli.sha256`.** The
-  Dockerfile checks the downloaded binary against those per-architecture
-  hashes before it runs with the upload token; package.json cannot hold the
-  reminder, so it is here and in that file.
-- **No source map is served.** The image deletes them and `nginx.conf`'s
-  `.map` location answers 404 regardless; any deploy of `dist/` outside the
-  image must delete `*.map` first.
-- **Scrub rules change in express first.** `scrub.ts` is express's
-  `error-scrubber.service.ts` byte for byte (`cmp`), and both test the same
-  vector file; copy the file, never edit it here alone.
+## Error tracking
+
+How it works is in [Error tracking](ARCHITECTURE.md#error-tracking). What it sends
+is in [Error-tracking privacy](SECURITY.md#error-tracking-privacy).
+
+- **`listen.ts` imports only `identity-epoch.ts`**, which imports nothing. It is in
+  every entry chunk, and `pnpm check:bundle` caps it at 1 KB gzipped.
+- **`report.ts` never imports the router.** The router registers its route source
+  (`setErrorRouteSource`), so a crash in the router's own module can still be
+  reported.
+- **Inject stays release-less.** `posthog-cli sourcemap inject` in the Dockerfile
+  runs with a placeholder token, no `--release-*` flag and no `.git` in the context.
+  A release makes it call PostHog and write a release id into every chunk, so an
+  unchanged chunk would ship new bytes under its old hashed name.
+- **Never soften `docker/upload-sourcemaps.sh`.** Every failure it detects fails
+  the build: a missing token, no maps, a failed upload, a chunk skipped as too
+  large, or nothing uploaded. Never add `|| true` or `--no-fail`. Without the maps,
+  the image reports unreadable frames, silently.
+- **A `@posthog/cli` bump updates both hashes in `docker/posthog-cli.sha256`** in
+  the same change. The Dockerfile checks the binary against them before it runs it
+  with the upload token.
+- **Change a scrub rule in express first** ([The scrubber](SECURITY.md#the-scrubber)).
+  `scrub.ts` is a byte-for-byte copy, so never edit it here alone.
 
 ## Never install
 
 `react-hook-form`, `@hookform/resolvers`, `next-themes`,
 `@tanstack/zod-form-adapter`, `clsx`, `tailwind-merge`, any `@radix-ui/*`.
 
-Each has an in-repo replacement: TanStack Form with a Zod validator (no
-adapter package is needed in v1), `theme.store` plus the pre-paint script
-`public/theme-init.js`, the `cn` package, and Base UI through shadcn. Adding one of these
-back gives the project two ways to do the same thing, which is how the
-inconsistency starts.
+Each has an in-repo replacement:
 
-## Never run
+- TanStack Form with a Zod validator, which needs no adapter package;
+- `theme.store` with `public/theme-init.js`;
+- the `cn` package;
+- Base UI through shadcn.
 
-`shadcn add form` or `shadcn add toast`. The registry's `form.tsx` is built on
-react-hook-form and its toast on next-themes; both are on the list above. Ours
-are hand-written for this stack.
+Adding one back gives the project two ways to do the same thing.
 
-## The `src/components/ui/**` exception
+**Never run `shadcn add form` or `shadcn add toast`.** The registry's `form.tsx` is
+built on react-hook-form and its toast on next-themes. Ours are hand-written.
 
-That directory is **vendored** shadcn output. Edits there are lost the next time
-the component is re-added, so it is excluded from the checks that would
-otherwise churn the diff on every `shadcn add`:
+## `src/components/ui/`
 
-- **prettier skips it entirely** (`.prettierignore`) — shadcn emits semicolons
-  and double quotes, and reformatting them fights the registry on every re-add.
-- **eslint excludes only the Tailwind rules, `react-refresh/only-export-components`
-  and `local/comment-style`** (`eslint.config.js`, the `src/components/ui/**`
-  block and the comment-style block). Everything else still
-  applies. Do not read this as "eslint skips the directory" — print the config
-  for a file in there and count: 507 rules, 113 of them enabled, including
-  type-aware ones like `@typescript-eslint/no-unsafe-call` at **error**. A type
-  error in there fails CI like anywhere else. Settle this with
-  `eslint --print-config` rather than by reading the config file: the
-  `ignores: ['src/components/ui/**']` on the Tailwind _settings_ block is
-  exactly what makes it easy to misread.
+The directory holds vendored shadcn output. An edit there is lost the next time
+the component is added again.
 
-**`form.tsx` and `sonner.tsx` are ours, not upstream's.** Both are fully linted
-and formatted, and both are named explicitly in four lists: in
-`eslint.config.js`, the block that re-enables the Tailwind and
-`react-refresh` rules (`files: ['src/components/ui/sonner.tsx', 'src/components/ui/form.tsx']`)
-and the `ignores` of the `cn` import-restriction and comment-style blocks
-(`src/components/ui/!(form|sonner).tsx`); and the `!` negations in
-`.prettierignore`. If you add a third hand-written file to that directory, add
-it to all four in the same change or it will sit there unchecked.
-`coverage.exclude` in `vitest.config.ts` does not name them: it is the inverse
-list, naming the vendored files, so a new vendored one goes there and a
-hand-written one stays out.
+- **prettier skips the vendored files** (`.prettierignore`).
+- **eslint relaxes only some rules for them**: the Tailwind rules,
+  `react-refresh/only-export-components`, `local/comment-style`, the JSDoc
+  requirement and the `cn` import restriction. Every other rule, type-aware rules
+  at error included, still applies, so a type error there fails CI. Settle a doubt
+  with `pnpm exec eslint --print-config <file>`, not by reading the config.
+- **`form.tsx` and `sonner.tsx` are ours**, fully linted and formatted. They are
+  named in five places: four `eslint.config.js` blocks (the block that re-enables
+  the Tailwind and `react-refresh` rules, plus the `!(form|sonner)` globs of the
+  `cn` restriction, comment-style and JSDoc blocks), and the `!` negations in
+  `.prettierignore`. A third hand-written file there goes into all five in the same
+  change.
+- **The vitest config's coverage `exclude` is the inverse list.** It names the
+  vendored files, so a new vendored file goes there and a hand-written one stays
+  out.
 
 ## Forms
 
-- Frontend Zod schemas in `src/schemas/` **mirror the backend validators**.
-  They are one contract in two repos: change both together, or the client will
-  accept what the server rejects.
-- Parse before posting. TanStack hands `onSubmit` the raw form state, so a
-  schema's `.trim()`/`.toLowerCase()` only reaches the wire if the value is
+- **The Zod schemas in `src/schemas/` mirror the API's validators.** Change both
+  repos together, or the client accepts what the server rejects.
+- **Parse before posting.** TanStack hands `onSubmit` the raw form state, so a
+  schema's `.trim()` or `.toLowerCase()` reaches the wire only if the value is
   parsed on the way out.
-- **Edit forms send only the fields that changed** (`useChangedFields` in
-  `src/hooks/use-changed-fields.ts`; the profile, tenant details and tenant
-  settings forms). A stored value that today's rules refuse must not block
-  saving other fields, so parsing the whole form with the full schema is the
-  wrong habit here. Pass `baseline` as `defaultValues`, `changes` as
-  `validators.onSubmit` and `listeners` as the form's listeners; post
-  `changedBody(value)` unless it is `null`, and call `rebase(value)` after a
-  successful save. While the form is pristine the baseline follows refetches;
-  it freezes on the first edit, blur or save attempt; it moves only on
-  `rebase`. A save with no changes posts nothing and shows the form-level
-  message ("Change a field before saving.", "Change a name before saving." on
-  profile), which clears when a field changes.
-- **`<Form>`'s server-error clearing covers native inputs only.** It listens for
-  a change event that bubbles out of the form element. A Base UI `Select` does
-  not emit one, so a form with a Select must call `serverErrors.clearField()`
-  itself — `$slug.members.tsx` is the worked example. The `Checkbox` case is
-  **unverified**: check it before relying on either answer.
+- **Edit forms send only the changed fields** (`useChangedFields` in
+  `src/hooks/use-changed-fields.ts`, whose JSDoc gives the wiring). A stored value
+  that today's rules refuse must not block saving other fields, so do not parse
+  the whole form with the full schema.
+- **`<Form>` clears a server error only on a native change event.** A Base UI
+  `Select` emits none, so its change handler calls `serverErrors.clearField()`
+  itself, as `src/components/features/tenant/invite-member-form.tsx` does. Base
+  UI's `Checkbox` is unverified: check it before relying on either answer.
 
 ## Versions
 
-**TypeScript stays at `~6.0.3`.** typescript-eslint 8.70.1 peers
-`typescript: ">=4.8.4 <6.1.0"`, which excludes all of 7.x. Bumping ahead of that breaks the type-aware
-lint rules, which are most of the lint config. Re-check that peer range before
-assuming the block still holds; it is the whole of the constraint.
-
-**`@types/node` is NOT part of that constraint.** It is on 26.x with
-`typescript ~6.0.3`, and eslint (type-aware rules included), `tsc`, the unit
-tests, the e2e fixtures and `pnpm build` are green on that pair. Do not pin it
-to TypeScript's hold.
-
-**The pnpm version lives in one place: `packageManager` in package.json.** The
-Dockerfile runs `corepack install` and CI's `pnpm/action-setup` reads the same
-field. pnpm 12 records itself in the lockfile (`packageManagerDependencies`),
-so changing the field means regenerating `pnpm-lock.yaml` in the same commit,
-or `--frozen-lockfile` fails.
-
-**`devEngines.runtime` (`onFail: "error"`) is what refuses a wrong Node at
-install; `.npmrc`'s `engine-strict` does not enforce this root project's own
-Node version under pnpm 12.**
-
-**When Node moves to 26, `engines.node` and `devEngines.runtime.version` are
-moved by hand alongside the Renovate-held pins** — Renovate does not move a
-`>=` range on its own, only the pinned versions it already tracks.
-
-**Renovate opens updates weekly** (grouped, 3-day minimum release age,
-actions pinned to SHAs); minor, patch and digest updates auto-merge once
-required checks pass, majors and the node/typescript pins wait for a human,
-and security fixes open immediately with the `security` label. `renovate.json` holds TypeScript `<6.1.0` and every
-Node version pin — the docker `node` image, `.nvmrc` and CI's
-`node-version:` — `<25`; lift those rules deliberately. The explicit Corepack
-pin in `Dockerfile` and `README.md` is tracked via a custom regex manager.
+- **TypeScript stays below 6.1.** typescript-eslint 8.70.1 peers
+  `typescript >=4.8.4 <6.1.0`, and the type-aware rules are most of the lint
+  config. `renovate.json` holds it. Re-check that peer range before lifting the
+  hold. `@types/node` is not part of this constraint.
+- **The pnpm version lives only in `packageManager`.** The Dockerfile and CI read
+  it. pnpm records itself in `pnpm-lock.yaml` (`packageManagerDependencies`), so
+  changing the field means regenerating the lockfile in the same commit, or
+  `--frozen-lockfile` fails.
+- **`devEngines.runtime` (`onFail: "error"`) refuses a wrong Node at install.**
+- **Renovate holds every Node pin below 25.** It covers the Docker `node` image,
+  `.nvmrc` and CI's `node-version:`. Renovate does not move `engines.node` or
+  `devEngines.runtime.version`, so a Node major moves those by hand alongside the
+  pins.
+- Renovate's schedule and automerge policy are in `renovate.json`. Majors and the
+  Node and TypeScript pins always wait for a human.
 
 ## Conventions the linter enforces
 
-- **kebab-case** filenames and folders under `src/`, with suffixed files
-  confined to their directory: `*.store.ts` → `src/states/`, `*.queries.ts` →
-  `src/queries/`, `*.schemas.ts` → `src/schemas/`, `*.types.ts` → `src/types/`,
-  `use-*` → `src/hooks/`.
-- **`src/pages/**` is exempt** from all of it. TanStack Router's file-based
-  routing needs `__root.tsx`, `_auth.tsx` and `$slug.members.tsx`, which are not
-  kebab-case by design.
-- **No test file lives under `src/`.** Vitest suites go in `tests/unit/`,
-  mirroring the src/ path of their subject (`src/http/session.ts` →
-  `tests/unit/http/session.test.ts`); cross-cutting suites (`a11y.test.tsx`)
-  sit at `tests/unit/`, shared support in `tests/mocks/` and `tests/fixtures/`,
-  imported as `@/tests/...`. Playwright suites stay in `e2e/`. Linted:
-  `check-file/filename-blocklist` rejects any `*.test.*`, `*.spec.*`,
-  `__tests__/` or `src/tests/` file under `src/`, `src/pages/` included — so
-  TanStack Router never sees a test file in its routes directory.
-- Tests are **`.test.ts(x)`**, never `.spec.`, and never in a `__tests__/`
-  folder — also linted, under `tests/` as well as `src/`.
-- **Comments.** Every comment is one of three kinds: a declaration JSDoc (the
-  contract), a `/** @file … */` of 1–3 sentences, or a one-line `//` why, used
-  only for security, concurrency, a timing budget or a named external bug. A
-  JSX comment is one line and only for those same reasons. No history;
-  `local/comment-style` checks the form.
+- **kebab-case** file and folder names under `src/`. `src/pages/**` is exempt,
+  because TanStack Router's file routes need `__root.tsx`, `_auth.tsx` and
+  `$slug.members.tsx`.
+- **Suffixed files live in their directory:** `*.store.ts` in `src/states/`,
+  `*.queries.ts` in `src/queries/`, `*.schemas.ts` in `src/schemas/`, `*.types.ts`
+  in `src/types/`. A file in `src/hooks/` is named `use-*`.
+- **No test file lives under `src/`**, `src/pages/` included, so the router never
+  sees a test in its routes directory. Unit suites go in `tests/unit/`, mirroring
+  their subject's path (`src/http/session.ts` → `tests/unit/http/session.test.ts`).
+  Shared support goes in `tests/mocks/` and `tests/fixtures/`, imported as
+  `@/tests/...`. Playwright suites go in `e2e/`.
+- **Tests are `.test.ts(x)`**, never `.spec.`, and never in a `__tests__/` folder.
+- **Import `cn` from `@/lib/utils`**, not from the package.
+- **Comments.** Each comment is a JSDoc block, a directive, a one-line JSX comment
+  or a single `//` line, and none narrates history (`local/comment-style`). By
+  convention, a `//` line gives a why: security, concurrency, a timing budget or a
+  named external bug. Every named function, method, class, interface, type alias
+  and exported const carries a JSDoc description (`jsdoc/require-jsdoc`).
 
-## Test timing rules
+## Test timing
 
-Across `tests/` and `e2e/`, eslint catches the common forms of a bare sleep and of
-`networkidle`: a `setTimeout` inside `new Promise`, `sleep()`, `waitForTimeout()`,
-`setTimeout` from `timers/promises`, and a literal `networkidle`. The only exempt
-files are `tests/fixtures/timing.ts` and `e2e/timing.ts`, which implement the
-deliberate waits.
+Across `tests/` and `e2e/`, eslint rejects the common forms of a bare sleep:
 
-1. **Wait on a condition, never on a duration.** `findBy*`, `waitFor` and
-   `vi.waitFor` in `tests/`; web-first assertions and `expect.poll` in `e2e/`; fake
-   timers when the product's own timer is what the test is about.
+- a `setTimeout` inside `new Promise`;
+- `sleep()`;
+- `waitForTimeout()`;
+- `setTimeout` from `timers/promises`.
+
+It also rejects `networkidle`. Only `tests/fixtures/timing.ts` and `e2e/timing.ts`
+are exempt, because they implement the deliberate waits.
+
+1. **Wait on a condition, never on a duration.** In `tests/`, use `findBy*`,
+   `waitFor` and `vi.waitFor`. In `e2e/`, use web-first assertions and
+   `expect.poll`. Use fake timers when the product's own timer is under test.
 2. **A deliberate wait is `settle(ms, reason)`** from `@/tests/fixtures/timing`
-   (`e2e/timing.ts` re-exports it). The reason names what can't be observed:
-   "absence has no event", "poll interval", "injected latency". A blank reason
-   rejects, and an empty literal fails typecheck. Waits inside the page are the
-   named helpers in `e2e/timing.ts`.
+   (`e2e/timing.ts` re-exports it). The reason names what cannot be observed. A
+   blank reason rejects, and an empty literal fails typecheck.
 3. **A wall-clock upper bound is allowed only when the bound is the claim under
-   test.** It carries a comment naming what it proves, and either references a
-   product constant by name or has at least 10× headroom over the measured p99.
-4. **No exact counts of process-wide resources.** Count only what the test created.
-5. **A negative check waits on a barrier event where one exists**, and otherwise
-   on `settle` with a reason.
+   test.** It gets a comment naming what it proves, and either references a product
+   constant or has at least 10× headroom over the measured p99.
+4. **Count only what the test created**, never a process-wide resource.
+5. **A negative check waits on a barrier event where one exists**, and otherwise on
+   `settle` with a reason.
 6. **Never raise a timeout to fix a flake before its mechanism is known.**
-   `asyncUtilTimeout` in `tests/setup.ts` is every `findBy*`/`waitFor` budget; a
-   `{ timeout }` that only restates it is noise.
+   `asyncUtilTimeout` in `tests/setup.ts` is every `findBy*` and `waitFor` budget,
+   so a `{ timeout }` that restates it is noise.
 
-Three fake-timer traps, each read out of the installed versions:
+Three fake-timer traps:
 
 - **Without `shouldAdvanceTime`, `findBy*` and `waitFor` hang.** Testing Library
-  ends each one with a `setTimeout(0)` drain and advances fake timers only when a
-  `jest` global exists, which Vitest does not define. Under a clock that moves only
-  when told, assert with `getBy*` after `await act(() => vi.advanceTimersByTimeAsync(ms))`,
-  and restore real timers before the next `findBy*`.
-- **React's async `act` flushes on Node's `timers.setImmediate`**, which Vitest's
-  default `toFake` fakes too, so `await act(async …)` can stall under a clock nothing
-  advances. Fake only what the code under test reads, as `router.test.tsx` does with
-  `{ toFake: ['setTimeout', 'clearTimeout', 'Date'] }`.
-- **A `userEvent` that types while fake timers are on needs the `advanceTimers`
-  option**, as in `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`.
-  user-event waits a `setTimeout(delay)` after every keystroke and calls
-  `advanceTimers(delay)` alongside it, so without the option typing waits on a clock
-  that never moves.
+  advances fake timers only when a `jest` global exists, and Vitest defines none.
+  Under a clock that moves only when told, assert with `getBy*` after
+  `await act(() => vi.advanceTimersByTimeAsync(ms))`. Restore real timers before
+  the next `findBy*`.
+- **React's async `act` flushes on `setImmediate`**, which Vitest's default
+  `toFake` fakes too. Fake only what the code under test reads, as
+  `router.test.tsx` does with `{ toFake: ['setTimeout', 'clearTimeout', 'Date'] }`.
+- **`userEvent` typing under fake timers needs `advanceTimers`**, as in
+  `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`. Without it, typing
+  waits on a clock that never moves.
 
 ## End-to-end tests
 
-`pnpm test:e2e` (fixtures) and `pnpm test:e2e:live` (needs a backend). Playwright, four
-projects (`fixtures`, `live`, `contrast`, `nginx`), and three conventions that are load-bearing rather than taste:
+Playwright has four projects: `fixtures`, `live`, `contrast` and `nginx`.
 
-- **Tests are `*.test.ts`, never Playwright's default `*.spec.ts`** —
-  the rest of the repo uses `.test.` (`check-file/filename-blocklist` rejects `.spec.` in
-  `src/` and `tests/`). `playwright.config.ts` sets `testMatch` accordingly.
-- **`vitest.config.ts` carries an explicit `include` of `tests/**`.** Vitest's default
-  `include` is `**/*.{test,spec}.*`, so without it Vitest collects the Playwright specs and
-  runs them under jsdom.
-- **`e2e/` is typed-linted via its own `tsconfig.json`** and `projectService`, not exempted
-  with `disableTypeChecked` the way the root configs are. `playwright.config.ts` itself is a
-  root config and is linted with those.
+- **Name e2e files `*.test.ts`.** `playwright.config.ts` sets `testMatch` to
+  match. `vitest.config.ts` keeps an explicit `include` of `tests/**`, or Vitest
+  would collect the Playwright files and run them under jsdom.
+- **`e2e/` is type-linted through its own `tsconfig.json`.** It is not exempted
+  like the root configs.
 
-**`fixtures`** drives `e2e/harness/` — the real router and real CSS with MSW answering the
-same fixtures `tests/unit/a11y.test.tsx` uses, so it needs no backend. It exists for the
-checks jsdom cannot make, because jsdom has no layout: whether the webfont actually resolved,
-whether anything overflows the viewport at 390px, whether a state renders as more than a bare
-header. `?state=loaded|empty|error|loading|soleowner` picks the members response;
-`?state=viewer|admin` makes the harness user a non-owner member, so their own row offers Leave.
+**`fixtures`** drives `e2e/harness/`: the real router and CSS, with MSW answering
+the fixtures. It needs no backend. It exists for what jsdom cannot see, because
+jsdom has no layout. The harness has two traps:
 
-Two harness traps that make a test measure the wrong thing: answering
-the SSE stream with `204` looks to the hook exactly like a dropped connection and sends the
-page into a refresh-then-redirect that a test will race; and **any endpoint left unmocked
-falls through** (`onUnhandledRequest: 'bypass'`) and 401s. Under Playwright, the `fixtures` and
-`contrast` projects take `test` from `e2e/hermetic.ts`, which answers every `/api` request that
-would leave the browser with express's 401 envelope, and fails the test at teardown if any `/api`
-response came from the proxy instead, or if it answered anything other than a signed-out page's
-bootstrap refresh and the root route's maintenance read (answered `off`) — naming each. A test that fulfills an `/api` route itself stamps its response with
-`FALLBACK_HEADER` from that file, or the teardown reports it as an escape. The 401 still
-signs the harness user out — any non-expiry 401 on a token-bearing request, `REAUTH_REQUIRED` aside, is a verdict
-(interceptors.ts) — so every authed endpoint the page under test calls must be mocked, not
-only the one being asserted on. If a fixtures test starts landing on `/login`, that is why,
-and the teardown message names the endpoint.
+- **Never answer the notification stream with a 204.** A 204 has no body, so the
+  hook treats it as a refused connect. It reconnects with the same token on its
+  doubling backoff and never refreshes, so a test races that stream traffic. The
+  harness answers with a stream that stays open.
+- **An endpoint the harness leaves unmocked falls through**
+  (`onUnhandledRequest: 'bypass'`). `fixtures` and `contrast` take `test` from
+  `e2e/hermetic.ts`, which answers such a request with express's 401 envelope.
+  That 401 on a token-bearing request is a verdict, so it signs the harness user
+  out. At teardown it fails the test and names the endpoint. A test that fulfills
+  an `/api` route itself stamps the response with `FALLBACK_HEADER`, or teardown
+  reports it as an escape. If a fixtures test lands on `/login`, look for an
+  unmocked endpoint.
 
-**`live`** needs a real express-boilerplate and its docker services, and is skipped unless
-`E2E_LIVE=1`. The helpers reach express at `E2E_API_ORIGIN` (default `:4040`; point it at the
-express under test, never assume `:4040`). `live/flags.test.ts` also needs `E2E_FLAGS_SET_CMD`,
-an executable run as `<cmd> <key> <value>` that leaves the fake PostHog serving that definition
-(`example_beta_page` `on`|`off`, `example_cta_experiment` `control`|`bold`, the latter active at
-100 % rollout); with `E2E_LIVE=1` and the variable unset it fails rather than skips. Accounts are registered
-and verified through mailpit (`E2E_MAILPIT_ORIGIN`, default `http://localhost:8025`); login
-stays 401 until the address is verified, and the link only exists in the email. Each run uses
-a **fresh address**, because the login limiter is keyed `ip:email` at five attempts per fifteen minutes
-and a fixed address would rate-limit every rerun.
+**`live`** needs a real express and its services, and runs only with `E2E_LIVE=1`.
+Point `E2E_API_ORIGIN` at the express under test, and never assume `:4040`. Each
+run registers a fresh address (`freshEmail`), because express rate-limits sign-in
+per address. `live/flags.test.ts` fails, rather than skips, without
+`E2E_FLAGS_SET_CMD`.
 
-**`nginx`** runs against the PRODUCTION image — `pnpm test:e2e:nginx` builds it, runs it on
-:8088 (container port 8080, read-only root) with `--add-host=api:host-gateway`, tests, and
-tears it down. The tests tagged `@no-api` (headers, the CSP, the theme script, the asset 404, the boot splash,
-`/runtime-config.js`, and posthog-js under the CSP with a fake PostHog answering `/api/v1/collect` through
-`routeCollectToFake`) need no backend and also run in CI's `e2e` job, against the image with nothing behind
-`/api`, started with `POSTHOG_KEY=phc_test_key_not_real`, `APP_ENVIRONMENT=ci` and
-`ANALYTICS_HANDOFF_ORIGINS=https://www.example.test` (the analytics tests expect exactly those);
-the rest need a live API and run only locally. `errors.test.ts` expects each report's release to
-be `E2E_RELEASE` (default `dev`, the release of an image built with no `GIT_SHA`), and the live
-`cors.test.ts` sends `E2E_ALLOWED_ORIGIN` (default `http://localhost:5173`), which must be in the
-CORS allowlist of the express under test. The project exists first for a reason worth
-keeping: **the Vite dev proxy does not propagate an upstream close.**
-A `curl -N` at it stays open after the API is killed, so the reading side of the client's
-`fetch` body stream never sees `done: true`, `parseSseStream`'s generator never returns, and
-the SSE reconnect path is unreachable from a dev-server browser. The same curl against nginx
-exits on the second the API dies. Anything that depends on noticing a dropped upstream has to
-be tested here, not against `pnpm dev`.
+**`nginx`** runs against the production image (`pnpm test:e2e:nginx`). The `@no-api`
+tests also run in CI with nothing behind `/api`. The rest need a live API and run
+locally. **Test anything that depends on noticing a dropped upstream here, not
+against `pnpm dev`.** The Vite dev proxy never propagates an upstream close, so the
+stream reconnect path cannot be reached from a dev-server browser.
 
-**Analytics, live** (`E2E_LIVE=1 E2E_ANALYTICS=1`, the second half of
-`e2e/nginx/analytics.test.ts`) needs an express 1.5.0+ behind the image with
-`POSTHOG_PROJECT_KEY=phc_test_key_not_real` and `POSTHOG_HOST`/`POSTHOG_ASSETS_HOST` at
-the fake PostHog the suite starts on `FAKE_POSTHOG_PORT` (4063). posthog-js drops every event
-from a Playwright browser (`navigator.webdriver`, the `HeadlessChrome` brand) unless the test
-uses `HUMAN_USER_AGENT` and `passPosthogBotFilter`, and holds back the replay of a page nobody
-has clicked. `E2E_API_DIR` (default `../express-boilerplate`) is the checkout of the express
-under test, where `grantPlatformRole` runs `pnpm platform:grant`; for the default :4040 live
-run that is the main checkout. Only `restartApi` refuses the main checkout.
+**The SSE reconnect test (`e2e/nginx/sse.test.ts`) restarts an express**, so it
+runs only by hand. `restartApi()` refuses to run, by throwing, unless all of these
+hold:
 
-**The SSE reconnect test restarts an express**, so it runs only by hand. `restartApi()`
-stops the listeners on the `E2E_API_ORIGIN` port and starts `pnpm dev` in the resolved
-`E2E_API_DIR` with `APP_PORT` set to that port, so the new server never falls back to its
-checkout's `.env` port. The rules are `restartPlan` and `stopListenersIn` in
-`scripts/api-restart-guard.mjs`, unit-tested with mocked processes and file system in
-`tests/unit/api-restart-guard.test.ts`. It refuses, by throwing: an origin that is not http(s)
-with an explicit port; port 4040 (a developer's own `pnpm dev`); a run without
-`E2E_ALLOW_API_RESTART=1`; an empty `E2E_API_DIR`; a directory that resolves to the main
-checkout (`../express-boilerplate`); and one that is not a git worktree (no `.git` file), which
-refuses a standalone clone too. It signals nothing unless every listener on the port has its
-working directory inside that worktree. `e2e/nginx/sse.test.ts` skips with the reason instead,
-so `pnpm test:e2e:nginx` always skips it.
+- the origin has an explicit port, and the port is not 4040;
+- `E2E_ALLOW_API_RESTART=1` is set;
+- `E2E_API_DIR` is set, is a git worktree, and is not the main
+  `../express-boilerplate` checkout.
 
-To run it, give express a worktree with its own `.env`, built from `.env.example` and never a
-copy of the main checkout's: `APP_PORT=4999`,
-`DATABASE_URL=postgres://boilerplate:boilerplate@127.0.0.1:5433/boilerplate_sse` (a database
-of its own on the compose Postgres) and `REDIS_KEY_PREFIX=express-sse`, so the run's accounts
-and keys stay out of the dev database and keyspace. Then:
+It signals only listeners whose working directory is inside that worktree. The
+rules are `restartPlan` and `stopListenersIn` in `scripts/api-restart-guard.mjs`.
+Give the worktree its own `.env`, built from `.env.example`, with its own port,
+database and `REDIS_KEY_PREFIX`, so the run's accounts stay out of the dev database.
 
-```sh
-git -C ../express-boilerplate worktree add ../express-sse
-docker exec express-boilerplate-postgres-1 createdb -U boilerplate boilerplate_sse
-# In ../express-sse: write its .env as above, then
-#   pnpm install && pnpm db:migrate && pnpm dev
-docker build -t react-boilerplate:e2e .
-docker run -d --name rb-e2e-sse -p 8089:8080 --read-only --tmpfs /tmp \
-  --add-host=api:host-gateway -e API_UPSTREAM=http://api:4999 react-boilerplate:e2e
-E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
-  E2E_API_ORIGIN=http://localhost:4999 E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
-  pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
-docker rm -f rb-e2e-sse
-# Stop the `pnpm dev` you started in ../express-sse (Ctrl-C): the run stopped only its
-# server process, and its watcher would restart one into the port. The run's own restarted
-# server is detached; it recorded the process group, and the file goes once it is stopped:
-PID_FILE="$(node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
-kill -TERM -"$(cat "$PID_FILE")" && rm -f "$PID_FILE"
-```
+`restartApi()` finds listeners with `lsof -sTCP:LISTEN` and escalates SIGTERM to
+SIGKILL. Both details matter:
 
-**`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule — the one thing jsdom
-cannot compute at all — over every surface reachable without a backend, in **both themes**:
-the sign-in, register and forgot-password pages, `reset-password`/`verify-email` (both loaded with a `?token=`:
-without one, `reset-password` renders its "This link is incomplete" branch instead, while
-`verify-email` renders its normal form with an empty token field), and the authenticated pages through the
-harness's `?path=`. Every surface asserts a heading it alone renders BEFORE axe runs — a route
-that redirects still paints a perfectly legible page, so without that assertion a surface
-could report green while measuring something else entirely. It
-injects the axe-core already in devDependencies rather than adding a package. It needs no
-backend at all: the public pages' session bootstrap is answered by `e2e/hermetic.ts`, so an
-express on `:4040` that is restarting or hung cannot stall a run.
+- `pnpm dev` is `tsx watch`, and its child holds the port and survives a group
+  SIGTERM;
+- without `-sTCP:LISTEN`, lsof also lists the Vite proxy as a client and the kill
+  takes the dev server down.
 
-**Opt-in and not in CI** — a deliberate cost decision, but do not read "contrast is a property
-of the palette, which moves rarely" as the whole risk model. Component composition breaks
-contrast too — which token a component puts on which surface decides the ratio, not the palette
-alone — and composition changes on every feature, so run this before merging UI work, not only when a
-token moves. **Do not eyeball a contrast change — run the script.**
-
-`restartApi()` finds listeners by port with `-sTCP:LISTEN` and escalates SIGTERM→SIGKILL. Both details
-are load-bearing: `pnpm dev` is `tsx watch`, whose CHILD holds the port and survives a
-group SIGTERM, and without `-sTCP:LISTEN` lsof also lists the Vite proxy as a client of that
-port and the kill takes the dev server down too.
+**`contrast`** (`pnpm test:contrast`) runs axe's `color-contrast` rule in a real
+browser, in both themes, over every surface reachable without a backend. Each
+surface asserts a heading only it renders before axe runs, because a redirected
+route still paints a legible page. It is opt-in and not in CI. Component
+composition changes contrast as much as the palette does, so run it before merging
+UI work. Never judge a contrast change by eye.
 
 ## Accessibility
 
-`tests/unit/a11y.test.tsx` is a gate, not a smoke test: every routed page, plus
-an open dialog, an open sheet and all four open menus, must come back clean. If
-something trips a rule, **fix the markup** — no rule is disabled to make it pass.
+`tests/unit/a11y.test.tsx` is a gate. Every routed page, an open dialog, an open
+sheet and all four open menus must come back clean. If something trips a rule, fix
+the markup. No rule is disabled to make it pass.
 
-**Menus are graded at menu scope, not document scope, and that is the one place
-the gate narrows.** Base UI portals a menu popup to `document.body`, so at
-document scope every open menu trips `region` — "some page content is not
-contained by landmarks". That is a page-structure rule, and it does not describe
-a barrier in a transient popup that focus has just been moved into; the dialog
-and sheet escape it only because axe exempts `role="dialog"`. `expectNoViolationsIn`
-therefore runs the **identical rule set** against the popup element. Nothing is
-disabled, and the narrowing is pinned the same way the document context is: it
-asserts `aria-required-children` is in `results.passes`, which only happens when
-axe really evaluated a `role="menu"`. Pages are still graded at document scope.
-
-The alternative — rendering the popups into a container inside a landmark — was
-not taken: the triggers live in the sidebar and header, so `<main>` would be the
-wrong home for their menus, and dropping the portal risks real clipping and
-stacking regressions to satisfy a rule that is not describing a real barrier.
-
-Four details that a "tidy-up" would quietly undo:
-
-- It runs **axe-core over `document`**, not jest-axe's `axe()` over a fragment.
-  Axe reports its page-level rules (`page-has-heading-one`, `landmark-one-main`,
-  `bypass`, `html-has-lang`, `document-title`) as _inapplicable_ for anything
-  smaller than the document, so a fragment run grades far less than it looks
-  like it does. The context is **pinned by an assertion**, not by this comment:
-  the gate asserts `html-has-lang`, `document-title` and `bypass` are in
-  `results.passes`, so narrowing the context back to `document.body` fails the
-  gate instead of silently passing it.
-- **Every page needs exactly one `<main>` and exactly one `<h1>`**, and the test
-  asserts both by hand. It has to: axe's own rules for them query
-  `[aria-level=1]`, a selector jsdom rejects outright, so axe files them under
-  `incomplete` — which `toHaveNoViolations` does not read. `CardTitle` renders a
-  `div`, so a page's `h1` goes _inside_ it.
-- **`RouteError`, `RoutePending` and `RouteNotFound` all carry no `<main>`
-  of their own.** `defaultErrorComponent`, `defaultPendingComponent` and
-  `defaultNotFoundComponent` all render the SAME way: in place of a matched
-  route's own component, inside whichever `Outlet` that route sits in — so
-  whether the page ends up with a `<main>` depends on that route, not on the
-  fallback. For a route nested inside `_app` or `_auth`, the `Outlet` is
-  already inside the layout's `<main>`, pending or throwing `notFound()`
-  alike, so the page still ends up with exactly one, contributed by the
-  layout. For the router's OWN top-level splat route (`src/pages/$.tsx`, matched when nothing else does), there is
-  no layout ancestor to contribute one, so `$.tsx` wraps `RouteNotFound` in
-  its own `<main>` — the fallback component stays bare specifically so it
-  does not double up when it renders as `defaultNotFoundComponent` for a
-  route that already has a layout.
-- Colour contrast is **not** checked _there_. jest-axe's default — reproduced
-  explicitly in that file — switches every `cat.color` rule off under jsdom,
-  which has no layout. Contrast is measured separately, in a real browser, by
-  `pnpm test:contrast`; viewport overflow at 390px by the `fixtures` e2e
-  project. Focus rings are checked only as a `focus-visible:` class (the tab
-  panel test in `a11y.test.tsx`), not in a browser.
+- **axe runs over `document`, not a fragment.** Axe's page-level rules come back
+  inapplicable for any smaller context. The gate pins this by asserting that
+  `html-has-lang`, `document-title` and `bypass` are in `results.passes`.
+- **Every page needs exactly one `<main>` and one `<h1>`, and the test asserts both
+  by hand.** Under jsdom, axe cannot evaluate `page-has-heading-one` or
+  `landmark-one-main`. Both use axe's `passForModal` check, which looks for a
+  modal. When no dialog is open, the check calls `document.elementFromPoint`, which
+  jsdom lacks, so axe files both rules under `incomplete`. `toHaveNoViolations`
+  does not read that list. When a dialog is open, both rules pass without looking
+  at the page. `CardTitle` renders a `div`, so a page's `h1` goes inside it.
+- **Menus are graded at menu scope.** Base UI portals a menu popup to
+  `document.body`, so at document scope every open menu trips `region`.
+  `expectNoViolationsIn` runs the same rule set against the popup. It asserts that
+  `aria-required-children` passed, which happens only when axe evaluated a
+  `role="menu"`. The popups are not rendered inside `<main>`: their triggers live
+  in the sidebar and header, and dropping the portal risks clipping and stacking
+  bugs.
+- **`RouteError`, `RoutePending` and `RouteNotFound` render no `<main>`.** They
+  render inside the matched route's `Outlet`, which a layout's `<main>` already
+  wraps. The top-level splat route `src/pages/$.tsx` has no layout, so it wraps
+  `RouteNotFound` in its own `<main>`.
+- **Colour contrast is not checked here.** Every `cat.color` rule is off under
+  jsdom, which has no layout. The `contrast` e2e project measures contrast, and the
+  `fixtures` project checks overflow at 390px.
