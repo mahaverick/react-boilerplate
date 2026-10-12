@@ -23,7 +23,7 @@ const DEVTOOLS_MODULE =
 
 /**
  * A posthog-js module, by its node_modules path. The analytics facade imports
- * it with a dynamic `import()`, so it must sit in a lazy chunk of its own.
+ * it with a dynamic `import()`, so it must stay out of every first-visit chunk.
  */
 const POSTHOG_MODULE = /[\\/]posthog-js[\\/]/
 
