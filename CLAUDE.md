@@ -75,12 +75,12 @@ When it reports something:
   When `deploy.yml` calls `ci.yml`, `github.workflow` is the caller's name.
   Non-PR runs are grouped per commit, so a newer push never drops a pending gate.
 - **A moderate advisory in a production dependency fails CI**
-  (`pnpm audit --prod --audit-level moderate`). Because `test` is a required
-  check, the advisory blocks every PR. Prefer an `overrides` entry in
-  `pnpm-workspace.yaml` that forces the patched version, with a comment naming the
-  advisory. When no patched version exists, `pnpm audit --ignore <GHSA>` writes the
-  ID under `auditConfig.ignoreGhsas`. Add a comment by hand with the reason and a
-  date to revisit.
+  (`pnpm audit --prod --audit-level moderate`). `test` is one of the checks the
+  `main` ruleset requires ([README](README.md#releases)), so the advisory blocks
+  every PR. Prefer an `overrides` entry in `pnpm-workspace.yaml` that forces the
+  patched version, with a comment naming the advisory. When no patched version
+  exists, list the ID under `auditConfig.ignoreGhsas` there, with a comment giving
+  the reason and a date to revisit.
 - The PR title must be a conventional commit: it becomes the squash commit that
   release-please reads. How releases and images flow is in
   [Deploy](ARCHITECTURE.md#deploy) and the [README](README.md#releases).
@@ -114,12 +114,9 @@ Each rule's reason is in [Analytics privacy](SECURITY.md#analytics-privacy).
 - **Only `src/observability/analytics/` imports posthog-js**, and only
   `analytics.ts` imports it as a value, through `import()`. `pnpm check:bundle`
   fails if it reaches a first-visit chunk.
-- **Declare every event in `events.ts`**, with no free `string` property. Do not
-  widen `REGISTRY_HAS_NO_FREE_STRINGS`.
-- **The browser never sets person or group properties.**
-- **Add a key to `ANALYTICS_URL_QUERY_ALLOWLIST` only when its values can never be
-  a token, an address or a redirect.**
-- **Never loosen `guardEvent` to log-and-send.**
+- **Never widen the privacy guards**: the free-string ban in `events.ts`, the
+  browser's ban on person and group properties, `ANALYTICS_URL_QUERY_ALLOWLIST`
+  and `guardEvent`. What each one stops is in SECURITY.md.
 - **Never call the SDK's `reset()` directly.** It drops the super properties and
   the consent answer. `resetKeepingConsent` restores both and the page's tenant
   group.
@@ -378,7 +375,18 @@ jsdom has no layout. The harness has two traps:
 Point `E2E_API_ORIGIN` at the express under test, and never assume `:4040`. Each
 run registers a fresh address (`freshEmail`), because express rate-limits sign-in
 per address. `live/flags.test.ts` fails, rather than skips, without
-`E2E_FLAGS_SET_CMD`.
+`E2E_FLAGS_SET_CMD`. Other variables:
+
+- `E2E_MAILPIT_ORIGIN` (default `http://localhost:8025`): the mailpit the helpers
+  read verification emails from.
+- `E2E_RELEASE` (default `dev`): the release `nginx/errors.test.ts` expects on
+  each error report.
+- `E2E_ALLOWED_ORIGIN` (default `http://localhost:5173`): the origin
+  `nginx/cors.test.ts` sends, which must be in the express's CORS allowlist.
+
+**posthog-js drops every event from a Playwright browser** (`navigator.webdriver`,
+a headless user agent). An analytics e2e test uses `HUMAN_USER_AGENT` and calls
+`passPosthogBotFilter` before its first navigation (`e2e/helpers/fake-posthog.ts`).
 
 **`nginx`** runs against the production image (`pnpm test:e2e:nginx`). The `@no-api`
 tests also run in CI with nothing behind `/api`. The rest need a live API and run
@@ -397,8 +405,27 @@ hold:
 
 It signals only listeners whose working directory is inside that worktree. The
 rules are `restartPlan` and `stopListenersIn` in `scripts/api-restart-guard.mjs`.
-Give the worktree its own `.env`, built from `.env.example`, with its own port,
-database and `REDIS_KEY_PREFIX`, so the run's accounts stay out of the dev database.
+To run it, give express a worktree whose `.env` comes from `.env.example`, never
+from the main checkout's: `APP_PORT=4999`, a database of its own and its own
+`REDIS_KEY_PREFIX`, so the run's accounts and keys stay out of the dev ones.
+
+```sh
+git -C ../express-boilerplate worktree add ../express-sse
+docker exec express-boilerplate-postgres-1 createdb -U boilerplate boilerplate_sse
+# In ../express-sse: write .env with APP_PORT=4999, REDIS_KEY_PREFIX=express-sse and
+#   DATABASE_URL=postgres://boilerplate:boilerplate@127.0.0.1:5433/boilerplate_sse,
+#   then: pnpm install && pnpm db:migrate && pnpm dev
+docker build -t react-boilerplate:e2e .
+docker run -d --name rb-e2e-sse -p 8089:8080 --read-only --tmpfs /tmp \
+  --add-host=api:host-gateway -e API_UPSTREAM=http://api:4999 react-boilerplate:e2e
+E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
+  E2E_API_ORIGIN=http://localhost:4999 E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
+  pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
+docker rm -f rb-e2e-sse
+# Stop the pnpm dev you started (Ctrl-C), then the detached server the run restarted:
+PID_FILE="$(node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
+kill -TERM -"$(cat "$PID_FILE")" && rm -f "$PID_FILE"
+```
 
 `restartApi()` finds listeners with `lsof -sTCP:LISTEN` and escalates SIGTERM to
 SIGKILL. Both details matter:
@@ -435,9 +462,8 @@ the markup. No rule is disabled to make it pass.
   `document.body`, so at document scope every open menu trips `region`.
   `expectNoViolationsIn` runs the same rule set against the popup. It asserts that
   `aria-required-children` passed, which happens only when axe evaluated a
-  `role="menu"`. The popups are not rendered inside `<main>`: their triggers live
-  in the sidebar and header, and dropping the portal risks clipping and stacking
-  bugs.
+  `role="menu"`. The popups are not rendered inside `<main>`, because their
+  triggers live in the sidebar and header.
 - **`RouteError`, `RoutePending` and `RouteNotFound` render no `<main>`.** They
   render inside the matched route's `Outlet`, which a layout's `<main>` already
   wraps. The top-level splat route `src/pages/$.tsx` has no layout, so it wraps
