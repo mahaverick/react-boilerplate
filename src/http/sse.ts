@@ -6,7 +6,8 @@ export interface SseEvent {
 }
 
 /**
- * The most a never-completing frame may buffer before the parser throws. Far
+ * The most characters (UTF-16 code units of the decoded text, not bytes) a
+ * never-completing frame may buffer before the parser throws. Far
  * past any real notification payload, and small enough that hitting it costs
  * one reconnect.
  */
@@ -51,7 +52,7 @@ export async function* parseSseStream(
 
       if (buffer.length > MAX_BUFFER_LENGTH) {
         throw new Error(
-          `SSE buffer exceeded ${String(MAX_BUFFER_LENGTH)} bytes without a complete frame`
+          `SSE buffer exceeded ${String(MAX_BUFFER_LENGTH)} characters without a complete frame`
         )
       }
     }
