@@ -210,7 +210,8 @@ Playwright has four projects in `e2e/`:
 The `live` and `nginx` projects read these variables (defaults in
 `playwright.config.ts` and the helpers):
 
-- `E2E_API_ORIGIN`: the express under test. Never assume `:4040`.
+- `E2E_API_ORIGIN` (default `http://localhost:4040`): the express under test.
+  Tests read it, never a hardcoded `:4040`.
 - `E2E_NGINX_ORIGIN`: the image under test (default `http://localhost:8088`).
 - `E2E_FLAGS_SET_CMD`: how `live/flags.test.ts` sets a flag; the test fails
   without it.

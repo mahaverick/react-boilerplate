@@ -107,11 +107,12 @@ and [Sign-out rules](SECURITY.md#sign-out-rules).
 
 Each rule's reason is in [Analytics privacy](SECURITY.md#analytics-privacy).
 
-- **Wrap every rendered person name, email address, avatar initial and invitation
-  address in `<Pii>`.** Wrap the value, not the sentence. Use `<Pii>`, not `ph-no-capture`, which
-  blanks the element in replay. A page that renders a
-  new kind of person data needs a fixture in the harness's `?pii=probe` mode and a
-  scan in `e2e/fixtures/pii.test.ts`. Without them the guard cannot see it.
+- **Wrap every rendered person name, email address, avatar initial and
+  invitation address in `<Pii>`.** Wrap the value, not the sentence. Use
+  `<Pii>`, not `ph-no-capture`, which blanks the element in replay. A page
+  that renders a new kind of person data needs a fixture in the harness's
+  `?pii=probe` mode and a scan in `e2e/fixtures/pii.test.ts`. Without them
+  the guard cannot see it.
 - **An attribute may carry personal data only if `mask-attribute.ts` masks it.**
   `e2e/nginx/analytics.test.ts` pins `aria-label` masking in the full snapshot
   and in later mutations.
@@ -186,8 +187,9 @@ The reasons are in [CSP and headers](SECURITY.md#csp-and-headers) and
   under `/tmp`. `docker/check-image.sh` checks this from outside.
 - **Nothing is configured at build time.** A setting that differs between
   environments is a run-time variable, never a `VITE_*` value or a build ARG. A new
-  setting touches every file the ARCHITECTURE section lists, in one change, and
-  its pattern follows
+  setting touches every file
+  [The container and run-time config](ARCHITECTURE.md#the-container-and-run-time-config)
+  lists, in one change, and its pattern follows
   [Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
 
 ## Error tracking

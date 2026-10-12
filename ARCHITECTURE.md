@@ -150,6 +150,7 @@ function of the match's params, typed by the module augmentation in
 `src/router.tsx`. `AppLayout` builds the trail from the matches and inserts
 the list pages a detail page sits under in the reader's mind but not in the
 route tree.
+
 **Queries** live in `src/queries/`, one file per resource. Most export a key
 factory and their hooks, and the rest reuse another file's keys; `unwrap`
 (`src/http/client.ts`) returns the `data` of the API's success envelope. Keys
@@ -282,9 +283,8 @@ to the API, for as long as its tab is open; `docker/nginx.main.conf` sizes
 `Connection` header and raises the read timeout; it hardcodes the API
 prefix, so moving `API_PREFIX` means editing this location too. Its logging
 choices are in [CSP and headers](SECURITY.md#csp-and-headers). The dev
-server's proxy does not
-propagate an upstream close, so the reconnect path can only be exercised
-against the image (the `nginx` Playwright project).
+server's proxy does not propagate an upstream close, so the reconnect path
+can only be exercised against the image (the `nginx` Playwright project).
 
 ## Analytics, flags and errors
 
@@ -540,8 +540,12 @@ in the [README's run-time configuration table](README.md#run-time-configuration)
 and why the values are safe to write unescaped is in
 [Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
 
-`docker/check-image.sh` checks a built image from outside; what it checks
-is listed in [CSP and headers](SECURITY.md#csp-and-headers).
+`docker/check-image.sh` checks a built image from outside. Its checks on the
+user, the root filesystem, the headers, the source maps, the refused run-time
+settings and the release are listed in
+[CSP and headers](SECURITY.md#csp-and-headers); the script also checks that
+`docker/05-prepare.sh` accepts good `API_UPSTREAM` values and refuses bad
+ones, and the content type of the JavaScript the image serves.
 
 ## Sibling sync with apex
 
