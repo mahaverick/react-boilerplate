@@ -1,7 +1,7 @@
 # StyleSeed design lock
 
 StyleSeed is the design method this repo checks its UI against. The lock below records
-what the method may and may not change here. The pinned engine is **4.2.0**, revision
+what the method may and may not change here. The pinned engine (`github.com/bitjaru/styleseed`) is **4.2.0**, revision
 `sha256:2ac39abb22417fa30964c3bd89667231ee18a5ae699aef9b588273f094606444`
 (`.styleseed/manifests/members.json`). Rules move, so an unpinned adoption would change
 under the repo. Upgrades go through `/ss-update` and are reviewed as a diff.
@@ -67,14 +67,17 @@ These are intentional. A later pass must not "fix" them.
 Rounding an SS002 value to the nearest scale step changes how the control renders.
 **Appearance wins over rule compliance.** The rule exists to prevent _unintentional_ drift.
 
-`outline-none` elsewhere in the app sits on elements that are either paired with a
-`focus-visible:` ring in the same class string (`ui/button.tsx`, `ui/input.tsx`, ...) or
-focus targets with `tabIndex={-1}` (`layouts/app-layout.tsx`, `layouts/auth-layout.tsx`).
-Read an SS005 finding before acting on it.
+`outline-none` elsewhere in the app sits on elements that are paired with a
+`focus-visible:` ring in the same class string (`ui/button.tsx`, `ui/input.tsx`, ...), on
+focus targets with `tabIndex={-1}` (`layouts/app-layout.tsx`, `layouts/auth-layout.tsx`),
+or on the chip input inside `ui/combobox.tsx`, which has neither. Read an SS005 finding
+before acting on it.
 
 ## Known scanner limits
 
-These describe the pinned engine's scanner (`styleseed-check.mjs`).
+These describe the pinned engine's scanner (`styleseed-check.mjs`). This repo holds no
+scanner source, so the engine-behaviour claims below cannot be checked here; only the
+registry, `sourceRoots` and `requiredRenders` points can.
 
 - **SS005 reports false positives.** Its message says "without a detected replacement", but
   it does not look for a replacement. Many reported lines carry `focus-visible:` in the same

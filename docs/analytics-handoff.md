@@ -20,21 +20,21 @@ The app keeps posthog-js's default storage name (`ANALYTICS_PERSISTENCE_NAME` is
 The website's posthog-js and the app's read and write **one identity cookie** on the
 registrable domain. Use the same project key and leave both settings at their defaults.
 
-posthog-js re-reads that cookie before every event and adopts whatever identity it holds.
-So while a user is signed in to the app in one tab, a website page in another tab that
-calls:
+As posthog-js documents it, the SDK re-reads that cookie before every event and adopts
+whatever identity it holds. So while a user is signed in to the app in one tab, a website
+page in another tab that calls these SDK methods has the following effects:
 
-- `identify(<lead id or email>)` or `alias(…)` would file the user's next app events under
+- `identify(<lead id or email>)` or `alias(…)` files the user's next app events under
   the lead;
-- `reset()` would make the app tab anonymous and drop its `app`, `environment` and tenant
+- `reset()` makes the app tab anonymous and drops its `app`, `environment` and tenant
   group;
-- `group(…)` would put the app's events in the website's group.
+- `group(…)` puts the app's events in the website's group.
 
 The app defends itself in `guardEvent` (`src/observability/analytics/analytics.ts`). While
 a user is signed in, an event carrying any other distinct id is dropped, and the user is
 identified again. An event missing the app's `app`, `environment` or tenant group gets them
-back. But the dropped events are lost, the re-identify can start a new replay session, and
-a signed-out visitor has no identity to restore. **The website must therefore never call
+back. But the dropped events are lost, a re-identify can start a new replay session (SDK
+behaviour, not something this repo controls), and a signed-out visitor has no identity to restore. **The website must therefore never call
 `identify`, `alias`, `reset` or `group`** while it shares the cookie. It may `capture`
 events and `register` its own properties. A lead form posts its data to your backend,
 which sets person properties server-side if it must.
