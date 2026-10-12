@@ -150,15 +150,15 @@ function of the match's params, typed by the module augmentation in
 `src/router.tsx`. `AppLayout` builds the trail from the matches and inserts
 the list pages a detail page sits under in the reader's mind but not in the
 route tree.
-
-**Queries** live in `src/queries/`, one file per resource. Most export a
-key factory and their hooks, and the rest reuse another file's keys; `unwrap` (`src/http/client.ts`) returns the
-`data` of the API's success envelope. Keys nest by prefix, so invalidating a
-prefix refetches everything under it: `['tenants']` is a prefix of every
-tenant's detail, members, settings, invitations and onboarding, and a
-mutation that means the list alone passes `exact: true`. Failed requests
-are read with the helpers in `src/lib/api-error.ts`, and a form maps the
-API's field errors onto its inputs through `useServerErrors`.
+**Queries** live in `src/queries/`, one file per resource. Most export a key
+factory and their hooks, and the rest reuse another file's keys; `unwrap`
+(`src/http/client.ts`) returns the `data` of the API's success envelope. Keys
+nest by prefix, so invalidating a prefix refetches everything under it:
+`['tenants']` is a prefix of every tenant's detail, members, settings,
+invitations and onboarding, and a mutation that means the list alone passes
+`exact: true`. Failed requests are read with the helpers in
+`src/lib/api-error.ts`, and a form maps the API's field errors onto its inputs
+through `useServerErrors`.
 
 ## State
 
@@ -288,10 +288,12 @@ against the image (the `nginx` Playwright project).
 
 ## Analytics, flags and errors
 
-The three share one transport, the API's `/api/v1/collect` proxy, which
-forwards to PostHog; the browser never talks to PostHog. What each sends,
-masks and withholds is in [Analytics privacy](SECURITY.md#analytics-privacy)
-and [Error-tracking privacy](SECURITY.md#error-tracking-privacy).
+Analytics and error tracking share one transport, the API's `/api/v1/collect`
+proxy, which forwards to PostHog. Flags are read from, and exposures reported
+to, the API's own flag endpoints. In every case the browser never talks to
+PostHog. What each sends, masks and withholds is in
+[Analytics privacy](SECURITY.md#analytics-privacy) and
+[Error-tracking privacy](SECURITY.md#error-tracking-privacy).
 
 ### Analytics
 
@@ -384,7 +386,7 @@ Error tracking is split so that every page pays almost nothing for it:
 - **`listen.ts`**, in the entry chunk, notes raw errors and nothing else:
   the window listeners, React's root `onUncaughtError` and `onCaughtError`
   (`rootErrorOptions`, passed to `createRoot`), and `noteError` for an error
-  screen that catches an error those hooks never see (this app's are
+  the app catches that those hooks never see (this app's callers are
   `RouteError` and the tenant route's error component). It drops repeats,
   buffers a few errors, and loads the reporter on the first error or when
   the browser is idle. It imports only `identity-epoch.ts`.
@@ -547,25 +549,29 @@ is listed in [CSP and headers](SECURITY.md#csp-and-headers).
 A change to one here means checking the other app in the same pull
 request, and the description says what happened there.
 
-| Path                                                                                                                                                                                                                            | Why it must stay in step                                                                                               |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `src/http/*`, except `sse.ts` (this app only)                                                                                                                                                                                   | Session refresh single-flight, 401-verdict sign-out, trace headers, analytics identity order                           |
-| `src/lib/api-error.ts`                                                                                                                                                                                                          | Error envelope parsing                                                                                                 |
-| `src/schemas/auth.schemas.ts`, `src/schemas/safe-text.schemas.ts`                                                                                                                                                               | Mirror the API's validators                                                                                            |
-| `src/components/ui/form.tsx`, `src/components/ui/sonner.tsx`                                                                                                                                                                    | Hand-written, shared behaviour                                                                                         |
-| `nginx.conf` security headers and CSP, and `location /api/v1/collect/`                                                                                                                                                          | Same threat model; same replay batch size                                                                              |
-| `src/observability/analytics/*`, except `config.ts`'s per-app constants and `events.ts`'s registry                                                                                                                              | One PII, consent, handoff and identity contract                                                                        |
-| `src/components/shared/pii.tsx`, `e2e/helpers/fake-posthog.ts`                                                                                                                                                                  | The masking class and the egress guard's fake PostHog                                                                  |
-| `src/observability/flags/**`, except `flag-keys.ts` (each app's registry slice) and `flag-scope.ts` (each app's scope); `tests/unit/observability/flags/**`, except `flag-scope.test.ts`; `tests/fixtures/test-client-flags.ts` | One flag read, exposure and `$feature/*` contract; the tests mock `flag-keys` with test keys so they pass in both apps |
-| `docker/10-runtime-config.sh`, `src/configs/runtime-config.ts`, `scripts/runtime-config-plugin.mjs`, `nginx.conf`'s `location = /runtime-config.js`                                                                             | One run-time configuration contract: the same variable names, patterns and file in both images                         |
-| `public/theme-init.js`, `src/lib/zod-jitless.ts`                                                                                                                                                                                | CSP compatibility                                                                                                      |
-| `src/observability/errors/**`, `src/observability/identity-epoch.ts`, `tests/fixtures/error-scrub-vectors.json`                                                                                                                 | One capture, filter, scrub and consent contract; the vectors are express-boilerplate's, byte for byte                  |
-| `docker/upload-sourcemaps.sh`, `docker/check-image.sh`, `docker/posthog-cli.sha256`, `.github/workflows/deploy.yml`                                                                                                             | One source map pipeline                                                                                                |
-| `nginx.conf`'s `.map` location                                                                                                                                                                                                  | No source map is ever served                                                                                           |
-| `docker/nginx.main.conf`, `pnpm-workspace.yaml`, `tests/unit/docker/check-image-script.test.ts`, `tests/unit/docker/nginx-main-conf.test.ts`                                                                                    | Same container limits, dependency overrides and script tests                                                           |
-| `src/components/features/profile/security-section.tsx` and its test                                                                                                                                                             | One sign-out-other-sessions section                                                                                    |
-| `src/schemas/changed-fields.schemas.ts`, `src/hooks/use-changed-fields.ts`, `tests/unit/hooks/use-changed-fields.test.tsx`                                                                                                      | Changed-field edit forms; each app keeps its own schema test                                                           |
-| `eslint.config.js`'s shared conventions                                                                                                                                                                                         | Same conventions; each app adds its own import restrictions and file lists                                             |
+| Path                                                                                                                                                                                                                                                           | Why it must stay in step                                                                                               |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `src/http/*`, except `sse.ts` (this app only)                                                                                                                                                                                                                  | Session refresh single-flight, 401-verdict sign-out, trace headers, analytics identity order                           |
+| `src/lib/api-error.ts`                                                                                                                                                                                                                                         | Error envelope parsing                                                                                                 |
+| `src/schemas/auth.schemas.ts`, `src/schemas/safe-text.schemas.ts`                                                                                                                                                                                              | Mirror the API's validators                                                                                            |
+| `src/schemas/profile.schemas.ts`, `src/schemas/invitation.schemas.ts`, `src/schemas/email-domain.schemas.ts` and their tests in `tests/unit/schemas/`                                                                                                          | Mirror the API's validators                                                                                            |
+| `src/components/ui/form.tsx`, `src/components/ui/sonner.tsx`                                                                                                                                                                                                   | Hand-written, shared behaviour                                                                                         |
+| `nginx.conf` security headers and CSP, and `location /api/v1/collect/`                                                                                                                                                                                         | Same threat model; same replay batch size                                                                              |
+| `src/observability/analytics/*`, except `config.ts`'s per-app constants and `events.ts`'s registry                                                                                                                                                             | One PII, consent, handoff and identity contract                                                                        |
+| `src/components/shared/pii.tsx`, `e2e/helpers/fake-posthog.ts`, `tests/mocks/posthog.ts`                                                                                                                                                                       | The masking class, the egress guard's fake PostHog, and the posthog-js stand-in the unit tests share                   |
+| `src/observability/flags/**`, except `flag-keys.ts` (each app's registry slice) and `flag-scope.ts` (each app's scope); `tests/unit/observability/flags/**`, except `flag-scope.test.ts` and apex's `flag-keys.test.ts`; `tests/fixtures/test-client-flags.ts` | One flag read, exposure and `$feature/*` contract; the tests mock `flag-keys` with test keys so they pass in both apps |
+| `docker/10-runtime-config.sh`, `src/configs/runtime-config.ts`, `scripts/runtime-config-plugin.mjs`, `nginx.conf`'s `location = /runtime-config.js`                                                                                                            | One run-time configuration contract: the same variable names, patterns and file in both images                         |
+| `docker/05-prepare.sh`                                                                                                                                                                                                                                         | Validates `API_UPSTREAM`, the other half of the container contract                                                     |
+| `public/theme-init.js`, `src/lib/zod-jitless.ts`                                                                                                                                                                                                               | CSP compatibility                                                                                                      |
+| `src/observability/errors/**`, `src/observability/identity-epoch.ts`, `tests/fixtures/error-scrub-vectors.json`                                                                                                                                                | One capture, filter, scrub and consent contract; the vectors are express-boilerplate's, byte for byte                  |
+| `src/main.tsx`, `src/components/features/route-error.tsx`, the `setErrorRouteSource` line in `src/router.tsx`                                                                                                                                                  | The same boot order, and router and React root errors reported with their route the same way                           |
+| `docker/upload-sourcemaps.sh`, `docker/check-image.sh`, `docker/posthog-cli.sha256`, `.github/workflows/deploy.yml`                                                                                                                                            | One source map pipeline                                                                                                |
+| `nginx.conf`'s `.map` location                                                                                                                                                                                                                                 | No source map is ever served                                                                                           |
+| `docker/nginx.main.conf`, `pnpm-workspace.yaml`, `tests/unit/docker/check-image-script.test.ts`, `tests/unit/docker/nginx-main-conf.test.ts`, `tests/unit/docker/dockerfile.test.ts`                                                                           | Same container limits, dependency overrides and script tests                                                           |
+| `e2e/nginx/cors.test.ts`                                                                                                                                                                                                                                       | The CORS seam through nginx; this app adds a preflight for its stream                                                  |
+| `src/components/features/profile/security-section.tsx` and its test                                                                                                                                                                                            | One sign-out-other-sessions section                                                                                    |
+| `src/schemas/changed-fields.schemas.ts`, `src/hooks/use-changed-fields.ts`, `tests/unit/hooks/use-changed-fields.test.tsx`                                                                                                                                     | Changed-field edit forms; each app keeps its own schema test                                                           |
+| `eslint.config.js`'s shared conventions                                                                                                                                                                                                                        | Same conventions; each app adds its own import restrictions and file lists                                             |
 
 The error scrubber is also held in step with express-boilerplate; see
 [The scrubber](SECURITY.md#the-scrubber).

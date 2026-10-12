@@ -130,7 +130,8 @@ meta-router; invoke skills directly)
 
 On demand, not in CI. StyleSeed publishes no npm package and its plugin installs outside the
 repo, so wiring the scanner into CI would mean vendoring it and owning its updates. `eslint`,
-`tsc`, Vitest, `jest-axe` and the Playwright suites remain the CI gates (`.github/workflows/ci.yml`).
+`tsc`, Vitest, `jest-axe`, the Playwright `fixtures` project and the `nginx` project's
+`@no-api` tests remain the CI gates (`.github/workflows/ci.yml`).
 
 Run the deterministic tier with:
 

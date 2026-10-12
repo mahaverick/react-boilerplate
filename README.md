@@ -28,10 +28,17 @@ configuring, testing and shipping the app.
   `packageManager`. Node 25 and later do not ship Corepack, so this works on any
   supported Node. `pnpm install` refuses a Node older than 24.
 - **The API running on `:4040`.** See [Getting started](#getting-started).
-- **express-boilerplate 2.1.0 or later.** The members page reads the
-  `member_not_found` code on a role change or removal whose member is already
-  gone, and `user.active` on the platform tenant's member list. Leaving a tenant
-  and signing out other sessions use routes that exist from express 2.0.0.
+- **express-boilerplate 2.0.0 or later; 4.0.0 or later is recommended.** 2.0.0 is
+  the earliest tag that has every route and body this app sends: leaving a tenant
+  (`DELETE /tenants/:slug/membership`) and signing out other sessions
+  (`POST /auth/sessions/revoke-others`) arrive in 2.0.0, and every other route it
+  calls is older. From 2.1.0 the members page reads the `member_not_found` code on
+  a role change or removal whose member is already gone, and `user.active` on the
+  platform tenant's member list; against 2.0.x it falls back to the 404's
+  `Member not found` message and treats every member as active
+  (`src/queries/tenant.queries.ts`). From 4.0.0 a second click on a used
+  verification link answers 409 `email_already_verified`, which the verify page
+  shows as done; earlier versions answer 400, which it shows as a failed link.
 
 ## Getting started
 
@@ -93,8 +100,9 @@ empty one.
 - `getRuntimeConfig()` (`src/configs/runtime-config.ts`) applies the patterns
   again; the consent mode fails closed
   ([how](SECURITY.md#run-time-config-injection-safety)).
-- Every value is public: each browser receives `/runtime-config.js`. The PostHog
-  key may come from a secret store but is not a secret.
+- Every value is public
+  ([why](SECURITY.md#run-time-config-injection-safety)); the PostHog key may come
+  from a secret store.
 
 The dev server, `pnpm preview` and the unit tests read the `VITE_` names from
 `.env` (`.env.example` lists them).
@@ -186,11 +194,9 @@ Unit tests live under `tests/unit/`, mirroring `src/`. No test file lives under
 `src/`: eslint rejects one. A test for `src/http/session.ts` is
 `tests/unit/http/session.test.ts`.
 
-`tests/unit/a11y.test.tsx` is an **accessibility gate**: every routed page, plus
-an open dialog and an open sheet, must come back clean with no rule disabled to
-get there. A violation is fixed in the markup, never suppressed. It does not
-check colour contrast, because jsdom has no layout or cascade and those rules are
-off under it. [CLAUDE.md](CLAUDE.md#accessibility) has the details.
+`tests/unit/a11y.test.tsx` is an **accessibility gate**: no rule is disabled to
+pass it, and a violation is fixed in the markup. What it covers, and why colour
+contrast is measured elsewhere, is in [CLAUDE.md](CLAUDE.md#accessibility).
 
 Playwright has four projects in `e2e/`:
 
@@ -208,9 +214,12 @@ The `live` and `nginx` projects read these variables (defaults in
 - `E2E_NGINX_ORIGIN`: the image under test (default `http://localhost:8088`).
 - `E2E_FLAGS_SET_CMD`: how `live/flags.test.ts` sets a flag; the test fails
   without it.
-- `E2E_MAILPIT_ORIGIN`, `E2E_RELEASE` and `E2E_ALLOWED_ORIGIN`: the mailpit the
-  helpers read, the release the error reports carry, and the origin the CORS test
-  sends.
+- `E2E_MAILPIT_ORIGIN` (default `http://localhost:8025`): the mailpit the helpers
+  read verification emails from.
+- `E2E_RELEASE` (default `dev`): the release `nginx/errors.test.ts` expects on each
+  error report.
+- `E2E_ALLOWED_ORIGIN` (default `http://localhost:5173`): the origin
+  `nginx/cors.test.ts` sends, which must be in the express's CORS allowlist.
 
 The SSE reconnect test restarts an express, so it runs only by hand, behind a
 guard that refuses to touch the main checkout. The steps and the guard's rules
@@ -233,10 +242,11 @@ express evaluates every flag; this app only reads the values. How is in
 
 ## Analytics (PostHog)
 
-Set `POSTHOG_KEY` to turn analytics on ([Run-time configuration](#run-time-configuration)).
-Events go through the API's `/api/v1/collect` proxy, never to PostHog directly.
-The mechanism is in [Analytics](ARCHITECTURE.md#analytics) and the privacy rules
-are in [Analytics privacy](SECURITY.md#analytics-privacy).
+Set `POSTHOG_KEY` to turn analytics on
+([Run-time configuration](#run-time-configuration)). Events go through the
+API's `/api/v1/collect` proxy, never to PostHog directly. The mechanism is in
+[Analytics](ARCHITECTURE.md#analytics) and the privacy rules are in
+[Analytics privacy](SECURITY.md#analytics-privacy).
 
 `e2e/nginx/analytics.test.ts` runs against the production image started with
 the settings CI uses (`POSTHOG_KEY=phc_test_key_not_real`, `APP_ENVIRONMENT=ci`,
@@ -315,8 +325,8 @@ no `.map` files under `dist/`, if the CLI skipped a chunk as too large, if
 nothing was uploaded (unless the same output line gives a non-zero "already
 uploaded" or existing count), or if an upload fails.
 
-nginx also answers 404 for any `.map` URL outside `/api/`. **Any deploy of
-`dist/` outside the image must delete `*.map` first.**
+**Any deploy of `dist/` outside the image must delete `*.map` first**
+([CSP and headers](SECURITY.md#csp-and-headers)).
 
 The build downloads the `posthog-cli` binary from releases.posthog.com and
 verifies its SHA-256 against `docker/posthog-cli.sha256` (one hash per

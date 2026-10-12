@@ -11,7 +11,9 @@ deploy it is in [README.md](README.md).
 `apex-boilerplate` shares the HTTP layer, analytics, flags, error tracking, most
 of the container and several components with this app. When you change a shared
 path, change apex in the same PR, and say in the description what happened there
-("ported in apex#N", or "not applicable because …"). The paths are listed in
+("ported in apex#N", or "not applicable because …"). For a file the two apps hold
+byte for byte, change this copy first and copy it to apex, except `scrub.ts`,
+whose rules change in express first. The paths are listed in
 [Sibling sync with apex](ARCHITECTURE.md#sibling-sync-with-apex).
 
 ## Staff on tenant pages
@@ -106,11 +108,13 @@ and [Sign-out rules](SECURITY.md#sign-out-rules).
 Each rule's reason is in [Analytics privacy](SECURITY.md#analytics-privacy).
 
 - **Wrap every rendered person name, email address, avatar initial and invitation
-  address in `<Pii>`.** Wrap the value, not the sentence. A page that renders a
+  address in `<Pii>`.** Wrap the value, not the sentence. Use `<Pii>`, not `ph-no-capture`, which
+  blanks the element in replay. A page that renders a
   new kind of person data needs a fixture in the harness's `?pii=probe` mode and a
   scan in `e2e/fixtures/pii.test.ts`. Without them the guard cannot see it.
 - **An attribute may carry personal data only if `mask-attribute.ts` masks it.**
-  `e2e/nginx/analytics.test.ts` pins `aria-label` masking in the full snapshot and in later mutations.
+  `e2e/nginx/analytics.test.ts` pins `aria-label` masking in the full snapshot
+  and in later mutations.
 - **Only `src/observability/analytics/` imports posthog-js**, and only
   `analytics.ts` imports it as a value, through `import()`. `pnpm check:bundle`
   fails if it reaches a first-visit chunk.
@@ -165,7 +169,8 @@ How it works is in [Maintenance mode](ARCHITECTURE.md#maintenance-mode).
 
 ## The container
 
-The mechanism is in [The container and run-time config](ARCHITECTURE.md#the-container-and-run-time-config).
+The mechanism is in
+[The container and run-time config](ARCHITECTURE.md#the-container-and-run-time-config).
 The reasons are in [CSP and headers](SECURITY.md#csp-and-headers) and
 [Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
 
@@ -181,9 +186,9 @@ The reasons are in [CSP and headers](SECURITY.md#csp-and-headers) and
   under `/tmp`. `docker/check-image.sh` checks this from outside.
 - **Nothing is configured at build time.** A setting that differs between
   environments is a run-time variable, never a `VITE_*` value or a build ARG. A new
-  setting touches every file the ARCHITECTURE section lists, in one change. Its
-  pattern admits no quote, backslash, `<` or newline, and the script's error names
-  the variable, never the value.
+  setting touches every file the ARCHITECTURE section lists, in one change, and
+  its pattern follows
+  [Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
 
 ## Error tracking
 
@@ -200,9 +205,8 @@ is in [Error-tracking privacy](SECURITY.md#error-tracking-privacy).
   A release makes it call PostHog and write a release id into every chunk, so an
   unchanged chunk would ship new bytes under its old hashed name.
 - **Never soften `docker/upload-sourcemaps.sh`.** Every failure it detects fails
-  the build: a missing token, no maps, a failed upload, a chunk skipped as too
-  large, or nothing uploaded. Never add `|| true` or `--no-fail`. Without the maps,
-  the image reports unreadable frames, silently.
+  the build ([README](README.md#source-maps) lists them). Never add `|| true` or
+  `--no-fail`: without the maps, the image reports unreadable frames, silently.
 - **A `@posthog/cli` bump updates both hashes in `docker/posthog-cli.sha256`** in
   the same change. The Dockerfile checks the binary against them before it runs it
   with the upload token.
@@ -372,17 +376,10 @@ jsdom has no layout. The harness has two traps:
   unmocked endpoint.
 
 **`live`** needs a real express and its services, and runs only with `E2E_LIVE=1`.
-Point `E2E_API_ORIGIN` at the express under test, and never assume `:4040`. Each
-run registers a fresh address (`freshEmail`), because express rate-limits sign-in
-per address. `live/flags.test.ts` fails, rather than skips, without
-`E2E_FLAGS_SET_CMD`. Other variables:
-
-- `E2E_MAILPIT_ORIGIN` (default `http://localhost:8025`): the mailpit the helpers
-  read verification emails from.
-- `E2E_RELEASE` (default `dev`): the release `nginx/errors.test.ts` expects on
-  each error report.
-- `E2E_ALLOWED_ORIGIN` (default `http://localhost:5173`): the origin
-  `nginx/cors.test.ts` sends, which must be in the express's CORS allowlist.
+Each run registers a fresh address (`freshEmail`), because express rate-limits
+sign-in per address. `live/flags.test.ts` fails, rather than skips, without
+`E2E_FLAGS_SET_CMD`. The variables, with their defaults, are in the
+[README](README.md#testing); never assume `:4040`.
 
 **posthog-js drops every event from a Playwright browser** (`navigator.webdriver`,
 a headless user agent). An analytics e2e test uses `HUMAN_USER_AGENT` and calls
@@ -454,10 +451,15 @@ the markup. No rule is disabled to make it pass.
 - **Every page needs exactly one `<main>` and one `<h1>`, and the test asserts both
   by hand.** Under jsdom, axe cannot evaluate `page-has-heading-one` or
   `landmark-one-main`. Both use axe's `passForModal` check, which looks for a
-  modal. When no dialog is open, the check calls `document.elementFromPoint`, which
-  jsdom lacks, so axe files both rules under `incomplete`. `toHaveNoViolations`
-  does not read that list. When a dialog is open, both rules pass without looking
-  at the page. `CardTitle` renders a `div`, so a page's `h1` goes inside it.
+  modal. When no dialog is open, the check calls `document.elementsFromPoint`,
+  which axe polyfills over `document.elementFromPoint`; jsdom has neither, so axe
+  files both rules under `incomplete`. `toHaveNoViolations` does not read that
+  list. When a dialog is open, both rules pass without looking at the page.
+  `CardTitle` renders a `div`, so a page's `h1` goes inside it.
+- **`incomplete` is pinned.** `KNOWN_INCOMPLETE` lists the rules jsdom cannot
+  decide, each with its reason, and the gate fails on any other rule filed there.
+  `aria-valid-attr-value` is accepted only when every check on it is
+  `controlsWithinPopup`, so a dangling reference still fails.
 - **Menus are graded at menu scope.** Base UI portals a menu popup to
   `document.body`, so at document scope every open menu trips `region`.
   `expectNoViolationsIn` runs the same rule set against the popup. It asserts that

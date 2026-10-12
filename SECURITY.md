@@ -23,10 +23,15 @@ browser storage is readable by whoever runs the page, so:
 - **Credentials leave the browser only towards the API.** The access token
   travels in an `Authorization` header, never a URL; the refresh token is an
   httpOnly cookie the client never reads.
-- **Shared browsers and multiple tabs.** One refresh cookie serves every tab,
-  and, where the app's analytics configuration shares it
-  (`src/observability/analytics/config.ts`), the analytics identity cookie is
-  shared with a website on a sibling subdomain. A tab must never act as, or attribute events to, someone other
+- **Shared browsers and multiple tabs.** One refresh cookie serves every tab.
+  Where express's `COOKIE_DOMAIN` covers this app's host and apex's, that cookie
+  is apex's too, so a sign-in there as someone else ends this tab's session at
+  its next refresh (`SessionIdentityChangedError`, below). Where the app's
+  analytics configuration shares it (`src/observability/analytics/config.ts`),
+  the analytics identity cookie is shared with a website on a sibling
+  subdomain. The analytics opt-out and consent state is keyed by the PostHog
+  project key alone, so another app served from this host with the same key
+  shares it. A tab must never act as, or attribute events to, someone other
   than its own signed-in user.
 - **Third parties see as little as possible.** Analytics and error tracking
   go to PostHog through the API's `/api/v1/collect` proxy, after masking and
@@ -200,7 +205,10 @@ The policy is enforced, not report-only:
   violations (`e2e/nginx/headers.test.ts`, `e2e/nginx/csp.test.ts`,
   `e2e/nginx/csp-live.test.ts`), and `docker/check-image.sh` checks the
   built image from outside: user 101, a read-only root, each header sent
-  once on proxied and unproxied responses, and no source map in the image.
+  once on proxied and unproxied responses, no source map in the image, a
+  refused run-time setting that stops the container without printing its
+  value, and a bundle that carries its release and no release id written by
+  inject.
 
 ## Run-time config injection safety
 
@@ -222,10 +230,10 @@ patterns and defaults are in the
 - **The bundle validates again.** `src/configs/runtime-config.ts` applies
   the same patterns. An invalid value counts as unset, except
   `ANALYTICS_CONSENT_MODE`, which fails closed to `off` rather than falling
-  back to capturing in an app whose `config.ts` honours consent modes; a handoff origin list with one origin `URL` refuses is
-  dropped whole. Its console warning names the keys, never the values. A
-  production bundle reads only `window.__APP_CONFIG__`, so no build-time
-  value can configure it.
+  back to capturing in an app whose `config.ts` honours consent modes; a
+  handoff origin list with one origin `URL` refuses is dropped whole. Its
+  console warning names the keys, never the values. A production bundle reads
+  only `window.__APP_CONFIG__`, so no build-time value can configure it.
 - **Every value is public.** Each browser fetches `/runtime-config.js`, so
   nothing secret goes in it. The PostHog project key may come from a secret
   store, but it is not a secret.
@@ -273,7 +281,7 @@ too.
   bodies or JSON-LD, and each recorded request URL is sanitised.
 - **Captured URLs keep only allowlisted query keys.**
   `ANALYTICS_URL_QUERY_ALLOWLIST` (`src/observability/analytics/config.ts`)
-  is the whole list; the sanitizer
+  is the whole list: `tab`; the sanitizer
   (`src/observability/analytics/url-sanitizer.ts`) runs as `before_send` and
   rewrites every absolute http(s) string in an event's properties, `$set` and
   `$set_once`, to eight levels deep, plus the hrefs in `$elements` and
@@ -281,12 +289,13 @@ too.
   a `mailto:` or `tel:` URL keeps only its scheme. posthog-js's own
   personal-data masking also covers `token`, `email`, `redirect`,
   `invitation`, `q`, `search`, `ph_did` and `ph_sid`. Add a key to the
-  allowlist only when its values can never be a token, an address or a
-  redirect.
+  allowlist only when its values can never be a token, an address, a search
+  term or a redirect.
 - **Events never cross people** (`guardEvent` in
   `src/observability/analytics/analytics.ts`). posthog-js adopts the
   identity cookie before every event, and where `config.ts` shares that
-  cookie a sibling-subdomain website can change it, so while a user is signed in, any event under another distinct id is dropped.
+  cookie a sibling-subdomain website can change it, so while a user is signed
+  in, any event under another distinct id is dropped.
   If another tab of this app identified that person (announced on the
   `analytics-identity` channel or written to a 60-second `localStorage`
   registry), this tab is superseded: it drops its events and refreshes its
@@ -306,14 +315,11 @@ too.
   exception reports and flag exposure are sent whatever the answer (see
   below).
 - **The cross-domain handoff is narrow** (`handoff.ts`, read only where
-  `config.ts` enables it). A website may link
-  in with `?ph_did=&ph_sid=` to continue an anonymous visit. It is accepted
-  only in `opt_out` mode, only for UUIDs, only from a referrer origin in
-  `ANALYTICS_HANDOFF_ORIGINS`, only while the browser holds no identified
-  person, and only once per id in this browser (an id that cannot be
-  recorded is refused), because an id taken once may since belong to a
-  signed-in person. Both parameters leave the address bar on every load,
-  accepted or not.
+  `config.ts` enables it). A link's `?ph_did=&ph_sid=` is accepted only in
+  `opt_out` mode, from an allowlisted referrer, into a browser that holds no
+  identified person, and once per id; the full conditions and what they do not
+  stop are in [docs/analytics-handoff.md](docs/analytics-handoff.md). Both
+  parameters leave the address bar on every load, accepted or not.
 - **Guards.** `e2e/fixtures/pii.test.ts` checks that every probe name and
   address on the main pages sits inside `<Pii>`; `e2e/nginx/analytics.test.ts`
   searches everything that reached a fake PostHog, decoded, after a route
@@ -390,15 +396,17 @@ catches and what it misses.
 
 - **The container trusts its front.** nginx appends to the client's
   `X-Forwarded-For` and passes on an `X-Forwarded-Proto` of `http` or
-  `https` as received, and sets no per-IP connection limit, since every request arrives
-  from the TLS terminator's address (`docker/nginx.main.conf`). Expose the
-  container only through that terminator.
+  `https` as received, and sets no per-IP connection limit, since every
+  request arrives from the TLS terminator's address
+  (`docker/nginx.main.conf`). Expose the container only through that
+  terminator.
 - **The error log can hold query strings.** An upstream error under
   `location /api/` writes the full request line to the error log at the
-  `notice` level. That includes the Google OAuth callback, which the API
-  serves under `/api/` with its `code` and `state` in the query. The `code`
-  is single-use and short-lived, but it is a credential written to disk.
-  Only the notification stream's location lowers its error log to `crit`.
+  `notice` level. Where express's `APP_URL` is this container's host, that
+  includes the Google OAuth callback, which the API serves under `/api/` with
+  its `code` and `state` in the query; the `code` is single-use and
+  short-lived, but it is a credential written to disk. Only the notification
+  stream's location lowers its error log to `crit`.
 - **HSTS is the edge's job.** See [CSP and headers](#csp-and-headers).
 - **Inline styles are allowed** (`style-src 'unsafe-inline'`), for sonner.
   An injected `<style>` cannot run script, but it can restyle the page.
@@ -414,7 +422,9 @@ catches and what it misses.
 - **Consent belongs to the browser, not the person.** The banner's answer
   survives sign-out, so the next person on a shared browser starts with it.
 - **Tenant slugs are not masked.** They appear in captured URL paths and in
-  the page titles page views carry.
+  the page titles page views carry. Where the PostHog project records network
+  requests in replay, the paths of tenant-scoped API calls
+  (`/tenants/:slug/…`) carry the tenant's slug.
 - **Canvas recording** in the PostHog project's replay settings would break
   replay under the CSP; it is a project setting, not enforced by this repo.
 - **Error scrubbing is regex-based** and misses free text; see
