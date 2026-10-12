@@ -142,6 +142,20 @@ grep -q 'location /api/ {' "$work/nginx-T" || problem "the /api/ location is not
 # Nothing listens behind /api, so the proxy itself answers 502.
 status=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/health")
 [ "$status" = 502 ] || problem "/api/ with no API behind it answered $status, not 502"
+# nginx writes the request line, query string included, into every upstream
+# error. The Google OAuth callback's `code` and `state` are credentials, so its
+# location logs only at `crit`; any other /api/ path still logs the error,
+# which shows the mechanism is live and the callback's silence is the fix.
+curl -s -o /dev/null "$base/api/v1/health?code=CHECK_CONTROL_QUERY&state=S"
+curl -s -o /dev/null "$base/api/v1/auth/google/callback?code=CHECK_OAUTH_CODE&state=S"
+error_log=$(docker logs "$name" 2>&1)
+case $error_log in
+  *'[error]'*'request: "GET /api/v1/health?code=CHECK_CONTROL_QUERY'*) ;;
+  *) problem "an upstream error under /api/ wrote no error line with its request" ;;
+esac
+case $error_log in
+  *CHECK_OAUTH_CODE*) problem "the Google OAuth callback's query string reached the error log" ;;
+esac
 
 asset=$({ curl -sf "$base/" || true; } | { grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' || true; } | head -n 1)
 [ -n "$asset" ] || problem "index.html names no /assets/index-*.js entry chunk"
