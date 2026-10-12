@@ -52,13 +52,14 @@ test('the notification stream reconnects after the backend really restarts', asy
   await page.goto('/dashboard')
   await expect.poll(() => streamOpens.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1)
 
-  const killedAt = Date.now()
   // A real restart: the process is killed and a replacement started, not a hand-built stream closed by a mock.
-  await restartApi()
+  const { stoppedPids, startedPids } = await restartApi()
   const readyAt = Date.now()
 
-  // A restart that took no time did not happen, and the test would measure a stream never interrupted.
-  expect(readyAt - killedAt).toBeGreaterThan(2000)
+  // A restart that changed no listener did not happen, and the test would measure a stream never interrupted.
+  expect(stoppedPids.length).toBeGreaterThan(0)
+  expect(startedPids.length).toBeGreaterThan(0)
+  expect(startedPids.filter((pid) => stoppedPids.includes(pid))).toEqual([])
 
   // Timestamped, not counted: a count would pass on a connection opened during sign-in that landed late, but the reconnect must be made after the replacement server was up.
   await expect

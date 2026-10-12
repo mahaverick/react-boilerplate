@@ -426,6 +426,12 @@ PID_FILE="$(node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
 kill -TERM -"$(cat "$PID_FILE")" && rm -f "$PID_FILE"
 ```
 
+Run `pnpm dev` in the worktree, and the test, with a short `TMPDIR` (for example
+`TMPDIR=/tmp`). `tsx watch` opens its IPC socket at `$TMPDIR/tsx-<uid>/<pid>.pipe`,
+and a unix socket path longer than 104 bytes fails to bind on macOS; the default
+`/var/folders/.../T/` is long. The restarted server's pid file (`PID_FILE=...`)
+lives under the same `os.tmpdir()`, so give the kill command the same `TMPDIR`.
+
 `restartApi()` finds listeners with `lsof -sTCP:LISTEN` and escalates SIGTERM to
 SIGKILL. Both details matter:
 
