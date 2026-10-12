@@ -144,10 +144,15 @@ status=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/health")
 [ "$status" = 502 ] || problem "/api/ with no API behind it answered $status, not 502"
 # nginx writes the request line, query string included, into every upstream
 # error. The Google OAuth callback's `code` and `state` are credentials, so its
-# location logs only at `crit`; any other /api/ path still logs the error,
-# which shows the mechanism is live and the callback's silence is the fix.
-curl -s -o /dev/null "$base/api/v1/health?code=CHECK_CONTROL_QUERY&state=S"
+# location logs only at `crit`, with a trailing slash or in any letter case, as
+# express routes them; any other /api/ path still logs the error, which shows
+# the mechanism is live and the callback's silence is the fix. The control goes
+# last: the log keeps one stream's lines in order, so once its line is there,
+# any line the callback requests wrote is there too.
 curl -s -o /dev/null "$base/api/v1/auth/google/callback?code=CHECK_OAUTH_CODE&state=S"
+curl -s -o /dev/null "$base/api/v1/auth/google/callback/?code=CHECK_OAUTH_CODE_SLASH&state=S"
+curl -s -o /dev/null "$base/api/V1/Auth/Google/Callback?code=CHECK_OAUTH_CODE_CASE&state=S"
+curl -s -o /dev/null "$base/api/v1/health?code=CHECK_CONTROL_QUERY&state=S"
 error_log=$(docker logs "$name" 2>&1)
 case $error_log in
   *'[error]'*'request: "GET /api/v1/health?code=CHECK_CONTROL_QUERY'*) ;;

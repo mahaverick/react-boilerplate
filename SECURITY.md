@@ -164,10 +164,10 @@ The policy is enforced, not report-only:
   in the same change.
 - **Session replay starts no worker.** Recording `<canvas>` content would
   start a `blob:` worker, which `script-src 'self'` blocks (`worker-src`
-  falls back to it). Keep canvas recording off in the PostHog project's
-  replay settings. The options also pin
+  falls back to it). The options pin
   `session_recording.captureCanvas.recordCanvas: false`, which overrides the
-  project setting. `e2e/nginx/analytics.test.ts` asserts replay records under
+  PostHog project's replay setting, so the project cannot turn canvas
+  recording on. `e2e/nginx/analytics.test.ts` asserts replay records under
   this policy with no worker and no violation.
 - **No location declares an `add_header`.** In nginx, a location that sets
   any header of its own inherits none of the server block's, so it would
@@ -195,7 +195,7 @@ The policy is enforced, not report-only:
   changes that. A request-line leak happens at every level up to `error`, so
   the level (`notice`, `docker/nginx.main.conf`) does not matter; only `crit`
   drops it. The notification stream's location and the Google OAuth
-  callback's (`location = /api/v1/auth/google/callback`) set their error log
+  callback's (`location ~* ^/api/v1/auth/google/callback/?$`) set their error log
   level to `crit`, which silences those messages there; no other location
   does (see [Known gaps](#known-gaps)).
 - **No source map is served.** The image deletes every `.map` after the
@@ -210,8 +210,8 @@ The policy is enforced, not report-only:
   built image from outside: user 101, a read-only root, each header sent
   once on proxied and unproxied responses, no source map in the image, a
   refused run-time setting that stops the container without printing its
-  value, an upstream error on the Google OAuth callback that writes none of
-  its query string to the log while another `/api/` path still logs its
+  value, an upstream error on the Google OAuth callback (exact, with a
+  trailing slash, or in mixed case) that writes none of its query string to the log while another `/api/` path still logs its
   request, and a bundle that carries its release and no release id written by
   inject.
 
@@ -411,7 +411,7 @@ catches and what it misses.
   the log level from `notice` changes nothing; only `crit` silences it, and
   with it the reason for the upstream failure. The notification stream's
   location and the Google OAuth callback
-  (`location = /api/v1/auth/google/callback`, whose `code` and `state` are
+  (`location ~* ^/api/v1/auth/google/callback/?$`, whose `code` and `state` are
   credentials) set their error log to `crit`. Every other path under `/api/`
   still writes its query string on an upstream error.
 - **HSTS is the edge's job.** See [CSP and headers](#csp-and-headers).
