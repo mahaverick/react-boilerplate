@@ -101,6 +101,26 @@ describe('verify-email page', () => {
     expect(called).toBe(false)
   })
 
+  it('answers an already-verified 409 with the message and a sign-in link, and no resend form', async () => {
+    server.use(
+      http.post('/api/v1/auth/verify-email', () =>
+        fail('This email is already verified. Sign in to continue.', 409, 'email_already_verified')
+      )
+    )
+    renderAt('/verify-email?token=used-token')
+
+    const user = userEvent.setup()
+    await user.type(await screen.findByLabelText('Password'), 'secret123')
+    await user.click(screen.getByRole('button', { name: 'Verify email' }))
+
+    expect(
+      await screen.findByText('This email is already verified. Sign in to continue.')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login')
+    expect(screen.queryByRole('button', { name: 'Resend verification email' })).toBeNull()
+    expect(screen.queryByText(/send you a fresh one/)).toBeNull()
+  })
+
   it('offers a resend form once verification has failed', async () => {
     server.use(http.post('/api/v1/auth/verify-email', () => fail('That link has expired.', 400)))
     let resendBody: unknown
@@ -116,6 +136,8 @@ describe('verify-email page', () => {
     await user.type(await screen.findByLabelText('Password'), 'secret123')
     await user.click(screen.getByRole('button', { name: 'Verify email' }))
 
+    expect(await screen.findByLabelText('Email')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Sign in' })).toBeNull()
     await user.type(await screen.findByLabelText('Email'), '  ADA@B.COM  ')
     await user.click(screen.getByRole('button', { name: 'Resend verification email' }))
 
