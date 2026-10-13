@@ -48,6 +48,8 @@ const PROBE_NAME = { firstName: 'Pii', lastName: 'Probe' }
 /** A token of the shape the invitation, reset and verify pages accept. */
 const PROBE_TOKEN = 'pii-probe-token-'.padEnd(43, 'x')
 const PROBE_EMAIL = 'pii-probe@example.test'
+/** The profile page, which the account menu's Profile item opens. */
+const PROFILE = '/settings/account/profile'
 /** What must never reach PostHog: each name part, the address prefix, the token. */
 const PROBES = ['Pii', 'Probe', 'pii-probe', PROBE_TOKEN]
 
@@ -471,8 +473,8 @@ test.describe('analytics against a fake PostHog', () => {
       await page.getByRole('button', { name: /Account menu for/ }).click()
       await page.getByRole('menuitem', { name: 'Profile' }).click()
       await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible()
-      await expect.poll(() => pageviewsOf(fake, '/profile').length, poll).toBe(1)
-      const profile = pageviewsOf(fake, '/profile')[0]
+      await expect.poll(() => pageviewsOf(fake, PROFILE).length, poll).toBe(1)
+      const profile = pageviewsOf(fake, PROFILE)[0]
       expect(tenantOf(profile)).toBeUndefined()
       expect(profile?.properties).not.toHaveProperty('tenant_access')
 
@@ -480,18 +482,18 @@ test.describe('analytics against a fake PostHog', () => {
       await page.goto('/tenants/acme')
       await expect(page.getByRole('heading', { name: 'Acme Corp', level: 1 })).toBeVisible()
       await expect.poll(() => pageviewsOf(fake, '/tenants/acme').length, poll).toBe(2)
-      await page.goto('/profile')
+      await page.goto(PROFILE)
       await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible()
-      await expect.poll(() => pageviewsOf(fake, '/profile').length, poll).toBe(2)
-      expect(tenantOf(pageviewsOf(fake, '/profile')[1])).toBeUndefined()
+      await expect.poll(() => pageviewsOf(fake, PROFILE).length, poll).toBe(2)
+      expect(tenantOf(pageviewsOf(fake, PROFILE)[1])).toBeUndefined()
 
       const pageEvents = new Set(['$pageview', '$pageleave', '$autocapture', 'tenant_switched'])
       for (const event of fake.events()) {
         const pathname = event.properties.$pathname
         if (typeof pathname !== 'string' || !pageEvents.has(event.event)) continue
-        const expected = pathname.startsWith('/tenants/acme')
+        const expected = /^\/(tenants|settings\/workspace)\/acme(\/|$)/.test(pathname)
           ? STUB_TENANTS.acme.id
-          : pathname.startsWith('/tenants/globex')
+          : /^\/(tenants|settings\/workspace)\/globex(\/|$)/.test(pathname)
             ? STUB_TENANTS.globex.id
             : undefined
         expect(tenantOf(event), `${event.event} on ${pathname}`).toBe(expected)
@@ -670,15 +672,15 @@ test.describe('analytics end to end, through express', () => {
     await expect(page.getByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
     await page.getByRole('button', { name: /Account menu for/ }).click()
     await page.keyboard.press('Escape')
-    await page.goto('/profile')
+    await page.goto(PROFILE)
     await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible()
     await page.goto('/notifications')
     await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible()
-    await page.goto(`/tenants/${slug}/members`)
+    await page.goto(`/settings/workspace/${slug}/members`)
     await expect(page.getByRole('heading', { name: 'Pending invitations' })).toBeVisible()
     await page.getByRole('button', { name: /^Resend invitation to/ }).click()
     await expect(page.getByText(/^Invitation resent to/)).toBeVisible()
-    await page.goto(`/tenants/${slug}/activity`)
+    await page.goto(`/settings/workspace/${slug}/activity`)
     await expect(page.getByRole('list', { name: 'Activity' })).toBeVisible()
     await page.getByRole('combobox', { name: 'Filter by who acted' }).click()
     await page.getByRole('option', { name: 'Staff' }).click()
@@ -781,9 +783,9 @@ test.describe('analytics end to end, through express', () => {
     await expect
       .poll(identified, { intervals: [500], timeout: 30_000 })
       .toEqual([userA.id, userB.id])
-    await page.goto('/profile')
+    await page.goto(PROFILE)
     await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible()
-    await expect.poll(() => sawPageview(fake, '/profile')).toBe(true)
+    await expect.poll(() => sawPageview(fake, PROFILE)).toBe(true)
     const browser = fake.events().filter((event) => event.path !== '/batch/')
     const identifyB = browser.findIndex(
       (event) => event.event === '$identify' && event.distinctId === userB.id

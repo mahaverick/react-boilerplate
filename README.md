@@ -2,8 +2,9 @@
 
 A React 19 + TypeScript single-page app, built to talk to the
 `express-boilerplate` API. Session handling, routing guards, forms, tenant
-management and a live notification stream are wired up, so a new project starts
-here rather than at `create-vite`.
+management, a Settings area for the account and the current tenant, and a live
+notification stream are wired up, so a new project starts here rather than at
+`create-vite`.
 
 | Concern | Choice                                                                                         |
 | ------- | ---------------------------------------------------------------------------------------------- |

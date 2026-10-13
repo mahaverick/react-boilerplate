@@ -137,6 +137,32 @@ describe('page titles', () => {
     expect(document.querySelectorAll('title')).toHaveLength(1)
   })
 
+  // Profile and Members · acme have their own tests above.
+  it.each([
+    ['the settings landing page', '/settings', 'Settings'],
+    ['the security settings page', '/settings/account/security', 'Security'],
+    ['the notification settings page', '/settings/account/notifications', 'Notifications'],
+    ['the workspace general page', '/settings/workspace/acme/general', 'General · acme'],
+    ['the workspace activity page', '/settings/workspace/acme/activity', 'Activity · acme'],
+  ])('names %s', async (_name, path, title) => {
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+    server.use(
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+    )
+    renderAppAt(path)
+
+    await waitFor(() => {
+      expect(document.title).toBe(`${title} · React Boilerplate`)
+    })
+    expect(document.querySelectorAll('title')).toHaveLength(1)
+  })
+
   it('gives every page a title: the root has a fallback and every leaf page its own', () => {
     const router = buildRouter('/')
     expect(router.routeTree.options.head).toBeTypeOf('function')

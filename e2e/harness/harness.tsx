@@ -386,7 +386,7 @@ const worker = setupWorker(
       )
   ),
   http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.')),
-  // /profile's Security section reads this; unmocked, it 401s and signs the harness user out.
+  // The Security settings page reads this; unmocked, it 401s and signs the harness user out.
   http.get('/api/v1/auth/providers', () =>
     ok(
       {
@@ -443,7 +443,9 @@ useAuthStore.setState({
  */
 const requestedPath = new URLSearchParams(location.search).get('path')
 const targetPath =
-  requestedPath && /^\/[^/\\]/.test(requestedPath) ? requestedPath : '/tenants/acme/members'
+  requestedPath && /^\/[^/\\]/.test(requestedPath)
+    ? requestedPath
+    : '/settings/workspace/acme/members'
 
 // replaceState, not router.navigate: before the router mounts, navigate does a real navigation and the dev server answers it with the SPA fallback (index.html), so the harness never runs.
 history.replaceState(null, '', targetPath + location.search)

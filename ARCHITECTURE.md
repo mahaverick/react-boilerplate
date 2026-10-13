@@ -47,8 +47,12 @@ panel that shows `APP_NAME` and `APP_TAGLINE` from `src/constants/app.ts`, and t
 social sign-in buttons come from `SOCIAL_PROVIDERS` in
 `src/constants/auth-providers.ts`, since the API publishes no list of configured
 providers. The signed-in shell follows sidebar-07: the tenant switcher, `NavMain`
-(a collapsible group only for an item with sub-items) and the account menu in a
-sidebar that collapses to icons.
+(Dashboard and Tenants; a collapsible group only for an item with sub-items),
+`NavSecondary` pinned to the bottom (Notifications with the unread count, and
+Settings) and the account menu, in a sidebar that collapses to icons. On a
+settings page (`isSettingsPath`) the sidebar swaps `NavMain` and `NavSecondary`
+for `NavSettings` ([The Settings area](#the-settings-area)). Every sidebar link
+closes the drawer on a phone.
 
 `src/routeTree.gen.ts` is generated from `src/pages/` by the TanStack Router
 plugin in `vite.config.ts`, which also splits each route's component into
@@ -112,7 +116,7 @@ the rest of `src/` follows.
 
 | Route group                                                                 | Guard                                                                                                      |
 | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `/_app` (dashboard, notifications, profile, tenants and every tenant tab)   | Not signed in: redirect to `/login?redirect=<href>`. Its loader warms the page's flags.                    |
+| `/_app` (dashboard, notifications, tenants, every tenant tab, settings)     | Not signed in: redirect to `/login?redirect=<href>`. Its loader warms the page's flags.                    |
 | `/_auth` (login, register, forgot-password)                                 | Signed in: redirect to the dashboard.                                                                      |
 | `/`                                                                         | Redirects in `beforeLoad`: signed in to the dashboard, anyone else to `/login`.                            |
 | `/auth/callback`, `/reset-password`, `/verify-email`, `/invitations/accept` | None. The OAuth callback sits outside `_auth`, whose guard would bounce the visitor it has just signed in. |
@@ -130,7 +134,7 @@ The Google sign-in button on `/login` is a plain anchor to
 
 **Loaders warm the query cache; components read it.** A loader calls
 `queryClient.ensureQueryData(...)` with the same options a component's
-`useQuery` uses, so the page renders from the cache. Two loaders do this:
+`useQuery` uses, so the page renders from the cache. Three loaders do this:
 
 - `/_app` reads the flags of the page the shell is entered on. It does not
   run again for a navigation that stays in the shell.
@@ -141,6 +145,9 @@ The Google sign-in button on `/login` is a plain anchor to
   the detail resolves to `null`, and the layout reads the tenant list to
   choose between the suspended panel and the not-found panel; any other
   failure reaches the route's own error component.
+- `/_app/settings/workspace/$slug` runs the same `loadTenantRoute` and renders
+  the same `TenantGate`, so flags, the tenant switcher and analytics grouping
+  resolve the tenant there exactly as on `/tenants/$slug`.
 
 Links preload on intent (`defaultPreload: 'intent'`). The pending component
 waits 300 ms before it shows and then stays at least 300 ms. The error,
@@ -172,6 +179,46 @@ invitations and onboarding, and a mutation that means the list alone passes
 `exact: true`. Failed requests are read with the helpers in
 `src/lib/api-error.ts`, and a form maps the API's field errors onto its inputs
 through `useServerErrors`.
+
+### The Settings area
+
+`src/constants/settings.ts` is the area's single source of truth.
+`SETTINGS_GROUPS` (Account, Workspace) and `SETTINGS_SECTIONS` (each page's
+path, label, description and icon) drive the settings nav, the `/settings`
+landing page and the settings layout's `h1`, which is the active section's
+label (`settingsActiveSection`), so each page's own cards start at `h2`. A new
+page is a section there plus a route under `src/pages/_app/settings/`.
+
+| Path                                 | Page                                                       |
+| ------------------------------------ | ---------------------------------------------------------- |
+| `/settings`                          | Landing page: one card of links per group                  |
+| `/settings/account/profile`          | Name, email and the privacy (analytics) choice             |
+| `/settings/account/security`         | Password, sign-in methods, other sessions                  |
+| `/settings/account/notifications`    | Notification preferences                                   |
+| `/settings/workspace/$slug/general`  | The tenant's details and settings; `$slug/` redirects here |
+| `/settings/workspace/$slug/members`  | Members, roles and pending invitations                     |
+| `/settings/workspace/$slug/activity` | The tenant's audit log                                     |
+
+Permissions never hide a section. A member who cannot manage the tenant sees
+the read-only views under a banner saying owners and admins can change them.
+
+**The sidebar on settings pages** is `NavSettings`: Back to app, then the
+Account and Workspace groups. Workspace items link to the tenant
+`useWorkspaceSlug` resolves, in this order: the route's `$slug` when the page
+has one; otherwise the last tenant this user opened (`useRememberTenant`, called
+by `TenantGate` once a tenant loads, keyed by user id in
+`src/states/current-tenant.store.ts` and saved to `localStorage` when storage
+allows), but only while it is still one of their active, non-platform
+memberships in the tenant list; otherwise none. With none, the Workspace items
+are `aria-disabled` buttons described by the hint "Choose a tenant first.".
+Choosing a tenant in the switcher while on a workspace page keeps the same
+section for the new tenant.
+
+**Redirects** keep old bookmarks working, each with and without a trailing
+slash: `/profile` goes to `/settings/account/profile`, and
+`/tenants/$slug/members`, `/tenants/$slug/settings` and
+`/tenants/$slug/activity` go to the workspace Members, General and Activity
+pages. The tenant page itself keeps its Overview and (flag-gated) Beta tabs.
 
 ## State
 

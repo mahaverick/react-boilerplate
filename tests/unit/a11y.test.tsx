@@ -15,6 +15,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
@@ -536,6 +537,19 @@ describe('signed-in pages', () => {
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
+    await expectNoViolations()
+  })
+
+  it('the settings nav with no tenant to act on has no axe violations', async () => {
+    // Nothing remembered, so the Workspace items render disabled and described by the hint.
+    localStorage.clear()
+    useCurrentTenantStore.setState({ remembered: {} })
+    renderAppAt('/settings/account/profile')
+    await screen.findByRole('button', { name: 'Save changes' })
+    const nav = screen.getByRole('navigation', { name: 'Settings' })
+    expect(within(nav).getByRole('button', { name: 'Members' })).toHaveAccessibleDescription(
+      'Choose a tenant first.'
+    )
     await expectNoViolations()
   })
 

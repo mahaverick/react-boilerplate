@@ -80,7 +80,7 @@ test('example_beta_page off: no Beta tab, and its URL is not found without askin
   })
   await page.goto('/e2e/harness/?flags=network&path=/tenants/acme')
   const tabs = page.getByRole('navigation', { name: 'Tenant sections' })
-  await expect(tabs.getByRole('link', { name: 'Settings' })).toBeVisible()
+  await expect(tabs.getByRole('link', { name: 'Overview' })).toBeVisible()
   await expect(tabs.getByRole('link', { name: 'Beta' })).toHaveCount(0)
 
   await page.goto('/e2e/harness/?flags=network&path=/tenants/acme/beta')
