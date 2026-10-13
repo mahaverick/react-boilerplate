@@ -11,6 +11,7 @@ import { promisify } from 'node:util'
 import { expect, type Page } from '@playwright/test'
 import type { MembershipRole } from '@/constants/roles'
 import {
+  apiDirPlan,
   cwdFromLsofFields,
   formatPidFile,
   parsePidFile,
@@ -32,7 +33,6 @@ const execFile = promisify(execFileCallback)
 /** Where the express under test listens: `E2E_API_ORIGIN`, default :4040. */
 export const API_ORIGIN = process.env.E2E_API_ORIGIN ?? 'http://localhost:4040'
 const MAILPIT_ORIGIN = process.env.E2E_MAILPIT_ORIGIN ?? 'http://localhost:8025'
-const API_DIR = process.env.E2E_API_DIR ?? '../express-boilerplate'
 
 /** The password every e2e account uses. Long enough for the register schema. */
 export const PASSWORD = 'a very long passphrase for e2e'
@@ -483,10 +483,19 @@ export async function createTenant(
  * Gives a verified account a platform role by running express's own bootstrap
  * script in `E2E_API_DIR`, the supported way in, audited as
  * `platform.member.granted`. It must run before the account signs in: the role
- * arrives with the session.
+ * arrives with the session. `E2E_API_DIR` has no default: it throws, through
+ * `apiDirPlan`, when that is unset, missing, not a git worktree, or the main
+ * express checkout, whose database is the developer's own.
  */
 export async function grantPlatformRole(email: string, role: MembershipRole): Promise<void> {
-  await execFile('pnpm', ['platform:grant', email, role], { cwd: API_DIR, timeout: 60_000 })
+  const checked = apiDirPlan({
+    apiDir: process.env.E2E_API_DIR,
+    ...GUARD_FS,
+    who: 'grantPlatformRole',
+    does: 'runs pnpm platform:grant',
+  })
+  if ('refusal' in checked) throw new Error(checked.refusal)
+  await execFile('pnpm', ['platform:grant', email, role], { cwd: checked.dir, timeout: 60_000 })
 }
 
 /** A slug no earlier run has taken: lowercase, hyphenated, 3 to 100 characters. */

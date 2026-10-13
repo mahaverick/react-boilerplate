@@ -380,8 +380,11 @@ jsdom has no layout. The harness has two traps:
 **`live`** needs a real express and its services, and runs only with `E2E_LIVE=1`.
 Each run registers a fresh address (`freshEmail`), because express rate-limits
 sign-in per address. `live/flags.test.ts` fails, rather than skips, without
-`E2E_FLAGS_SET_CMD`. The variables, with their defaults, are in the
-[README](README.md#testing); never assume `:4040`.
+`E2E_FLAGS_SET_CMD`. `live/platform.test.ts` grants platform roles by running
+`pnpm platform:grant` in `E2E_API_DIR`, which has no default: `grantPlatformRole`
+throws when it is unset, is not a git worktree, or is the main
+`../express-boilerplate` checkout (`apiDirPlan`). The variables, with their
+defaults, are in the [README](README.md#testing); never assume `:4040`.
 
 **posthog-js drops every event from a Playwright browser** (`navigator.webdriver`,
 a headless user agent). An analytics e2e test uses `HUMAN_USER_AGENT` and calls
