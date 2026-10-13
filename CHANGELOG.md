@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.3](https://github.com/mahaverick/react-boilerplate/compare/v2.2.2...v2.2.3) (2026-10-13)
+
+
+### Bug Fixes
+
+* **ui:** live relative times, aligned register columns, no devtools on phones ([#89](https://github.com/mahaverick/react-boilerplate/issues/89)) ([c5b3aee](https://github.com/mahaverick/react-boilerplate/commit/c5b3aee3a2cb49a753daf05840b7b5e134477a91))
+
 ## [2.2.2](https://github.com/mahaverick/react-boilerplate/compare/v2.2.1...v2.2.2) (2026-10-13)
 
 
