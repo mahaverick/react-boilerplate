@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/mahaverick/react-boilerplate/compare/v2.3.0...v2.3.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **settings:** one h1 when a settings page fails to render ([#93](https://github.com/mahaverick/react-boilerplate/issues/93)) ([95bb6dd](https://github.com/mahaverick/react-boilerplate/commit/95bb6dd58ffd581c50712a7e08ba6b6c8c26140a))
+
 ## [2.3.0](https://github.com/mahaverick/react-boilerplate/compare/v2.2.3...v2.3.0) (2026-10-13)
 
 
