@@ -5,15 +5,22 @@
  */
 import type { QueryClient } from '@tanstack/react-query'
 import type { ParsedLocation } from '@tanstack/react-router'
-import type { TenantSearch } from '@/lib/current-tenant'
-import { tenantsQueryOptions, type TenantWithRole } from '@/queries/tenant.queries'
+import { rerunTenantGuard, type TenantSearch } from '@/lib/current-tenant'
+import {
+  isEligibleTenant,
+  tenantKeys,
+  tenantsQueryOptions,
+  type TenantWithRole,
+} from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 import { readRememberedTenant, useCurrentTenantStore } from '@/states/current-tenant.store'
 
-/** Whether the user may work in a listed tenant: not the platform tenant, and not suspended. */
-function isEligible(entry: TenantWithRole): boolean {
-  return !entry.isPlatform && entry.tenant.lifecycleState !== 'suspended'
-}
+/**
+ * The longest the guard waits for the tenant list before it lets the page
+ * render with the URL as it is. The read stays in flight for the shell's
+ * `useTenants`, and `rerunWhenListLoads` corrects the URL when it lands.
+ */
+export const TENANT_LIST_WAIT_MS = 3_000
 
 /**
  * The tenant a page without `$slug` shows: `requested` when it is eligible,
@@ -29,10 +36,60 @@ export function resolveTenant(
   requested: string | undefined,
   remembered: string | null
 ): string | null {
-  const eligible = list.filter(isEligible).map((entry) => entry.tenant.slug)
+  const eligible = list.filter(isEligibleTenant).map((entry) => entry.tenant.slug)
   if (requested !== undefined && eligible.includes(requested)) return requested
   if (remembered !== null && eligible.includes(remembered)) return remembered
   return eligible[0] ?? null
+}
+
+/**
+ * `promise`'s value, or null when it rejects or has not settled within `ms`.
+ * The timer is cleared as soon as either happens.
+ * @param promise - The read to wait for.
+ * @param ms - The longest wait.
+ * @returns The value, or null.
+ */
+function within<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(null)
+      }
+    )
+  })
+}
+
+/** Stops the pending `rerunWhenListLoads` watch, if one is pending. */
+let stopWatching: (() => void) | null = null
+
+/**
+ * Runs the guard again (`rerunTenantGuard`) the first time the tenant list
+ * query holds data, whether the guard's own read lands late or the shell's
+ * `useTenants` retries a failed one. One watch at a time.
+ * @param queryClient - The client holding the tenant list.
+ */
+function rerunWhenListLoads(queryClient: QueryClient): void {
+  stopWatching?.()
+  const cache = queryClient.getQueryCache()
+  const stop = cache.subscribe((event) => {
+    if (event.type !== 'updated' || event.query.queryHash !== listHash()) return
+    if (event.query.state.status !== 'success') return
+    stop()
+    if (stopWatching === stop) stopWatching = null
+    rerunTenantGuard()
+  })
+  stopWatching = stop
+}
+
+/** The tenant list query's hash, as the query cache keys it. */
+function listHash(): string {
+  return JSON.stringify(tenantKeys.list)
 }
 
 /** What `_app`'s `beforeLoad` hands `tenantSearchCorrection`. */
@@ -54,9 +111,10 @@ interface TenantCorrection {
  * correction, which replaces the entry. A `$slug` page drops any `?tenant`.
  * Any other page resolves its tenant (`resolveTenant`) from the cached tenant
  * list and is corrected when the URL's value differs: missing, invalid or not
- * eligible. The resolved tenant is remembered for the user. A list that cannot
- * be loaded leaves the URL as it is: a failed list never bounces or blocks the
- * page. A hover preload is never corrected and remembers nothing.
+ * eligible. The resolved tenant is remembered for the user. A list that fails,
+ * or takes longer than `TENANT_LIST_WAIT_MS`, leaves the URL as it is, so it
+ * never bounces the page or holds it for long; the guard runs again once the
+ * list loads. A hover preload is never corrected and remembers nothing.
  * @param input - The `beforeLoad` arguments it reads.
  * @returns The correction, or null to leave the URL as it is.
  */
@@ -71,11 +129,13 @@ export async function tenantSearchCorrection({
   if (params.slug !== undefined) {
     return raw !== undefined && !preload ? { tenant: undefined } : null
   }
-  let list: TenantWithRole[]
-  try {
-    // retry: false, so a failing list renders the page at once rather than after a retry's back-off.
-    list = await queryClient.ensureQueryData({ ...tenantsQueryOptions(), retry: false })
-  } catch {
+  // retry: false, so a failing list renders the page at once rather than after a retry's back-off.
+  const list = await within(
+    queryClient.ensureQueryData({ ...tenantsQueryOptions(), retry: false }),
+    TENANT_LIST_WAIT_MS
+  )
+  if (list === null) {
+    if (!preload) rerunWhenListLoads(queryClient)
     return null
   }
   if (preload) return null

@@ -6,9 +6,9 @@ import {
   type AnyRouter,
   type RouterHistory,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http } from 'msw'
+import { delay, http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { installCurrentTenant } from '@/lib/current-tenant'
@@ -176,9 +176,15 @@ describe('?tenant on pages without $slug', () => {
     ['a suspended tenant', 'umbrella'],
     ['the platform tenant', 'platform'],
     ['a value that is not a slug', 'Not A Slug'],
+    // The router JSON-parses these, so `?tenant` arrives as a number, null or a boolean.
+    ['a number', '12345'],
+    ['null', 'null'],
+    ['true', 'true'],
   ])('replaces %s with the fallback and never shows it as current', async (_label, tenant) => {
     serveTenants([PLATFORM, UMBRELLA, ACME])
-    const { router } = renderAt(`/settings/account/profile?tenant=${encodeURIComponent(tenant)}`)
+    const { router, loads } = renderAt(
+      `/settings/account/profile?tenant=${encodeURIComponent(tenant)}`
+    )
     const labels: string[] = []
     const observer = new MutationObserver(() => {
       const trigger = document.querySelector('[aria-label^="Switch tenant. Current:"]')
@@ -191,12 +197,14 @@ describe('?tenant on pages without $slug', () => {
       expect(await findSwitcher('Acme Corp')).toBeInTheDocument()
       expect(labels.some((label) => /Umbrella|Platform|initech/i.test(label))).toBe(false)
       expect(readRememberedTenant(testUser.id)).toBe('acme')
+      // One correcting redirect, then it stops.
+      expect(loads).toHaveLength(2)
     } finally {
       observer.disconnect()
     }
   })
 
-  it('validates a new user against their own list, never the previous user’s tenant', async () => {
+  it('replaces the previous user’s ?tenant with one from the new user’s own list', async () => {
     useCurrentTenantStore.getState().remember(testUser.id, 'acme')
     const other = { ...testUser, id: USER_ID_2, email: 'cleo@example.com' }
     signIn(other)
@@ -207,6 +215,26 @@ describe('?tenant on pages without $slug', () => {
     expect(await findSwitcher('Globex')).toBeInTheDocument()
     expect(readRememberedTenant(other.id)).toBe('globex')
     expect(readRememberedTenant(testUser.id)).toBe('acme')
+  })
+
+  it('never falls back to the previous user’s remembered tenant', async () => {
+    useCurrentTenantStore.getState().remember(testUser.id, 'globex')
+    const other = { ...testUser, id: USER_ID_2, email: 'cleo@example.com' }
+    signIn(other)
+    serveTenants([ACME, GLOBEX])
+    const first = renderAt('/dashboard')
+
+    // The first eligible tenant in the new user's list, not the globex remembered for the previous user.
+    await expectHref(first.router, '/dashboard?tenant=acme')
+    expect(await findSwitcher('Acme Corp')).toBeInTheDocument()
+    cleanup()
+    uninstall?.()
+
+    useCurrentTenantStore.getState().remember(other.id, 'globex')
+    const second = renderAt('/dashboard')
+
+    await expectHref(second.router, '/dashboard?tenant=globex')
+    expect(await findSwitcher('Globex')).toBeInTheDocument()
   })
 
   it('validates the ?tenant of a login redirect after sign-in', async () => {
@@ -295,6 +323,80 @@ describe('?tenant on pages without $slug', () => {
 
     expect(readRememberedTenant(testUser.id)).toBe('acme')
     expect(router.state.location.href).toBe('/dashboard?tenant=acme')
+  })
+})
+
+describe('a tenant list that fails or is slow', () => {
+  it('corrects the URL once a list that failed loads', async () => {
+    let attempt = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        attempt += 1
+        return attempt === 1
+          ? fail('Something went wrong.', 500)
+          : ok([listed(ACME)], 'Tenants retrieved.')
+      }),
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.'))
+    )
+    const { router } = renderAt('/settings?tenant=initech')
+
+    // The shell's own list read (useTenants) succeeds; the guard runs again and replaces the stale value.
+    await expectHref(router, '/settings?tenant=acme')
+    const workspace = await screen.findByRole('region', { name: 'Workspace' })
+    await waitFor(() =>
+      expect(within(workspace).getByRole('link', { name: /^Members/ })).toHaveAttribute(
+        'href',
+        '/settings/workspace/acme/members'
+      )
+    )
+  })
+
+  it('renders the page once the list has taken TENANT_LIST_WAIT_MS, without a tenant', async () => {
+    server.use(http.get('/api/v1/tenants', () => delay('infinite')))
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const { router } = renderAt('/dashboard')
+
+      await vi.waitFor(
+        () => {
+          expect(screen.getByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
+        },
+        { timeout: 10_000, interval: 100 }
+      )
+      expect(router.state.location.href).toBe('/dashboard')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('fills ?tenant when a list that outlasted the wait arrives', async () => {
+    let release: (() => void) | undefined
+    server.use(
+      http.get('/api/v1/tenants', async () => {
+        await new Promise<void>((resolve) => (release = resolve))
+        return ok([listed(ACME)], 'Tenants retrieved.')
+      }),
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.'))
+    )
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let router: AnyRouter
+    try {
+      router = renderAt('/dashboard').router
+      await vi.waitFor(
+        () => {
+          expect(screen.getByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
+        },
+        { timeout: 10_000, interval: 100 }
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(router.state.location.href).toBe('/dashboard')
+
+    release?.()
+
+    await expectHref(router, '/dashboard?tenant=acme')
+    expect(await findSwitcher('Acme Corp')).toBeInTheDocument()
   })
 })
 

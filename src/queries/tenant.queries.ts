@@ -120,6 +120,11 @@ export const tenantKeys = {
   onboarding: (slug: string) => ['tenants', slug, 'onboarding'] as const,
 }
 
+/** Whether the user may work in a listed tenant: not the platform tenant, and not suspended. */
+export function isEligibleTenant(entry: TenantWithRole): boolean {
+  return !entry.isPlatform && entry.tenant.lifecycleState !== 'suspended'
+}
+
 /**
  * The tenant list's query: the tenants the caller is a member of, each with
  * their role in it. Shared by `useTenants` and `_app`'s guard, which reads

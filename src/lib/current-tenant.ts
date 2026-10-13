@@ -63,15 +63,27 @@ export const stripTenant: SearchMiddleware<TenantSearch> = stripSearchParams<Ten
 ])
 
 /**
- * The tenant `location` names: its `$slug`, else its `?tenant` when that is a
- * string. Read before the location loads, so it is not yet validated; the
+ * The tenant `location` names: its `$slug`, else its `?tenant` when that has
+ * a slug's shape. Read before the location loads, so it is not yet validated; the
  * guard corrects it on a page without `$slug`.
  */
 function tenantOf(router: AnyRouter, location: ParsedLocation): string | null {
   const [, params] = router.getMatchedRoutes(location.pathname)
   if (params.slug) return params.slug
   const { tenant } = location.search as Record<string, unknown>
-  return typeof tenant === 'string' && tenant !== '' ? tenant : null
+  return typeof tenant === 'string' && isSlugShaped(tenant) ? tenant : null
+}
+
+/** The router `installCurrentTenant` was given, which `rerunTenantGuard` invalidates. */
+let installedRouter: AnyRouter | null = null
+
+/**
+ * Runs the current page's guards again, so `_app` can fill or correct
+ * `?tenant` with a tenant list that arrived after the page rendered without
+ * one. A correction is a redirect, so it replaces the entry.
+ */
+export function rerunTenantGuard(): void {
+  void installedRouter?.invalidate()
 }
 
 /**
@@ -80,16 +92,19 @@ function tenantOf(router: AnyRouter, location: ParsedLocation): string | null {
  * location, so a link that renders for it (the sidebar's, say) builds its
  * href from this page's tenant, not the previous one's. A page outside the
  * shell names none, so nothing carries across a sign-out.
+ * It also keeps `router` for `rerunTenantGuard`.
  * @param router - The app's router.
- * @returns The unsubscribe, which also forgets the recorded tenant.
+ * @returns The unsubscribe, which also forgets the recorded tenant and the router.
  */
 export function installCurrentTenant(router: AnyRouter): () => void {
   currentTenant = null
+  installedRouter = router
   const unsubscribe = router.subscribe('onBeforeLoad', ({ toLocation }) => {
     currentTenant = tenantOf(router, toLocation)
   })
   return () => {
     unsubscribe()
     currentTenant = null
+    if (installedRouter === router) installedRouter = null
   }
 }
