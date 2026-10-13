@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/mahaverick/react-boilerplate/compare/v2.2.0...v2.2.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **shell:** one selector icon in the tenant switcher, devtools off the account menu ([#85](https://github.com/mahaverick/react-boilerplate/issues/85)) ([2029f16](https://github.com/mahaverick/react-boilerplate/commit/2029f16e4e1423319f1f85b4afd59f39a1e40a82))
+
 ## [2.2.0](https://github.com/mahaverick/react-boilerplate/compare/v2.1.2...v2.2.0) (2026-10-13)
 
 
