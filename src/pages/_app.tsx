@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { AppLayout } from '@/components/layouts/app-layout'
 import { ROUTES } from '@/constants/routes'
+import { retainTenant, tenantSearchCorrection, tenantSearchSchema } from '@/lib/current-tenant'
 import { ensureFlags } from '@/observability/flags/flag-query'
 import { flagScopeFor } from '@/observability/flags/flag-scope'
 import { useAuthStore } from '@/states/auth.store'
@@ -21,13 +22,30 @@ import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
  * case, such as an unreachable API. The maintenance screen covers the route
  * meanwhile, and the guard runs again when the mode ends (`MaintenanceGate`'s
  * recovery).
+ *
+ * The shell also owns `?tenant`, the current tenant on a page without
+ * `$slug` (`src/lib/current-tenant.ts`): `validateSearch` accepts only a
+ * slug, `retainTenant` keeps the tenant on every navigation inside the shell,
+ * and the guard, after the auth check, fills or corrects it. The tenant guard
+ * is skipped in `full` maintenance too.
  */
 export const Route = createFileRoute('/_app')({
-  beforeLoad: ({ location }) => {
+  validateSearch: tenantSearchSchema,
+  search: { middlewares: [retainTenant] },
+  beforeLoad: async ({ context, location, params, search, preload }) => {
     if (useMaintenanceModeStore.getState().mode === 'full') return
     if (!useAuthStore.getState().isAuthenticated) {
       throw redirect({ to: ROUTES.login, search: { redirect: location.href } })
     }
+    const correction = await tenantSearchCorrection({
+      queryClient: context.queryClient,
+      location,
+      params,
+      search,
+      preload,
+    })
+    // An explicit `tenant` key, `undefined` included, so `retainTenant` does not put the old value back.
+    if (correction) throw redirect({ to: '.', search: (prev) => ({ ...prev, ...correction }) })
   },
   loader: ({ context, params }) =>
     ensureFlags(context.queryClient, flagScopeFor(params as { slug?: string })),

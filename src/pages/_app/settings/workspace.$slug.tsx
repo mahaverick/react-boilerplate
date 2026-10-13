@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { loadTenantRoute } from '@/components/features/tenant/load-tenant-route'
 import { TenantGate, TenantLoadFailed } from '@/components/features/tenant/tenant-gate'
+import { stripTenant } from '@/lib/current-tenant'
 
 /**
  * The workspace settings' layout: the tenant from `$slug`, loaded and gated
@@ -8,6 +9,8 @@ import { TenantGate, TenantLoadFailed } from '@/components/features/tenant/tenan
  * switcher and analytics grouping resolve this tenant unchanged.
  */
 export const Route = createFileRoute('/_app/settings/workspace/$slug')({
+  // Its tenant is the path, so a link here never carries `?tenant`.
+  search: { middlewares: [stripTenant] },
   preloadStaleTime: 0,
   loader: {
     staleReloadMode: 'blocking',

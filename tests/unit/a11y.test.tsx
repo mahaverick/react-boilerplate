@@ -542,9 +542,14 @@ describe('signed-in pages', () => {
   })
 
   it('the settings nav with no tenant to act on has no axe violations', async () => {
-    // Nothing remembered, so the Workspace items render disabled and described by the hint.
+    // No eligible tenant, so the URL names none and the Workspace items render disabled and described by the hint.
     localStorage.clear()
     useCurrentTenantStore.setState({ remembered: {} })
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+      )
+    )
     renderAppAt('/settings/account/profile')
     await screen.findByRole('button', { name: 'Save changes' })
     const nav = screen.getByRole('navigation', { name: 'Settings' })

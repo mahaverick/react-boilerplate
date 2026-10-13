@@ -10,6 +10,7 @@ import {
   installAuthBroadcastListener,
   isAuthVerdict,
 } from '@/http/session'
+import { installCurrentTenant } from '@/lib/current-tenant'
 import { installMaintenanceModeInterceptor } from '@/lib/maintenance-mode'
 import { setErrorRouteSource } from '@/observability/errors'
 import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
@@ -86,6 +87,7 @@ export const router = createRouter({
   ...ROUTER_DEFAULTS,
 })
 
+installCurrentTenant(router)
 installRouteAnalytics(router)
 installFlagScopeReset(router, queryClient)
 installRouteFeatureProperties(router, queryClient)

@@ -245,9 +245,10 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
   })
 
   /**
-   * The list is held open until the session has died, then answers a plain 401. Plain, not
-   * ACCESS_TOKEN_EXPIRED, so the interceptor treats it as a verdict and does not retry,
-   * which leaves the query with no data.
+   * `_app`'s guard reads the list before the page mounts, so its first answer is a 500,
+   * which the guard lets through, leaving the query with no data. The page's own read is
+   * held open until the session has died, then answers a plain 401. Plain, not
+   * ACCESS_TOKEN_EXPIRED, so the interceptor treats it as a verdict and does not retry.
    */
   it('redirects to /login and shows the failure, never the empty state', async () => {
     let release: (() => void) | undefined
@@ -255,8 +256,9 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
     server.use(
       http.get('/api/v1/tenants', async () => {
         attempt += 1
-        // Only the first attempt waits: the queryClient's `retry: 1` sends a second, which must not hang the test.
-        if (attempt === 1) await new Promise<void>((resolve) => (release = resolve))
+        if (attempt === 1) return fail('Something went wrong', 500)
+        // Only the page's first read waits: the queryClient's `retry: 1` sends another, which must not hang the test.
+        if (attempt === 2) await new Promise<void>((resolve) => (release = resolve))
         return fail('Unauthorized', 401)
       }),
       http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401))

@@ -4,6 +4,7 @@ import { TenantGate, TenantLoadFailed } from '@/components/features/tenant/tenan
 import { Badge } from '@/components/ui/badge'
 import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
+import { stripTenant } from '@/lib/current-tenant'
 import { cn } from '@/lib/utils'
 import { useFlagValues } from '@/observability/flags/flag-hooks'
 import type { BooleanClientFlagKey } from '@/observability/flags/flag-types'
@@ -28,6 +29,8 @@ import { useMyRole } from '@/queries/tenant.queries'
  * resolves before any fetch.
  */
 export const Route = createFileRoute('/_app/tenants/$slug')({
+  // Its tenant is the path, so a link here never carries `?tenant`.
+  search: { middlewares: [stripTenant] },
   preloadStaleTime: 0,
   loader: {
     staleReloadMode: 'blocking',
