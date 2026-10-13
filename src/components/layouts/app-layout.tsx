@@ -62,6 +62,8 @@ interface Crumb {
   label: string
   /** The resolved path of that match: `/tenants/acme`, not `/tenants/$slug`. */
   to: LinkProps['to']
+  /** False when the match's path only redirects, so the crumb renders as text. */
+  link: boolean
 }
 
 /**
@@ -83,6 +85,7 @@ function useBreadcrumbs(): Crumb[] {
         key: match.routeId,
         label: typeof crumb === 'function' ? crumb(params) : crumb,
         to: path as LinkProps['to'],
+        link: match.staticData.crumbLink !== false,
       },
     ]
   })
@@ -106,7 +109,7 @@ function withAncestors(crumbs: Crumb[]): Crumb[] {
     for (const ancestor of ANCESTOR_CRUMBS) {
       const isDescendant = typeof crumb.to === 'string' && crumb.to.startsWith(`${ancestor.to}/`)
       if (isDescendant && !trail.some((existing) => existing.to === ancestor.to)) {
-        trail.push({ key: ancestor.to, label: ancestor.label, to: ancestor.to })
+        trail.push({ key: ancestor.to, label: ancestor.label, to: ancestor.to, link: true })
       }
     }
     trail.push(crumb)
@@ -202,8 +205,10 @@ export function AppLayout() {
                   <BreadcrumbItem>
                     {index === crumbs.length - 1 ? (
                       <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                    ) : (
+                    ) : crumb.link ? (
                       <BreadcrumbLink render={<Link to={crumb.to} />}>{crumb.label}</BreadcrumbLink>
+                    ) : (
+                      <span>{crumb.label}</span>
                     )}
                   </BreadcrumbItem>
                 </Fragment>

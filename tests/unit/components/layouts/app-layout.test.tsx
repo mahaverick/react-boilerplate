@@ -296,6 +296,9 @@ describe('AppLayout', () => {
       'href',
       '/settings'
     )
+    // `/settings/workspace/acme` only redirects back to General, so its crumb is text, not a link.
+    expect(within(breadcrumb).queryByRole('link', { name: 'acme' })).toBeNull()
+    expect(within(breadcrumb).getByText('acme')).not.toHaveAttribute('aria-current')
   })
 
   it('does not put a Tenants crumb in front of the tenants list itself', async () => {
