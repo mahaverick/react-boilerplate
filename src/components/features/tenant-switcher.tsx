@@ -1,7 +1,7 @@
 import { Combobox as ComboboxPrimitive } from '@base-ui/react'
 import { IconBuilding, IconPlus, IconSelector } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
   Combobox,
@@ -21,6 +21,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { ROUTES } from '@/constants/routes'
+import { settingsActiveSection } from '@/constants/settings'
 import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useTenants } from '@/queries/tenant.queries'
 
@@ -65,7 +66,8 @@ function ownTenantsMessage({
 /**
  * A navigation combobox, and nothing else. Tenant scope is the URL: the API
  * resolves the tenant from the `:slug` path param alone, so choosing an option
- * navigates to `/tenants/$slug`.
+ * navigates to `/tenants/$slug`; on a workspace settings page it stays on the
+ * same section for the chosen tenant.
  *
  * It lists the caller's memberships, minus the platform tenant (the user menu
  * links that). Staff search every tenant in Apex, not here. A suspended tenant
@@ -85,6 +87,8 @@ export function TenantSwitcher() {
   const { isMobile } = useSidebar()
   const tenants = useTenants()
   const { slug } = useParams({ strict: false })
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const section = settingsActiveSection(pathname)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const current = useQuery({ ...tenantQueryOptions(slug ?? ''), enabled: slug !== undefined })
@@ -131,7 +135,11 @@ export function TenantSwitcher() {
               if (!option || option.suspended) return
               setOpen(false)
               setQuery('')
-              void navigate({ to: '/tenants/$slug', params: { slug: option.slug } })
+              if (section?.group === 'workspace') {
+                void navigate({ to: section.to, params: { slug: option.slug } })
+              } else {
+                void navigate({ to: '/tenants/$slug', params: { slug: option.slug } })
+              }
             }}
           >
             {/* The primitive, not ui/combobox's trigger, which appends a chevron beside our selector icon. */}

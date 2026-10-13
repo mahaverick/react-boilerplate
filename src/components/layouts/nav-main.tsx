@@ -44,10 +44,15 @@ function isActive(pathname: string, to: LinkProps['to']): boolean {
  * toggling a group also expands the sidebar, since its sub-links are hidden
  * there. Each top-level row names itself in a
  * tooltip, shown only while the sidebar is collapsed to icons. The highlight
- * reads `pathname`, so a deep page keeps its section lit.
+ * reads `pathname`, so a deep page keeps its section lit. Every link closes
+ * the mobile drawer.
  */
 export function NavMain({ items, pathname }: { items: readonly NavMainItem[]; pathname: string }) {
-  const { state, isMobile, setOpen } = useSidebar()
+  const { state, isMobile, setOpen, setOpenMobile } = useSidebar()
+  /** Closes the drawer after a tap on a phone. */
+  const close = () => {
+    if (isMobile) setOpenMobile(false)
+  }
   return (
     <nav aria-label="Main">
       <SidebarGroup>
@@ -81,7 +86,7 @@ export function NavMain({ items, pathname }: { items: readonly NavMainItem[]; pa
                       <SidebarMenuSubItem key={sub.label}>
                         <SidebarMenuSubButton
                           isActive={isActive(pathname, sub.to)}
-                          render={<Link to={sub.to} />}
+                          render={<Link to={sub.to} onClick={close} />}
                         >
                           <span>{sub.label}</span>
                         </SidebarMenuSubButton>
@@ -95,7 +100,7 @@ export function NavMain({ items, pathname }: { items: readonly NavMainItem[]; pa
                 <SidebarMenuButton
                   tooltip={label}
                   isActive={isActive(pathname, to)}
-                  render={<Link to={to} />}
+                  render={<Link to={to} onClick={close} />}
                 >
                   <Icon aria-hidden="true" />
                   <span>{label}</span>

@@ -1,4 +1,4 @@
-import { IconBell, IconBuilding, IconLayoutDashboard } from '@tabler/icons-react'
+import { IconBuilding, IconLayoutDashboard } from '@tabler/icons-react'
 import { Link, Outlet, useLocation, useMatches, type LinkProps } from '@tanstack/react-router'
 import { Fragment, useEffect } from 'react'
 import { MaintenanceBanner } from '@/components/features/maintenance/maintenance-gate'
@@ -8,6 +8,8 @@ import { TenantSwitcher } from '@/components/features/tenant-switcher'
 import { ThemeToggle } from '@/components/features/theme-toggle'
 import { UserMenu } from '@/components/features/user-menu'
 import { NavMain, type NavMainItem } from '@/components/layouts/nav-main'
+import { NavSecondary } from '@/components/layouts/nav-secondary'
+import { NavSettings } from '@/components/layouts/nav-settings'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -28,6 +30,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { ROUTES } from '@/constants/routes'
+import { isSettingsPath } from '@/constants/settings'
 import { useNotificationStream } from '@/hooks/use-notifications'
 import { useFeaturePropertiesSync, useFlagValues } from '@/observability/flags/flag-hooks'
 import type { BooleanClientFlagKey } from '@/observability/flags/flag-types'
@@ -49,7 +52,6 @@ interface NavItem extends NavMainItem {
 /** The sidebar's primary navigation. `to` is typed against the route tree, so a missing route is a type error. */
 const NAV_ITEMS: readonly NavItem[] = [
   { to: ROUTES.dashboard, label: 'Dashboard', Icon: IconLayoutDashboard },
-  { to: ROUTES.notifications, label: 'Notifications', Icon: IconBell },
   { to: ROUTES.tenants, label: 'Tenants', Icon: IconBuilding },
 ]
 
@@ -116,7 +118,9 @@ function withAncestors(crumbs: Crumb[]): Crumb[] {
  * The signed-in shell, after shadcn's sidebar-07 block: a sidebar that
  * collapses to icons (with a rail to toggle it), a header with breadcrumbs,
  * and the page. The sidebar holds the tenant switcher, the primary
- * navigation (`NavMain`) and the account menu.
+ * navigation (`NavMain`) with a bottom group (`NavSecondary`), and the account
+ * menu. On settings pages the sidebar's content swaps to `NavSettings`, after
+ * Pulse; the header slot and account menu never change.
  *
  * It holds the one mount of the notification stream, of the `$feature/*`
  * super-property sync (`useFeaturePropertiesSync`), and of the listener that
@@ -169,7 +173,14 @@ export function AppLayout() {
           <TenantSwitcher />
         </SidebarHeader>
         <SidebarContent>
-          <NavMain items={navItems} pathname={pathname} />
+          {isSettingsPath(pathname) ? (
+            <NavSettings pathname={pathname} />
+          ) : (
+            <>
+              <NavMain items={navItems} pathname={pathname} />
+              <NavSecondary pathname={pathname} className="mt-auto" />
+            </>
+          )}
         </SidebarContent>
         <SidebarFooter>
           <UserMenu user={user} />

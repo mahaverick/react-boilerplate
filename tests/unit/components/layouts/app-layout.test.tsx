@@ -11,12 +11,18 @@ import { http, HttpResponse } from 'msw'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
+import type { Notification } from '@/queries/notification.queries'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-import { TENANT_ID } from '@/tests/fixtures/ids'
+import {
+  NOTIFICATION_ID,
+  NOTIFICATION_ID_2,
+  NOTIFICATION_ID_7,
+  TENANT_ID,
+} from '@/tests/fixtures/ids'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -33,6 +39,35 @@ const ACME = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
+
+/** One notification for the signed-in user, read at `readAt` or unread when null. */
+function notificationRow(id: string, readAt: string | null): Notification {
+  return {
+    id,
+    userId: testUser.id,
+    type: 'verify_email',
+    title: 'Verify your email',
+    body: 'Follow the link we sent you.',
+    metadata: null,
+    readAt,
+    createdAt: '2026-09-21T10:00:00.000Z',
+  }
+}
+
+/**
+ * A `matchMedia` that answers every `max-width` query true, so `useIsMobile` reports a
+ * phone and the sidebar renders as a drawer. Listeners are no-ops.
+ */
+const mobileMatchMedia = ((query: string) => ({
+  matches: query.includes('max-width'),
+  media: query,
+  onchange: null,
+  addListener: () => {},
+  removeListener: () => {},
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => false,
+})) as unknown as typeof window.matchMedia
 
 const LOGOUT_FAILED = "Couldn't sign out. Check your connection and try again."
 
@@ -80,10 +115,92 @@ describe('AppLayout', () => {
   })
 
   const realLocation = window.location
+  // Bound because `@typescript-eslint/unbound-method` rejects lifting a method off its object, and the copy is only used to restore it.
+  const realMatchMedia = window.matchMedia.bind(window)
 
   afterEach(() => {
     vi.restoreAllMocks()
+    window.matchMedia = realMatchMedia
     Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
+  })
+
+  it('shows Dashboard and Tenants above, Notifications and Settings at the bottom', async () => {
+    renderAppAt('/dashboard')
+    const main = await screen.findByRole('navigation', { name: 'Main' })
+    expect(
+      within(main)
+        .getAllByRole('link')
+        .map((link) => link.textContent)
+    ).toEqual(['Dashboard', 'Tenants'])
+    const secondary = screen.getByRole('navigation', { name: 'Secondary' })
+    expect(within(secondary).getByRole('link', { name: /^Notifications/ })).toHaveAttribute(
+      'href',
+      '/notifications'
+    )
+    expect(within(secondary).getByRole('link', { name: 'Settings' })).toHaveAttribute(
+      'href',
+      '/settings'
+    )
+  })
+
+  it('shows the unread count on the Notifications item', async () => {
+    server.use(
+      http.get('/api/v1/notifications', () =>
+        ok(
+          {
+            notifications: [
+              notificationRow(NOTIFICATION_ID, null),
+              notificationRow(NOTIFICATION_ID_2, null),
+              notificationRow(NOTIFICATION_ID_7, '2026-09-22T10:00:00.000Z'),
+            ],
+          },
+          'Notifications retrieved.'
+        )
+      )
+    )
+    renderAppAt('/dashboard')
+    const secondary = await screen.findByRole('navigation', { name: 'Secondary' })
+    await waitFor(() => {
+      expect(within(secondary).getByText('2')).toBeInTheDocument()
+    })
+    expect(within(secondary).getByText('unread')).toHaveClass('sr-only')
+  })
+
+  it('swaps to the settings nav on settings pages', async () => {
+    renderAppAt('/settings/account/profile')
+    const settings = await screen.findByRole('navigation', { name: 'Settings' })
+    expect(within(settings).getByRole('link', { name: 'Back to app' })).toHaveAttribute(
+      'href',
+      '/dashboard'
+    )
+    expect(within(settings).getByRole('link', { name: 'Profile' })).toHaveAttribute('data-active')
+    expect(within(settings).getByRole('link', { name: 'Security' })).not.toHaveAttribute(
+      'data-active'
+    )
+    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'Secondary' })).toBeNull()
+  })
+
+  it('disables workspace items with a hint when there is no tenant', async () => {
+    renderAppAt('/settings/account/profile')
+    const settings = await screen.findByRole('navigation', { name: 'Settings' })
+    const members = within(settings).getByRole('button', { name: 'Members' })
+    expect(members).toHaveAttribute('aria-disabled', 'true')
+    expect(within(settings).getByText('Choose a tenant first.')).toBeInTheDocument()
+  })
+
+  it('closes the mobile drawer on every sidebar link', async () => {
+    window.matchMedia = mobileMatchMedia
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    // Main, the bottom group, a settings item, and Back to app, in the order a walk reaches them.
+    for (const name of ['Tenants', 'Settings', 'Profile', 'Back to app']) {
+      await user.click(await screen.findByRole('button', { name: 'Toggle sidebar' }))
+      // Scoped to the drawer: the settings landing page links its sections too.
+      const drawer = await screen.findByRole('dialog')
+      await user.click(await within(drawer).findByRole('link', { name }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    }
   })
 
   it('renders exactly one main landmark', async () => {
