@@ -123,13 +123,13 @@ Routes are files under `src/pages/`; `__root.tsx`, `_auth.tsx` and
 `$slug.members.tsx` follow TanStack Router's naming, not the kebab-case rule
 the rest of `src/` follows.
 
-| Route group                                                                 | Guard                                                                                                      |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `/_app` (dashboard, notifications, tenants, every tenant tab, settings)     | Not signed in: redirect to `/login?redirect=<href>`. Its loader warms the page's flags.                    |
-| `/_auth` (login, register, forgot-password)                                 | Signed in: redirect to the dashboard.                                                                      |
-| `/`                                                                         | Redirects in `beforeLoad`: signed in to the dashboard, anyone else to `/login`.                            |
-| `/auth/callback`, `/reset-password`, `/verify-email`, `/invitations/accept` | None. The OAuth callback sits outside `_auth`, whose guard would bounce the visitor it has just signed in. |
-| `/$`                                                                        | None. The splat route renders `RouteNotFound` inside its own `<main>`.                                     |
+| Route group                                                                 | Guard                                                                                                                                                                            |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/_app` (dashboard, notifications, tenants, every tenant tab, settings)     | Not signed in: redirect to `/login?redirect=<href>`. Then the tenant guard ([The current tenant in the URL](#the-current-tenant-in-the-url)). Its loader warms the page's flags. |
+| `/_auth` (login, register, forgot-password)                                 | Signed in: redirect to the dashboard.                                                                                                                                            |
+| `/`                                                                         | Redirects in `beforeLoad`: signed in to the dashboard, anyone else to `/login`.                                                                                                  |
+| `/auth/callback`, `/reset-password`, `/verify-email`, `/invitations/accept` | None. The OAuth callback sits outside `_auth`, whose guard would bounce the visitor it has just signed in.                                                                       |
+| `/$`                                                                        | None. The splat route renders `RouteNotFound` inside its own `<main>`.                                                                                                           |
 
 Both layout guards stand down while maintenance is `full`
 ([Maintenance mode](#maintenance-mode)). The guards read the auth store
@@ -189,6 +189,64 @@ invitations and onboarding, and a mutation that means the list alone passes
 `src/lib/api-error.ts`, and a form maps the API's field errors onto its inputs
 through `useServerErrors`.
 
+### The current tenant in the URL
+
+The URL is the only source of truth for the current tenant, so the tenant
+switcher and Settings › Workspace agree on every page. Tenant pages keep the
+tenant in their path; every other page in the signed-in shell carries it as a
+search param.
+
+| Page                                                 | Tenant comes from | `?tenant`                 |
+| ---------------------------------------------------- | ----------------- | ------------------------- |
+| `/tenants/$slug/*` and `/settings/workspace/$slug/*` | the path          | never; removed if present |
+| every other `/_app` page                             | the search param  | always, once resolved     |
+
+`src/lib/current-tenant.ts` holds the parts, and `_app` owns the param:
+
+- **`validateSearch`** (`tenantSearchSchema`) accepts `tenant` only as a slug
+  express's pattern allows; anything else is caught as `undefined`.
+- **The search middleware** (`retainTenant`) keeps the current tenant on every
+  navigation inside the shell, as `retainSearchParams(['tenant'])` would. The
+  plain `retainSearchParams` reads only the current URL's search, which on a
+  `$slug` page has no `?tenant`, so leaving `/tenants/acme` for `/dashboard`
+  would lose the tenant. `retainTenant` falls back to the tenant
+  `installCurrentTenant` records on `onBeforeLoad` (the destination's `$slug`,
+  else its `?tenant`, else none). It records before the router publishes the
+  location, so a link that renders for the new page (the sidebar's) builds its
+  href from that page's tenant; on `onResolved` it would keep the previous one.
+  A navigation that names `tenant` itself wins, `undefined` included. The two
+  `$slug` layouts declare `stripTenant`, so a link to them never carries
+  `?tenant`.
+- **The guard** (`tenantSearchCorrection`, after the auth check in `_app`'s
+  `beforeLoad`). On a `$slug` page it redirects without `?tenant`. On any other
+  page it resolves the tenant from the tenant list (`ensureQueryData`, the
+  switcher's cached query): the URL's `?tenant` if it is eligible, else the
+  remembered tenant if it is, else the first eligible tenant in list order,
+  else none. "Eligible" is a tenant in the caller's `GET /tenants` list that is
+  neither the platform tenant nor suspended. When the result differs from the
+  URL it redirects to the same page with the other params kept and `tenant`
+  set, or removed when there is none. Redirects replace the entry. The resolved
+  tenant is remembered for the user. A list that cannot be loaded leaves the
+  URL as it is, so a failed list never bounces the page; a list still in flight
+  holds the page on the pending screen, as any `beforeLoad` does. A hover
+  preload is never redirected and remembers nothing, and the guard stands down
+  while maintenance is `full`.
+
+Components read the tenant with `useCurrentTenantSlug()`: the route's `$slug`,
+else `?tenant`, else null. The remembered tenant
+(`src/states/current-tenant.store.ts`) is only the guard's fallback. It is
+written when `TenantGate` loads a tenant and when the guard resolves `?tenant`,
+never for platform access or the platform tenant.
+
+The tenant switcher on a workspace settings page opens the same section for
+the chosen tenant, on another `$slug` page opens `/tenants/$slug`, and on any
+other page changes only `?tenant`. That is a push, so Back returns to the
+previous tenant. Flags, route telemetry and the API are unchanged: flags are
+tenant-scoped only on `$slug` routes, `?tenant` is not in
+`ANALYTICS_URL_QUERY_ALLOWLIST`, so page views drop it, and the API resolves a
+tenant from `:slug` in its own paths. Apex has no tenant switcher, so none of
+this is shared.
+
 ### The Settings area
 
 `src/constants/settings.ts` is the area's single source of truth.
@@ -212,14 +270,9 @@ Permissions never hide a section. A member who cannot manage the tenant sees
 the read-only views under a banner saying owners and admins can change them.
 
 **The sidebar on settings pages** is `NavSettings`: Back to app, then the
-Account and Workspace groups. Workspace items link to the tenant
-`useWorkspaceSlug` resolves, in this order: the route's `$slug` when the page
-has one; otherwise the last tenant this user opened as a member, but only while
-it is still one of their active, non-platform memberships in the tenant list;
-otherwise none. `TenantGate` records that tenant (`useRememberTenant`) once it
-loads, never for platform access or the platform tenant; it is keyed by user id
-in `src/states/current-tenant.store.ts` and saved to `localStorage` when
-storage allows. The Workspace label names the tenant when the tenant list has
+Account and Workspace groups. Workspace items link to the current tenant,
+`useCurrentTenantSlug()` ([The current tenant in the URL](#the-current-tenant-in-the-url)).
+The Workspace label names the tenant when the tenant list has
 it ("Workspace · Acme Corp"). With no tenant, the Workspace items are
 `aria-disabled` buttons, and the landing page's rows plain text, described by
 the hint "Choose a tenant first.". Choosing a tenant in the switcher while on a
@@ -236,15 +289,15 @@ and (flag-gated) Beta tabs.
 
 ## State
 
-| What                                  | Where                                  | Persisted                                                      |
-| ------------------------------------- | -------------------------------------- | -------------------------------------------------------------- |
-| Access token, user, bootstrapped flag | `src/states/auth.store.ts`             | No: memory only                                                |
-| Maintenance mode, message, start time | `src/states/maintenance-mode.store.ts` | No: each load starts at `off` and learns it from the API       |
-| Sidebar collapsed                     | `src/states/sidebar.store.ts`          | No                                                             |
-| Last tenant opened, per user          | `src/states/current-tenant.store.ts`   | `localStorage` key `last-tenant:<userId>`, when storage allows |
-| Theme (`light`, `dark`, `system`)     | `src/states/theme.store.ts`            | `localStorage` key `theme`, read pre-paint by `theme-init.js`  |
-| Everything the API returns            | The TanStack Query cache               | No                                                             |
-| Form state                            | TanStack Form, per form                | No                                                             |
+| What                                                  | Where                                  | Persisted                                                      |
+| ----------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------- |
+| Access token, user, bootstrapped flag                 | `src/states/auth.store.ts`             | No: memory only                                                |
+| Maintenance mode, message, start time                 | `src/states/maintenance-mode.store.ts` | No: each load starts at `off` and learns it from the API       |
+| Sidebar collapsed                                     | `src/states/sidebar.store.ts`          | No                                                             |
+| Last tenant opened, per user (the `?tenant` fallback) | `src/states/current-tenant.store.ts`   | `localStorage` key `last-tenant:<userId>`, when storage allows |
+| Theme (`light`, `dark`, `system`)                     | `src/states/theme.store.ts`            | `localStorage` key `theme`, read pre-paint by `theme-init.js`  |
+| Everything the API returns                            | The TanStack Query cache               | No                                                             |
+| Form state                                            | TanStack Form, per form                | No                                                             |
 
 Code outside React reads and writes the stores through `getState()`, as the
 interceptors and route guards do, or subscribes to them: the session module
@@ -434,7 +487,8 @@ scopes are in [Router hooks](#router-hooks-this-app-only).
 
 `src/router.tsx` subscribes three hooks of this app's own to the router.
 All run on committed navigations, never in a loader, because a loader also
-runs for a hover preload.
+runs for a hover preload. A fourth, `installCurrentTenant`, records the tenant
+`retainTenant` carries ([The current tenant in the URL](#the-current-tenant-in-the-url)).
 
 - **Page views and the tenant group.** `installRouteAnalytics`
   (`src/observability/route-telemetry.ts`) runs on `onResolved`: it sets the
