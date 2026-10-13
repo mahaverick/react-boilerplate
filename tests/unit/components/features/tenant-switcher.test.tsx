@@ -306,6 +306,37 @@ describe('TenantSwitcher', () => {
     })
   })
 
+  // The vendored ComboboxTrigger appends its own chevron, which doubled the selector icon.
+  it('draws one selector icon in the trigger, beside the tenant mark', async () => {
+    renderShell()
+
+    const trigger = await screen.findByRole('combobox', { name: /^Switch tenant/ })
+    expect(trigger.querySelectorAll('svg')).toHaveLength(2)
+  })
+
+  it('asks to choose a tenant, with no Tenant caption, when none is open', async () => {
+    renderShell()
+
+    const trigger = await screen.findByRole('combobox', {
+      name: 'Switch tenant. Current: Choose a tenant',
+    })
+    expect(trigger).toHaveTextContent(/^Choose a tenant$/)
+  })
+
+  it('captions an open tenant as Tenant', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
+      )
+    )
+    renderShell('/tenants/acme')
+
+    const trigger = await screen.findByRole('combobox', {
+      name: 'Switch tenant. Current: Acme Corp',
+    })
+    expect(trigger).toHaveTextContent(/^Acme CorpTenant$/)
+  })
+
   // Staff have no list row for a tenant reached by platform access, so the label comes from the tenant the route already loaded.
   it('names a tenant opened by platform access in the trigger', async () => {
     server.use(

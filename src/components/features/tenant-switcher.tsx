@@ -1,3 +1,4 @@
+import { Combobox as ComboboxPrimitive } from '@base-ui/react'
 import { IconBuilding, IconPlus, IconSelector } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
@@ -12,7 +13,6 @@ import {
   ComboboxItem,
   ComboboxLabel,
   ComboboxList,
-  ComboboxTrigger,
 } from '@/components/ui/combobox'
 import {
   SidebarMenu,
@@ -101,7 +101,8 @@ export function TenantSwitcher() {
   const groups: OptionGroup[] =
     ownMatches.length > 0 ? [{ label: 'Your tenants', items: ownMatches }] : []
 
-  const label = own.find((option) => option.slug === slug)?.name ?? current.data?.name ?? 'Tenants'
+  const openName = own.find((option) => option.slug === slug)?.name ?? current.data?.name
+  const label = openName ?? 'Choose a tenant'
   const ownMessage = ownTenantsMessage({
     hasData: tenants.data !== undefined,
     isPending: tenants.isPending,
@@ -133,7 +134,8 @@ export function TenantSwitcher() {
               void navigate({ to: '/tenants/$slug', params: { slug: option.slug } })
             }}
           >
-            <ComboboxTrigger
+            {/* The primitive, not ui/combobox's trigger, which appends a chevron beside our selector icon. */}
+            <ComboboxPrimitive.Trigger
               render={
                 <SidebarMenuButton
                   size="lg"
@@ -147,10 +149,12 @@ export function TenantSwitcher() {
               </span>
               <span className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{label}</span>
-                <span className="truncate text-xs text-muted-foreground">Tenant</span>
+                {openName !== undefined && (
+                  <span className="truncate text-xs text-muted-foreground">Tenant</span>
+                )}
               </span>
               <IconSelector aria-hidden="true" className="ml-auto size-4" />
-            </ComboboxTrigger>
+            </ComboboxPrimitive.Trigger>
             <ComboboxContent
               aria-label="Switch tenant"
               side={isMobile ? 'bottom' : 'right'}
