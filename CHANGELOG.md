@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.3](https://github.com/mahaverick/react-boilerplate/compare/v2.3.2...v2.3.3) (2026-10-13)
+
+
+### Bug Fixes
+
+* **settings:** stop settings cards repeating their page heading ([#98](https://github.com/mahaverick/react-boilerplate/issues/98)) ([19657cd](https://github.com/mahaverick/react-boilerplate/commit/19657cd2704934c43c68a88ad69046c730f5b7c8))
+
 ## [2.3.2](https://github.com/mahaverick/react-boilerplate/compare/v2.3.1...v2.3.2) (2026-10-13)
 
 
