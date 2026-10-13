@@ -213,6 +213,33 @@ describe('AppLayout', () => {
     }
   })
 
+  it.each([
+    ['Profile', '/settings/account/profile'],
+    ['Notifications', '/settings/account/notifications'],
+    ['Platform', '/tenants/platform'],
+  ])('closes the mobile drawer when %s is chosen from the account menu', async (name, path) => {
+    window.matchMedia = mobileMatchMedia
+    // Staff, so the menu also offers Platform.
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'viewer' } })
+    server.use(
+      http.get('/api/v1/tenants/platform', () =>
+        ok(
+          tenantDetail({ ...ACME, name: 'Platform', slug: 'platform' }, 'owner'),
+          'Tenant retrieved.'
+        )
+      )
+    )
+    const user = userEvent.setup()
+    const router = renderAppAt('/dashboard')
+    await user.click(await screen.findByRole('button', { name: 'Toggle sidebar' }))
+    const drawer = await screen.findByRole('dialog')
+    await user.click(within(drawer).getByRole('button', { name: 'Account menu for A B' }))
+
+    await user.click(await screen.findByRole('menuitem', { name }))
+    await waitFor(() => expect(router.state.location.pathname).toBe(path))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
   it('renders exactly one main landmark', async () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
