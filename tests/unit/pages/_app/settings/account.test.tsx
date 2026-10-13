@@ -40,10 +40,23 @@ describe('account settings', () => {
     })
   })
 
-  it.each(['/profile', '/profile/'])('redirects %s to the profile settings', async (path) => {
-    const router = renderAt(path)
-    await waitFor(() => expect(router.state.location.pathname).toBe('/settings/account/profile'))
-  })
+  it.each(['/profile', '/profile/', '/settings/account', '/settings/account/'])(
+    'redirects %s to the profile settings',
+    async (path) => {
+      const router = renderAt(path)
+      await waitFor(() => expect(router.state.location.pathname).toBe('/settings/account/profile'))
+    }
+  )
+
+  it.each(['/profile', '/settings/account'])(
+    'keeps the query and hash when redirecting %s',
+    async (path) => {
+      const router = renderAt(`${path}?x=1#y`)
+      await waitFor(() => expect(router.state.location.pathname).toBe('/settings/account/profile'))
+      expect(router.state.location.searchStr).toBe('?x=1')
+      expect(router.state.location.hash).toBe('y')
+    }
+  )
 
   it.each([
     ['/settings/account/profile', 'Profile'],

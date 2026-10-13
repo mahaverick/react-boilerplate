@@ -132,6 +132,19 @@ describe('workspace settings', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(to))
   })
 
+  it.each([
+    ['/tenants/acme/members', '/settings/workspace/acme/members'],
+    ['/tenants/acme/settings', '/settings/workspace/acme/general'],
+    ['/tenants/acme/activity', '/settings/workspace/acme/activity'],
+    ['/settings/workspace/acme', '/settings/workspace/acme/general'],
+  ])('keeps the query and hash when redirecting %s', async (from, to) => {
+    mockTenant('owner')
+    const router = renderAppAt(`${from}?x=1#y`)
+    await waitFor(() => expect(router.state.location.pathname).toBe(to))
+    expect(router.state.location.searchStr).toBe('?x=1')
+    expect(router.state.location.hash).toBe('y')
+  })
+
   it('groups analytics under the tenant the URL names, as on the tenant pages', async () => {
     const setTenantGroup = vi.spyOn(analytics, 'setTenantGroup')
     mockTenant('owner')
