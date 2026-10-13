@@ -142,7 +142,12 @@ function TenantActivity({ slug }: { slug: string }) {
   )
 }
 
-/** The tab's role gate: loading, failed lookup, not allowed, or the log. */
+/**
+ * The tab's role gate: loading, failed lookup, not allowed, or the log. The
+ * page header already says "Activity" and what the log holds, so the card's
+ * title is `sr-only` (the region keeps its heading) and its description only
+ * adds what the header does not.
+ */
 export function TenantActivityPanel({ slug }: { slug: string }) {
   const { role, isPending, isError, retry } = useMyRole(slug)
   const isAllowed = role !== undefined && canViewActivity(role)
@@ -151,12 +156,12 @@ export function TenantActivityPanel({ slug }: { slug: string }) {
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>Activity</h2>
+          <h2 className="sr-only">Activity</h2>
         </CardTitle>
         <CardDescription>
           {role !== undefined && !isAllowed
             ? OWNERS_AND_ADMINS_MESSAGE
-            : 'Every change made in this tenant, newest first. What platform staff did is marked Staff.'}
+            : 'What platform staff did is marked Staff.'}
         </CardDescription>
       </CardHeader>
       <CardContent>

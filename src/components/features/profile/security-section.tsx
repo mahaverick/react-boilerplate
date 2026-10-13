@@ -54,7 +54,8 @@ const FIELD_FOR_MESSAGE = new Map<string, keyof ChangePasswordInput>([
 /**
  * Sign-in methods, the change-password form and signing out other sessions,
  * for whichever account page hosts it. Signing out other sessions is offered
- * on every account, a Google-only one included.
+ * on every account, a Google-only one included. The heading is `sr-only`: it
+ * names the region for assistive tech, and the page's h1 already says Security.
  */
 export function SecuritySection() {
   const providers = useAuthProviders()
@@ -62,7 +63,7 @@ export function SecuritySection() {
 
   return (
     <section aria-labelledby={headingId} className="grid gap-6">
-      <h2 id={headingId} className="text-lg font-semibold">
+      <h2 id={headingId} className="sr-only">
         Security
       </h2>
       {providers.isPending ? (

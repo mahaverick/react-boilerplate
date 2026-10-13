@@ -196,6 +196,17 @@ describe('tenant activity page', () => {
     expect(await screen.findByText('created the tenant “Acme Corp”')).toBeInTheDocument()
   })
 
+  it('says what the log holds once, in the page header, and keeps the card heading by role', async () => {
+    mockTenant('owner')
+    mockLog(() => page([CREATED]))
+    renderAppAt('/settings/workspace/acme/activity')
+
+    await screen.findByText('created the tenant “Acme Corp”')
+    expect(screen.getAllByText('Every change made in this tenant, newest first.')).toHaveLength(1)
+    expect(screen.getByText('What platform staff did is marked Staff.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Activity' })).toHaveClass('sr-only')
+  })
+
   it('tells an editor it is for owners and admins, and never asks the API', async () => {
     mockTenant('editor')
     const seen = mockLog(() => page([]))
