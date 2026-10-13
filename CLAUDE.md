@@ -263,6 +263,9 @@ the component is added again.
   the dropdown `min-w-24`. `shadcn init` also overwrites `src/lib/utils.ts`,
   `src/hooks/use-mobile.ts` and `sonner.tsx`, and resets `--muted-foreground`
   and `--destructive` in `globals.css`, which `pnpm test:contrast` then fails.
+  Every Tabler icon in `src/components/ui/` carries `aria-hidden="true"` (the
+  guard test `tests/unit/ui-icons-aria-hidden.test.ts` fails otherwise); the
+  combobox clear and chip-remove buttons carry `aria-label` for the same reason.
 - **The vitest config's coverage `exclude` is the inverse list.** It names the
   vendored files, so a new vendored file goes there and a hand-written one stays
   out.

@@ -70,7 +70,7 @@ function DialogContent({
               />
             }
           >
-            <IconX
+            <IconX aria-hidden="true"
             />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>

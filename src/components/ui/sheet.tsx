@@ -68,7 +68,7 @@ function SheetContent({
               />
             }
           >
-            <IconX
+            <IconX aria-hidden="true"
             />
             <span className="sr-only">Close</span>
           </SheetPrimitive.Close>
