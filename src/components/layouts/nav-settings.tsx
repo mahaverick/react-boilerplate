@@ -12,6 +12,7 @@ import {
 import { ROUTES } from '@/constants/routes'
 import { SETTINGS_GROUPS, SETTINGS_SECTIONS, settingsActiveSection } from '@/constants/settings'
 import { useWorkspaceSlug } from '@/hooks/use-workspace-slug'
+import { useTenants } from '@/queries/tenant.queries'
 
 /**
  * The sidebar's content on settings pages, after Pulse's settings nav: Back
@@ -19,7 +20,9 @@ import { useWorkspaceSlug } from '@/hooks/use-workspace-slug'
  * link to the tenant `useWorkspaceSlug` resolves; with none they are disabled
  * buttons and the group says to choose a tenant first. Every item names
  * itself in a tooltip while the sidebar is collapsed to icons, and every link
- * closes the mobile drawer.
+ * closes the mobile drawer. The Workspace label names the tenant when the
+ * user's tenant list has it ("Workspace · Acme Corp"); a tenant reached only
+ * by platform access is not in that list, so its label stays "Workspace".
  *
  * A disabled item is `aria-disabled`, not `disabled`, so it stays focusable
  * and its tooltip still opens; it overrides the button's
@@ -31,6 +34,7 @@ import { useWorkspaceSlug } from '@/hooks/use-workspace-slug'
 export function NavSettings({ pathname }: { pathname: string }) {
   const { isMobile, setOpenMobile } = useSidebar()
   const slug = useWorkspaceSlug()
+  const tenantName = useTenants().data?.find((entry) => entry.tenant.slug === slug)?.tenant.name
   const active = settingsActiveSection(pathname)
   const hintId = useId()
   /** Closes the drawer after a tap on a phone. */
@@ -54,7 +58,13 @@ export function NavSettings({ pathname }: { pathname: string }) {
       </SidebarGroup>
       {SETTINGS_GROUPS.map((group) => (
         <SidebarGroup key={group.id}>
-          <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+          <SidebarGroupLabel>
+            <span className="truncate">
+              {group.id === 'workspace' && tenantName
+                ? `${group.label} · ${tenantName}`
+                : group.label}
+            </span>
+          </SidebarGroupLabel>
           {group.id === 'workspace' && slug === null && (
             <p
               id={hintId}

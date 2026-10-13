@@ -1,3 +1,4 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import {
   createMemoryHistory,
   createRootRoute,
@@ -7,9 +8,14 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NavSettings } from '@/components/layouts/nav-settings'
 import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'
+import { queryClient } from '@/router'
+import { TENANT_ID } from '@/tests/fixtures/ids'
+import { ok } from '@/tests/mocks/handlers'
+import { server } from '@/tests/mocks/server'
 
 /** The slug the mocked `useWorkspaceSlug` returns; each test sets it. */
 const workspace = vi.hoisted(() => ({ slug: null as string | null }))
@@ -49,7 +55,11 @@ function renderNavAt(path: string, defaultOpen = true): AnyRouter {
     routeTree: rootRoute,
     history: createMemoryHistory({ initialEntries: [path] }),
   })
-  render(<RouterProvider router={router} />)
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  )
   return router as AnyRouter
 }
 
@@ -58,6 +68,7 @@ describe('NavSettings', () => {
 
   beforeEach(() => {
     workspace.slug = null
+    queryClient.clear()
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: realInnerWidth })
   })
 
@@ -85,6 +96,39 @@ describe('NavSettings', () => {
     )
     expect(within(nav).getByText('Account')).toBeInTheDocument()
     expect(within(nav).getByText('Workspace')).toBeInTheDocument()
+  })
+
+  it('names the resolved tenant beside the Workspace label', async () => {
+    workspace.slug = 'acme'
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok(
+          [
+            {
+              tenant: {
+                id: TENANT_ID,
+                name: 'Acme Corp',
+                slug: 'acme',
+                description: null,
+                logo: null,
+                website: null,
+                lifecycleState: 'active',
+                deletedAt: null,
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+              },
+              role: 'owner',
+            },
+          ],
+          'Tenants retrieved.'
+        )
+      )
+    )
+    renderNavAt('/settings/account/profile')
+
+    const nav = await screen.findByRole('navigation', { name: 'Settings' })
+    const label = await within(nav).findByText('Workspace · Acme Corp')
+    expect(label.closest('[data-sidebar="group-label"]')).not.toBeNull()
   })
 
   it('marks the current account section active, and no other', async () => {
