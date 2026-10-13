@@ -7,6 +7,7 @@ import {
   formatPidFile,
   grantDirPlan,
   hasNoTty,
+  isPidHeld,
   isPnpmDev,
   isRecordedLeader,
   isRecordedMember,
@@ -569,6 +570,30 @@ describe('supervisorsToStop', () => {
   })
 })
 
+describe('isPidHeld', () => {
+  /** A `kill` that throws an error with `code`, or succeeds when `code` is `null`. */
+  function killAnswering(code: string | null) {
+    return vi.fn<(pid: number, signal: 0) => void>(() => {
+      if (code !== null) throw Object.assign(new Error(code), { code })
+    })
+  }
+
+  it('probes with signal 0 only', () => {
+    const kill = killAnswering(null)
+    isPidHeld(40, kill)
+    expect(kill.mock.calls).toEqual([[40, 0]])
+  })
+
+  it.each([
+    ['the probe succeeds', null, true],
+    ['another user holds it (EPERM)', 'EPERM', true],
+    ['the probe fails some other way', 'EINVAL', true],
+    ['no process has it (ESRCH)', 'ESRCH', false],
+  ])('answers held when %s: %s', (_case, code, held) => {
+    expect(isPidHeld(40, killAnswering(code))).toBe(held)
+  })
+})
+
 describe('stopTargets', () => {
   const LEADER = proc({ pid: 40 })
   const WATCH = proc({ pid: 42, pgid: 40, command: TSX_WATCH })
@@ -581,6 +606,7 @@ describe('stopTargets', () => {
         supervisors: [{ pid: 10, lstart: LATER }],
         recorded: null,
         leader: null,
+        held: false,
         members: [],
         dir: WORKTREE,
       })
@@ -593,6 +619,7 @@ describe('stopTargets', () => {
         supervisors: [{ pid: 10, lstart: LATER }],
         recorded: RECORDED,
         leader: LEADER,
+        held: true,
         members: [LEADER, WATCH],
         dir: WORKTREE,
       })
@@ -608,6 +635,7 @@ describe('stopTargets', () => {
         supervisors: [{ pid: 42, lstart: LSTART }],
         recorded: RECORDED,
         leader: null,
+        held: false,
         members: [WATCH, proc({ pid: 43, pgid: 40, command: TSX_SERVER })],
         dir: WORKTREE,
       })
@@ -623,7 +651,21 @@ describe('stopTargets', () => {
         supervisors: [],
         recorded: RECORDED,
         leader: null,
+        held: false,
         members: [proc({ pid: 44, pgid: 40, command: 'vim x', tty: 'ttys000' })],
+        dir: WORKTREE,
+      })
+    ).toEqual([])
+  })
+
+  it('touches no member while the pid is held, even when ps could not read the holder', () => {
+    expect(
+      stopTargets({
+        supervisors: [],
+        recorded: RECORDED,
+        leader: null,
+        held: true,
+        members: [QUALIFYING],
         dir: WORKTREE,
       })
     ).toEqual([])
@@ -642,6 +684,7 @@ describe('stopTargets', () => {
           supervisors: [],
           recorded: RECORDED,
           leader: holder,
+          held: true,
           members: [holder, QUALIFYING],
           dir: WORKTREE,
         })
@@ -658,28 +701,26 @@ describe('isStillTarget', () => {
   const SURVIVOR = proc({ pid: 42, pgid: 40, command: TSX_WATCH })
 
   it('re-checks a supervisor as a tsx watch, a leader against the pid file, and a member against the group', () => {
-    expect(isStillTarget(SUPERVISOR, WATCH, null, WORKTREE, null)).toBe(true)
-    expect(isStillTarget(LEADER, proc({ pid: 40 }), RECORDED, WORKTREE, null)).toBe(true)
-    expect(isStillTarget(MEMBER, SURVIVOR, RECORDED, WORKTREE, null)).toBe(true)
+    expect(isStillTarget(SUPERVISOR, WATCH, null, WORKTREE, false)).toBe(true)
+    expect(isStillTarget(LEADER, proc({ pid: 40 }), RECORDED, WORKTREE, false)).toBe(true)
+    expect(isStillTarget(MEMBER, SURVIVOR, RECORDED, WORKTREE, false)).toBe(true)
   })
 
   it.each([
     ['a supervisor', SUPERVISOR, proc({ pid: 10, command: TSX_WATCH, lstart: LATER })],
     ['a member', MEMBER, proc({ pid: 42, pgid: 40, command: TSX_WATCH, lstart: LATER })],
   ])('refuses %s whose pid now has another start time', (_case, target, info) => {
-    expect(isStillTarget(target, info, RECORDED, WORKTREE, null)).toBe(false)
+    expect(isStillTarget(target, info, RECORDED, WORKTREE, false)).toBe(false)
   })
 
   it('refuses a member once a process holds the recorded pid again', () => {
-    expect(
-      isStillTarget(MEMBER, SURVIVOR, RECORDED, WORKTREE, proc({ pid: 40, lstart: LATER }))
-    ).toBe(false)
+    expect(isStillTarget(MEMBER, SURVIVOR, RECORDED, WORKTREE, true)).toBe(false)
   })
 
   it('refuses a leader or member without a pid file, and any target that is gone', () => {
-    expect(isStillTarget(LEADER, proc({ pid: 40 }), null, WORKTREE, null)).toBe(false)
-    expect(isStillTarget(MEMBER, SURVIVOR, null, WORKTREE, null)).toBe(false)
-    expect(isStillTarget(SUPERVISOR, null, null, WORKTREE, null)).toBe(false)
+    expect(isStillTarget(LEADER, proc({ pid: 40 }), null, WORKTREE, false)).toBe(false)
+    expect(isStillTarget(MEMBER, SURVIVOR, null, WORKTREE, false)).toBe(false)
+    expect(isStillTarget(SUPERVISOR, null, null, WORKTREE, false)).toBe(false)
   })
 })
 
@@ -692,6 +733,7 @@ describe('stopInside', () => {
   function processes(table: Record<number, ProcessInfo>, exits: boolean) {
     return {
       infoOf: vi.fn((pid: number) => Promise.resolve(table[pid] ?? null)),
+      pidHeld: vi.fn((pid: number) => pid in table),
       signal: vi.fn<(id: number, name: 'SIGTERM' | 'SIGKILL') => void>(),
       goneWithin: vi.fn(() => Promise.resolve(exits)),
     }
@@ -728,6 +770,15 @@ describe('stopInside', () => {
     const held = processes({ 42: survivor, 40: proc({ pid: 40, lstart: LATER }) }, true)
     await stopInside({ targets: [MEMBER], recorded: RECORDED, dir: WORKTREE, ...held })
     expect(held.signal).not.toHaveBeenCalled()
+  })
+
+  it('re-probes the recorded pid with pidHeld before each member signal, not ps', async () => {
+    const survivor = proc({ pid: 42, pgid: 40, command: TSX_WATCH })
+    const ops = processes({ 42: survivor }, false)
+    ops.pidHeld.mockReturnValueOnce(false).mockReturnValueOnce(true)
+    await stopInside({ targets: [MEMBER], recorded: RECORDED, dir: WORKTREE, ...ops })
+    expect(ops.signal.mock.calls).toEqual([[42, 'SIGTERM']])
+    expect(ops.pidHeld.mock.calls).toEqual([[40], [40]])
   })
 
   it.each([

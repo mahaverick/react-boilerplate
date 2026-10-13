@@ -90,10 +90,12 @@ export declare function supervisorsToStop(input: {
   parentOf: (pid: number) => Promise<number | null>
   infoOf: (pid: number) => Promise<ProcessInfo | null>
 }): Promise<Supervisor[]>
+export declare function isPidHeld(pid: number, kill: (pid: number, signal: 0) => unknown): boolean
 export declare function stopTargets(input: {
   supervisors: Supervisor[]
   recorded: RecordedServer | null
   leader: ProcessInfo | null
+  held: boolean
   members: ProcessInfo[]
   dir: string
 }): StopTarget[]
@@ -102,13 +104,14 @@ export declare function isStillTarget(
   info: ProcessInfo | null,
   recorded: RecordedServer | null,
   dir: string,
-  holder: ProcessInfo | null
+  held: boolean
 ): boolean
 export declare function stopInside(input: {
   targets: StopTarget[]
   recorded: RecordedServer | null
   dir: string
   infoOf: (pid: number) => Promise<ProcessInfo | null>
+  pidHeld: (pid: number) => boolean
   signal: (id: number, name: 'SIGTERM' | 'SIGKILL') => void
   goneWithin: (ids: number[], ms: number) => Promise<boolean>
 }): Promise<void>

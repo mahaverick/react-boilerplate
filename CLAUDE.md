@@ -478,7 +478,9 @@ signals (SIGTERM, then SIGKILL) and skips it unless all of these still hold:
   are signalled by pid instead, each only if it is in that group, keeps the start
   time it was read with, has no terminal, runs inside `E2E_API_DIR` and is pnpm,
   `tsx watch` or the server tsx runs. While another process holds that pid, the
-  group is its own, and none of it is touched.
+  group is its own, and none of it is touched. "Holds" is a `kill -0` probe, made
+  again before each signal: only ESRCH counts as free, so a failed `ps` read
+  never makes a live holder look absent.
 
 Every `ps` runs with `LC_ALL=C`, so the start time has one form.
 

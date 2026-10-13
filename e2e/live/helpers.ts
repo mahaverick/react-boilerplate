@@ -14,6 +14,7 @@ import {
   cwdFromLsofFields,
   formatPidFile,
   grantDirPlan,
+  isPidHeld,
   parsePidFile,
   parsePsLine,
   respawnOptions,
@@ -302,6 +303,16 @@ function isAlive(id: number): boolean {
   }
 }
 
+/**
+ * Whether a process holds `pid`: `isPidHeld` over `process.kill`, so a failed
+ * `ps` read never counts as an absent holder.
+ * @param pid - The pid.
+ * @returns `true` unless the probe answers ESRCH.
+ */
+function pidHeld(pid: number): boolean {
+  return isPidHeld(pid, (target, signal) => process.kill(target, signal))
+}
+
 /** The pid file's contents, or `null` when there is none. */
 function readPidFile(file: string): string | null {
   try {
@@ -334,6 +345,7 @@ async function stopLeftovers(
       supervisors: included,
       recorded,
       leader: recorded === null ? null : await infoOf(recorded.pid),
+      held: recorded !== null && pidHeld(recorded.pid),
       members: recorded === null ? [] : await groupMembers(recorded.pid),
       dir,
     })
@@ -342,6 +354,7 @@ async function stopLeftovers(
       recorded,
       dir,
       infoOf,
+      pidHeld,
       signal: (id, name) => {
         signalAll([id], name)
       },

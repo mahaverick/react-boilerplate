@@ -426,6 +426,24 @@ export async function supervisorsToStop({ pids, dir, parentOf, infoOf }) {
 }
 
 /**
+ * Whether any process holds `pid`, decided by `kill(pid, 0)` rather than by a
+ * `ps` read, so a read that fails can never make a live holder look absent. Only
+ * ESRCH means no process has it; success and EPERM (another user's process) mean
+ * it is held, and so does any other error.
+ * @param pid - The pid.
+ * @param kill - `process.kill`, injected; signal 0 only probes.
+ * @returns `true` unless the probe answers ESRCH.
+ */
+export function isPidHeld(pid, kill) {
+  try {
+    kill(pid, 0)
+    return true
+  } catch (error) {
+    return error?.code !== 'ESRCH'
+  }
+}
+
+/**
  * What a restart stops besides the listeners: each supervisor by pid; the
  * recorded server's whole group (`-pid`) while its leader is still the
  * recorded server; and, only once no process holds the recorded pid, each
@@ -436,13 +454,14 @@ export async function supervisorsToStop({ pids, dir, parentOf, infoOf }) {
  * @param input - What was read, as processes with their `cwd`.
  * @param input.supervisors - The supervisors, each `{ pid, lstart }`.
  * @param input.recorded - The pid file's `{ pid, lstart }`, or `null`.
- * @param input.leader - The process now at the recorded pid, or `null` when none holds it.
+ * @param input.leader - The process now at the recorded pid, or `null` when unread.
+ * @param input.held - Whether a process holds the recorded pid (`isPidHeld`).
  * @param input.members - The processes now in the recorded pid's group.
  * @param input.dir - The checked, resolved worktree.
  * @returns Each `{ id, pid, kind, lstart }`: `id` is what is signalled; `pid` and
  *   `lstart` are what must still match before each signal.
  */
-export function stopTargets({ supervisors, recorded, leader, members, dir }) {
+export function stopTargets({ supervisors, recorded, leader, held, members, dir }) {
   const targets = supervisors.map(({ pid, lstart }) => ({
     id: pid,
     pid,
@@ -456,7 +475,7 @@ export function stopTargets({ supervisors, recorded, leader, members, dir }) {
       { id: -recorded.pid, pid: recorded.pid, kind: 'leader', lstart: recorded.lstart },
     ]
   }
-  if (leader !== null) return targets
+  if (held) return targets
   for (const member of members) {
     if (!isRecordedMember(member, recorded, dir)) continue
     if (targets.some((target) => target.pid === member.pid)) continue
@@ -473,15 +492,15 @@ export function stopTargets({ supervisors, recorded, leader, members, dir }) {
  * @param info - The process now at `target.pid`, with its `cwd`, or `null` when gone.
  * @param recorded - The pid file's `{ pid, lstart }`, or `null`.
  * @param dir - The checked, resolved worktree.
- * @param holder - The process now at the recorded pid, or `null` when none holds it.
+ * @param held - Whether a process holds the recorded pid now (`isPidHeld`).
  * @returns `true` when it may be signalled now.
  */
-export function isStillTarget(target, info, recorded, dir, holder) {
+export function isStillTarget(target, info, recorded, dir, held) {
   if (info === null || info.lstart !== target.lstart) return false
   if (target.kind === 'supervisor') return isSupervisor(info, dir)
   if (recorded === null) return false
   if (target.kind === 'leader') return isRecordedLeader(info, recorded, dir)
-  return holder === null && isRecordedMember(info, recorded, dir)
+  return !held && isRecordedMember(info, recorded, dir)
 }
 
 /**
@@ -493,11 +512,12 @@ export function isStillTarget(target, info, recorded, dir, holder) {
  * @param input.recorded - The pid file's `{ pid, lstart }`, or `null`.
  * @param input.dir - The checked, resolved worktree.
  * @param input.infoOf - A pid's process with its `cwd`, or `null` when gone.
+ * @param input.pidHeld - Whether a process holds a pid (`isPidHeld`), probed before each member signal.
  * @param input.signal - Sends a signal to a pid, or to a group as `-pid`.
  * @param input.goneWithin - Whether none of the given ids is alive within a time, in ms.
  * @returns Resolves once every target is gone after SIGTERM, or once SIGKILL has been sent.
  */
-export async function stopInside({ targets, recorded, dir, infoOf, signal, goneWithin }) {
+export async function stopInside({ targets, recorded, dir, infoOf, pidHeld, signal, goneWithin }) {
   /**
    * Sends `name` to every target that is still what it was chosen as.
    * @param name - The signal to send.
@@ -506,9 +526,9 @@ export async function stopInside({ targets, recorded, dir, infoOf, signal, goneW
   const signalStill = async (name) => {
     const signalled = []
     for (const target of targets) {
-      const holder =
-        target.kind === 'member' && recorded !== null ? await infoOf(recorded.pid) : null
-      if (!isStillTarget(target, await infoOf(target.pid), recorded, dir, holder)) continue
+      const info = await infoOf(target.pid)
+      const held = target.kind === 'member' && recorded !== null ? pidHeld(recorded.pid) : false
+      if (!isStillTarget(target, info, recorded, dir, held)) continue
       signal(target.id, name)
       signalled.push(target.id)
     }
