@@ -446,10 +446,16 @@ TMPDIR=/tmp E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
   E2E_API_ORIGIN=http://localhost:4999 E2E_MAILPIT_ORIGIN=http://localhost:8129 \
   E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
   pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
-# Stop the server the run started, if it got that far. If the run failed before its
-#   restart, the pnpm dev you started is still running: stop it with Ctrl-C.
+# Stop the server the run started, if it got that far and the pid file's start time
+#   still matches its pid. If the run failed before its restart, the pnpm dev you
+#   started is still running: stop it with Ctrl-C.
 PID_FILE="$(TMPDIR=/tmp node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
-[ -f "$PID_FILE" ] && kill -TERM -"$(head -n 1 "$PID_FILE")"; rm -f "$PID_FILE"
+if [ -f "$PID_FILE" ]; then
+  pid=$(head -n 1 "$PID_FILE")
+  [ "$(LC_ALL=C ps -o lstart= -p "$pid" | xargs)" = "$(sed -n 2p "$PID_FILE")" ] \
+    && kill -TERM -"$pid"
+fi
+rm -f "$PID_FILE"
 lsof -ti tcp:4999 -sTCP:LISTEN   # must print nothing before the worktree goes
 docker rm -f rb-e2e-sse sse-pg sse-redis sse-mailpit
 git -C ../express-boilerplate worktree remove --force ../express-sse
@@ -460,17 +466,21 @@ otherwise be left behind. It re-reads each one immediately before each round of
 signals (SIGTERM, then SIGKILL) and skips it unless all of these still hold:
 
 - **The `tsx watch` that supervised a listener**, signalled by pid. It was the
-  listener's parent when read, before the listener stopped. Its command is
-  `tsx watch`, its working directory is inside `E2E_API_DIR`, and it is not a
-  shell.
+  listener's parent when read, before the listener stopped, and its start time
+  then must still be the one at that pid. Its command is `tsx watch`, its working
+  directory is inside `E2E_API_DIR`, and it is not a shell.
 - **The server an earlier run recorded**, signalled by process group. The pid file
   holds its pid and its start time (`ps -o lstart`). The process at that pid must
   have the same start time, run `pnpm dev`, lead its own group, have no
   controlling terminal, and run inside `E2E_API_DIR`. A reused pid fails the start
   time; a shell or a job started from one fails on the terminal and the command.
-  When the leader has already exited, the group's remaining members are signalled
-  by pid instead, each only if it is in that group, has no terminal, runs inside
-  `E2E_API_DIR` and is pnpm, `tsx watch` or the server tsx runs.
+  When no process holds the recorded pid any more, the group's remaining members
+  are signalled by pid instead, each only if it is in that group, keeps the start
+  time it was read with, has no terminal, runs inside `E2E_API_DIR` and is pnpm,
+  `tsx watch` or the server tsx runs. While another process holds that pid, the
+  group is its own, and none of it is touched.
+
+Every `ps` runs with `LC_ALL=C`, so the start time has one form.
 
 So the test can run again without cleanup in between. A pid file without a start
 time, or whose process no longer matches, is replaced and nothing is signalled.

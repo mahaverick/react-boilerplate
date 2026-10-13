@@ -410,16 +410,17 @@ export function isRecordedMember(info, recorded, dir) {
  * @param input.dir - The checked, resolved worktree.
  * @param input.parentOf - A pid's parent pid, or `null` when unknown.
  * @param input.infoOf - A pid's process with its `cwd`, or `null` when gone.
- * @returns The supervisor pids, each once.
+ * @returns Each supervisor once, as `{ pid, lstart }`: the start time read now is
+ *   what a later signal must still find at that pid.
  */
 export async function supervisorsToStop({ pids, dir, parentOf, infoOf }) {
   const supervisors = []
   for (const pid of pids) {
     const parent = await parentOf(pid)
-    if (parent === null || parent <= 1 || supervisors.includes(parent) || pids.includes(parent)) {
-      continue
-    }
-    if (isSupervisor(await infoOf(parent), dir)) supervisors.push(parent)
+    if (parent === null || parent <= 1 || pids.includes(parent)) continue
+    if (supervisors.some((supervisor) => supervisor.pid === parent)) continue
+    const info = await infoOf(parent)
+    if (isSupervisor(info, dir)) supervisors.push({ pid: parent, lstart: info.lstart })
   }
   return supervisors
 }
@@ -427,44 +428,60 @@ export async function supervisorsToStop({ pids, dir, parentOf, infoOf }) {
 /**
  * What a restart stops besides the listeners: each supervisor by pid; the
  * recorded server's whole group (`-pid`) while its leader is still the
- * recorded server; and otherwise each member of that group that passes
- * `isRecordedMember`, by pid. A supervisor that is also a member appears once.
+ * recorded server; and, only once no process holds the recorded pid, each
+ * member of that group that passes `isRecordedMember`, by pid. While another
+ * process holds the pid, the group is that process's (a pid is never handed out
+ * while a group of that id exists), so no member is touched. A supervisor that
+ * is also a member appears once.
  * @param input - What was read, as processes with their `cwd`.
- * @param input.supervisors - The supervisor pids.
+ * @param input.supervisors - The supervisors, each `{ pid, lstart }`.
  * @param input.recorded - The pid file's `{ pid, lstart }`, or `null`.
- * @param input.leader - The process now at the recorded pid, or `null` when gone.
+ * @param input.leader - The process now at the recorded pid, or `null` when none holds it.
  * @param input.members - The processes now in the recorded pid's group.
  * @param input.dir - The checked, resolved worktree.
- * @returns Each `{ id, pid, kind }`: `id` is what is signalled, `pid` whose identity is re-checked.
+ * @returns Each `{ id, pid, kind, lstart }`: `id` is what is signalled; `pid` and
+ *   `lstart` are what must still match before each signal.
  */
 export function stopTargets({ supervisors, recorded, leader, members, dir }) {
-  const targets = supervisors.map((pid) => ({ id: pid, pid, kind: 'supervisor' }))
+  const targets = supervisors.map(({ pid, lstart }) => ({
+    id: pid,
+    pid,
+    kind: 'supervisor',
+    lstart,
+  }))
   if (recorded === null) return targets
   if (isRecordedLeader(leader, recorded, dir)) {
-    return [...targets, { id: -recorded.pid, pid: recorded.pid, kind: 'leader' }]
+    return [
+      ...targets,
+      { id: -recorded.pid, pid: recorded.pid, kind: 'leader', lstart: recorded.lstart },
+    ]
   }
+  if (leader !== null) return targets
   for (const member of members) {
     if (!isRecordedMember(member, recorded, dir)) continue
     if (targets.some((target) => target.pid === member.pid)) continue
-    targets.push({ id: member.pid, pid: member.pid, kind: 'member' })
+    targets.push({ id: member.pid, pid: member.pid, kind: 'member', lstart: member.lstart })
   }
   return targets
 }
 
 /**
- * Whether a target is still the process it was chosen as.
+ * Whether a target is still the process it was chosen as: the same start time
+ * at its pid, and the checks of its kind. A member also needs the recorded pid
+ * still unheld, since a new holder would own the group.
  * @param target - A `stopTargets` entry.
  * @param info - The process now at `target.pid`, with its `cwd`, or `null` when gone.
  * @param recorded - The pid file's `{ pid, lstart }`, or `null`.
  * @param dir - The checked, resolved worktree.
+ * @param holder - The process now at the recorded pid, or `null` when none holds it.
  * @returns `true` when it may be signalled now.
  */
-export function isStillTarget(target, info, recorded, dir) {
+export function isStillTarget(target, info, recorded, dir, holder) {
+  if (info === null || info.lstart !== target.lstart) return false
   if (target.kind === 'supervisor') return isSupervisor(info, dir)
   if (recorded === null) return false
-  return target.kind === 'leader'
-    ? isRecordedLeader(info, recorded, dir)
-    : isRecordedMember(info, recorded, dir)
+  if (target.kind === 'leader') return isRecordedLeader(info, recorded, dir)
+  return holder === null && isRecordedMember(info, recorded, dir)
 }
 
 /**
@@ -489,7 +506,9 @@ export async function stopInside({ targets, recorded, dir, infoOf, signal, goneW
   const signalStill = async (name) => {
     const signalled = []
     for (const target of targets) {
-      if (!isStillTarget(target, await infoOf(target.pid), recorded, dir)) continue
+      const holder =
+        target.kind === 'member' && recorded !== null ? await infoOf(recorded.pid) : null
+      if (!isStillTarget(target, await infoOf(target.pid), recorded, dir, holder)) continue
       signal(target.id, name)
       signalled.push(target.id)
     }

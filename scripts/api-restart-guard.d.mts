@@ -59,6 +59,11 @@ export interface StopTarget {
   id: number
   pid: number
   kind: 'supervisor' | 'leader' | 'member'
+  lstart: string
+}
+export interface Supervisor {
+  pid: number
+  lstart: string
 }
 export declare function parsePsLine(line: string | null): PsProcess | null
 export declare function formatPidFile(pid: number, lstart: string | null): string
@@ -84,9 +89,9 @@ export declare function supervisorsToStop(input: {
   dir: string
   parentOf: (pid: number) => Promise<number | null>
   infoOf: (pid: number) => Promise<ProcessInfo | null>
-}): Promise<number[]>
+}): Promise<Supervisor[]>
 export declare function stopTargets(input: {
-  supervisors: number[]
+  supervisors: Supervisor[]
   recorded: RecordedServer | null
   leader: ProcessInfo | null
   members: ProcessInfo[]
@@ -96,7 +101,8 @@ export declare function isStillTarget(
   target: StopTarget,
   info: ProcessInfo | null,
   recorded: RecordedServer | null,
-  dir: string
+  dir: string,
+  holder: ProcessInfo | null
 ): boolean
 export declare function stopInside(input: {
   targets: StopTarget[]

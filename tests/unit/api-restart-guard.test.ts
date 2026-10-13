@@ -354,6 +354,21 @@ describe('parsePsLine', () => {
     })
   })
 
+  it('reads the C-locale start time ps prints under LC_ALL=C as five words', () => {
+    const line = '  812   812 ??       Sat Oct  3 08:00:00 2026     node /bin/pnpm dev'
+    expect(parsePsLine(line)).toEqual({
+      pid: 812,
+      pgid: 812,
+      tty: '??',
+      lstart: 'Sat Oct 3 08:00:00 2026',
+      command: 'node /bin/pnpm dev',
+    })
+  })
+
+  it('misplaces the command under a four-word locale, which is why ps runs with LC_ALL=C', () => {
+    expect(parsePsLine('812 812 ?? 火 10/13 09:33:03 2026 /bin/zsh -c x')?.command).toBe('-c x')
+  })
+
   it('normalises the padded single-digit day, so a later read compares equal', () => {
     expect(parsePsLine('5 5 ?  Sat Oct  3 08:00:00 2026 /sbin/init')?.lstart).toBe(
       'Sat Oct 3 08:00:00 2026'
@@ -506,6 +521,8 @@ describe('isSupervisor', () => {
   })
 })
 
+const LATER = 'Tue Oct 13 10:00:00 2026'
+
 describe('supervisorsToStop', () => {
   /** The supervisors of `pids` over a parent map and a process table. */
   function supervisors(
@@ -521,15 +538,13 @@ describe('supervisorsToStop', () => {
     })
   }
 
-  it('names the tsx watch inside the worktree that started each listener, once', async () => {
+  it('names the tsx watch inside the worktree that started each listener, once, with the start time read', async () => {
     const found = await supervisors(
       [11, 12],
       { 11: 10, 12: 10 },
-      {
-        10: proc({ pid: 10, command: TSX_WATCH, tty: 'ttys000' }),
-      }
+      { 10: proc({ pid: 10, command: TSX_WATCH, tty: 'ttys000', lstart: LATER }) }
     )
-    expect(found).toEqual([10])
+    expect(found).toEqual([{ pid: 10, lstart: LATER }])
   })
 
   it.each([
@@ -548,9 +563,7 @@ describe('supervisorsToStop', () => {
     const found = await supervisors(
       [11, 12, 13],
       { 11: 1, 12: null, 13: 11 },
-      {
-        11: proc({ pid: 11, command: TSX_WATCH }),
-      }
+      { 11: proc({ pid: 11, command: TSX_WATCH }) }
     )
     expect(found).toEqual([])
   })
@@ -559,92 +572,121 @@ describe('supervisorsToStop', () => {
 describe('stopTargets', () => {
   const LEADER = proc({ pid: 40 })
   const WATCH = proc({ pid: 42, pgid: 40, command: TSX_WATCH })
+  /** A member that passes every member check: in the group, no terminal, inside, tsx watch. */
+  const QUALIFYING = proc({ pid: 45, pgid: 40, command: TSX_WATCH })
 
   it('stops supervisors by pid and nothing else without a pid file', () => {
     expect(
-      stopTargets({ supervisors: [10], recorded: null, leader: null, members: [], dir: WORKTREE })
-    ).toEqual([{ id: 10, pid: 10, kind: 'supervisor' }])
+      stopTargets({
+        supervisors: [{ pid: 10, lstart: LATER }],
+        recorded: null,
+        leader: null,
+        members: [],
+        dir: WORKTREE,
+      })
+    ).toEqual([{ id: 10, pid: 10, kind: 'supervisor', lstart: LATER }])
   })
 
   it('stops the recorded server by group while its leader is still the recorded one', () => {
     expect(
       stopTargets({
-        supervisors: [10],
+        supervisors: [{ pid: 10, lstart: LATER }],
         recorded: RECORDED,
         leader: LEADER,
         members: [LEADER, WATCH],
         dir: WORKTREE,
       })
     ).toEqual([
-      { id: 10, pid: 10, kind: 'supervisor' },
-      { id: -40, pid: 40, kind: 'leader' },
+      { id: 10, pid: 10, kind: 'supervisor', lstart: LATER },
+      { id: -40, pid: 40, kind: 'leader', lstart: LSTART },
     ])
   })
 
-  it('stops the survivors by pid once the leader is gone, each once', () => {
+  it('stops the survivors by pid once no process holds the recorded pid, each once', () => {
     expect(
       stopTargets({
-        supervisors: [42],
+        supervisors: [{ pid: 42, lstart: LSTART }],
         recorded: RECORDED,
         leader: null,
         members: [WATCH, proc({ pid: 43, pgid: 40, command: TSX_SERVER })],
         dir: WORKTREE,
       })
     ).toEqual([
-      { id: 42, pid: 42, kind: 'supervisor' },
-      { id: 43, pid: 43, kind: 'member' },
+      { id: 42, pid: 42, kind: 'supervisor', lstart: LSTART },
+      { id: 43, pid: 43, kind: 'member', lstart: LSTART },
     ])
   })
 
-  it.each([
-    ['a reused pid with another start time', proc({ pid: 40, lstart: 'Tue Oct 13 10:00:00 2026' })],
-    ['a shell', proc({ pid: 40, command: '-zsh', tty: 'ttys000' })],
-  ])('never signals the group of %s, and stops only verified members', (_case, leader) => {
+  it('stops no member that fails a check once the leader is gone', () => {
     expect(
       stopTargets({
         supervisors: [],
         recorded: RECORDED,
-        leader,
-        members: [leader, proc({ pid: 44, pgid: 40, command: 'vim x', tty: 'ttys000' })],
+        leader: null,
+        members: [proc({ pid: 44, pgid: 40, command: 'vim x', tty: 'ttys000' })],
         dir: WORKTREE,
       })
     ).toEqual([])
   })
+
+  it.each([
+    ['a reused pid with another start time', proc({ pid: 40, lstart: LATER })],
+    ['an agent shell with no terminal', proc({ pid: 40, command: '/bin/zsh -c pnpm dev' })],
+    ['a login shell', proc({ pid: 40, command: '-zsh', tty: 'ttys000' })],
+  ])(
+    'touches no member, even a qualifying one, while %s holds the recorded pid',
+    (_case, holder) => {
+      expect(isRecordedMember(QUALIFYING, RECORDED, WORKTREE)).toBe(true)
+      expect(
+        stopTargets({
+          supervisors: [],
+          recorded: RECORDED,
+          leader: holder,
+          members: [holder, QUALIFYING],
+          dir: WORKTREE,
+        })
+      ).toEqual([])
+    }
+  )
 })
 
 describe('isStillTarget', () => {
+  const SUPERVISOR = { id: 10, pid: 10, kind: 'supervisor' as const, lstart: LSTART }
+  const LEADER = { id: -40, pid: 40, kind: 'leader' as const, lstart: LSTART }
+  const MEMBER = { id: 42, pid: 42, kind: 'member' as const, lstart: LSTART }
+  const WATCH = proc({ pid: 10, command: TSX_WATCH })
+  const SURVIVOR = proc({ pid: 42, pgid: 40, command: TSX_WATCH })
+
   it('re-checks a supervisor as a tsx watch, a leader against the pid file, and a member against the group', () => {
-    expect(
-      isStillTarget(
-        { id: 10, pid: 10, kind: 'supervisor' },
-        proc({ pid: 10, command: TSX_WATCH }),
-        null,
-        WORKTREE
-      )
-    ).toBe(true)
-    expect(
-      isStillTarget({ id: -40, pid: 40, kind: 'leader' }, proc({ pid: 40 }), RECORDED, WORKTREE)
-    ).toBe(true)
-    expect(
-      isStillTarget(
-        { id: 42, pid: 42, kind: 'member' },
-        proc({ pid: 42, pgid: 40, command: TSX_WATCH }),
-        RECORDED,
-        WORKTREE
-      )
-    ).toBe(true)
+    expect(isStillTarget(SUPERVISOR, WATCH, null, WORKTREE, null)).toBe(true)
+    expect(isStillTarget(LEADER, proc({ pid: 40 }), RECORDED, WORKTREE, null)).toBe(true)
+    expect(isStillTarget(MEMBER, SURVIVOR, RECORDED, WORKTREE, null)).toBe(true)
   })
 
-  it('refuses a leader or member without a pid file', () => {
+  it.each([
+    ['a supervisor', SUPERVISOR, proc({ pid: 10, command: TSX_WATCH, lstart: LATER })],
+    ['a member', MEMBER, proc({ pid: 42, pgid: 40, command: TSX_WATCH, lstart: LATER })],
+  ])('refuses %s whose pid now has another start time', (_case, target, info) => {
+    expect(isStillTarget(target, info, RECORDED, WORKTREE, null)).toBe(false)
+  })
+
+  it('refuses a member once a process holds the recorded pid again', () => {
     expect(
-      isStillTarget({ id: -40, pid: 40, kind: 'leader' }, proc({ pid: 40 }), null, WORKTREE)
+      isStillTarget(MEMBER, SURVIVOR, RECORDED, WORKTREE, proc({ pid: 40, lstart: LATER }))
     ).toBe(false)
+  })
+
+  it('refuses a leader or member without a pid file, and any target that is gone', () => {
+    expect(isStillTarget(LEADER, proc({ pid: 40 }), null, WORKTREE, null)).toBe(false)
+    expect(isStillTarget(MEMBER, SURVIVOR, null, WORKTREE, null)).toBe(false)
+    expect(isStillTarget(SUPERVISOR, null, null, WORKTREE, null)).toBe(false)
   })
 })
 
 describe('stopInside', () => {
-  const SUPERVISOR = { id: 10, pid: 10, kind: 'supervisor' as const }
-  const LEADER = { id: -40, pid: 40, kind: 'leader' as const }
+  const SUPERVISOR = { id: 10, pid: 10, kind: 'supervisor' as const, lstart: LSTART }
+  const LEADER = { id: -40, pid: 40, kind: 'leader' as const, lstart: LSTART }
+  const MEMBER = { id: 42, pid: 42, kind: 'member' as const, lstart: LSTART }
 
   /** Process operations over `table`; the targets exit after SIGTERM when `exits`. */
   function processes(table: Record<number, ProcessInfo>, exits: boolean) {
@@ -677,6 +719,17 @@ describe('stopInside', () => {
     ])
   })
 
+  it('signals a member by pid only while no process holds the recorded pid', async () => {
+    const survivor = proc({ pid: 42, pgid: 40, command: TSX_WATCH })
+    const free = processes({ 42: survivor }, true)
+    await stopInside({ targets: [MEMBER], recorded: RECORDED, dir: WORKTREE, ...free })
+    expect(free.signal.mock.calls).toEqual([[42, 'SIGTERM']])
+
+    const held = processes({ 42: survivor, 40: proc({ pid: 40, lstart: LATER }) }, true)
+    await stopInside({ targets: [MEMBER], recorded: RECORDED, dir: WORKTREE, ...held })
+    expect(held.signal).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['in another checkout', MAIN],
     ['beside the worktree', `${WORKTREE}-other`],
@@ -700,11 +753,17 @@ describe('stopInside', () => {
     expect(ops.signal).not.toHaveBeenCalled()
   })
 
+  it('sends no signal to a supervisor pid reused by another tsx watch', async () => {
+    const ops = processes({ 10: proc({ pid: 10, command: TSX_WATCH, lstart: LATER }) }, false)
+    await stopInside({ targets: [SUPERVISOR], recorded: null, dir: WORKTREE, ...ops })
+    expect(ops.signal).not.toHaveBeenCalled()
+  })
+
   it('sends no SIGKILL to a pid that was reused after SIGTERM', async () => {
     const ops = processes({ 40: proc({ pid: 40 }) }, false)
     ops.infoOf
       .mockResolvedValueOnce(proc({ pid: 40 }))
-      .mockResolvedValueOnce(proc({ pid: 40, lstart: 'Tue Oct 13 10:00:00 2026', tty: 'ttys000' }))
+      .mockResolvedValueOnce(proc({ pid: 40, lstart: LATER, tty: 'ttys000' }))
     await stopInside({ targets: [LEADER], recorded: RECORDED, dir: WORKTREE, ...ops })
     expect(ops.signal.mock.calls).toEqual([[-40, 'SIGTERM']])
   })

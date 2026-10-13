@@ -25,6 +25,7 @@ import {
   supervisorsToStop,
   type ProcessInfo,
   type RecordedServer,
+  type Supervisor,
 } from '../../scripts/api-restart-guard.mjs'
 import { settle } from '../timing'
 
@@ -234,14 +235,25 @@ async function cwdOf(pid: number): Promise<string | null> {
 }
 
 /**
+ * Runs `ps` in the C locale, so `lstart` is always five words (`Tue Oct 13
+ * 09:05:01 2026`) and `parsePsLine` finds the command where it expects it.
+ * @param args - The `ps` arguments.
+ * @returns Its stdout, or '' when it fails.
+ */
+async function ps(args: string[]): Promise<string> {
+  const { stdout } = await execFile('ps', args, { env: { ...process.env, LC_ALL: 'C' } }).catch(
+    () => ({ stdout: '' })
+  )
+  return stdout
+}
+
+/**
  * A pid's parent pid, or `null` when the process is gone.
  * @param pid - The process.
  * @returns The parent pid, or `null`.
  */
 async function parentOf(pid: number): Promise<number | null> {
-  const { stdout } = await execFile('ps', ['-o', 'ppid=', '-p', String(pid)]).catch(() => ({
-    stdout: '',
-  }))
+  const stdout = await ps(['-o', 'ppid=', '-p', String(pid)])
   const parent = Number(stdout.trim())
   return stdout.trim() !== '' && Number.isInteger(parent) && parent > 0 ? parent : null
 }
@@ -253,15 +265,10 @@ async function parentOf(pid: number): Promise<number | null> {
  * @returns The process, or `null` when it is gone or unreadable.
  */
 async function infoOf(pid: number): Promise<ProcessInfo | null> {
-  const { stdout } = await execFile('ps', [
-    '-o',
-    'pid=,pgid=,tty=,lstart=,command=',
-    '-p',
-    String(pid),
-  ]).catch(() => ({ stdout: '' }))
-  const ps = parsePsLine(stdout.split('\n')[0] ?? '')
-  if (ps?.pid !== pid) return null
-  return { ...ps, cwd: await cwdOf(pid) }
+  const stdout = await ps(['-o', 'pid=,pgid=,tty=,lstart=,command=', '-p', String(pid)])
+  const line = parsePsLine(stdout.split('\n')[0] ?? '')
+  if (line?.pid !== pid) return null
+  return { ...line, cwd: await cwdOf(pid) }
 }
 
 /**
@@ -271,8 +278,7 @@ async function infoOf(pid: number): Promise<ProcessInfo | null> {
  * @returns Each member, its leader included while alive.
  */
 async function groupMembers(pgid: number): Promise<ProcessInfo[]> {
-  const { stdout } = await execFile('ps', ['-axo', 'pid=,pgid=']).catch(() => ({ stdout: '' }))
-  const pids = stdout
+  const pids = (await ps(['-axo', 'pid=,pgid=']))
     .split('\n')
     .map((line) => line.trim().split(/\s+/).map(Number))
     .filter(([pid, group]) => group === pgid && pid !== undefined && pid > 1)
@@ -310,22 +316,22 @@ function readPidFile(file: string): string | null {
  * only while `stopTargets` and `stopInside` still identify it. Then it sweeps the
  * recorded group once more by pid: when SIGTERM ends the leader before its
  * `tsx watch`, the group signal can no longer reach the survivors.
- * @param supervisors - The `tsx watch` pids read before the listeners stopped.
+ * @param supervisors - The `tsx watch` processes read before the listeners stopped.
  * @param recorded - The pid file's server, or `null`.
  * @param dir - The checked, resolved worktree.
  */
 async function stopLeftovers(
-  supervisors: number[],
+  supervisors: Supervisor[],
   recorded: RecordedServer | null,
   dir: string
 ): Promise<void> {
   /**
    * Stops what `stopTargets` chooses from `pids` and the recorded group as it is now.
-   * @param pids - The supervisor pids to include.
+   * @param included - The supervisors to include.
    */
-  const stopNow = async (pids: number[]) => {
+  const stopNow = async (included: Supervisor[]) => {
     const targets = stopTargets({
-      supervisors: pids,
+      supervisors: included,
       recorded,
       leader: recorded === null ? null : await infoOf(recorded.pid),
       members: recorded === null ? [] : await groupMembers(recorded.pid),
