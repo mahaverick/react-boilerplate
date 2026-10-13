@@ -58,6 +58,15 @@ closes the drawer on a phone.
 plugin in `vite.config.ts`, which also splits each route's component into
 its own chunk (`autoCodeSplitting`).
 
+A lazy route with its own `errorComponent` keeps that screen in the route
+module, with `codeSplitGroupings: [['component']]`, as the settings leaves do.
+A split error screen would need a fetch exactly when chunk loading fails, and
+the plugin's default split pulls the error listener out of the entry chunk.
+For the same reason such a route's page component must not import `Route`
+back from its route module: it reads params with `useParams({ from })`
+instead of `Route.useParams()`. Either mistake fails `pnpm check:bundle`
+([Error tracking](#error-tracking)).
+
 ## Boot
 
 `index.html` loads two blocking scripts in its `<head>`, then the bundle:
