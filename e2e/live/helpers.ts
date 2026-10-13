@@ -12,13 +12,18 @@ import { expect, type Page } from '@playwright/test'
 import type { MembershipRole } from '@/constants/roles'
 import {
   cwdFromLsofFields,
-  recordedServerToStop,
+  formatPidFile,
+  parsePidFile,
+  parsePsLine,
   respawnOptions,
   restartedPidFile,
   restartPlan,
   stopInside,
   stopListenersIn,
+  stopTargets,
   supervisorsToStop,
+  type ProcessInfo,
+  type RecordedServer,
 } from '../../scripts/api-restart-guard.mjs'
 import { settle } from '../timing'
 
@@ -179,6 +184,19 @@ async function processesGoneWithin(ids: number[], timeoutMs: number): Promise<bo
   return true
 }
 
+/** The file-system reads the guard needs: `realpathSync.native`, which returns a path's true case, so a case variant of the main checkout's path still matches it. */
+const GUARD_FS = {
+  mainCheckout: path.resolve('../express-boilerplate'),
+  realpath: (target: string) => realpathSync.native(target),
+  isFile: (target: string) => {
+    try {
+      return statSync(target).isFile()
+    } catch {
+      return false
+    }
+  },
+}
+
 /**
  * What `restartApi` may do here, or why it refuses: `restartPlan` from
  * `scripts/api-restart-guard.mjs`, applied to this process's environment and
@@ -190,15 +208,7 @@ function apiRestartPlan(): { refusal: string } | { port: string; dir: string } {
     origin: API_ORIGIN,
     allowRestart: process.env.E2E_ALLOW_API_RESTART,
     apiDir: process.env.E2E_API_DIR,
-    mainCheckout: path.resolve('../express-boilerplate'),
-    realpath: (target) => realpathSync(target),
-    isFile: (target) => {
-      try {
-        return statSync(target).isFile()
-      } catch {
-        return false
-      }
-    },
+    ...GUARD_FS,
   })
 }
 
@@ -224,17 +234,51 @@ async function cwdOf(pid: number): Promise<string | null> {
 }
 
 /**
- * One `ps` column for a pid, or `null` when the process is gone.
+ * A pid's parent pid, or `null` when the process is gone.
  * @param pid - The process.
- * @param column - The `ps -o` keyword, such as `ppid` or `command`.
- * @returns The column's text, trimmed, or `null`.
+ * @returns The parent pid, or `null`.
  */
-async function psColumn(pid: number, column: string): Promise<string | null> {
-  const { stdout } = await execFile('ps', ['-o', `${column}=`, '-p', String(pid)]).catch(() => ({
+async function parentOf(pid: number): Promise<number | null> {
+  const { stdout } = await execFile('ps', ['-o', 'ppid=', '-p', String(pid)]).catch(() => ({
     stdout: '',
   }))
-  const value = stdout.trim()
-  return value === '' ? null : value
+  const parent = Number(stdout.trim())
+  return stdout.trim() !== '' && Number.isInteger(parent) && parent > 0 ? parent : null
+}
+
+/**
+ * A process as the guard identifies it: pid, group, terminal, start time,
+ * command line and working directory.
+ * @param pid - The process.
+ * @returns The process, or `null` when it is gone or unreadable.
+ */
+async function infoOf(pid: number): Promise<ProcessInfo | null> {
+  const { stdout } = await execFile('ps', [
+    '-o',
+    'pid=,pgid=,tty=,lstart=,command=',
+    '-p',
+    String(pid),
+  ]).catch(() => ({ stdout: '' }))
+  const ps = parsePsLine(stdout.split('\n')[0] ?? '')
+  if (ps?.pid !== pid) return null
+  return { ...ps, cwd: await cwdOf(pid) }
+}
+
+/**
+ * The processes now in process group `pgid`, read from every process's group
+ * (`ps -g` means different things on macOS and Linux).
+ * @param pgid - The group.
+ * @returns Each member, its leader included while alive.
+ */
+async function groupMembers(pgid: number): Promise<ProcessInfo[]> {
+  const { stdout } = await execFile('ps', ['-axo', 'pid=,pgid=']).catch(() => ({ stdout: '' }))
+  const pids = stdout
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/).map(Number))
+    .filter(([pid, group]) => group === pgid && pid !== undefined && pid > 1)
+    .map(([pid]) => pid as number)
+  const members = await Promise.all(pids.map(infoOf))
+  return members.filter((member) => member !== null)
 }
 
 /**
@@ -262,6 +306,47 @@ function readPidFile(file: string): string | null {
 }
 
 /**
+ * Stops the listeners' supervisors and the server a pid file recorded, each
+ * only while `stopTargets` and `stopInside` still identify it. Then it sweeps the
+ * recorded group once more by pid: when SIGTERM ends the leader before its
+ * `tsx watch`, the group signal can no longer reach the survivors.
+ * @param supervisors - The `tsx watch` pids read before the listeners stopped.
+ * @param recorded - The pid file's server, or `null`.
+ * @param dir - The checked, resolved worktree.
+ */
+async function stopLeftovers(
+  supervisors: number[],
+  recorded: RecordedServer | null,
+  dir: string
+): Promise<void> {
+  /**
+   * Stops what `stopTargets` chooses from `pids` and the recorded group as it is now.
+   * @param pids - The supervisor pids to include.
+   */
+  const stopNow = async (pids: number[]) => {
+    const targets = stopTargets({
+      supervisors: pids,
+      recorded,
+      leader: recorded === null ? null : await infoOf(recorded.pid),
+      members: recorded === null ? [] : await groupMembers(recorded.pid),
+      dir,
+    })
+    await stopInside({
+      targets,
+      recorded,
+      dir,
+      infoOf,
+      signal: (id, name) => {
+        signalAll([id], name)
+      },
+      goneWithin: (ids, ms) => processesGoneWithin(ids, ms),
+    })
+  }
+  await stopNow(supervisors)
+  if (recorded !== null) await stopNow([])
+}
+
+/**
  * Stops whatever is listening on the API port, then starts a new one.
  *
  * Finds the server by port rather than by a pid this process spawned, because
@@ -269,11 +354,12 @@ function readPidFile(file: string): string | null {
  * one; it stops only listeners running inside the checked worktree. Refuses, by
  * throwing, unless `apiRestartRefusal` allows it. It also stops what would be
  * left behind with nothing to do: each listener's `tsx watch` supervisor, and
- * the server an earlier restart recorded in the pid file, each only when it
- * runs inside the worktree. The replacement server starts in the resolved
- * worktree with `APP_PORT` set to the checked port, so it never falls back to
- * its `.env` port (4040 by default). It stays running, detached; its pid, which
- * is also its process group, replaces the one in
+ * the server an earlier restart recorded in the pid file, each only while the
+ * guard still identifies it (`stopTargets` in `scripts/api-restart-guard.mjs`).
+ * The replacement server starts in the resolved worktree with `APP_PORT` set
+ * to the checked port, so it never falls back to its `.env` port (4040 by
+ * default). It stays running, detached; its pid, which is also its process
+ * group, and its start time replace the pid file
  * `restartedPidFile(os.tmpdir(), port)`. Returns the listener pids before the
  * stop and after the replacement is ready, so a caller can tell a real restart
  * from none.
@@ -283,24 +369,10 @@ export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids
   if ('refusal' in plan) throw new Error(plan.refusal)
   const { port, dir } = plan
   const pidFile = restartedPidFile(tmpdir(), port)
-  const recorded = await recordedServerToStop({
-    recorded: readPidFile(pidFile),
-    dir,
-    isAlive,
-    cwdOf,
-  })
+  const recorded = parsePidFile(readPidFile(pidFile))
   const stoppedPids = await listeningPids(port)
   // Read before the stop: once a listener exits, its parent pid is gone.
-  const supervisors = await supervisorsToStop({
-    pids: stoppedPids,
-    dir,
-    parentOf: async (pid) => {
-      const parent = Number(await psColumn(pid, 'ppid'))
-      return Number.isInteger(parent) && parent > 0 ? parent : null
-    },
-    commandOf: (pid) => psColumn(pid, 'command'),
-    cwdOf,
-  })
+  const supervisors = await supervisorsToStop({ pids: stoppedPids, dir, parentOf, infoOf })
 
   // Stop every pid holding the port, not one process group: `pnpm dev` is `tsx watch`, whose child is the real server and would keep listening, so a "reconnects after a restart" test would measure a stream never interrupted.
   await stopListenersIn({
@@ -322,19 +394,7 @@ export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids
     .toEqual([])
 
   // A `tsx watch` whose child was killed stays alive doing nothing, and a second run would otherwise orphan the first one's server.
-  await stopInside({
-    targets: [
-      ...supervisors.map((pid) => ({ pid, group: false })),
-      ...(recorded === null ? [] : [{ pid: recorded, group: true }]),
-    ],
-    dir,
-    isAlive,
-    cwdOf,
-    signal: (id, name) => {
-      signalAll([id], name)
-    },
-    goneWithin: (ids, ms) => processesGoneWithin(ids, ms),
-  })
+  await stopLeftovers(supervisors, recorded, dir)
   rmSync(pidFile, { force: true })
 
   // Without this check, "reconnects after a restart" passes against a server that never stopped.
@@ -347,7 +407,10 @@ export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids
     .toBe(false)
 
   const server = spawn('pnpm', ['dev'], respawnOptions(dir, port, process.env))
-  if (server.pid !== undefined) writeFileSync(pidFile, String(server.pid))
+  if (server.pid !== undefined) {
+    const started = await infoOf(server.pid)
+    writeFileSync(pidFile, formatPidFile(server.pid, started?.lstart ?? null))
+  }
   server.unref()
   await waitForApi()
   return { stoppedPids, startedPids: await listeningPids(port) }

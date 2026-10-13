@@ -399,11 +399,14 @@ hold:
 
 - the origin has an explicit port, and the port is not 4040;
 - `E2E_ALLOW_API_RESTART=1` is set;
-- `E2E_API_DIR` is set, is a git worktree, and is not the main
-  `../express-boilerplate` checkout.
+- `E2E_API_DIR` is set, is a git worktree, and neither is nor holds the main
+  `../express-boilerplate` checkout, compared in its true case.
 
-It signals only listeners whose working directory is inside that worktree. The
-rules are `restartPlan` and `stopListenersIn` in `scripts/api-restart-guard.mjs`.
+It signals three kinds of process, each only while it runs inside that worktree:
+the listeners on the port, the `tsx watch` that supervised each one, and the server
+an earlier run recorded in the pid file. What each must match is below the
+commands; the rules are in `scripts/api-restart-guard.mjs`.
+
 To run it, give express a worktree whose `.env` comes from `.env.example`, never
 from the main checkout's, and services of its own: throwaway Postgres, Redis and
 Mailpit containers, never the dev ones on 5433, 6380 and 8025. The run registers
@@ -420,6 +423,7 @@ refreshes the session. The helpers read the verification email from
 `E2E_MAILPIT_ORIGIN`, so point it at the run's Mailpit, not the default :8025.
 
 ```sh
+git -C ../express-boilerplate fetch origin   # fetch only: a pull hot-reloads the :4040 dev server
 git -C ../express-boilerplate worktree add --detach ../express-sse origin/main
 docker run -d --name sse-pg -p 127.0.0.1:5547:5432 -e POSTGRES_USER=boilerplate \
   -e POSTGRES_PASSWORD=boilerplate -e POSTGRES_DB=boilerplate_sse postgres:18
@@ -437,20 +441,36 @@ TMPDIR=/tmp E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
   E2E_API_ORIGIN=http://localhost:4999 E2E_MAILPIT_ORIGIN=http://localhost:8129 \
   E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
   pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
-# The run already stopped the pnpm dev you started; stop the server it left running:
+# Stop the server the run started, if it got that far. If the run failed before its
+#   restart, the pnpm dev you started is still running: stop it with Ctrl-C.
 PID_FILE="$(TMPDIR=/tmp node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
-kill -TERM -"$(cat "$PID_FILE")" && rm -f "$PID_FILE"
+[ -f "$PID_FILE" ] && kill -TERM -"$(head -n 1 "$PID_FILE")"; rm -f "$PID_FILE"
+lsof -ti tcp:4999 -sTCP:LISTEN   # must print nothing before the worktree goes
 docker rm -f rb-e2e-sse sse-pg sse-redis sse-mailpit
 git -C ../express-boilerplate worktree remove --force ../express-sse
 ```
 
-The test can run again without any of this cleanup in between. Each restart
-also stops the `tsx watch` that supervised each listener, which would otherwise
-stay alive with no server under it, and the server the pid file records from an
-earlier run, then records its own. Either is stopped only while its working
-directory is inside `E2E_API_DIR` (`supervisorsToStop`, `recordedServerToStop`
-and `stopInside` in `scripts/api-restart-guard.mjs`), so a stale pid that now
-belongs to another process is left alone and the file is just replaced.
+Each restart stops, besides the listeners, two kinds of process that would
+otherwise be left behind. It re-reads each one immediately before each round of
+signals (SIGTERM, then SIGKILL) and skips it unless all of these still hold:
+
+- **The `tsx watch` that supervised a listener**, signalled by pid. It was the
+  listener's parent when read, before the listener stopped. Its command is
+  `tsx watch`, its working directory is inside `E2E_API_DIR`, and it is not a
+  shell.
+- **The server an earlier run recorded**, signalled by process group. The pid file
+  holds its pid and its start time (`ps -o lstart`). The process at that pid must
+  have the same start time, run `pnpm dev`, lead its own group, have no
+  controlling terminal, and run inside `E2E_API_DIR`. A reused pid fails the start
+  time; a shell or a job started from one fails on the terminal and the command.
+  When the leader has already exited, the group's remaining members are signalled
+  by pid instead, each only if it is in that group, has no terminal, runs inside
+  `E2E_API_DIR` and is pnpm, `tsx watch` or the server tsx runs.
+
+So the test can run again without cleanup in between. A pid file without a start
+time, or whose process no longer matches, is replaced and nothing is signalled.
+That stopping is best effort: a process that fails a check survives, and the
+`lsof` check above is what proves the port is free.
 
 Run `pnpm dev` in the worktree, and the test, with a short `TMPDIR` (for example
 `TMPDIR=/tmp`). `tsx watch` opens its IPC socket at `$TMPDIR/tsx-<uid>/<pid>.pipe`,
