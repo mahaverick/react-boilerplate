@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { AppLayout } from '@/components/layouts/app-layout'
 import { ROUTES } from '@/constants/routes'
-import { retainTenant, tenantSearchCorrection, tenantSearchSchema } from '@/lib/current-tenant'
+import { retainTenant, tenantSearchSchema } from '@/lib/current-tenant'
 import { ensureFlags } from '@/observability/flags/flag-query'
 import { flagScopeFor } from '@/observability/flags/flag-scope'
 import { useAuthStore } from '@/states/auth.store'
@@ -26,7 +26,9 @@ import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
  * The shell also owns `?tenant`, the current tenant on a page without
  * `$slug` (`src/lib/current-tenant.ts`): `validateSearch` accepts only a
  * slug, `retainTenant` keeps the tenant on every navigation inside the shell,
- * and the guard, after the auth check, fills or corrects it. The tenant guard
+ * and the guard (`src/lib/tenant-guard.ts`, loaded on demand to keep the
+ * tenant queries out of the entry chunk), after the auth check, fills or
+ * corrects it. The tenant guard
  * is skipped in `full` maintenance too.
  */
 export const Route = createFileRoute('/_app')({
@@ -37,6 +39,7 @@ export const Route = createFileRoute('/_app')({
     if (!useAuthStore.getState().isAuthenticated) {
       throw redirect({ to: ROUTES.login, search: { redirect: location.href } })
     }
+    const { tenantSearchCorrection } = await import('@/lib/tenant-guard')
     const correction = await tenantSearchCorrection({
       queryClient: context.queryClient,
       location,

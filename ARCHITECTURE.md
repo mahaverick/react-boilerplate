@@ -201,10 +201,12 @@ search param.
 | `/tenants/$slug/*` and `/settings/workspace/$slug/*` | the path          | never; removed if present |
 | every other `/_app` page                             | the search param  | always, once resolved     |
 
-`src/lib/current-tenant.ts` holds the parts, and `_app` owns the param:
+`src/lib/current-tenant.ts` holds the schema and middlewares, and
+`src/lib/tenant-guard.ts` the guard, which `_app` loads on demand so the tenant
+queries stay out of the entry chunk. `_app` owns the param:
 
 - **`validateSearch`** (`tenantSearchSchema`) accepts `tenant` only as a slug
-  express's pattern allows; anything else is caught as `undefined`.
+  express's pattern allows (`src/schemas/slug.schemas.ts`); anything else is caught as `undefined`.
 - **The search middleware** (`retainTenant`) keeps the current tenant on every
   navigation inside the shell, as `retainSearchParams(['tenant'])` would. The
   plain `retainSearchParams` reads only the current URL's search, which on a
