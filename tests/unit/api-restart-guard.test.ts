@@ -1,14 +1,32 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import {
+  apiDirPlan,
   cwdFromLsofFields,
   explicitPortOf,
-  forgetRestartedServer,
+  formatPidFile,
+  grantDirPlan,
+  hasNoTty,
+  isPidHeld,
+  isPnpmDev,
+  isRecordedLeader,
+  isRecordedMember,
+  isShell,
+  isStillTarget,
+  isSupervisor,
+  isTsxServer,
+  isTsxWatch,
   isWithin,
+  parsePidFile,
+  parsePsLine,
   respawnOptions,
   restartedPidFile,
   restartPlan,
+  stopInside,
   stopListenersIn,
+  stopTargets,
+  supervisorsToStop,
+  type ProcessInfo,
 } from '../../scripts/api-restart-guard.mjs'
 
 const MAIN = '/work/express-boilerplate'
@@ -16,6 +34,10 @@ const WORKTREE = '/work/express-sse'
 const CLONE = '/work/express-clone'
 const LINK_TO_MAIN = '/work/link-to-main'
 const LINK_TO_WORKTREE = '/work/link-to-sse'
+/** A directory holding the main checkout, itself a worktree, so only the ancestor rule refuses it. */
+const ANCESTOR = '/work'
+/** The main checkout spelled in another case, which a native realpath maps to its true case. */
+const MAIN_OTHER_CASE = '/WORK/Express-Boilerplate'
 
 /** A file system with the main checkout, a worktree, a standalone clone and links to both. */
 const fs = {
@@ -27,12 +49,14 @@ const fs = {
       [WORKTREE]: WORKTREE,
       [LINK_TO_WORKTREE]: WORKTREE,
       [CLONE]: CLONE,
+      [ANCESTOR]: ANCESTOR,
+      [MAIN_OTHER_CASE]: MAIN,
     }
     const found = real[path]
     if (found === undefined) throw new Error(`ENOENT: ${path}`)
     return found
   },
-  isFile: (path: string): boolean => path === `${WORKTREE}/.git`,
+  isFile: (path: string): boolean => path === `${WORKTREE}/.git` || path === `${ANCESTOR}/.git`,
 }
 
 /** The plan for an environment that passes every rule unless `overrides` breaks one. */
@@ -99,7 +123,7 @@ describe('restartPlan', () => {
     expect(refusalOf(plan({ apiDir }))).toMatch(/set it to the git worktree/)
   })
 
-  it.each([MAIN, '../express-boilerplate', LINK_TO_MAIN])(
+  it.each([MAIN, '../express-boilerplate', LINK_TO_MAIN, MAIN_OTHER_CASE])(
     'refuses the main express checkout, reached as %s',
     (apiDir) => {
       expect(refusalOf(plan({ apiDir }))).toMatch(
@@ -107,6 +131,10 @@ describe('restartPlan', () => {
       )
     }
   )
+
+  it('refuses a worktree that holds the main checkout', () => {
+    expect(refusalOf(plan({ apiDir: ANCESTOR }))).toMatch(/holds the main express checkout/)
+  })
 
   it('refuses a standalone clone, whose .git is a directory', () => {
     expect(refusalOf(plan({ apiDir: CLONE }))).toMatch(/has no \.git file/)
@@ -125,6 +153,10 @@ describe('cwdFromLsofFields', () => {
   it('reads nothing from empty output', () => {
     expect(cwdFromLsofFields('')).toBeNull()
   })
+
+  it('reads nothing from output without an n field', () => {
+    expect(cwdFromLsofFields('p123\nfcwd\n')).toBeNull()
+  })
 })
 
 describe('isWithin', () => {
@@ -136,6 +168,13 @@ describe('isWithin', () => {
     [null, false],
   ])('places %s inside the worktree: %s', (cwd, inside) => {
     expect(isWithin(cwd, WORKTREE)).toBe(inside)
+  })
+
+  it.each([
+    ['its parent', '/work'],
+    ['a string prefix of it', MAIN],
+  ])('does not place %s inside a sibling worktree', (_case, cwd) => {
+    expect(isWithin(cwd, `${MAIN}-sse`)).toBe(false)
   })
 })
 
@@ -209,16 +248,574 @@ describe('restartedPidFile', () => {
   })
 })
 
-describe('forgetRestartedServer', () => {
-  it('deletes the pid file for the origin’s port', () => {
-    const remove = vi.fn<(path: string) => void>()
-    forgetRestartedServer('http://localhost:4999', '/tmp/t', remove)
-    expect(remove.mock.calls).toEqual([['/tmp/t/react-e2e-restarted-api-4999.pid']])
+describe('apiDirPlan', () => {
+  /** The plan for a helper named in the refusal. */
+  function dirPlan(apiDir: string | undefined) {
+    return apiDirPlan({
+      apiDir,
+      mainCheckout: '../express-boilerplate',
+      ...fs,
+      who: 'grantPlatformRole',
+      does: 'runs pnpm platform:grant',
+    })
+  }
+
+  it('resolves a worktree', () => {
+    expect(dirPlan(LINK_TO_WORKTREE)).toEqual({ dir: WORKTREE })
   })
 
-  it('deletes nothing for an origin without an explicit port', () => {
-    const remove = vi.fn<(path: string) => void>()
-    forgetRestartedServer('http://localhost', '/tmp/t', remove)
-    expect(remove).not.toHaveBeenCalled()
+  it.each([
+    [undefined, /grantPlatformRole runs pnpm platform:grant in E2E_API_DIR: set it/],
+    ['', /set it to the git worktree/],
+    [MAIN, /never runs pnpm platform:grant in the main express checkout/],
+    [MAIN_OTHER_CASE, /in the main express checkout/],
+    [ANCESTOR, /holds the main express checkout/],
+    [CLONE, /has no \.git file/],
+    ['/work/missing', /does not exist/],
+  ])('refuses %j, naming the helper', (apiDir, refusal) => {
+    const result = dirPlan(apiDir)
+    expect('refusal' in result ? result.refusal : null).toMatch(refusal)
+  })
+})
+
+describe('grantDirPlan', () => {
+  /** package.json contents by directory: express has the grant script, the clone a different one. */
+  const packages: Record<string, { scripts?: unknown }> = {
+    [`${MAIN}/package.json`]: { scripts: { 'platform:grant': 'tsx grant.ts' } },
+    [`${WORKTREE}/package.json`]: { scripts: { 'platform:grant': 'tsx grant.ts' } },
+    [`${CLONE}/package.json`]: { scripts: { dev: 'vite' } },
+    [`${ANCESTOR}/package.json`]: {},
+  }
+
+  /** The plan for `apiDir` over that file system. */
+  function grantPlan(apiDir: string | undefined) {
+    return grantDirPlan({
+      apiDir,
+      realpath: fs.realpath,
+      readJson: (path) => packages[path] ?? null,
+    })
+  }
+
+  it.each([
+    [MAIN, MAIN],
+    ['../express-boilerplate', MAIN],
+    [MAIN_OTHER_CASE, MAIN],
+    [LINK_TO_WORKTREE, WORKTREE],
+  ])('runs in %s, the main checkout included, resolved to %s', (apiDir, dir) => {
+    expect(grantPlan(apiDir)).toEqual({ dir })
+  })
+
+  it.each([
+    [undefined, /E2E_API_DIR, which is unset: set it to the express checkout whose database/],
+    ['', /which is unset/],
+    ['/work/missing', /does not exist/],
+    [CLONE, /has no platform:grant script/],
+    [ANCESTOR, /has no platform:grant script/],
+    [LINK_TO_MAIN.replace('main', 'nowhere'), /does not exist/],
+  ])('refuses %j', (apiDir, refusal) => {
+    const result = grantPlan(apiDir)
+    expect('refusal' in result ? result.refusal : null).toMatch(refusal)
+  })
+
+  it('refuses a directory without a package.json', () => {
+    const result = grantDirPlan({ apiDir: WORKTREE, realpath: fs.realpath, readJson: () => null })
+    expect('refusal' in result ? result.refusal : null).toMatch(/has no platform:grant script/)
+  })
+})
+
+const LSTART = 'Tue Oct 13 09:05:01 2026'
+const PNPM_DEV = 'node /home/u/.nvm/versions/node/v24.17.0/bin/pnpm dev'
+const TSX_WATCH =
+  'node /w/node_modules/.bin/../tsx/dist/cli.mjs watch --env-file-if-exists=.env src/index.ts'
+const TSX_SERVER =
+  'node --require /w/node_modules/.pnpm/tsx@4/node_modules/tsx/dist/preflight.cjs --import file:///w/node_modules/.pnpm/tsx@4/node_modules/tsx/dist/loader.mjs src/index.ts'
+
+/** A process inside the worktree with no terminal, unless `overrides` changes that. */
+function proc(overrides: Partial<ProcessInfo> & { pid: number }): ProcessInfo {
+  return {
+    pgid: overrides.pid,
+    tty: '??',
+    lstart: LSTART,
+    command: PNPM_DEV,
+    cwd: WORKTREE,
+    ...overrides,
+  }
+}
+
+const RECORDED = { pid: 40, lstart: LSTART }
+
+describe('parsePsLine', () => {
+  it('reads pid, group, terminal, start time and command', () => {
+    expect(parsePsLine(`  97134 97134 ??       Tue Oct 13 09:05:01 2026     ${PNPM_DEV}`)).toEqual({
+      pid: 97134,
+      pgid: 97134,
+      tty: '??',
+      lstart: LSTART,
+      command: PNPM_DEV,
+    })
+  })
+
+  it('reads the C-locale start time ps prints under LC_ALL=C as five words', () => {
+    const line = '  812   812 ??       Sat Oct  3 08:00:00 2026     node /bin/pnpm dev'
+    expect(parsePsLine(line)).toEqual({
+      pid: 812,
+      pgid: 812,
+      tty: '??',
+      lstart: 'Sat Oct 3 08:00:00 2026',
+      command: 'node /bin/pnpm dev',
+    })
+  })
+
+  it('misplaces the command under a four-word locale, which is why ps runs with LC_ALL=C', () => {
+    expect(parsePsLine('812 812 ?? 火 10/13 09:33:03 2026 /bin/zsh -c x')?.command).toBe('-c x')
+  })
+
+  it('normalises the padded single-digit day, so a later read compares equal', () => {
+    expect(parsePsLine('5 5 ?  Sat Oct  3 08:00:00 2026 /sbin/init')?.lstart).toBe(
+      'Sat Oct 3 08:00:00 2026'
+    )
+  })
+
+  it.each([null, '', 'garbage', 'x 5 ?? Sat Oct 3 08:00:00 2026 cmd'])(
+    'reads nothing from %j',
+    (line) => {
+      expect(parsePsLine(line)).toBeNull()
+    }
+  )
+})
+
+describe('pid file', () => {
+  it('round-trips the pid and start time', () => {
+    expect(parsePidFile(formatPidFile(4321, LSTART))).toEqual({ pid: 4321, lstart: LSTART })
+  })
+
+  it('puts the pid alone on the first line, for the runbook kill', () => {
+    expect(formatPidFile(4321, LSTART).split('\n')[0]).toBe('4321')
+  })
+
+  it.each([
+    ['no file', null],
+    ['an empty file', ''],
+    ['a pid without a start time, which cannot be told from a reused pid', formatPidFile(41, null)],
+    ['text that is not a pid', `12ab\n${LSTART}\n`],
+    ['a negative number', `-12\n${LSTART}\n`],
+    ['init', `1\n${LSTART}\n`],
+  ])('names nothing to stop for %s', (_case, text) => {
+    expect(parsePidFile(text)).toBeNull()
+  })
+})
+
+describe('command matchers', () => {
+  it.each([TSX_WATCH, 'tsx watch src/index.ts', '/w/node_modules/.bin/tsx watch src/index.ts'])(
+    'isTsxWatch recognises %s',
+    (command) => {
+      expect(isTsxWatch(command)).toBe(true)
+    }
+  )
+
+  it.each(['/bin/zsh -c pnpm dev', PNPM_DEV, TSX_SERVER, 'tsx src/index.ts', 'notsx watch', null])(
+    'isTsxWatch rejects %j',
+    (command) => {
+      expect(isTsxWatch(command)).toBe(false)
+    }
+  )
+
+  it.each([PNPM_DEV, '/home/u/.cache/node/corepack/v1/pnpm/12.4.1/pnpm-native dev', 'pnpm dev'])(
+    'isPnpmDev recognises %s',
+    (command) => {
+      expect(isPnpmDev(command)).toBe(true)
+    }
+  )
+
+  it.each(['pnpm test', 'pnpm devtools', 'vim pnpm', TSX_WATCH, null])(
+    'isPnpmDev rejects %j',
+    (command) => {
+      expect(isPnpmDev(command)).toBe(false)
+    }
+  )
+
+  it('isTsxServer recognises the server tsx runs, and not its watcher', () => {
+    expect(isTsxServer(TSX_SERVER)).toBe(true)
+    expect(isTsxServer(TSX_WATCH)).toBe(false)
+  })
+
+  it.each(['-zsh', '/bin/zsh -c source x', 'bash', '/usr/local/bin/fish', 'sh -c "pnpm dev"'])(
+    'isShell recognises %s',
+    (command) => {
+      expect(isShell(command)).toBe(true)
+    }
+  )
+
+  it.each([PNPM_DEV, TSX_WATCH, 'vim src/index.ts'])('isShell rejects %s', (command) => {
+    expect(isShell(command)).toBe(false)
+  })
+
+  it.each([
+    ['??', true],
+    ['?', true],
+    ['ttys000', false],
+    ['pts/1', false],
+    [null, false],
+  ])('hasNoTty(%j) is %s', (tty, none) => {
+    expect(hasNoTty(tty)).toBe(none)
+  })
+})
+
+describe('isRecordedLeader', () => {
+  it('accepts the recorded pnpm dev: same pid and start time, its own group, no terminal', () => {
+    expect(isRecordedLeader(proc({ pid: 40 }), RECORDED, WORKTREE)).toBe(true)
+  })
+
+  it.each([
+    ['gone', null],
+    ['a reused pid with another start time', proc({ pid: 40, lstart: 'Tue Oct 13 10:00:00 2026' })],
+    ['a shell in the worktree', proc({ pid: 40, command: '-zsh' })],
+    ['a shell running pnpm dev', proc({ pid: 40, command: '/bin/zsh -c pnpm dev' })],
+    ['a process with a terminal', proc({ pid: 40, tty: 'ttys000' })],
+    ['not its group leader', proc({ pid: 40, pgid: 39 })],
+    ['another command', proc({ pid: 40, command: 'vim src/index.ts' })],
+    ['outside the worktree', proc({ pid: 40, cwd: MAIN })],
+    ['beside the worktree', proc({ pid: 40, cwd: `${WORKTREE}-other` })],
+    ['with an unreadable cwd', proc({ pid: 40, cwd: null })],
+    ['another pid', proc({ pid: 41 })],
+  ])('refuses %s', (_case, info) => {
+    expect(isRecordedLeader(info, RECORDED, WORKTREE)).toBe(false)
+  })
+})
+
+describe('isRecordedMember', () => {
+  it.each([
+    ['pnpm-native', '/c/pnpm/12.4.1/pnpm-native dev'],
+    ['tsx watch', TSX_WATCH],
+    ['the server', TSX_SERVER],
+  ])('accepts %s left in the recorded group', (_case, command) => {
+    expect(isRecordedMember(proc({ pid: 42, pgid: 40, command }), RECORDED, WORKTREE)).toBe(true)
+  })
+
+  it.each([
+    ['gone', null],
+    ['the leader itself', proc({ pid: 40, pgid: 40 })],
+    ['in another group', proc({ pid: 42, pgid: 41, command: TSX_WATCH })],
+    ['a shell in the group', proc({ pid: 42, pgid: 40, command: '-zsh' })],
+    ['with a terminal', proc({ pid: 42, pgid: 40, command: TSX_WATCH, tty: 'ttys001' })],
+    ['another command', proc({ pid: 42, pgid: 40, command: 'vim x' })],
+    ['outside the worktree', proc({ pid: 42, pgid: 40, command: TSX_WATCH, cwd: MAIN })],
+  ])('refuses %s', (_case, info) => {
+    expect(isRecordedMember(info, RECORDED, WORKTREE)).toBe(false)
+  })
+})
+
+describe('isSupervisor', () => {
+  it('accepts a tsx watch inside the worktree, whatever its terminal', () => {
+    expect(isSupervisor(proc({ pid: 10, command: TSX_WATCH, tty: 'ttys000' }), WORKTREE)).toBe(true)
+  })
+
+  it.each([
+    ['gone', null],
+    ['a shell', proc({ pid: 10, command: '/bin/zsh' })],
+    ['pnpm', proc({ pid: 10 })],
+    ['in another checkout', proc({ pid: 10, command: TSX_WATCH, cwd: MAIN })],
+    ['beside the worktree', proc({ pid: 10, command: TSX_WATCH, cwd: `${WORKTREE}-other` })],
+    ['with an unreadable cwd', proc({ pid: 10, command: TSX_WATCH, cwd: null })],
+  ])('refuses %s', (_case, info) => {
+    expect(isSupervisor(info, WORKTREE)).toBe(false)
+  })
+})
+
+const LATER = 'Tue Oct 13 10:00:00 2026'
+
+describe('supervisorsToStop', () => {
+  /** The supervisors of `pids` over a parent map and a process table. */
+  function supervisors(
+    pids: number[],
+    parents: Record<number, number | null>,
+    table: Record<number, ProcessInfo>
+  ) {
+    return supervisorsToStop({
+      pids,
+      dir: WORKTREE,
+      parentOf: (pid) => Promise.resolve(parents[pid] ?? null),
+      infoOf: (pid) => Promise.resolve(table[pid] ?? null),
+    })
+  }
+
+  it('names the tsx watch inside the worktree that started each listener, once, with the start time read', async () => {
+    const found = await supervisors(
+      [11, 12],
+      { 11: 10, 12: 10 },
+      { 10: proc({ pid: 10, command: TSX_WATCH, tty: 'ttys000', lstart: LATER }) }
+    )
+    expect(found).toEqual([{ pid: 10, lstart: LATER }])
+  })
+
+  it.each([
+    ['a shell', proc({ pid: 10, command: '/bin/zsh' })],
+    ['a tsx watch in another checkout', proc({ pid: 10, command: TSX_WATCH, cwd: MAIN })],
+    ['a tsx watch with an unreadable cwd', proc({ pid: 10, command: TSX_WATCH, cwd: null })],
+  ])('leaves alone a parent that is %s', async (_case, parent) => {
+    await expect(supervisors([11], { 11: 10 }, { 10: parent })).resolves.toEqual([])
+  })
+
+  it('leaves alone a parent that is gone', async () => {
+    await expect(supervisors([11], { 11: 10 }, {})).resolves.toEqual([])
+  })
+
+  it('never names init, an unknown parent, or another listener', async () => {
+    const found = await supervisors(
+      [11, 12, 13],
+      { 11: 1, 12: null, 13: 11 },
+      { 11: proc({ pid: 11, command: TSX_WATCH }) }
+    )
+    expect(found).toEqual([])
+  })
+})
+
+describe('isPidHeld', () => {
+  /** A `kill` that throws an error with `code`, or succeeds when `code` is `null`. */
+  function killAnswering(code: string | null) {
+    return vi.fn<(pid: number, signal: 0) => void>(() => {
+      if (code !== null) throw Object.assign(new Error(code), { code })
+    })
+  }
+
+  it('probes with signal 0 only', () => {
+    const kill = killAnswering(null)
+    isPidHeld(40, kill)
+    expect(kill.mock.calls).toEqual([[40, 0]])
+  })
+
+  it.each([
+    ['the probe succeeds', null, true],
+    ['another user holds it (EPERM)', 'EPERM', true],
+    ['the probe fails some other way', 'EINVAL', true],
+    ['no process has it (ESRCH)', 'ESRCH', false],
+  ])('answers held when %s: %s', (_case, code, held) => {
+    expect(isPidHeld(40, killAnswering(code))).toBe(held)
+  })
+})
+
+describe('stopTargets', () => {
+  const LEADER = proc({ pid: 40 })
+  const WATCH = proc({ pid: 42, pgid: 40, command: TSX_WATCH })
+  /** A member that passes every member check: in the group, no terminal, inside, tsx watch. */
+  const QUALIFYING = proc({ pid: 45, pgid: 40, command: TSX_WATCH })
+
+  it('stops supervisors by pid and nothing else without a pid file', () => {
+    expect(
+      stopTargets({
+        supervisors: [{ pid: 10, lstart: LATER }],
+        recorded: null,
+        leader: null,
+        held: false,
+        members: [],
+        dir: WORKTREE,
+      })
+    ).toEqual([{ id: 10, pid: 10, kind: 'supervisor', lstart: LATER }])
+  })
+
+  it('stops the recorded server by group while its leader is still the recorded one', () => {
+    expect(
+      stopTargets({
+        supervisors: [{ pid: 10, lstart: LATER }],
+        recorded: RECORDED,
+        leader: LEADER,
+        held: true,
+        members: [LEADER, WATCH],
+        dir: WORKTREE,
+      })
+    ).toEqual([
+      { id: 10, pid: 10, kind: 'supervisor', lstart: LATER },
+      { id: -40, pid: 40, kind: 'leader', lstart: LSTART },
+    ])
+  })
+
+  it('stops the survivors by pid once no process holds the recorded pid, each once', () => {
+    expect(
+      stopTargets({
+        supervisors: [{ pid: 42, lstart: LSTART }],
+        recorded: RECORDED,
+        leader: null,
+        held: false,
+        members: [WATCH, proc({ pid: 43, pgid: 40, command: TSX_SERVER })],
+        dir: WORKTREE,
+      })
+    ).toEqual([
+      { id: 42, pid: 42, kind: 'supervisor', lstart: LSTART },
+      { id: 43, pid: 43, kind: 'member', lstart: LSTART },
+    ])
+  })
+
+  it('stops no member that fails a check once the leader is gone', () => {
+    expect(
+      stopTargets({
+        supervisors: [],
+        recorded: RECORDED,
+        leader: null,
+        held: false,
+        members: [proc({ pid: 44, pgid: 40, command: 'vim x', tty: 'ttys000' })],
+        dir: WORKTREE,
+      })
+    ).toEqual([])
+  })
+
+  it('touches no member while the pid is held, even when ps could not read the holder', () => {
+    expect(
+      stopTargets({
+        supervisors: [],
+        recorded: RECORDED,
+        leader: null,
+        held: true,
+        members: [QUALIFYING],
+        dir: WORKTREE,
+      })
+    ).toEqual([])
+  })
+
+  it.each([
+    ['a reused pid with another start time', proc({ pid: 40, lstart: LATER })],
+    ['an agent shell with no terminal', proc({ pid: 40, command: '/bin/zsh -c pnpm dev' })],
+    ['a login shell', proc({ pid: 40, command: '-zsh', tty: 'ttys000' })],
+  ])(
+    'touches no member, even a qualifying one, while %s holds the recorded pid',
+    (_case, holder) => {
+      expect(isRecordedMember(QUALIFYING, RECORDED, WORKTREE)).toBe(true)
+      expect(
+        stopTargets({
+          supervisors: [],
+          recorded: RECORDED,
+          leader: holder,
+          held: true,
+          members: [holder, QUALIFYING],
+          dir: WORKTREE,
+        })
+      ).toEqual([])
+    }
+  )
+})
+
+describe('isStillTarget', () => {
+  const SUPERVISOR = { id: 10, pid: 10, kind: 'supervisor' as const, lstart: LSTART }
+  const LEADER = { id: -40, pid: 40, kind: 'leader' as const, lstart: LSTART }
+  const MEMBER = { id: 42, pid: 42, kind: 'member' as const, lstart: LSTART }
+  const WATCH = proc({ pid: 10, command: TSX_WATCH })
+  const SURVIVOR = proc({ pid: 42, pgid: 40, command: TSX_WATCH })
+
+  it('re-checks a supervisor as a tsx watch, a leader against the pid file, and a member against the group', () => {
+    expect(isStillTarget(SUPERVISOR, WATCH, null, WORKTREE, false)).toBe(true)
+    expect(isStillTarget(LEADER, proc({ pid: 40 }), RECORDED, WORKTREE, false)).toBe(true)
+    expect(isStillTarget(MEMBER, SURVIVOR, RECORDED, WORKTREE, false)).toBe(true)
+  })
+
+  it.each([
+    ['a supervisor', SUPERVISOR, proc({ pid: 10, command: TSX_WATCH, lstart: LATER })],
+    ['a member', MEMBER, proc({ pid: 42, pgid: 40, command: TSX_WATCH, lstart: LATER })],
+  ])('refuses %s whose pid now has another start time', (_case, target, info) => {
+    expect(isStillTarget(target, info, RECORDED, WORKTREE, false)).toBe(false)
+  })
+
+  it('refuses a member once a process holds the recorded pid again', () => {
+    expect(isStillTarget(MEMBER, SURVIVOR, RECORDED, WORKTREE, true)).toBe(false)
+  })
+
+  it('refuses a leader or member without a pid file, and any target that is gone', () => {
+    expect(isStillTarget(LEADER, proc({ pid: 40 }), null, WORKTREE, false)).toBe(false)
+    expect(isStillTarget(MEMBER, SURVIVOR, null, WORKTREE, false)).toBe(false)
+    expect(isStillTarget(SUPERVISOR, null, null, WORKTREE, false)).toBe(false)
+  })
+})
+
+describe('stopInside', () => {
+  const SUPERVISOR = { id: 10, pid: 10, kind: 'supervisor' as const, lstart: LSTART }
+  const LEADER = { id: -40, pid: 40, kind: 'leader' as const, lstart: LSTART }
+  const MEMBER = { id: 42, pid: 42, kind: 'member' as const, lstart: LSTART }
+
+  /** Process operations over `table`; the targets exit after SIGTERM when `exits`. */
+  function processes(table: Record<number, ProcessInfo>, exits: boolean) {
+    return {
+      infoOf: vi.fn((pid: number) => Promise.resolve(table[pid] ?? null)),
+      pidHeld: vi.fn((pid: number) => pid in table),
+      signal: vi.fn<(id: number, name: 'SIGTERM' | 'SIGKILL') => void>(),
+      goneWithin: vi.fn(() => Promise.resolve(exits)),
+    }
+  }
+
+  it('sends SIGTERM to a supervisor by pid and the recorded server by group, and stops there once they exit', async () => {
+    const ops = processes(
+      { 10: proc({ pid: 10, command: TSX_WATCH }), 40: proc({ pid: 40 }) },
+      true
+    )
+    await stopInside({ targets: [SUPERVISOR, LEADER], recorded: RECORDED, dir: WORKTREE, ...ops })
+    expect(ops.signal.mock.calls).toEqual([
+      [10, 'SIGTERM'],
+      [-40, 'SIGTERM'],
+    ])
+    expect(ops.goneWithin).toHaveBeenCalledWith([10, -40], 3000)
+  })
+
+  it('sends SIGKILL to a target that outlasts SIGTERM', async () => {
+    const ops = processes({ 40: proc({ pid: 40 }) }, false)
+    await stopInside({ targets: [LEADER], recorded: RECORDED, dir: WORKTREE, ...ops })
+    expect(ops.signal.mock.calls).toEqual([
+      [-40, 'SIGTERM'],
+      [-40, 'SIGKILL'],
+    ])
+  })
+
+  it('signals a member by pid only while no process holds the recorded pid', async () => {
+    const survivor = proc({ pid: 42, pgid: 40, command: TSX_WATCH })
+    const free = processes({ 42: survivor }, true)
+    await stopInside({ targets: [MEMBER], recorded: RECORDED, dir: WORKTREE, ...free })
+    expect(free.signal.mock.calls).toEqual([[42, 'SIGTERM']])
+
+    const held = processes({ 42: survivor, 40: proc({ pid: 40, lstart: LATER }) }, true)
+    await stopInside({ targets: [MEMBER], recorded: RECORDED, dir: WORKTREE, ...held })
+    expect(held.signal).not.toHaveBeenCalled()
+  })
+
+  it('re-probes the recorded pid with pidHeld before each member signal, not ps', async () => {
+    const survivor = proc({ pid: 42, pgid: 40, command: TSX_WATCH })
+    const ops = processes({ 42: survivor }, false)
+    ops.pidHeld.mockReturnValueOnce(false).mockReturnValueOnce(true)
+    await stopInside({ targets: [MEMBER], recorded: RECORDED, dir: WORKTREE, ...ops })
+    expect(ops.signal.mock.calls).toEqual([[42, 'SIGTERM']])
+    expect(ops.pidHeld.mock.calls).toEqual([[40], [40]])
+  })
+
+  it.each([
+    ['in another checkout', MAIN],
+    ['beside the worktree', `${WORKTREE}-other`],
+    ['with an unreadable cwd', null],
+  ])('signals nothing to a supervisor that runs %s', async (_where, cwd) => {
+    const ops = processes({ 10: proc({ pid: 10, command: TSX_WATCH, cwd }) }, false)
+    await stopInside({ targets: [SUPERVISOR], recorded: null, dir: WORKTREE, ...ops })
+    expect(ops.signal).not.toHaveBeenCalled()
+    expect(ops.goneWithin).not.toHaveBeenCalled()
+  })
+
+  it('signals nothing to a target already gone', async () => {
+    const ops = processes({}, true)
+    await stopInside({ targets: [LEADER], recorded: RECORDED, dir: WORKTREE, ...ops })
+    expect(ops.signal).not.toHaveBeenCalled()
+  })
+
+  it('sends no signal to a supervisor whose command changed between the read and the signal', async () => {
+    const ops = processes({ 10: proc({ pid: 10, command: 'vim src/index.ts' }) }, false)
+    await stopInside({ targets: [SUPERVISOR], recorded: null, dir: WORKTREE, ...ops })
+    expect(ops.signal).not.toHaveBeenCalled()
+  })
+
+  it('sends no signal to a supervisor pid reused by another tsx watch', async () => {
+    const ops = processes({ 10: proc({ pid: 10, command: TSX_WATCH, lstart: LATER }) }, false)
+    await stopInside({ targets: [SUPERVISOR], recorded: null, dir: WORKTREE, ...ops })
+    expect(ops.signal).not.toHaveBeenCalled()
+  })
+
+  it('sends no SIGKILL to a pid that was reused after SIGTERM', async () => {
+    const ops = processes({ 40: proc({ pid: 40 }) }, false)
+    ops.infoOf
+      .mockResolvedValueOnce(proc({ pid: 40 }))
+      .mockResolvedValueOnce(proc({ pid: 40, lstart: LATER, tty: 'ttys000' }))
+    await stopInside({ targets: [LEADER], recorded: RECORDED, dir: WORKTREE, ...ops })
+    expect(ops.signal.mock.calls).toEqual([[-40, 'SIGTERM']])
   })
 })

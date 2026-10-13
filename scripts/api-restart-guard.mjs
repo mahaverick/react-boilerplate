@@ -57,27 +57,91 @@ export function restartPlan({ origin, allowRestart, apiDir, mainCheckout, realpa
       refusal: `restartApi kills whatever listens on :${port} and starts pnpm dev in E2E_API_DIR: set E2E_ALLOW_API_RESTART=1 for an express you started`,
     }
   }
+  const checked = apiDirPlan({
+    apiDir,
+    mainCheckout,
+    realpath,
+    isFile,
+    who: 'restartApi',
+    does: 'starts pnpm dev',
+  })
+  return 'refusal' in checked ? checked : { port, dir: checked.dir }
+}
+
+/**
+ * The express worktree a helper may run a command in, or why it refuses: without
+ * an `E2E_API_DIR`; when that directory is missing, is the main express checkout
+ * or holds it; and when it is not a git worktree (its `.git` is not a file),
+ * which also refuses a standalone clone.
+ * @param input - The directory, the main checkout and the two file-system reads.
+ * @param input.apiDir - `E2E_API_DIR`.
+ * @param input.mainCheckout - The default sibling checkout's path.
+ * @param input.realpath - Resolves a path to its true, case-correct form; throws when it does not exist.
+ * @param input.isFile - Whether a path is a regular file.
+ * @param input.who - The helper's name, for the refusal.
+ * @param input.does - What it would do in the directory, for the refusal.
+ * @returns `{ refusal }` naming what to change, or the resolved `{ dir }`.
+ */
+export function apiDirPlan({ apiDir, mainCheckout, realpath, isFile, who, does }) {
   if (!apiDir) {
     return {
-      refusal:
-        'restartApi starts pnpm dev in E2E_API_DIR: set it to the git worktree of the express you started',
+      refusal: `${who} ${does} in E2E_API_DIR: set it to the git worktree of the express under test`,
     }
   }
   const dir = realpathOrNull(realpath, apiDir)
   if (dir === null) {
-    return { refusal: `restartApi starts pnpm dev in E2E_API_DIR, and ${apiDir} does not exist` }
+    return { refusal: `${who} ${does} in E2E_API_DIR, and ${apiDir} does not exist` }
   }
-  if (dir === realpathOrNull(realpath, mainCheckout)) {
+  const main = realpathOrNull(realpath, mainCheckout)
+  if (dir === main) {
     return {
-      refusal: `restartApi never starts pnpm dev in the main express checkout (${dir}): set E2E_API_DIR to a git worktree`,
+      refusal: `${who} never ${does} in the main express checkout (${dir}): set E2E_API_DIR to a git worktree`,
+    }
+  }
+  if (main !== null && isWithin(main, dir)) {
+    return {
+      refusal: `${who} never ${does} in ${dir}, which holds the main express checkout: set E2E_API_DIR to a git worktree`,
     }
   }
   if (!isFile(`${dir}/.git`)) {
     return {
-      refusal: `restartApi starts pnpm dev only in a git worktree, and ${dir} has no .git file: use git worktree add`,
+      refusal: `${who} ${does} only in a git worktree, and ${dir} has no .git file: use git worktree add`,
     }
   }
-  return { port, dir }
+  return { dir }
+}
+
+/**
+ * The express checkout `grantPlatformRole` runs `pnpm platform:grant` in, or
+ * why it refuses. It sends no signal, so any checkout named explicitly will
+ * do, the main one included; it refuses only an unset `E2E_API_DIR`, a missing
+ * directory, and one whose `package.json` has no `platform:grant` script.
+ * @param input - The directory and the file-system reads it needs.
+ * @param input.apiDir - `E2E_API_DIR`.
+ * @param input.realpath - Resolves a path to its true form; throws when it does not exist.
+ * @param input.readJson - A JSON file's parsed contents, or `null` when it is missing or invalid.
+ * @returns `{ refusal }` naming what to change, or the resolved `{ dir }`.
+ */
+export function grantDirPlan({ apiDir, realpath, readJson }) {
+  if (!apiDir) {
+    return {
+      refusal:
+        'grantPlatformRole runs pnpm platform:grant in E2E_API_DIR, which is unset: set it to the express checkout whose database the API under test uses',
+    }
+  }
+  const dir = realpathOrNull(realpath, apiDir)
+  if (dir === null) {
+    return {
+      refusal: `grantPlatformRole runs pnpm platform:grant in E2E_API_DIR, and ${apiDir} does not exist`,
+    }
+  }
+  const scripts = readJson(`${dir}/package.json`)?.scripts
+  if (typeof scripts !== 'object' || scripts === null || !('platform:grant' in scripts)) {
+    return {
+      refusal: `grantPlatformRole runs pnpm platform:grant in E2E_API_DIR, and ${dir}/package.json has no platform:grant script: point it at an express checkout`,
+    }
+  }
+  return { dir }
 }
 
 /**
@@ -179,13 +243,298 @@ export function restartedPidFile(tmpdir, port) {
 }
 
 /**
- * Deletes the pid file an earlier restart on this origin's port left, so a
- * run that fails before it starts a server leaves no stale pid to kill.
- * @param origin - `E2E_API_ORIGIN`.
- * @param tmpdir - The system temporary directory.
- * @param remove - Deletes a file, doing nothing when it is missing.
+ * One process as `ps -o pid=,pgid=,tty=,lstart=,command=` prints it, its five
+ * `lstart` words joined by single spaces: a single-digit day prints padded
+ * (`Oct  3`), and a pid file's start time must compare equal to a later read.
+ * @param line - One line of that output.
+ * @returns `{ pid, pgid, tty, lstart, command }`, or `null` for a line that is not one.
  */
-export function forgetRestartedServer(origin, tmpdir, remove) {
-  const port = explicitPortOf(origin)
-  if (port !== null) remove(restartedPidFile(tmpdir, port))
+export function parsePsLine(line) {
+  const words = (line ?? '').trim().split(/\s+/)
+  if (words.length < 9) return null
+  const [pid, pgid, tty, ...rest] = words
+  if (!/^\d+$/.test(pid) || !/^\d+$/.test(pgid)) return null
+  return {
+    pid: Number(pid),
+    pgid: Number(pgid),
+    tty,
+    lstart: rest.slice(0, 5).join(' '),
+    command: rest.slice(5).join(' '),
+  }
+}
+
+/**
+ * The pid file's contents: the server's pid, then its start time, so a later
+ * restart can tell that server from another process that reused its pid. The
+ * first line alone is what `kill -TERM -"$(head -n 1 "$PID_FILE")"` reads.
+ * @param pid - The started server's pid, which leads its process group.
+ * @param lstart - Its start time, as `parsePsLine` gives it, or `null` when unknown.
+ * @returns The text to write.
+ */
+export function formatPidFile(pid, lstart) {
+  return lstart === null ? `${pid}\n` : `${pid}\n${lstart}\n`
+}
+
+/**
+ * The server a pid file records, or `null` when the text names no pid above 1
+ * with a start time: without one, nothing tells that server from a process that
+ * reused its pid, so a restart only replaces the file.
+ * @param text - The pid file's contents, or `null` when there is no file.
+ * @returns `{ pid, lstart }`, or `null`.
+ */
+export function parsePidFile(text) {
+  const [first = '', second = ''] = (text ?? '').split('\n')
+  const lstart = second.trim().split(/\s+/).join(' ')
+  if (!/^\d+$/.test(first.trim()) || lstart === '') return null
+  const pid = Number(first.trim())
+  return pid > 1 ? { pid, lstart } : null
+}
+
+/**
+ * Whether a command line is `tsx watch`, the supervisor `pnpm dev` runs: its
+ * child holds the port, and it outlives that child doing nothing.
+ * @param command - The full command line, as `ps -o command=` prints it.
+ * @returns `true` for `tsx watch`, by binary or by its `tsx/dist/cli.mjs`.
+ */
+export function isTsxWatch(command) {
+  return /(^|[\s/])tsx(\/dist\/cli\.mjs)?\s+watch(\s|$)/.test(command ?? '')
+}
+
+/**
+ * Whether a command line is `pnpm dev`, as pnpm's node entry or its native binary.
+ * @param command - The full command line.
+ * @returns `true` for `pnpm dev` or `pnpm-native dev`.
+ */
+export function isPnpmDev(command) {
+  return /(^|[\s/])pnpm(-native|\.c?js)?\s+dev(\s|$)/.test(command ?? '')
+}
+
+/**
+ * Whether a command line is the server `tsx watch` runs: node with tsx's loader.
+ * @param command - The full command line.
+ * @returns `true` for a node process tsx started.
+ */
+export function isTsxServer(command) {
+  return /\/tsx\/dist\/(preflight\.cjs|loader\.mjs)(\s|$)/.test(command ?? '')
+}
+
+/** Shells, which a restart never signals, whatever their working directory. */
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'fish', 'tcsh', 'csh'])
+
+/**
+ * Whether a command line is a shell: a login shell (`-zsh`) or one run by name.
+ * @param command - The full command line.
+ * @returns `true` for a shell.
+ */
+export function isShell(command) {
+  const first = (command ?? '').trim().split(/\s+/)[0] ?? ''
+  if (first.startsWith('-')) return true
+  return SHELLS.has(first.slice(first.lastIndexOf('/') + 1))
+}
+
+/**
+ * Whether a `ps -o tty=` value means no controlling terminal: `??` on macOS,
+ * `?` on Linux. A server spawned detached has none; a shell, and every job it
+ * starts, has one.
+ * @param tty - The tty column, or `null` when unknown.
+ * @returns `true` only for a known absent terminal.
+ */
+export function hasNoTty(tty) {
+  return tty === '??' || tty === '?'
+}
+
+/**
+ * Whether a process may be signalled at all: known, inside `dir`, not a shell.
+ * @param info - The process, from `parsePsLine` plus its `cwd`, or `null` when gone.
+ * @param dir - The checked, resolved worktree.
+ * @returns `true` when every base check holds.
+ */
+function isOurs(info, dir) {
+  return info !== null && isWithin(info.cwd, dir) && !isShell(info.command)
+}
+
+/**
+ * Whether a process is a `tsx watch` supervisor inside the worktree.
+ * @param info - The process with its `cwd`, or `null` when gone.
+ * @param dir - The checked, resolved worktree.
+ * @returns `true` when it may be stopped as a supervisor.
+ */
+export function isSupervisor(info, dir) {
+  return isOurs(info, dir) && isTsxWatch(info.command)
+}
+
+/**
+ * Whether a process is the very server a pid file recorded: the same pid and
+ * start time, `pnpm dev`, the leader of its own group, and with no terminal.
+ * @param info - The process with its `cwd`, or `null` when gone.
+ * @param recorded - The pid file's `{ pid, lstart }`.
+ * @param dir - The checked, resolved worktree.
+ * @returns `true` when its group may be stopped.
+ */
+export function isRecordedLeader(info, recorded, dir) {
+  return (
+    isOurs(info, dir) &&
+    info.pid === recorded.pid &&
+    info.lstart === recorded.lstart &&
+    info.pgid === info.pid &&
+    hasNoTty(info.tty) &&
+    isPnpmDev(info.command)
+  )
+}
+
+/**
+ * Whether a process is a survivor of the recorded server's group once its
+ * leader has exited: in that group, with no terminal, and one of the processes
+ * `pnpm dev` starts (pnpm, `tsx watch`, or the server tsx runs).
+ * @param info - The process with its `cwd`, or `null` when gone.
+ * @param recorded - The pid file's `{ pid, lstart }`.
+ * @param dir - The checked, resolved worktree.
+ * @returns `true` when it may be stopped by pid.
+ */
+export function isRecordedMember(info, recorded, dir) {
+  return (
+    isOurs(info, dir) &&
+    info.pid !== recorded.pid &&
+    info.pgid === recorded.pid &&
+    hasNoTty(info.tty) &&
+    (isPnpmDev(info.command) || isTsxWatch(info.command) || isTsxServer(info.command))
+  )
+}
+
+/**
+ * The `tsx watch` supervisors of the listeners about to be stopped, read
+ * before the stop: once a listener exits its parent pid is gone. Init (pid 1)
+ * and another listener never are.
+ * @param input - The listeners, the worktree and the process reads, injected.
+ * @param input.pids - The listener pids.
+ * @param input.dir - The checked, resolved worktree.
+ * @param input.parentOf - A pid's parent pid, or `null` when unknown.
+ * @param input.infoOf - A pid's process with its `cwd`, or `null` when gone.
+ * @returns Each supervisor once, as `{ pid, lstart }`: the start time read now is
+ *   what a later signal must still find at that pid.
+ */
+export async function supervisorsToStop({ pids, dir, parentOf, infoOf }) {
+  const supervisors = []
+  for (const pid of pids) {
+    const parent = await parentOf(pid)
+    if (parent === null || parent <= 1 || pids.includes(parent)) continue
+    if (supervisors.some((supervisor) => supervisor.pid === parent)) continue
+    const info = await infoOf(parent)
+    if (isSupervisor(info, dir)) supervisors.push({ pid: parent, lstart: info.lstart })
+  }
+  return supervisors
+}
+
+/**
+ * Whether any process holds `pid`, decided by `kill(pid, 0)` rather than by a
+ * `ps` read, so a read that fails can never make a live holder look absent. Only
+ * ESRCH means no process has it; success and EPERM (another user's process) mean
+ * it is held, and so does any other error.
+ * @param pid - The pid.
+ * @param kill - `process.kill`, injected; signal 0 only probes.
+ * @returns `true` unless the probe answers ESRCH.
+ */
+export function isPidHeld(pid, kill) {
+  try {
+    kill(pid, 0)
+    return true
+  } catch (error) {
+    return error?.code !== 'ESRCH'
+  }
+}
+
+/**
+ * What a restart stops besides the listeners: each supervisor by pid; the
+ * recorded server's whole group (`-pid`) while its leader is still the
+ * recorded server; and, only once no process holds the recorded pid, each
+ * member of that group that passes `isRecordedMember`, by pid. While another
+ * process holds the pid, the group is that process's (a pid is never handed out
+ * while a group of that id exists), so no member is touched. A supervisor that
+ * is also a member appears once.
+ * @param input - What was read, as processes with their `cwd`.
+ * @param input.supervisors - The supervisors, each `{ pid, lstart }`.
+ * @param input.recorded - The pid file's `{ pid, lstart }`, or `null`.
+ * @param input.leader - The process now at the recorded pid, or `null` when unread.
+ * @param input.held - Whether a process holds the recorded pid (`isPidHeld`).
+ * @param input.members - The processes now in the recorded pid's group.
+ * @param input.dir - The checked, resolved worktree.
+ * @returns Each `{ id, pid, kind, lstart }`: `id` is what is signalled; `pid` and
+ *   `lstart` are what must still match before each signal.
+ */
+export function stopTargets({ supervisors, recorded, leader, held, members, dir }) {
+  const targets = supervisors.map(({ pid, lstart }) => ({
+    id: pid,
+    pid,
+    kind: 'supervisor',
+    lstart,
+  }))
+  if (recorded === null) return targets
+  if (isRecordedLeader(leader, recorded, dir)) {
+    return [
+      ...targets,
+      { id: -recorded.pid, pid: recorded.pid, kind: 'leader', lstart: recorded.lstart },
+    ]
+  }
+  if (held) return targets
+  for (const member of members) {
+    if (!isRecordedMember(member, recorded, dir)) continue
+    if (targets.some((target) => target.pid === member.pid)) continue
+    targets.push({ id: member.pid, pid: member.pid, kind: 'member', lstart: member.lstart })
+  }
+  return targets
+}
+
+/**
+ * Whether a target is still the process it was chosen as: the same start time
+ * at its pid, and the checks of its kind. A member also needs the recorded pid
+ * still unheld, since a new holder would own the group.
+ * @param target - A `stopTargets` entry.
+ * @param info - The process now at `target.pid`, with its `cwd`, or `null` when gone.
+ * @param recorded - The pid file's `{ pid, lstart }`, or `null`.
+ * @param dir - The checked, resolved worktree.
+ * @param held - Whether a process holds the recorded pid now (`isPidHeld`).
+ * @returns `true` when it may be signalled now.
+ */
+export function isStillTarget(target, info, recorded, dir, held) {
+  if (info === null || info.lstart !== target.lstart) return false
+  if (target.kind === 'supervisor') return isSupervisor(info, dir)
+  if (recorded === null) return false
+  if (target.kind === 'leader') return isRecordedLeader(info, recorded, dir)
+  return !held && isRecordedMember(info, recorded, dir)
+}
+
+/**
+ * Stops `stopTargets`' targets: SIGTERM, then SIGKILL for any still alive
+ * after 3 s. Immediately before each signal it reads the target again and skips
+ * one that is gone or is no longer the process it was chosen as.
+ * @param input - The targets, what they were chosen against and the process operations, injected.
+ * @param input.targets - The `stopTargets` entries.
+ * @param input.recorded - The pid file's `{ pid, lstart }`, or `null`.
+ * @param input.dir - The checked, resolved worktree.
+ * @param input.infoOf - A pid's process with its `cwd`, or `null` when gone.
+ * @param input.pidHeld - Whether a process holds a pid (`isPidHeld`), probed before each member signal.
+ * @param input.signal - Sends a signal to a pid, or to a group as `-pid`.
+ * @param input.goneWithin - Whether none of the given ids is alive within a time, in ms.
+ * @returns Resolves once every target is gone after SIGTERM, or once SIGKILL has been sent.
+ */
+export async function stopInside({ targets, recorded, dir, infoOf, pidHeld, signal, goneWithin }) {
+  /**
+   * Sends `name` to every target that is still what it was chosen as.
+   * @param name - The signal to send.
+   * @returns The ids signalled.
+   */
+  const signalStill = async (name) => {
+    const signalled = []
+    for (const target of targets) {
+      const info = await infoOf(target.pid)
+      const held = target.kind === 'member' && recorded !== null ? pidHeld(recorded.pid) : false
+      if (!isStillTarget(target, info, recorded, dir, held)) continue
+      signal(target.id, name)
+      signalled.push(target.id)
+    }
+    return signalled
+  }
+  const termed = await signalStill('SIGTERM')
+  if (termed.length === 0 || (await goneWithin(termed, 3000))) return
+  await signalStill('SIGKILL')
 }

@@ -380,8 +380,13 @@ jsdom has no layout. The harness has two traps:
 **`live`** needs a real express and its services, and runs only with `E2E_LIVE=1`.
 Each run registers a fresh address (`freshEmail`), because express rate-limits
 sign-in per address. `live/flags.test.ts` fails, rather than skips, without
-`E2E_FLAGS_SET_CMD`. The variables, with their defaults, are in the
-[README](README.md#testing); never assume `:4040`.
+`E2E_FLAGS_SET_CMD`. `live/platform.test.ts` grants platform roles by running
+`pnpm platform:grant` in `E2E_API_DIR`, which has no default: point it at the
+express checkout whose database the API under test uses, the main
+`../express-boilerplate` included. `grantPlatformRole` throws when it is unset,
+missing, or has no `platform:grant` script (`grantDirPlan`). Only the SSE
+reconnect test needs a separate worktree. The variables, with their defaults, are
+in the [README](README.md#testing); never assume `:4040`.
 
 **posthog-js drops every event from a Playwright browser** (`navigator.webdriver`,
 a headless user agent). An analytics e2e test uses `HUMAN_USER_AGENT` and calls
@@ -399,32 +404,90 @@ hold:
 
 - the origin has an explicit port, and the port is not 4040;
 - `E2E_ALLOW_API_RESTART=1` is set;
-- `E2E_API_DIR` is set, is a git worktree, and is not the main
-  `../express-boilerplate` checkout.
+- `E2E_API_DIR` is set, is a git worktree, and neither is nor holds the main
+  `../express-boilerplate` checkout, compared in its true case.
 
-It signals only listeners whose working directory is inside that worktree. The
-rules are `restartPlan` and `stopListenersIn` in `scripts/api-restart-guard.mjs`.
+It signals three kinds of process, each only while it runs inside that worktree:
+the listeners on the port, the `tsx watch` that supervised each one, and the server
+an earlier run recorded in the pid file. What each must match is below the
+commands; the rules are in `scripts/api-restart-guard.mjs`.
+
 To run it, give express a worktree whose `.env` comes from `.env.example`, never
-from the main checkout's: `APP_PORT=4999`, a database of its own and its own
-`REDIS_KEY_PREFIX`, so the run's accounts and keys stay out of the dev ones.
+from the main checkout's, and services of its own: throwaway Postgres, Redis and
+Mailpit containers, never the dev ones on 5433, 6380 and 8025. The run registers
+accounts and restarts servers, so it stays out of the dev database, keys and mail.
+
+`.env.example` leaves several required values empty, and express refuses to boot
+without them. Set `APP_PORT=4999`, `APP_URL=http://localhost:4999`,
+`WEB_URL=http://localhost:8089`, `DATABASE_URL`, `REDIS_URL`, `SMTP_PORT`, an
+`openssl rand -hex 32` for each of `JWT_ACCESS_SECRET` and `SESSION_SECRET`, and
+`REDIS_KEY_PREFIX=express-sse`. `WEB_URL` must be the image's origin
+(`E2E_NGINX_ORIGIN`): `/auth/refresh` refuses a browser `Origin` that is not
+`WEB_URL`, `APEX_URL` or in `CORS_ALLOWED_ORIGINS`, and the test's full page load
+refreshes the session. The helpers read the verification email from
+`E2E_MAILPIT_ORIGIN`, so point it at the run's Mailpit, not the default :8025.
 
 ```sh
-git -C ../express-boilerplate worktree add ../express-sse
-docker exec express-boilerplate-postgres-1 createdb -U boilerplate boilerplate_sse
-# In ../express-sse: write .env with APP_PORT=4999, REDIS_KEY_PREFIX=express-sse and
-#   DATABASE_URL=postgres://boilerplate:boilerplate@127.0.0.1:5433/boilerplate_sse,
-#   then: pnpm install && pnpm db:migrate && pnpm dev
+git -C ../express-boilerplate fetch origin   # fetch only: a pull hot-reloads the :4040 dev server
+git -C ../express-boilerplate worktree add --detach ../express-sse origin/main
+docker run -d --name sse-pg -p 127.0.0.1:5547:5432 -e POSTGRES_USER=boilerplate \
+  -e POSTGRES_PASSWORD=boilerplate -e POSTGRES_DB=boilerplate_sse postgres:18
+docker run -d --name sse-redis -p 127.0.0.1:6393:6379 redis:7.2-alpine
+docker run -d --name sse-mailpit -p 127.0.0.1:8129:8025 -p 127.0.0.1:1129:1025 \
+  axllent/mailpit:v1.31.1 --smtp-disable-rdns
+# In ../express-sse: cp .env.example .env, then set the values above, with
+#   DATABASE_URL=postgres://boilerplate:boilerplate@127.0.0.1:5547/boilerplate_sse,
+#   REDIS_URL=redis://127.0.0.1:6393 and SMTP_PORT=1129. Then:
+#   pnpm install && pnpm db:migrate && TMPDIR=/tmp pnpm dev
 docker build -t react-boilerplate:e2e .
 docker run -d --name rb-e2e-sse -p 8089:8080 --read-only --tmpfs /tmp \
   --add-host=api:host-gateway -e API_UPSTREAM=http://api:4999 react-boilerplate:e2e
-E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
-  E2E_API_ORIGIN=http://localhost:4999 E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
+TMPDIR=/tmp E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
+  E2E_API_ORIGIN=http://localhost:4999 E2E_MAILPIT_ORIGIN=http://localhost:8129 \
+  E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
   pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
-docker rm -f rb-e2e-sse
-# Stop the pnpm dev you started (Ctrl-C), then the detached server the run restarted:
-PID_FILE="$(node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
-kill -TERM -"$(cat "$PID_FILE")" && rm -f "$PID_FILE"
+# Stop the server the run started, if it got that far and the pid file's start time
+#   still matches its pid. If the run failed before its restart, the pnpm dev you
+#   started is still running: stop it with Ctrl-C.
+PID_FILE="$(TMPDIR=/tmp node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
+if [ -f "$PID_FILE" ]; then
+  pid=$(head -n 1 "$PID_FILE")
+  [ "$(LC_ALL=C ps -o lstart= -p "$pid" | xargs)" = "$(sed -n 2p "$PID_FILE")" ] \
+    && kill -TERM -"$pid"
+fi
+rm -f "$PID_FILE"
+lsof -ti tcp:4999 -sTCP:LISTEN   # must print nothing before the worktree goes
+docker rm -f rb-e2e-sse sse-pg sse-redis sse-mailpit
+git -C ../express-boilerplate worktree remove --force ../express-sse
 ```
+
+Each restart stops, besides the listeners, two kinds of process that would
+otherwise be left behind. It re-reads each one immediately before each round of
+signals (SIGTERM, then SIGKILL) and skips it unless all of these still hold:
+
+- **The `tsx watch` that supervised a listener**, signalled by pid. It was the
+  listener's parent when read, before the listener stopped, and its start time
+  then must still be the one at that pid. Its command is `tsx watch`, its working
+  directory is inside `E2E_API_DIR`, and it is not a shell.
+- **The server an earlier run recorded**, signalled by process group. The pid file
+  holds its pid and its start time (`ps -o lstart`). The process at that pid must
+  have the same start time, run `pnpm dev`, lead its own group, have no
+  controlling terminal, and run inside `E2E_API_DIR`. A reused pid fails the start
+  time; a shell or a job started from one fails on the terminal and the command.
+  When no process holds the recorded pid any more, the group's remaining members
+  are signalled by pid instead, each only if it is in that group, keeps the start
+  time it was read with, has no terminal, runs inside `E2E_API_DIR` and is pnpm,
+  `tsx watch` or the server tsx runs. While another process holds that pid, the
+  group is its own, and none of it is touched. "Holds" is a `kill -0` probe, made
+  again before each signal: only ESRCH counts as free, so a failed `ps` read
+  never makes a live holder look absent.
+
+Every `ps` runs with `LC_ALL=C`, so the start time has one form.
+
+So the test can run again without cleanup in between. A pid file without a start
+time, or whose process no longer matches, is replaced and nothing is signalled.
+That stopping is best effort: a process that fails a check survives, and the
+`lsof` check above is what proves the port is free.
 
 Run `pnpm dev` in the worktree, and the test, with a short `TMPDIR` (for example
 `TMPDIR=/tmp`). `tsx watch` opens its IPC socket at `$TMPDIR/tsx-<uid>/<pid>.pipe`,

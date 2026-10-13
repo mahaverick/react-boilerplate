@@ -4,7 +4,7 @@
  * restart of the express under test.
  */
 import { execFile as execFileCallback, spawn } from 'node:child_process'
-import { realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -12,11 +12,21 @@ import { expect, type Page } from '@playwright/test'
 import type { MembershipRole } from '@/constants/roles'
 import {
   cwdFromLsofFields,
-  forgetRestartedServer,
+  formatPidFile,
+  grantDirPlan,
+  isPidHeld,
+  parsePidFile,
+  parsePsLine,
   respawnOptions,
   restartedPidFile,
   restartPlan,
+  stopInside,
   stopListenersIn,
+  stopTargets,
+  supervisorsToStop,
+  type ProcessInfo,
+  type RecordedServer,
+  type Supervisor,
 } from '../../scripts/api-restart-guard.mjs'
 import { settle } from '../timing'
 
@@ -25,7 +35,6 @@ const execFile = promisify(execFileCallback)
 /** Where the express under test listens: `E2E_API_ORIGIN`, default :4040. */
 export const API_ORIGIN = process.env.E2E_API_ORIGIN ?? 'http://localhost:4040'
 const MAILPIT_ORIGIN = process.env.E2E_MAILPIT_ORIGIN ?? 'http://localhost:8025'
-const API_DIR = process.env.E2E_API_DIR ?? '../express-boilerplate'
 
 /** The password every e2e account uses. Long enough for the register schema. */
 export const PASSWORD = 'a very long passphrase for e2e'
@@ -167,6 +176,29 @@ async function portFreedWithin(port: string, timeoutMs: number): Promise<boolean
   return true
 }
 
+/** Whether every pid, or `-pid` group, in `ids` has exited within `timeoutMs`. */
+async function processesGoneWithin(ids: number[], timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (ids.some(isAlive)) {
+    if (Date.now() >= deadline) return false
+    await settle(100, 'poll interval')
+  }
+  return true
+}
+
+/** The file-system reads the guard needs: `realpathSync.native`, which returns a path's true case, so a case variant of the main checkout's path still matches it. */
+const GUARD_FS = {
+  mainCheckout: path.resolve('../express-boilerplate'),
+  realpath: (target: string) => realpathSync.native(target),
+  isFile: (target: string) => {
+    try {
+      return statSync(target).isFile()
+    } catch {
+      return false
+    }
+  },
+}
+
 /**
  * What `restartApi` may do here, or why it refuses: `restartPlan` from
  * `scripts/api-restart-guard.mjs`, applied to this process's environment and
@@ -178,15 +210,7 @@ function apiRestartPlan(): { refusal: string } | { port: string; dir: string } {
     origin: API_ORIGIN,
     allowRestart: process.env.E2E_ALLOW_API_RESTART,
     apiDir: process.env.E2E_API_DIR,
-    mainCheckout: path.resolve('../express-boilerplate'),
-    realpath: (target) => realpathSync(target),
-    isFile: (target) => {
-      try {
-        return statSync(target).isFile()
-      } catch {
-        return false
-      }
-    },
+    ...GUARD_FS,
   })
 }
 
@@ -212,27 +236,162 @@ async function cwdOf(pid: number): Promise<string | null> {
 }
 
 /**
+ * Runs `ps` in the C locale, so `lstart` is always five words (`Tue Oct 13
+ * 09:05:01 2026`) and `parsePsLine` finds the command where it expects it.
+ * @param args - The `ps` arguments.
+ * @returns Its stdout, or '' when it fails.
+ */
+async function ps(args: string[]): Promise<string> {
+  const { stdout } = await execFile('ps', args, { env: { ...process.env, LC_ALL: 'C' } }).catch(
+    () => ({ stdout: '' })
+  )
+  return stdout
+}
+
+/**
+ * A pid's parent pid, or `null` when the process is gone.
+ * @param pid - The process.
+ * @returns The parent pid, or `null`.
+ */
+async function parentOf(pid: number): Promise<number | null> {
+  const stdout = await ps(['-o', 'ppid=', '-p', String(pid)])
+  const parent = Number(stdout.trim())
+  return stdout.trim() !== '' && Number.isInteger(parent) && parent > 0 ? parent : null
+}
+
+/**
+ * A process as the guard identifies it: pid, group, terminal, start time,
+ * command line and working directory.
+ * @param pid - The process.
+ * @returns The process, or `null` when it is gone or unreadable.
+ */
+async function infoOf(pid: number): Promise<ProcessInfo | null> {
+  const stdout = await ps(['-o', 'pid=,pgid=,tty=,lstart=,command=', '-p', String(pid)])
+  const line = parsePsLine(stdout.split('\n')[0] ?? '')
+  if (line?.pid !== pid) return null
+  return { ...line, cwd: await cwdOf(pid) }
+}
+
+/**
+ * The processes now in process group `pgid`, read from every process's group
+ * (`ps -g` means different things on macOS and Linux).
+ * @param pgid - The group.
+ * @returns Each member, its leader included while alive.
+ */
+async function groupMembers(pgid: number): Promise<ProcessInfo[]> {
+  const pids = (await ps(['-axo', 'pid=,pgid=']))
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/).map(Number))
+    .filter(([pid, group]) => group === pgid && pid !== undefined && pid > 1)
+    .map(([pid]) => pid as number)
+  const members = await Promise.all(pids.map(infoOf))
+  return members.filter((member) => member !== null)
+}
+
+/**
+ * Whether a pid, or a process group given as `-pid`, has a live process.
+ * @param id - The pid, or the negated group id.
+ * @returns `true` while it can be signalled.
+ */
+function isAlive(id: number): boolean {
+  try {
+    process.kill(id, 0)
+    return true
+  } catch (error) {
+    // EPERM: alive, but another user's; never ours to stop, yet not gone either.
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+/**
+ * Whether a process holds `pid`: `isPidHeld` over `process.kill`, so a failed
+ * `ps` read never counts as an absent holder.
+ * @param pid - The pid.
+ * @returns `true` unless the probe answers ESRCH.
+ */
+function pidHeld(pid: number): boolean {
+  return isPidHeld(pid, (target, signal) => process.kill(target, signal))
+}
+
+/** The pid file's contents, or `null` when there is none. */
+function readPidFile(file: string): string | null {
+  try {
+    return readFileSync(file, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Stops the listeners' supervisors and the server a pid file recorded, each
+ * only while `stopTargets` and `stopInside` still identify it. Then it sweeps the
+ * recorded group once more by pid: when SIGTERM ends the leader before its
+ * `tsx watch`, the group signal can no longer reach the survivors.
+ * @param supervisors - The `tsx watch` processes read before the listeners stopped.
+ * @param recorded - The pid file's server, or `null`.
+ * @param dir - The checked, resolved worktree.
+ */
+async function stopLeftovers(
+  supervisors: Supervisor[],
+  recorded: RecordedServer | null,
+  dir: string
+): Promise<void> {
+  /**
+   * Stops what `stopTargets` chooses from `pids` and the recorded group as it is now.
+   * @param included - The supervisors to include.
+   */
+  const stopNow = async (included: Supervisor[]) => {
+    const targets = stopTargets({
+      supervisors: included,
+      recorded,
+      leader: recorded === null ? null : await infoOf(recorded.pid),
+      held: recorded !== null && pidHeld(recorded.pid),
+      members: recorded === null ? [] : await groupMembers(recorded.pid),
+      dir,
+    })
+    await stopInside({
+      targets,
+      recorded,
+      dir,
+      infoOf,
+      pidHeld,
+      signal: (id, name) => {
+        signalAll([id], name)
+      },
+      goneWithin: (ids, ms) => processesGoneWithin(ids, ms),
+    })
+  }
+  await stopNow(supervisors)
+  if (recorded !== null) await stopNow([])
+}
+
+/**
  * Stops whatever is listening on the API port, then starts a new one.
  *
  * Finds the server by port rather than by a pid this process spawned, because
  * the API is started outside the test run and the SSE test has to restart that
  * one; it stops only listeners running inside the checked worktree. Refuses, by
- * throwing, unless `apiRestartRefusal` allows it. The replacement server starts
- * in the resolved worktree with `APP_PORT` set to the checked port, so it never falls
- * back to its `.env` port (4040 by default). It stays running, detached; its
- * pid, which is also its process group, is written to
- * `restartedPidFile(os.tmpdir(), port)`, after any file an earlier run left
- * there is deleted. Returns the listener pids before the stop and after the
- * replacement is ready, so a caller can tell a real restart from none.
+ * throwing, unless `apiRestartRefusal` allows it. It also stops what would be
+ * left behind with nothing to do: each listener's `tsx watch` supervisor, and
+ * the server an earlier restart recorded in the pid file, each only while the
+ * guard still identifies it (`stopTargets` in `scripts/api-restart-guard.mjs`).
+ * The replacement server starts in the resolved worktree with `APP_PORT` set
+ * to the checked port, so it never falls back to its `.env` port (4040 by
+ * default). It stays running, detached; its pid, which is also its process
+ * group, and its start time replace the pid file
+ * `restartedPidFile(os.tmpdir(), port)`. Returns the listener pids before the
+ * stop and after the replacement is ready, so a caller can tell a real restart
+ * from none.
  */
 export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids: number[] }> {
-  forgetRestartedServer(API_ORIGIN, tmpdir(), (file) => {
-    rmSync(file, { force: true })
-  })
   const plan = apiRestartPlan()
   if ('refusal' in plan) throw new Error(plan.refusal)
   const { port, dir } = plan
+  const pidFile = restartedPidFile(tmpdir(), port)
+  const recorded = parsePidFile(readPidFile(pidFile))
   const stoppedPids = await listeningPids(port)
+  // Read before the stop: once a listener exits, its parent pid is gone.
+  const supervisors = await supervisorsToStop({ pids: stoppedPids, dir, parentOf, infoOf })
 
   // Stop every pid holding the port, not one process group: `pnpm dev` is `tsx watch`, whose child is the real server and would keep listening, so a "reconnects after a restart" test would measure a stream never interrupted.
   await stopListenersIn({
@@ -253,6 +412,10 @@ export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids
     })
     .toEqual([])
 
+  // A `tsx watch` whose child was killed stays alive doing nothing, and a second run would otherwise orphan the first one's server.
+  await stopLeftovers(supervisors, recorded, dir)
+  rmSync(pidFile, { force: true })
+
   // Without this check, "reconnects after a restart" passes against a server that never stopped.
   await expect
     .poll(apiIsReady, {
@@ -263,7 +426,10 @@ export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids
     .toBe(false)
 
   const server = spawn('pnpm', ['dev'], respawnOptions(dir, port, process.env))
-  if (server.pid !== undefined) writeFileSync(restartedPidFile(tmpdir(), port), String(server.pid))
+  if (server.pid !== undefined) {
+    const started = await infoOf(server.pid)
+    writeFileSync(pidFile, formatPidFile(server.pid, started?.lstart ?? null))
+  }
   server.unref()
   await waitForApi()
   return { stoppedPids, startedPids: await listeningPids(port) }
@@ -336,10 +502,25 @@ export async function createTenant(
  * Gives a verified account a platform role by running express's own bootstrap
  * script in `E2E_API_DIR`, the supported way in, audited as
  * `platform.member.granted`. It must run before the account signs in: the role
- * arrives with the session.
+ * arrives with the session. `E2E_API_DIR` has no default: it throws, through
+ * `grantDirPlan`, when that is unset, missing, or not an express checkout. Any
+ * checkout named explicitly will do, the main one included, since the grant
+ * signals nothing; only `restartApi` requires a separate worktree.
  */
 export async function grantPlatformRole(email: string, role: MembershipRole): Promise<void> {
-  await execFile('pnpm', ['platform:grant', email, role], { cwd: API_DIR, timeout: 60_000 })
+  const checked = grantDirPlan({
+    apiDir: process.env.E2E_API_DIR,
+    realpath: GUARD_FS.realpath,
+    readJson: (file) => {
+      try {
+        return JSON.parse(readFileSync(file, 'utf8')) as { scripts?: unknown }
+      } catch {
+        return null
+      }
+    },
+  })
+  if ('refusal' in checked) throw new Error(checked.refusal)
+  await execFile('pnpm', ['platform:grant', email, role], { cwd: checked.dir, timeout: 60_000 })
 }
 
 /** A slug no earlier run has taken: lowercase, hyphenated, 3 to 100 characters. */
