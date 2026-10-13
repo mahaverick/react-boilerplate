@@ -9,9 +9,11 @@ import {
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { installCurrentTenant } from '@/lib/current-tenant'
+import { installRouteAnalytics } from '@/observability/route-telemetry'
+import * as analytics from '@/observability/telemetry'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -126,6 +128,7 @@ beforeEach(() => {
 afterEach(() => {
   uninstall?.()
   uninstall = null
+  vi.restoreAllMocks()
 })
 
 describe('?tenant on pages without $slug', () => {
@@ -268,6 +271,21 @@ describe('?tenant on pages without $slug', () => {
     expect(router.state.location.href).toBe('/dashboard')
     expect(loads).toEqual(['/dashboard'])
   })
+  it('counts one page view for a page whose ?tenant the guard fills', async () => {
+    serveTenants([ACME])
+    const capturePageview = vi.spyOn(analytics, 'capturePageview').mockImplementation(() => {})
+    const { router } = renderAt('/dashboard')
+    const uninstallAnalytics = installRouteAnalytics(router)
+
+    try {
+      await expectHref(router, '/dashboard?tenant=acme')
+      expect(await findSwitcher('Acme Corp')).toBeInTheDocument()
+      expect(capturePageview).toHaveBeenCalledTimes(1)
+    } finally {
+      uninstallAnalytics()
+    }
+  })
+
   it('neither redirects nor remembers for a hover preload', async () => {
     serveTenants([ACME, GLOBEX])
     const { router } = renderAt('/dashboard?tenant=acme')
