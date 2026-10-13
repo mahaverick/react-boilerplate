@@ -11,13 +11,14 @@ import { useThemeStore } from '@/states/theme.store'
 /**
  * The app's toast host, themed from the theme store. Every toast is masked for
  * analytics: toasts name the member, invitee or address an action touched.
+ * A caller's `className` is merged in, never in place of the mask.
  */
-export function Toaster({ ...props }: ToasterProps) {
+export function Toaster({ className, ...props }: ToasterProps) {
   const theme = useThemeStore((s) => s.theme)
   return (
     <Sonner
       theme={theme}
-      className={cn('toaster group', PII_CLASS_NAME)}
+      className={cn('toaster group', className, PII_CLASS_NAME)}
       style={
         {
           '--normal-bg': 'var(--popover)',
