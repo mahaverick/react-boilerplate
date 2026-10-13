@@ -249,6 +249,14 @@ the component is added again.
   `cn` restriction, comment-style and JSDoc blocks), and the `!` negations in
   `.prettierignore`. A third hand-written file there goes into all five in the same
   change.
+- **A re-add drops these local edits; put them back.** `avatar.tsx`: the fallback
+  and group count use `text-foreground` (contrast). `tabs.tsx`: the panel keeps
+  `rounded-md focus-visible:ring-3 focus-visible:ring-ring/50` (WCAG 2.4.7).
+  `badge`, `button`, `switch`, `tabs` and the sidebar rail name their transition
+  properties instead of `transition-all`. The sidebar rail uses `after:w-0.5` and
+  the dropdown `min-w-24`. `shadcn init` also overwrites `src/lib/utils.ts`,
+  `src/hooks/use-mobile.ts` and `sonner.tsx`, and resets `--muted-foreground`
+  and `--destructive` in `globals.css`, which `pnpm test:contrast` then fails.
 - **The vitest config's coverage `exclude` is the inverse list.** It names the
   vendored files, so a new vendored file goes there and a hand-written one stays
   out.
