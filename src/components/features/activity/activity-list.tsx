@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { actorName, auditSentence } from '@/constants/audit-actions'
+import { useNow } from '@/hooks/use-now'
 import { absoluteTime, relativeTime } from '@/lib/relative-time'
 import type { AuditEntry } from '@/types/api.types'
 
@@ -43,6 +44,7 @@ export interface ActivityListProps<T extends AuditEntry> {
  * text, visually hidden.
  */
 function ActivityRow<T extends AuditEntry>({ entry }: { entry: T }) {
+  const now = useNow()
   const absolute = absoluteTime(entry.occurredAt)
   return (
     <li className="grid gap-1 py-3">
@@ -57,7 +59,7 @@ function ActivityRow<T extends AuditEntry>({ entry }: { entry: T }) {
         )}
         <Tooltip>
           <TooltipTrigger className="cursor-default underline decoration-dotted underline-offset-2">
-            <time dateTime={entry.occurredAt}>{relativeTime(entry.occurredAt)}</time>
+            <time dateTime={entry.occurredAt}>{relativeTime(entry.occurredAt, now)}</time>
             <span className="sr-only">, {absolute}</span>
           </TooltipTrigger>
           <TooltipContent>{absolute}</TooltipContent>
