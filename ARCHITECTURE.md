@@ -233,8 +233,10 @@ queries stay out of the entry chunk. `_app` owns the param:
   leaves the URL as it is, so the page is never bounced and never held for
   long; the read stays in flight for the shell, and the first time the list
   query holds data the guard runs again (`router.invalidate()`, through
-  `rerunTenantGuard`, which uses the router `installCurrentTenant` was given),
-  so the fill or correction still lands, replacing the entry. If the guard's
+  `armTenantGuardRerun`), so the fill or correction still lands, replacing the
+  entry. That watch belongs to the router `installCurrentTenant` was given:
+  uninstalling or replacing the router stops it, so it never re-runs another
+  router's guards, such as the next user's after a sign-out. If the guard's
   chunk itself cannot be fetched, `_app` notes the failure
   (`noteError(…, 'chunk_load', true)`) and renders the page; `retainTenant`
   still carries the tenant. A hover preload is never redirected and remembers
