@@ -11,7 +11,7 @@ import {
   setAnalyticsOptOut,
   setTenantGroup,
   whenAnalyticsSettled,
-} from '@/observability/analytics/analytics'
+} from '@/observability/telemetry/telemetry'
 import { analyticsConfigFor, posthogDefault, resetFakePosthog, sdk } from '@/tests/mocks/posthog'
 
 vi.mock('posthog-js', async () => {

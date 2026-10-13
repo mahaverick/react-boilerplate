@@ -7,7 +7,7 @@ import {
 import { API_PREFIX } from '@/constants/routes'
 import { broadcastLogout, ensureSession, isAuthVerdict, redirectToLogin } from '@/http/session'
 import { createTraceparent } from '@/http/traceparent'
-import { getAnalyticsSessionIdFor } from '@/observability/analytics'
+import { getAnalyticsSessionIdFor } from '@/observability/telemetry'
 import { useAuthStore } from '@/states/auth.store'
 import { ACCESS_TOKEN_EXPIRED, REAUTH_REQUIRED, type ApiErrorBody } from '@/types/api.types'
 

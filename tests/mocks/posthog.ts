@@ -7,7 +7,7 @@
 import type { PostHog } from 'posthog-js'
 import { vi } from 'vitest'
 import { parseRuntimeConfig } from '@/configs/runtime-config'
-import { analyticsConfigFrom, type AnalyticsConfig } from '@/observability/analytics/config'
+import { analyticsConfigFrom, type AnalyticsConfig } from '@/observability/telemetry/config'
 
 /**
  * An analytics configuration from raw run-time values, keyed by container

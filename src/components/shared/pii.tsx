@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { PII_CLASS_NAME } from '@/observability/analytics'
+import { PII_CLASS_NAME } from '@/observability/telemetry'
 
 /** The elements `<Pii>` can render as. */
 type PiiElement = 'span' | 'div' | 'p' | 'pre' | 'dd' | 'li'

@@ -11,14 +11,14 @@ import {
   isAuthVerdict,
 } from '@/http/session'
 import { installMaintenanceModeInterceptor } from '@/lib/maintenance-mode'
-import { forgetStaleIdentity } from '@/observability/analytics'
 import { setErrorRouteSource } from '@/observability/errors'
 import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
 import {
   installFlagScopeReset,
   installRouteFeatureProperties,
 } from '@/observability/flags/flag-scope'
-import { installRouteAnalytics } from '@/observability/route-analytics'
+import { installRouteAnalytics } from '@/observability/route-telemetry'
+import { forgetStaleIdentity } from '@/observability/telemetry'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 

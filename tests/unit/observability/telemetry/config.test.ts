@@ -9,7 +9,7 @@ import {
   getAnalyticsConfig,
   isAnalyticsAvailable,
   SUPPORTS_HANDOFF,
-} from '@/observability/analytics/config'
+} from '@/observability/telemetry/config'
 import { analyticsConfigFor } from '@/tests/mocks/posthog'
 
 const KEY = 'phc_test_key_not_real'

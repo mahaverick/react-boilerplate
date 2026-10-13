@@ -10,7 +10,7 @@ import {
   clearTenantGroup,
   setTenantGroup,
   type AnalyticsTenantAccess,
-} from '@/observability/analytics'
+} from '@/observability/telemetry'
 
 /** The layout route every tenant page sits under; its loader resolves the tenant. */
 export const TENANT_ROUTE_ID = '/_app/tenants/$slug'

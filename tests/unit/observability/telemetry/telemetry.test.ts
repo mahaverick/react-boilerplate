@@ -1,5 +1,6 @@
 import type { CaptureResult } from 'posthog-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/telemetry/config'
 import {
   capturePageview,
   clearTenantGroup,
@@ -23,8 +24,7 @@ import {
   subscribeIdentitySuperseded,
   SUPERSEDED_RECHECK_MS,
   track,
-} from '@/observability/analytics/analytics'
-import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/analytics/config'
+} from '@/observability/telemetry/telemetry'
 import {
   analyticsConfigFor,
   instance,

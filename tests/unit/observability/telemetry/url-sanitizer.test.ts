@@ -5,7 +5,7 @@ import {
   MAX_SANITIZE_DEPTH,
   sanitizeEventUrls,
   sanitizeUrl,
-} from '@/observability/analytics/url-sanitizer'
+} from '@/observability/telemetry/url-sanitizer'
 import { server } from '@/tests/mocks/server'
 
 const ALLOW = ['tab']

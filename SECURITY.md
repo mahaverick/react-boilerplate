@@ -27,7 +27,7 @@ browser storage is readable by whoever runs the page, so:
   Where express's `COOKIE_DOMAIN` covers this app's host and apex's, that cookie
   is apex's too, so a sign-in there as someone else ends this tab's session at
   its next refresh (`SessionIdentityChangedError`, below). Where the app's
-  analytics configuration shares it (`src/observability/analytics/config.ts`),
+  analytics configuration shares it (`src/observability/telemetry/config.ts`),
   the analytics identity cookie is shared with a website on a sibling
   subdomain. The analytics opt-out and consent state is keyed by the PostHog
   project key alone, so another app served from this host with the same key
@@ -255,7 +255,7 @@ posthog-js loads only when a PostHog key is set and the consent mode is not
 (`pnpm check:bundle`). Without it every call is a no-op.
 
 Three behaviours depend on per-app constants in
-`src/observability/analytics/config.ts`, so the bullets that rely on them say
+`src/observability/telemetry/config.ts`, so the bullets that rely on them say
 so: whether consent modes are honoured (`SUPPORTS_CONSENT_MODES`; an app
 that says no always runs `opt_out`), whether the cross-domain handoff is
 read (`SUPPORTS_HANDOFF`), and whether the identity cookie is shared with
@@ -264,7 +264,7 @@ sibling subdomains (`ANALYTICS_PERSISTENCE_NAME`,
 too.
 
 - **Typed events carry no free text.** Every event and its properties are
-  declared in `src/observability/analytics/events.ts`. A property typed as
+  declared in `src/observability/telemetry/event-registry.ts`. A property typed as
   any string fails `REGISTRY_HAS_NO_FREE_STRINGS` at compile time, and a key
   passed to `analyticsKey` must be a lowercase literal without a space, `@`,
   `.`, `/`, `:`, `?`, `=`, `&` or `#`. A free string is how a name, an
@@ -286,9 +286,9 @@ too.
   attribute outside the list may not. Replay records no request headers,
   bodies or JSON-LD, and each recorded request URL is sanitised.
 - **Captured URLs keep only allowlisted query keys.**
-  `ANALYTICS_URL_QUERY_ALLOWLIST` (`src/observability/analytics/config.ts`)
+  `ANALYTICS_URL_QUERY_ALLOWLIST` (`src/observability/telemetry/config.ts`)
   is the whole list: `tab`; the sanitizer
-  (`src/observability/analytics/url-sanitizer.ts`) runs as `before_send` and
+  (`src/observability/telemetry/url-sanitizer.ts`) runs as `before_send` and
   rewrites every absolute http(s) string in an event's properties, `$set` and
   `$set_once`, to eight levels deep, plus the hrefs in `$elements` and
   `$elements_chain` and the keys of `$heatmap_data`. The fragment goes, and
@@ -298,7 +298,7 @@ too.
   allowlist only when its values can never be a token, an address, a search
   term or a redirect.
 - **Events never cross people** (`guardEvent` in
-  `src/observability/analytics/analytics.ts`). posthog-js adopts the
+  `src/observability/telemetry/telemetry.ts`). posthog-js adopts the
   identity cookie before every event, and where `config.ts` shares that
   cookie a sibling-subdomain website can change it, so while a user is signed
   in, any event under another distinct id is dropped.

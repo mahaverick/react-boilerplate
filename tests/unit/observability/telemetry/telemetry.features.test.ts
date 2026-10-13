@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ANALYTICS_APP } from '@/observability/telemetry/config'
 import {
   confirmSignedInUser,
   forgetStaleIdentity,
@@ -10,8 +11,7 @@ import {
   resetAnalyticsForTests,
   unregisterFeatureProperties,
   yieldSharedIdentity,
-} from '@/observability/analytics/analytics'
-import { ANALYTICS_APP } from '@/observability/analytics/config'
+} from '@/observability/telemetry/telemetry'
 import {
   analyticsConfigFor,
   instance,

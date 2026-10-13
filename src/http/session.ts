@@ -2,6 +2,9 @@ import type { QueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
+import { clearExposureDedupe } from '@/observability/flags/exposure'
+import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
+import { clearFlags } from '@/observability/flags/flag-query'
 import {
   confirmSignedInUser,
   identifyUser,
@@ -9,10 +12,7 @@ import {
   setAnalyticsOptOut,
   subscribeIdentitySuperseded,
   yieldSharedIdentity,
-} from '@/observability/analytics'
-import { clearExposureDedupe } from '@/observability/flags/exposure'
-import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
-import { clearFlags } from '@/observability/flags/flag-query'
+} from '@/observability/telemetry'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, User } from '@/types/api.types'
 

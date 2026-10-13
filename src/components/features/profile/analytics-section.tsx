@@ -7,7 +7,7 @@ import {
   grantAnalyticsConsent,
   isAnalyticsAvailable,
   type AnalyticsConfig,
-} from '@/observability/analytics'
+} from '@/observability/telemetry'
 import { useUpdateAnalyticsOptOut } from '@/queries/profile.queries'
 import type { User } from '@/types/api.types'
 

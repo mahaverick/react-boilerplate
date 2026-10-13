@@ -3,15 +3,15 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   ANALYTICS_CROSS_SUBDOMAIN_COOKIE,
   ANALYTICS_PERSISTENCE_NAME,
-} from '@/observability/analytics/config'
-import { maskReplayAttribute } from '@/observability/analytics/mask-attribute'
+} from '@/observability/telemetry/config'
+import { maskReplayAttribute } from '@/observability/telemetry/mask-attribute'
 import {
   buildPosthogOptions,
   CUSTOM_PERSONAL_DATA_PROPERTIES,
   MASK_TEXT_SELECTOR,
   PII_CLASS_NAME,
   type PosthogOptionsInput,
-} from '@/observability/analytics/posthog-options'
+} from '@/observability/telemetry/posthog-options'
 
 /** A complete options input for `buildPosthogOptions`, with any field overridden. */
 function input(overrides: Partial<PosthogOptionsInput> = {}): PosthogOptionsInput {

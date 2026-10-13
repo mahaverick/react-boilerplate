@@ -5,7 +5,7 @@ import {
   rawFromViteEnv,
   resetRuntimeConfigForTests,
 } from '@/configs/runtime-config'
-import { readHandoff } from '@/observability/analytics/handoff'
+import { readHandoff } from '@/observability/telemetry/handoff'
 
 const KEY = 'phc_test_key_not_real'
 

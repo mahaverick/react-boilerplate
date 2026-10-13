@@ -3,14 +3,14 @@ import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installInterceptors } from '@/http/interceptors'
 import { ensureSession, installAnalyticsIdentity, resetSessionForTests } from '@/http/session'
+import { EXPOSURE_DEDUPE_PREFIX } from '@/observability/flags/exposure'
+import { flagKeys } from '@/observability/flags/flag-query'
 import {
   capturePageview,
   initAnalytics,
   resetAnalyticsForTests,
   SUPERSEDED_RECHECK_MS,
-} from '@/observability/analytics/analytics'
-import { EXPOSURE_DEDUPE_PREFIX } from '@/observability/flags/exposure'
-import { flagKeys } from '@/observability/flags/flag-query'
+} from '@/observability/telemetry/telemetry'
 import { bootstrapSession, queryClient } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
 import { USER_ID, USER_ID_2 } from '@/tests/fixtures/ids'

@@ -28,12 +28,12 @@ export {
   unregisterFeatureProperties,
   whenAnalyticsSettled,
   yieldSharedIdentity,
-} from './analytics'
+} from './telemetry'
 export {
   getAnalyticsConfig,
   type AnalyticsConfig,
   type AnalyticsConsentMode,
   isAnalyticsAvailable,
 } from './config'
-export { type AnalyticsKey, analyticsKey, type BrowserEvent } from './events'
+export { type AnalyticsKey, analyticsKey, type BrowserEvent } from './event-registry'
 export { PII_CLASS_NAME } from './posthog-options'

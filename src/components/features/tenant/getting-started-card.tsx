@@ -28,8 +28,8 @@ import { canManageTenant, type MembershipRole } from '@/constants/roles'
 import { useFocusAfter, type FocusAfter } from '@/hooks/use-focus-after'
 import { messageFrom } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
-import { analyticsKey, track, type AnalyticsKey } from '@/observability/analytics'
 import { useVariant } from '@/observability/flags/flag-hooks'
+import { analyticsKey, track, type AnalyticsKey } from '@/observability/telemetry'
 import {
   tenantOnboardingQueryOptions,
   useCompleteOnboardingStep,

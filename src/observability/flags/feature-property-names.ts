@@ -3,7 +3,7 @@
  * state `register.ts` syncs against, and the session and the router forget
  * when analytics forgets the person.
  */
-import type { FeaturePropertyName } from '@/observability/analytics'
+import type { FeaturePropertyName } from '@/observability/telemetry'
 
 /** The names and values last registered, so a later sync can drop or skip them. */
 export const registeredFeatureProperties = new Map<FeaturePropertyName, boolean | string>()

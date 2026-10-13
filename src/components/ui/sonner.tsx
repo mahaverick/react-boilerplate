@@ -5,7 +5,7 @@
  */
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 import { cn } from '@/lib/utils'
-import { PII_CLASS_NAME } from '@/observability/analytics'
+import { PII_CLASS_NAME } from '@/observability/telemetry'
 import { useThemeStore } from '@/states/theme.store'
 
 /**
