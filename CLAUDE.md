@@ -405,26 +405,50 @@ hold:
 It signals only listeners whose working directory is inside that worktree. The
 rules are `restartPlan` and `stopListenersIn` in `scripts/api-restart-guard.mjs`.
 To run it, give express a worktree whose `.env` comes from `.env.example`, never
-from the main checkout's: `APP_PORT=4999`, a database of its own and its own
-`REDIS_KEY_PREFIX`, so the run's accounts and keys stay out of the dev ones.
+from the main checkout's, and services of its own: throwaway Postgres, Redis and
+Mailpit containers, never the dev ones on 5433, 6380 and 8025. The run registers
+accounts and restarts servers, so it stays out of the dev database, keys and mail.
+
+`.env.example` leaves several required values empty, and express refuses to boot
+without them. Set `APP_PORT=4999`, `APP_URL=http://localhost:4999`,
+`WEB_URL=http://localhost:8089`, `DATABASE_URL`, `REDIS_URL`, `SMTP_PORT`, an
+`openssl rand -hex 32` for each of `JWT_ACCESS_SECRET` and `SESSION_SECRET`, and
+`REDIS_KEY_PREFIX=express-sse`. `WEB_URL` must be the image's origin
+(`E2E_NGINX_ORIGIN`): `/auth/refresh` refuses a browser `Origin` that is not
+`WEB_URL`, `APEX_URL` or in `CORS_ALLOWED_ORIGINS`, and the test's full page load
+refreshes the session. The helpers read the verification email from
+`E2E_MAILPIT_ORIGIN`, so point it at the run's Mailpit, not the default :8025.
 
 ```sh
-git -C ../express-boilerplate worktree add ../express-sse
-docker exec express-boilerplate-postgres-1 createdb -U boilerplate boilerplate_sse
-# In ../express-sse: write .env with APP_PORT=4999, REDIS_KEY_PREFIX=express-sse and
-#   DATABASE_URL=postgres://boilerplate:boilerplate@127.0.0.1:5433/boilerplate_sse,
-#   then: pnpm install && pnpm db:migrate && pnpm dev
+git -C ../express-boilerplate worktree add --detach ../express-sse origin/main
+docker run -d --name sse-pg -p 127.0.0.1:5547:5432 -e POSTGRES_USER=boilerplate \
+  -e POSTGRES_PASSWORD=boilerplate -e POSTGRES_DB=boilerplate_sse postgres:18
+docker run -d --name sse-redis -p 127.0.0.1:6393:6379 redis:7.2-alpine
+docker run -d --name sse-mailpit -p 127.0.0.1:8129:8025 -p 127.0.0.1:1129:1025 \
+  axllent/mailpit:v1.31.1 --smtp-disable-rdns
+# In ../express-sse: cp .env.example .env, then set the values above, with
+#   DATABASE_URL=postgres://boilerplate:boilerplate@127.0.0.1:5547/boilerplate_sse,
+#   REDIS_URL=redis://127.0.0.1:6393 and SMTP_PORT=1129. Then:
+#   pnpm install && pnpm db:migrate && TMPDIR=/tmp pnpm dev
 docker build -t react-boilerplate:e2e .
 docker run -d --name rb-e2e-sse -p 8089:8080 --read-only --tmpfs /tmp \
   --add-host=api:host-gateway -e API_UPSTREAM=http://api:4999 react-boilerplate:e2e
-E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
-  E2E_API_ORIGIN=http://localhost:4999 E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
+TMPDIR=/tmp E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
+  E2E_API_ORIGIN=http://localhost:4999 E2E_MAILPIT_ORIGIN=http://localhost:8129 \
+  E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
   pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
-docker rm -f rb-e2e-sse
 # Stop the pnpm dev you started (Ctrl-C), then the detached server the run restarted:
-PID_FILE="$(node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
+PID_FILE="$(TMPDIR=/tmp node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
 kill -TERM -"$(cat "$PID_FILE")" && rm -f "$PID_FILE"
+docker rm -f rb-e2e-sse sse-pg sse-redis sse-mailpit
+git -C ../express-boilerplate worktree remove --force ../express-sse
 ```
+
+The restart stops only the listener, so the `tsx watch` of the `pnpm dev` you
+started stays alive with no server under it: stop it yourself. Stop the restarted
+server before running the test again, too. Each run deletes the previous pid file
+before it restarts, so a second run leaves the first restarted server's `tsx
+watch` running with no pid file to find it by.
 
 Run `pnpm dev` in the worktree, and the test, with a short `TMPDIR` (for example
 `TMPDIR=/tmp`). `tsx watch` opens its IPC socket at `$TMPDIR/tsx-<uid>/<pid>.pipe`,
