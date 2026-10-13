@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.2](https://github.com/mahaverick/react-boilerplate/compare/v2.3.1...v2.3.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **a11y:** hide the vendored ui icons from assistive tech ([#95](https://github.com/mahaverick/react-boilerplate/issues/95)) ([0638cc7](https://github.com/mahaverick/react-boilerplate/commit/0638cc788fbafe73151000975c17f75247f1238f))
+
 ## [2.3.1](https://github.com/mahaverick/react-boilerplate/compare/v2.3.0...v2.3.1) (2026-10-13)
 
 
