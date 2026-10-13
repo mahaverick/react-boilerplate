@@ -4,7 +4,7 @@
  * restart of the express under test.
  */
 import { execFile as execFileCallback, spawn } from 'node:child_process'
-import { realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -12,11 +12,13 @@ import { expect, type Page } from '@playwright/test'
 import type { MembershipRole } from '@/constants/roles'
 import {
   cwdFromLsofFields,
-  forgetRestartedServer,
+  recordedServerToStop,
   respawnOptions,
   restartedPidFile,
   restartPlan,
+  stopInside,
   stopListenersIn,
+  supervisorsToStop,
 } from '../../scripts/api-restart-guard.mjs'
 import { settle } from '../timing'
 
@@ -167,6 +169,16 @@ async function portFreedWithin(port: string, timeoutMs: number): Promise<boolean
   return true
 }
 
+/** Whether every pid, or `-pid` group, in `ids` has exited within `timeoutMs`. */
+async function processesGoneWithin(ids: number[], timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (ids.some(isAlive)) {
+    if (Date.now() >= deadline) return false
+    await settle(100, 'poll interval')
+  }
+  return true
+}
+
 /**
  * What `restartApi` may do here, or why it refuses: `restartPlan` from
  * `scripts/api-restart-guard.mjs`, applied to this process's environment and
@@ -212,27 +224,83 @@ async function cwdOf(pid: number): Promise<string | null> {
 }
 
 /**
+ * One `ps` column for a pid, or `null` when the process is gone.
+ * @param pid - The process.
+ * @param column - The `ps -o` keyword, such as `ppid` or `command`.
+ * @returns The column's text, trimmed, or `null`.
+ */
+async function psColumn(pid: number, column: string): Promise<string | null> {
+  const { stdout } = await execFile('ps', ['-o', `${column}=`, '-p', String(pid)]).catch(() => ({
+    stdout: '',
+  }))
+  const value = stdout.trim()
+  return value === '' ? null : value
+}
+
+/**
+ * Whether a pid, or a process group given as `-pid`, has a live process.
+ * @param id - The pid, or the negated group id.
+ * @returns `true` while it can be signalled.
+ */
+function isAlive(id: number): boolean {
+  try {
+    process.kill(id, 0)
+    return true
+  } catch (error) {
+    // EPERM: alive, but another user's; never ours to stop, yet not gone either.
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+/** The pid file's contents, or `null` when there is none. */
+function readPidFile(file: string): string | null {
+  try {
+    return readFileSync(file, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+/**
  * Stops whatever is listening on the API port, then starts a new one.
  *
  * Finds the server by port rather than by a pid this process spawned, because
  * the API is started outside the test run and the SSE test has to restart that
  * one; it stops only listeners running inside the checked worktree. Refuses, by
- * throwing, unless `apiRestartRefusal` allows it. The replacement server starts
- * in the resolved worktree with `APP_PORT` set to the checked port, so it never falls
- * back to its `.env` port (4040 by default). It stays running, detached; its
- * pid, which is also its process group, is written to
- * `restartedPidFile(os.tmpdir(), port)`, after any file an earlier run left
- * there is deleted. Returns the listener pids before the stop and after the
- * replacement is ready, so a caller can tell a real restart from none.
+ * throwing, unless `apiRestartRefusal` allows it. It also stops what would be
+ * left behind with nothing to do: each listener's `tsx watch` supervisor, and
+ * the server an earlier restart recorded in the pid file, each only when it
+ * runs inside the worktree. The replacement server starts in the resolved
+ * worktree with `APP_PORT` set to the checked port, so it never falls back to
+ * its `.env` port (4040 by default). It stays running, detached; its pid, which
+ * is also its process group, replaces the one in
+ * `restartedPidFile(os.tmpdir(), port)`. Returns the listener pids before the
+ * stop and after the replacement is ready, so a caller can tell a real restart
+ * from none.
  */
 export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids: number[] }> {
-  forgetRestartedServer(API_ORIGIN, tmpdir(), (file) => {
-    rmSync(file, { force: true })
-  })
   const plan = apiRestartPlan()
   if ('refusal' in plan) throw new Error(plan.refusal)
   const { port, dir } = plan
+  const pidFile = restartedPidFile(tmpdir(), port)
+  const recorded = await recordedServerToStop({
+    recorded: readPidFile(pidFile),
+    dir,
+    isAlive,
+    cwdOf,
+  })
   const stoppedPids = await listeningPids(port)
+  // Read before the stop: once a listener exits, its parent pid is gone.
+  const supervisors = await supervisorsToStop({
+    pids: stoppedPids,
+    dir,
+    parentOf: async (pid) => {
+      const parent = Number(await psColumn(pid, 'ppid'))
+      return Number.isInteger(parent) && parent > 0 ? parent : null
+    },
+    commandOf: (pid) => psColumn(pid, 'command'),
+    cwdOf,
+  })
 
   // Stop every pid holding the port, not one process group: `pnpm dev` is `tsx watch`, whose child is the real server and would keep listening, so a "reconnects after a restart" test would measure a stream never interrupted.
   await stopListenersIn({
@@ -253,6 +321,22 @@ export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids
     })
     .toEqual([])
 
+  // A `tsx watch` whose child was killed stays alive doing nothing, and a second run would otherwise orphan the first one's server.
+  await stopInside({
+    targets: [
+      ...supervisors.map((pid) => ({ pid, group: false })),
+      ...(recorded === null ? [] : [{ pid: recorded, group: true }]),
+    ],
+    dir,
+    isAlive,
+    cwdOf,
+    signal: (id, name) => {
+      signalAll([id], name)
+    },
+    goneWithin: (ids, ms) => processesGoneWithin(ids, ms),
+  })
+  rmSync(pidFile, { force: true })
+
   // Without this check, "reconnects after a restart" passes against a server that never stopped.
   await expect
     .poll(apiIsReady, {
@@ -263,7 +347,7 @@ export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids
     .toBe(false)
 
   const server = spawn('pnpm', ['dev'], respawnOptions(dir, port, process.env))
-  if (server.pid !== undefined) writeFileSync(restartedPidFile(tmpdir(), port), String(server.pid))
+  if (server.pid !== undefined) writeFileSync(pidFile, String(server.pid))
   server.unref()
   await waitForApi()
   return { stoppedPids, startedPids: await listeningPids(port) }

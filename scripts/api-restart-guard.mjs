@@ -179,13 +179,110 @@ export function restartedPidFile(tmpdir, port) {
 }
 
 /**
- * Deletes the pid file an earlier restart on this origin's port left, so a
- * run that fails before it starts a server leaves no stale pid to kill.
- * @param origin - `E2E_API_ORIGIN`.
- * @param tmpdir - The system temporary directory.
- * @param remove - Deletes a file, doing nothing when it is missing.
+ * The pid a restart recorded in its pid file, or `null` when the text holds no
+ * pid above 1: an empty, partly written or hand-edited file names nothing to stop.
+ * @param text - The pid file's contents, or `null` when there is no file.
+ * @returns The pid, or `null`.
  */
-export function forgetRestartedServer(origin, tmpdir, remove) {
-  const port = explicitPortOf(origin)
-  if (port !== null) remove(restartedPidFile(tmpdir, port))
+export function parseRecordedPid(text) {
+  const trimmed = text?.trim() ?? ''
+  if (!/^\d+$/.test(trimmed)) return null
+  const pid = Number(trimmed)
+  return pid > 1 ? pid : null
+}
+
+/**
+ * The server an earlier restart left running, which this restart stops before
+ * it records its own, so a second run never orphans the first one's server.
+ * `null`, so the file is only replaced, when the file names no pid, the
+ * process is gone, or the pid now belongs to a process outside `dir` or whose
+ * working directory cannot be read.
+ * @param input - The recorded text, the worktree and the process reads, injected.
+ * @param input.recorded - The pid file's contents, or `null` when there is no file.
+ * @param input.dir - The checked, resolved worktree.
+ * @param input.isAlive - Whether a pid is running.
+ * @param input.cwdOf - A pid's working directory, or `null` when unknown.
+ * @returns The pid, which leads its process group, or `null`.
+ */
+export async function recordedServerToStop({ recorded, dir, isAlive, cwdOf }) {
+  const pid = parseRecordedPid(recorded)
+  if (pid === null || !isAlive(pid)) return null
+  return isWithin(await cwdOf(pid), dir) ? pid : null
+}
+
+/**
+ * Whether a command line is `tsx watch`, the supervisor `pnpm dev` runs: its
+ * child holds the port, and it outlives that child doing nothing.
+ * @param command - The full command line, as `ps -o command=` prints it.
+ * @returns `true` for `tsx watch`, by binary or by its `tsx/dist/cli.mjs`.
+ */
+export function isTsxWatch(command) {
+  return /(^|[\s/])tsx(\/dist\/cli\.mjs)?\s+watch(\s|$)/.test(command ?? '')
+}
+
+/**
+ * The `tsx watch` supervisors of the listeners about to be stopped, read
+ * before the stop: once a listener exits its parent pid is gone. A parent is
+ * one only when it runs `tsx watch` inside `dir`, so a shell or any other
+ * process that started a listener is never stopped. Init (pid 1) never is.
+ * @param input - The listeners, the worktree and the process reads, injected.
+ * @param input.pids - The listener pids.
+ * @param input.dir - The checked, resolved worktree.
+ * @param input.parentOf - A pid's parent pid, or `null` when unknown.
+ * @param input.commandOf - A pid's command line, or `null` when unknown.
+ * @param input.cwdOf - A pid's working directory, or `null` when unknown.
+ * @returns The supervisor pids, each once.
+ */
+export async function supervisorsToStop({ pids, dir, parentOf, commandOf, cwdOf }) {
+  const supervisors = []
+  for (const pid of pids) {
+    const parent = await parentOf(pid)
+    if (parent === null || parent <= 1 || supervisors.includes(parent) || pids.includes(parent)) {
+      continue
+    }
+    if (!isTsxWatch(await commandOf(parent))) continue
+    if (isWithin(await cwdOf(parent), dir)) supervisors.push(parent)
+  }
+  return supervisors
+}
+
+/**
+ * Stops processes, or whole process groups, that run inside `dir`: SIGTERM,
+ * then SIGKILL for any still alive after 3 s. Before each signal it reads the
+ * target's working directory again (a group's, through its leader) and skips
+ * one that is gone, outside `dir` or unreadable, so a reused pid is never hit.
+ * @param input - The targets, the worktree and the process operations, injected.
+ * @param input.targets - Each `{ pid, group }`; `group` signals `-pid`, the whole group.
+ * @param input.dir - The checked, resolved worktree.
+ * @param input.isAlive - Whether a target (`pid`, or `-pid` for a group) is running.
+ * @param input.cwdOf - A pid's working directory, or `null` when unknown.
+ * @param input.signal - Sends a signal to a pid, or to a group as `-pid`.
+ * @param input.goneWithin - Whether none of the given targets is alive within a time, in ms.
+ * @returns Resolves once every target is gone after SIGTERM, or once SIGKILL has been sent.
+ */
+export async function stopInside({ targets, dir, isAlive, cwdOf, signal, goneWithin }) {
+  /**
+   * What a target is signalled as.
+   * @param target - A `{ pid, group }` target.
+   * @returns `-pid` for a group, otherwise the pid.
+   */
+  const idOf = (target) => (target.group ? -target.pid : target.pid)
+  /**
+   * Sends `name` to every target still alive and inside `dir`.
+   * @param name - The signal to send.
+   * @returns The ids signalled.
+   */
+  const signalInside = async (name) => {
+    const signalled = []
+    for (const target of targets) {
+      if (!isAlive(idOf(target))) continue
+      if (!isWithin(await cwdOf(target.pid), dir)) continue
+      signal(idOf(target), name)
+      signalled.push(idOf(target))
+    }
+    return signalled
+  }
+  const termed = await signalInside('SIGTERM')
+  if (termed.length === 0 || (await goneWithin(termed, 3000))) return
+  await signalInside('SIGKILL')
 }

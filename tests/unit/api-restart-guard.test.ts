@@ -3,12 +3,16 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   cwdFromLsofFields,
   explicitPortOf,
-  forgetRestartedServer,
+  isTsxWatch,
   isWithin,
+  parseRecordedPid,
+  recordedServerToStop,
   respawnOptions,
   restartedPidFile,
   restartPlan,
+  stopInside,
   stopListenersIn,
+  supervisorsToStop,
 } from '../../scripts/api-restart-guard.mjs'
 
 const MAIN = '/work/express-boilerplate'
@@ -209,16 +213,178 @@ describe('restartedPidFile', () => {
   })
 })
 
-describe('forgetRestartedServer', () => {
-  it('deletes the pid file for the origin’s port', () => {
-    const remove = vi.fn<(path: string) => void>()
-    forgetRestartedServer('http://localhost:4999', '/tmp/t', remove)
-    expect(remove.mock.calls).toEqual([['/tmp/t/react-e2e-restarted-api-4999.pid']])
+describe('parseRecordedPid', () => {
+  it('reads a pid, ignoring surrounding whitespace', () => {
+    expect(parseRecordedPid('4321\n')).toBe(4321)
   })
 
-  it('deletes nothing for an origin without an explicit port', () => {
-    const remove = vi.fn<(path: string) => void>()
-    forgetRestartedServer('http://localhost', '/tmp/t', remove)
-    expect(remove).not.toHaveBeenCalled()
+  it.each([
+    ['no file', null],
+    ['an empty file', ''],
+    ['text that is not a pid', '12ab'],
+    ['a negative number', '-12'],
+    ['init', '1'],
+    ['zero', '0'],
+  ])('names nothing for %s', (_case, text) => {
+    expect(parseRecordedPid(text)).toBeNull()
+  })
+})
+
+describe('recordedServerToStop', () => {
+  /** The decision for a recorded `text` over processes `alive` (pid → cwd). */
+  function decide(text: string | null, alive: Record<number, string | null>) {
+    return recordedServerToStop({
+      recorded: text,
+      dir: WORKTREE,
+      isAlive: (pid) => pid in alive,
+      cwdOf: (pid) => Promise.resolve(alive[pid] ?? null),
+    })
+  }
+
+  it('stops the recorded server while it is alive inside the worktree', async () => {
+    await expect(decide('41', { 41: WORKTREE })).resolves.toBe(41)
+  })
+
+  it('only replaces the file when the recorded server is gone', async () => {
+    await expect(decide('41', {})).resolves.toBeNull()
+  })
+
+  it.each([
+    ['in another checkout', MAIN],
+    ['beside the worktree', `${WORKTREE}-other`],
+    ['with an unreadable cwd', null],
+  ])('leaves a reused pid alone when it runs %s', async (_where, cwd) => {
+    await expect(decide('41', { 41: cwd })).resolves.toBeNull()
+  })
+
+  it('stops nothing without a pid file', async () => {
+    await expect(decide(null, { 41: WORKTREE })).resolves.toBeNull()
+  })
+})
+
+describe('isTsxWatch', () => {
+  it.each([
+    'node /w/node_modules/.bin/../tsx/dist/cli.mjs watch --env-file-if-exists=.env src/index.ts',
+    'tsx watch src/index.ts',
+    '/w/node_modules/.bin/tsx watch src/index.ts',
+  ])('recognises %s', (command) => {
+    expect(isTsxWatch(command)).toBe(true)
+  })
+
+  it.each([
+    ['a shell', '/bin/zsh -c pnpm dev'],
+    ['pnpm itself', 'node /usr/local/bin/pnpm dev'],
+    ['the server tsx started', 'node --require /w/tsx/dist/preflight.cjs src/index.ts'],
+    ['tsx without watch', 'tsx src/index.ts'],
+    ['a watcher of another name', 'notsx watch'],
+    ['an unknown command', null],
+  ])('rejects %s', (_case, command) => {
+    expect(isTsxWatch(command)).toBe(false)
+  })
+})
+
+describe('supervisorsToStop', () => {
+  const TSX_WATCH = 'node /w/node_modules/tsx/dist/cli.mjs watch src/index.ts'
+
+  /** The supervisors of `pids` over a process table (pid → parent, command, cwd). */
+  function supervisors(
+    pids: number[],
+    table: Record<number, { parent: number | null; command?: string; cwd?: string | null }>
+  ) {
+    return supervisorsToStop({
+      pids,
+      dir: WORKTREE,
+      parentOf: (pid) => Promise.resolve(table[pid]?.parent ?? null),
+      commandOf: (pid) => Promise.resolve(table[pid]?.command ?? null),
+      cwdOf: (pid) => Promise.resolve(table[pid]?.cwd ?? null),
+    })
+  }
+
+  it('names the tsx watch inside the worktree that started each listener, once', async () => {
+    const found = await supervisors([11, 12], {
+      11: { parent: 10 },
+      12: { parent: 10 },
+      10: { parent: 9, command: TSX_WATCH, cwd: WORKTREE },
+    })
+    expect(found).toEqual([10])
+  })
+
+  it.each([
+    ['a shell', { parent: 9, command: '/bin/zsh', cwd: WORKTREE }],
+    ['a tsx watch in another checkout', { parent: 9, command: TSX_WATCH, cwd: MAIN }],
+    ['a tsx watch with an unreadable cwd', { parent: 9, command: TSX_WATCH, cwd: null }],
+    ['a process that is gone', { parent: 9 }],
+  ])('leaves alone a parent that is %s', async (_case, parent) => {
+    await expect(supervisors([11], { 11: { parent: 10 }, 10: parent })).resolves.toEqual([])
+  })
+
+  it('never names init, an unknown parent, or another listener', async () => {
+    const found = await supervisors([11, 12, 13], {
+      11: { parent: 1 },
+      12: { parent: null },
+      13: { parent: 11, command: TSX_WATCH, cwd: WORKTREE },
+    })
+    expect(found).toEqual([])
+  })
+})
+
+describe('stopInside', () => {
+  /** Process operations over `alive` (pid → cwd); the targets exit after SIGTERM when `exits`. */
+  function processes(alive: Record<number, string | null>, exits: boolean) {
+    return {
+      isAlive: vi.fn((id: number) => Math.abs(id) in alive),
+      cwdOf: vi.fn((pid: number) => Promise.resolve(alive[pid] ?? null)),
+      signal: vi.fn<(id: number, name: 'SIGTERM' | 'SIGKILL') => void>(),
+      goneWithin: vi.fn(() => Promise.resolve(exits)),
+    }
+  }
+
+  it('sends SIGTERM to a supervisor by pid and a recorded server by group, and stops there once they exit', async () => {
+    const ops = processes({ 10: WORKTREE, 40: WORKTREE }, true)
+    await stopInside({
+      targets: [
+        { pid: 10, group: false },
+        { pid: 40, group: true },
+      ],
+      dir: WORKTREE,
+      ...ops,
+    })
+    expect(ops.signal.mock.calls).toEqual([
+      [10, 'SIGTERM'],
+      [-40, 'SIGTERM'],
+    ])
+    expect(ops.goneWithin).toHaveBeenCalledWith([10, -40], 3000)
+  })
+
+  it('sends SIGKILL to a target that outlasts SIGTERM', async () => {
+    const ops = processes({ 40: WORKTREE }, false)
+    await stopInside({ targets: [{ pid: 40, group: true }], dir: WORKTREE, ...ops })
+    expect(ops.signal.mock.calls).toEqual([
+      [-40, 'SIGTERM'],
+      [-40, 'SIGKILL'],
+    ])
+  })
+
+  it.each([
+    ['in another checkout', MAIN],
+    ['with an unreadable cwd', null],
+  ])('signals nothing to a target that runs %s', async (_where, cwd) => {
+    const ops = processes({ 10: cwd }, false)
+    await stopInside({ targets: [{ pid: 10, group: false }], dir: WORKTREE, ...ops })
+    expect(ops.signal).not.toHaveBeenCalled()
+    expect(ops.goneWithin).not.toHaveBeenCalled()
+  })
+
+  it('signals nothing to a target already gone', async () => {
+    const ops = processes({}, true)
+    await stopInside({ targets: [{ pid: 40, group: true }], dir: WORKTREE, ...ops })
+    expect(ops.signal).not.toHaveBeenCalled()
+  })
+
+  it('sends no SIGKILL to a pid that moved outside the worktree after SIGTERM', async () => {
+    const ops = processes({ 10: WORKTREE }, false)
+    ops.cwdOf.mockResolvedValueOnce(WORKTREE).mockResolvedValueOnce(MAIN)
+    await stopInside({ targets: [{ pid: 10, group: false }], dir: WORKTREE, ...ops })
+    expect(ops.signal.mock.calls).toEqual([[10, 'SIGTERM']])
   })
 })

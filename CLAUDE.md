@@ -437,18 +437,20 @@ TMPDIR=/tmp E2E_LIVE=1 E2E_NGINX=1 E2E_NGINX_ORIGIN=http://localhost:8089 \
   E2E_API_ORIGIN=http://localhost:4999 E2E_MAILPIT_ORIGIN=http://localhost:8129 \
   E2E_ALLOW_API_RESTART=1 E2E_API_DIR=../express-sse \
   pnpm exec playwright test --project=nginx e2e/nginx/sse.test.ts
-# Stop the pnpm dev you started (Ctrl-C), then the detached server the run restarted:
+# The run already stopped the pnpm dev you started; stop the server it left running:
 PID_FILE="$(TMPDIR=/tmp node -p 'require("os").tmpdir()')/react-e2e-restarted-api-4999.pid"
 kill -TERM -"$(cat "$PID_FILE")" && rm -f "$PID_FILE"
 docker rm -f rb-e2e-sse sse-pg sse-redis sse-mailpit
 git -C ../express-boilerplate worktree remove --force ../express-sse
 ```
 
-The restart stops only the listener, so the `tsx watch` of the `pnpm dev` you
-started stays alive with no server under it: stop it yourself. Stop the restarted
-server before running the test again, too. Each run deletes the previous pid file
-before it restarts, so a second run leaves the first restarted server's `tsx
-watch` running with no pid file to find it by.
+The test can run again without any of this cleanup in between. Each restart
+also stops the `tsx watch` that supervised each listener, which would otherwise
+stay alive with no server under it, and the server the pid file records from an
+earlier run, then records its own. Either is stopped only while its working
+directory is inside `E2E_API_DIR` (`supervisorsToStop`, `recordedServerToStop`
+and `stopInside` in `scripts/api-restart-guard.mjs`), so a stale pid that now
+belongs to another process is left alone and the file is just replaced.
 
 Run `pnpm dev` in the worktree, and the test, with a short `TMPDIR` (for example
 `TMPDIR=/tmp`). `tsx watch` opens its IPC socket at `$TMPDIR/tsx-<uid>/<pid>.pipe`,
