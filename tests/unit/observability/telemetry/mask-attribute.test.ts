@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { maskReplayAttribute } from '@/observability/analytics/mask-attribute'
+import { maskReplayAttribute } from '@/observability/telemetry/mask-attribute'
 
 describe('maskReplayAttribute', () => {
   it.each([

@@ -19,7 +19,7 @@ import {
   SUPPORTS_HANDOFF,
   type AnalyticsConfig,
 } from './config'
-import type { BrowserEvent, TrackArgs } from './events'
+import type { BrowserEvent, TrackArgs } from './event-registry'
 import { isPersistedIdentified, readHandoff, stripHandoffParams } from './handoff'
 import { buildPosthogOptions } from './posthog-options'
 

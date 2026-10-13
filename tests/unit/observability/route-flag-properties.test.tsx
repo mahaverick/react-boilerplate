@@ -11,11 +11,6 @@ import { render, screen } from '@testing-library/react'
 import { http } from 'msw'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  capturePageview,
-  initAnalytics,
-  resetAnalyticsForTests,
-} from '@/observability/analytics/analytics'
 import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
 import { resetFlagHooksForTests, useFeaturePropertiesSync } from '@/observability/flags/flag-hooks'
 import { ensureFlags } from '@/observability/flags/flag-query'
@@ -24,7 +19,12 @@ import {
   installFlagScopeReset,
   installRouteFeatureProperties,
 } from '@/observability/flags/flag-scope'
-import { installRouteAnalytics } from '@/observability/route-analytics'
+import { installRouteAnalytics } from '@/observability/route-telemetry'
+import {
+  capturePageview,
+  initAnalytics,
+  resetAnalyticsForTests,
+} from '@/observability/telemetry/telemetry'
 import { ok, testFlags } from '@/tests/mocks/handlers'
 import { analyticsConfigFor, instance, resetFakePosthog, sdk } from '@/tests/mocks/posthog'
 import { server } from '@/tests/mocks/server'

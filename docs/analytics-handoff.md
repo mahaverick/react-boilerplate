@@ -9,7 +9,7 @@ the website runs, and the two setups have opposite rules about `reset()`.
 | On a subdomain of the app's domain (`www.example.com`)     | posthog-js's shared identity cookie, automatically | Never call `identify`, `alias`, `reset` or `group`          |
 | On another domain (`example.io`, app on `app.example.com`) | The handoff link below                             | Hand off only an anonymous id, then `reset()` (the snippet) |
 
-Both setups read two switches in `src/observability/analytics/config.ts`:
+Both setups read two switches in `src/observability/telemetry/config.ts`:
 `ANALYTICS_CROSS_SUBDOMAIN_COOKIE` (`true`) and `SUPPORTS_HANDOFF` (`true`). The
 privacy rules the app enforces around them are in [Analytics
 privacy](../SECURITY.md#analytics-privacy).
@@ -34,7 +34,7 @@ following effects:
 - `group(…)` puts the app's events in the website's group.
 
 The app defends itself in `guardEvent`
-(`src/observability/analytics/analytics.ts`). While a user is signed in, an
+(`src/observability/telemetry/telemetry.ts`). While a user is signed in, an
 event carrying any other distinct id is dropped, and the user is identified
 again. An event missing the app's `app`, `environment` or tenant group gets them
 back. But the dropped events are lost, a re-identify can start a new replay
@@ -52,7 +52,7 @@ The website hands the anonymous id over in the link instead:
 
 The app accepts the handoff only when all of these hold, and strips both
 parameters from the address bar either way (`readHandoff` and
-`stripHandoffParams` in `src/observability/analytics/handoff.ts`):
+`stripHandoffParams` in `src/observability/telemetry/handoff.ts`):
 
 - `ph_did` (and `ph_sid`, when present) is a UUID, the shape posthog-js mints. A
   `ph_sid` that is not a UUID is ignored and the id is still accepted;

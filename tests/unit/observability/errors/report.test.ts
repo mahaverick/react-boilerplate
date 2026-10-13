@@ -1,14 +1,5 @@
 import { AxiosError, AxiosHeaders, CanceledError } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  identifyUser,
-  resetAnalytics,
-  setTenantGroup,
-  whenAnalyticsSettled,
-  type AnalyticsIdentity,
-} from '@/observability/analytics'
-import { resetAnalyticsForTests } from '@/observability/analytics/analytics'
-import { ANALYTICS_APP } from '@/observability/analytics/config'
 import { resetErrorListenForTests, setErrorRouteSource } from '@/observability/errors/listen'
 import {
   BATCH_MAX_BYTES,
@@ -28,14 +19,23 @@ import {
   STALE_ERROR_MS,
   type ExceptionEvent,
 } from '@/observability/errors/report'
+import {
+  identifyUser,
+  resetAnalytics,
+  setTenantGroup,
+  whenAnalyticsSettled,
+  type AnalyticsIdentity,
+} from '@/observability/telemetry'
+import { ANALYTICS_APP } from '@/observability/telemetry/config'
+import { resetAnalyticsForTests } from '@/observability/telemetry/telemetry'
 
 const KEY = 'phc_test_key_not_real'
 const config = vi.hoisted(() => ({
   isAvailable: true,
 }))
 
-vi.mock('@/observability/analytics', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/observability/analytics')>()),
+vi.mock('@/observability/telemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/observability/telemetry')>()),
   whenAnalyticsSettled: vi.fn(),
   isAnalyticsAvailable: () => config.isAvailable,
   getAnalyticsConfig: () => ({
@@ -484,8 +484,8 @@ describe('report', () => {
 
 describe('waiting for analytics to settle', () => {
   it('parks no new settle waiter per error once the settle cap has passed and analytics never settled', async () => {
-    const actual = await vi.importActual<typeof import('@/observability/analytics')>(
-      '@/observability/analytics'
+    const actual = await vi.importActual<typeof import('@/observability/telemetry')>(
+      '@/observability/telemetry'
     )
     // The real whenAnalyticsSettled with analytics never loaded: each call parks a waiter in a module Set that only settling clears.
     let parked = 0

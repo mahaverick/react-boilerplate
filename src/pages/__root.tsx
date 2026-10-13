@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react-router'
-import { ConsentBanner } from '@/components/features/analytics/consent-banner'
+import { ConsentBanner } from '@/components/features/consent/consent-banner'
 import { MaintenanceGate } from '@/components/features/maintenance/maintenance-gate'
 import { Toaster } from '@/components/ui/sonner'
 import { APP_NAME } from '@/constants/app'

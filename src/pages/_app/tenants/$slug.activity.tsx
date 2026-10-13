@@ -17,7 +17,7 @@ import { pageTitle } from '@/constants/app'
 import { AUDIT_ACTION_LABELS, AUDIT_ACTIONS, isAuditAction } from '@/constants/audit-actions'
 import { canViewActivity } from '@/constants/roles'
 import { statusFrom } from '@/lib/api-error'
-import { analyticsKey, track } from '@/observability/analytics'
+import { analyticsKey, track } from '@/observability/telemetry'
 import {
   flattenAuditPages,
   useTenantAuditLog,

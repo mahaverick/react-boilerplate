@@ -1,12 +1,12 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { track } from '@/observability/analytics/analytics'
 import {
   analyticsKey,
   REGISTRY_HAS_NO_FREE_STRINGS,
   type AnalyticsKey,
   type BrowserEvent,
   type BrowserEventProps,
-} from '@/observability/analytics/events'
+} from '@/observability/telemetry/event-registry'
+import { track } from '@/observability/telemetry/telemetry'
 
 /**
  * Compile-time contract of the registry, checked by `pnpm typecheck` (tests/ is in

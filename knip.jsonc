@@ -9,7 +9,7 @@
     "src/components/ui/**": ["exports", "types"],
     // Byte-identical with apex's copy. Apex imports `BrowserEvent` from this
     // barrel (src/constants/timeline-events.ts); this app does not.
-    "src/observability/analytics/index.ts": ["types"],
+    "src/observability/telemetry/index.ts": ["types"],
   },
   "ignoreFiles": [
     // Type declarations for scripts/*.mjs. TypeScript resolves them in place

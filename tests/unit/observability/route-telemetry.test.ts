@@ -6,8 +6,8 @@ import {
   Outlet,
 } from '@tanstack/react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { initAnalytics, resetAnalyticsForTests } from '@/observability/analytics/analytics'
-import { installRouteAnalytics, TENANT_ROUTE_ID } from '@/observability/route-analytics'
+import { installRouteAnalytics, TENANT_ROUTE_ID } from '@/observability/route-telemetry'
+import { initAnalytics, resetAnalyticsForTests } from '@/observability/telemetry/telemetry'
 import { analyticsConfigFor, resetFakePosthog, sdk } from '@/tests/mocks/posthog'
 
 vi.mock('posthog-js', async () => {

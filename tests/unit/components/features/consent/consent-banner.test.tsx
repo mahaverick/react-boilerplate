@@ -2,12 +2,12 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { axe } from 'jest-axe'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ConsentBanner } from '@/components/features/analytics/consent-banner'
+import { ConsentBanner } from '@/components/features/consent/consent-banner'
 import {
   getAnalyticsConsent,
   initAnalytics,
   resetAnalyticsForTests,
-} from '@/observability/analytics/analytics'
+} from '@/observability/telemetry/telemetry'
 import { analyticsConfigFor, resetFakePosthog, sdk } from '@/tests/mocks/posthog'
 
 vi.mock('posthog-js', async () => {

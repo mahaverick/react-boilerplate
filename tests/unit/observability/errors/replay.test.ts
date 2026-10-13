@@ -1,20 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  identifyUser,
-  resetAnalytics,
-  setTenantGroup,
-  whenAnalyticsSettled,
-  type AnalyticsIdentity,
-} from '@/observability/analytics'
 import { noteError, resetErrorListenForTests } from '@/observability/errors/listen'
 import {
   BATCH_WINDOW_MS,
   resetReporterForTests,
   type ExceptionEvent,
 } from '@/observability/errors/report'
+import {
+  identifyUser,
+  resetAnalytics,
+  setTenantGroup,
+  whenAnalyticsSettled,
+  type AnalyticsIdentity,
+} from '@/observability/telemetry'
 
-vi.mock('@/observability/analytics', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/observability/analytics')>()),
+vi.mock('@/observability/telemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/observability/telemetry')>()),
   whenAnalyticsSettled: vi.fn(),
   isAnalyticsAvailable: () => true,
   getAnalyticsConfig: () => ({

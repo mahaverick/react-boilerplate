@@ -7,7 +7,7 @@ import {
   MAX_CONSUMED_HANDOFFS,
   readHandoff,
   stripHandoffParams,
-} from '@/observability/analytics/handoff'
+} from '@/observability/telemetry/handoff'
 import { server } from '@/tests/mocks/server'
 
 const SITE = 'https://www.example.com'

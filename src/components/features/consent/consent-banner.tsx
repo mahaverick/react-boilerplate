@@ -7,7 +7,7 @@ import {
   grantAnalyticsConsent,
   subscribeAnalyticsConsent,
   type AnalyticsConsentMode,
-} from '@/observability/analytics'
+} from '@/observability/telemetry'
 
 /**
  * The consent banner, shown only in `required` consent mode while this browser

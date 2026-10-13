@@ -29,9 +29,9 @@ import {
   isAnalyticsAvailable,
   whenAnalyticsSettled,
   type AnalyticsIdentity,
-} from '@/observability/analytics'
-import { ANALYTICS_APP, ANALYTICS_URL_QUERY_ALLOWLIST } from '@/observability/analytics/config'
-import { sanitizeUrl } from '@/observability/analytics/url-sanitizer'
+} from '@/observability/telemetry'
+import { ANALYTICS_APP, ANALYTICS_URL_QUERY_ALLOWLIST } from '@/observability/telemetry/config'
+import { sanitizeUrl } from '@/observability/telemetry/url-sanitizer'
 import { currentRouteId, type ErrorOrigin } from './listen'
 import { scrubText } from './scrub'
 

@@ -4,7 +4,7 @@ import {
   initAnalytics,
   resetAnalyticsForTests,
   track,
-} from '@/observability/analytics/analytics'
+} from '@/observability/telemetry/telemetry'
 import { analyticsConfigFor } from '@/tests/mocks/posthog'
 
 /**

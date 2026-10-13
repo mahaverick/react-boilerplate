@@ -1,14 +1,14 @@
 import { http, HttpResponse } from 'msw'
 import posthog, { type CaptureResult, type PostHog } from 'posthog-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/telemetry/config'
+import { isPersistedIdentified } from '@/observability/telemetry/handoff'
 import {
   identifyUser,
   initAnalytics,
   resetAnalytics,
   resetAnalyticsForTests,
-} from '@/observability/analytics/analytics'
-import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/analytics/config'
-import { isPersistedIdentified } from '@/observability/analytics/handoff'
+} from '@/observability/telemetry/telemetry'
 import { analyticsConfigFor, stopPersisting } from '@/tests/mocks/posthog'
 import { server } from '@/tests/mocks/server'
 
@@ -58,7 +58,7 @@ describe('the facade over the pinned posthog-js', () => {
  * banner is answered. Each test loads a fresh SDK and facade.
  */
 describe('the banner answer over the pinned posthog-js', () => {
-  let facade: typeof import('@/observability/analytics/analytics')
+  let facade: typeof import('@/observability/telemetry/telemetry')
   let instance: PostHog
 
   /** Loads a fresh SDK and facade in `required` mode with the banner unanswered; returns the events captured from then on. */
@@ -68,7 +68,7 @@ describe('the banner answer over the pinned posthog-js', () => {
     const sdk = await vi.importActual<typeof import('posthog-js')>('posthog-js')
     instance = new sdk.PostHog()
     vi.doMock('posthog-js', () => ({ ...sdk, default: instance }))
-    facade = await import('@/observability/analytics/analytics')
+    facade = await import('@/observability/telemetry/telemetry')
     facade.capturePageview()
     await facade.initAnalytics({
       ...analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real', APP_ENVIRONMENT: 'test' }),

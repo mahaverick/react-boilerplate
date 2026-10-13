@@ -116,10 +116,10 @@ Each rule's reason is in [Analytics privacy](SECURITY.md#analytics-privacy).
 - **An attribute may carry personal data only if `mask-attribute.ts` masks it.**
   `e2e/nginx/analytics.test.ts` pins `aria-label` masking in the full snapshot
   and in later mutations.
-- **Only `src/observability/analytics/` imports posthog-js**, and only
-  `analytics.ts` imports it as a value, through `import()`. `pnpm check:bundle`
+- **Only `src/observability/telemetry/` imports posthog-js**, and only
+  `telemetry.ts` imports it as a value, through `import()`. `pnpm check:bundle`
   fails if it reaches a first-visit chunk.
-- **Never widen the privacy guards**: the free-string ban in `events.ts`, the
+- **Never widen the privacy guards**: the free-string ban in `event-registry.ts`, the
   browser's ban on person and group properties, `ANALYTICS_URL_QUERY_ALLOWLIST`
   and `guardEvent`. What each one stops is in SECURITY.md.
 - **Never call the SDK's `reset()` directly.** It drops the super properties and
@@ -132,7 +132,7 @@ Each rule's reason is in [Analytics privacy](SECURITY.md#analytics-privacy).
 - **posthog-js minors and majors wait for a human** (`renovate.json`). Before
   taking one, run the suites that pin its internals: `url-sanitizer.test.ts`,
   `handoff.test.ts` and `analytics.sdk.test.ts` (in
-  `tests/unit/observability/analytics/`, against the real SDK), and
+  `tests/unit/observability/telemetry/`, against the real SDK), and
   `e2e/nginx/analytics.test.ts`.
 
 ## Feature flags
@@ -292,6 +292,10 @@ the component is added again.
 - **kebab-case** file and folder names under `src/`. `src/pages/**` is exempt,
   because TanStack Router's file routes need `__root.tsx`, `_auth.tsx` and
   `$slug.members.tsx`.
+- **No path under `src/` that a content blocker matches.** Vite's dev server
+  serves each file at its own URL, so a path like `analytics/events.ts` is
+  dropped by EasyPrivacy and the app hangs on its loading screen.
+  `tests/unit/blocker-safe-paths.test.ts` lists the banned shapes.
 - **Suffixed files live in their directory:** `*.store.ts` in `src/states/`,
   `*.queries.ts` in `src/queries/`, `*.schemas.ts` in `src/schemas/`, `*.types.ts`
   in `src/types/`. A file in `src/hooks/` is named `use-*`.

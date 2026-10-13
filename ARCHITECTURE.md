@@ -27,9 +27,9 @@ src/
   http/         the axios client, its interceptors, the session, the SSE parser, trace ids
   lib/          small helpers, and the maintenance-mode interceptor and recovery
   observability/
-    analytics/  the PostHog facade: lazy posthog-js, typed events, masking, handoff
     errors/     error tracking: the entry-chunk listener and the lazy reporter
     flags/      flag reads, gating, exposure and $feature/* registration
+    telemetry/  the PostHog facade: lazy posthog-js, typed events, masking, handoff
   pages/        TanStack Router file routes
   queries/      TanStack Query options and mutations, one file per resource
   schemas/      Zod schemas that mirror the API's validators
@@ -297,8 +297,8 @@ PostHog. What each sends, masks and withholds is in
 
 ### Analytics
 
-`src/observability/analytics/` is the only code that imports posthog-js,
-and `analytics.ts`, the facade, is the only module that imports it as a
+`src/observability/telemetry/` is the only code that imports posthog-js,
+and `telemetry.ts`, the facade, is the only module that imports it as a
 value, through a dynamic `import()`. The rest of the app imports the barrel,
 `index.ts`.
 
@@ -316,10 +316,10 @@ value, through a dynamic `import()`. The rest of the app imports the barrel,
 - **Identity follows the auth store**, through `installAnalyticsIdentity` in
   `src/http/session.ts` ([The HTTP layer and session](#the-http-layer-and-session)).
 - **Per-app constants** sit at the top of
-  `src/observability/analytics/config.ts`: the `app` property, the query-key
+  `src/observability/telemetry/config.ts`: the `app` property, the query-key
   allowlist, whether consent modes and the cross-domain handoff are
   supported, and how the identity cookie is shared. The registry of typed
-  events is `events.ts`. Everything else in the folder is shared with the
+  events is `event-registry.ts`. Everything else in the folder is shared with the
   sibling app ([Sibling sync](#sibling-sync-with-apex)).
 - `src/observability/identity-epoch.ts` is a counter of the calls that change
   who an event belongs to. It is a module of its own, importing nothing, so
@@ -363,7 +363,7 @@ All run on committed navigations, never in a loader, because a loader also
 runs for a hover preload.
 
 - **Page views and the tenant group.** `installRouteAnalytics`
-  (`src/observability/route-analytics.ts`) runs on `onResolved`: it sets the
+  (`src/observability/route-telemetry.ts`) runs on `onResolved`: it sets the
   tenant group from the tenant route's loader data, or clears it, and only
   then captures `$pageview` when the path changed. It is installed before
   the first load, so the landing page is counted.
@@ -561,7 +561,7 @@ request, and the description says what happened there.
 | `src/schemas/profile.schemas.ts`, `src/schemas/invitation.schemas.ts`, `src/schemas/email-domain.schemas.ts` and their tests in `tests/unit/schemas/`                                                                                                          | Mirror the API's validators                                                                                            |
 | `src/components/ui/form.tsx`, `src/components/ui/sonner.tsx`                                                                                                                                                                                                   | Hand-written, shared behaviour                                                                                         |
 | `nginx.conf` security headers and CSP, `location /api/v1/collect/` and `location ~* ^/api/v1/auth/google/callback/?$`, `tests/unit/docker/nginx-conf.test.ts` (react's also covers the stream location)                                                        | Same threat model; same replay batch size                                                                              |
-| `src/observability/analytics/*`, except `config.ts`'s per-app constants and `events.ts`'s registry                                                                                                                                                             | One PII, consent, handoff and identity contract                                                                        |
+| `src/observability/telemetry/*`, except `config.ts`'s per-app constants and `event-registry.ts`'s registry                                                                                                                                                     | One PII, consent, handoff and identity contract                                                                        |
 | `src/components/shared/pii.tsx`, `e2e/helpers/fake-posthog.ts`, `tests/mocks/posthog.ts`                                                                                                                                                                       | The masking class, the egress guard's fake PostHog, and the posthog-js stand-in the unit tests share                   |
 | `src/observability/flags/**`, except `flag-keys.ts` (each app's registry slice) and `flag-scope.ts` (each app's scope); `tests/unit/observability/flags/**`, except `flag-scope.test.ts` and apex's `flag-keys.test.ts`; `tests/fixtures/test-client-flags.ts` | One flag read, exposure and `$feature/*` contract; the tests mock `flag-keys` with test keys so they pass in both apps |
 | `docker/10-runtime-config.sh`, `src/configs/runtime-config.ts`, `scripts/runtime-config-plugin.mjs`, `nginx.conf`'s `location = /runtime-config.js`                                                                                                            | One run-time configuration contract: the same variable names, patterns and file in both images                         |

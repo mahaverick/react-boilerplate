@@ -7,7 +7,7 @@ import {
   registerFeatureProperties,
   unregisterFeatureProperties,
   type FeaturePropertyName,
-} from '@/observability/analytics'
+} from '@/observability/telemetry'
 import { registeredFeatureProperties } from './feature-property-names'
 import type { ClientFlagKey } from './flag-types'
 import { clientFlagKeys } from './flag-values'
