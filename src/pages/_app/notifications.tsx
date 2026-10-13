@@ -1,14 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Check, Trash2 } from 'lucide-react'
+import { useId } from 'react'
+import { toast } from 'sonner'
 import { LoadError } from '@/components/features/load-error'
 import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { pageTitle } from '@/constants/app'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { writeFailureMessage } from '@/lib/write-failure'
 import {
   flattenPages,
   useDeleteNotification,
@@ -16,11 +20,12 @@ import {
   useMarkRead,
   useNotifications,
   usePreferences,
+  useUpdatePreferences,
   type Notification,
   type NotificationPreference,
 } from '@/queries/notification.queries'
 
-/** The notification inbox and the read-only delivery preferences. */
+/** The notification inbox and the delivery preferences. */
 export const Route = createFileRoute('/_app/notifications')({
   head: () => ({ meta: [{ title: pageTitle('Notifications') }] }),
   staticData: { crumb: 'Notifications' },
@@ -97,25 +102,54 @@ function NotificationRow({ notification }: { notification: Notification }) {
 }
 
 /**
- * One notification type's resolved channel state, read-only. The API's
- * `CONFIGURABLE_NOTIFICATION_TYPES` (notification.validators.ts) is empty, so
- * every `PUT /notifications/preferences` answers 400, and the API has no
- * endpoint that lists the configurable types. `useUpdatePreferences` is ready
- * for when that changes; making this a control is then a change here alone.
+ * One notification type's channels. Email is read-only text: the API refuses to
+ * store a disabled email channel (`emailEnabled: false` is a 400), so it is
+ * always "On". The in-app copy is a switch; each flip PUTs the whole entry with
+ * `emailEnabled: true`. While the request is pending the switch is disabled and
+ * shows the requested state; on failure it falls back to the stored value and a
+ * toast carries the API's message. The matrix is refetched when the request
+ * settles, so the row always ends on what the server holds.
  */
 function PreferenceRow({ preference }: { preference: NotificationPreference }) {
+  const update = useUpdatePreferences()
+  const labelId = useId()
+  const label = humanize(preference.notificationType)
+  const inAppEnabled = update.isPending ? update.variables.inAppEnabled : preference.inAppEnabled
+
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-      <span className="font-medium">{humanize(preference.notificationType)}</span>
+      <span className="font-medium">{label}</span>
       <div className="flex items-center gap-6 text-sm text-muted-foreground">
+        {/* Read-only: NON_DISABLEABLE_NOTIFICATION_TYPES (API) covers every type, */}
+        {/* so email is always on and this reads "On". */}
         <span>Email: {preference.emailEnabled ? 'On' : 'Off'}</span>
-        <span>In-app: {preference.inAppEnabled ? 'On' : 'Off'}</span>
+        <div className="flex items-center gap-2">
+          <span id={labelId}>
+            <span className="sr-only">{label}: </span>In-app
+          </span>
+          <Switch
+            aria-labelledby={labelId}
+            checked={inAppEnabled}
+            disabled={update.isPending}
+            onCheckedChange={(next: boolean) => {
+              if (update.isPending) return
+              update.mutate(
+                {
+                  notificationType: preference.notificationType,
+                  emailEnabled: true,
+                  inAppEnabled: next,
+                },
+                { onError: (error) => toast.error(writeFailureMessage(error)) }
+              )
+            }}
+          />
+        </div>
       </div>
     </li>
   )
 }
 
-/** The read-only preference matrix, with its own load, error and empty states. */
+/** The preference matrix, with its own load, error and empty states. */
 function PreferencesCard() {
   const preferences = usePreferences()
 
@@ -126,8 +160,8 @@ function PreferencesCard() {
           <h2>Preferences</h2>
         </CardTitle>
         <CardDescription>
-          How each kind of notification currently reaches you. Notification preferences are not
-          configurable yet — every type this account can receive is one that cannot be turned off.
+          How each kind of notification reaches you. Email for these notifications cannot be turned
+          off, but you can turn off the in-app copy.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -152,7 +186,7 @@ function PreferencesCard() {
 }
 
 /**
- * The inbox and the read-only preferences. The inbox's error branch comes
+ * The inbox and the preferences. The inbox's error branch comes
  * before its empty state: `rows` is `[]` for a failed load and an empty inbox
  * alike.
  */

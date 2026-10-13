@@ -19,10 +19,8 @@ import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /**
- * The preferences card is read-only because every notification type is non-configurable
- * server-side, so nothing in the UI exercises the preference endpoints. These tests keep
- * their wire shape honest: it is nothing like the flat `Record<string, boolean>` that is easy
- * to assume. See useUpdatePreferences' own comment.
+ * These tests keep the preference endpoints' wire shape honest: it is nothing like the flat
+ * `Record<string, boolean>` that is easy to assume. See useUpdatePreferences' own comment.
  */
 describe('notification preference queries', () => {
   let client: QueryClient
@@ -79,13 +77,13 @@ describe('notification preference queries', () => {
     const { result } = renderHook(() => useUpdatePreferences(), { wrapper })
     result.current.mutate({
       notificationType: 'verify_email',
-      emailEnabled: false,
+      emailEnabled: true,
       inAppEnabled: true,
     })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(body).toEqual({
-      preferences: [{ notificationType: 'verify_email', emailEnabled: false, inAppEnabled: true }],
+      preferences: [{ notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true }],
     })
   })
 })

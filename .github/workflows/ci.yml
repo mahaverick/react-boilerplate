@@ -213,10 +213,12 @@ jobs:
             n=$(grep -cE -- "^\s*$2" rendered.conf || true)
             if [ "$n" != "$1" ]; then echo "expected $1 directive(s): $2 (found $n)"; fail=1; fi
           }
-          expect 3 'proxy_pass http://example:1234;'
-          expect_directive 3 'proxy_pass '
-          expect 3 "proxy_set_header Host \$host;"
-          expect 3 "proxy_set_header X-Forwarded-Proto \$forwarded_proto;"
+          expect 4 'proxy_pass http://example:1234;'
+          expect_directive 4 'proxy_pass '
+          expect 4 "proxy_set_header Host \$host;"
+          expect 4 "proxy_set_header X-Forwarded-Proto \$forwarded_proto;"
+          # The notification stream's and the Google OAuth callback's locations.
+          expect_directive 2 'error_log /var/log/nginx/error\.log crit;'
           expect_directive 1 'client_max_body_size 10m;'
           expect_directive 1 'proxy_request_buffering off;'
           expect_directive 1 'alias /tmp/runtime/runtime-config\.js;'

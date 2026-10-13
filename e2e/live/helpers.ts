@@ -222,15 +222,17 @@ async function cwdOf(pid: number): Promise<string | null> {
  * back to its `.env` port (4040 by default). It stays running, detached; its
  * pid, which is also its process group, is written to
  * `restartedPidFile(os.tmpdir(), port)`, after any file an earlier run left
- * there is deleted.
+ * there is deleted. Returns the listener pids before the stop and after the
+ * replacement is ready, so a caller can tell a real restart from none.
  */
-export async function restartApi(): Promise<void> {
+export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids: number[] }> {
   forgetRestartedServer(API_ORIGIN, tmpdir(), (file) => {
     rmSync(file, { force: true })
   })
   const plan = apiRestartPlan()
   if ('refusal' in plan) throw new Error(plan.refusal)
   const { port, dir } = plan
+  const stoppedPids = await listeningPids(port)
 
   // Stop every pid holding the port, not one process group: `pnpm dev` is `tsx watch`, whose child is the real server and would keep listening, so a "reconnects after a restart" test would measure a stream never interrupted.
   await stopListenersIn({
@@ -264,6 +266,7 @@ export async function restartApi(): Promise<void> {
   if (server.pid !== undefined) writeFileSync(restartedPidFile(tmpdir(), port), String(server.pid))
   server.unref()
   await waitForApi()
+  return { stoppedPids, startedPids: await listeningPids(port) }
 }
 
 /**

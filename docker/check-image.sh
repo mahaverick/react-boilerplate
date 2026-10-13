@@ -79,7 +79,7 @@ for bad in 'http://api:4040/' 'http://api:4040/v1' 'api:4040' '' 'http://$host' 
     problem "accepted API_UPSTREAM=[$bad]"
   fi
   case $out in
-    *"API_UPSTREAM must be scheme://host[:port] with no path, got: $bad"*) ;;
+    *"05-prepare.sh: API_UPSTREAM must be scheme://host[:port] with no path; the value given does not match (not shown)"*) ;;
     *) problem "no validation message for API_UPSTREAM=[$bad]: $out" ;;
   esac
 done
@@ -142,6 +142,31 @@ grep -q 'location /api/ {' "$work/nginx-T" || problem "the /api/ location is not
 # Nothing listens behind /api, so the proxy itself answers 502.
 status=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/health")
 [ "$status" = 502 ] || problem "/api/ with no API behind it answered $status, not 502"
+# nginx writes the request line, query string included, into every upstream
+# error. The Google OAuth callback's `code` and `state` are credentials, so its
+# location logs only at `crit`, with a trailing slash or in any letter case, as
+# express routes them; any other /api/ path still logs the error, which shows
+# the mechanism is live and the callback's silence is the fix. The control goes
+# last: the log keeps one stream's lines in order, so once its line is there,
+# any line the callback requests wrote is there too.
+curl -s -o /dev/null "$base/api/v1/auth/google/callback?code=CHECK_OAUTH_CODE&state=S"
+curl -s -o /dev/null "$base/api/v1/auth/google/callback/?code=CHECK_OAUTH_CODE_SLASH&state=S"
+curl -s -o /dev/null "$base/api/V1/Auth/Google/Callback?code=CHECK_OAUTH_CODE_CASE&state=S"
+curl -s -o /dev/null "$base/api/v1/health?code=CHECK_CONTROL_QUERY&state=S"
+# Docker copies the container's stderr into its log asynchronously, so wait
+# briefly for the control line before judging.
+for _ in $(seq 25); do
+  error_log=$(docker logs "$name" 2>&1)
+  case $error_log in *CHECK_CONTROL_QUERY*) break ;; esac
+  sleep 0.2
+done
+case $error_log in
+  *'[error]'*'request: "GET /api/v1/health?code=CHECK_CONTROL_QUERY'*) ;;
+  *) problem "an upstream error under /api/ wrote no error line with its request" ;;
+esac
+case $error_log in
+  *CHECK_OAUTH_CODE*) problem "the Google OAuth callback's query string reached the error log" ;;
+esac
 
 asset=$({ curl -sf "$base/" || true; } | { grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' || true; } | head -n 1)
 [ -n "$asset" ] || problem "index.html names no /assets/index-*.js entry chunk"

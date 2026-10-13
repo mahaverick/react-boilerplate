@@ -111,6 +111,8 @@ export function buildPosthogOptions(input: PosthogOptionsInput): Partial<PostHog
       captureJsonLd: false,
       recordHeaders: false,
       recordBody: false,
+      // The project's replay setting would otherwise decide: canvas recording starts a `blob:` worker, which `script-src 'self'` blocks.
+      captureCanvas: { recordCanvas: false },
     },
     before_send: (event) => {
       if (event === null) return null

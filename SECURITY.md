@@ -164,8 +164,10 @@ The policy is enforced, not report-only:
   in the same change.
 - **Session replay starts no worker.** Recording `<canvas>` content would
   start a `blob:` worker, which `script-src 'self'` blocks (`worker-src`
-  falls back to it). Keep canvas recording off in the PostHog project's
-  replay settings; `e2e/nginx/analytics.test.ts` asserts replay records under
+  falls back to it). The options pin
+  `session_recording.captureCanvas.recordCanvas: false`, which overrides the
+  PostHog project's replay setting, so the project cannot turn canvas
+  recording on. `e2e/nginx/analytics.test.ts` asserts replay records under
   this policy with no worker and no violation.
 - **No location declares an `add_header`.** In nginx, a location that sets
   any header of its own inherits none of the server block's, so it would
@@ -190,11 +192,12 @@ The policy is enforced, not report-only:
   stays out of URLs and logs (`src/queries/invitation.queries.ts`).
 - **The error log can keep one.** nginx writes the full request line, query
   string included, into every upstream error message, and no log format
-  changes that. The error log runs at `notice` (`docker/nginx.main.conf`),
-  so an upstream failure under `location /api/` records the query. The
-  notification stream's location sets its error log level to `crit`, which
-  silences those messages there; no other location does (see
-  [Known gaps](#known-gaps)).
+  changes that. A request-line leak happens at every level up to `error`, so
+  the level (`notice`, `docker/nginx.main.conf`) does not matter; only `crit`
+  drops it. The notification stream's location and the Google OAuth
+  callback's (`location ~* ^/api/v1/auth/google/callback/?$`) set their error log
+  level to `crit`, which silences those messages there; no other location
+  does (see [Known gaps](#known-gaps)).
 - **No source map is served.** The image deletes every `.map` after the
   upload, and `nginx.conf` answers 404 for any `.map` path outside `/api/`
   even where a file exists. A deploy of `dist/` outside the image must
@@ -207,8 +210,10 @@ The policy is enforced, not report-only:
   built image from outside: user 101, a read-only root, each header sent
   once on proxied and unproxied responses, no source map in the image, a
   refused run-time setting that stops the container without printing its
-  value, and a bundle that carries its release and no release id written by
-  inject.
+  value, an upstream error on the Google OAuth callback (exact, with a
+  trailing slash, or in mixed case) that writes none of its query string to
+  the log while another `/api/` path still logs its request, and a bundle
+  that carries its release and no release id written by inject.
 
 ## Run-time config injection safety
 
@@ -240,7 +245,8 @@ patterns and defaults are in the
 - **`API_UPSTREAM` is checked too.** `docker/05-prepare.sh` refuses anything
   but `http(s)://host[:port]` with no path, and envsubst substitutes only
   that variable into `nginx.conf`, so a value can neither rewrite the
-  proxied URI nor inject nginx syntax or variables.
+  proxied URI nor inject nginx syntax or variables. Its refusal message
+  never shows the value.
 
 ## Analytics privacy
 
@@ -368,10 +374,11 @@ rule changes in express first and is copied here, never edited here alone.
 It replaces Postgres key details and echoed input, URL credentials, query
 strings, fragments other than line or heading anchors, the token segment
 after `/reset/`, `/verify/`, `/invite/` or `/accept/`, Bearer, Basic and
-other Authorization credentials, Cookie values, secret-named keys' values,
-JWTs, emails, PostHog and other vendor keys, IP addresses, `+`-prefixed phone
-numbers, and long hex and base64 runs, then cuts each text to 1024
-characters.
+other Authorization credentials (Bearer and Basic with the unquoted or
+quoted `,key=value` or `;key=value` pairs glued to them), Cookie values,
+secret-named keys' values, JWTs, emails, PostHog and other vendor keys, IP
+addresses, `+`-prefixed phone numbers, and long hex and base64 runs, then cuts
+each text to 1024 characters.
 
 ### What it does not catch
 
@@ -387,7 +394,13 @@ messages. Among what it leaves in place:
 - a camelCase `pin` (`userPin=1234`);
 - vendor tokens with no rule, such as `ya29.` and `glpat-`;
 - the text after a Bearer credential on an Authorization line
-  (`Bearer [token] extra` keeps `extra`).
+  (`Bearer [token] extra` keeps `extra`);
+- a `Bearer` or `Basic` glued to a letter from `g` to `z` or a `_`
+  (`xBearer abc`, `_Bearer abc`), and a fully URL-encoded header
+  (`Bearer%20abc%2Crefresh%3Dxyz`);
+- pairs after a credential that a secret key's value took
+  (`token=Bearer abc,refresh=xyz`), and a quoted pair value glued to more
+  text or split by a line break.
 
 The comments in `src/observability/errors/scrub.ts` list what each rule
 catches and what it misses.
@@ -400,13 +413,14 @@ catches and what it misses.
   `http`), and sets no per-IP connection limit, since every request arrives
   from the TLS terminator's address (`docker/nginx.main.conf`). Expose the
   container only through that terminator.
-- **The error log can hold query strings.** An upstream error under
-  `location /api/` writes the full request line to the error log at the
-  `notice` level. Where express's `APP_URL` is this container's host, that
-  includes the Google OAuth callback, which the API serves under `/api/` with
-  its `code` and `state` in the query; the `code` is single-use and
-  short-lived, but it is a credential written to disk. Only the notification
-  stream's location lowers its error log to `crit`.
+- **The error log can hold query strings.** nginx writes the full request
+  line into every upstream error message, at the `error` level, so lowering
+  the log level from `notice` changes nothing; only `crit` silences it, and
+  with it the reason for the upstream failure. The notification stream's
+  location and the Google OAuth callback
+  (`location ~* ^/api/v1/auth/google/callback/?$`, whose `code` and `state` are
+  credentials) set their error log to `crit`. Every other path under `/api/`
+  still writes its query string on an upstream error.
 - **HSTS is the edge's job.** See [CSP and headers](#csp-and-headers).
 - **Inline styles are allowed** (`style-src 'unsafe-inline'`), for sonner.
   An injected `<style>` cannot run script, but it can restyle the page.
@@ -425,8 +439,6 @@ catches and what it misses.
   the page titles page views carry. Where the PostHog project records network
   requests in replay, the paths of tenant-scoped API calls
   (`/tenants/:slug/…`) carry the tenant's slug.
-- **Canvas recording** in the PostHog project's replay settings would break
-  replay under the CSP; it is a project setting, not enforced by this repo.
 - **Error scrubbing is regex-based** and misses free text; see
   [What it does not catch](#what-it-does-not-catch).
 
