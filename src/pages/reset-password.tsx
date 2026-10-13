@@ -2,9 +2,10 @@ import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { FieldDescription, FieldGroup } from '@/components/ui/field'
 import {
   Form,
   FormControl,
@@ -63,41 +64,29 @@ function ResetPasswordPage() {
   if (!token) {
     return (
       <AuthLayout>
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <h1>This link is incomplete</h1>
-            </CardTitle>
-            <CardDescription>
-              The reset link is missing its token. Request a new one and use the most recent email.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link
-              to={ROUTES.forgotPassword}
-              className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
-            >
-              Request a new link
-            </Link>
-          </CardContent>
-        </Card>
+        <AuthCard
+          title="This link is incomplete"
+          description="The reset link is missing its token. Request a new one and use the most recent email."
+        >
+          <Link
+            to={ROUTES.forgotPassword}
+            className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
+          >
+            Request a new link
+          </Link>
+        </AuthCard>
       </AuthLayout>
     )
   }
 
   return (
     <AuthLayout>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h1>Choose a new password</h1>
-          </CardTitle>
-          <CardDescription>
-            It must be at least {MIN_PASSWORD_LENGTH} characters long.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form form={form} serverErrors={serverErrors}>
+      <AuthCard
+        title="Choose a new password"
+        description={`It must be at least ${MIN_PASSWORD_LENGTH} characters long.`}
+      >
+        <Form form={form} serverErrors={serverErrors} className="space-y-0">
+          <FieldGroup className="gap-6">
             <FormField form={form} name="password">
               {(field) => (
                 <FormItem>
@@ -139,15 +128,13 @@ function ResetPasswordPage() {
             <Button type="submit" className="w-full" disabled={resetPassword.isPending}>
               {resetPassword.isPending ? 'Saving…' : 'Reset password'}
             </Button>
-          </Form>
+          </FieldGroup>
+        </Form>
 
-          <div className="mt-4 text-sm">
-            <Link to={ROUTES.login} className="underline underline-offset-4">
-              Back to sign in
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+        <FieldDescription className="text-center">
+          <Link to={ROUTES.login}>Back to sign in</Link>
+        </FieldDescription>
+      </AuthCard>
     </AuthLayout>
   )
 }

@@ -910,11 +910,12 @@ describe('keyboard', () => {
       // Every layout's first Tab stop.
       screen.getByRole('link', { name: 'Skip to content' }),
       screen.getByLabelText('Email'),
+      // The login-04 layout puts the reset link in the password label's row, so it reads, and tabs, before the field.
+      screen.getByRole('link', { name: 'Forgot password?' }),
       screen.getByLabelText('Password'),
       screen.getByRole('button', { name: 'Sign in' }),
       // A plain anchor to a same-origin API route, not a button with a click handler, so it is in the tab order without extra code.
       screen.getByRole('link', { name: 'Continue with Google' }),
-      screen.getByRole('link', { name: 'Forgot password?' }),
       screen.getByRole('link', { name: 'Create an account' }),
     ]
     expect(screen.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute(

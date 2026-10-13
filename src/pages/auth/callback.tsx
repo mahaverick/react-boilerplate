@@ -1,6 +1,7 @@
 import { IconLoader2 } from '@tabler/icons-react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { useAuthStore } from '@/states/auth.store'
@@ -30,9 +31,16 @@ function OAuthCallbackPage() {
   }, [navigate])
 
   return (
-    <div role="status" className="flex min-h-svh items-center justify-center gap-3">
-      <IconLoader2 className="size-5 animate-spin" aria-hidden="true" />
-      <span className="sr-only">Completing sign-in…</span>
+    <div className="flex min-h-svh items-center justify-center bg-muted p-6">
+      <Card className="w-full max-w-sm">
+        <CardContent
+          role="status"
+          className="flex flex-row items-center justify-center gap-3 text-muted-foreground"
+        >
+          <IconLoader2 className="size-5 animate-spin" aria-hidden="true" />
+          <span>Completing sign-in…</span>
+        </CardContent>
+      </Card>
     </div>
   )
 }

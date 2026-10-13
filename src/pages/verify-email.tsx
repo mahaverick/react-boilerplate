@@ -3,9 +3,10 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { FieldDescription, FieldGroup, FieldSeparator } from '@/components/ui/field'
 import {
   Form,
   FormControl,
@@ -91,17 +92,12 @@ function VerifyEmailPage() {
 
   return (
     <AuthLayout>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h1>Verify your email</h1>
-          </CardTitle>
-          <CardDescription>
-            Confirm the link from your inbox with the password you chose when registering.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form form={form} serverErrors={serverErrors}>
+      <AuthCard
+        title="Verify your email"
+        description="Confirm the link from your inbox with the password you chose when registering."
+      >
+        <Form form={form} serverErrors={serverErrors} className="space-y-0">
+          <FieldGroup className="gap-6">
             <FormField form={form} name="token">
               {(field) => (
                 <FormItem>
@@ -141,25 +137,29 @@ function VerifyEmailPage() {
             <Button type="submit" className="w-full" disabled={verifyEmail.isPending}>
               {verifyEmail.isPending ? 'Verifying…' : 'Verify email'}
             </Button>
-          </Form>
+          </FieldGroup>
+        </Form>
 
-          {alreadyVerified !== null && (
-            <div className="mt-6 border-t pt-4">
-              <p role="status" className="text-sm">
-                {alreadyVerified}
-              </p>
-              <Link to={ROUTES.login} className={cn(buttonVariants(), 'mt-3 w-full')}>
-                Sign in
-              </Link>
-            </div>
-          )}
+        {alreadyVerified !== null && (
+          <div className="grid gap-3">
+            <FieldSeparator />
+            <p role="status" className="text-sm">
+              {alreadyVerified}
+            </p>
+            <Link to={ROUTES.login} className={cn(buttonVariants(), 'w-full')}>
+              Sign in
+            </Link>
+          </div>
+        )}
 
-          {failed && (
-            <div className="mt-6 border-t pt-4">
-              <p className="text-sm text-muted-foreground">
-                Links expire. Enter your address and we will send a fresh one.
-              </p>
-              <Form form={resendForm} className="mt-3">
+        {failed && (
+          <div className="grid gap-3">
+            <FieldSeparator />
+            <p className="text-sm text-muted-foreground">
+              Links expire. Enter your address and we will send a fresh one.
+            </p>
+            <Form form={resendForm} className="space-y-0">
+              <FieldGroup className="gap-4">
                 <FormField form={resendForm} name="email">
                   {(field) => (
                     <FormItem>
@@ -186,17 +186,15 @@ function VerifyEmailPage() {
                 >
                   {resend.isPending ? 'Sending…' : 'Resend verification email'}
                 </Button>
-              </Form>
-            </div>
-          )}
-
-          <div className="mt-4 text-sm">
-            <Link to={ROUTES.login} className="underline underline-offset-4">
-              Back to sign in
-            </Link>
+              </FieldGroup>
+            </Form>
           </div>
-        </CardContent>
-      </Card>
+        )}
+
+        <FieldDescription className="text-center">
+          <Link to={ROUTES.login}>Back to sign in</Link>
+        </FieldDescription>
+      </AuthCard>
     </AuthLayout>
   )
 }

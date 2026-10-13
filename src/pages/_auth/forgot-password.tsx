@@ -1,8 +1,9 @@
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
+import { AuthCard } from '@/components/layouts/auth-card'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { FieldDescription, FieldGroup } from '@/components/ui/field'
 import {
   Form,
   FormControl,
@@ -51,20 +52,17 @@ function ForgotPasswordPage() {
   })
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h1>Forgot your password?</h1>
-        </CardTitle>
-        <CardDescription>We will email you a link to set a new one.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {submitted ? (
-          <p role="status" className="text-sm">
-            {SENT_MESSAGE}
-          </p>
-        ) : (
-          <Form form={form}>
+    <AuthCard
+      title="Forgot your password?"
+      description="We will email you a link to set a new one."
+    >
+      {submitted ? (
+        <p role="status" className="text-center text-sm">
+          {SENT_MESSAGE}
+        </p>
+      ) : (
+        <Form form={form} className="space-y-0">
+          <FieldGroup className="gap-6">
             <FormField form={form} name="email">
               {(field) => (
                 <FormItem>
@@ -73,6 +71,7 @@ function ForgotPasswordPage() {
                     <Input
                       type="email"
                       autoComplete="email"
+                      placeholder="you@example.com"
                       value={fieldValue(field.state.value)}
                       onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
@@ -86,15 +85,13 @@ function ForgotPasswordPage() {
             <Button type="submit" className="w-full" disabled={forgotPassword.isPending}>
               {forgotPassword.isPending ? 'Sending…' : 'Send reset link'}
             </Button>
-          </Form>
-        )}
+          </FieldGroup>
+        </Form>
+      )}
 
-        <div className="mt-4 text-sm">
-          <Link to={ROUTES.login} className="underline underline-offset-4">
-            Back to sign in
-          </Link>
-        </div>
-      </CardContent>
-    </Card>
+      <FieldDescription className="text-center">
+        <Link to={ROUTES.login}>Back to sign in</Link>
+      </FieldDescription>
+    </AuthCard>
   )
 }

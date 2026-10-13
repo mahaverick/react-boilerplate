@@ -52,10 +52,11 @@ function arriveSignedOut() {
 }
 
 /** Submits the registration form the way a user does, through the labelled fields and the button. */
-async function fillAndSubmit(email: string, password: string) {
+async function fillAndSubmit(email: string, password: string, confirmPassword = password) {
   const user = userEvent.setup()
   await user.type(await screen.findByLabelText('Email'), email)
   await user.type(screen.getByLabelText('Password'), password)
+  await user.type(screen.getByLabelText('Confirm password'), confirmPassword)
   await user.click(screen.getByRole('button', { name: 'Create account' }))
 }
 
@@ -150,8 +151,10 @@ describe('register page', () => {
     expect(await screen.findByLabelText('Email')).toHaveValue('ada@b.com')
     const user = userEvent.setup()
     await user.type(screen.getByLabelText('Password'), 'a-long-enough-password')
+    await user.type(screen.getByLabelText('Confirm password'), 'a-long-enough-password')
     await user.click(screen.getByRole('button', { name: 'Create account' }))
 
+    // The confirmation is client-side only: the payload carries no confirmPassword.
     await waitFor(() => {
       expect(body).toEqual({ email: 'ada@b.com', password: 'a-long-enough-password' })
     })
@@ -169,5 +172,35 @@ describe('register page', () => {
     renderRegisterAt('/register')
 
     expect(await screen.findByLabelText('Email')).toHaveValue('')
+  })
+
+  it('refuses a confirmation that does not match, on the confirmation field, and posts nothing', async () => {
+    const posted = vi.fn()
+    server.use(
+      http.post('/api/v1/auth/register', () => {
+        posted()
+        return ok(null, REGISTER_MESSAGE, 202)
+      })
+    )
+    renderRegisterAt('/register')
+    await fillAndSubmit('ada@b.com', 'a-long-enough-password', 'a-different-password-9')
+
+    const confirm = screen.getByLabelText('Confirm password')
+    await waitFor(() => {
+      expect(confirm).toHaveAccessibleDescription('Passwords do not match.')
+    })
+    expect(confirm).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('aria-invalid', 'false')
+    expect(posted).not.toHaveBeenCalled()
+  })
+
+  it('asks for the confirmation when it is left empty', async () => {
+    renderRegisterAt('/register')
+    const user = userEvent.setup()
+    await user.type(await screen.findByLabelText('Email'), 'ada@b.com')
+    await user.type(screen.getByLabelText('Password'), 'a-long-enough-password')
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+    expect(await screen.findByText('Confirm your password.')).toBeInTheDocument()
   })
 })
