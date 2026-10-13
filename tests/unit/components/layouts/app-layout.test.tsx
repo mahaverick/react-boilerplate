@@ -439,8 +439,8 @@ describe('AppLayout system theme', () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
 
-    // The premise: below `md` the closed drawer leaves no ThemeToggle in the document. If this fails, the listener could move into the control.
-    expect(screen.queryByRole('button', { name: /Change theme/ })).not.toBeInTheDocument()
+    // The premise: below `md` the closed drawer leaves no sidebar content in the document, so a listener in the sidebar would be dead here.
+    expect(screen.queryByRole('button', { name: /^Account menu for/ })).not.toBeInTheDocument()
 
     osSwitchesTo(true)
     expect(document.documentElement.classList.contains('dark')).toBe(true)

@@ -1,4 +1,4 @@
-import { IconBell, IconBuilding, IconLayoutDashboard, type TablerIcon } from '@tabler/icons-react'
+import { IconBell, IconBuilding, IconLayoutDashboard } from '@tabler/icons-react'
 import { Link, Outlet, useLocation, useMatches, type LinkProps } from '@tanstack/react-router'
 import { Fragment, useEffect } from 'react'
 import { MaintenanceBanner } from '@/components/features/maintenance/maintenance-gate'
@@ -7,6 +7,7 @@ import { MAIN_CONTENT_ID, SkipLink } from '@/components/features/skip-link'
 import { TenantSwitcher } from '@/components/features/tenant-switcher'
 import { ThemeToggle } from '@/components/features/theme-toggle'
 import { UserMenu } from '@/components/features/user-menu'
+import { NavMain, type NavMainItem } from '@/components/layouts/nav-main'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -22,10 +23,8 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
+  SidebarRail,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { ROUTES } from '@/constants/routes'
@@ -40,12 +39,10 @@ import { useThemeStore } from '@/states/theme.store'
 /**
  * One sidebar entry. `flag` hides it while that flag is off; the sidebar has
  * no tenant, so only a user-scoped flag belongs here (a tenant-scoped one
- * gates a tenant tab instead).
+ * gates a tenant tab instead). An entry with `items` renders as a
+ * collapsible group.
  */
-interface NavItem {
-  to: (typeof ROUTES)['dashboard' | 'notifications' | 'tenants']
-  label: string
-  Icon: TablerIcon
+interface NavItem extends NavMainItem {
   flag?: BooleanClientFlagKey
 }
 
@@ -115,13 +112,11 @@ function withAncestors(crumbs: Crumb[]): Crumb[] {
   return trail
 }
 
-/** Whether a nav item's route contains the current location. */
-function isNavActive(pathname: string, to: string): boolean {
-  return pathname === to || pathname.startsWith(`${to}/`)
-}
-
 /**
- * The signed-in shell: sidebar, header with breadcrumbs, and the page.
+ * The signed-in shell, after shadcn's sidebar-07 block: a sidebar that
+ * collapses to icons (with a rail to toggle it), a header with breadcrumbs,
+ * and the page. The sidebar holds the tenant switcher, the primary
+ * navigation (`NavMain`) and the account menu.
  *
  * It holds the one mount of the notification stream, of the `$feature/*`
  * super-property sync (`useFeaturePropertiesSync`), and of the listener that
@@ -129,21 +124,20 @@ function isNavActive(pathname: string, to: string): boolean {
  * `prefers-color-scheme` change, and the theme store samples that setting on
  * each `setTheme`. All three live here, not in the sidebar: below `md` the
  * `Sidebar` renders into a `Sheet`, whose content unmounts while the drawer is
- * closed, so anything inside it would be dead on phones. The theme toggle is a
- * sibling of the user menu, not an item in its dropdown, which unmounts its
- * content whenever the menu closes.
+ * closed, so anything inside it would be dead on phones. The theme toggle sits
+ * in the header beside the notification bell, so it is reachable on phones
+ * without opening the drawer, and is not an item in the account menu, which
+ * unmounts its content whenever the menu closes.
  *
- * The primary navigation sits in its own `nav` landmark, since `Sidebar`
- * renders plain divs, and each item renders as the anchor itself, so it is
- * keyboard-reachable and opens in a new tab. `SidebarInset` is the `main`
- * element, so the page goes in a plain div. The trigger's explicit aria-label
- * pins its name against a re-added vendored file. Each breadcrumb separator
- * is a sibling `li`, since an `li` inside an `li` is invalid. The nav
- * highlight reads the location, not the last crumb, whose deep path matches
- * no nav item. The sidebar store, not the provider, owns the open state, so
- * anything in the app can read or set it. `MaintenanceBanner` sits under the
- * header, inside the content column, so the fixed sidebar never covers it; the
- * maintenance gate draws it only for pages outside this shell.
+ * `SidebarInset` is the `main` element, so the page goes in a plain div. The
+ * trigger's explicit aria-label pins its name against a re-added vendored
+ * file. Each breadcrumb separator is a sibling `li`, since an `li` inside an
+ * `li` is invalid. The nav highlight reads the location, not the last crumb,
+ * whose deep path matches no nav item. The sidebar store, not the provider,
+ * owns the open state, so anything in the app can read or set it.
+ * `MaintenanceBanner` sits under the header, inside the content column, so the
+ * fixed sidebar never covers it; the maintenance gate draws it only for pages
+ * outside this shell.
  */
 export function AppLayout() {
   const user = useAuthStore((s) => s.user)
@@ -175,30 +169,20 @@ export function AppLayout() {
           <TenantSwitcher />
         </SidebarHeader>
         <SidebarContent>
-          <nav aria-label="Main">
-            <SidebarMenu>
-              {navItems.map(({ to, label, Icon }) => (
-                <SidebarMenuItem key={to}>
-                  <SidebarMenuButton isActive={isNavActive(pathname, to)} render={<Link to={to} />}>
-                    <Icon aria-hidden="true" />
-                    <span>{label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </nav>
+          <NavMain items={navItems} pathname={pathname} />
         </SidebarContent>
         <SidebarFooter>
           <UserMenu user={user} />
-          <div className="flex justify-center">
-            <ThemeToggle />
-          </div>
         </SidebarFooter>
+        <SidebarRail />
       </Sidebar>
       <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="outline-none">
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger aria-label="Toggle sidebar" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+          <SidebarTrigger aria-label="Toggle sidebar" className="-ml-1" />
+          <Separator
+            orientation="vertical"
+            className="mr-2 data-vertical:h-4 data-vertical:self-auto"
+          />
           <Breadcrumb>
             <BreadcrumbList>
               {crumbs.map((crumb, index) => (
@@ -217,6 +201,7 @@ export function AppLayout() {
           </Breadcrumb>
           <div className="ml-auto flex items-center gap-2">
             <NotificationBell />
+            <ThemeToggle />
           </div>
         </header>
         <MaintenanceBanner />

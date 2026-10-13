@@ -64,8 +64,9 @@ test('the dashboard and the account menu mask the user', async ({ page }) => {
 test('the profile masks the address', async ({ page }) => {
   await page.goto(harness('/profile'))
   await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible()
-  await expect(page.getByText('pii-probe@example.test')).toBeVisible()
-  await expectAllMasked(page, 1)
+  // Scoped to the page: the sidebar's account menu shows the address too, and the scan below covers both.
+  await expect(page.getByRole('main').getByText('pii-probe@example.test')).toBeVisible()
+  await expectAllMasked(page, 2)
 })
 
 test('the notifications mask a body that names someone', async ({ page }) => {

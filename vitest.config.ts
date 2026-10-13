@@ -43,8 +43,8 @@ export default defineConfig({
         'src/routeTree.gen.ts',
         'src/main.tsx',
         'src/components/dev/devtools.tsx',
-        'src/components/ui/{alert-dialog,avatar,badge,breadcrumb,button,card,combobox,dialog,dropdown-menu}.tsx',
-        'src/components/ui/{input,input-group,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
+        'src/components/ui/{alert-dialog,avatar,badge,breadcrumb,button,card,collapsible,combobox,dialog,dropdown-menu}.tsx',
+        'src/components/ui/{field,input,input-group,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
         'src/components/ui/{table,tabs,textarea,tooltip}.tsx',
       ],
       /** About ten points under the measured coverage, so a large drop fails CI. */
