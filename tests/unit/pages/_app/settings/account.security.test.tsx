@@ -40,6 +40,7 @@ describe('security settings page', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Security' })).toBeInTheDocument()
     expect(await screen.findByRole('region', { name: 'Security' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Security' })).toHaveClass('sr-only')
     expect(await screen.findByRole('button', { name: 'Change password' })).toBeInTheDocument()
   })
 })
