@@ -11,9 +11,9 @@ import { promisify } from 'node:util'
 import { expect, type Page } from '@playwright/test'
 import type { MembershipRole } from '@/constants/roles'
 import {
-  apiDirPlan,
   cwdFromLsofFields,
   formatPidFile,
+  grantDirPlan,
   parsePidFile,
   parsePsLine,
   respawnOptions,
@@ -484,15 +484,21 @@ export async function createTenant(
  * script in `E2E_API_DIR`, the supported way in, audited as
  * `platform.member.granted`. It must run before the account signs in: the role
  * arrives with the session. `E2E_API_DIR` has no default: it throws, through
- * `apiDirPlan`, when that is unset, missing, not a git worktree, or the main
- * express checkout, whose database is the developer's own.
+ * `grantDirPlan`, when that is unset, missing, or not an express checkout. Any
+ * checkout named explicitly will do, the main one included, since the grant
+ * signals nothing; only `restartApi` requires a separate worktree.
  */
 export async function grantPlatformRole(email: string, role: MembershipRole): Promise<void> {
-  const checked = apiDirPlan({
+  const checked = grantDirPlan({
     apiDir: process.env.E2E_API_DIR,
-    ...GUARD_FS,
-    who: 'grantPlatformRole',
-    does: 'runs pnpm platform:grant',
+    realpath: GUARD_FS.realpath,
+    readJson: (file) => {
+      try {
+        return JSON.parse(readFileSync(file, 'utf8')) as { scripts?: unknown }
+      } catch {
+        return null
+      }
+    },
   })
   if ('refusal' in checked) throw new Error(checked.refusal)
   await execFile('pnpm', ['platform:grant', email, role], { cwd: checked.dir, timeout: 60_000 })

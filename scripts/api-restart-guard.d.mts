@@ -15,6 +15,11 @@ export declare function apiDirPlan(input: {
   who: string
   does: string
 }): { refusal: string } | { dir: string }
+export declare function grantDirPlan(input: {
+  apiDir: string | undefined
+  realpath: (path: string) => string
+  readJson: (path: string) => { scripts?: unknown } | null
+}): { refusal: string } | { dir: string }
 export declare function cwdFromLsofFields(output: string): string | null
 export declare function isWithin(cwd: string | null, dir: string): boolean
 export declare function stopListenersIn(input: {

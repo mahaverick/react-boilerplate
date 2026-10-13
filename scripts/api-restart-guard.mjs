@@ -112,6 +112,39 @@ export function apiDirPlan({ apiDir, mainCheckout, realpath, isFile, who, does }
 }
 
 /**
+ * The express checkout `grantPlatformRole` runs `pnpm platform:grant` in, or
+ * why it refuses. It sends no signal, so any checkout named explicitly will
+ * do, the main one included; it refuses only an unset `E2E_API_DIR`, a missing
+ * directory, and one whose `package.json` has no `platform:grant` script.
+ * @param input - The directory and the file-system reads it needs.
+ * @param input.apiDir - `E2E_API_DIR`.
+ * @param input.realpath - Resolves a path to its true form; throws when it does not exist.
+ * @param input.readJson - A JSON file's parsed contents, or `null` when it is missing or invalid.
+ * @returns `{ refusal }` naming what to change, or the resolved `{ dir }`.
+ */
+export function grantDirPlan({ apiDir, realpath, readJson }) {
+  if (!apiDir) {
+    return {
+      refusal:
+        'grantPlatformRole runs pnpm platform:grant in E2E_API_DIR, which is unset: set it to the express checkout whose database the API under test uses',
+    }
+  }
+  const dir = realpathOrNull(realpath, apiDir)
+  if (dir === null) {
+    return {
+      refusal: `grantPlatformRole runs pnpm platform:grant in E2E_API_DIR, and ${apiDir} does not exist`,
+    }
+  }
+  const scripts = readJson(`${dir}/package.json`)?.scripts
+  if (typeof scripts !== 'object' || scripts === null || !('platform:grant' in scripts)) {
+    return {
+      refusal: `grantPlatformRole runs pnpm platform:grant in E2E_API_DIR, and ${dir}/package.json has no platform:grant script: point it at an express checkout`,
+    }
+  }
+  return { dir }
+}
+
+/**
  * A path with its symlinks resolved, or `null` when it does not exist.
  * @param realpath - Resolves a path's symlinks; throws when it does not exist.
  * @param target - The path.

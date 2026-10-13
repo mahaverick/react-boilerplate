@@ -5,6 +5,7 @@ import {
   cwdFromLsofFields,
   explicitPortOf,
   formatPidFile,
+  grantDirPlan,
   hasNoTty,
   isPnpmDev,
   isRecordedLeader,
@@ -273,6 +274,51 @@ describe('apiDirPlan', () => {
   ])('refuses %j, naming the helper', (apiDir, refusal) => {
     const result = dirPlan(apiDir)
     expect('refusal' in result ? result.refusal : null).toMatch(refusal)
+  })
+})
+
+describe('grantDirPlan', () => {
+  /** package.json contents by directory: express has the grant script, the clone a different one. */
+  const packages: Record<string, { scripts?: unknown }> = {
+    [`${MAIN}/package.json`]: { scripts: { 'platform:grant': 'tsx grant.ts' } },
+    [`${WORKTREE}/package.json`]: { scripts: { 'platform:grant': 'tsx grant.ts' } },
+    [`${CLONE}/package.json`]: { scripts: { dev: 'vite' } },
+    [`${ANCESTOR}/package.json`]: {},
+  }
+
+  /** The plan for `apiDir` over that file system. */
+  function grantPlan(apiDir: string | undefined) {
+    return grantDirPlan({
+      apiDir,
+      realpath: fs.realpath,
+      readJson: (path) => packages[path] ?? null,
+    })
+  }
+
+  it.each([
+    [MAIN, MAIN],
+    ['../express-boilerplate', MAIN],
+    [MAIN_OTHER_CASE, MAIN],
+    [LINK_TO_WORKTREE, WORKTREE],
+  ])('runs in %s, the main checkout included, resolved to %s', (apiDir, dir) => {
+    expect(grantPlan(apiDir)).toEqual({ dir })
+  })
+
+  it.each([
+    [undefined, /E2E_API_DIR, which is unset: set it to the express checkout whose database/],
+    ['', /which is unset/],
+    ['/work/missing', /does not exist/],
+    [CLONE, /has no platform:grant script/],
+    [ANCESTOR, /has no platform:grant script/],
+    [LINK_TO_MAIN.replace('main', 'nowhere'), /does not exist/],
+  ])('refuses %j', (apiDir, refusal) => {
+    const result = grantPlan(apiDir)
+    expect('refusal' in result ? result.refusal : null).toMatch(refusal)
+  })
+
+  it('refuses a directory without a package.json', () => {
+    const result = grantDirPlan({ apiDir: WORKTREE, realpath: fs.realpath, readJson: () => null })
+    expect('refusal' in result ? result.refusal : null).toMatch(/has no platform:grant script/)
   })
 })
 

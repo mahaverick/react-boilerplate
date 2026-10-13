@@ -215,10 +215,11 @@ The `live` and `nginx` projects read these variables (defaults in
 - `E2E_NGINX_ORIGIN`: the image under test (default `http://localhost:8088`).
 - `E2E_FLAGS_SET_CMD`: how `live/flags.test.ts` sets a flag; the test fails
   without it.
-- `E2E_API_DIR` (no default): the git worktree of the express under test, where
-  `live/platform.test.ts` runs `pnpm platform:grant` and the SSE reconnect test
-  restarts `pnpm dev`. Both refuse an unset value and the main
-  `../express-boilerplate` checkout.
+- `E2E_API_DIR` (no default): the express checkout whose database the API under
+  test uses. `live/platform.test.ts` runs `pnpm platform:grant` there, and any
+  checkout will do, `../express-boilerplate` included. The SSE reconnect test
+  restarts `pnpm dev` there, so for it alone this must be a separate git
+  worktree, never the main checkout.
 - `E2E_MAILPIT_ORIGIN` (default `http://localhost:8025`): the mailpit the helpers
   read verification emails from.
 - `E2E_RELEASE` (default `dev`): the release `nginx/errors.test.ts` expects on each
