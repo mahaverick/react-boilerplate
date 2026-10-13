@@ -70,7 +70,7 @@ describe('page titles', () => {
       isAuthenticated: true,
       isBootstrapped: true,
     })
-    renderAppAt('/profile')
+    renderAppAt('/settings/account/profile')
 
     await screen.findByRole('heading', { name: 'Profile', level: 1 })
     await waitFor(() => {
@@ -91,7 +91,7 @@ describe('page titles', () => {
       expect(document.title).toBe('Dashboard · React Boilerplate')
     })
 
-    await act(() => router.navigate({ to: '/profile' }))
+    await act(() => router.navigate({ to: '/settings/account/profile' }))
 
     await screen.findByRole('heading', { name: 'Profile', level: 1 })
     await waitFor(() => {
@@ -117,8 +117,8 @@ describe('page titles', () => {
     })
   })
 
-  // The tab's title, not its tenant layout's `acme · React Boilerplate`: the deepest match's head() wins when the router merges them.
-  it('puts the tenant slug in a tenant tab title', async () => {
+  // The page's title, not its layouts' (`Settings · React Boilerplate`): the deepest match's head() wins when the router merges them.
+  it('puts the tenant slug in a workspace settings page title', async () => {
     useAuthStore.setState({
       accessToken: 'access-token',
       user: testUser,
@@ -129,10 +129,36 @@ describe('page titles', () => {
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await waitFor(() => {
       expect(document.title).toBe('Members · acme · React Boilerplate')
+    })
+    expect(document.querySelectorAll('title')).toHaveLength(1)
+  })
+
+  // Profile and Members · acme have their own tests above.
+  it.each([
+    ['the settings landing page', '/settings', 'Settings'],
+    ['the security settings page', '/settings/account/security', 'Security'],
+    ['the notification settings page', '/settings/account/notifications', 'Notifications'],
+    ['the workspace general page', '/settings/workspace/acme/general', 'General · acme'],
+    ['the workspace activity page', '/settings/workspace/acme/activity', 'Activity · acme'],
+  ])('names %s', async (_name, path, title) => {
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+    server.use(
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+    )
+    renderAppAt(path)
+
+    await waitFor(() => {
+      expect(document.title).toBe(`${title} · React Boilerplate`)
     })
     expect(document.querySelectorAll('title')).toHaveLength(1)
   })
@@ -145,7 +171,7 @@ describe('page titles', () => {
       (route) => !route.isRoot && !hasChildren(route) && route.options.component !== undefined
     )
     // The filter must have found the pages, or the check below would pass on none.
-    expect(pages.map((route) => String(route.id))).toContain('/_app/profile')
+    expect(pages.map((route) => String(route.id))).toContain('/_app/settings/account/profile')
     const untitled = pages
       .filter((route) => typeof route.options.head !== 'function')
       .map((route) => String(route.id))

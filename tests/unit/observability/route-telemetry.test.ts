@@ -6,7 +6,7 @@ import {
   Outlet,
 } from '@tanstack/react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { installRouteAnalytics, TENANT_ROUTE_ID } from '@/observability/route-telemetry'
+import { installRouteAnalytics, TENANT_ROUTE_IDS } from '@/observability/route-telemetry'
 import { initAnalytics, resetAnalyticsForTests } from '@/observability/telemetry/telemetry'
 import { analyticsConfigFor, resetFakePosthog, sdk } from '@/tests/mocks/posthog'
 
@@ -23,7 +23,7 @@ const TENANTS: Record<string, unknown> = {
   gone: null,
 }
 
-/** A small tree shaped like the app's: the tenant layout under the pathless `_app` layout. */
+/** A small tree shaped like the app's: both tenant layouts under the pathless `_app` layout. */
 function makeRouter(initialPath: string) {
   const rootRoute = createRootRoute({ component: Outlet })
   const appRoute = createRoute({ getParentRoute: () => rootRoute, id: '_app', component: Outlet })
@@ -37,9 +37,23 @@ function makeRouter(initialPath: string) {
     },
   })
   const membersRoute = createRoute({ getParentRoute: () => tenantRoute, path: 'members' })
+  const settingsRoute = createRoute({ getParentRoute: () => appRoute, path: 'settings' })
+  const workspaceRoute = createRoute({
+    getParentRoute: () => settingsRoute,
+    path: 'workspace/$slug',
+    loader: ({ params }) => TENANTS[params.slug] ?? null,
+  })
+  const workspaceMembersRoute = createRoute({
+    getParentRoute: () => workspaceRoute,
+    path: 'members',
+  })
   const router = createRouter({
     routeTree: rootRoute.addChildren([
-      appRoute.addChildren([profileRoute, tenantRoute.addChildren([membersRoute])]),
+      appRoute.addChildren([
+        profileRoute,
+        tenantRoute.addChildren([membersRoute]),
+        settingsRoute.addChildren([workspaceRoute.addChildren([workspaceMembersRoute])]),
+      ]),
     ]),
     history: createMemoryHistory({ initialEntries: [initialPath] }),
   })
@@ -77,12 +91,21 @@ describe('installRouteAnalytics', () => {
     return router
   }
 
-  it('matches the app’s tenant layout id', () => {
-    expect(makeRouter('/').routesById).toHaveProperty([TENANT_ROUTE_ID])
+  it.each(TENANT_ROUTE_IDS)('matches the app’s tenant layout id %s', (id) => {
+    expect(makeRouter('/').routesById).toHaveProperty([id])
   })
 
   it('groups the first page’s tenant before its pageview, queued until the SDK loads', async () => {
     await start('/tenants/acme/members')
+    expect(attributionCalls()).toEqual([
+      MEMBER,
+      'group("tenant", "tenant-acme")',
+      'capture("$pageview", {})',
+    ])
+  })
+
+  it('groups a workspace settings page under its tenant before its pageview', async () => {
+    await start('/settings/workspace/acme/members')
     expect(attributionCalls()).toEqual([
       MEMBER,
       'group("tenant", "tenant-acme")',

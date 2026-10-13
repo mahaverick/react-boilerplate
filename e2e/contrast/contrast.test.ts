@@ -51,11 +51,35 @@ const SURFACES = [
     url: '/verify-email?token=contrast-probe',
     heading: 'Verify your email',
   },
-  { name: 'members (populated)', url: '/e2e/harness/', heading: 'Members' },
-  { name: 'members (empty)', url: '/e2e/harness/?state=empty', heading: 'Members' },
+  // The harness's default page is Settings › Workspace › Members. Its layout's h1 is also "Members", and renders whatever the tenant gate decides, so the panel's own h2 is the one waited for.
+  { name: 'members (populated)', url: '/e2e/harness/', heading: { name: 'Members', level: 2 } },
+  {
+    name: 'members (empty)',
+    url: '/e2e/harness/?state=empty',
+    heading: { name: 'Members', level: 2 },
+  },
   { name: 'dashboard', url: '/e2e/harness/?path=/dashboard', heading: /^Welcome back,/ },
   { name: 'notifications', url: '/e2e/harness/?path=/notifications', heading: 'Notifications' },
-  { name: 'profile', url: '/e2e/harness/?path=/profile', heading: 'Sign-in methods' },
+  {
+    name: 'settings',
+    url: '/e2e/harness/?path=/settings',
+    heading: { name: 'Workspace', level: 2 },
+  },
+  {
+    name: 'profile',
+    url: '/e2e/harness/?path=/settings/account/profile',
+    heading: { name: 'Details', level: 2 },
+  },
+  {
+    name: 'security',
+    url: '/e2e/harness/?path=/settings/account/security',
+    heading: 'Sign-in methods',
+  },
+  {
+    name: 'notification settings',
+    url: '/e2e/harness/?path=/settings/account/notifications',
+    heading: 'Preferences',
+  },
   { name: 'tenants', url: '/e2e/harness/?path=/tenants', heading: 'Tenants' },
   {
     name: 'tenants (suspended row)',
@@ -73,16 +97,24 @@ const SURFACES = [
     heading: 'Getting started',
   },
   {
-    name: 'tenant settings',
-    url: '/e2e/harness/?path=/tenants/acme/settings',
-    heading: 'Settings',
+    name: 'workspace general',
+    url: '/e2e/harness/?path=/settings/workspace/acme/general',
+    heading: { name: 'Settings', level: 2 },
   },
   {
-    name: 'tenant activity',
-    url: '/e2e/harness/?path=/tenants/acme/activity',
-    heading: 'Activity',
+    name: 'workspace activity',
+    url: '/e2e/harness/?path=/settings/workspace/acme/activity',
+    heading: { name: 'Activity', level: 2 },
   },
 ] as const
+
+/** What `contrastOf` waits for: a heading's name, or its name and level where the name alone is not unique. */
+type Heading = string | RegExp | { name: string | RegExp; level: number }
+
+/** The `getByRole('heading', …)` options for `heading`. */
+function headingOptions(heading: Heading): { name: string | RegExp; level?: number } {
+  return typeof heading === 'string' || heading instanceof RegExp ? { name: heading } : heading
+}
 
 const THEMES = ['light', 'dark'] as const
 
@@ -106,12 +138,12 @@ async function contrastOf(
   page: Page,
   url: string,
   theme: string,
-  heading: string | RegExp,
+  heading: Heading,
   scope?: string
 ): Promise<ContrastResult> {
   await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
   await page.goto(url)
-  await expect(page.getByRole('heading', { name: heading })).toBeVisible({
+  await expect(page.getByRole('heading', headingOptions(heading))).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
   // The heading can render outside each page's data conditional, so it can show while the data behind it is still a skeleton. Grade the loaded page.
@@ -279,7 +311,7 @@ test.describe('popups that are not menus', () => {
       // Puts the `destructive` foreground on the dialog's raised surface, which the page entries never open.
       await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
       await page.goto('/e2e/harness/')
-      await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible({
+      await expect(page.getByRole('heading', { name: 'Members', level: 2 })).toBeVisible({
         timeout: COLD_TRANSFORM_BUDGET_MS,
       })
 
@@ -322,9 +354,9 @@ test.describe('staff surfaces', () => {
     test(`the Activity Staff badge meets WCAG AA contrast in ${theme}`, async ({ page }) => {
       const result = await contrastOf(
         page,
-        '/e2e/harness/?path=/tenants/acme/activity',
+        '/e2e/harness/?path=/settings/workspace/acme/activity',
         theme,
-        'Activity'
+        { name: 'Activity', level: 2 }
       )
       const row = page.getByRole('listitem').filter({ hasText: 'Sam Staff' })
       await expect(row.getByText('Staff', { exact: true })).toBeVisible()

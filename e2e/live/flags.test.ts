@@ -114,7 +114,7 @@ test('flag changes reach the tab, the page, the API and the exposure report', as
 
   // The tab list follows cached flags until they refetch, so reload before asserting it is gone.
   await page.goto(`/tenants/${slug}`)
-  await expect(page.getByRole('navigation', { name: 'Tenant sections' })).toContainText('Settings')
+  await expect(page.getByRole('navigation', { name: 'Tenant sections' })).toContainText('Overview')
   await expect(
     page.getByRole('navigation', { name: 'Tenant sections' }).getByRole('link', { name: 'Beta' })
   ).toHaveCount(0)

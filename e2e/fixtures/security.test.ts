@@ -1,12 +1,12 @@
 import { expect, test } from '../hermetic'
 
 /**
- * The Security section on /profile, through the harness, which accepts the one
+ * The Security page, Settings › Account › Security, through the harness, which accepts the one
  * current password `current-password` and answers any other with a 400.
  */
 
-test('changes the password from the profile page', async ({ page }) => {
-  await page.goto('/e2e/harness/?path=/profile')
+test('changes the password from the security page', async ({ page }) => {
+  await page.goto('/e2e/harness/?path=/settings/account/security')
 
   const current = page.getByLabel('Current password')
   await current.fill('current-password')
@@ -19,7 +19,7 @@ test('changes the password from the profile page', async ({ page }) => {
 })
 
 test('puts a wrong current password on its own field', async ({ page }) => {
-  await page.goto('/e2e/harness/?path=/profile')
+  await page.goto('/e2e/harness/?path=/settings/account/security')
 
   const current = page.getByLabel('Current password')
   await current.fill('not-the-password')
@@ -31,8 +31,8 @@ test('puts a wrong current password on its own field', async ({ page }) => {
   await expect(page.getByText('Current password is incorrect.')).toHaveCount(1)
 })
 
-test('signs out other sessions from the profile page', async ({ page }) => {
-  await page.goto('/e2e/harness/?path=/profile')
+test('signs out other sessions from the security page', async ({ page }) => {
+  await page.goto('/e2e/harness/?path=/settings/account/security')
 
   await page.getByRole('button', { name: 'Sign out other sessions' }).click()
 

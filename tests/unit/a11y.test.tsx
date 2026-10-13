@@ -15,6 +15,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
@@ -473,7 +474,22 @@ describe('signed-in pages', () => {
 
   it.each([
     ['dashboard', '/dashboard', () => screen.findByRole('heading', { name: /Welcome back/ })],
-    ['profile', '/profile', () => screen.findByRole('button', { name: 'Change password' })],
+    ['settings', '/settings', () => screen.findByRole('region', { name: 'Workspace' })],
+    [
+      'profile',
+      '/settings/account/profile',
+      () => screen.findByRole('button', { name: 'Save changes' }),
+    ],
+    [
+      'security',
+      '/settings/account/security',
+      () => screen.findByRole('button', { name: 'Change password' }),
+    ],
+    [
+      'notification settings',
+      '/settings/account/notifications',
+      () => screen.findAllByRole('switch'),
+    ],
     [
       'notifications',
       '/notifications',
@@ -490,8 +506,8 @@ describe('signed-in pages', () => {
       },
     ],
     [
-      'tenant members',
-      '/tenants/acme/members',
+      'workspace members',
+      '/settings/workspace/acme/members',
       // Both lists: the member table and the pending invitations under it.
       async () => {
         await screen.findByRole('table')
@@ -499,8 +515,8 @@ describe('signed-in pages', () => {
       },
     ],
     [
-      'tenant settings',
-      '/tenants/acme/settings',
+      'workspace general',
+      '/settings/workspace/acme/general',
       () => screen.findByRole('button', { name: 'Save settings' }),
     ],
     [
@@ -509,8 +525,8 @@ describe('signed-in pages', () => {
       () => screen.findByText('Beta features are on for acme.'),
     ],
     [
-      'tenant activity',
-      '/tenants/acme/activity',
+      'workspace activity',
+      '/settings/workspace/acme/activity',
       () => screen.findByText('changed the settings (timezone)'),
     ],
     [
@@ -523,6 +539,41 @@ describe('signed-in pages', () => {
     await ready()
     await expectNoViolations()
   })
+
+  it('the settings nav with no tenant to act on has no axe violations', async () => {
+    // Nothing remembered, so the Workspace items render disabled and described by the hint.
+    localStorage.clear()
+    useCurrentTenantStore.setState({ remembered: {} })
+    renderAppAt('/settings/account/profile')
+    await screen.findByRole('button', { name: 'Save changes' })
+    const nav = screen.getByRole('navigation', { name: 'Settings' })
+    expect(within(nav).getByRole('button', { name: 'Members' })).toHaveAccessibleDescription(
+      'Choose a tenant first.'
+    )
+    await expectNoViolations()
+  })
+
+  it.each([
+    ['missing', [], 'Tenant not available'],
+    [
+      'suspended',
+      [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
+      'Tenant suspended',
+    ],
+  ])(
+    'a workspace settings page for a %s tenant has one h1 and no axe violations',
+    async (_name, list, panel) => {
+      server.use(
+        http.get('/api/v1/tenants', () => ok(list, 'Tenants.')),
+        http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+      )
+      renderAppAt('/settings/workspace/acme/members')
+      // The settings layout's h1 names the section; the gate's panel sits under it.
+      await screen.findByRole('heading', { name: panel, level: 2 })
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Members')
+      await expectNoViolations()
+    }
+  )
 
   it('tenants list with a suspended row has no axe violations', async () => {
     server.use(
@@ -714,7 +765,7 @@ describe('open overlays', () => {
 
   it('has no violations with the remove-member dialog open, and the dialog is named', async () => {
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     // Cleo is an editor, so her row's Remove control is enabled and opens the dialog.
     const row = (await screen.findByRole('cell', { name: /Cleo/ })).closest('tr')
@@ -729,7 +780,7 @@ describe('open overlays', () => {
 
   it('has no violations with the revoke-invitation dialog open, and the dialog is named', async () => {
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
@@ -757,7 +808,7 @@ describe('open overlays', () => {
         ok(tenantDetail(TENANT, 'owner', 'platform'), 'Tenant retrieved.')
       )
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
     await screen.findByRole('table')
     await screen.findByText('invitee@b.com')
 
@@ -770,7 +821,7 @@ describe('open overlays', () => {
   it('has no violations with the member list stacked as cards on a phone', async () => {
     // The card layout is a second render path the table tests never touch, so it can hide a duplicate id or an unlabelled control.
     setViewportWidth(390)
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
     await screen.findByText('Cleo D')
     await screen.findByText('invitee@b.com')
 

@@ -64,18 +64,20 @@ test('a staff viewer opens a tenant by URL, is told so, and cannot change it', a
   await expect(banner).toContainText(`You’re viewing ${name} as platform staff (Viewer).`)
   await expect(banner.getByRole('link', { name: 'Back to your tenants' })).toBeVisible()
 
-  // Edit controls are absent for a viewer, not disabled: the read-only views render.
+  // Edit controls are absent for a viewer, not disabled: Settings › Workspace › General renders the read-only views.
+  await page.getByRole('link', { name: 'Workspace settings' }).click()
+  await expect(page).toHaveURL(new RegExp(`/settings/workspace/${slug}/general$`))
+  await expect(page.getByRole('status').filter({ hasText: 'as platform staff' })).toBeVisible()
+  await expect(
+    page.getByText('You can view these settings. Owners and admins can change them.')
+  ).toBeVisible()
   await expect(
     page.getByText('These details are managed by the tenant’s owners and admins.')
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
-  await page
-    .getByRole('navigation', { name: 'Tenant sections' })
-    .getByRole('link', { name: 'Settings' })
-    .click()
   await expect(
     page.getByText('These settings are managed by the tenant’s owners and admins.')
   ).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Save settings' })).toHaveCount(0)
 
   // And the API agrees, whatever the UI shows: the effective role is viewer.
@@ -92,7 +94,7 @@ test('a staff admin changes a setting, and the owner sees it in Activity marked 
   const { owner, slug } = await ownerWithTenant()
   await staffSignedIn(page, 'admin')
 
-  await page.goto(`/tenants/${slug}/settings`)
+  await page.goto(`/settings/workspace/${slug}/general`)
   await expect(
     page.getByRole('status').filter({ hasText: 'as platform staff (Admin)' })
   ).toBeVisible()
@@ -106,7 +108,7 @@ test('a staff admin changes a setting, and the owner sees it in Activity marked 
   try {
     const ownerPage = await ownerContext.newPage()
     await logIn(ownerPage, owner)
-    await ownerPage.goto(`/tenants/${slug}/activity`)
+    await ownerPage.goto(`/settings/workspace/${slug}/activity`)
 
     const row = ownerPage.getByRole('listitem').filter({ hasText: 'changed the settings' })
     await expect(row).toHaveCount(1)

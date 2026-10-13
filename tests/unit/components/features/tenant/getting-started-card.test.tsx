@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -112,13 +112,13 @@ afterEach(() => {
 })
 
 describe('Getting started card', () => {
-  it('sits above the Overview card, with the steps in the order the server serves them', async () => {
+  it('sits above the Details card, with the steps in the order the server serves them', async () => {
     mockTenant('owner')
     renderOverview()
 
     const card = await findCard()
-    const overview = screen.getByRole('heading', { name: 'Overview', level: 2 })
-    expect(card.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const details = screen.getByRole('heading', { name: 'Details', level: 2 })
+    expect(card.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     const titles = within(card)
       .getAllByRole('listitem')
@@ -160,10 +160,10 @@ describe('Getting started card', () => {
         within(stepRow(card, 'Configure your settings')).getByRole('link', {
           name: 'Open settings',
         })
-      ).toHaveAttribute('href', '/tenants/acme/settings')
+      ).toHaveAttribute('href', '/settings/workspace/acme/general')
       expect(
         within(stepRow(card, 'Invite a teammate')).getByRole('link', { name: 'Open members' })
-      ).toHaveAttribute('href', '/tenants/acme/members')
+      ).toHaveAttribute('href', '/settings/workspace/acme/members')
       const joined = stepRow(card, 'A teammate joins')
       expect(within(joined).queryByRole('link')).toBeNull()
       expect(within(joined).queryByRole('button')).toBeNull()
@@ -307,7 +307,7 @@ describe('Getting started card', () => {
     const show = await screen.findByRole('button', { name: 'Show getting started' })
     expect(posted).toEqual(['dismiss'])
     expect(screen.queryByRole('heading', { name: 'Getting started' })).toBeNull()
-    expect(screen.getByRole('heading', { name: 'Overview', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Details', level: 2 })).toBeInTheDocument()
 
     await user.click(show)
     await findCard()
@@ -399,7 +399,7 @@ describe('Getting started card', () => {
     )
     renderOverview()
 
-    await screen.findByRole('heading', { name: 'Overview', level: 2 })
+    await screen.findByRole('heading', { name: 'Details', level: 2 })
     await onboardingLoaded()
     expect(screen.queryByRole('heading', { name: 'Getting started' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Show getting started' })).toBeNull()
@@ -457,7 +457,7 @@ describe('Getting started card', () => {
     mockTenant('owner', 'member', onboarding)
     renderOverview()
 
-    await screen.findByRole('heading', { name: 'Overview', level: 2 })
+    await screen.findByRole('heading', { name: 'Details', level: 2 })
     await onboardingLoaded()
     expect(screen.queryByRole('heading', { name: 'Getting started' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'You’re all set' })).toBeNull()
@@ -474,7 +474,7 @@ describe('Getting started card', () => {
     )
     renderOverview()
 
-    expect(await screen.findByRole('button', { name: 'Save changes' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Details', level: 2 })).toBeInTheDocument()
     // Two calls because the query client is `retry: 1`.
     await waitFor(() => {
       expect(calls).toBe(2)
@@ -494,7 +494,7 @@ describe('Getting started card', () => {
       })
     )
     const user = userEvent.setup()
-    renderOverview()
+    const router = renderOverview()
 
     const card = await findCard()
     await user.click(within(card).getByRole('link', { name: 'Open settings' }))
@@ -504,8 +504,8 @@ describe('Getting started card', () => {
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
     await screen.findByText('Settings updated.')
 
-    const tabs = screen.getByRole('navigation', { name: 'Tenant sections' })
-    await user.click(within(tabs).getByRole('link', { name: 'Overview' }))
+    // Settings has no tenant tab bar, so go back to the tenant home the way a Back would.
+    await act(() => router.navigate({ to: '/tenants/$slug', params: { slug: 'acme' } }))
     const after = await findCard()
     await waitFor(() => {
       expect(within(stepRow(after, 'Configure your settings')).getByText('Done')).toBeVisible()

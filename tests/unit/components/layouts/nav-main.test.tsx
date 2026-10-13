@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { NavMain, type NavMainItem } from '@/components/layouts/nav-main'
 import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 
@@ -29,9 +29,18 @@ const GROUPED: NavMainItem[] = [
   },
 ]
 
-/** Shows the provider's open state, which NavMain alone does not render. */
+/** Shows the provider's open and drawer states, and opens the drawer, none of which NavMain does itself. */
 function SidebarState() {
-  return <output aria-label="Sidebar state">{useSidebar().state}</output>
+  const { state, openMobile, setOpenMobile } = useSidebar()
+  return (
+    <>
+      <output aria-label="Sidebar state">{state}</output>
+      <output aria-label="Drawer state">{openMobile ? 'open' : 'closed'}</output>
+      <button type="button" onClick={() => setOpenMobile(true)}>
+        Open drawer
+      </button>
+    </>
+  )
 }
 
 /** Renders NavMain under a one-route router at `path`, so its `Link`s resolve. */
@@ -52,6 +61,12 @@ function renderNavAt(path: string, items: NavMainItem[], defaultOpen = true) {
 }
 
 describe('NavMain', () => {
+  const realInnerWidth = window.innerWidth
+
+  afterEach(() => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: realInnerWidth })
+  })
+
   it('renders flat items as links in the Main landmark, the current one active', async () => {
     renderNavAt('/notifications', FLAT)
 
@@ -97,5 +112,21 @@ describe('NavMain', () => {
     await user.click(toggle)
     expect(sidebarState).toHaveTextContent('expanded')
     expect(await screen.findByRole('link', { name: 'Profile' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['a flat link', '/dashboard', 'Notifications'],
+    ['a sub-link', '/profile', 'Tenants'],
+  ])('closes the mobile drawer when %s is chosen', async (_kind, path, name) => {
+    // The setup's matchMedia answers `max-width` queries from innerWidth, so this is a phone.
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 500 })
+    const user = userEvent.setup()
+    renderNavAt(path, GROUPED)
+
+    await user.click(await screen.findByRole('button', { name: 'Open drawer' }))
+    expect(screen.getByLabelText('Drawer state')).toHaveTextContent('open')
+
+    await user.click(screen.getByRole('link', { name }))
+    expect(screen.getByLabelText('Drawer state')).toHaveTextContent('closed')
   })
 })

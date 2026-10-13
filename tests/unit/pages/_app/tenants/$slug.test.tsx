@@ -5,11 +5,10 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
 import { http } from 'msw'
-import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
@@ -256,36 +255,42 @@ describe('tenant detail', () => {
     expect(screen.getByRole('link', { name: 'Back to your tenants' })).toBeInTheDocument()
   })
 
-  it('renders the tenant header, the role badge and the tab links', async () => {
+  it('renders the tenant header, the role badge and only the Overview tab', async () => {
     mockTenant('owner')
     renderAppAt('/tenants/acme')
 
     expect(await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })).toBeInTheDocument()
+    expect(screen.getByText('Owner')).toBeInTheDocument()
     const tabs = screen.getByRole('navigation', { name: 'Tenant sections' })
-    for (const label of ['Overview', 'Members', 'Settings', 'Activity']) {
-      expect(within(tabs).getByRole('link', { name: label })).toBeInTheDocument()
-    }
+    expect(
+      within(tabs)
+        .getAllByRole('link')
+        .map((link) => link.textContent)
+    ).toEqual(['Overview'])
   })
 
-  it('offers the Activity tab to owners and admins only', async () => {
-    mockTenant('editor')
+  it('shows the details read-only, with a link to edit them in workspace settings', async () => {
+    mockTenant('owner')
     renderAppAt('/tenants/acme')
 
-    const tabs = await screen.findByRole('navigation', { name: 'Tenant sections' })
-    expect(within(tabs).getByRole('link', { name: 'Settings' })).toBeInTheDocument()
-    expect(within(tabs).queryByRole('link', { name: 'Activity' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Details', level: 2 })).toBeInTheDocument()
+    expect(screen.getByText('Anvils')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Workspace settings' })).toHaveAttribute(
+      'href',
+      '/settings/workspace/acme/general'
+    )
+    // Editing lives in Settings now, even for an owner.
+    expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
   })
 
-  it('navigates between tabs as real routes', async () => {
+  it('opens the workspace settings as a real route from the details link', async () => {
     mockTenant('owner')
     const user = userEvent.setup()
     const router = renderAppAt('/tenants/acme')
-    await screen.findByRole('heading', { name: 'Overview' })
 
-    await user.click(screen.getByRole('link', { name: 'Settings' }))
+    await user.click(await screen.findByRole('link', { name: 'Workspace settings' }))
     await waitFor(() => {
-      // A URL, not a panel: reloading here lands back on Settings.
-      expect(router.state.location.pathname).toBe('/tenants/acme/settings')
+      expect(router.state.location.pathname).toBe('/settings/workspace/acme/general')
     })
     expect(await screen.findByLabelText('Timezone')).toHaveValue('Europe/London')
   })
@@ -294,497 +299,9 @@ describe('tenant detail', () => {
     mockTenant('viewer')
     renderAppAt('/tenants/acme')
 
-    // Awaited: the role arrives with the tenant detail, and until then the tab shows a skeleton instead of guessing read-only.
+    // Awaited: the details render once the tenant detail arrives.
     expect(await screen.findByText('Anvils')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
-  })
-
-  it('lets an owner edit the tenant, and never offers the slug', async () => {
-    mockTenant('owner')
-    let patched: unknown = null
-    server.use(
-      http.patch('/api/v1/tenants/acme', async ({ request }) => {
-        patched = await request.json()
-        return ok({ ...TENANT, name: 'Acme Ltd' }, 'Tenant updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    const name = await screen.findByLabelText('Name')
-    await user.clear(name)
-    await user.type(name, 'Acme Ltd')
-    // `slug` is absent from updateTenantSchema: the API refuses to rename.
-    expect(screen.queryByLabelText('Slug')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-    await waitFor(() => {
-      expect(patched).toMatchObject({ name: 'Acme Ltd' })
-    })
-    expect(patched).not.toHaveProperty('slug')
-  })
-
-  it('sends null for a cleared description rather than leaving it in place', async () => {
-    mockTenant('owner')
-    let patched: Record<string, unknown> | null = null
-    server.use(
-      http.patch('/api/v1/tenants/acme', async ({ request }) => {
-        patched = (await request.json()) as Record<string, unknown>
-        return ok({ ...TENANT, description: null }, 'Tenant updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    await user.clear(await screen.findByLabelText('Description'))
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-
-    await waitFor(() => {
-      expect(patched).not.toBeNull()
-    })
-    // `null` clears the column; `undefined` would mean "leave it alone" and the deleted description would come back.
-    expect(patched).toMatchObject({ description: null })
-  })
-
-  it('refuses invalid metadata JSON before it reaches the API', async () => {
-    mockTenant('owner')
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme/settings')
-
-    const metadata = await screen.findByLabelText('Metadata')
-    await user.clear(metadata)
-    await user.type(metadata, '{{oops')
-    await user.click(screen.getByRole('button', { name: 'Save settings' }))
-
-    expect(await screen.findByText('Metadata must be valid JSON.')).toBeInTheDocument()
-  })
-
-  it('shows a refused tenant edit once, in the form, with no toast', async () => {
-    const toastError = vi.spyOn(toast, 'error')
-    mockTenant('owner')
-    server.use(http.patch('/api/v1/tenants/acme', () => fail('Something broke.', 500)))
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    await user.type(await screen.findByLabelText('Name'), ' Ltd')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-
-    const message = await screen.findByText('Something broke.')
-    expect(message.closest('form')).not.toBeNull()
-    expect(screen.getAllByText('Something broke.')).toHaveLength(1)
-    expect(toastError).not.toHaveBeenCalled()
-  })
-
-  it('shows a refused settings save once, in the form, with no toast', async () => {
-    const toastError = vi.spyOn(toast, 'error')
-    mockTenant('owner')
-    server.use(http.patch('/api/v1/tenants/acme/settings', () => fail('Something broke.', 500)))
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme/settings')
-
-    await user.type(await screen.findByLabelText('Locale'), '-GB')
-    await user.click(screen.getByRole('button', { name: 'Save settings' }))
-
-    const message = await screen.findByText('Something broke.')
-    expect(message.closest('form')).not.toBeNull()
-    expect(screen.getAllByText('Something broke.')).toHaveLength(1)
-    expect(toastError).not.toHaveBeenCalled()
-  })
-
-  /**
-   * Serves stored values the client's rules refuse (a `javascript:` logo, a zero-width space,
-   * an unknown timezone, an underscore locale), as data saved under looser rules would be.
-   * The forms send only what the user changed, so such a value neither blocks a save of
-   * another field nor goes back over the wire.
-   */
-  function mockLegacyTenant() {
-    mockTenant('owner')
-    const legacy = { ...TENANT, logo: 'javascript:alert(1)', description: 'Ad\u{200B}min anvils' }
-    const legacySettings = { ...SETTINGS, timezone: 'Mars/Olympus_Mons', locale: 'en_GB' }
-    server.use(
-      http.get('/api/v1/tenants/acme', () =>
-        ok(tenantDetail(legacy, 'owner'), 'Tenant retrieved.')
-      ),
-      http.get('/api/v1/tenants/acme/settings', () => ok(legacySettings, 'Settings retrieved.'))
-    )
-  }
-
-  it('saves an edited name while a refused legacy logo and description stay as they are', async () => {
-    mockLegacyTenant()
-    let patched: unknown = null
-    server.use(
-      http.patch('/api/v1/tenants/acme', async ({ request }) => {
-        patched = await request.json()
-        return ok({ ...TENANT, name: 'Acme Ltd' }, 'Tenant updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    const name = await screen.findByLabelText('Name')
-    await waitFor(() => {
-      expect(screen.getByLabelText('Logo URL')).toHaveValue('javascript:alert(1)')
-    })
-    await user.clear(name)
-    await user.type(name, 'Acme Ltd')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-
-    await waitFor(() => {
-      expect(patched).toEqual({ name: 'Acme Ltd' })
-    })
-    expect(screen.queryByText('Logo must be an http or https URL.')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Logo URL')).toHaveAttribute('aria-invalid', 'false')
-  })
-
-  it("sends only the user's edit after a refetch brings another admin's change", async () => {
-    mockTenant('owner')
-    let served = TENANT
-    let patched: unknown = null
-    server.use(
-      http.get('/api/v1/tenants/acme', () =>
-        ok(tenantDetail(served, 'owner'), 'Tenant retrieved.')
-      ),
-      http.patch('/api/v1/tenants/acme', async ({ request }) => {
-        patched = await request.json()
-        return ok({ ...served, name: 'Acme Ltd' }, 'Tenant updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    const name = await screen.findByLabelText('Name')
-    await user.clear(name)
-    await user.type(name, 'Acme Ltd')
-    served = { ...TENANT, website: 'https://other.example', description: 'Ad\u{200B}min' }
-    await act(() => queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme') }))
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-
-    await waitFor(() => {
-      expect(patched).toEqual({ name: 'Acme Ltd' })
-    })
-  })
-
-  it('shows a legacy logo as invalid once the user edits it, and sends nothing', async () => {
-    mockLegacyTenant()
-    let patches = 0
-    server.use(
-      http.patch('/api/v1/tenants/acme', () => {
-        patches += 1
-        return ok(TENANT, 'Tenant updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    const logo = await screen.findByLabelText('Logo URL')
-    await waitFor(() => {
-      expect(logo).toHaveValue('javascript:alert(1)')
-    })
-    await user.type(logo, '2')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-
-    expect(await screen.findByText('Logo must be an http or https URL.')).toBeInTheDocument()
-    expect(screen.getByLabelText('Logo URL')).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.queryByText('Description contains characters that are not allowed')).toBeNull()
-    // The message is the barrier: a refused submit never reaches onSubmit.
-    expect(patches).toBe(0)
-  })
-
-  it('saves an edited metadata while a refused legacy timezone and locale stay as they are', async () => {
-    mockLegacyTenant()
-    let patched: unknown = null
-    server.use(
-      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
-        patched = await request.json()
-        return ok({ ...SETTINGS, metadata: { tier: 'max' } }, 'Settings updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme/settings')
-
-    const metadata = await screen.findByLabelText('Metadata')
-    expect(screen.getByLabelText('Timezone')).toHaveValue('Mars/Olympus_Mons')
-    await user.clear(metadata)
-    await user.type(metadata, '{{"tier":"max"}')
-    await user.click(screen.getByRole('button', { name: 'Save settings' }))
-
-    await waitFor(() => {
-      expect(patched).toEqual({ metadata: { tier: 'max' } })
-    })
-    expect(screen.queryByText(/must be a time zone name/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/must be a language tag/)).not.toBeInTheDocument()
-  })
-
-  it('shows a legacy timezone as invalid once edited, and not after the edit is undone', async () => {
-    mockLegacyTenant()
-    let patched: unknown = null
-    server.use(
-      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
-        patched = await request.json()
-        return ok(SETTINGS, 'Settings updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme/settings')
-
-    const timezone = await screen.findByLabelText('Timezone')
-    await user.type(timezone, 'X')
-    await user.click(screen.getByRole('button', { name: 'Save settings' }))
-    expect(
-      await screen.findByText('Timezone must be a time zone name such as Europe/Paris.')
-    ).toBeInTheDocument()
-    expect(patched).toBeNull()
-
-    await user.type(timezone, '{Backspace}')
-    await user.click(screen.getByRole('button', { name: 'Save settings' }))
-    await waitFor(() => {
-      expect(
-        screen.queryByText('Timezone must be a time zone name such as Europe/Paris.')
-      ).not.toBeInTheDocument()
-    })
-    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
-    expect(patched).toBeNull()
-
-    await user.type(timezone, 'X')
-    await waitFor(() => {
-      expect(screen.queryByText('Change a field before saving.')).not.toBeInTheDocument()
-    })
-  })
-
-  it('asks for a change, and sends nothing, when Save is pressed with no changes', async () => {
-    const toastSuccess = vi.spyOn(toast, 'success')
-    mockTenant('owner')
-    let patches = 0
-    server.use(
-      http.patch('/api/v1/tenants/acme', () => {
-        patches += 1
-        return ok(TENANT, 'Tenant updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    const name = await screen.findByLabelText('Name')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-
-    // The message is the barrier: it is set where the request would have been sent.
-    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
-    expect(patches).toBe(0)
-    expect(toastSuccess).not.toHaveBeenCalled()
-
-    await user.type(name, ' Ltd')
-    await waitFor(() => {
-      expect(screen.queryByText('Change a field before saving.')).not.toBeInTheDocument()
-    })
-  })
-
-  it("does not send another admin's change back after an unchanged Save and a refetch", async () => {
-    mockTenant('owner')
-    let served = TENANT
-    let patched: unknown = null
-    server.use(
-      http.get('/api/v1/tenants/acme', () =>
-        ok(tenantDetail(served, 'owner'), 'Tenant retrieved.')
-      ),
-      http.patch('/api/v1/tenants/acme', async ({ request }) => {
-        patched = await request.json()
-        return ok({ ...served, name: 'Acme Ltd' }, 'Tenant updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    const name = await screen.findByLabelText('Name')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
-
-    served = { ...TENANT, name: 'Acme Corporation', website: 'https://other.example' }
-    await act(() => queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme') }))
-    // The header reads the same query, so it shows the refetch once the form has it too.
-    await screen.findByRole('heading', { name: 'Acme Corporation' })
-    await user.clear(name)
-    await user.type(name, 'Acme Ltd')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-
-    await waitFor(() => {
-      expect(patched).toEqual({ name: 'Acme Ltd' })
-    })
-  })
-
-  it('sends the edit again when Save is pressed after a failed save', async () => {
-    mockTenant('owner')
-    const bodies: unknown[] = []
-    server.use(
-      http.patch('/api/v1/tenants/acme', async ({ request }) => {
-        bodies.push(await request.json())
-        return bodies.length === 1
-          ? fail('Something broke.', 500)
-          : ok({ ...TENANT, name: 'Acme Ltd' }, 'Tenant updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    const name = await screen.findByLabelText('Name')
-    await user.clear(name)
-    await user.type(name, 'Acme Ltd')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-    await screen.findByText('Something broke.')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-
-    await waitFor(() => {
-      expect(bodies).toEqual([{ name: 'Acme Ltd' }, { name: 'Acme Ltd' }])
-    })
-  })
-
-  it('sends a field edited back to its old value after a save', async () => {
-    const toastSuccess = vi.spyOn(toast, 'success')
-    mockTenant('owner')
-    const bodies: unknown[] = []
-    server.use(
-      http.patch('/api/v1/tenants/acme', async ({ request }) => {
-        bodies.push(await request.json())
-        return ok(TENANT, 'Tenant updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    const name = await screen.findByLabelText('Name')
-    await user.clear(name)
-    await user.type(name, 'Acme Ltd')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-    await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith('Tenant updated.')
-    })
-    await user.clear(name)
-    await user.type(name, 'Acme Corp')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-
-    await waitFor(() => {
-      expect(bodies).toEqual([{ name: 'Acme Ltd' }, { name: 'Acme Corp' }])
-    })
-  })
-
-  it('sends the settings edit again when Save is pressed after a failed save', async () => {
-    mockTenant('owner')
-    const bodies: unknown[] = []
-    server.use(
-      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
-        bodies.push(await request.json())
-        return bodies.length === 1
-          ? fail('Something broke.', 500)
-          : ok({ ...SETTINGS, locale: 'en-GB' }, 'Settings updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme/settings')
-
-    await user.type(await screen.findByLabelText('Locale'), '-GB')
-    await user.click(screen.getByRole('button', { name: 'Save settings' }))
-    await screen.findByText('Something broke.')
-    await user.click(screen.getByRole('button', { name: 'Save settings' }))
-
-    await waitFor(() => {
-      expect(bodies).toEqual([{ locale: 'en-GB' }, { locale: 'en-GB' }])
-    })
-  })
-
-  // A save the server finds already applied keeps `updatedAt`, so the form is not remounted.
-  it('sends a setting edited back to its old value after a save that left the row as it was', async () => {
-    const toastSuccess = vi.spyOn(toast, 'success')
-    mockTenant('owner')
-    const bodies: unknown[] = []
-    server.use(
-      http.patch('/api/v1/tenants/acme/settings', async ({ request }) => {
-        bodies.push(await request.json())
-        return ok(SETTINGS, 'Settings updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme/settings')
-
-    const locale = await screen.findByLabelText('Locale')
-    await user.type(locale, '-GB')
-    await user.click(screen.getByRole('button', { name: 'Save settings' }))
-    await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith('Settings updated.')
-    })
-    await user.type(locale, '{Backspace}{Backspace}{Backspace}')
-    await user.click(screen.getByRole('button', { name: 'Save settings' }))
-
-    await waitFor(() => {
-      expect(bodies).toEqual([{ locale: 'en-GB' }, { locale: 'en' }])
-    })
-  })
-
-  it('shows a refetch on a form nobody has touched, and still asks for a change', async () => {
-    mockTenant('owner')
-    let served = TENANT
-    let patches = 0
-    server.use(
-      http.get('/api/v1/tenants/acme', () =>
-        ok(tenantDetail(served, 'owner'), 'Tenant retrieved.')
-      ),
-      http.patch('/api/v1/tenants/acme', () => {
-        patches += 1
-        return ok(served, 'Tenant updated.')
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme')
-
-    await screen.findByLabelText('Name')
-    served = { ...TENANT, website: 'https://other.example' }
-    await act(() => queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme') }))
-
-    await waitFor(() => {
-      expect(screen.getByLabelText('Website')).toHaveValue('https://other.example')
-    })
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
-    expect(patches).toBe(0)
-  })
-
-  /**
-   * The settings twin of the members-tab retry test: a settings failure has its own retry,
-   * which must reach the settings query and leave the tenant detail alone. The detail is
-   * the role's source, and refetching it would risk changing the role mid-retry.
-   */
-  it('retries the SETTINGS, not the tenant detail, when the settings are what failed', async () => {
-    let settingsCalls = 0
-    let detailCalls = 0
-    server.use(
-      http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants.')),
-      http.get('/api/v1/tenants/acme', () => {
-        detailCalls += 1
-        return ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
-      }),
-      http.get('/api/v1/tenants/acme/settings', () => {
-        settingsCalls += 1
-        return fail('Something went wrong.', 500)
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants/acme/settings')
-
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/could not load this tenant’s settings/i)
-    expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
-
-    // Two calls because the queryClient is `retry: 1`.
-    await waitFor(() => {
-      expect(settingsCalls).toBe(2)
-    })
-    const settingsBefore = settingsCalls
-    const detailBefore = detailCalls
-
-    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
-
-    await waitFor(() => {
-      expect(settingsCalls).toBeGreaterThan(settingsBefore)
-    })
-    expect(detailCalls).toBe(detailBefore)
   })
 
   it('tells staff they are viewing the tenant as platform staff, with a way back', async () => {
@@ -809,16 +326,8 @@ describe('tenant detail', () => {
     mockTenant('owner')
     renderAppAt('/tenants/acme')
 
-    await screen.findByRole('button', { name: 'Save changes' })
+    await screen.findByText('Anvils')
     expect(screen.queryByText(/as platform staff/)).not.toBeInTheDocument()
-  })
-
-  it('keeps the banner on every tab, not only the overview', async () => {
-    mockTenant('admin', 'platform')
-    renderAppAt('/tenants/acme/settings')
-
-    await screen.findByRole('button', { name: 'Save settings' })
-    expect(screen.getByText(/as platform staff \(Admin\)/)).toBeInTheDocument()
   })
 })
 

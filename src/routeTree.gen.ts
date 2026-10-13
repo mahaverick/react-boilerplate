@@ -18,18 +18,29 @@ import { Route as VerifyEmailRouteImport } from './pages/verify-email'
 import { Route as AppDashboardRouteImport } from './pages/_app/dashboard'
 import { Route as AppNotificationsRouteImport } from './pages/_app/notifications'
 import { Route as AppProfileRouteImport } from './pages/_app/profile'
+import { Route as AppSettingsRouteImport } from './pages/_app/settings'
 import { Route as AuthForgotPasswordRouteImport } from './pages/_auth/forgot-password'
 import { Route as AuthLoginRouteImport } from './pages/_auth/login'
 import { Route as AuthRegisterRouteImport } from './pages/_auth/register'
 import { Route as AuthCallbackRouteImport } from './pages/auth/callback'
 import { Route as InvitationsAcceptRouteImport } from './pages/invitations/accept'
+import { Route as AppSettingsIndexRouteImport } from './pages/_app/settings/index'
 import { Route as AppTenantsIndexRouteImport } from './pages/_app/tenants/index'
 import { Route as AppTenantsSlugRouteImport } from './pages/_app/tenants/$slug'
+import { Route as AppSettingsAccountIndexRouteImport } from './pages/_app/settings/account.index'
+import { Route as AppSettingsAccountNotificationsRouteImport } from './pages/_app/settings/account.notifications'
+import { Route as AppSettingsAccountProfileRouteImport } from './pages/_app/settings/account.profile'
+import { Route as AppSettingsAccountSecurityRouteImport } from './pages/_app/settings/account.security'
+import { Route as AppSettingsWorkspaceSlugRouteImport } from './pages/_app/settings/workspace.$slug'
 import { Route as AppTenantsSlugIndexRouteImport } from './pages/_app/tenants/$slug.index'
 import { Route as AppTenantsSlugActivityRouteImport } from './pages/_app/tenants/$slug.activity'
 import { Route as AppTenantsSlugBetaRouteImport } from './pages/_app/tenants/$slug.beta'
 import { Route as AppTenantsSlugMembersRouteImport } from './pages/_app/tenants/$slug.members'
 import { Route as AppTenantsSlugSettingsRouteImport } from './pages/_app/tenants/$slug.settings'
+import { Route as AppSettingsWorkspaceSlugIndexRouteImport } from './pages/_app/settings/workspace.$slug.index'
+import { Route as AppSettingsWorkspaceSlugActivityRouteImport } from './pages/_app/settings/workspace.$slug.activity'
+import { Route as AppSettingsWorkspaceSlugGeneralRouteImport } from './pages/_app/settings/workspace.$slug.general'
+import { Route as AppSettingsWorkspaceSlugMembersRouteImport } from './pages/_app/settings/workspace.$slug.members'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -74,6 +85,11 @@ const AppProfileRoute = AppProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
 const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
@@ -99,6 +115,11 @@ const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
   path: '/invitations/accept',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppTenantsIndexRoute = AppTenantsIndexRouteImport.update({
   id: '/tenants/',
   path: '/tenants/',
@@ -109,6 +130,35 @@ const AppTenantsSlugRoute = AppTenantsSlugRouteImport.update({
   path: '/tenants/$slug',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsAccountIndexRoute = AppSettingsAccountIndexRouteImport.update({
+  id: '/account/',
+  path: '/account/',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsAccountNotificationsRoute =
+  AppSettingsAccountNotificationsRouteImport.update({
+    id: '/account/notifications',
+    path: '/account/notifications',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsAccountProfileRoute =
+  AppSettingsAccountProfileRouteImport.update({
+    id: '/account/profile',
+    path: '/account/profile',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsAccountSecurityRoute =
+  AppSettingsAccountSecurityRouteImport.update({
+    id: '/account/security',
+    path: '/account/security',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsWorkspaceSlugRoute =
+  AppSettingsWorkspaceSlugRouteImport.update({
+    id: '/workspace/$slug',
+    path: '/workspace/$slug',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
 const AppTenantsSlugIndexRoute = AppTenantsSlugIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -134,6 +184,30 @@ const AppTenantsSlugSettingsRoute = AppTenantsSlugSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppTenantsSlugRoute,
 } as any)
+const AppSettingsWorkspaceSlugIndexRoute =
+  AppSettingsWorkspaceSlugIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppSettingsWorkspaceSlugRoute,
+  } as any)
+const AppSettingsWorkspaceSlugActivityRoute =
+  AppSettingsWorkspaceSlugActivityRouteImport.update({
+    id: '/activity',
+    path: '/activity',
+    getParentRoute: () => AppSettingsWorkspaceSlugRoute,
+  } as any)
+const AppSettingsWorkspaceSlugGeneralRoute =
+  AppSettingsWorkspaceSlugGeneralRouteImport.update({
+    id: '/general',
+    path: '/general',
+    getParentRoute: () => AppSettingsWorkspaceSlugRoute,
+  } as any)
+const AppSettingsWorkspaceSlugMembersRoute =
+  AppSettingsWorkspaceSlugMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
+    getParentRoute: () => AppSettingsWorkspaceSlugRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -143,18 +217,29 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AppDashboardRoute
   '/notifications': typeof AppNotificationsRoute
   '/profile': typeof AppProfileRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
+  '/settings/': typeof AppSettingsIndexRoute
   '/tenants/': typeof AppTenantsIndexRoute
+  '/settings/account/notifications': typeof AppSettingsAccountNotificationsRoute
+  '/settings/account/profile': typeof AppSettingsAccountProfileRoute
+  '/settings/account/security': typeof AppSettingsAccountSecurityRoute
+  '/settings/workspace/$slug': typeof AppSettingsWorkspaceSlugRouteWithChildren
   '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
+  '/settings/account/': typeof AppSettingsAccountIndexRoute
   '/tenants/$slug/': typeof AppTenantsSlugIndexRoute
+  '/settings/workspace/$slug/activity': typeof AppSettingsWorkspaceSlugActivityRoute
+  '/settings/workspace/$slug/general': typeof AppSettingsWorkspaceSlugGeneralRoute
+  '/settings/workspace/$slug/members': typeof AppSettingsWorkspaceSlugMembersRoute
+  '/settings/workspace/$slug/': typeof AppSettingsWorkspaceSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -169,12 +254,21 @@ export interface FileRoutesByTo {
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/settings': typeof AppSettingsIndexRoute
   '/tenants': typeof AppTenantsIndexRoute
+  '/settings/account/notifications': typeof AppSettingsAccountNotificationsRoute
+  '/settings/account/profile': typeof AppSettingsAccountProfileRoute
+  '/settings/account/security': typeof AppSettingsAccountSecurityRoute
   '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
+  '/settings/account': typeof AppSettingsAccountIndexRoute
   '/tenants/$slug': typeof AppTenantsSlugIndexRoute
+  '/settings/workspace/$slug/activity': typeof AppSettingsWorkspaceSlugActivityRoute
+  '/settings/workspace/$slug/general': typeof AppSettingsWorkspaceSlugGeneralRoute
+  '/settings/workspace/$slug/members': typeof AppSettingsWorkspaceSlugMembersRoute
+  '/settings/workspace/$slug': typeof AppSettingsWorkspaceSlugIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -187,18 +281,29 @@ export interface FileRoutesById {
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/profile': typeof AppProfileRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
+  '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/tenants/': typeof AppTenantsIndexRoute
+  '/_app/settings/account/notifications': typeof AppSettingsAccountNotificationsRoute
+  '/_app/settings/account/profile': typeof AppSettingsAccountProfileRoute
+  '/_app/settings/account/security': typeof AppSettingsAccountSecurityRoute
+  '/_app/settings/workspace/$slug': typeof AppSettingsWorkspaceSlugRouteWithChildren
   '/_app/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/_app/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
   '/_app/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/_app/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
+  '/_app/settings/account/': typeof AppSettingsAccountIndexRoute
   '/_app/tenants/$slug/': typeof AppTenantsSlugIndexRoute
+  '/_app/settings/workspace/$slug/activity': typeof AppSettingsWorkspaceSlugActivityRoute
+  '/_app/settings/workspace/$slug/general': typeof AppSettingsWorkspaceSlugGeneralRoute
+  '/_app/settings/workspace/$slug/members': typeof AppSettingsWorkspaceSlugMembersRoute
+  '/_app/settings/workspace/$slug/': typeof AppSettingsWorkspaceSlugIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -210,18 +315,29 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/notifications'
     | '/profile'
+    | '/settings'
     | '/forgot-password'
     | '/login'
     | '/register'
     | '/auth/callback'
     | '/invitations/accept'
     | '/tenants/$slug'
+    | '/settings/'
     | '/tenants/'
+    | '/settings/account/notifications'
+    | '/settings/account/profile'
+    | '/settings/account/security'
+    | '/settings/workspace/$slug'
     | '/tenants/$slug/activity'
     | '/tenants/$slug/beta'
     | '/tenants/$slug/members'
     | '/tenants/$slug/settings'
+    | '/settings/account/'
     | '/tenants/$slug/'
+    | '/settings/workspace/$slug/activity'
+    | '/settings/workspace/$slug/general'
+    | '/settings/workspace/$slug/members'
+    | '/settings/workspace/$slug/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -236,12 +352,21 @@ export interface FileRouteTypes {
     | '/register'
     | '/auth/callback'
     | '/invitations/accept'
+    | '/settings'
     | '/tenants'
+    | '/settings/account/notifications'
+    | '/settings/account/profile'
+    | '/settings/account/security'
     | '/tenants/$slug/activity'
     | '/tenants/$slug/beta'
     | '/tenants/$slug/members'
     | '/tenants/$slug/settings'
+    | '/settings/account'
     | '/tenants/$slug'
+    | '/settings/workspace/$slug/activity'
+    | '/settings/workspace/$slug/general'
+    | '/settings/workspace/$slug/members'
+    | '/settings/workspace/$slug'
   id:
     | '__root__'
     | '/'
@@ -253,18 +378,29 @@ export interface FileRouteTypes {
     | '/_app/dashboard'
     | '/_app/notifications'
     | '/_app/profile'
+    | '/_app/settings'
     | '/_auth/forgot-password'
     | '/_auth/login'
     | '/_auth/register'
     | '/auth/callback'
     | '/invitations/accept'
     | '/_app/tenants/$slug'
+    | '/_app/settings/'
     | '/_app/tenants/'
+    | '/_app/settings/account/notifications'
+    | '/_app/settings/account/profile'
+    | '/_app/settings/account/security'
+    | '/_app/settings/workspace/$slug'
     | '/_app/tenants/$slug/activity'
     | '/_app/tenants/$slug/beta'
     | '/_app/tenants/$slug/members'
     | '/_app/tenants/$slug/settings'
+    | '/_app/settings/account/'
     | '/_app/tenants/$slug/'
+    | '/_app/settings/workspace/$slug/activity'
+    | '/_app/settings/workspace/$slug/general'
+    | '/_app/settings/workspace/$slug/members'
+    | '/_app/settings/workspace/$slug/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -343,6 +479,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProfileRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_auth/forgot-password': {
       id: '/_auth/forgot-password'
       path: '/forgot-password'
@@ -378,6 +521,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InvitationsAcceptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/tenants/': {
       id: '/_app/tenants/'
       path: '/tenants'
@@ -391,6 +541,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/tenants/$slug'
       preLoaderRoute: typeof AppTenantsSlugRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/settings/account/': {
+      id: '/_app/settings/account/'
+      path: '/account'
+      fullPath: '/settings/account/'
+      preLoaderRoute: typeof AppSettingsAccountIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/account/notifications': {
+      id: '/_app/settings/account/notifications'
+      path: '/account/notifications'
+      fullPath: '/settings/account/notifications'
+      preLoaderRoute: typeof AppSettingsAccountNotificationsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/account/profile': {
+      id: '/_app/settings/account/profile'
+      path: '/account/profile'
+      fullPath: '/settings/account/profile'
+      preLoaderRoute: typeof AppSettingsAccountProfileRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/account/security': {
+      id: '/_app/settings/account/security'
+      path: '/account/security'
+      fullPath: '/settings/account/security'
+      preLoaderRoute: typeof AppSettingsAccountSecurityRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/workspace/$slug': {
+      id: '/_app/settings/workspace/$slug'
+      path: '/workspace/$slug'
+      fullPath: '/settings/workspace/$slug'
+      preLoaderRoute: typeof AppSettingsWorkspaceSlugRouteImport
+      parentRoute: typeof AppSettingsRoute
     }
     '/_app/tenants/$slug/': {
       id: '/_app/tenants/$slug/'
@@ -427,8 +612,79 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTenantsSlugSettingsRouteImport
       parentRoute: typeof AppTenantsSlugRoute
     }
+    '/_app/settings/workspace/$slug/': {
+      id: '/_app/settings/workspace/$slug/'
+      path: '/'
+      fullPath: '/settings/workspace/$slug/'
+      preLoaderRoute: typeof AppSettingsWorkspaceSlugIndexRouteImport
+      parentRoute: typeof AppSettingsWorkspaceSlugRoute
+    }
+    '/_app/settings/workspace/$slug/activity': {
+      id: '/_app/settings/workspace/$slug/activity'
+      path: '/activity'
+      fullPath: '/settings/workspace/$slug/activity'
+      preLoaderRoute: typeof AppSettingsWorkspaceSlugActivityRouteImport
+      parentRoute: typeof AppSettingsWorkspaceSlugRoute
+    }
+    '/_app/settings/workspace/$slug/general': {
+      id: '/_app/settings/workspace/$slug/general'
+      path: '/general'
+      fullPath: '/settings/workspace/$slug/general'
+      preLoaderRoute: typeof AppSettingsWorkspaceSlugGeneralRouteImport
+      parentRoute: typeof AppSettingsWorkspaceSlugRoute
+    }
+    '/_app/settings/workspace/$slug/members': {
+      id: '/_app/settings/workspace/$slug/members'
+      path: '/members'
+      fullPath: '/settings/workspace/$slug/members'
+      preLoaderRoute: typeof AppSettingsWorkspaceSlugMembersRouteImport
+      parentRoute: typeof AppSettingsWorkspaceSlugRoute
+    }
   }
 }
+
+interface AppSettingsWorkspaceSlugRouteChildren {
+  AppSettingsWorkspaceSlugActivityRoute: typeof AppSettingsWorkspaceSlugActivityRoute
+  AppSettingsWorkspaceSlugGeneralRoute: typeof AppSettingsWorkspaceSlugGeneralRoute
+  AppSettingsWorkspaceSlugMembersRoute: typeof AppSettingsWorkspaceSlugMembersRoute
+  AppSettingsWorkspaceSlugIndexRoute: typeof AppSettingsWorkspaceSlugIndexRoute
+}
+
+const AppSettingsWorkspaceSlugRouteChildren: AppSettingsWorkspaceSlugRouteChildren =
+  {
+    AppSettingsWorkspaceSlugActivityRoute:
+      AppSettingsWorkspaceSlugActivityRoute,
+    AppSettingsWorkspaceSlugGeneralRoute: AppSettingsWorkspaceSlugGeneralRoute,
+    AppSettingsWorkspaceSlugMembersRoute: AppSettingsWorkspaceSlugMembersRoute,
+    AppSettingsWorkspaceSlugIndexRoute: AppSettingsWorkspaceSlugIndexRoute,
+  }
+
+const AppSettingsWorkspaceSlugRouteWithChildren =
+  AppSettingsWorkspaceSlugRoute._addFileChildren(
+    AppSettingsWorkspaceSlugRouteChildren,
+  )
+
+interface AppSettingsRouteChildren {
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+  AppSettingsAccountNotificationsRoute: typeof AppSettingsAccountNotificationsRoute
+  AppSettingsAccountProfileRoute: typeof AppSettingsAccountProfileRoute
+  AppSettingsAccountSecurityRoute: typeof AppSettingsAccountSecurityRoute
+  AppSettingsWorkspaceSlugRoute: typeof AppSettingsWorkspaceSlugRouteWithChildren
+  AppSettingsAccountIndexRoute: typeof AppSettingsAccountIndexRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+  AppSettingsAccountNotificationsRoute: AppSettingsAccountNotificationsRoute,
+  AppSettingsAccountProfileRoute: AppSettingsAccountProfileRoute,
+  AppSettingsAccountSecurityRoute: AppSettingsAccountSecurityRoute,
+  AppSettingsWorkspaceSlugRoute: AppSettingsWorkspaceSlugRouteWithChildren,
+  AppSettingsAccountIndexRoute: AppSettingsAccountIndexRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
 
 interface AppTenantsSlugRouteChildren {
   AppTenantsSlugActivityRoute: typeof AppTenantsSlugActivityRoute
@@ -454,6 +710,7 @@ interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppProfileRoute: typeof AppProfileRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTenantsSlugRoute: typeof AppTenantsSlugRouteWithChildren
   AppTenantsIndexRoute: typeof AppTenantsIndexRoute
 }
@@ -462,6 +719,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppProfileRoute: AppProfileRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTenantsSlugRoute: AppTenantsSlugRouteWithChildren,
   AppTenantsIndexRoute: AppTenantsIndexRoute,
 }

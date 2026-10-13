@@ -62,7 +62,7 @@ test('the dashboard and the account menu mask the user', async ({ page }) => {
 })
 
 test('the profile masks the address', async ({ page }) => {
-  await page.goto(harness('/profile'))
+  await page.goto(harness('/settings/account/profile'))
   await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible()
   // Scoped to the page: the sidebar's account menu shows the address too, and the scan below covers both.
   await expect(page.getByRole('main').getByText('pii-probe@example.test')).toBeVisible()
@@ -78,7 +78,7 @@ test('the notifications mask a body that names someone', async ({ page }) => {
 test('the members page masks members, invitees, inviters, the remove dialog and toasts', async ({
   page,
 }) => {
-  await page.goto(harness('/tenants/acme/members'))
+  await page.goto(harness('/settings/workspace/acme/members'))
   await expect(page.getByRole('heading', { name: 'Pending invitations' })).toBeVisible()
   await expect(page.getByText('pii-probe+invitee@example.test')).toBeVisible()
   await expectAllMasked(page, 5)
@@ -94,7 +94,7 @@ test('the members page masks members, invitees, inviters, the remove dialog and 
 })
 
 test('the activity log masks actors, and so does its actor filter', async ({ page }) => {
-  await page.goto(harness('/tenants/acme/activity'))
+  await page.goto(harness('/settings/workspace/acme/activity'))
   await expect(page.getByRole('list', { name: 'Activity' })).toBeVisible()
   await expectAllMasked(page, 2)
 

@@ -18,12 +18,12 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-/** Mounts the real route tree on `/profile`. */
+/** Mounts the real route tree on the profile settings. */
 function renderProfile() {
   const router = createRouter({
     routeTree,
     context: { queryClient },
-    history: createMemoryHistory({ initialEntries: ['/profile'] }),
+    history: createMemoryHistory({ initialEntries: ['/settings/account/profile'] }),
   })
   render(
     <QueryClientProvider client={queryClient}>
@@ -32,7 +32,7 @@ function renderProfile() {
   )
 }
 
-describe('profile page', () => {
+describe('profile settings page', () => {
   beforeEach(() => {
     resetSessionForTests()
     queryClient.clear()
@@ -58,11 +58,12 @@ describe('profile page', () => {
     expect(screen.getByText(expected)).toBeInTheDocument()
   })
 
-  it('renders the Security section below the profile form', async () => {
+  it('titles the page Profile with the layout heading, and keeps Security off it', async () => {
     renderProfile()
 
-    expect(await screen.findByRole('region', { name: 'Security' })).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: 'Change password' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Profile' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Details' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Security' })).not.toBeInTheDocument()
   })
 
   it('sends only the trimmed first and last name', async () => {

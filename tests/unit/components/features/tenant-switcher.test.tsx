@@ -267,6 +267,28 @@ describe('TenantSwitcher', () => {
     })
   })
 
+  it('keeps the workspace section when switching tenant', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok(
+          [
+            { tenant: ACME, role: 'owner', isPlatform: false },
+            { tenant: BETA, role: 'owner', isPlatform: false },
+          ],
+          'Tenants.'
+        )
+      ),
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/beta', () => ok(tenantDetail(BETA, 'owner'), 'Tenant retrieved.'))
+    )
+    const router = renderShell('/settings/workspace/acme/members')
+    const user = await openSwitcher()
+    await user.click(await screen.findByRole('option', { name: 'Beta Inc' }))
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/settings/workspace/beta/members')
+    )
+  })
+
   it('links the tenants page, where a tenant is created, and closes on the way', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>

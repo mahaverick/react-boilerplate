@@ -15,12 +15,15 @@ import { server } from '@/tests/mocks/server'
 
 const LINKED_AT = '2026-01-01T00:00:00.000Z'
 
-/** The section renders inside the real /profile route, as a user reaches it. */
-function renderProfile() {
+/**
+ * Mounts the real Settings › Security route (`/settings/account/security`),
+ * which renders the section, as a user reaches it.
+ */
+function renderSecurity() {
   const router = createRouter({
     routeTree,
     context: { queryClient },
-    history: createMemoryHistory({ initialEntries: ['/profile'] }),
+    history: createMemoryHistory({ initialEntries: ['/settings/account/security'] }),
   })
   render(
     <QueryClientProvider client={queryClient}>
@@ -77,7 +80,7 @@ describe('security section', () => {
 
   it('lists a password and Google, and never the raw email row', async () => {
     mockProviders(['email', 'google'], true)
-    renderProfile()
+    renderSecurity()
 
     const security = await section()
     expect(await security.findByText('Email & password')).toBeInTheDocument()
@@ -87,7 +90,7 @@ describe('security section', () => {
 
   it('shows an unrecognised provider by its own name', async () => {
     mockProviders(['email', 'github'], true)
-    renderProfile()
+    renderSecurity()
 
     expect(await (await section()).findByText('github')).toBeInTheDocument()
   })
@@ -95,7 +98,7 @@ describe('security section', () => {
   it('replaces the form with a note on a Google-only account', async () => {
     // A Google sign-up has an 'email' row too; `hasPassword` is what decides.
     mockProviders(['email', 'google'], false)
-    renderProfile()
+    renderSecurity()
 
     const security = await section()
     expect(
@@ -116,7 +119,7 @@ describe('security section', () => {
         return ok(null, 'Password has been changed.')
       })
     )
-    renderProfile()
+    renderSecurity()
     await fillAndSubmit('old-password', 'a-long-enough-password', 'a-different-password-9')
 
     expect(await screen.findByText('Passwords do not match.')).toBeInTheDocument()
@@ -131,7 +134,7 @@ describe('security section', () => {
         return ok(null, 'Password has been changed.')
       })
     )
-    renderProfile()
+    renderSecurity()
     await fillAndSubmit('old-password', 'short')
 
     expect(
@@ -148,7 +151,7 @@ describe('security section', () => {
         return ok(null, 'Password has been changed.')
       })
     )
-    renderProfile()
+    renderSecurity()
     await fillAndSubmit('old-password', 'a-long-enough-password')
 
     expect(
@@ -167,7 +170,7 @@ describe('security section', () => {
     server.use(
       http.post('/api/v1/auth/change-password', () => fail('Current password is incorrect.', 400))
     )
-    renderProfile()
+    renderSecurity()
     await fillAndSubmit('wrong-password', 'a-long-enough-password')
 
     const current = screen.getByLabelText('Current password')
@@ -185,7 +188,7 @@ describe('security section', () => {
         fail('New password must be different from the current password.', 400)
       )
     )
-    renderProfile()
+    renderSecurity()
     await fillAndSubmit('a-long-enough-password', 'a-long-enough-password')
 
     await waitFor(() => {
@@ -210,7 +213,7 @@ describe('security section', () => {
         )
       )
     )
-    renderProfile()
+    renderSecurity()
     await fillAndSubmit('old-password', 'a-long-enough-password')
 
     await waitFor(() => {
@@ -227,7 +230,7 @@ describe('security section', () => {
         fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED')
       )
     )
-    renderProfile()
+    renderSecurity()
     await fillAndSubmit('old-password', 'a-long-enough-password')
 
     const message = await screen.findByText('Too many attempts. Please try again later.')
@@ -250,7 +253,7 @@ describe('security section', () => {
       })
     )
     const user = userEvent.setup()
-    renderProfile()
+    renderSecurity()
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('We could not load your sign-in methods.')
@@ -270,13 +273,13 @@ describe('security section', () => {
         return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
       })
     )
-    const router = renderProfile()
+    const router = renderSecurity()
     await fillAndSubmit('old-passphrase-1', 'new-passphrase-2')
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled())
     expect(useAuthStore.getState().accessToken).toBe('access-token')
     expect(await screen.findByRole('region', { name: 'Security' })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/profile')
+    expect(router.state.location.pathname).toBe('/settings/account/security')
     await act(() => queryClient.refetchQueries({ queryKey: authKeys.providers }))
     expect(queryClient.getQueryState(authKeys.providers)?.status).toBe('success')
     // A password change keeps this device's token, so it must never trigger a refresh.
@@ -315,7 +318,7 @@ describe('sign out other sessions', () => {
     mockProviders(['email'], true)
     const requests = mockRevokeOthers(2)
     const user = userEvent.setup()
-    renderProfile()
+    renderSecurity()
 
     const security = await section()
     await user.click(await security.findByRole('button', { name: 'Sign out other sessions' }))
@@ -330,7 +333,7 @@ describe('sign out other sessions', () => {
     mockProviders(['email'], true)
     mockRevokeOthers(1)
     const user = userEvent.setup()
-    renderProfile()
+    renderSecurity()
 
     const button = await (await section()).findByRole('button', { name: 'Sign out other sessions' })
     await user.click(button)
@@ -343,7 +346,7 @@ describe('sign out other sessions', () => {
 
   it('is offered on a Google-only account too', async () => {
     mockProviders(['email', 'google'], false)
-    renderProfile()
+    renderSecurity()
 
     const button = await (
       await section()
@@ -372,7 +375,7 @@ describe('sign out other sessions', () => {
       })
     )
     const user = userEvent.setup()
-    renderProfile()
+    renderSecurity()
 
     const security = await section()
     await user.click(await security.findByRole('button', { name: 'Sign out other sessions' }))
@@ -393,7 +396,7 @@ describe('sign out other sessions', () => {
       )
     )
     const user = userEvent.setup()
-    renderProfile()
+    renderSecurity()
 
     await user.click(
       await (await section()).findByRole('button', { name: 'Sign out other sessions' })

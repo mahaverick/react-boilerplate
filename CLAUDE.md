@@ -19,19 +19,25 @@ whose rules change in express first. The paths are listed in
 ## Staff on tenant pages
 
 Staff screens live in apex. This app keeps three staff surfaces that sit on tenant
-pages:
+pages and the workspace settings pages:
 
 - the platform-access banner;
-- the Staff filter and badge on a tenant's Activity tab;
+- the Staff filter and badge on Settings › Workspace › Activity;
 - the **Platform** menu item, for staff, which opens the platform tenant's pages.
 
 **A customer tenant reached through platform access (`access === 'platform'`)
-shows a read-only Members tab.** It offers no role change, removal, invite, resend
-or revoke. A staff owner or admin sees one line pointing to the staff console. The
-reason: express refuses those writes from staff without a recent sign-in and a
-reason (`requireRecentAuthAndReasonOnPlatformAccess`), and only apex has that
-step-up and reason flow. The member list and pending invitations stay readable.
+shows a read-only Members page (Settings › Workspace › Members).** It offers no
+role change, removal, invite, resend or revoke. A staff owner or admin sees one
+line pointing to the staff console. The reason: express refuses those writes
+from staff without a recent sign-in and a reason
+(`requireRecentAuthAndReasonOnPlatformAccess`), and only apex has that step-up
+and reason flow. The member list and pending invitations stay readable.
 Staff who are members of the tenant (`access: 'member'`) keep their controls.
+
+## Settings
+
+Settings pages are declared in `src/constants/settings.ts`; add a page there and
+as a route under `src/pages/_app/settings/`.
 
 ## The gate
 

@@ -1,4 +1,4 @@
-import { IconLogout, IconSelector, IconShieldCheck, IconUser } from '@tabler/icons-react'
+import { IconBell, IconLogout, IconSelector, IconShieldCheck, IconUser } from '@tabler/icons-react'
 import { Link } from '@tanstack/react-router'
 import { Pii } from '@/components/shared/pii'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -110,9 +110,13 @@ export function UserMenu({ user }: { user: User | null }) {
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem render={<Link to={ROUTES.profile} />}>
+              <DropdownMenuItem render={<Link to={ROUTES.settingsProfile} />}>
                 <IconUser aria-hidden="true" />
                 Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<Link to={ROUTES.settingsNotifications} />}>
+                <IconBell aria-hidden="true" />
+                Notifications
               </DropdownMenuItem>
               {staff && (
                 <DropdownMenuItem

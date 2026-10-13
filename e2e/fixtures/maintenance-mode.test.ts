@@ -98,7 +98,7 @@ test('read_only: a refused save toasts, the banner appears from that response, a
       },
     })
   })
-  await page.goto('/e2e/harness/?path=/profile')
+  await page.goto('/e2e/harness/?path=/settings/account/profile')
 
   const firstName = page.getByLabel('First name')
   await expect(firstName).toHaveValue('A', { timeout: COLD_TRANSFORM_BUDGET_MS })

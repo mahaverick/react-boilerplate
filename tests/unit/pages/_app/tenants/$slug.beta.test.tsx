@@ -91,7 +91,7 @@ describe('the Beta tab', () => {
     mockTenant(false)
     renderAppAt('/tenants/acme')
     const nav = await screen.findByRole('navigation', { name: 'Tenant sections' })
-    expect(nav).toHaveTextContent('Settings')
+    expect(nav).toHaveTextContent('Overview')
     expect(screen.queryByRole('link', { name: 'Beta' })).toBeNull()
   })
 })
@@ -139,7 +139,7 @@ describe('the Beta page', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Tenant sections' })
     await waitFor(() => expect(within(nav).queryByRole('link', { name: 'Beta' })).toBeNull())
-    expect(nav).toHaveTextContent('Settings')
+    expect(nav).toHaveTextContent('Overview')
   })
 
   it('offers a retry, after re-reading the flags once, when the API 404s with the flag still on', async () => {
@@ -258,7 +258,7 @@ describe('a tenant switch', () => {
 
     expect(await screen.findByRole('heading', { name: 'Globex' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Tenant sections' })).toHaveTextContent(
-      'Settings'
+      'Overview'
     )
     expect(screen.queryByRole('link', { name: 'Beta' })).toBeNull()
     // The loader's read, then the page's own query reading again after the failure.

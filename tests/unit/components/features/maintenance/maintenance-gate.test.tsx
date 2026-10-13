@@ -163,7 +163,7 @@ describe('full maintenance', () => {
   it('returns to the same page, signed in, when the mode ends', async () => {
     signIn()
     serveStatus('full')
-    const router = renderAppAt('/profile')
+    const router = renderAppAt('/settings/account/profile')
     await findMaintenancePage()
 
     // The poll's answer arrives as the store update below; the recovery's own refetch reads this handler too.
@@ -173,7 +173,7 @@ describe('full maintenance', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Profile', level: 1 })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/profile')
+    expect(router.state.location.pathname).toBe('/settings/account/profile')
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
@@ -202,10 +202,10 @@ describe('full maintenance', () => {
         isFull ? fullRefusal() : ok({ mode: 'off', message: null, since: null }, 'Status.')
       )
     )
-    const router = renderAppAt('/profile')
+    const router = renderAppAt('/settings/account/profile')
 
     await findMaintenancePage()
-    expect(router.state.location.pathname).toBe('/profile')
+    expect(router.state.location.pathname).toBe('/settings/account/profile')
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
 
     isFull = false
@@ -214,7 +214,7 @@ describe('full maintenance', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Profile', level: 1 })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/profile')
+    expect(router.state.location.pathname).toBe('/settings/account/profile')
     expect(useAuthStore.getState().user).toEqual(testUser)
   })
 
@@ -228,7 +228,7 @@ describe('full maintenance', () => {
     useMaintenanceModeStore.setState({ mode: 'full', message: null, since: null })
     serveStatus('full')
     server.use(http.post('/api/v1/auth/refresh', () => fail('Missing refresh token', 401)))
-    const router = renderAppAt('/profile')
+    const router = renderAppAt('/settings/account/profile')
     await findMaintenancePage()
 
     serveStatus('off')

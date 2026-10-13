@@ -96,5 +96,7 @@ declare module '@tanstack/react-router' {
    */
   interface StaticDataRouteOption {
     crumb?: string | ((params: Record<string, string>) => string)
+    /** False for a layout whose own path only redirects, so its crumb is text rather than a link. */
+    crumbLink?: false
   }
 }

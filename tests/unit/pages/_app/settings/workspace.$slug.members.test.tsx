@@ -144,7 +144,7 @@ function setViewportWidth(width: number) {
 }
 const realInnerWidth = window.innerWidth
 
-describe('members tab permissions', () => {
+describe('members page permissions', () => {
   afterEach(() => {
     setViewportWidth(realInnerWidth)
   })
@@ -166,7 +166,7 @@ describe('members tab permissions', () => {
       member(USER_ID_2, 'admin', 'Ada'),
       member(USER_ID_3, 'viewer', 'Vic'),
     ])
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const ada = await rowFor('Ada')
     expect(ada.getByRole('combobox', { name: 'Role for Ada X' })).toBeEnabled()
@@ -178,7 +178,7 @@ describe('members tab permissions', () => {
 
   it('does not let an owner touch ANOTHER owner', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const otto = await rowFor('Otto')
     // The matrix's one "self only" cell: an owner may act on an owner only when that owner is themselves.
@@ -194,7 +194,7 @@ describe('members tab permissions', () => {
       member(USER_ID_4, 'owner', 'Otto'),
       member(USER_ID_5, 'admin', 'Amy'),
     ])
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const vic = await rowFor('Vic')
     // Role change is owner-only (the route is gated `requireRole('owner')`) even though the matrix lets this admin remove the same viewer.
@@ -216,7 +216,7 @@ describe('members tab permissions', () => {
   it('offers an admin only the roles below admin when inviting someone', async () => {
     mockTenant('admin', [member(ME, 'admin', 'Me')])
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(await screen.findByRole('combobox', { name: 'Role' }))
     const options = (await screen.findAllByRole('option')).map((option) => option.textContent)
@@ -227,7 +227,7 @@ describe('members tab permissions', () => {
   it('offers an owner every role when inviting someone', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(await screen.findByRole('combobox', { name: 'Role' }))
     const options = (await screen.findAllByRole('option')).map((option) => option.textContent)
@@ -243,7 +243,7 @@ describe('members tab permissions', () => {
         return ok([], 'Invitations retrieved.')
       })
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const vic = await rowFor('Vic')
     expect(vic.queryByRole('button', { name: /Remove|Leave/ })).not.toBeInTheDocument()
@@ -260,7 +260,7 @@ describe('members tab permissions', () => {
 
   it('disables the last owner’s own controls and says why', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const me = await rowFor('Me')
     // The backend answers 409 here, so the UI must not offer the action.
@@ -280,7 +280,7 @@ describe('members tab permissions', () => {
 
   it('re-enables them once a second owner exists', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const me = await rowFor('Me')
     expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeEnabled()
@@ -296,7 +296,7 @@ describe('members tab permissions', () => {
   it('stacks members as cards on a phone, so no control sits off-screen', async () => {
     setViewportWidth(390)
     mockTenant('owner', [member(ME, 'owner', 'A'), member(USER_ID_2, 'viewer', 'Cleo')])
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     expect(await screen.findByText('Cleo X')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
@@ -307,13 +307,13 @@ describe('members tab permissions', () => {
   /** A header row over nothing reads as missing data. The error branch above still runs first: `[]` means "no members" only once the request is known to have answered. */
   it('says the list is empty rather than showing a bare table header', async () => {
     mockTenant('owner', [])
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     expect(await screen.findByText(/no one has access to this tenant yet/i)).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
-  // The role comes from the tenant detail, not the tenant list, so a list failure (the switcher's problem) must not take the tab's controls with it.
+  // The role comes from the tenant detail, not the tenant list, so a list failure (the switcher's problem) must not take the page's controls with it.
   it('keeps the role-gated controls when the tenant LIST fails', async () => {
     server.use(
       http.get('/api/v1/tenants', () => fail('Something went wrong.', 500)),
@@ -324,7 +324,7 @@ describe('members tab permissions', () => {
         ok([member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')], 'Members retrieved.')
       )
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const vic = await rowFor('Vic')
     expect(vic.getByRole('combobox', { name: 'Role for Vic X' })).toBeEnabled()
@@ -333,8 +333,8 @@ describe('members tab permissions', () => {
 
   /**
    * The role's error state is reachable only through a failed refetch: a failed first load
-   * is the layout's error boundary, so the tab never mounts. A failed refetch keeps the
-   * cached row and the layout, so the tab has to say what it no longer knows instead of
+   * is the layout's error boundary, so the page never mounts. A failed refetch keeps the
+   * cached row and the layout, so the page has to say what it no longer knows instead of
    * showing a skeleton.
    */
   it('renders an error with a working retry when the role cannot be refreshed', async () => {
@@ -352,7 +352,7 @@ describe('members tab permissions', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
     await screen.findByRole('combobox', { name: 'Role for Me X' })
 
     detailFails = true
@@ -395,7 +395,7 @@ describe('members tab permissions', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load this tenant’s members/i)
@@ -425,7 +425,7 @@ describe('members tab permissions', () => {
       ),
       http.get('/api/v1/tenants/acme/members', () => fail('Something went wrong.', 500))
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
     await screen.findByRole('alert')
 
     detailFails = true
@@ -458,7 +458,7 @@ describe('members tab permissions', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const vic = await rowFor('Vic')
     await user.click(vic.getByRole('combobox', { name: 'Role for Vic X' }))
@@ -484,7 +484,7 @@ describe('the invite form role select', () => {
   })
 
   it('points its label at the VISIBLE control, not at a hidden input', async () => {
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const trigger = await screen.findByRole('combobox', { name: 'Role' })
     const label = screen.getByText('Role', { selector: 'label' })
@@ -510,7 +510,7 @@ describe('the invite form role select', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.type(await screen.findByLabelText('Email'), 'new@b.com')
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
@@ -565,7 +565,7 @@ describe('inviting, and the pending invitations', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.type(await screen.findByLabelText('Email'), 'New@B.com')
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
@@ -584,7 +584,7 @@ describe('inviting, and the pending invitations', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const email = await screen.findByLabelText('Email')
     await user.type(email, 'u3@b.com')
@@ -619,7 +619,7 @@ describe('inviting, and the pending invitations', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.type(await screen.findByLabelText('Email'), 'new@b.com')
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
@@ -641,7 +641,7 @@ describe('inviting, and the pending invitations', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const email = await screen.findByLabelText('Email')
     await user.type(email, 'new@b.com')
@@ -666,7 +666,7 @@ describe('inviting, and the pending invitations', () => {
         )
       )
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     expect(await screen.findByRole('heading', { name: 'Pending invitations' })).toBeInTheDocument()
     const first = within((await screen.findByText('invitee@b.com')).closest('li') as HTMLElement)
@@ -681,7 +681,7 @@ describe('inviting, and the pending invitations', () => {
   })
 
   it('says when nothing is pending', async () => {
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     expect(
       await screen.findByText('No invitations are waiting to be accepted.')
@@ -700,7 +700,7 @@ describe('inviting, and the pending invitations', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/could not load the pending invitations/i)
@@ -711,7 +711,7 @@ describe('inviting, and the pending invitations', () => {
 
   it('shows the section to an admin too', async () => {
     mockTenant('admin', [member(ME, 'admin', 'Me')])
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     expect(await screen.findByRole('heading', { name: 'Pending invitations' })).toBeInTheDocument()
   })
@@ -730,7 +730,7 @@ describe('inviting, and the pending invitations', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
@@ -758,7 +758,7 @@ describe('inviting, and the pending invitations', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
@@ -783,7 +783,7 @@ describe('inviting, and the pending invitations', () => {
         )
       )
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     for (const email of ['owner@b.com', 'admin@b.com']) {
       const resend = await screen.findByRole('button', { name: `Resend invitation to ${email}` })
@@ -821,7 +821,7 @@ describe('inviting, and the pending invitations', () => {
         )
       )
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     for (const role of ['owner', 'admin', 'manager', 'editor', 'viewer']) {
       const email = `${role}@b.com`
@@ -849,7 +849,7 @@ describe('inviting, and the pending invitations', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
@@ -873,7 +873,7 @@ describe('inviting, and the pending invitations', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
@@ -901,7 +901,7 @@ describe('inviting, and the pending invitations', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
@@ -932,7 +932,7 @@ describe('inviting, and the pending invitations', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
@@ -963,7 +963,7 @@ describe('the remove and leave dialogs', () => {
   it('tells an owner removing a member that the invitations that member sent are revoked', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_2, 'admin', 'Ada')])
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click((await rowFor('Ada')).getByRole('button', { name: 'Remove' }))
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
@@ -974,7 +974,7 @@ describe('the remove and leave dialogs', () => {
   it('tells an owner removing a platform member that their invitations in other tenants go too', async () => {
     mockPlatformTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_2, 'admin', 'Ada')])
     const user = userEvent.setup()
-    renderAppAt('/tenants/platform/members')
+    renderAppAt('/settings/workspace/platform/members')
 
     await user.click((await rowFor('Ada')).getByRole('button', { name: 'Remove' }))
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
@@ -985,7 +985,7 @@ describe('the remove and leave dialogs', () => {
   it('tells a platform viewer leaving that an auto-join domain brings them back', async () => {
     mockPlatformTenant('viewer', [member(ME, 'viewer', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
     const user = userEvent.setup()
-    renderAppAt('/tenants/platform/members')
+    renderAppAt('/settings/workspace/platform/members')
 
     await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
@@ -996,7 +996,7 @@ describe('the remove and leave dialogs', () => {
   it('tells a platform admin leaving that their invitations in other tenants go too', async () => {
     mockPlatformTenant('admin', [member(ME, 'admin', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
     const user = userEvent.setup()
-    renderAppAt('/tenants/platform/members')
+    renderAppAt('/settings/workspace/platform/members')
 
     await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
@@ -1017,7 +1017,7 @@ describe('the remove and leave dialogs', () => {
         http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.'))
       )
       const user = userEvent.setup()
-      const router = renderAppAt('/tenants/acme/members')
+      const router = renderAppAt('/settings/workspace/acme/members')
 
       await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
       const dialog = await screen.findByRole('alertdialog')
@@ -1038,7 +1038,7 @@ describe('the remove and leave dialogs', () => {
     async (role) => {
       mockTenant(role, [member(ME, role, 'Me'), member(USER_ID_4, 'owner', 'Otto')])
       const user = userEvent.setup()
-      renderAppAt('/tenants/acme/members')
+      renderAppAt('/settings/workspace/acme/members')
 
       await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
       expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
@@ -1063,7 +1063,7 @@ describe('the remove and leave dialogs', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const me = await rowFor('Me')
     await user.click(me.getByRole('button', { name: 'Leave' }))
@@ -1097,7 +1097,7 @@ describe('the remove and leave dialogs', () => {
     server.events.on('request:start', record)
     try {
       const user = userEvent.setup()
-      const router = renderAppAt('/tenants/acme/members')
+      const router = renderAppAt('/settings/workspace/acme/members')
 
       await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
       await user.click(
@@ -1138,7 +1138,7 @@ describe('the remove and leave dialogs', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
     await user.click(
@@ -1157,7 +1157,7 @@ describe('the remove and leave dialogs', () => {
     mockTenant('viewer', [member(ME, 'viewer', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
     server.use(http.delete('/api/v1/tenants/acme/membership', () => fail('Tenant not found', 404)))
     const user = userEvent.setup()
-    const router = renderAppAt('/tenants/acme/members')
+    const router = renderAppAt('/settings/workspace/acme/members')
 
     await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
     await user.click(
@@ -1183,7 +1183,7 @@ describe('the remove and leave dialogs', () => {
       )
     )
     const user = userEvent.setup()
-    const router = renderAppAt('/tenants/acme/members')
+    const router = renderAppAt('/settings/workspace/acme/members')
 
     const me = await rowFor('Me')
     await user.click(me.getByRole('button', { name: 'Leave' }))
@@ -1196,7 +1196,7 @@ describe('the remove and leave dialogs', () => {
         'You are the last owner: make someone else an owner before you leave.'
       )
     ).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/tenants/acme/members')
+    expect(router.state.location.pathname).toBe('/settings/workspace/acme/members')
     expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
   })
 })
@@ -1236,7 +1236,7 @@ describe('a member who is already gone', () => {
     const reads = serveVicThenNone()
     server.use(http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, answer))
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click((await rowFor('Vic')).getByRole('button', { name: 'Remove' }))
     await user.click(
@@ -1258,7 +1258,7 @@ describe('a member who is already gone', () => {
     const reads = serveVicThenNone()
     server.use(http.patch(`/api/v1/tenants/acme/members/${USER_ID_3}`, answer))
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click((await rowFor('Vic')).getByRole('combobox', { name: 'Role for Vic X' }))
     await user.click(await screen.findByRole('option', { name: 'Editor' }))
@@ -1277,7 +1277,7 @@ describe('a member who is already gone', () => {
       http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, () => fail('Tenant not found', 404))
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click((await rowFor('Vic')).getByRole('button', { name: 'Remove' }))
     await user.click(
@@ -1297,7 +1297,7 @@ describe('a member who is already gone', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click((await rowFor('Vic')).getByRole('button', { name: 'Remove' }))
     await user.click(
@@ -1331,7 +1331,7 @@ describe('the last owner, counted as the API counts', () => {
       withActive(member(ME, 'owner', 'Me'), true),
       withActive(member(USER_ID_4, 'owner', 'Otto'), false),
     ])
-    renderAppAt('/tenants/platform/members')
+    renderAppAt('/settings/workspace/platform/members')
 
     const me = await rowFor('Me')
     expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeDisabled()
@@ -1343,7 +1343,7 @@ describe('the last owner, counted as the API counts', () => {
       withActive(member(ME, 'owner', 'Me'), true),
       withActive(member(USER_ID_4, 'owner', 'Otto'), true),
     ])
-    renderAppAt('/tenants/platform/members')
+    renderAppAt('/settings/workspace/platform/members')
 
     const me = await rowFor('Me')
     expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeEnabled()
@@ -1352,7 +1352,7 @@ describe('the last owner, counted as the API counts', () => {
 
   it('counts a platform co-owner whose row has no active flag, as an older API sends', async () => {
     mockPlatformTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
-    renderAppAt('/tenants/platform/members')
+    renderAppAt('/settings/workspace/platform/members')
 
     const me = await rowFor('Me')
     expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
@@ -1363,7 +1363,7 @@ describe('the last owner, counted as the API counts', () => {
       withActive(member(ME, 'owner', 'Me'), false),
       withActive(member(USER_ID_4, 'owner', 'Otto'), true),
     ])
-    renderAppAt('/tenants/platform/members')
+    renderAppAt('/settings/workspace/platform/members')
 
     const me = await rowFor('Me')
     expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()
@@ -1374,7 +1374,7 @@ describe('the last owner, counted as the API counts', () => {
       withActive(member(ME, 'owner', 'Me'), true),
       withActive(member(USER_ID_4, 'owner', 'Otto'), false),
     ])
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const me = await rowFor('Me')
     expect(me.getByRole('combobox', { name: 'Role for Me X' })).toBeEnabled()
@@ -1419,7 +1419,7 @@ describe('a customer tenant reached through platform access', () => {
     'shows a staff %s the members and pending invitations with no write control',
     async (role) => {
       mockStaffView(role)
-      renderAppAt('/tenants/acme/members')
+      renderAppAt('/settings/workspace/acme/members')
 
       const vic = await rowFor('Vic')
       expect(screen.getByText(STAFF_VIEW)).toBeInTheDocument()
@@ -1443,7 +1443,7 @@ describe('a customer tenant reached through platform access', () => {
 
   it('says nothing about the staff console to a staff viewer, who could not change members there either', async () => {
     mockStaffView('viewer')
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await rowFor('Vic')
     expect(screen.queryByText(STAFF_VIEW)).toBeNull()
@@ -1460,7 +1460,7 @@ describe('a customer tenant reached through platform access', () => {
         ok([member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')], 'Members retrieved.')
       )
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const vic = await rowFor('Vic')
     expect(vic.getByRole('combobox', { name: 'Role for Vic X' })).toBeEnabled()
@@ -1494,7 +1494,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
   it('tells the reader to sign in again when a role change is refused', async () => {
     server.use(http.patch(`/api/v1/tenants/acme/members/${USER_ID_3}`, stale))
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const vic = await rowFor('Vic')
     await user.click(vic.getByRole('combobox', { name: 'Role for Vic X' }))
@@ -1507,7 +1507,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
   it('tells the reader to sign in again when a removal is refused', async () => {
     server.use(http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, stale))
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const vic = await rowFor('Vic')
     await user.click(vic.getByRole('button', { name: 'Remove' }))
@@ -1521,7 +1521,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
   it('tells the reader to sign in again when an invitation is refused', async () => {
     server.use(http.post('/api/v1/tenants/acme/invitations', stale))
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.type(await screen.findByLabelText('Email'), 'new@b.com')
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
@@ -1534,7 +1534,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
     server.use(http.delete('/api/v1/tenants/acme/membership', stale))
     const user = userEvent.setup()
-    const router = renderAppAt('/tenants/acme/members')
+    const router = renderAppAt('/settings/workspace/acme/members')
 
     await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
     const dialog = await screen.findByRole('alertdialog')
@@ -1542,7 +1542,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
 
     expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
     expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/tenants/acme/members')
+    expect(router.state.location.pathname).toBe('/settings/workspace/acme/members')
   })
 
   it('tells the reader to sign in again when a resend is refused', async () => {
@@ -1556,7 +1556,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
       http.post('/api/v1/tenants/acme/invitations/:id/resend', stale)
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
@@ -1592,7 +1592,7 @@ describe('keyboard focus after a row action succeeds', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
@@ -1618,7 +1618,7 @@ describe('keyboard focus after a row action succeeds', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
@@ -1653,7 +1653,7 @@ describe('keyboard focus after a row action succeeds', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const vic = await rowFor('Vic')
     await user.click(vic.getByRole('button', { name: 'Remove' }))
@@ -1677,7 +1677,7 @@ describe('keyboard focus after a row action succeeds', () => {
       )
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const vic = await rowFor('Vic')
     await user.click(vic.getByRole('button', { name: 'Remove' }))
@@ -1699,7 +1699,7 @@ describe('keyboard focus after a row action succeeds', () => {
       http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.'))
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     const me = await rowFor('Me')
     await user.click(me.getByRole('button', { name: 'Leave' }))
