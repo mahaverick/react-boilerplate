@@ -1,5 +1,5 @@
+import { IconBell, IconBuilding, IconLayoutDashboard, type TablerIcon } from '@tabler/icons-react'
 import { Link, Outlet, useLocation, useMatches, type LinkProps } from '@tanstack/react-router'
-import { Bell, Building2, LayoutDashboard, type LucideIcon } from 'lucide-react'
 import { Fragment, useEffect } from 'react'
 import { MaintenanceBanner } from '@/components/features/maintenance/maintenance-gate'
 import { NotificationBell } from '@/components/features/notification-bell'
@@ -45,15 +45,15 @@ import { useThemeStore } from '@/states/theme.store'
 interface NavItem {
   to: (typeof ROUTES)['dashboard' | 'notifications' | 'tenants']
   label: string
-  Icon: LucideIcon
+  Icon: TablerIcon
   flag?: BooleanClientFlagKey
 }
 
 /** The sidebar's primary navigation. `to` is typed against the route tree, so a missing route is a type error. */
 const NAV_ITEMS: readonly NavItem[] = [
-  { to: ROUTES.dashboard, label: 'Dashboard', Icon: LayoutDashboard },
-  { to: ROUTES.notifications, label: 'Notifications', Icon: Bell },
-  { to: ROUTES.tenants, label: 'Tenants', Icon: Building2 },
+  { to: ROUTES.dashboard, label: 'Dashboard', Icon: IconLayoutDashboard },
+  { to: ROUTES.notifications, label: 'Notifications', Icon: IconBell },
+  { to: ROUTES.tenants, label: 'Tenants', Icon: IconBuilding },
 ]
 
 /** One breadcrumb link: the page's label and the path it opens. */
@@ -180,7 +180,7 @@ export function AppLayout() {
               {navItems.map(({ to, label, Icon }) => (
                 <SidebarMenuItem key={to}>
                   <SidebarMenuButton isActive={isNavActive(pathname, to)} render={<Link to={to} />}>
-                    <Icon />
+                    <Icon aria-hidden="true" />
                     <span>{label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

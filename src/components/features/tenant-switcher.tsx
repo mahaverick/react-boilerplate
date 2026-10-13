@@ -1,6 +1,6 @@
+import { IconBuilding } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { Building2 } from 'lucide-react'
 import { useState } from 'react'
 import {
   Combobox,
@@ -128,7 +128,7 @@ export function TenantSwitcher() {
                 <SidebarMenuButton size="lg" aria-label={`Switch tenant. Current: ${label}`} />
               }
             >
-              <Building2 className="size-4 shrink-0" />
+              <IconBuilding aria-hidden="true" className="size-4 shrink-0" />
               <span className="flex-1 truncate text-left">{label}</span>
             </ComboboxTrigger>
             <ComboboxContent aria-label="Switch tenant" className="w-72">

@@ -1,5 +1,5 @@
+import { IconLogout, IconShieldCheck, IconUser } from '@tabler/icons-react'
 import { Link } from '@tanstack/react-router'
-import { LogOut, ShieldCheck, User as UserIcon } from 'lucide-react'
 import { Pii } from '@/components/shared/pii'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -60,14 +60,14 @@ export function UserMenu({ user }: { user: User | null }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="top" className="min-w-56">
             <DropdownMenuItem render={<Link to={ROUTES.profile} />}>
-              <UserIcon className="mr-2 size-4" />
+              <IconUser aria-hidden="true" className="mr-2 size-4" />
               Profile
             </DropdownMenuItem>
             {staff && (
               <DropdownMenuItem
                 render={<Link to="/tenants/$slug" params={{ slug: PLATFORM_TENANT_SLUG }} />}
               >
-                <ShieldCheck className="mr-2 size-4" />
+                <IconShieldCheck aria-hidden="true" className="mr-2 size-4" />
                 Platform
               </DropdownMenuItem>
             )}
@@ -77,7 +77,7 @@ export function UserMenu({ user }: { user: User | null }) {
               disabled={logout.isPending}
               onClick={() => logout.mutate()}
             >
-              <LogOut className="mr-2 size-4" />
+              <IconLogout aria-hidden="true" className="mr-2 size-4" />
               Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>

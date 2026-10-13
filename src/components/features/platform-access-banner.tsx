@@ -1,5 +1,5 @@
+import { IconShieldExclamation } from '@tabler/icons-react'
 import { Link } from '@tanstack/react-router'
-import { ShieldAlert } from 'lucide-react'
 import { ROLE_LABELS, type MembershipRole } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 
@@ -23,7 +23,7 @@ export function PlatformAccessBanner({
       role="status"
       className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-muted px-4 py-3 text-sm text-foreground"
     >
-      <ShieldAlert aria-hidden="true" className="size-4 shrink-0" />
+      <IconShieldExclamation aria-hidden="true" className="size-4 shrink-0" />
       <p className="min-w-0 flex-1">
         You’re viewing <strong>{tenantName}</strong> as platform staff ({ROLE_LABELS[role]}).
       </p>

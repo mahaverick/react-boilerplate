@@ -1,4 +1,4 @@
-import { Wrench } from 'lucide-react'
+import { IconTool } from '@tabler/icons-react'
 import { MAIN_CONTENT_ID, SkipLink } from '@/components/features/skip-link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatDateTime } from '@/lib/format'
@@ -32,7 +32,7 @@ export function MaintenancePage({
       >
         <Card className="w-full max-w-md">
           <CardHeader>
-            <Wrench aria-hidden="true" className="mb-2 size-6 text-muted-foreground" />
+            <IconTool aria-hidden="true" className="mb-2 size-6 text-muted-foreground" />
             <CardTitle>
               <h1>We’ll be back soon</h1>
             </CardTitle>

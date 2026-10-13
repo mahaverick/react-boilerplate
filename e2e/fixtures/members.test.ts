@@ -17,8 +17,8 @@ test.describe('desktop', () => {
     await expect(page.getByRole('row')).toHaveCount(3) // header + two members
 
     // A failed webfont load is invisible to code-reading checks: the class and font-family are unchanged and the text falls back to the generic sans-serif.
-    const geist = await page.evaluate(() => document.fonts.check('16px "Geist Variable"'))
-    expect(geist).toBe(true)
+    const inter = await page.evaluate(() => document.fonts.check('16px "Inter Variable"'))
+    expect(inter).toBe(true)
   })
 
   test('says the list is empty instead of drawing a bare header', async ({ page }) => {

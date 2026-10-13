@@ -1,5 +1,5 @@
+import { IconCheck, IconTrash } from '@tabler/icons-react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Check, Trash2 } from 'lucide-react'
 import { useId } from 'react'
 import { toast } from 'sonner'
 import { LoadError } from '@/components/features/load-error'
@@ -85,7 +85,7 @@ function NotificationRow({ notification }: { notification: Notification }) {
           disabled={markRead.isPending}
           onClick={() => markRead.mutate(notification.id)}
         >
-          <Check className="size-4" />
+          <IconCheck aria-hidden="true" className="size-4" />
         </Button>
       )}
       <Button
@@ -95,7 +95,7 @@ function NotificationRow({ notification }: { notification: Notification }) {
         disabled={remove.isPending}
         onClick={() => remove.mutate(notification.id)}
       >
-        <Trash2 className="size-4" />
+        <IconTrash aria-hidden="true" className="size-4" />
       </Button>
     </li>
   )

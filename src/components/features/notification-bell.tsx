@@ -1,5 +1,5 @@
+import { IconBell } from '@tabler/icons-react'
 import { Link } from '@tanstack/react-router'
-import { Bell } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -58,7 +58,7 @@ export function NotificationBell() {
           />
         }
       >
-        <Bell className="size-4" />
+        <IconBell aria-hidden="true" className="size-4" />
         {unread > 0 && (
           <Badge
             variant="destructive"
