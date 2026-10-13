@@ -18,6 +18,7 @@ import { Route as VerifyEmailRouteImport } from './pages/verify-email'
 import { Route as AppDashboardRouteImport } from './pages/_app/dashboard'
 import { Route as AppNotificationsRouteImport } from './pages/_app/notifications'
 import { Route as AppProfileRouteImport } from './pages/_app/profile'
+import { Route as AppSettingsRouteImport } from './pages/_app/settings'
 import { Route as AuthForgotPasswordRouteImport } from './pages/_auth/forgot-password'
 import { Route as AuthLoginRouteImport } from './pages/_auth/login'
 import { Route as AuthRegisterRouteImport } from './pages/_auth/register'
@@ -25,6 +26,9 @@ import { Route as AuthCallbackRouteImport } from './pages/auth/callback'
 import { Route as InvitationsAcceptRouteImport } from './pages/invitations/accept'
 import { Route as AppTenantsIndexRouteImport } from './pages/_app/tenants/index'
 import { Route as AppTenantsSlugRouteImport } from './pages/_app/tenants/$slug'
+import { Route as AppSettingsAccountNotificationsRouteImport } from './pages/_app/settings/account.notifications'
+import { Route as AppSettingsAccountProfileRouteImport } from './pages/_app/settings/account.profile'
+import { Route as AppSettingsAccountSecurityRouteImport } from './pages/_app/settings/account.security'
 import { Route as AppTenantsSlugIndexRouteImport } from './pages/_app/tenants/$slug.index'
 import { Route as AppTenantsSlugActivityRouteImport } from './pages/_app/tenants/$slug.activity'
 import { Route as AppTenantsSlugBetaRouteImport } from './pages/_app/tenants/$slug.beta'
@@ -74,6 +78,11 @@ const AppProfileRoute = AppProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
 const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
@@ -109,6 +118,24 @@ const AppTenantsSlugRoute = AppTenantsSlugRouteImport.update({
   path: '/tenants/$slug',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsAccountNotificationsRoute =
+  AppSettingsAccountNotificationsRouteImport.update({
+    id: '/account/notifications',
+    path: '/account/notifications',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsAccountProfileRoute =
+  AppSettingsAccountProfileRouteImport.update({
+    id: '/account/profile',
+    path: '/account/profile',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsAccountSecurityRoute =
+  AppSettingsAccountSecurityRouteImport.update({
+    id: '/account/security',
+    path: '/account/security',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
 const AppTenantsSlugIndexRoute = AppTenantsSlugIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -143,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AppDashboardRoute
   '/notifications': typeof AppNotificationsRoute
   '/profile': typeof AppProfileRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
@@ -150,6 +178,9 @@ export interface FileRoutesByFullPath {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/tenants/': typeof AppTenantsIndexRoute
+  '/settings/account/notifications': typeof AppSettingsAccountNotificationsRoute
+  '/settings/account/profile': typeof AppSettingsAccountProfileRoute
+  '/settings/account/security': typeof AppSettingsAccountSecurityRoute
   '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
@@ -164,12 +195,16 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AppDashboardRoute
   '/notifications': typeof AppNotificationsRoute
   '/profile': typeof AppProfileRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/tenants': typeof AppTenantsIndexRoute
+  '/settings/account/notifications': typeof AppSettingsAccountNotificationsRoute
+  '/settings/account/profile': typeof AppSettingsAccountProfileRoute
+  '/settings/account/security': typeof AppSettingsAccountSecurityRoute
   '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
@@ -187,6 +222,7 @@ export interface FileRoutesById {
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/profile': typeof AppProfileRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/register': typeof AuthRegisterRoute
@@ -194,6 +230,9 @@ export interface FileRoutesById {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/_app/tenants/': typeof AppTenantsIndexRoute
+  '/_app/settings/account/notifications': typeof AppSettingsAccountNotificationsRoute
+  '/_app/settings/account/profile': typeof AppSettingsAccountProfileRoute
+  '/_app/settings/account/security': typeof AppSettingsAccountSecurityRoute
   '/_app/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/_app/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
   '/_app/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
@@ -210,6 +249,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/notifications'
     | '/profile'
+    | '/settings'
     | '/forgot-password'
     | '/login'
     | '/register'
@@ -217,6 +257,9 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/tenants/$slug'
     | '/tenants/'
+    | '/settings/account/notifications'
+    | '/settings/account/profile'
+    | '/settings/account/security'
     | '/tenants/$slug/activity'
     | '/tenants/$slug/beta'
     | '/tenants/$slug/members'
@@ -231,12 +274,16 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/notifications'
     | '/profile'
+    | '/settings'
     | '/forgot-password'
     | '/login'
     | '/register'
     | '/auth/callback'
     | '/invitations/accept'
     | '/tenants'
+    | '/settings/account/notifications'
+    | '/settings/account/profile'
+    | '/settings/account/security'
     | '/tenants/$slug/activity'
     | '/tenants/$slug/beta'
     | '/tenants/$slug/members'
@@ -253,6 +300,7 @@ export interface FileRouteTypes {
     | '/_app/dashboard'
     | '/_app/notifications'
     | '/_app/profile'
+    | '/_app/settings'
     | '/_auth/forgot-password'
     | '/_auth/login'
     | '/_auth/register'
@@ -260,6 +308,9 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/_app/tenants/$slug'
     | '/_app/tenants/'
+    | '/_app/settings/account/notifications'
+    | '/_app/settings/account/profile'
+    | '/_app/settings/account/security'
     | '/_app/tenants/$slug/activity'
     | '/_app/tenants/$slug/beta'
     | '/_app/tenants/$slug/members'
@@ -343,6 +394,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProfileRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_auth/forgot-password': {
       id: '/_auth/forgot-password'
       path: '/forgot-password'
@@ -392,6 +450,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTenantsSlugRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/account/notifications': {
+      id: '/_app/settings/account/notifications'
+      path: '/account/notifications'
+      fullPath: '/settings/account/notifications'
+      preLoaderRoute: typeof AppSettingsAccountNotificationsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/account/profile': {
+      id: '/_app/settings/account/profile'
+      path: '/account/profile'
+      fullPath: '/settings/account/profile'
+      preLoaderRoute: typeof AppSettingsAccountProfileRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/account/security': {
+      id: '/_app/settings/account/security'
+      path: '/account/security'
+      fullPath: '/settings/account/security'
+      preLoaderRoute: typeof AppSettingsAccountSecurityRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/tenants/$slug/': {
       id: '/_app/tenants/$slug/'
       path: '/'
@@ -430,6 +509,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppSettingsRouteChildren {
+  AppSettingsAccountNotificationsRoute: typeof AppSettingsAccountNotificationsRoute
+  AppSettingsAccountProfileRoute: typeof AppSettingsAccountProfileRoute
+  AppSettingsAccountSecurityRoute: typeof AppSettingsAccountSecurityRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsAccountNotificationsRoute: AppSettingsAccountNotificationsRoute,
+  AppSettingsAccountProfileRoute: AppSettingsAccountProfileRoute,
+  AppSettingsAccountSecurityRoute: AppSettingsAccountSecurityRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
 interface AppTenantsSlugRouteChildren {
   AppTenantsSlugActivityRoute: typeof AppTenantsSlugActivityRoute
   AppTenantsSlugBetaRoute: typeof AppTenantsSlugBetaRoute
@@ -454,6 +549,7 @@ interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppProfileRoute: typeof AppProfileRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTenantsSlugRoute: typeof AppTenantsSlugRouteWithChildren
   AppTenantsIndexRoute: typeof AppTenantsIndexRoute
 }
@@ -462,6 +558,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppProfileRoute: AppProfileRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTenantsSlugRoute: AppTenantsSlugRouteWithChildren,
   AppTenantsIndexRoute: AppTenantsIndexRoute,
 }

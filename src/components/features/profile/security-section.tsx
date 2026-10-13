@@ -61,7 +61,7 @@ export function SecuritySection() {
   const headingId = useId()
 
   return (
-    <section aria-labelledby={headingId} className="mt-6 grid gap-6 border-t pt-6">
+    <section aria-labelledby={headingId} className="grid gap-6">
       <h2 id={headingId} className="text-lg font-semibold">
         Security
       </h2>

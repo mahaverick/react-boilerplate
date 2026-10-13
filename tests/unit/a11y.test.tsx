@@ -473,7 +473,16 @@ describe('signed-in pages', () => {
 
   it.each([
     ['dashboard', '/dashboard', () => screen.findByRole('heading', { name: /Welcome back/ })],
-    ['profile', '/profile', () => screen.findByRole('button', { name: 'Change password' })],
+    [
+      'profile',
+      '/settings/account/profile',
+      () => screen.findByRole('heading', { name: 'Profile', level: 1 }),
+    ],
+    [
+      'security',
+      '/settings/account/security',
+      () => screen.findByRole('button', { name: 'Change password' }),
+    ],
     [
       'notifications',
       '/notifications',

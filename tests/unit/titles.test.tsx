@@ -70,7 +70,7 @@ describe('page titles', () => {
       isAuthenticated: true,
       isBootstrapped: true,
     })
-    renderAppAt('/profile')
+    renderAppAt('/settings/account/profile')
 
     await screen.findByRole('heading', { name: 'Profile', level: 1 })
     await waitFor(() => {
@@ -91,7 +91,7 @@ describe('page titles', () => {
       expect(document.title).toBe('Dashboard · React Boilerplate')
     })
 
-    await act(() => router.navigate({ to: '/profile' }))
+    await act(() => router.navigate({ to: '/settings/account/profile' }))
 
     await screen.findByRole('heading', { name: 'Profile', level: 1 })
     await waitFor(() => {
@@ -145,7 +145,7 @@ describe('page titles', () => {
       (route) => !route.isRoot && !hasChildren(route) && route.options.component !== undefined
     )
     // The filter must have found the pages, or the check below would pass on none.
-    expect(pages.map((route) => String(route.id))).toContain('/_app/profile')
+    expect(pages.map((route) => String(route.id))).toContain('/_app/settings/account/profile')
     const untitled = pages
       .filter((route) => typeof route.options.head !== 'function')
       .map((route) => String(route.id))

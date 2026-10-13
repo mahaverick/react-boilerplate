@@ -20,7 +20,7 @@ function renderProfile() {
   const router = createRouter({
     routeTree,
     context: { queryClient },
-    history: createMemoryHistory({ initialEntries: ['/profile'] }),
+    history: createMemoryHistory({ initialEntries: ['/settings/account/security'] }),
   })
   render(
     <QueryClientProvider client={queryClient}>
@@ -276,7 +276,7 @@ describe('security section', () => {
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled())
     expect(useAuthStore.getState().accessToken).toBe('access-token')
     expect(await screen.findByRole('region', { name: 'Security' })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/profile')
+    expect(router.state.location.pathname).toBe('/settings/account/security')
     await act(() => queryClient.refetchQueries({ queryKey: authKeys.providers }))
     expect(queryClient.getQueryState(authKeys.providers)?.status).toBe('success')
     // A password change keeps this device's token, so it must never trigger a refresh.

@@ -113,7 +113,7 @@ describe('AppLayout', () => {
   })
 
   it('shows a breadcrumb for the current route', async () => {
-    renderAppAt('/profile')
+    renderAppAt('/settings/account/profile')
     const breadcrumb = await screen.findByRole('navigation', { name: 'breadcrumb' })
 
     expect(within(breadcrumb).getByText('Profile')).toBeInTheDocument()
@@ -191,7 +191,7 @@ describe('AppLayout', () => {
 
     // The route must change, which a handler that only closes the menu would not do.
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/profile')
+      expect(router.state.location.pathname).toBe('/settings/account/profile')
     })
   })
 
