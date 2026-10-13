@@ -1,16 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { TenantMembersPanel } from '@/components/features/tenant/tenant-members-panel'
-import { pageTitle } from '@/constants/app'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-/** The Members tab: the tenant's member list with role, remove and leave actions, and its pending invitations. */
+/** The old Members tab; it lives in Settings › Workspace now. */
 export const Route = createFileRoute('/_app/tenants/$slug/members')({
-  head: ({ params }) => ({ meta: [{ title: pageTitle(`Members · ${params.slug}`) }] }),
-  staticData: { crumb: 'Members' },
-  component: TenantMembersTab,
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/settings/workspace/$slug/members', params, replace: true })
+  },
 })
-
-/** Renders the members panel for the route's tenant. */
-function TenantMembersTab() {
-  const { slug } = Route.useParams()
-  return <TenantMembersPanel slug={slug} />
-}

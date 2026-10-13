@@ -51,12 +51,16 @@ const OWNER_OR_ADMIN = 'An owner or admin can do this'
  */
 const STEP_LINKS: ReadonlyMap<
   string,
-  { to: '/tenants/$slug/settings' | '/tenants/$slug/members'; label: string; cta: AnalyticsKey }
+  {
+    to: '/settings/workspace/$slug/general' | '/settings/workspace/$slug/members'
+    label: string
+    cta: AnalyticsKey
+  }
 > = new Map([
   [
     'configure_settings',
     {
-      to: '/tenants/$slug/settings',
+      to: '/settings/workspace/$slug/general',
       label: 'Open settings',
       cta: analyticsKey('onboarding_open_settings'),
     },
@@ -64,7 +68,7 @@ const STEP_LINKS: ReadonlyMap<
   [
     'invite_teammate',
     {
-      to: '/tenants/$slug/members',
+      to: '/settings/workspace/$slug/members',
       label: 'Open members',
       cta: analyticsKey('onboarding_open_members'),
     },

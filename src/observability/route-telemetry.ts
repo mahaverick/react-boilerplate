@@ -12,8 +12,11 @@ import {
   type AnalyticsTenantAccess,
 } from '@/observability/telemetry'
 
-/** The layout route every tenant page sits under; its loader resolves the tenant. */
-export const TENANT_ROUTE_ID = '/_app/tenants/$slug'
+/** The layout routes that load a tenant; either one's loader data names the page's tenant. */
+export const TENANT_ROUTE_IDS: readonly string[] = [
+  '/_app/tenants/$slug',
+  '/_app/settings/workspace/$slug',
+]
 
 /** The tenant a resolved page belongs to, and how the user reached it. */
 interface RouteTenant {
@@ -29,14 +32,14 @@ function isRouteTenant(data: unknown): data is RouteTenant {
 }
 
 /**
- * The tenant whose page the router has resolved: the tenant route's loader
- * data, when that route matched and loaded one. A 404 (`null`), a failed
+ * The tenant whose page the router has resolved: a tenant layout route's
+ * loader data, when one matched and loaded one. A 404 (`null`), a failed
  * load or any other page has none.
  * @param router - The app's router, after a resolve.
  * @returns The tenant id and how the user reached it, or null.
  */
 function resolvedTenant(router: AnyRouter): RouteTenant | null {
-  const match = router.state.matches.find((entry) => entry.routeId === TENANT_ROUTE_ID)
+  const match = router.state.matches.find((entry) => TENANT_ROUTE_IDS.includes(entry.routeId))
   if (match?.status !== 'success') return null
   const data: unknown = match.loaderData
   return isRouteTenant(data) ? { id: data.id, access: data.access } : null

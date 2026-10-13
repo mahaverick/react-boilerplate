@@ -6,7 +6,7 @@ import {
 } from '@/components/features/tenant/tenant-gate'
 import { Badge } from '@/components/ui/badge'
 import { pageTitle } from '@/constants/app'
-import { canViewActivity, ROLE_LABELS } from '@/constants/roles'
+import { ROLE_LABELS } from '@/constants/roles'
 import { cn } from '@/lib/utils'
 import { useFlagValues } from '@/observability/flags/flag-hooks'
 import type { BooleanClientFlagKey } from '@/observability/flags/flag-types'
@@ -45,12 +45,7 @@ export const Route = createFileRoute('/_app/tenants/$slug')({
 
 /** One tenant tab. `flag` hides it while that tenant-scoped flag is off for this tenant. */
 interface TenantTab {
-  to:
-    | '/tenants/$slug'
-    | '/tenants/$slug/members'
-    | '/tenants/$slug/settings'
-    | '/tenants/$slug/beta'
-    | '/tenants/$slug/activity'
+  to: '/tenants/$slug' | '/tenants/$slug/beta'
   label: string
   exact: boolean
   flag?: BooleanClientFlagKey
@@ -58,20 +53,15 @@ interface TenantTab {
 
 const TABS: readonly TenantTab[] = [
   { to: '/tenants/$slug', label: 'Overview', exact: true },
-  { to: '/tenants/$slug/members', label: 'Members', exact: false },
-  { to: '/tenants/$slug/settings', label: 'Settings', exact: false },
   { to: '/tenants/$slug/beta', label: 'Beta', exact: false, flag: 'example_beta_page' },
 ]
-
-/** Owner and admin only, the same bar as the audit-log route it reads. */
-const ACTIVITY_TAB: TenantTab = { to: '/tenants/$slug/activity', label: 'Activity', exact: false }
 
 /**
  * The tab bar: a `nav` of real links, since the tabs are routes, not widget
  * panels. A flagged tab is left out while its flag is off.
  */
-function TenantTabs({ slug, showActivity }: { slug: string; showActivity: boolean }) {
-  const tabs = filterByFlag(showActivity ? [...TABS, ACTIVITY_TAB] : TABS, useFlagValues())
+function TenantTabs({ slug }: { slug: string }) {
+  const tabs = filterByFlag(TABS, useFlagValues())
   return (
     <nav aria-label="Tenant sections" className="border-b">
       <ul className="flex gap-1 overflow-x-auto">
@@ -115,7 +105,7 @@ function TenantLayout() {
             </div>
             <p className="text-sm text-muted-foreground">/{tenant.slug}</p>
           </header>
-          <TenantTabs slug={slug} showActivity={canViewActivity(tenant.role)} />
+          <TenantTabs slug={slug} />
           <Outlet />
         </div>
       )}

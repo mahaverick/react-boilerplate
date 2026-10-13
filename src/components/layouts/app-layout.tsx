@@ -90,7 +90,7 @@ function useBreadcrumbs(): Crumb[] {
 /**
  * List pages a detail page sits under in the reader's mind but not in the
  * route tree: `/tenants` and `/tenants/$slug` are siblings, so without this
- * the trail would jump straight to `acme / Members`.
+ * the trail would jump straight to `acme / Overview`.
  */
 const ANCESTOR_CRUMBS = [{ to: ROUTES.tenants, label: 'Tenants' }] as const
 

@@ -124,9 +124,31 @@ describe('AppLayout', () => {
   /**
    * `Tenants` is added by the breadcrumb builder, because no match produces it (the list
    * route is a sibling of the detail route); `acme` comes from the dynamic route's crumb
-   * function and `Members` from the leaf.
+   * function and `Overview` from the leaf.
    */
   it('shows a breadcrumb trail on a DYNAMIC route', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: ACME, role: 'viewer' }], 'Tenants retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'viewer'), 'Tenant retrieved.'))
+    )
+    renderAppAt('/tenants/acme')
+    const breadcrumb = await screen.findByRole('navigation', { name: 'breadcrumb' })
+
+    const trail = within(breadcrumb)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent?.trim())
+      .filter((text) => text !== '')
+    expect(trail).toEqual(['Tenants', 'acme', 'Overview'])
+
+    expect(within(breadcrumb).getByRole('link', { name: 'Tenants' })).toHaveAttribute(
+      'href',
+      '/tenants'
+    )
+  })
+
+  it('shows a breadcrumb trail on a DYNAMIC settings route, under Settings', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok([{ tenant: ACME, role: 'viewer' }], 'Tenants retrieved.')
@@ -134,18 +156,19 @@ describe('AppLayout', () => {
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'viewer'), 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
     const breadcrumb = await screen.findByRole('navigation', { name: 'breadcrumb' })
 
-    const trail = within(breadcrumb)
-      .getAllByRole('listitem')
-      .map((item) => item.textContent?.trim())
-      .filter((text) => text !== '')
-    expect(trail).toEqual(['Tenants', 'acme', 'Members'])
-
-    expect(within(breadcrumb).getByRole('link', { name: 'Tenants' })).toHaveAttribute(
+    await waitFor(() => {
+      const trail = within(breadcrumb)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent?.trim())
+        .filter((text) => text !== '')
+      expect(trail).toEqual(['Settings', 'acme', 'Members'])
+    })
+    expect(within(breadcrumb).getByRole('link', { name: 'Settings' })).toHaveAttribute(
       'href',
-      '/tenants'
+      '/settings'
     )
   })
 

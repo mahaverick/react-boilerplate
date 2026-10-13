@@ -473,6 +473,7 @@ describe('signed-in pages', () => {
 
   it.each([
     ['dashboard', '/dashboard', () => screen.findByRole('heading', { name: /Welcome back/ })],
+    ['settings', '/settings', () => screen.findByRole('region', { name: 'Workspace' })],
     [
       'profile',
       '/settings/account/profile',
@@ -504,8 +505,8 @@ describe('signed-in pages', () => {
       },
     ],
     [
-      'tenant members',
-      '/tenants/acme/members',
+      'workspace members',
+      '/settings/workspace/acme/members',
       // Both lists: the member table and the pending invitations under it.
       async () => {
         await screen.findByRole('table')
@@ -513,8 +514,8 @@ describe('signed-in pages', () => {
       },
     ],
     [
-      'tenant settings',
-      '/tenants/acme/settings',
+      'workspace general',
+      '/settings/workspace/acme/general',
       () => screen.findByRole('button', { name: 'Save settings' }),
     ],
     [
@@ -523,8 +524,8 @@ describe('signed-in pages', () => {
       () => screen.findByText('Beta features are on for acme.'),
     ],
     [
-      'tenant activity',
-      '/tenants/acme/activity',
+      'workspace activity',
+      '/settings/workspace/acme/activity',
       () => screen.findByText('changed the settings (timezone)'),
     ],
     [
@@ -728,7 +729,7 @@ describe('open overlays', () => {
 
   it('has no violations with the remove-member dialog open, and the dialog is named', async () => {
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     // Cleo is an editor, so her row's Remove control is enabled and opens the dialog.
     const row = (await screen.findByRole('cell', { name: /Cleo/ })).closest('tr')
@@ -743,7 +744,7 @@ describe('open overlays', () => {
 
   it('has no violations with the revoke-invitation dialog open, and the dialog is named', async () => {
     const user = userEvent.setup()
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
       await screen.findByRole('button', { name: 'Revoke invitation to invitee@b.com' })
@@ -771,7 +772,7 @@ describe('open overlays', () => {
         ok(tenantDetail(TENANT, 'owner', 'platform'), 'Tenant retrieved.')
       )
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
     await screen.findByRole('table')
     await screen.findByText('invitee@b.com')
 
@@ -784,7 +785,7 @@ describe('open overlays', () => {
   it('has no violations with the member list stacked as cards on a phone', async () => {
     // The card layout is a second render path the table tests never touch, so it can hide a duplicate id or an unlabelled control.
     setViewportWidth(390)
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
     await screen.findByText('Cleo D')
     await screen.findByText('invitee@b.com')
 

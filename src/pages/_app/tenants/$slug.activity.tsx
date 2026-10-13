@@ -1,16 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { TenantActivityPanel } from '@/components/features/tenant/tenant-activity-panel'
-import { pageTitle } from '@/constants/app'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-/** The Activity tab, which lists a tenant's audit log for owners and admins. */
+/** The old Activity tab; it lives in Settings › Workspace now. */
 export const Route = createFileRoute('/_app/tenants/$slug/activity')({
-  head: ({ params }) => ({ meta: [{ title: pageTitle(`Activity · ${params.slug}`) }] }),
-  staticData: { crumb: 'Activity' },
-  component: TenantActivityTab,
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/settings/workspace/$slug/activity', params, replace: true })
+  },
 })
-
-/** Renders the activity panel for the route's tenant. */
-function TenantActivityTab() {
-  const { slug } = Route.useParams()
-  return <TenantActivityPanel slug={slug} />
-}

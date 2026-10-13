@@ -1,16 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { TenantSettingsCard } from '@/components/features/tenant/tenant-settings-card'
-import { pageTitle } from '@/constants/app'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-/** The Settings tab: timezone, locale and metadata, editable by owners and admins. */
+/** The old Settings tab; it lives in Settings › Workspace now. */
 export const Route = createFileRoute('/_app/tenants/$slug/settings')({
-  head: ({ params }) => ({ meta: [{ title: pageTitle(`Settings · ${params.slug}`) }] }),
-  staticData: { crumb: 'Settings' },
-  component: TenantSettingsTab,
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/settings/workspace/$slug/general', params, replace: true })
+  },
 })
-
-/** Renders the settings card for the route's tenant. */
-function TenantSettingsTab() {
-  const { slug } = Route.useParams()
-  return <TenantSettingsCard slug={slug} />
-}

@@ -117,8 +117,8 @@ describe('page titles', () => {
     })
   })
 
-  // The tab's title, not its tenant layout's `acme · React Boilerplate`: the deepest match's head() wins when the router merges them.
-  it('puts the tenant slug in a tenant tab title', async () => {
+  // The page's title, not its layouts' (`Settings · React Boilerplate`): the deepest match's head() wins when the router merges them.
+  it('puts the tenant slug in a workspace settings page title', async () => {
     useAuthStore.setState({
       accessToken: 'access-token',
       user: testUser,
@@ -129,7 +129,7 @@ describe('page titles', () => {
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
     )
-    renderAppAt('/tenants/acme/members')
+    renderAppAt('/settings/workspace/acme/members')
 
     await waitFor(() => {
       expect(document.title).toBe('Members · acme · React Boilerplate')
