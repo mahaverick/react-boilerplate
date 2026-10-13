@@ -120,12 +120,21 @@ export const tenantKeys = {
   onboarding: (slug: string) => ['tenants', slug, 'onboarding'] as const,
 }
 
-/** The tenants the caller is a member of, each with their role in it. */
-export function useTenants() {
-  return useQuery({
+/**
+ * The tenant list's query: the tenants the caller is a member of, each with
+ * their role in it. Shared by `useTenants` and `_app`'s guard, which reads
+ * the same cached list to resolve the URL's `?tenant`.
+ */
+export function tenantsQueryOptions() {
+  return queryOptions({
     queryKey: tenantKeys.list,
     queryFn: async () => unwrap(await apiClient.get<ApiSuccess<TenantWithRole[]>>('/tenants')),
   })
+}
+
+/** The tenants the caller is a member of, each with their role in it. */
+export function useTenants() {
+  return useQuery(tenantsQueryOptions())
 }
 
 /**
