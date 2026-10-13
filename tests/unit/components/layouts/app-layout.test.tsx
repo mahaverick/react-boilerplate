@@ -160,10 +160,19 @@ describe('AppLayout', () => {
     )
     renderAppAt('/dashboard')
     const secondary = await screen.findByRole('navigation', { name: 'Secondary' })
-    await waitFor(() => {
-      expect(within(secondary).getByText('2')).toBeInTheDocument()
-    })
-    expect(within(secondary).getByText('unread')).toHaveClass('sr-only')
+    // The count is part of the link's own name, so a screen reader hears it on the link it lands on.
+    expect(
+      await within(secondary).findByRole('link', { name: 'Notifications, 2 unread' })
+    ).toHaveAttribute('href', '/notifications')
+    // The visible badge is unchanged, and hidden from assistive tech so the count is not read twice.
+    const badge = within(secondary).getByText('2', { exact: true })
+    expect(badge.closest('[data-sidebar="menu-badge"]')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('names the Notifications item without a count when nothing is unread', async () => {
+    renderAppAt('/dashboard')
+    const secondary = await screen.findByRole('navigation', { name: 'Secondary' })
+    expect(within(secondary).getByRole('link', { name: 'Notifications' })).toBeInTheDocument()
   })
 
   it('swaps to the settings nav on settings pages', async () => {
