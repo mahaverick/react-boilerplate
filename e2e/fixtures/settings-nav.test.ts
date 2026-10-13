@@ -34,11 +34,8 @@ test('a disabled workspace item opens its tooltip on hover in icon mode, without
   )
 })
 
-test('links the workspace items to the tenant in the URL', async ({ page }) => {
-  await page.goto('/e2e/harness/?path=/settings/workspace/acme/general')
-  await expect(page.getByRole('heading', { name: 'Settings', level: 2 })).toBeVisible()
-
-  // A new load in the same browser: the guard fills ?tenant, and the nav reads it from the URL.
+test('links the workspace items to the tenant the guard puts in the URL', async ({ page }) => {
+  // The harness lists only acme, so this covers the guard's fill and the nav reading the URL, not the remembered-tenant fallback (unit-tested in tenant-in-url.test.tsx).
   await page.goto('/e2e/harness/?path=/settings/account/profile')
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible()
   await expect(page).toHaveURL((url) => url.searchParams.get('tenant') === 'acme')
