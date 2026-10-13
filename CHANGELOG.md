@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.2](https://github.com/mahaverick/react-boilerplate/compare/v2.1.1...v2.1.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **observability:** move analytics modules off blocker-matched paths ([#81](https://github.com/mahaverick/react-boilerplate/issues/81)) ([08c71c5](https://github.com/mahaverick/react-boilerplate/commit/08c71c57be5d084d7dd08c065aa0c31e245c985d))
+
 ## [2.1.1](https://github.com/mahaverick/react-boilerplate/compare/v2.1.0...v2.1.1) (2026-10-13)
 
 
