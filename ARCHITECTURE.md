@@ -213,7 +213,7 @@ queries stay out of the entry chunk. `_app` owns the param:
   `$slug` page has no `?tenant`, so leaving `/tenants/acme` for `/dashboard`
   would lose the tenant. `retainTenant` falls back to the tenant
   `installCurrentTenant` records on `onBeforeLoad` (the destination's `$slug`,
-  else its `?tenant`, else none). It records before the router publishes the
+  else its `?tenant` when it has a slug's shape, else none). It records before the router publishes the
   location, so a link that renders for the new page (the sidebar's) builds its
   href from that page's tenant; on `onResolved` it would keep the previous one.
   A navigation that names `tenant` itself wins, `undefined` included. The two
@@ -228,14 +228,23 @@ queries stay out of the entry chunk. `_app` owns the param:
   neither the platform tenant nor suspended. When the result differs from the
   URL it redirects to the same page with the other params kept and `tenant`
   set, or removed when there is none. Redirects replace the entry. The resolved
-  tenant is remembered for the user. A list that cannot be loaded leaves the
-  URL as it is, so a failed list never bounces the page; a list still in flight
-  holds the page on the pending screen, as any `beforeLoad` does. A hover
-  preload is never redirected and remembers nothing, and the guard stands down
-  while maintenance is `full`.
+  tenant is remembered for the user. The guard waits at most
+  `TENANT_LIST_WAIT_MS` (3 s) for the list. A list that fails or takes longer
+  leaves the URL as it is, so the page is never bounced and never held for
+  long; the read stays in flight for the shell, and the first time the list
+  query holds data the guard runs again (`router.invalidate()`, through
+  `rerunTenantGuard`, which uses the router `installCurrentTenant` was given),
+  so the fill or correction still lands, replacing the entry. If the guard's
+  chunk itself cannot be fetched, `_app` notes the failure
+  (`noteError(…, 'chunk_load', true)`) and renders the page; `retainTenant`
+  still carries the tenant. A hover preload is never redirected and remembers
+  nothing, and the guard stands down while maintenance is `full`.
 
 Components read the tenant with `useCurrentTenantSlug()`: the route's `$slug`,
-else `?tenant`, else null. The remembered tenant
+else `?tenant`, else null. A `?tenant` that a loaded tenant list lacks or lists
+as ineligible reads as null, so a URL the guard could not yet correct never
+enables the Workspace links; while the list loads, the URL is trusted. The
+remembered tenant
 (`src/states/current-tenant.store.ts`) is only the guard's fallback. It is
 written when `TenantGate` loads a tenant and when the guard resolves `?tenant`,
 never for platform access or the platform tenant.
