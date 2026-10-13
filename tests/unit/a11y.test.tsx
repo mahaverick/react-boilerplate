@@ -476,12 +476,17 @@ describe('signed-in pages', () => {
     [
       'profile',
       '/settings/account/profile',
-      () => screen.findByRole('heading', { name: 'Profile', level: 1 }),
+      () => screen.findByRole('button', { name: 'Save changes' }),
     ],
     [
       'security',
       '/settings/account/security',
       () => screen.findByRole('button', { name: 'Change password' }),
+    ],
+    [
+      'notification settings',
+      '/settings/account/notifications',
+      () => screen.findAllByRole('switch'),
     ],
     [
       'notifications',
