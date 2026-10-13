@@ -1,5 +1,6 @@
 import { IconArrowLeft } from '@tabler/icons-react'
 import { Link } from '@tanstack/react-router'
+import { useId } from 'react'
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -24,12 +25,14 @@ import { useWorkspaceSlug } from '@/hooks/use-workspace-slug'
  * and its tooltip still opens; it overrides the button's
  * `aria-disabled:pointer-events-none` so hovering opens the tooltip too,
  * without the hover and press highlight of a live item, and it has no action
- * to activate.
+ * to activate. Each one is described by the group's hint, so a screen reader
+ * says why it is disabled without opening the tooltip.
  */
 export function NavSettings({ pathname }: { pathname: string }) {
   const { isMobile, setOpenMobile } = useSidebar()
   const slug = useWorkspaceSlug()
   const active = settingsActiveSection(pathname)
+  const hintId = useId()
   /** Closes the drawer after a tap on a phone. */
   const close = () => {
     if (isMobile) setOpenMobile(false)
@@ -53,7 +56,10 @@ export function NavSettings({ pathname }: { pathname: string }) {
         <SidebarGroup key={group.id}>
           <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
           {group.id === 'workspace' && slug === null && (
-            <p className="px-2 pb-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+            <p
+              id={hintId}
+              className="px-2 pb-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden"
+            >
               Choose a tenant first.
             </p>
           )}
@@ -67,6 +73,7 @@ export function NavSettings({ pathname }: { pathname: string }) {
                     <SidebarMenuButton
                       tooltip="Choose a tenant first."
                       aria-disabled="true"
+                      aria-describedby={hintId}
                       className="aria-disabled:pointer-events-auto aria-disabled:cursor-not-allowed aria-disabled:hover:bg-transparent aria-disabled:hover:text-sidebar-foreground aria-disabled:active:bg-transparent aria-disabled:active:text-sidebar-foreground"
                     >
                       {icon}

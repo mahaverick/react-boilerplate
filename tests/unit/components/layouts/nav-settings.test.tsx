@@ -127,6 +127,19 @@ describe('NavSettings', () => {
     expect(within(nav).getByRole('link', { name: 'Profile' })).toBeInTheDocument()
   })
 
+  it('describes each disabled workspace item with the hint', async () => {
+    renderNavAt('/settings/account/profile')
+
+    const nav = await screen.findByRole('navigation', { name: 'Settings' })
+    const hint = within(nav).getByText('Choose a tenant first.')
+    expect(hint.id).not.toBe('')
+    for (const name of ['General', 'Members', 'Activity']) {
+      const item = within(nav).getByRole('button', { name })
+      expect(item).toHaveAttribute('aria-describedby', hint.id)
+      expect(item).toHaveAccessibleDescription('Choose a tenant first.')
+    }
+  })
+
   it('does nothing when a disabled item is clicked or pressed, though it stays focusable', async () => {
     const user = userEvent.setup()
     const router = renderNavAt('/settings/account/profile')
@@ -146,12 +159,15 @@ describe('NavSettings', () => {
     const user = userEvent.setup()
     renderNavAt('/settings/account/profile', false)
 
-    await user.hover(await screen.findByRole('button', { name: 'Members' }))
+    const members = await screen.findByRole('button', { name: 'Members' })
+    await user.hover(members)
 
     await waitFor(() => {
       const tooltip = document.querySelector('[data-slot="tooltip-content"]')
       expect(tooltip).toHaveTextContent('Choose a tenant first.')
     })
+    // The open tooltip leaves the hint description in place.
+    expect(members).toHaveAccessibleDescription('Choose a tenant first.')
   })
 
   it.each(['Back to app', 'Profile', 'Members'])(
