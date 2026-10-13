@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/mahaverick/react-boilerplate/compare/v2.2.3...v2.3.0) (2026-10-13)
+
+
+### Features
+
+* **settings:** one settings area for account and workspace ([#91](https://github.com/mahaverick/react-boilerplate/issues/91)) ([761ebbd](https://github.com/mahaverick/react-boilerplate/commit/761ebbde3ad4abb1fd89957311ff5d26bd5b981d))
+
 ## [2.2.3](https://github.com/mahaverick/react-boilerplate/compare/v2.2.2...v2.2.3) (2026-10-13)
 
 
