@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/mahaverick/react-boilerplate/compare/v2.1.2...v2.2.0) (2026-10-13)
+
+
+### Features
+
+* **ui:** restyle on the shadcn base-vega preset with login-04, signup-04 and sidebar-07 ([#83](https://github.com/mahaverick/react-boilerplate/issues/83)) ([c7a9d5f](https://github.com/mahaverick/react-boilerplate/commit/c7a9d5f4cdad7a5a23f7ae295c43563c33b04f85))
+
 ## [2.1.2](https://github.com/mahaverick/react-boilerplate/compare/v2.1.1...v2.1.2) (2026-10-13)
 
 
