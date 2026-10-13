@@ -9,7 +9,7 @@ import { resetSessionForTests } from '@/http/session'
 import { EXPOSURE_BATCH_MS, resetExposureForTests } from '@/observability/flags/exposure'
 import { flagKeys } from '@/observability/flags/flag-query'
 import * as analytics from '@/observability/telemetry'
-import { queryClient } from '@/router'
+import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
@@ -62,6 +62,7 @@ function renderOverview() {
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: ['/tenants/acme'] }),
+    ...ROUTER_DEFAULTS,
   })
   render(
     <QueryClientProvider client={queryClient}>

@@ -12,7 +12,7 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import type { Notification } from '@/queries/notification.queries'
-import { queryClient } from '@/router'
+import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
@@ -91,6 +91,7 @@ function renderAppAt(path: string): AnyRouter & { unmount: () => void } {
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: [path] }),
+    ...ROUTER_DEFAULTS,
   })
   const { unmount } = render(
     <QueryClientProvider client={queryClient}>

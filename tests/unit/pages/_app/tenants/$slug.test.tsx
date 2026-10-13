@@ -16,7 +16,7 @@ import { noteError } from '@/observability/errors'
 import { installRouteAnalytics } from '@/observability/route-telemetry'
 import * as analytics from '@/observability/telemetry'
 import { tenantKeys } from '@/queries/tenant.queries'
-import { queryClient } from '@/router'
+import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
@@ -73,6 +73,7 @@ function renderAppAt(path: string): AnyRouter {
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: [path] }),
+    ...ROUTER_DEFAULTS,
   })
   render(
     <QueryClientProvider client={queryClient}>

@@ -8,7 +8,7 @@ import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
 import * as analytics from '@/observability/telemetry'
 import { tenantKeys } from '@/queries/tenant.queries'
-import { queryClient } from '@/router'
+import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
@@ -64,6 +64,7 @@ function renderOverview() {
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: ['/tenants/acme'] }),
+    ...ROUTER_DEFAULTS,
   })
   render(
     <QueryClientProvider client={queryClient}>

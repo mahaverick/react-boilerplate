@@ -11,7 +11,7 @@ import userEvent from '@testing-library/user-event'
 import { act, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { noteError } from '@/observability/errors'
-import { router as appRouter } from '@/router'
+import { router as appRouter, ROUTER_DEFAULTS } from '@/router'
 import { settle } from '@/tests/fixtures/timing'
 
 vi.mock('@/observability/errors', async (importOriginal) => ({
@@ -29,13 +29,6 @@ function renderTree(
   initialPath: string,
   page: () => ReactNode = () => <h1>Page</h1>
 ) {
-  const {
-    defaultErrorComponent,
-    defaultNotFoundComponent,
-    defaultPendingComponent,
-    defaultPendingMs,
-    defaultPendingMinMs,
-  } = appRouter.options
   const rootRoute = createRootRoute({ component: Outlet })
   const homeRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -51,11 +44,7 @@ function renderTree(
   const router = createRouter({
     routeTree: rootRoute.addChildren([homeRoute, pageRoute]),
     history: createMemoryHistory({ initialEntries: [initialPath] }),
-    defaultErrorComponent,
-    defaultNotFoundComponent,
-    defaultPendingComponent,
-    defaultPendingMs,
-    defaultPendingMinMs,
+    ...ROUTER_DEFAULTS,
   })
   render(<RouterProvider router={router as never} />)
   return router
@@ -270,7 +259,7 @@ describe('pending navigation', () => {
   })
 
   it('keeps the pending screen up for defaultPendingMinMs even when the loader resolves right away', async () => {
-    const { defaultPendingMs = 0, defaultPendingMinMs = 0 } = appRouter.options
+    const { defaultPendingMs, defaultPendingMinMs } = ROUTER_DEFAULTS
     let release!: () => void
     const gate = new Promise<void>((resolve) => {
       release = resolve

@@ -14,7 +14,7 @@ import {
 import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
-import { router as appRouter } from '@/router'
+import { ROUTER_DEFAULTS } from '@/router'
 import { settle } from '@/tests/fixtures/timing'
 
 /** Every root `boot` created, unmounted after each test before the DOM is cleared. */
@@ -35,13 +35,6 @@ function boot(container: HTMLElement, router: AnyRouter) {
 
 /** The app router's route-state options, applied to a small tree of its own. */
 function buildGatedRouter(gate: Promise<void>) {
-  const {
-    defaultErrorComponent,
-    defaultNotFoundComponent,
-    defaultPendingComponent,
-    defaultPendingMs,
-    defaultPendingMinMs,
-  } = appRouter.options
   const rootRoute = createRootRoute({ beforeLoad: () => gate })
   const pageRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -51,11 +44,7 @@ function buildGatedRouter(gate: Promise<void>) {
   return createRouter({
     routeTree: rootRoute.addChildren([pageRoute]),
     history: createMemoryHistory({ initialEntries: ['/'] }),
-    defaultErrorComponent,
-    defaultNotFoundComponent,
-    defaultPendingComponent,
-    defaultPendingMs,
-    defaultPendingMinMs,
+    ...ROUTER_DEFAULTS,
   })
 }
 
@@ -123,13 +112,6 @@ describe('the boot sequence', () => {
   })
 
   it('does not run beforeLoad twice when the router mounts after load() has already resolved', async () => {
-    const {
-      defaultErrorComponent,
-      defaultNotFoundComponent,
-      defaultPendingComponent,
-      defaultPendingMs,
-      defaultPendingMinMs,
-    } = appRouter.options
     let calls = 0
     const rootRoute = createRootRoute({
       beforeLoad: () => {
@@ -144,11 +126,7 @@ describe('the boot sequence', () => {
     const router = createRouter({
       routeTree: rootRoute.addChildren([pageRoute]),
       history: createMemoryHistory({ initialEntries: ['/'] }),
-      defaultErrorComponent,
-      defaultNotFoundComponent,
-      defaultPendingComponent,
-      defaultPendingMs,
-      defaultPendingMinMs,
+      ...ROUTER_DEFAULTS,
     })
     const container = mountSplashContainer()
 
@@ -161,12 +139,6 @@ describe('the boot sequence', () => {
   })
 
   it('renders the router-wide error screen when the first load itself fails', async () => {
-    const {
-      defaultErrorComponent,
-      defaultPendingComponent,
-      defaultPendingMs,
-      defaultPendingMinMs,
-    } = appRouter.options
     const rootRoute = createRootRoute({
       beforeLoad: () => {
         throw new Error('boot exploded')
@@ -180,10 +152,7 @@ describe('the boot sequence', () => {
     const router = createRouter({
       routeTree: rootRoute.addChildren([pageRoute]),
       history: createMemoryHistory({ initialEntries: ['/'] }),
-      defaultErrorComponent,
-      defaultPendingComponent,
-      defaultPendingMs,
-      defaultPendingMinMs,
+      ...ROUTER_DEFAULTS,
     })
     const container = mountSplashContainer()
 

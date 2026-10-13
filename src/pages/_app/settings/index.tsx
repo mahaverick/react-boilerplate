@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { SettingsRouteError } from '@/components/features/route-error'
 import { SettingsLinkList } from '@/components/features/settings/settings-link-list'
 import { pageTitle } from '@/constants/app'
 import { SETTINGS_GROUPS } from '@/constants/settings'
@@ -7,6 +8,9 @@ import { SETTINGS_GROUPS } from '@/constants/settings'
 export const Route = createFileRoute('/_app/settings/')({
   head: () => ({ meta: [{ title: pageTitle('Settings') }] }),
   component: SettingsIndex,
+  /** Kept out of a lazy chunk, as the router's default error screen is: a failed fetch could not load it. */
+  codeSplitGroupings: [['component']],
+  errorComponent: SettingsRouteError,
 })
 
 /** One `SettingsLinkList` per group, in config order. */

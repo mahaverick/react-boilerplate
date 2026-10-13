@@ -3,9 +3,8 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { delay, http } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { RouteNotFound } from '@/components/features/route-not-found'
 import { resetSessionForTests } from '@/http/session'
-import { queryClient } from '@/router'
+import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
@@ -55,7 +54,7 @@ function renderAppAt(path: string) {
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: [path] }),
-    defaultNotFoundComponent: RouteNotFound,
+    ...ROUTER_DEFAULTS,
   })
   render(
     <QueryClientProvider client={queryClient}>
