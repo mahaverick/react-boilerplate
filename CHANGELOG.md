@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/mahaverick/react-boilerplate/compare/v2.1.0...v2.1.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **e2e:** make the sse restart runbook and cleanup safe and runnable ([#79](https://github.com/mahaverick/react-boilerplate/issues/79)) ([ac2cdf4](https://github.com/mahaverick/react-boilerplate/commit/ac2cdf4fb1813dbf57b63baa7e92aed5dd55ee4b))
+
 ## [2.1.0](https://github.com/mahaverick/react-boilerplate/compare/v2.0.0...v2.1.0) (2026-10-13)
 
 
