@@ -94,7 +94,8 @@ export type LoadedTenant = NonNullable<ReturnType<typeof useTenant>['data']>
  * tenant loads; the suspended, load-error or not-found panel when there is no
  * tenant (the list decides between suspended and missing); otherwise the
  * platform-access banner when staff reached it by platform access, then the
- * page. A loaded tenant becomes the user's remembered tenant for Settings.
+ * page. A loaded tenant the user reached as a member, other than the platform
+ * tenant, becomes the user's remembered tenant for Settings.
  * `heading` is the panels' title element, `h2` under a layout with its own `h1`.
  */
 export function TenantGate({
@@ -109,7 +110,11 @@ export function TenantGate({
   const tenant = useTenant(slug)
   const tenants = useTenants()
   const listed = tenants.data?.find((entry) => entry.tenant.slug === slug)
-  useRememberTenant(slug, tenant.data !== undefined && tenant.data !== null)
+  // Only a tenant the user works in becomes the remembered one: staff visits and the platform tenant would otherwise replace it.
+  useRememberTenant(
+    slug,
+    !!tenant.data && tenant.data.access !== 'platform' && !tenant.data.isPlatform
+  )
 
   // With no tenant, the list decides between suspended and not found, so wait for it.
   if (tenant.isPending || (!tenant.data && (tenants.isPending || tenants.isFetching))) {
