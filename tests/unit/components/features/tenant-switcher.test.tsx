@@ -286,6 +286,26 @@ describe('TenantSwitcher', () => {
     })
   })
 
+  it('reaches the create-tenant link from the search box by keyboard', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
+      )
+    )
+    const router = renderShell()
+    const user = await openSwitcher()
+    await screen.findByRole('option', { name: 'Acme Corp' })
+
+    await user.click(screen.getByLabelText('Search tenants'))
+    await user.tab()
+    expect(screen.getByRole('link', { name: 'Create a tenant' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/tenants')
+    })
+  })
+
   // Staff have no list row for a tenant reached by platform access, so the label comes from the tenant the route already loaded.
   it('names a tenant opened by platform access in the trigger', async () => {
     server.use(

@@ -10,6 +10,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from '@/components/ui/sidebar'
 
 /** One link under a collapsible group. */
@@ -39,11 +40,14 @@ function isActive(pathname: string, to: LinkProps['to']): boolean {
  * sits in its own `nav` landmark, since `Sidebar` renders plain divs. A flat
  * item renders as the anchor itself, so it is keyboard-reachable and opens in
  * a new tab; only an item with sub-items becomes a collapsible group, open
- * while one of its links is current. Each top-level row names itself in a
+ * while one of its links is current; with the sidebar collapsed to icons,
+ * toggling a group also expands the sidebar, since its sub-links are hidden
+ * there. Each top-level row names itself in a
  * tooltip, shown only while the sidebar is collapsed to icons. The highlight
  * reads `pathname`, so a deep page keeps its section lit.
  */
 export function NavMain({ items, pathname }: { items: readonly NavMainItem[]; pathname: string }) {
+  const { state, isMobile, setOpen } = useSidebar()
   return (
     <nav aria-label="Main">
       <SidebarGroup>
@@ -57,7 +61,13 @@ export function NavMain({ items, pathname }: { items: readonly NavMainItem[]; pa
                 className="group/collapsible"
                 render={<SidebarMenuItem />}
               >
-                <CollapsibleTrigger render={<SidebarMenuButton tooltip={label} />}>
+                <CollapsibleTrigger
+                  render={<SidebarMenuButton tooltip={label} />}
+                  onClick={() => {
+                    // Collapsed to icons, the sub-links are hidden: expand the sidebar so they can be reached.
+                    if (state === 'collapsed' && !isMobile) setOpen(true)
+                  }}
+                >
                   <Icon aria-hidden="true" />
                   <span>{label}</span>
                   <IconChevronRight

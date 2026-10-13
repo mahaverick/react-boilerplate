@@ -147,7 +147,7 @@ export function TenantSwitcher() {
               </span>
               <span className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{label}</span>
-                <span className="truncate text-xs text-muted-foreground">Switch tenant</span>
+                <span className="truncate text-xs text-muted-foreground">Tenant</span>
               </span>
               <IconSelector aria-hidden="true" className="ml-auto size-4" />
             </ComboboxTrigger>

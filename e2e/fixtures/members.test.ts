@@ -16,8 +16,11 @@ test.describe('desktop', () => {
     await page.goto('/e2e/harness/')
     await expect(page.getByRole('row')).toHaveCount(3) // header + two members
 
-    // A failed webfont load is invisible to code-reading checks: the class and font-family are unchanged and the text falls back to the generic sans-serif.
-    const inter = await page.evaluate(() => document.fonts.check('16px "Inter Variable"'))
+    // A failed webfont load is invisible to code-reading checks (the text just falls back to sans-serif); `fonts.ready` waits out a face still loading on a cold dev server.
+    const inter = await page.evaluate(async () => {
+      await document.fonts.ready
+      return document.fonts.check('16px "Inter Variable"')
+    })
     expect(inter).toBe(true)
   })
 

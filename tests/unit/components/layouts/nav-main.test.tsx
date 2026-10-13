@@ -9,7 +9,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { NavMain, type NavMainItem } from '@/components/layouts/nav-main'
-import { SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 
 const FLAT: NavMainItem[] = [
   { to: '/dashboard', label: 'Dashboard', Icon: IconLayoutDashboard },
@@ -29,12 +29,18 @@ const GROUPED: NavMainItem[] = [
   },
 ]
 
+/** Shows the provider's open state, which NavMain alone does not render. */
+function SidebarState() {
+  return <output aria-label="Sidebar state">{useSidebar().state}</output>
+}
+
 /** Renders NavMain under a one-route router at `path`, so its `Link`s resolve. */
-function renderNavAt(path: string, items: NavMainItem[]) {
+function renderNavAt(path: string, items: NavMainItem[], defaultOpen = true) {
   const rootRoute = createRootRoute({
     component: () => (
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={defaultOpen}>
         <NavMain items={items} pathname={path} />
+        <SidebarState />
       </SidebarProvider>
     ),
   })
@@ -78,5 +84,18 @@ describe('NavMain', () => {
     await user.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(await screen.findByRole('link', { name: 'Profile' })).toHaveAttribute('href', '/profile')
+  })
+
+  it('expands a collapsed sidebar when a group is toggled, so its sub-links can be reached', async () => {
+    const user = userEvent.setup()
+    renderNavAt('/dashboard', GROUPED, false)
+
+    const toggle = await screen.findByRole('button', { name: 'Settings' })
+    const sidebarState = screen.getByLabelText('Sidebar state')
+    expect(sidebarState).toHaveTextContent('collapsed')
+
+    await user.click(toggle)
+    expect(sidebarState).toHaveTextContent('expanded')
+    expect(await screen.findByRole('link', { name: 'Profile' })).toBeInTheDocument()
   })
 })

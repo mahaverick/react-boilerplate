@@ -48,7 +48,7 @@ export function AuthCard({
             <div className="flex flex-col items-center gap-2 text-center">
               <h1 className="font-heading text-2xl font-bold">{title}</h1>
               {description && (
-                <p className="text-sm text-balance text-muted-foreground">{description}</p>
+                <div className="text-sm text-balance text-muted-foreground">{description}</div>
               )}
             </div>
             {children}
