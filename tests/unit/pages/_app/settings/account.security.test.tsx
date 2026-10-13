@@ -3,7 +3,7 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
-import { queryClient } from '@/router'
+import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { testUser } from '@/tests/mocks/handlers'
@@ -14,6 +14,7 @@ function renderSecurity() {
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: ['/settings/account/security'] }),
+    ...ROUTER_DEFAULTS,
   })
   render(
     <QueryClientProvider client={queryClient}>

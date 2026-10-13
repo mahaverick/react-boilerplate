@@ -6,7 +6,7 @@ import { delay, http } from 'msw'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
-import { queryClient } from '@/router'
+import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
@@ -18,6 +18,7 @@ function renderPreferences() {
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: ['/settings/account/notifications'] }),
+    ...ROUTER_DEFAULTS,
   })
   render(
     <QueryClientProvider client={queryClient}>

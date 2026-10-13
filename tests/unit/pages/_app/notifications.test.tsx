@@ -6,7 +6,7 @@ import { delay, http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import type { Notification } from '@/queries/notification.queries'
-import { queryClient } from '@/router'
+import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { NOTIFICATION_ID } from '@/tests/fixtures/ids'
@@ -30,6 +30,7 @@ function renderNotifications() {
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: ['/notifications'] }),
+    ...ROUTER_DEFAULTS,
   })
   render(
     <QueryClientProvider client={queryClient}>

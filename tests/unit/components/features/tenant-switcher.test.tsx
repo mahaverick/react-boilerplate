@@ -10,7 +10,7 @@ import userEvent from '@testing-library/user-event'
 import { delay, http } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
-import { queryClient } from '@/router'
+import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { PLATFORM_TENANT_ID, TENANT_ID, TENANT_ID_2, TENANT_ID_9 } from '@/tests/fixtures/ids'
@@ -48,6 +48,7 @@ function renderShell(path = '/dashboard'): AnyRouter {
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: [path] }),
+    ...ROUTER_DEFAULTS,
   })
   render(
     <QueryClientProvider client={queryClient}>

@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { createFileRoute } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { AnalyticsSection } from '@/components/features/profile/analytics-section'
+import { SettingsRouteError } from '@/components/features/route-error'
 import { Pii } from '@/components/shared/pii'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,6 +31,13 @@ export const Route = createFileRoute('/_app/settings/account/profile')({
   head: () => ({ meta: [{ title: pageTitle('Profile') }] }),
   staticData: { crumb: 'Profile' },
   component: ProfilePage,
+  /**
+   * Kept out of a lazy chunk, as the router's default error screen is: a failed
+   * fetch could not load it. Splitting it would also pull the error listener
+   * out of the entry chunk (pnpm check:bundle).
+   */
+  codeSplitGroupings: [['component']],
+  errorComponent: SettingsRouteError,
 })
 
 /** The account's join date, in the reader's own locale. */

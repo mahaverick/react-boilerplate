@@ -12,7 +12,7 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import type { Notification } from '@/queries/notification.queries'
-import { queryClient } from '@/router'
+import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
@@ -91,6 +91,7 @@ function renderAppAt(path: string): AnyRouter & { unmount: () => void } {
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: [path] }),
+    ...ROUTER_DEFAULTS,
   })
   const { unmount } = render(
     <QueryClientProvider client={queryClient}>
@@ -210,6 +211,33 @@ describe('AppLayout', () => {
       await user.click(await within(drawer).findByRole('link', { name }))
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     }
+  })
+
+  it.each([
+    ['Profile', '/settings/account/profile'],
+    ['Notifications', '/settings/account/notifications'],
+    ['Platform', '/tenants/platform'],
+  ])('closes the mobile drawer when %s is chosen from the account menu', async (name, path) => {
+    window.matchMedia = mobileMatchMedia
+    // Staff, so the menu also offers Platform.
+    useAuthStore.setState({ user: { ...testUser, platformRole: 'viewer' } })
+    server.use(
+      http.get('/api/v1/tenants/platform', () =>
+        ok(
+          tenantDetail({ ...ACME, name: 'Platform', slug: 'platform' }, 'owner'),
+          'Tenant retrieved.'
+        )
+      )
+    )
+    const user = userEvent.setup()
+    const router = renderAppAt('/dashboard')
+    await user.click(await screen.findByRole('button', { name: 'Toggle sidebar' }))
+    const drawer = await screen.findByRole('dialog')
+    await user.click(within(drawer).getByRole('button', { name: 'Account menu for A B' }))
+
+    await user.click(await screen.findByRole('menuitem', { name }))
+    await waitFor(() => expect(router.state.location.pathname).toBe(path))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
   it('renders exactly one main landmark', async () => {

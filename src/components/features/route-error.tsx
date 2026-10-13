@@ -21,9 +21,14 @@ import { noteError } from '@/observability/errors'
  * message is shown in development only: in production it can carry server or
  * stack detail that means nothing to the reader. The error is noted on mount
  * because a loader error can reach this screen without passing React's root
- * error hooks; `noteError` ignores one those hooks already noted.
+ * error hooks; `noteError` ignores one those hooks already noted. The title
+ * is an `h1` unless `heading` says otherwise (see `SettingsRouteError`).
  */
-export function RouteError({ error, reset }: ErrorComponentProps) {
+export function RouteError({
+  error,
+  reset,
+  heading = 'h1',
+}: ErrorComponentProps & { heading?: RouteErrorHeading }) {
   const router = useRouter()
 
   useEffect(() => {
@@ -33,6 +38,7 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
   if (isChunkLoadError(error)) {
     return (
       <RouteErrorCard
+        heading={heading}
         title="A new version is available"
         description="This page was built before the latest update. Reload to get the new version."
       >
@@ -49,6 +55,7 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
 
   return (
     <RouteErrorCard
+      heading={heading}
       title="Something went wrong"
       description="This page could not be shown. Try again, or go back to the start."
       detail={import.meta.env.DEV && error instanceof Error ? error.message : undefined}
@@ -61,13 +68,23 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
   )
 }
 
+/** The error screen for a route under a layout that owns the page's h1: the same screen, titled `h2`. */
+export function SettingsRouteError(props: ErrorComponentProps) {
+  return <RouteError {...props} heading="h2" />
+}
+
+/** The level the error screen's title takes: `h1` when it is the page, `h2` under a layout's `h1`. */
+type RouteErrorHeading = 'h1' | 'h2'
+
 /** The shared frame of both error screens, so the reload and retry variants look alike; `detail` is shown only in development. */
 function RouteErrorCard({
+  heading: Heading,
   title,
   description,
   detail,
   children,
 }: {
+  heading: RouteErrorHeading
   title: string
   description: string
   detail?: string
@@ -78,7 +95,7 @@ function RouteErrorCard({
       <Card role="alert" className="w-full max-w-md">
         <CardHeader>
           <CardTitle>
-            <h1>{title}</h1>
+            <Heading>{title}</Heading>
           </CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>

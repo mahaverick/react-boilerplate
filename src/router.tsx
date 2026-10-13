@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query'
-import { createRouter } from '@tanstack/react-router'
+import { createRouter, type AnyRouter } from '@tanstack/react-router'
 import { RouteError } from '@/components/features/route-error'
 import { RouteNotFound } from '@/components/features/route-not-found'
 import { RoutePending } from '@/components/features/route-pending'
@@ -63,11 +63,12 @@ export async function bootstrapSession(): Promise<void> {
   }
 }
 
-/** The app's router. Its context carries the query client for route loaders. */
-export const router = createRouter({
-  routeTree,
-  context: { queryClient },
-  defaultPreload: 'intent',
+/**
+ * The app router's route-state screens and timings. Exported so a test that
+ * builds its own router over the real tree shows the same error, not-found
+ * and pending screens the app does. Frozen, since every such test shares it.
+ */
+export const ROUTER_DEFAULTS = Object.freeze({
   /** Imported statically: when a chunk cannot be fetched, a lazy error screen could not load either. */
   defaultErrorComponent: RouteError,
   defaultNotFoundComponent: RouteNotFound,
@@ -75,6 +76,14 @@ export const router = createRouter({
   /** Held back 300ms so a fast navigation never flashes it, then kept 300ms so it never blinks. */
   defaultPendingMs: 300,
   defaultPendingMinMs: 300,
+} satisfies Partial<AnyRouter['options']>)
+
+/** The app's router. Its context carries the query client for route loaders. */
+export const router = createRouter({
+  routeTree,
+  context: { queryClient },
+  defaultPreload: 'intent',
+  ...ROUTER_DEFAULTS,
 })
 
 installRouteAnalytics(router)
