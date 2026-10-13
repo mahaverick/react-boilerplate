@@ -53,8 +53,8 @@ const FIELD_FOR_MESSAGE = new Map<string, keyof ChangePasswordInput>([
 
 /**
  * Sign-in methods, the change-password form and signing out other sessions,
- * below the profile form. Signing out other sessions is offered on every
- * account, a Google-only one included.
+ * for whichever account page hosts it. Signing out other sessions is offered
+ * on every account, a Google-only one included.
  */
 export function SecuritySection() {
   const providers = useAuthProviders()

@@ -97,7 +97,10 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
 /** The landing page's subtitle, and the layout's when no section is active. */
 export const SETTINGS_DESCRIPTION = 'Manage your account and the current tenant.'
 
-/** Whether `pathname` starts with every segment of `to`, `$slug` matching any one segment. */
+/**
+ * Whether `pathname` (a trailing slash ignored) has exactly the segments of
+ * `to`, `$slug` matching any one non-empty segment.
+ */
 function matchesSection(pathname: string, to: string): boolean {
   const path = pathname.replace(/(.)\/+$/, '$1').split('/')
   const target = to.split('/')

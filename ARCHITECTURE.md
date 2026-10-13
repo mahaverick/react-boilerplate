@@ -205,31 +205,37 @@ the read-only views under a banner saying owners and admins can change them.
 **The sidebar on settings pages** is `NavSettings`: Back to app, then the
 Account and Workspace groups. Workspace items link to the tenant
 `useWorkspaceSlug` resolves, in this order: the route's `$slug` when the page
-has one; otherwise the last tenant this user opened (`useRememberTenant`, called
-by `TenantGate` once a tenant loads, keyed by user id in
-`src/states/current-tenant.store.ts` and saved to `localStorage` when storage
-allows), but only while it is still one of their active, non-platform
-memberships in the tenant list; otherwise none. With none, the Workspace items
-are `aria-disabled` buttons described by the hint "Choose a tenant first.".
-Choosing a tenant in the switcher while on a workspace page keeps the same
-section for the new tenant.
+has one; otherwise the last tenant this user opened as a member, but only while
+it is still one of their active, non-platform memberships in the tenant list;
+otherwise none. `TenantGate` records that tenant (`useRememberTenant`) once it
+loads, never for platform access or the platform tenant; it is keyed by user id
+in `src/states/current-tenant.store.ts` and saved to `localStorage` when
+storage allows. The Workspace label names the tenant when the tenant list has
+it ("Workspace · Acme Corp"). With no tenant, the Workspace items are
+`aria-disabled` buttons, and the landing page's rows plain text, described by
+the hint "Choose a tenant first.". Choosing a tenant in the switcher while on a
+workspace page keeps the same section for the new tenant. The workspace
+layout's breadcrumb (the slug) is text, since `/settings/workspace/$slug` only
+redirects to General.
 
 **Redirects** keep old bookmarks working, each with and without a trailing
-slash: `/profile` goes to `/settings/account/profile`, and
-`/tenants/$slug/members`, `/tenants/$slug/settings` and
-`/tenants/$slug/activity` go to the workspace Members, General and Activity
-pages. The tenant page itself keeps its Overview and (flag-gated) Beta tabs.
+slash, and keep the query string and hash: `/profile` and `/settings/account`
+go to `/settings/account/profile`, and `/tenants/$slug/members`,
+`/tenants/$slug/settings` and `/tenants/$slug/activity` go to the workspace
+Members, General and Activity pages. The tenant page itself keeps its Overview
+and (flag-gated) Beta tabs.
 
 ## State
 
-| What                                  | Where                                  | Persisted                                                     |
-| ------------------------------------- | -------------------------------------- | ------------------------------------------------------------- |
-| Access token, user, bootstrapped flag | `src/states/auth.store.ts`             | No: memory only                                               |
-| Maintenance mode, message, start time | `src/states/maintenance-mode.store.ts` | No: each load starts at `off` and learns it from the API      |
-| Sidebar collapsed                     | `src/states/sidebar.store.ts`          | No                                                            |
-| Theme (`light`, `dark`, `system`)     | `src/states/theme.store.ts`            | `localStorage` key `theme`, read pre-paint by `theme-init.js` |
-| Everything the API returns            | The TanStack Query cache               | No                                                            |
-| Form state                            | TanStack Form, per form                | No                                                            |
+| What                                  | Where                                  | Persisted                                                      |
+| ------------------------------------- | -------------------------------------- | -------------------------------------------------------------- |
+| Access token, user, bootstrapped flag | `src/states/auth.store.ts`             | No: memory only                                                |
+| Maintenance mode, message, start time | `src/states/maintenance-mode.store.ts` | No: each load starts at `off` and learns it from the API       |
+| Sidebar collapsed                     | `src/states/sidebar.store.ts`          | No                                                             |
+| Last tenant opened, per user          | `src/states/current-tenant.store.ts`   | `localStorage` key `last-tenant:<userId>`, when storage allows |
+| Theme (`light`, `dark`, `system`)     | `src/states/theme.store.ts`            | `localStorage` key `theme`, read pre-paint by `theme-init.js`  |
+| Everything the API returns            | The TanStack Query cache               | No                                                             |
+| Form state                            | TanStack Form, per form                | No                                                             |
 
 Code outside React reads and writes the stores through `getState()`, as the
 interceptors and route guards do, or subscribes to them: the session module
