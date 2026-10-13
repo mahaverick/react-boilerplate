@@ -21,7 +21,12 @@ export function Devtools() {
   return (
     <Suspense fallback={null}>
       <QueryDevtools buttonPosition="bottom-right" />
-      <RouterDevtools router={router} position="bottom-left" />
+      {/* Bottom-right beside the Query button: bottom-left sat on the sidebar's account menu. */}
+      <RouterDevtools
+        router={router}
+        position="bottom-right"
+        toggleButtonProps={{ style: { right: '4.5rem' } }}
+      />
     </Suspense>
   )
 }
