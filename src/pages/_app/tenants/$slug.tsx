@@ -1,36 +1,26 @@
+import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import {
-  createFileRoute,
-  Link,
-  Outlet,
-  useRouter,
-  type ErrorComponentProps,
-} from '@tanstack/react-router'
-import { useEffect } from 'react'
-import { LoadError } from '@/components/features/load-error'
-import { PlatformAccessBanner } from '@/components/features/platform-access-banner'
+  loadTenantRoute,
+  TenantGate,
+  TenantLoadFailed,
+} from '@/components/features/tenant/tenant-gate'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { canViewActivity, ROLE_LABELS } from '@/constants/roles'
 import { cn } from '@/lib/utils'
-import { noteError } from '@/observability/errors'
 import { useFlagValues } from '@/observability/flags/flag-hooks'
-import { ensureFlags } from '@/observability/flags/flag-query'
-import { flagScopeFor } from '@/observability/flags/flag-scope'
 import type { BooleanClientFlagKey } from '@/observability/flags/flag-types'
 import { filterByFlag } from '@/observability/flags/flag-values'
-import { tenantQueryOptions, useMyRole, useTenant, useTenants } from '@/queries/tenant.queries'
+import { useMyRole } from '@/queries/tenant.queries'
 
 /**
  * The tenant shell: header, tab bar, `<Outlet />`. A layout route whose tabs
  * are real child routes, so each is linkable and survives a reload.
  *
- * The loader warms the detail query for every tab, and the tenant's flags in
- * parallel, so a switch from another tenant, which the `_app` loader does not
- * run for, paints this tenant's flag-driven UI (the Beta tab) on first load.
- * A hover preload reads only the detail: flags are read for a navigation that
- * commits. `preloadStaleTime: 0` and a blocking stale reload make that
+ * The loader (`loadTenantRoute`) warms the detail query for every tab, and the
+ * tenant's flags in parallel, so a switch from another tenant, which the `_app`
+ * loader does not run for, paints this tenant's flag-driven UI (the Beta tab)
+ * on first load. A hover preload reads only the detail. `preloadStaleTime: 0` and a blocking stale reload make that
  * commit run the loader again after a preload, before the page renders; both
  * reads are cache-aware, so the detail is not fetched twice. `ensureFlags`
  * never rejects, so a failed flags read never blocks the page. `tenantQueryOptions`
@@ -44,40 +34,14 @@ export const Route = createFileRoute('/_app/tenants/$slug')({
   preloadStaleTime: 0,
   loader: {
     staleReloadMode: 'blocking',
-    handler: async ({ context, params, preload }) => {
-      const detail = context.queryClient.ensureQueryData(tenantQueryOptions(params.slug))
-      if (preload) return detail
-      const [tenant] = await Promise.all([
-        detail,
-        ensureFlags(context.queryClient, flagScopeFor(params)),
-      ])
-      return tenant
-    },
+    handler: ({ context, params, preload }) =>
+      loadTenantRoute({ queryClient: context.queryClient, slug: params.slug, preload }),
   },
   head: ({ params }) => ({ meta: [{ title: pageTitle(params.slug) }] }),
   staticData: { crumb: (params) => params.slug ?? 'Tenant' },
   component: TenantLayout,
   errorComponent: TenantLoadFailed,
 })
-
-/** Said of the request, not of the tenant: unlike `TenantNotFound`, the tenant may be fine. */
-const TENANT_LOAD_ERROR =
-  'We could not load this tenant. The request failed, which is not the same as the tenant being gone.'
-
-/**
- * The route's error boundary. Retry is `router.invalidate()`, which re-runs
- * the loader; `ensureQueryData` finds no data and fetches again. The error
- * goes to error tracking on mount, which drops it when it is the API's.
- */
-function TenantLoadFailed({ error }: ErrorComponentProps) {
-  const router = useRouter()
-
-  useEffect(() => {
-    noteError(error, 'router', true)
-  }, [error])
-
-  return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void router.invalidate()} />
-}
 
 /** One tenant tab. `flag` hides it while that tenant-scoped flag is off for this tenant. */
 interface TenantTab {
@@ -133,106 +97,28 @@ function TenantTabs({ slug, showActivity }: { slug: string; showActivity: boolea
 }
 
 /**
- * What a 404 looks like. `GET /tenants/:slug` answers the same 404 for "no such
- * tenant" and "no access", and this copy does not guess between them: "you are
- * not a member of acme" would confirm that acme exists.
- */
-function TenantNotFound({ slug }: { slug: string }) {
-  return (
-    <Card className="max-w-2xl">
-      <CardHeader>
-        <CardTitle>
-          <h1>Tenant not available</h1>
-        </CardTitle>
-        <CardDescription>
-          We could not open <span className="font-medium">/{slug}</span>. Either it does not exist
-          or it is not one of yours.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Link to="/tenants" className="text-sm underline underline-offset-4">
-          Back to your tenants
-        </Link>
-      </CardContent>
-    </Card>
-  )
-}
-
-/**
- * A tenant the caller belongs to but that staff have suspended. Its own
- * routes answer 404 like a missing tenant, so the tenant list (which still
- * carries it, with its state) is what tells the two apart. Only the caller's
- * own memberships reach this, so it confirms nothing about other tenants.
- */
-function TenantSuspended({ name }: { name: string }) {
-  return (
-    <Card className="max-w-2xl">
-      <CardHeader>
-        <CardTitle>
-          <h1>Tenant suspended</h1>
-        </CardTitle>
-        <CardDescription>
-          <span className="font-medium">{name}</span> is unavailable right now.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        <p className="text-sm">This tenant is suspended. Contact support.</p>
-        <Link to="/tenants" className="text-sm underline underline-offset-4">
-          Back to your tenants
-        </Link>
-      </CardContent>
-    </Card>
-  )
-}
-
-/**
  * The tenant shell. The URL's tenant is the active one: analytics groups the
  * page under it from the route's loader data (`installRouteAnalytics`), not
  * from here, so the group is set before the page view.
  */
 function TenantLayout() {
   const { slug } = Route.useParams()
-  const tenant = useTenant(slug)
   const { role } = useMyRole(slug)
-  const tenants = useTenants()
-  const listed = tenants.data?.find((entry) => entry.tenant.slug === slug)
-
-  // With no tenant, the list decides between suspended and not found, so wait for it.
-  if (tenant.isPending || (!tenant.data && (tenants.isPending || tenants.isFetching))) {
-    return (
-      <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-40 w-full" />
-      </div>
-    )
-  }
-
-  if (!tenant.data) {
-    if (listed?.tenant.lifecycleState === 'suspended') {
-      return <TenantSuspended name={listed.tenant.name} />
-    }
-    // A failed list cannot tell suspended from missing, so it claims neither.
-    if (tenants.isError) {
-      return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void tenants.refetch()} />
-    }
-    return <TenantNotFound slug={slug} />
-  }
-
   return (
-    <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
-      {tenant.data.access === 'platform' && (
-        <PlatformAccessBanner tenantName={tenant.data.name} role={tenant.data.role} />
-      )}
-      <header className="grid gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold lg:text-3xl">{tenant.data.name}</h1>
-          {role && <Badge variant="secondary">{ROLE_LABELS[role]}</Badge>}
+    <TenantGate slug={slug}>
+      {(tenant) => (
+        <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
+          <header className="grid gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold lg:text-3xl">{tenant.name}</h1>
+              {role && <Badge variant="secondary">{ROLE_LABELS[role]}</Badge>}
+            </div>
+            <p className="text-sm text-muted-foreground">/{tenant.slug}</p>
+          </header>
+          <TenantTabs slug={slug} showActivity={canViewActivity(tenant.role)} />
+          <Outlet />
         </div>
-        <p className="text-sm text-muted-foreground">/{tenant.data.slug}</p>
-      </header>
-      <TenantTabs slug={slug} showActivity={canViewActivity(tenant.data.role)} />
-      <Outlet />
-    </div>
+      )}
+    </TenantGate>
   )
 }

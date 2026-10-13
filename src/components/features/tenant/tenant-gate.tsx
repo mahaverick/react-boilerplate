@@ -1,0 +1,159 @@
+import type { QueryClient } from '@tanstack/react-query'
+import { Link, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
+import { useEffect, type ReactNode } from 'react'
+import { LoadError } from '@/components/features/load-error'
+import { PlatformAccessBanner } from '@/components/features/platform-access-banner'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { noteError } from '@/observability/errors'
+import { ensureFlags } from '@/observability/flags/flag-query'
+import { flagScopeFor } from '@/observability/flags/flag-scope'
+import { tenantQueryOptions, useTenant, useTenants } from '@/queries/tenant.queries'
+import { useRememberTenant } from '@/states/current-tenant.store'
+
+/** Said of the request, not of the tenant: unlike `TenantNotFound`, the tenant may be fine. */
+export const TENANT_LOAD_ERROR =
+  'We could not load this tenant. The request failed, which is not the same as the tenant being gone.'
+
+/**
+ * The route's error boundary. Retry is `router.invalidate()`, which re-runs
+ * the loader; `ensureQueryData` finds no data and fetches again. The error
+ * goes to error tracking on mount, which drops it when it is the API's.
+ */
+export function TenantLoadFailed({ error }: ErrorComponentProps) {
+  const router = useRouter()
+
+  useEffect(() => {
+    noteError(error, 'router', true)
+  }, [error])
+
+  return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void router.invalidate()} />
+}
+
+/**
+ * What a 404 looks like. `GET /tenants/:slug` answers the same 404 for "no such
+ * tenant" and "no access", and this copy does not guess between them: "you are
+ * not a member of acme" would confirm that acme exists.
+ */
+function TenantNotFound({ slug }: { slug: string }) {
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle>
+          <h1>Tenant not available</h1>
+        </CardTitle>
+        <CardDescription>
+          We could not open <span className="font-medium">/{slug}</span>. Either it does not exist
+          or it is not one of yours.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Link to="/tenants" className="text-sm underline underline-offset-4">
+          Back to your tenants
+        </Link>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * A tenant the caller belongs to but that staff have suspended. Its own
+ * routes answer 404 like a missing tenant, so the tenant list (which still
+ * carries it, with its state) is what tells the two apart. Only the caller's
+ * own memberships reach this, so it confirms nothing about other tenants.
+ */
+function TenantSuspended({ name }: { name: string }) {
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle>
+          <h1>Tenant suspended</h1>
+        </CardTitle>
+        <CardDescription>
+          <span className="font-medium">{name}</span> is unavailable right now.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <p className="text-sm">This tenant is suspended. Contact support.</p>
+        <Link to="/tenants" className="text-sm underline underline-offset-4">
+          Back to your tenants
+        </Link>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** A tenant detail as `useTenant` returns it once loaded. */
+export type LoadedTenant = NonNullable<ReturnType<typeof useTenant>['data']>
+
+/**
+ * The loader body every tenant layout route shares: warm the tenant detail
+ * and, for a navigation that commits, the tenant's flags in parallel. A hover
+ * preload reads only the detail. `ensureFlags` never rejects.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- the loader lives beside the gate it warms for
+export async function loadTenantRoute({
+  queryClient,
+  slug,
+  preload,
+}: {
+  queryClient: QueryClient
+  slug: string
+  preload: boolean
+}): Promise<unknown> {
+  const detail = queryClient.ensureQueryData(tenantQueryOptions(slug))
+  if (preload) return detail
+  const [tenant] = await Promise.all([detail, ensureFlags(queryClient, flagScopeFor({ slug }))])
+  return tenant
+}
+
+/**
+ * What every tenant layout renders around its page: a skeleton while the
+ * tenant loads; the suspended, load-error or not-found panel when there is no
+ * tenant (the list decides between suspended and missing); otherwise the
+ * platform-access banner when staff reached it by platform access, then the
+ * page. A loaded tenant becomes the user's remembered tenant for Settings.
+ */
+export function TenantGate({
+  slug,
+  children,
+}: {
+  slug: string
+  children: (tenant: LoadedTenant) => ReactNode
+}) {
+  const tenant = useTenant(slug)
+  const tenants = useTenants()
+  const listed = tenants.data?.find((entry) => entry.tenant.slug === slug)
+  useRememberTenant(slug, tenant.data !== undefined && tenant.data !== null)
+
+  // With no tenant, the list decides between suspended and not found, so wait for it.
+  if (tenant.isPending || (!tenant.data && (tenants.isPending || tenants.isFetching))) {
+    return (
+      <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    )
+  }
+
+  if (!tenant.data) {
+    if (listed?.tenant.lifecycleState === 'suspended') {
+      return <TenantSuspended name={listed.tenant.name} />
+    }
+    // A failed list cannot tell suspended from missing, so it claims neither.
+    if (tenants.isError) {
+      return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void tenants.refetch()} />
+    }
+    return <TenantNotFound slug={slug} />
+  }
+
+  return (
+    <>
+      {tenant.data.access === 'platform' && (
+        <PlatformAccessBanner tenantName={tenant.data.name} role={tenant.data.role} />
+      )}
+      {children(tenant.data)}
+    </>
+  )
+}
