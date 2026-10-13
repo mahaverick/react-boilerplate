@@ -6,12 +6,13 @@ import {
   type AnyRouter,
   type RouterHistory,
 } from '@tanstack/react-router'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import { installCurrentTenant } from '@/lib/current-tenant'
+import { TENANT_LIST_WAIT_MS } from '@/lib/tenant-guard'
 import { installRouteAnalytics } from '@/observability/route-telemetry'
 import * as analytics from '@/observability/telemetry'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
@@ -25,6 +26,7 @@ import {
   TENANT_ID_9,
   USER_ID_2,
 } from '@/tests/fixtures/ids'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -351,28 +353,57 @@ describe('a tenant list that fails or is slow', () => {
     )
   })
 
-  it('renders the page once the list has taken TENANT_LIST_WAIT_MS, without a tenant', async () => {
-    server.use(http.get('/api/v1/tenants', () => delay('infinite')))
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    try {
-      const { router } = renderAt('/dashboard')
+  it('drops a pending re-run when its router is torn down', async () => {
+    server.use(http.get('/api/v1/tenants', () => fail('Something went wrong.', 500)))
+    renderAt('/dashboard')
+    // The guard's read failed, so it is now watching for the list to load.
+    expect(await screen.findByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
+    cleanup()
+    uninstall?.()
+    uninstall = null
+    queryClient.clear()
 
-      await vi.waitFor(
-        () => {
-          expect(screen.getByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
-        },
-        { timeout: 10_000, interval: 100 }
-      )
-      expect(router.state.location.href).toBe('/dashboard')
+    serveTenants([ACME])
+    const { router, loads } = renderAt('/dashboard?tenant=acme')
+
+    expect(await findSwitcher('Acme Corp')).toBeInTheDocument()
+    await expectHref(router, '/dashboard?tenant=acme')
+    // A stray re-run would load the page a second time.
+    await settle(100, 'no event marks the absence of a stray router invalidate')
+    expect(loads).toEqual(['/dashboard?tenant=acme'])
+  })
+
+  it('renders the page once the list has taken TENANT_LIST_WAIT_MS, without a tenant', async () => {
+    let requested: (() => void) | undefined
+    const listRequested = new Promise<void>((resolve) => (requested = resolve))
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        requested?.()
+        return delay('infinite')
+      })
+    )
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let router: AnyRouter
+    try {
+      router = renderAt('/dashboard').router
+      // The guard starts its wait before the request leaves, so the timer is set by now.
+      await listRequested
+      await act(() => vi.advanceTimersByTimeAsync(TENANT_LIST_WAIT_MS))
     } finally {
       vi.useRealTimers()
     }
+
+    expect(await screen.findByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
+    expect(router.state.location.href).toBe('/dashboard')
   })
 
   it('fills ?tenant when a list that outlasted the wait arrives', async () => {
     let release: (() => void) | undefined
+    let requested: (() => void) | undefined
+    const listRequested = new Promise<void>((resolve) => (requested = resolve))
     server.use(
       http.get('/api/v1/tenants', async () => {
+        requested?.()
         await new Promise<void>((resolve) => (release = resolve))
         return ok([listed(ACME)], 'Tenants retrieved.')
       }),
@@ -382,15 +413,13 @@ describe('a tenant list that fails or is slow', () => {
     let router: AnyRouter
     try {
       router = renderAt('/dashboard').router
-      await vi.waitFor(
-        () => {
-          expect(screen.getByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
-        },
-        { timeout: 10_000, interval: 100 }
-      )
+      // The guard starts its wait before the request leaves, so the timer is set by now.
+      await listRequested
+      await act(() => vi.advanceTimersByTimeAsync(TENANT_LIST_WAIT_MS))
     } finally {
       vi.useRealTimers()
     }
+    expect(await screen.findByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
     expect(router.state.location.href).toBe('/dashboard')
 
     release?.()

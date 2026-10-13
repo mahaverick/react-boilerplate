@@ -5,7 +5,7 @@
  */
 import type { QueryClient } from '@tanstack/react-query'
 import type { ParsedLocation } from '@tanstack/react-router'
-import { rerunTenantGuard, type TenantSearch } from '@/lib/current-tenant'
+import { armTenantGuardRerun, type TenantSearch } from '@/lib/current-tenant'
 import {
   isEligibleTenant,
   tenantKeys,
@@ -65,26 +65,19 @@ function within<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   })
 }
 
-/** Stops the pending `rerunWhenListLoads` watch, if one is pending. */
-let stopWatching: (() => void) | null = null
-
 /**
- * Runs the guard again (`rerunTenantGuard`) the first time the tenant list
- * query holds data, whether the guard's own read lands late or the shell's
- * `useTenants` retries a failed one. One watch at a time.
+ * Arms a re-run of the guard (`armTenantGuardRerun`) for the first time the
+ * tenant list query holds data, whether the guard's own read lands late or the
+ * shell's `useTenants` retries a failed one.
  * @param queryClient - The client holding the tenant list.
  */
 function rerunWhenListLoads(queryClient: QueryClient): void {
-  stopWatching?.()
-  const cache = queryClient.getQueryCache()
-  const stop = cache.subscribe((event) => {
-    if (event.type !== 'updated' || event.query.queryHash !== listHash()) return
-    if (event.query.state.status !== 'success') return
-    stop()
-    if (stopWatching === stop) stopWatching = null
-    rerunTenantGuard()
-  })
-  stopWatching = stop
+  armTenantGuardRerun((rerun) =>
+    queryClient.getQueryCache().subscribe((event) => {
+      if (event.type !== 'updated' || event.query.queryHash !== listHash()) return
+      if (event.query.state.status === 'success') rerun()
+    })
+  )
 }
 
 /** The tenant list query's hash, as the query cache keys it. */
