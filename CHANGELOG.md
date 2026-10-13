@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/mahaverick/react-boilerplate/compare/v2.0.0...v2.1.0) (2026-10-13)
+
+
+### Features
+
+* **notifications:** switch off a notification type's in-app copy, plus open follow-up fixes ([#77](https://github.com/mahaverick/react-boilerplate/issues/77)) ([e7bc906](https://github.com/mahaverick/react-boilerplate/commit/e7bc906723be49a341d587e070e78ef994ae754b))
+
 ## [2.0.0](https://github.com/mahaverick/react-boilerplate/compare/v1.9.3...v2.0.0) (2026-10-12)
 
 
