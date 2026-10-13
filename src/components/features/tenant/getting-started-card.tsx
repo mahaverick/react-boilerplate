@@ -1,6 +1,6 @@
+import { IconCircle, IconCircleCheck } from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { CircleCheckIcon, CircleIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -108,9 +108,9 @@ function StepMarker({ isDone }: { isDone: boolean }) {
   return (
     <span className="mt-0.5 shrink-0">
       {isDone ? (
-        <CircleCheckIcon aria-hidden="true" className="size-5 text-primary" />
+        <IconCircleCheck aria-hidden="true" className="size-5 text-primary" />
       ) : (
-        <CircleIcon aria-hidden="true" className="size-5 text-muted-foreground" />
+        <IconCircle aria-hidden="true" className="size-5 text-muted-foreground" />
       )}
       <span className="sr-only">{isDone ? 'Done' : 'Not done'}</span>
     </span>

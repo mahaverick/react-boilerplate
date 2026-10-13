@@ -1,4 +1,4 @@
-import { LoaderCircleIcon } from 'lucide-react'
+import { IconLoader2 } from '@tabler/icons-react'
 
 /**
  * What a route shows while its loader runs. The router holds it back until
@@ -7,7 +7,7 @@ import { LoaderCircleIcon } from 'lucide-react'
 export function RoutePending() {
   return (
     <div role="status" aria-label="Loading" className="flex justify-center px-4 py-16">
-      <LoaderCircleIcon className="size-6 animate-spin text-muted-foreground" aria-hidden="true" />
+      <IconLoader2 className="size-6 animate-spin text-muted-foreground" aria-hidden="true" />
     </div>
   )
 }

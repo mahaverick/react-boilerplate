@@ -3,12 +3,16 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { SocialSignIn } from '@/components/features/auth/social-sign-in'
+import { TermsNote } from '@/components/features/auth/terms-note'
+import { AuthCard } from '@/components/layouts/auth-card'
 import { Pii } from '@/components/shared/pii'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { FieldDescription, FieldGroup } from '@/components/ui/field'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormError,
   FormField,
   FormItem,
@@ -21,7 +25,7 @@ import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { useRegister, useResendVerification } from '@/queries/auth.queries'
-import { registerSchema, type RegisterInput } from '@/schemas/auth.schemas'
+import { MIN_PASSWORD_LENGTH, registerSchema, type RegisterInput } from '@/schemas/auth.schemas'
 
 /**
  * The registration page. `?email=` prefills the address, as an invitation's
@@ -35,10 +39,24 @@ export const Route = createFileRoute('/_auth/register')({
 })
 
 /**
- * The registration form, then a "check your email" card with a resend control
- * for the address just registered. The value is parsed before posting, so the
- * schema's trimming and lowercasing reach the wire; the API answers with no
- * user, so the card shows the submitted, normalised address.
+ * The registration form's values: the API's `registerSchema` plus a password
+ * confirmation the API never sees. A mismatch is reported on the
+ * confirmation field. The submit parses with `registerSchema`, which drops
+ * `confirmPassword` from the payload.
+ */
+const registerFormSchema = registerSchema
+  .extend({ confirmPassword: z.string().min(1, 'Confirm your password.') })
+  .refine((v) => v.password === v.confirmPassword, {
+    message: 'Passwords do not match.',
+    path: ['confirmPassword'],
+  })
+
+/**
+ * The registration form, on shadcn's signup-04 layout, then a "check your
+ * email" card with a resend control for the address just registered. The
+ * value is parsed before posting, so the schema's trimming and lowercasing
+ * reach the wire; the API answers with no user, so the card shows the
+ * submitted, normalised address.
  */
 function RegisterPage() {
   const { email: invitedEmail } = Route.useSearch()
@@ -48,16 +66,17 @@ function RegisterPage() {
   const serverErrors = useServerErrors()
 
   /** Annotated: the names are optional in the schema, and an inferred `string` would not match. */
-  const defaultValues: RegisterInput = {
+  const defaultValues: RegisterInput & { confirmPassword: string } = {
     email: invitedEmail ?? '',
     password: '',
+    confirmPassword: '',
     firstName: '',
     lastName: '',
   }
 
   const form = useForm({
     defaultValues,
-    validators: { onSubmit: registerSchema },
+    validators: { onSubmit: registerFormSchema },
     onSubmit: async ({ value }) => {
       serverErrors.reset()
       try {
@@ -72,87 +91,81 @@ function RegisterPage() {
 
   if (registeredEmail) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h1>Check your email</h1>
-          </CardTitle>
-          <CardDescription>
+      <AuthCard
+        title="Check your email"
+        description={
+          <>
             We sent a verification link to <Pii>{registeredEmail}</Pii>. Open it to finish setting
             up your account.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            variant="outline"
-            className="w-full"
-            disabled={resend.isPending}
-            onClick={() => {
-              resend.mutate(
-                { email: registeredEmail },
-                {
-                  // The same message either way, so it never reveals whether the address is pending.
-                  onSettled: () =>
-                    toast.success('If that address needs verifying, a new email is on its way.'),
-                }
-              )
-            }}
-          >
-            {resend.isPending ? 'Sending…' : 'Resend verification email'}
-          </Button>
-          <div className="mt-4 text-sm">
-            <Link to={ROUTES.login} className="underline underline-offset-4">
-              Back to sign in
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+          </>
+        }
+      >
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={resend.isPending}
+          onClick={() => {
+            resend.mutate(
+              { email: registeredEmail },
+              {
+                // The same message either way, so it never reveals whether the address is pending.
+                onSettled: () =>
+                  toast.success('If that address needs verifying, a new email is on its way.'),
+              }
+            )
+          }}
+        >
+          {resend.isPending ? 'Sending…' : 'Resend verification email'}
+        </Button>
+        <FieldDescription className="text-center">
+          <Link to={ROUTES.login}>Back to sign in</Link>
+        </FieldDescription>
+      </AuthCard>
     )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h1>Create an account</h1>
-        </CardTitle>
-        <CardDescription>It takes less than a minute.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form form={form} serverErrors={serverErrors}>
-          <FormField form={form} name="firstName">
-            {(field) => (
-              <FormItem>
-                <FormLabel>First name (optional)</FormLabel>
-                <FormControl>
-                  <Input
-                    autoComplete="given-name"
-                    value={fieldValue(field.state.value)}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          </FormField>
-
-          <FormField form={form} name="lastName">
-            {(field) => (
-              <FormItem>
-                <FormLabel>Last name (optional)</FormLabel>
-                <FormControl>
-                  <Input
-                    autoComplete="family-name"
-                    value={fieldValue(field.state.value)}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          </FormField>
+    <AuthCard
+      title="Create an account"
+      description="It takes less than a minute."
+      footer={<TermsNote />}
+    >
+      <Form form={form} serverErrors={serverErrors} className="space-y-0">
+        <FieldGroup className="gap-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField form={form} name="firstName">
+              {(field) => (
+                <FormItem>
+                  <FormLabel>First name (optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      autoComplete="given-name"
+                      value={fieldValue(field.state.value)}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            </FormField>
+            <FormField form={form} name="lastName">
+              {(field) => (
+                <FormItem>
+                  <FormLabel>Last name (optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      autoComplete="family-name"
+                      value={fieldValue(field.state.value)}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            </FormField>
+          </div>
 
           <FormField form={form} name="email">
             {(field) => (
@@ -162,6 +175,7 @@ function RegisterPage() {
                   <Input
                     type="email"
                     autoComplete="email"
+                    placeholder="you@example.com"
                     value={fieldValue(field.state.value)}
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
@@ -172,37 +186,59 @@ function RegisterPage() {
             )}
           </FormField>
 
-          <FormField form={form} name="password">
-            {(field) => (
-              <FormItem>
-                <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <Input
-                    type="password"
-                    autoComplete="new-password"
-                    value={fieldValue(field.state.value)}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          </FormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField form={form} name="password">
+              {(field) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      autoComplete="new-password"
+                      value={fieldValue(field.state.value)}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            </FormField>
+            <FormField form={form} name="confirmPassword">
+              {(field) => (
+                <FormItem>
+                  <FormLabel>Confirm password</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      autoComplete="new-password"
+                      value={fieldValue(field.state.value)}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            </FormField>
+          </div>
+          <FormDescription className="-mt-3">
+            Must be at least {MIN_PASSWORD_LENGTH} characters long.
+          </FormDescription>
 
           <FormError />
 
           <Button type="submit" className="w-full" disabled={register.isPending}>
             {register.isPending ? 'Creating account…' : 'Create account'}
           </Button>
-        </Form>
 
-        <div className="mt-4 text-sm">
-          <Link to={ROUTES.login} className="underline underline-offset-4">
-            Already have an account? Sign in
-          </Link>
-        </div>
-      </CardContent>
-    </Card>
+          <SocialSignIn />
+
+          <FieldDescription className="text-center">
+            Already have an account? <Link to={ROUTES.login}>Sign in</Link>
+          </FieldDescription>
+        </FieldGroup>
+      </Form>
+    </AuthCard>
   )
 }

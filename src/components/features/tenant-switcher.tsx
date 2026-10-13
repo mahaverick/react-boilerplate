@@ -1,6 +1,6 @@
+import { IconBuilding, IconPlus, IconSelector } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate, useParams } from '@tanstack/react-router'
-import { Building2 } from 'lucide-react'
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
   Combobox,
@@ -14,7 +14,13 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from '@/components/ui/combobox'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from '@/components/ui/sidebar'
+import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useTenants } from '@/queries/tenant.queries'
 
@@ -65,6 +71,9 @@ function ownTenantsMessage({
  * links that). Staff search every tenant in Apex, not here. A suspended tenant
  * is listed but disabled: its routes answer 404 until staff reactivate it.
  *
+ * Styled after shadcn's sidebar-07 `TeamSwitcher`. The popup ends with a link
+ * to the tenants page, where the create-tenant form lives.
+ *
  * It sits in its own `nav` landmark: axe's `region` rule exempts a bare
  * button but not one whose role is `combobox`, so the trigger's text would
  * otherwise sit in no landmark. It reads `$slug` with `strict: false`, since
@@ -73,6 +82,7 @@ function ownTenantsMessage({
  */
 export function TenantSwitcher() {
   const navigate = useNavigate()
+  const { isMobile } = useSidebar()
   const tenants = useTenants()
   const { slug } = useParams({ strict: false })
   const [open, setOpen] = useState(false)
@@ -125,13 +135,29 @@ export function TenantSwitcher() {
           >
             <ComboboxTrigger
               render={
-                <SidebarMenuButton size="lg" aria-label={`Switch tenant. Current: ${label}`} />
+                <SidebarMenuButton
+                  size="lg"
+                  className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
+                  aria-label={`Switch tenant. Current: ${label}`}
+                />
               }
             >
-              <Building2 className="size-4 shrink-0" />
-              <span className="flex-1 truncate text-left">{label}</span>
+              <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                <IconBuilding aria-hidden="true" className="size-4" />
+              </span>
+              <span className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">{label}</span>
+                <span className="truncate text-xs text-muted-foreground">Tenant</span>
+              </span>
+              <IconSelector aria-hidden="true" className="ml-auto size-4" />
             </ComboboxTrigger>
-            <ComboboxContent aria-label="Switch tenant" className="w-72">
+            <ComboboxContent
+              aria-label="Switch tenant"
+              side={isMobile ? 'bottom' : 'right'}
+              align="start"
+              sideOffset={4}
+              className="w-72"
+            >
               <ComboboxInput
                 showTrigger={false}
                 aria-label="Search tenants"
@@ -165,6 +191,18 @@ export function TenantSwitcher() {
                   </ComboboxGroup>
                 )}
               </ComboboxList>
+              <div className="border-t p-1">
+                <Link
+                  to={ROUTES.tenants}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <span className="flex size-6 items-center justify-center rounded-md border">
+                    <IconPlus aria-hidden="true" className="size-4" />
+                  </span>
+                  Create a tenant
+                </Link>
+              </div>
             </ComboboxContent>
           </Combobox>
         </SidebarMenuItem>

@@ -3,10 +3,10 @@ import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { LoadError } from '@/components/features/load-error'
+import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
 import { Pii } from '@/components/shared/pii'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
@@ -69,15 +69,9 @@ function InvitationCard({
 }) {
   return (
     <AuthLayout>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h1>{title}</h1>
-          </CardTitle>
-          {description && <CardDescription>{description}</CardDescription>}
-        </CardHeader>
-        {children && <CardContent>{children}</CardContent>}
-      </Card>
+      <AuthCard title={title} description={description}>
+        {children}
+      </AuthCard>
     </AuthLayout>
   )
 }

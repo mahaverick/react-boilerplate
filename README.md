@@ -5,15 +5,15 @@ A React 19 + TypeScript single-page app, built to talk to the
 management and a live notification stream are wired up, so a new project starts
 here rather than at `create-vite`.
 
-| Concern | Choice                                                    |
-| ------- | --------------------------------------------------------- |
-| Build   | Vite 8, React Compiler via Babel                          |
-| Routing | TanStack Router, file-based from `src/pages/`             |
-| Data    | TanStack Query, axios with a single-flight refresh        |
-| Forms   | TanStack Form + Zod v4 schemas                            |
-| State   | Zustand (`src/states/`)                                   |
-| UI      | Tailwind v4, shadcn components on Base UI, lucide, sonner |
-| Tests   | Vitest, Testing Library, MSW, jest-axe, Playwright        |
+| Concern | Choice                                                                                         |
+| ------- | ---------------------------------------------------------------------------------------------- |
+| Build   | Vite 8, React Compiler via Babel                                                               |
+| Routing | TanStack Router, file-based from `src/pages/`                                                  |
+| Data    | TanStack Query, axios with a single-flight refresh                                             |
+| Forms   | TanStack Form + Zod v4 schemas                                                                 |
+| State   | Zustand (`src/states/`)                                                                        |
+| UI      | Tailwind v4, shadcn components on Base UI (base-vega style, mist, Inter), Tabler icons, sonner |
+| Tests   | Vitest, Testing Library, MSW, jest-axe, Playwright                                             |
 
 How the code is organised, and why, is in [ARCHITECTURE.md](ARCHITECTURE.md).
 The threat model and the defences are in [SECURITY.md](SECURITY.md). The rules

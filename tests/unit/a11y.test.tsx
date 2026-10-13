@@ -854,8 +854,22 @@ describe('open overlays', () => {
     await expectNoViolationsIn(menu)
   })
 
-  it('has no violations with the theme menu open inside the mobile sheet', async () => {
-    // Below `md` the sidebar, and the ThemeToggle in its footer, renders inside the sheet, so the menu is opened from there.
+  it('has no violations with the theme menu open from the header on a phone', async () => {
+    // The ThemeToggle sits in the header, outside the sheet, so on a phone it is opened without the drawer.
+    setViewportWidth(500)
+    const user = userEvent.setup()
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: /Welcome back/ })
+
+    await user.click(screen.getByRole('button', { name: /Change theme/ }))
+
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).getAllByRole('menuitem').length).toBeGreaterThan(0)
+    await expectNoViolationsIn(menu)
+  })
+
+  it('has no violations with the account menu open inside the mobile sheet', async () => {
+    // Below `md` the sidebar, and the account menu in its footer, renders inside the sheet, so the menu is opened from there.
     setViewportWidth(500)
     const user = userEvent.setup()
     renderAppAt('/dashboard')
@@ -863,7 +877,7 @@ describe('open overlays', () => {
 
     await user.click(screen.getByRole('button', { name: 'Toggle sidebar' }))
     await screen.findByRole('dialog')
-    await user.click(await screen.findByRole('button', { name: /Change theme/ }))
+    await user.click(await screen.findByRole('button', { name: /^Account menu for/ }))
 
     const menu = await screen.findByRole('menu')
     expect(within(menu).getAllByRole('menuitem').length).toBeGreaterThan(0)
@@ -910,11 +924,12 @@ describe('keyboard', () => {
       // Every layout's first Tab stop.
       screen.getByRole('link', { name: 'Skip to content' }),
       screen.getByLabelText('Email'),
+      // The login-04 layout puts the reset link in the password label's row, so it reads, and tabs, before the field.
+      screen.getByRole('link', { name: 'Forgot password?' }),
       screen.getByLabelText('Password'),
       screen.getByRole('button', { name: 'Sign in' }),
       // A plain anchor to a same-origin API route, not a button with a click handler, so it is in the tab order without extra code.
       screen.getByRole('link', { name: 'Continue with Google' }),
-      screen.getByRole('link', { name: 'Forgot password?' }),
       screen.getByRole('link', { name: 'Create an account' }),
     ]
     expect(screen.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute(

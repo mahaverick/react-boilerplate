@@ -21,7 +21,11 @@ The selection lives in `.styleseed/project.json` and `.styleseed/artifacts/membe
 - Page type: `detail`
 - Surface adapter `product-ui`, domain `saas`
 - Brand recipe `enterprise-workbench`, palette recipe `quiet-mineral`, profile `none`.
-  These feed the resolver only. `base-nova` is the approved visual system.
+  These feed the resolver only. shadcn's `base-vega` style with the `mist` base colour,
+  Inter Variable and Tabler icons (`components.json`) is the approved visual system.
+- `.styleseed/project.json` still records the earlier brand (`Geist Variable`, key colour
+  `#171717`). The manifest hashes that file, so it changes only through `/ss-update`, as a
+  reviewed re-pin; until then its brand values describe the previous font.
 - Score floor: 80
 - One artifact, `members`, targeting the route `/tenants/$slug/members`
 
@@ -30,7 +34,7 @@ The selection lives in `.styleseed/project.json` and `.styleseed/artifacts/membe
 `src/styles/globals.css` is the single token file. It is written in `oklch()`, not hex.
 The Tailwind 4 spacing base is the default `--spacing: 0.25rem`, so `N` is `N × 4px`.
 
-| StyleSeed role              | base-nova variable                       |
+| StyleSeed role              | base-vega variable                       |
 | --------------------------- | ---------------------------------------- |
 | `semantic/background`       | `--background`                           |
 | `semantic/surface`          | `--card`, `--popover`                    |
@@ -47,7 +51,7 @@ Nothing renders a status colour, and no component uses an ad-hoc palette class s
 `green-500`. **When the first status colour is needed, add the token to `globals.css`.
 Never reach for a palette class.**
 
-`--muted-foreground` is `oklch(0.53 0 0)`. A lighter value fails contrast against `--muted`;
+`--muted-foreground` is `oklch(0.52 0.021 213.5)`. A lighter value fails contrast against `--muted`;
 `pnpm test:contrast` (`e2e/contrast/contrast.test.ts`) measures it.
 
 ## Recorded exceptions
@@ -121,7 +125,7 @@ changes their hashes and turns a clean scan into an SS000 contract error.
 **For new UI work:** `ss-component` `ss-pattern` `ss-page` `ss-review`
 
 **Excluded:** `ss-build` (scaffolds a screen first; the screens exist) · `ss-studio`
-(creative exploration) · `ss-reference` (the grammar is chosen) · `ss-restyle` (base-nova is
+(creative exploration) · `ss-reference` (the grammar is chosen) · `ss-restyle` (base-vega is
 approved) · `ss-dial` (the lock fixes brand values) · `ss-motion` (the reduced-motion check
 already passes) · `ss-copy` · `ss-flow` · `ss-feedback` (out of scope) · `styleseed` (the
 meta-router; invoke skills directly)

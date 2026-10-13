@@ -1,6 +1,8 @@
+import { IconLoader2 } from '@tabler/icons-react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { LoaderCircleIcon } from 'lucide-react'
 import { useEffect } from 'react'
+import { AuthCard } from '@/components/layouts/auth-card'
+import { AuthLayout } from '@/components/layouts/auth-layout'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { useAuthStore } from '@/states/auth.store'
@@ -30,9 +32,16 @@ function OAuthCallbackPage() {
   }, [navigate])
 
   return (
-    <div role="status" className="flex min-h-svh items-center justify-center gap-3">
-      <LoaderCircleIcon className="size-5 animate-spin" aria-hidden="true" />
-      <span className="sr-only">Completing sign-in…</span>
-    </div>
+    <AuthLayout>
+      <AuthCard title="Signing in">
+        <div
+          role="status"
+          className="flex items-center justify-center gap-3 text-sm text-muted-foreground"
+        >
+          <IconLoader2 className="size-5 animate-spin" aria-hidden="true" />
+          <span>Completing sign-in…</span>
+        </div>
+      </AuthCard>
+    </AuthLayout>
   )
 }

@@ -18,7 +18,7 @@ src/
   components/
     dev/        TanStack devtools, development builds only
     features/   composed, app-specific pieces
-    layouts/    the signed-out shell and the signed-in shell
+    layouts/    the signed-out shell (AuthLayout, AuthCard) and the signed-in one (AppLayout, NavMain)
     shared/     app-wide pieces that are not shadcn output (<Pii>)
     ui/         vendored shadcn output, plus the hand-written form.tsx and sonner.tsx
   configs/      the run-time configuration (getRuntimeConfig)
@@ -37,6 +37,18 @@ src/
   styles/       globals.css and the design tokens
   types/        API envelope and shared response types
 ```
+
+The UI kit is shadcn's `base-vega` style on Base UI, with the `mist` base colour,
+Inter Variable (`@fontsource-variable/inter`, imported by `globals.css`) and Tabler
+icons (`@tabler/icons-react`; each decorative icon carries `aria-hidden`, which Tabler
+does not add). `components.json` records the preset. The signed-out pages follow
+shadcn's login-04 and signup-04 blocks: `AuthCard` puts the page's form beside a brand
+panel that shows `APP_NAME` and `APP_TAGLINE` from `src/constants/app.ts`, and the
+social sign-in buttons come from `SOCIAL_PROVIDERS` in
+`src/constants/auth-providers.ts`, since the API publishes no list of configured
+providers. The signed-in shell follows sidebar-07: the tenant switcher, `NavMain`
+(a collapsible group only for an item with sub-items) and the account menu in a
+sidebar that collapses to icons.
 
 `src/routeTree.gen.ts` is generated from `src/pages/` by the TanStack Router
 plugin in `vite.config.ts`, which also splits each route's component into

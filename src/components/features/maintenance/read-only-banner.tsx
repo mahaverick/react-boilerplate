@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Wrench } from 'lucide-react'
+import { IconChevronDown, IconChevronUp, IconTool } from '@tabler/icons-react'
 import { useId, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { DEFAULT_MAINTENANCE_MESSAGE } from './maintenance-page'
@@ -20,7 +20,7 @@ export function ReadOnlyBanner({ message }: { message: string | null }) {
       className="border-b bg-muted px-4 py-2 text-sm text-foreground"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Wrench aria-hidden="true" className="size-4 shrink-0" />
+        <IconTool aria-hidden="true" className="size-4 shrink-0" />
         <p className="min-w-0 flex-1 font-medium">
           Maintenance is in progress: you can look around, but changes are paused.
         </p>
@@ -31,7 +31,11 @@ export function ReadOnlyBanner({ message }: { message: string | null }) {
           aria-controls={detailsId}
           onClick={() => setCollapsed((collapsed) => !collapsed)}
         >
-          {isCollapsed ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
+          {isCollapsed ? (
+            <IconChevronDown aria-hidden="true" />
+          ) : (
+            <IconChevronUp aria-hidden="true" />
+          )}
           {isCollapsed ? 'Show details' : 'Hide details'}
         </Button>
       </div>
