@@ -3,7 +3,7 @@
   "id": "members",
   "target": {
     "kind": "route",
-    "locator": "/tenants/$slug/members"
+    "locator": "/settings/workspace/$slug/members"
   },
   "selection": {
     "grammar": "operations-console",
@@ -22,7 +22,7 @@
   },
   "implementation": {
     "sourceRoots": [
-      "src/pages/_app/tenants",
+      "src/pages/_app/settings",
       "src/components/ui",
       "src/components/features",
       "src/styles"

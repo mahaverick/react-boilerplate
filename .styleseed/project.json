@@ -16,7 +16,7 @@
     "paletteMode": "light",
     "paletteHarmony": "tonal",
     "surfaceTemperature": "neutral",
-    "fontFamilies": ["Geist Variable"],
+    "fontFamilies": ["Inter Variable"],
     "radius": "soft",
     "elevation": "restrained-shadow",
     "density": "compact",

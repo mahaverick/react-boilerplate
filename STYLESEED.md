@@ -23,11 +23,12 @@ The selection lives in `.styleseed/project.json` and `.styleseed/artifacts/membe
 - Brand recipe `enterprise-workbench`, palette recipe `quiet-mineral`, profile `none`.
   These feed the resolver only. shadcn's `base-vega` style with the `mist` base colour,
   Inter Variable and Tabler icons (`components.json`) is the approved visual system.
-- `.styleseed/project.json` still records the earlier brand (`Geist Variable`, key colour
-  `#171717`). The manifest hashes that file, so it changes only through `/ss-update`, as a
-  reviewed re-pin; until then its brand values describe the previous font.
+- `.styleseed/project.json` records the brand (`Inter Variable`, key colour `#171717`). The
+  manifest hashes that file, so it changes only through a reviewed re-pin with the pinned
+  engine (`resolve-context.mjs --project-root . --artifact members --agent claude`).
 - Score floor: 80
-- One artifact, `members`, targeting the route `/tenants/$slug/members`
+- One artifact, `members`, targeting the route `/settings/workspace/$slug/members` (Settings ›
+  Workspace › Members)
 
 ## Approved tokens
 
