@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/mahaverick/react-boilerplate/compare/v2.2.1...v2.2.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **toast:** a caller's className can no longer drop the analytics mask ([#87](https://github.com/mahaverick/react-boilerplate/issues/87)) ([98661f6](https://github.com/mahaverick/react-boilerplate/commit/98661f63406796b4c33a5ca35a41e08f763b1cab))
+
 ## [2.2.1](https://github.com/mahaverick/react-boilerplate/compare/v2.2.0...v2.2.1) (2026-10-13)
 
 
