@@ -65,6 +65,12 @@ const SURFACES = [
     url: '/e2e/harness/?path=/settings',
     heading: { name: 'Workspace', level: 2 },
   },
+  // No eligible tenant, so the Workspace rows render as muted text under the "Choose a tenant first." hint.
+  {
+    name: 'settings (no tenant)',
+    url: '/e2e/harness/?path=/settings&state=suspended',
+    heading: { name: 'Workspace', level: 2 },
+  },
   {
     name: 'profile',
     url: '/e2e/harness/?path=/settings/account/profile',
