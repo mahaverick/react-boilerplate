@@ -32,12 +32,12 @@ export function TenantLoadFailed({ error }: ErrorComponentProps) {
  * tenant" and "no access", and this copy does not guess between them: "you are
  * not a member of acme" would confirm that acme exists.
  */
-function TenantNotFound({ slug }: { slug: string }) {
+function TenantNotFound({ slug, heading: Heading }: { slug: string; heading: GateHeading }) {
   return (
     <Card className="max-w-2xl">
       <CardHeader>
         <CardTitle>
-          <h1>Tenant not available</h1>
+          <Heading>Tenant not available</Heading>
         </CardTitle>
         <CardDescription>
           We could not open <span className="font-medium">/{slug}</span>. Either it does not exist
@@ -59,12 +59,12 @@ function TenantNotFound({ slug }: { slug: string }) {
  * carries it, with its state) is what tells the two apart. Only the caller's
  * own memberships reach this, so it confirms nothing about other tenants.
  */
-function TenantSuspended({ name }: { name: string }) {
+function TenantSuspended({ name, heading: Heading }: { name: string; heading: GateHeading }) {
   return (
     <Card className="max-w-2xl">
       <CardHeader>
         <CardTitle>
-          <h1>Tenant suspended</h1>
+          <Heading>Tenant suspended</Heading>
         </CardTitle>
         <CardDescription>
           <span className="font-medium">{name}</span> is unavailable right now.
@@ -80,6 +80,12 @@ function TenantSuspended({ name }: { name: string }) {
   )
 }
 
+/**
+ * The element the gate's not-found and suspended panels title themselves with:
+ * `h1` where the panel is the page, `h2` under a layout that has its own `h1`.
+ */
+type GateHeading = 'h1' | 'h2'
+
 /** A tenant detail as `useTenant` returns it once loaded. */
 export type LoadedTenant = NonNullable<ReturnType<typeof useTenant>['data']>
 
@@ -89,12 +95,15 @@ export type LoadedTenant = NonNullable<ReturnType<typeof useTenant>['data']>
  * tenant (the list decides between suspended and missing); otherwise the
  * platform-access banner when staff reached it by platform access, then the
  * page. A loaded tenant becomes the user's remembered tenant for Settings.
+ * `heading` is the panels' title element, `h2` under a layout with its own `h1`.
  */
 export function TenantGate({
   slug,
+  heading = 'h1',
   children,
 }: {
   slug: string
+  heading?: GateHeading
   children: (tenant: LoadedTenant) => ReactNode
 }) {
   const tenant = useTenant(slug)
@@ -115,13 +124,13 @@ export function TenantGate({
 
   if (!tenant.data) {
     if (listed?.tenant.lifecycleState === 'suspended') {
-      return <TenantSuspended name={listed.tenant.name} />
+      return <TenantSuspended name={listed.tenant.name} heading={heading} />
     }
     // A failed list cannot tell suspended from missing, so it claims neither.
     if (tenants.isError) {
       return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void tenants.refetch()} />
     }
-    return <TenantNotFound slug={slug} />
+    return <TenantNotFound slug={slug} heading={heading} />
   }
 
   return (

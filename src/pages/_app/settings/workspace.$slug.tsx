@@ -19,11 +19,14 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug')({
   errorComponent: TenantLoadFailed,
 })
 
-/** The gate, a line naming the tenant, then the page. */
+/**
+ * The gate, whose panels title themselves `h2` under the settings layout's
+ * `h1`, then a line naming the tenant, then the page.
+ */
 function WorkspaceSettingsLayout() {
   const { slug } = Route.useParams()
   return (
-    <TenantGate slug={slug}>
+    <TenantGate slug={slug} heading="h2">
       {(tenant) => (
         <div className="grid gap-4">
           <p className="text-sm text-muted-foreground">

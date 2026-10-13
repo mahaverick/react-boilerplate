@@ -553,6 +553,28 @@ describe('signed-in pages', () => {
     await expectNoViolations()
   })
 
+  it.each([
+    ['missing', [], 'Tenant not available'],
+    [
+      'suspended',
+      [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
+      'Tenant suspended',
+    ],
+  ])(
+    'a workspace settings page for a %s tenant has one h1 and no axe violations',
+    async (_name, list, panel) => {
+      server.use(
+        http.get('/api/v1/tenants', () => ok(list, 'Tenants.')),
+        http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+      )
+      renderAppAt('/settings/workspace/acme/members')
+      // The settings layout's h1 names the section; the gate's panel sits under it.
+      await screen.findByRole('heading', { name: panel, level: 2 })
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Members')
+      await expectNoViolations()
+    }
+  )
+
   it('tenants list with a suspended row has no axe violations', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
