@@ -30,14 +30,14 @@
     {
       "id": "project",
       "path": ".styleseed/project.json",
-      "sha256": "sha256:e94bd62a801de20c44d8f1844a0d1ad9823f766feab5e65dc1224563f2dcf6fd",
+      "sha256": "sha256:51ec4e887ca564c9993c7c588b5ad5e7615fccd52dea6c5a03d20ac5a8324007",
       "bytes": 672
     },
     {
       "id": "artifact",
       "path": ".styleseed/artifacts/members.json",
-      "sha256": "sha256:8ad47357fb43945475ba1a532068073352f1c742feb086ee02596f351cecd236",
-      "bytes": 1329
+      "sha256": "sha256:725463c80c07a4fdc3875b21cae3dc5e9a3b4eb1869b59a03d7bba1a1087f44c",
+      "bytes": 1341
     }
   ],
   "sources": [
@@ -96,11 +96,11 @@
       "bytes": 3564
     }
   ],
-  "methodHash": "sha256:c67748325ddd7209fc4dbe05b2ce6e69509d17cd0811b848bf4b352531832dcb",
-  "validationHash": "sha256:75195d314c685b72e7b22a858398000792b6961b673bdf4319c5043a4766c246",
+  "methodHash": "sha256:d9652aeb454e268c91cc503846bb1487a170201946934f75ef150910fe815140",
+  "validationHash": "sha256:923313485bb2196565db5f2a8553b1a03e8ac2d4e4f4d76ad1311dc23a7bb66b",
   "validationSlices": {
-    "target": "sha256:a2b3aac7c2ad7563fa1ee56afb49e9a1b924ec5fbc2a71502c1ebc784920f419",
-    "implementation": "sha256:c472ef8a74106cfc8c328148ff0e89587b99efeadde5ac15295e5b810782d536",
+    "target": "sha256:01cf23e5977af9a5dbf4b51e2766cd5a7562d4d413185be02924891dcafd5abe",
+    "implementation": "sha256:91df83130521d83f1a97e254e2f71d7e90c224caa17a13b0cf6092677eb7588e",
     "scoreFloor": "sha256:48449a14a4ff7d79bb7a1b6f3d488eba397c36ef25634c111b49baf362511afc",
     "requiredRenders": "sha256:e2cbc22ce7be59d23cd2e88d6fdbc576aa98f69928e4ff1e61fda02e15ccca2f",
     "temporal": "sha256:c5ec5a78d8447626a8d2c39addbf2843320eb8e491b9e7c1e92927a135b06bba",
