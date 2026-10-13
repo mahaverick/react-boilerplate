@@ -1,4 +1,3 @@
-import type { QueryClient } from '@tanstack/react-query'
 import { Link, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
 import { useEffect, type ReactNode } from 'react'
 import { LoadError } from '@/components/features/load-error'
@@ -6,9 +5,7 @@ import { PlatformAccessBanner } from '@/components/features/platform-access-bann
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { noteError } from '@/observability/errors'
-import { ensureFlags } from '@/observability/flags/flag-query'
-import { flagScopeFor } from '@/observability/flags/flag-scope'
-import { tenantQueryOptions, useTenant, useTenants } from '@/queries/tenant.queries'
+import { useTenant, useTenants } from '@/queries/tenant.queries'
 import { useRememberTenant } from '@/states/current-tenant.store'
 
 /** Said of the request, not of the tenant: unlike `TenantNotFound`, the tenant may be fine. */
@@ -85,27 +82,6 @@ function TenantSuspended({ name }: { name: string }) {
 
 /** A tenant detail as `useTenant` returns it once loaded. */
 export type LoadedTenant = NonNullable<ReturnType<typeof useTenant>['data']>
-
-/**
- * The loader body every tenant layout route shares: warm the tenant detail
- * and, for a navigation that commits, the tenant's flags in parallel. A hover
- * preload reads only the detail. `ensureFlags` never rejects.
- */
-// eslint-disable-next-line react-refresh/only-export-components -- the loader lives beside the gate it warms for
-export async function loadTenantRoute({
-  queryClient,
-  slug,
-  preload,
-}: {
-  queryClient: QueryClient
-  slug: string
-  preload: boolean
-}): Promise<unknown> {
-  const detail = queryClient.ensureQueryData(tenantQueryOptions(slug))
-  if (preload) return detail
-  const [tenant] = await Promise.all([detail, ensureFlags(queryClient, flagScopeFor({ slug }))])
-  return tenant
-}
 
 /**
  * What every tenant layout renders around its page: a skeleton while the

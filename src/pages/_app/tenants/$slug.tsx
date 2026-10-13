@@ -1,9 +1,6 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
-import {
-  loadTenantRoute,
-  TenantGate,
-  TenantLoadFailed,
-} from '@/components/features/tenant/tenant-gate'
+import { loadTenantRoute } from '@/components/features/tenant/load-tenant-route'
+import { TenantGate, TenantLoadFailed } from '@/components/features/tenant/tenant-gate'
 import { Badge } from '@/components/ui/badge'
 import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
