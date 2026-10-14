@@ -408,6 +408,56 @@ test.describe('maintenance surfaces', () => {
   }
 })
 
+/**
+ * The toasts, graded at the toast: the popover surface with a status border and
+ * icon, which no page entry renders. The error toast comes from an OAuth
+ * `?error=` on sign-in, the success toast from resending an invitation on the
+ * harness's members page. Nothing in the app raises a warning toast yet.
+ */
+test.describe('toasts', () => {
+  const TOASTS = [
+    {
+      name: 'error toast',
+      url: '/login?error=google_auth_failed',
+      title: 'Google sign-in failed. Please try again.',
+      raise: async () => {},
+    },
+    {
+      name: 'success toast',
+      url: '/e2e/harness/',
+      title: /^Invitation resent to/,
+      raise: async (page: Page) => {
+        await expect(page.getByRole('heading', { name: 'Pending invitations' })).toBeVisible({
+          timeout: COLD_TRANSFORM_BUDGET_MS,
+        })
+        await page
+          .getByRole('button', { name: /^Resend invitation to/ })
+          .first()
+          .click()
+      },
+    },
+  ] as const
+
+  for (const theme of THEMES) {
+    for (const entry of TOASTS) {
+      test(`the ${entry.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+        await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
+        await page.goto(entry.url)
+        await entry.raise(page)
+        const item = page.getByRole('dialog', { name: entry.title })
+        await expect(item).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
+
+        await afterAnimations(item)
+        await afterFontsAndFrames(page)
+        await page.addScriptTag({ path: AXE_PATH })
+
+        const result = await runAxe(page, '[data-slot="toast"]')
+        expect(report(entry.name, theme, result), report(entry.name, theme, result)).toBe('')
+      })
+    }
+  }
+})
+
 // Pins the suite's isolation: without the fallback in `../hermetic` this refresh goes through the Vite proxy, `answered` stays empty and teardown reports the unstamped response.
 test('a public page gets its bootstrap refresh from the fallback, not the dev server proxy', async ({
   page,
