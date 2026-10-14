@@ -9,6 +9,7 @@ import { MEMBERSHIP_ROLES } from '@/constants/roles'
 import { emailSchema } from '@/schemas/auth.schemas'
 import { hostnameDomain } from '@/schemas/email-domain.schemas'
 import { normalizeMultilineText, notAllowedMessage, safeText } from '@/schemas/safe-text.schemas'
+import { MAX_SLUG_LENGTH, MIN_SLUG_LENGTH, SLUG_PATTERN } from '@/schemas/slug.schemas'
 
 const MAX_TENANT_NAME_LENGTH = 255
 const MAX_TENANT_DESCRIPTION_LENGTH = 1000
@@ -16,8 +17,6 @@ const MAX_TENANT_LOGO_LENGTH = 255
 const MAX_TENANT_WEBSITE_LENGTH = 255
 const MAX_TENANT_TIMEZONE_LENGTH = 64
 const MAX_TENANT_LOCALE_LENGTH = 10
-const MIN_SLUG_LENGTH = 3
-const MAX_SLUG_LENGTH = 100
 
 /**
  * Slugs no tenant may register, mirroring the API's `RESERVED_SLUGS`
@@ -94,7 +93,7 @@ export const slugSchema = z
   .min(MIN_SLUG_LENGTH, `Slug must be at least ${MIN_SLUG_LENGTH} characters.`)
   .max(MAX_SLUG_LENGTH, `Slug must be at most ${MAX_SLUG_LENGTH} characters.`)
   .regex(
-    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+    SLUG_PATTERN,
     'Slug must be lowercase letters, numbers and hyphens, and cannot start or end with a hyphen.'
   )
   .refine((slug) => !RESERVED.has(slug), 'This slug is reserved and cannot be used.')

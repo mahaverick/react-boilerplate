@@ -3,14 +3,15 @@ import { expect, test } from '../hermetic'
 /**
  * The settings nav's disabled Workspace items, which jsdom cannot judge: their
  * classes turn pointer events back on so hovering opens the tooltip in icon
- * mode, and cancel the hover highlight a live item has. A fresh browser has no
- * remembered tenant, so the Workspace items start disabled.
+ * mode, and cancel the hover highlight a live item has. `?state=suspended`
+ * leaves the harness user no eligible tenant, so the URL names none and the
+ * Workspace items are disabled.
  */
 
 test('a disabled workspace item opens its tooltip on hover in icon mode, without a highlight', async ({
   page,
 }) => {
-  await page.goto('/e2e/harness/?path=/settings/account/profile')
+  await page.goto('/e2e/harness/?path=/settings/account/profile&state=suspended')
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible()
 
   const nav = page.getByRole('navigation', { name: 'Settings' })
@@ -28,16 +29,16 @@ test('a disabled workspace item opens its tooltip on hover in icon mode, without
 
   // Playwright will not click an aria-disabled element unless forced; the real mouse click is the point.
   await members.click({ force: true })
-  await expect(page).toHaveURL(/\/settings\/account\/profile$/)
+  await expect(page).toHaveURL(
+    (url) => url.pathname === '/settings/account/profile' && !url.searchParams.has('tenant')
+  )
 })
 
-test('links the workspace items to the last tenant opened', async ({ page }) => {
-  await page.goto('/e2e/harness/?path=/settings/workspace/acme/general')
-  await expect(page.getByRole('heading', { name: 'Settings', level: 2 })).toBeVisible()
-
-  // A new load in the same browser: only the remembered tenant can give the profile page a workspace.
+test('links the workspace items to the tenant the guard puts in the URL', async ({ page }) => {
+  // The harness lists only acme, so this covers the guard's fill and the nav reading the URL, not the remembered-tenant fallback (unit-tested in tenant-in-url.test.tsx).
   await page.goto('/e2e/harness/?path=/settings/account/profile')
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible()
+  await expect(page).toHaveURL((url) => url.searchParams.get('tenant') === 'acme')
   const nav = page.getByRole('navigation', { name: 'Settings' })
   await expect(nav.getByRole('link', { name: 'Members' })).toHaveAttribute(
     'href',

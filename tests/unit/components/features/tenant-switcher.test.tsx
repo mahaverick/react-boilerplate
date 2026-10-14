@@ -178,8 +178,12 @@ describe('TenantSwitcher', () => {
   })
 
   it('says the list is still loading when the popup opens mid-flight', async () => {
-    server.use(http.get('/api/v1/tenants', async () => delay('infinite')))
-    renderShell()
+    // On a tenant page the shell renders without the list: only a page without $slug waits for it, to resolve ?tenant.
+    server.use(
+      http.get('/api/v1/tenants', async () => delay('infinite')),
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.'))
+    )
+    renderShell('/tenants/acme')
     await openSwitcher()
 
     expect(await screen.findByText('Loading tenants…')).toBeInTheDocument()
@@ -249,16 +253,23 @@ describe('TenantSwitcher', () => {
     }
   )
 
-  it('navigates to the chosen tenant', async () => {
+  it('navigates from a tenant page to the chosen tenant', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
+        ok(
+          [
+            { tenant: ACME, role: 'owner', isPlatform: false },
+            { tenant: BETA, role: 'owner', isPlatform: false },
+          ],
+          'Tenants.'
+        )
       ),
       http.get('/api/v1/tenants/acme', () =>
         ok(tenantDetail(ACME, 'owner', 'member'), 'Tenant retrieved.')
-      )
+      ),
+      http.get('/api/v1/tenants/beta', () => ok(tenantDetail(BETA, 'owner'), 'Tenant retrieved.'))
     )
-    const router = renderShell()
+    const router = renderShell('/tenants/beta')
     const user = await openSwitcher()
 
     await user.click(await screen.findByRole('option', { name: 'Acme Corp' }))

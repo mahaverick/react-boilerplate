@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/sidebar'
 import { ROUTES } from '@/constants/routes'
 import { settingsActiveSection } from '@/constants/settings'
+import { useCurrentTenantSlug } from '@/hooks/use-current-tenant-slug'
 import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useTenants } from '@/queries/tenant.queries'
 
@@ -64,10 +65,11 @@ function ownTenantsMessage({
 }
 
 /**
- * A navigation combobox, and nothing else. Tenant scope is the URL: the API
- * resolves the tenant from the `:slug` path param alone, so choosing an option
- * navigates to `/tenants/$slug`; on a workspace settings page it stays on the
- * same section for the chosen tenant.
+ * A navigation combobox, and nothing else. Tenant scope is the URL
+ * (`useCurrentTenantSlug`): a tenant page's `$slug`, else the shell's
+ * `?tenant`. Choosing an option on a workspace settings page opens the same
+ * section for the chosen tenant; on another `$slug` page it opens
+ * `/tenants/$slug`; on any other page it stays and changes only `?tenant`.
  *
  * It lists the caller's memberships, minus the platform tenant (the user menu
  * links that). Staff search every tenant in Apex, not here. A suspended tenant
@@ -87,6 +89,7 @@ export function TenantSwitcher() {
   const { isMobile } = useSidebar()
   const tenants = useTenants()
   const { slug } = useParams({ strict: false })
+  const currentSlug = useCurrentTenantSlug()
   const pathname = useLocation({ select: (location) => location.pathname })
   const section = settingsActiveSection(pathname)
   const [open, setOpen] = useState(false)
@@ -105,7 +108,7 @@ export function TenantSwitcher() {
   const groups: OptionGroup[] =
     ownMatches.length > 0 ? [{ label: 'Your tenants', items: ownMatches }] : []
 
-  const openName = own.find((option) => option.slug === slug)?.name ?? current.data?.name
+  const openName = own.find((option) => option.slug === currentSlug)?.name ?? current.data?.name
   const label = openName ?? 'Choose a tenant'
   const ownMessage = ownTenantsMessage({
     hasData: tenants.data !== undefined,
@@ -137,8 +140,11 @@ export function TenantSwitcher() {
               setQuery('')
               if (section?.group === 'workspace') {
                 void navigate({ to: section.to, params: { slug: option.slug } })
-              } else {
+              } else if (slug !== undefined) {
                 void navigate({ to: '/tenants/$slug', params: { slug: option.slug } })
+              } else {
+                // A push, not a replace, so Back returns to the previous tenant on this page.
+                void navigate({ to: '.', search: (prev) => ({ ...prev, tenant: option.slug }) })
               }
             }}
           >

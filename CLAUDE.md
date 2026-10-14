@@ -34,6 +34,14 @@ from staff without a recent sign-in and a reason
 and reason flow. The member list and pending invitations stay readable.
 Staff who are members of the tenant (`access: 'member'`) keep their controls.
 
+## The current tenant
+
+**Never read the current tenant from `current-tenant.store` in a component; use
+`useCurrentTenantSlug()`.** The URL is the source of truth: a tenant page's
+`$slug`, else the shell's `?tenant`, which `_app`'s guard keeps to an eligible
+tenant. The store is only the guard's fallback, so reading it shows a tenant
+the URL does not ([The current tenant in the URL](ARCHITECTURE.md#the-current-tenant-in-the-url)).
+
 ## Settings
 
 Settings pages are declared in `src/constants/settings.ts`; add a page there and

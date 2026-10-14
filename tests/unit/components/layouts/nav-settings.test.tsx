@@ -17,11 +17,11 @@ import { TENANT_ID } from '@/tests/fixtures/ids'
 import { ok } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
-/** The slug the mocked `useWorkspaceSlug` returns; each test sets it. */
+/** The slug the mocked `useCurrentTenantSlug` returns; each test sets it. */
 const workspace = vi.hoisted(() => ({ slug: null as string | null }))
 
-vi.mock('@/hooks/use-workspace-slug', () => ({
-  useWorkspaceSlug: () => workspace.slug,
+vi.mock('@/hooks/use-current-tenant-slug', () => ({
+  useCurrentTenantSlug: () => workspace.slug,
 }))
 
 /** Shows the provider's drawer state, and opens the drawer, neither of which NavSettings does itself. */

@@ -11,13 +11,13 @@ import {
 } from '@/components/ui/sidebar'
 import { ROUTES } from '@/constants/routes'
 import { SETTINGS_GROUPS, SETTINGS_SECTIONS, settingsActiveSection } from '@/constants/settings'
-import { useWorkspaceSlug } from '@/hooks/use-workspace-slug'
+import { useCurrentTenantSlug } from '@/hooks/use-current-tenant-slug'
 import { useTenants } from '@/queries/tenant.queries'
 
 /**
  * The sidebar's content on settings pages, after Pulse's settings nav: Back
  * to app, then one labelled group per `SETTINGS_GROUPS` entry. Workspace items
- * link to the tenant `useWorkspaceSlug` resolves; with none they are disabled
+ * link to the tenant `useCurrentTenantSlug` reads from the URL; with none they are disabled
  * buttons and the group says to choose a tenant first. Every item names
  * itself in a tooltip while the sidebar is collapsed to icons, and every link
  * closes the mobile drawer. The Workspace label names the tenant when the
@@ -33,7 +33,7 @@ import { useTenants } from '@/queries/tenant.queries'
  */
 export function NavSettings({ pathname }: { pathname: string }) {
   const { isMobile, setOpenMobile } = useSidebar()
-  const slug = useWorkspaceSlug()
+  const slug = useCurrentTenantSlug()
   const tenantName = useTenants().data?.find((entry) => entry.tenant.slug === slug)?.tenant.name
   const active = settingsActiveSection(pathname)
   const hintId = useId()
