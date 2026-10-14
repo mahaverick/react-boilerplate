@@ -45,11 +45,14 @@ The Tailwind 4 spacing base is the default `--spacing: 0.25rem`, so `N` is `N ×
 | `semantic/input-background` | `--input`                                |
 | `semantic/switch-background`| `--input` (no dedicated variable exists) |
 | `semantic/destructive`      | `--destructive`                          |
+| `semantic/success`          | `--success`                              |
+| `semantic/warning`          | `--warning`                              |
 | `chart/1` to `chart/5`      | `--chart-1` to `--chart-5`               |
 
-`semantic/success`, `semantic/warning` and `semantic/info` are **deliberately absent**.
-Nothing renders a status colour, and no component uses an ad-hoc palette class such as
-`green-500`. **When the first status colour is needed, add the token to `globals.css`.
+`--success` and `--warning` exist for the toast's type colours (`ui/toast.tsx`: border and
+icon), each computed at 4.5:1 or better on `--popover` in both themes (the contrast suite
+grades text, not borders or icons). `semantic/info` is **deliberately absent**: nothing
+renders it. No component uses an ad-hoc palette class such as `green-500`. **When another status colour is needed, add the token to `globals.css`.
 Never reach for a palette class.**
 
 `--muted-foreground` is `oklch(0.52 0.021 213.5)`. A lighter value fails contrast against `--muted`;
