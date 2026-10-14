@@ -178,6 +178,7 @@ environment variable.
 | `pnpm test:e2e`       | Playwright `fixtures` project against the MSW harness; no backend needed. CI runs it                                                                                                                                                       |
 | `pnpm test:e2e:live`  | Playwright `live` project; needs express at `E2E_API_ORIGIN` (default :4040); `flags.test.ts` also needs `E2E_FLAGS_SET_CMD` (`<cmd> <key> <value>`; `example_beta_page` on\|off, `example_cta_experiment` control\|bold at 100 % rollout) |
 | `pnpm test:e2e:nginx` | Builds the production image and runs the Playwright `nginx` project against it on :8088, started with the run-time settings CI uses; all but the `@no-api` tests need a live API                                                           |
+| `pnpm e2e:fake-flags` | Fake PostHog flag definitions on 127.0.0.1:4064 (`E2E_FAKE_FLAGS_PORT`) for `live/flags.test.ts`; `scripts/e2e-flags-set.mjs <key> <value>` changes one                                                                                    |
 | `pnpm test:contrast`  | axe colour contrast in a real browser, both themes; no backend needed                                                                                                                                                                      |
 | `pnpm check:bundle`   | Builds in memory; fails on one JS chunk, first-visit JS over budget or holding posthog-js or `@posthog/core`, the error listener over 1 KB gzipped, or devtools in a chunk. CI runs it                                                     |
 | `pnpm prepare`        | Installs the husky git hooks; `pnpm install` runs it                                                                                                                                                                                       |
@@ -201,12 +202,12 @@ contrast is measured elsewhere, is in [CLAUDE.md](CLAUDE.md#accessibility).
 
 Playwright has four projects in `e2e/`:
 
-| Project    | Command               | Runs against                                        | In CI                    |
-| ---------- | --------------------- | --------------------------------------------------- | ------------------------ |
-| `fixtures` | `pnpm test:e2e`       | The real router and CSS, with MSW answering; no API | Yes                      |
-| `live`     | `pnpm test:e2e:live`  | A real express and its services, with `E2E_LIVE=1`  | No                       |
-| `nginx`    | `pnpm test:e2e:nginx` | The production image on :8088                       | Only the `@no-api` tests |
-| `contrast` | `pnpm test:contrast`  | The harness, in both themes; no API                 | No                       |
+| Project    | Command               | Runs against                                        | In CI                         |
+| ---------- | --------------------- | --------------------------------------------------- | ----------------------------- |
+| `fixtures` | `pnpm test:e2e`       | The real router and CSS, with MSW answering; no API | Yes                           |
+| `live`     | `pnpm test:e2e:live`  | A real express and its services, with `E2E_LIVE=1`  | Nightly                       |
+| `nginx`    | `pnpm test:e2e:nginx` | The production image on :8088                       | `@no-api` on PRs; all nightly |
+| `contrast` | `pnpm test:contrast`  | The harness, in both themes; no API                 | No                            |
 
 The `live` and `nginx` projects read these variables (defaults in
 `playwright.config.ts` and the helpers):
@@ -215,7 +216,8 @@ The `live` and `nginx` projects read these variables (defaults in
   Tests read it, never a hardcoded `:4040`.
 - `E2E_NGINX_ORIGIN`: the image under test (default `http://localhost:8088`).
 - `E2E_FLAGS_SET_CMD`: how `live/flags.test.ts` sets a flag; the test fails
-  without it.
+  without it. Against the fake flags host it is the path of
+  `scripts/e2e-flags-set.mjs` (see below).
 - `E2E_API_DIR` (no default): the express checkout whose database the API under
   test uses. `live/platform.test.ts` runs `pnpm platform:grant` there, and any
   checkout will do, `../express-boilerplate` included. The SSE reconnect test
@@ -231,6 +233,52 @@ The `live` and `nginx` projects read these variables (defaults in
 The SSE reconnect test restarts an express, so it runs only by hand, behind a
 guard that refuses to touch the main checkout. The steps and the guard's rules
 are in [CLAUDE.md](CLAUDE.md#end-to-end-tests).
+
+### Nightly live and nginx run
+
+`.github/workflows/e2e-nightly.yml` runs the `live` and `nginx` projects every
+night at 02:17 UTC, and on demand from the Actions tab. It checks out this repo
+into `app/` and express-boilerplate's `main` into `express/`, starts Postgres,
+Redis and Mailpit from express's compose file (project `e2e`), the fake flags
+host, and express on :4040 with `APP_ENV=local` and `RATE_LIMIT_SCALE=10` (one
+runner IP sends every request), then runs `pnpm test:e2e:live` and
+`pnpm test:e2e:nginx`. Both run even when the first fails. It needs no secrets.
+The SSE reconnect test skips itself, and the opt-in analytics tests stay
+skipped.
+
+A red run on `main` opens an issue labelled `e2e-nightly`, or comments on the
+open one, with the run link, the failed steps and the express commit under
+test; the next green run closes it. A run on `main` that is cancelled by hand or
+times out counts as a failure too, and opens or comments on the issue. Each run of
+the suites uploads an `e2e-nightly` artifact, kept 7 days, with both Playwright reports,
+the test results, express's `api.log` and the fake flags host's log.
+
+A manual run on another branch never touches issues, unless its
+`exercise_issue` input is `fail` or `pass`: then the stack and suites are
+skipped, the outcome is forced to that value, and the issue step runs:
+
+```bash
+gh workflow run e2e-nightly.yml --ref <branch> -f exercise_issue=fail
+```
+
+### Running `live/flags.test.ts` locally
+
+1. Start the fake flags host: `pnpm e2e:fake-flags` (127.0.0.1:4064;
+   `E2E_FAKE_FLAGS_PORT` moves it, and the set script reads the same variable).
+2. Give the express under test these three lines in its `.env` and restart it:
+   `POSTHOG_HOST=http://127.0.0.1:4064`,
+   `POSTHOG_PROJECT_KEY=phc_test_key_not_real` and
+   `POSTHOG_FEATURE_FLAGS_KEY=phs_test_key_not_real`. Its analytics then goes
+   to the fake too, which accepts and discards it. Take the lines out
+   afterwards.
+3. Run the test with the set script's path as `E2E_FLAGS_SET_CMD`:
+
+   ```bash
+   E2E_FLAGS_SET_CMD="$PWD/scripts/e2e-flags-set.mjs" pnpm test:e2e:live e2e/live/flags.test.ts
+   ```
+
+   It flips each flag through the fake, then waits up to 45 s for express's
+   30-second definitions fetch.
 
 ## Feature flags
 

@@ -119,8 +119,8 @@ export default tseslint.config(
     },
   },
   {
-    /** Node scripts sit outside every tsconfig, so they are linted syntactically only. */
-    files: ['scripts/**/*.mjs', 'scripts/**/*.d.mts'],
+    /** Node scripts and e2e's Node helpers sit outside every tsconfig, so they are linted syntactically only. */
+    files: ['scripts/**/*.mjs', 'scripts/**/*.d.mts', 'e2e/**/*.mjs', 'e2e/**/*.d.mts'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: { globals: globals.node },
   },
@@ -389,10 +389,10 @@ export default tseslint.config(
   {
     /**
      * Comment style is enforced; see CLAUDE.md. The `.d.mts` files under
-     * scripts/ are listed separately because the brace glob does not reach
+     * scripts/ and e2e/ are listed separately because the brace glob does not reach
      * them, and their JSDoc must be checked too.
      */
-    files: ['**/*.{ts,tsx,js,mjs}', 'scripts/**/*.d.mts'],
+    files: ['**/*.{ts,tsx,js,mjs}', 'scripts/**/*.d.mts', 'e2e/**/*.d.mts'],
     ignores: ['src/components/ui/!(form).tsx'],
     plugins: { local: { rules: { 'comment-style': commentStyleRule } } },
     rules: { 'local/comment-style': 'error' },
@@ -422,7 +422,7 @@ export default tseslint.config(
   },
   {
     // .d.mts mirrors its .mjs exports; a second JSDoc copy would drift.
-    files: ['scripts/**/*.d.mts'],
+    files: ['scripts/**/*.d.mts', 'e2e/**/*.d.mts'],
     rules: { 'jsdoc/require-jsdoc': 'off' },
   },
   {

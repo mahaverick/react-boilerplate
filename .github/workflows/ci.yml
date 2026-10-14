@@ -90,12 +90,13 @@ jobs:
   # enforced Content-Security-Policy, the pre-paint theme script, the
   # run-time configuration, and posthog-js's replay under that policy with no
   # probe value reaching a fake PostHog. The rest of `nginx` needs a live API
-  # and stays local (`pnpm test:e2e:nginx`).
+  # and runs in e2e-nightly.yml, or locally with `pnpm test:e2e:nginx`.
   #
-  # `live` is deliberately NOT here. It needs a real express-boilerplate plus
-  # postgres, redis and mailpit, and registers accounts through the verification
-  # email; that is a service-container job of its own, not a flag on this one.
-  # It stays opt-in behind `E2E_LIVE=1` (`pnpm test:e2e:live`).
+  # `live`, and the `nginx` tests that need an API, are not here: they need a
+  # real express-boilerplate plus postgres, redis and mailpit, and register
+  # accounts through the verification email. e2e-nightly.yml runs both
+  # projects against express's main every night and on demand; locally they
+  # are `pnpm test:e2e:live` and `pnpm test:e2e:nginx`.
   #
   # This job exists because the checks it makes are the ones jsdom cannot:
   # jsdom has no layout and no cascade, so "the webfont actually loaded",
