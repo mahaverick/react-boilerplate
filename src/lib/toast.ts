@@ -18,6 +18,18 @@ export interface ToastOptions {
    * failures shows one toast.
    */
   id?: string
+  /**
+   * A button on the toast. Clicking it runs `onClick`, then closes the toast.
+   */
+  action?: ToastAction
+}
+
+/** A toast's button: its label and what clicking it does. */
+export interface ToastAction {
+  /** The button's text. */
+  label: ReactNode
+  /** Runs when the button is clicked, before the toast closes. */
+  onClick: () => void
 }
 
 /** The toast types the app raises; `@/components/ui/toast` styles each one. */
@@ -97,13 +109,29 @@ export const toastManager: ToastManager = {
   },
 }
 
+/** Numbers the ids given to toasts that carry an action but no `id`. */
+let actionToasts = 0
+
 /**
  * Raises a toast of `type`, or queues it until a mounted `<Toaster>` has
  * replayed the queue. A queued toast with an `id` replaces an earlier queued
- * one with the same id.
+ * one with the same id. A toast with an action gets an id if it has none, so
+ * its button can close it.
  */
 function show(type: ToastType, title: ReactNode, options: ToastOptions = {}): void {
-  const add: ToastManagerAddOptions<object> = { ...options, title, type }
+  const { action, ...rest } = options
+  const add: ToastManagerAddOptions<object> = { ...rest, title, type }
+  if (action) {
+    const id = rest.id ?? `toast-action-${String((actionToasts += 1))}`
+    add.id = id
+    add.actionProps = {
+      children: action.label,
+      onClick: () => {
+        action.onClick()
+        toast.dismiss(id)
+      },
+    }
+  }
   if (live) {
     inner.add(add)
     return

@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   Toast,
   Toaster,
@@ -36,7 +36,7 @@ describe('Toaster', () => {
   it.each([
     ['success', 'text-success'],
     ['error', 'text-destructive'],
-    ['warning', 'text-warning'],
+    ['warning', 'text-warning-strong'],
   ] as const)(
     'renders a %s toast with its title, description and icon',
     async (type, iconClass) => {
@@ -84,6 +84,36 @@ describe('Toaster', () => {
     await user.click(within(item).getByRole('button', { name: 'Close toast' }))
 
     await waitFor(() => expect(item).not.toBeInTheDocument())
+  })
+
+  it('renders an action button that runs its handler and closes the toast', async () => {
+    const user = userEvent.setup()
+    const onClick = vi.fn()
+    render(<Toaster />)
+    act(() => toast.warning('The email was not sent.', { action: { label: 'Resend', onClick } }))
+
+    const item = await findToast('The email was not sent.')
+    await user.hover(item)
+    await user.click(within(item).getByRole('button', { name: 'Resend' }))
+
+    expect(onClick).toHaveBeenCalledOnce()
+    await waitFor(() => expect(item).not.toBeInTheDocument())
+  })
+
+  it('closes only its own toast when an action toast has an id', async () => {
+    const user = userEvent.setup()
+    render(<Toaster />)
+    act(() => {
+      toast.success('Saved.')
+      toast.warning('Not sent.', { id: 'mail', action: { label: 'Retry', onClick: () => {} } })
+    })
+
+    const item = await findToast('Not sent.')
+    await user.hover(item)
+    await user.click(within(item).getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(item).not.toBeInTheDocument())
+    expect(await findToast('Saved.')).toBeInTheDocument()
   })
 
   it('updates the shown toast in place when a raise repeats its id', async () => {
