@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/mahaverick/react-boilerplate/compare/v2.4.0...v3.0.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **toast:** `sonner` is gone. Import `toast` from '@/lib/toast' instead of 'sonner'; `__root.tsx` mounts `<ToastHost />`. Only success, error and warning toasts with `description` and `id` options exist; `toast.getToasts()` has no replacement. The default timeout is Base UI's 5 s (sonner's was 4 s).
+
+### Features
+
+* **toast:** replace sonner with the Base UI toast ([b90d60e](https://github.com/mahaverick/react-boilerplate/commit/b90d60ef4f50ddd0d73578117e1100d9ebe446cd))
+
 ## [2.4.0](https://github.com/mahaverick/react-boilerplate/compare/v2.3.3...v2.4.0) (2026-10-14)
 
 
