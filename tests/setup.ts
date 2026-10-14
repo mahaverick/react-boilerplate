@@ -2,7 +2,8 @@ import '@/lib/zod-jitless'
 import '@testing-library/jest-dom/vitest'
 import { cleanup, configure } from '@testing-library/react'
 import { toHaveNoViolations } from 'jest-axe'
-import { afterAll, afterEach, beforeAll, expect } from 'vitest'
+import { createElement } from 'react'
+import { afterAll, afterEach, beforeAll, expect, vi } from 'vitest'
 import { toast } from '@/lib/toast'
 import { server } from '@/tests/mocks/server'
 
@@ -16,6 +17,23 @@ expect.extend(toHaveNoViolations)
  * assertion rather than being cut off mid-wait.
  */
 configure({ asyncUtilTimeout: 5_000 })
+
+/**
+ * Every `<Toaster>` in the unit tests keeps its toasts for 60 s instead of
+ * Base UI's 5 s, longer than any test runs (`testTimeout` is 20 s), so no
+ * assertion can pass or fail on the auto-dismiss racing it. A toast still
+ * closes through its close button, an action or `toast.dismiss`. A test that
+ * needs the timer passes its own `timeout`. This also reaches the Toaster that
+ * `ToastHost` imports lazily.
+ */
+vi.mock('@/components/ui/toast', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/ui/toast')>()
+  return {
+    ...actual,
+    Toaster: (props: Parameters<typeof actual.Toaster>[0]) =>
+      createElement(actual.Toaster, { timeout: 60_000, ...props }),
+  }
+})
 
 declare module 'vitest' {
   /**

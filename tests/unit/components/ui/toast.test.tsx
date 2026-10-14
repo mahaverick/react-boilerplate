@@ -116,6 +116,58 @@ describe('Toaster', () => {
     expect(await findToast('Saved.')).toBeInTheDocument()
   })
 
+  it('closes an action toast even when its handler throws, and lets the error through', async () => {
+    const user = userEvent.setup()
+    const thrown: unknown[] = []
+    /** Records the click handler's error and keeps jsdom from logging it as uncaught. */
+    const onError = (event: ErrorEvent) => {
+      thrown.push(event.error)
+      event.preventDefault()
+    }
+    window.addEventListener('error', onError)
+    try {
+      render(<Toaster />)
+      act(() =>
+        toast.warning('Not sent.', {
+          action: {
+            label: 'Resend',
+            onClick: () => {
+              throw new Error('resend failed')
+            },
+          },
+        })
+      )
+
+      const item = await findToast('Not sent.')
+      await user.hover(item)
+      await user.click(within(item).getByRole('button', { name: 'Resend' }))
+
+      await waitFor(() => expect(item).not.toBeInTheDocument())
+      expect(thrown).toEqual([expect.objectContaining({ message: 'resend failed' })])
+    } finally {
+      window.removeEventListener('error', onError)
+    }
+  })
+
+  it('drops the old action and description when a live toast is raised again without them', async () => {
+    render(<Toaster />)
+    act(() =>
+      toast.warning('Not sent.', {
+        id: 'mail',
+        description: 'The provider refused it.',
+        action: { label: 'Resend', onClick: () => {} },
+      })
+    )
+    await findToast('Not sent.')
+
+    act(() => toast.success('Sent.', { id: 'mail' }))
+
+    const item = await findToast('Sent.')
+    expect(within(region()).getAllByRole('dialog')).toHaveLength(1)
+    expect(within(item).queryByRole('button', { name: 'Resend' })).toBeNull()
+    expect(within(region()).queryByText('The provider refused it.')).toBeNull()
+  })
+
   it('updates the shown toast in place when a raise repeats its id', async () => {
     render(<Toaster />)
     act(() => toast.error('Changes are paused.', { id: 'read-only' }))

@@ -14,12 +14,14 @@ export interface ToastOptions {
   description?: ReactNode
   /**
    * A key for the toast. Raising a toast with the key of one still showing
-   * replaces it in place and restarts its timer, so a burst of identical
-   * failures shows one toast.
+   * replaces it in place (title, type, description and action alike: what the
+   * new raise leaves out is cleared) and restarts its timer, so a burst of
+   * identical failures shows one toast.
    */
   id?: string
   /**
-   * A button on the toast. Clicking it runs `onClick`, then closes the toast.
+   * A button on the toast. Clicking it runs `onClick`, then closes the toast,
+   * even if `onClick` throws.
    */
   action?: ToastAction
 }
@@ -28,7 +30,10 @@ export interface ToastOptions {
 export interface ToastAction {
   /** The button's text. */
   label: ReactNode
-  /** Runs when the button is clicked, before the toast closes. */
+  /**
+   * Runs when the button is clicked, before the toast closes. If it throws,
+   * the toast still closes and the error propagates to the click handler.
+   */
   onClick: () => void
 }
 
@@ -120,15 +125,25 @@ let actionToasts = 0
  */
 function show(type: ToastType, title: ReactNode, options: ToastOptions = {}): void {
   const { action, ...rest } = options
-  const add: ToastManagerAddOptions<object> = { ...rest, title, type }
+  // Both keys are always set: Base UI merges a raise with a showing toast's id over the old one, so a key left out would keep the old value.
+  const add: ToastManagerAddOptions<object> = {
+    ...rest,
+    title,
+    type,
+    description: rest.description,
+    actionProps: undefined,
+  }
   if (action) {
     const id = rest.id ?? `toast-action-${String((actionToasts += 1))}`
     add.id = id
     add.actionProps = {
       children: action.label,
       onClick: () => {
-        action.onClick()
-        toast.dismiss(id)
+        try {
+          action.onClick()
+        } finally {
+          toast.dismiss(id)
+        }
       },
     }
   }
