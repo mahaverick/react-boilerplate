@@ -1,0 +1,4 @@
+# The nightly workflow's readiness curl once carried the fake flags host's public
+# test key inline (e2e/helpers/fake-flags.mjs); it is not a secret, and the line
+# now reads it from the step env.
+721733b15a9e2d2b5155050eb887f90fc1a8c1b7:.github/workflows/e2e-nightly.yml:curl-auth-header:142

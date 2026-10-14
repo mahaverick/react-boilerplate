@@ -138,11 +138,14 @@ jobs:
         run: docker compose up -d --wait postgres redis mailpit
       - id: fake-flags
         if: env.EXERCISE == 'none'
+        env:
+          # The fake's public test key, not a secret; kept out of the curl line so the curl-auth-header rule has nothing to match.
+          FAKE_FLAGS_KEY: phs_test_key_not_real
         run: |
           node e2e/helpers/fake-flags.mjs > "$RUNNER_TEMP/fake-flags.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/fake-flags.pid"
           for _ in $(seq 1 30); do
-            curl -sf -o /dev/null -H 'Authorization: Bearer phs_test_key_not_real' \
+            curl -sf -o /dev/null -H "Authorization: Bearer $FAKE_FLAGS_KEY" \
               'http://127.0.0.1:4064/flags/definitions?token=phc_test_key_not_real' && exit 0
             sleep 1
           done
