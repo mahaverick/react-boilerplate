@@ -14,10 +14,27 @@ export interface ToastOptions {
   description?: ReactNode
   /**
    * A key for the toast. Raising a toast with the key of one still showing
-   * replaces it in place and restarts its timer, so a burst of identical
-   * failures shows one toast.
+   * replaces it in place (title, type, description and action alike: what the
+   * new raise leaves out is cleared) and restarts its timer, so a burst of
+   * identical failures shows one toast.
    */
   id?: string
+  /**
+   * A button on the toast. Clicking it runs `onClick`, then closes the toast,
+   * even if `onClick` throws.
+   */
+  action?: ToastAction
+}
+
+/** A toast's button: its label and what clicking it does. */
+export interface ToastAction {
+  /** The button's text. */
+  label: ReactNode
+  /**
+   * Runs when the button is clicked, before the toast closes. If it throws,
+   * the toast still closes and the error propagates to the click handler.
+   */
+  onClick: () => void
 }
 
 /** The toast types the app raises; `@/components/ui/toast` styles each one. */
@@ -97,13 +114,39 @@ export const toastManager: ToastManager = {
   },
 }
 
+/** Numbers the ids given to toasts that carry an action but no `id`. */
+let actionToasts = 0
+
 /**
  * Raises a toast of `type`, or queues it until a mounted `<Toaster>` has
  * replayed the queue. A queued toast with an `id` replaces an earlier queued
- * one with the same id.
+ * one with the same id. A toast with an action gets an id if it has none, so
+ * its button can close it.
  */
 function show(type: ToastType, title: ReactNode, options: ToastOptions = {}): void {
-  const add: ToastManagerAddOptions<object> = { ...options, title, type }
+  const { action, ...rest } = options
+  // Both keys are always set: Base UI merges a raise with a showing toast's id over the old one, so a key left out would keep the old value.
+  const add: ToastManagerAddOptions<object> = {
+    ...rest,
+    title,
+    type,
+    description: rest.description,
+    actionProps: undefined,
+  }
+  if (action) {
+    const id = rest.id ?? `toast-action-${String((actionToasts += 1))}`
+    add.id = id
+    add.actionProps = {
+      children: action.label,
+      onClick: () => {
+        try {
+          action.onClick()
+        } finally {
+          toast.dismiss(id)
+        }
+      },
+    }
+  }
   if (live) {
     inner.add(add)
     return

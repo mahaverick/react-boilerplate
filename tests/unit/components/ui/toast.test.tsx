@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   Toast,
   Toaster,
@@ -36,7 +36,7 @@ describe('Toaster', () => {
   it.each([
     ['success', 'text-success'],
     ['error', 'text-destructive'],
-    ['warning', 'text-warning'],
+    ['warning', 'text-warning-strong'],
   ] as const)(
     'renders a %s toast with its title, description and icon',
     async (type, iconClass) => {
@@ -84,6 +84,88 @@ describe('Toaster', () => {
     await user.click(within(item).getByRole('button', { name: 'Close toast' }))
 
     await waitFor(() => expect(item).not.toBeInTheDocument())
+  })
+
+  it('renders an action button that runs its handler and closes the toast', async () => {
+    const user = userEvent.setup()
+    const onClick = vi.fn()
+    render(<Toaster />)
+    act(() => toast.warning('The email was not sent.', { action: { label: 'Resend', onClick } }))
+
+    const item = await findToast('The email was not sent.')
+    await user.hover(item)
+    await user.click(within(item).getByRole('button', { name: 'Resend' }))
+
+    expect(onClick).toHaveBeenCalledOnce()
+    await waitFor(() => expect(item).not.toBeInTheDocument())
+  })
+
+  it('closes only its own toast when an action toast has an id', async () => {
+    const user = userEvent.setup()
+    render(<Toaster />)
+    act(() => {
+      toast.success('Saved.')
+      toast.warning('Not sent.', { id: 'mail', action: { label: 'Retry', onClick: () => {} } })
+    })
+
+    const item = await findToast('Not sent.')
+    await user.hover(item)
+    await user.click(within(item).getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(item).not.toBeInTheDocument())
+    expect(await findToast('Saved.')).toBeInTheDocument()
+  })
+
+  it('closes an action toast even when its handler throws, and lets the error through', async () => {
+    const user = userEvent.setup()
+    const thrown: unknown[] = []
+    /** Records the click handler's error and keeps jsdom from logging it as uncaught. */
+    const onError = (event: ErrorEvent) => {
+      thrown.push(event.error)
+      event.preventDefault()
+    }
+    window.addEventListener('error', onError)
+    try {
+      render(<Toaster />)
+      act(() =>
+        toast.warning('Not sent.', {
+          action: {
+            label: 'Resend',
+            onClick: () => {
+              throw new Error('resend failed')
+            },
+          },
+        })
+      )
+
+      const item = await findToast('Not sent.')
+      await user.hover(item)
+      await user.click(within(item).getByRole('button', { name: 'Resend' }))
+
+      await waitFor(() => expect(item).not.toBeInTheDocument())
+      expect(thrown).toEqual([expect.objectContaining({ message: 'resend failed' })])
+    } finally {
+      window.removeEventListener('error', onError)
+    }
+  })
+
+  it('drops the old action and description when a live toast is raised again without them', async () => {
+    render(<Toaster />)
+    act(() =>
+      toast.warning('Not sent.', {
+        id: 'mail',
+        description: 'The provider refused it.',
+        action: { label: 'Resend', onClick: () => {} },
+      })
+    )
+    await findToast('Not sent.')
+
+    act(() => toast.success('Sent.', { id: 'mail' }))
+
+    const item = await findToast('Sent.')
+    expect(within(region()).getAllByRole('dialog')).toHaveLength(1)
+    expect(within(item).queryByRole('button', { name: 'Resend' })).toBeNull()
+    expect(within(region()).queryByText('The provider refused it.')).toBeNull()
   })
 
   it('updates the shown toast in place when a raise repeats its id', async () => {

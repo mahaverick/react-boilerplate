@@ -275,7 +275,7 @@ the component is added again.
   `className`, so a caller cannot unmask a toast; top-right anchoring (`top-4`,
   `top-0 origin-top`, every Y offset sign-flipped, `swipeDirection` up and
   right); the `data-[type=…]` border and icon colours on `--success`,
-  `--warning` and `--destructive`; the viewport's `aria-label="Status messages"`
+  `--warning-strong` and `--destructive`; the viewport's `aria-label="Status messages"`
   (Base UI's default, "Notifications", names the app's notifications feature);
   and `<Toaster>` defaulting to `toastManager` from `@/lib/toast` instead of a
   manager of its own. `tests/unit/components/ui/toast.test.tsx` fails without the
