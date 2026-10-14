@@ -14,7 +14,7 @@ import { PII_CLASS_NAME } from '@/observability/telemetry'
 
 /** The toast region Base UI renders, which every toast sits in. */
 function region(): HTMLElement {
-  return screen.getByRole('region', { name: 'Notifications' })
+  return screen.getByRole('region', { name: 'Status messages' })
 }
 
 /** The toast whose title is `title`: Base UI names each toast's dialog by its title. */
@@ -62,7 +62,7 @@ describe('Toaster', () => {
   it('keeps the mask when a caller passes its own className', async () => {
     render(
       <ToastProvider toastManager={toastManager}>
-        <ToastViewport>
+        <ToastViewport aria-label="Status messages">
           <ExtraClassList />
         </ToastViewport>
       </ToastProvider>
@@ -86,15 +86,16 @@ describe('Toaster', () => {
     await waitFor(() => expect(item).not.toBeInTheDocument())
   })
 
-  it('shows one toast for repeated raises with the same id', async () => {
+  it('updates the shown toast in place when a raise repeats its id', async () => {
     render(<Toaster />)
-    act(() => {
-      toast.error('Changes are paused.', { id: 'read-only' })
-      toast.error('Changes are paused.', { id: 'read-only' })
-      toast.error('Changes are paused.', { id: 'read-only' })
-    })
-
+    act(() => toast.error('Changes are paused.', { id: 'read-only' }))
     await findToast('Changes are paused.')
+
+    act(() => toast.error('Still paused.', { id: 'read-only', description: 'Try again soon.' }))
+
+    const item = await findToast('Still paused.')
+    expect(item).toHaveAccessibleDescription('Try again soon.')
     expect(within(region()).getAllByRole('dialog')).toHaveLength(1)
+    expect(within(region()).queryByText('Changes are paused.')).toBeNull()
   })
 })

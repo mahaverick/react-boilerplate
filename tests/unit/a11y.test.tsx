@@ -466,11 +466,17 @@ describe('signed-out pages', () => {
     await expectNoViolations()
   })
 
-  // The toast region is portalled to `document.body`, outside every other landmark, so it is graded at document scope.
-  it('login with an OAuth error toast open has no axe violations, collapsed or expanded', async () => {
+  /**
+   * The toast region is portalled to `document.body`, outside every other landmark, so it is
+   * graded at document scope. While the stack is collapsed, Base UI renders the close button
+   * `aria-hidden` yet tabbable; axe's `aria-hidden-focus` lands in `incomplete` under jsdom
+   * (`KNOWN_INCOMPLETE`), so this gate does not clear that state. It is accepted upstream
+   * behaviour: Tab reaches the toast first, which expands the stack and un-hides the button.
+   */
+  it('login with an OAuth error toast open has no axe violations', async () => {
     const user = userEvent.setup()
     renderAppAt('/login?error=google_auth_failed')
-    const region = await screen.findByRole('region', { name: 'Notifications' })
+    const region = await screen.findByRole('region', { name: 'Status messages' })
     const item = await within(region).findByRole('dialog', {
       name: 'Google sign-in failed. Please try again.',
     })

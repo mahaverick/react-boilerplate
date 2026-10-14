@@ -203,7 +203,7 @@ function Toaster({
     <ToastProvider toastManager={manager} {...props}>
       {children}
       <ToastPortal>
-        <ToastViewport>
+        <ToastViewport aria-label="Status messages">
           <ToastList />
         </ToastViewport>
       </ToastPortal>

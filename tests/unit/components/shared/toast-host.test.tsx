@@ -33,9 +33,9 @@ describe('ToastHost', () => {
 
     render(<ToastHost />)
     // Suspense shows nothing until the chunk resolves, so no region exists yet.
-    expect(screen.queryByRole('region', { name: 'Notifications' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Status messages' })).toBeNull()
 
-    const region = await screen.findByRole('region', { name: 'Notifications' })
+    const region = await screen.findByRole('region', { name: 'Status messages' })
     const early = await within(region).findByRole('dialog', {
       name: 'Raised before the toast UI loaded.',
     })
@@ -68,6 +68,6 @@ describe('ToastHost', () => {
 
     expect(screen.getByText('the page')).toBeInTheDocument()
     expect(screen.queryByText('boundary caught')).toBeNull()
-    expect(screen.queryByRole('region', { name: 'Notifications' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Status messages' })).toBeNull()
   })
 })

@@ -273,13 +273,18 @@ the component is added again.
   the dropdown `min-w-24`. `toast.tsx`: Tabler icons for the registry's
   `IconPlaceholder`; `PII_CLASS_NAME` last in the root's `cn(...)`, after
   `className`, so a caller cannot unmask a toast; top-right anchoring (`top-4`,
-  `top-0 origin-top`, every Y offset sign-flipped, `swipeDirection={["up",
-"right"]}`); the `data-[type=…]` border and icon colours on `--success`,
-  `--warning` and `--destructive`; and `<Toaster>` defaulting to `toastManager`
-  from `@/lib/toast` instead of a manager of its own. `tests/unit/components/ui/toast.test.tsx`
-  fails without the mask, the icon colours or the shared manager. `shadcn init` also overwrites
-  `src/lib/utils.ts` and `src/hooks/use-mobile.ts`, and resets `--muted-foreground`
-  and `--destructive` in `globals.css`, which `pnpm test:contrast` then fails.
+  `top-0 origin-top`, every Y offset sign-flipped, `swipeDirection` up and
+  right); the `data-[type=…]` border and icon colours on `--success`,
+  `--warning` and `--destructive`; the viewport's `aria-label="Status messages"`
+  (Base UI's default, "Notifications", names the app's notifications feature);
+  and `<Toaster>` defaulting to `toastManager` from `@/lib/toast` instead of a
+  manager of its own. `tests/unit/components/ui/toast.test.tsx` fails without the
+  mask, the icon colours, the label or the shared manager. Base UI keeps the close
+  button `aria-hidden` but tabbable while the stack is collapsed; that is accepted
+  upstream behaviour, since Tab reaches the toast first and expands it.
+  `shadcn init` also overwrites `src/lib/utils.ts` and `src/hooks/use-mobile.ts`,
+  and resets `--muted-foreground` and `--destructive` in `globals.css`, which
+  `pnpm test:contrast` then fails.
   Every Tabler icon in `src/components/ui/` carries `aria-hidden="true"` (the
   guard test `tests/unit/ui-icons-aria-hidden.test.ts` fails otherwise); the
   combobox clear and chip-remove buttons carry `aria-label` for the same reason.

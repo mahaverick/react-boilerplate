@@ -15,7 +15,7 @@ describe('toast isolation between tests', () => {
     act(() => toast.success('This test’s own toast'))
 
     // The queue replays on the Toaster's subscribe, before this test's toast; once this one shows, a replayed one would too.
-    const region = screen.getByRole('region', { name: 'Notifications' })
+    const region = screen.getByRole('region', { name: 'Status messages' })
     await within(region).findByRole('dialog', { name: 'This test’s own toast' })
     expect(within(region).getAllByRole('dialog')).toHaveLength(1)
   })
