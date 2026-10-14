@@ -40,11 +40,11 @@ test(
   async ({ page, request }) => {
     const onDemand = await recordOnDemandChunks(page, request)
     const violations = await watchCspViolations(page)
-    const response = await page.goto('/login')
+    // An OAuth `?error=` raises a toast, so the lazy toast chunk loads and renders under the policy too. Nothing here injects a <style> any more: Base UI's Select does, behind sign-in, out of reach `@no-api`.
+    const response = await page.goto('/login?error=google_auth_failed')
     expect(response?.headers()['content-security-policy']).toBe(CONTENT_SECURITY_POLICY)
     await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
-    // sonner injects a <style> element: the page really exercised style-src.
-    await expect(page.locator('head style')).not.toHaveCount(0)
+    await expect(page.getByText('Google sign-in failed. Please try again.')).toBeVisible()
     // The heading means the refresh has settled and the route's lazy chunk has run; a late violation can still come from the webfont or a lazy chunk, so wait for the fonts and one page task.
     await expect.poll(() => onDemand.length).toBeGreaterThan(0)
     await afterFontsAndFrames(page)

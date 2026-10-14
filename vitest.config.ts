@@ -36,8 +36,8 @@ export default defineConfig({
       include: ['src/**/*.{ts,tsx}'],
       /**
        * The generated route tree, the mount-only entry, the dev-only devtools
-       * and the vendored shadcn files, by name: form.tsx and sonner.tsx in ui/
-       * are ours and measured.
+       * and the vendored shadcn files, by name: form.tsx in ui/ is ours and
+       * measured.
        */
       exclude: [
         'src/routeTree.gen.ts',
@@ -45,7 +45,7 @@ export default defineConfig({
         'src/components/dev/devtools.tsx',
         'src/components/ui/{alert-dialog,avatar,badge,breadcrumb,button,card,collapsible,combobox,dialog,dropdown-menu}.tsx',
         'src/components/ui/{field,input,input-group,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
-        'src/components/ui/{table,tabs,textarea,tooltip}.tsx',
+        'src/components/ui/{table,tabs,textarea,toast,tooltip}.tsx',
       ],
       /** About ten points under the measured coverage, so a large drop fails CI. */
       thresholds: { statements: 88, branches: 82, functions: 86, lines: 89 },

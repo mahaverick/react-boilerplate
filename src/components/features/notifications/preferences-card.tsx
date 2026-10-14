@@ -1,10 +1,10 @@
 import { useId } from 'react'
-import { toast } from 'sonner'
 import { LoadError } from '@/components/features/load-error'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { humanizeNotificationType } from '@/lib/notification-type'
+import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
 import {
   usePreferences,

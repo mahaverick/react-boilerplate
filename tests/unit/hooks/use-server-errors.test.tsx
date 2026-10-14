@@ -2,7 +2,6 @@ import { useForm } from '@tanstack/react-form'
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, AxiosHeaders } from 'axios'
-import { toast } from 'sonner'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   Form,
@@ -17,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { READ_ONLY_TOAST_ID } from '@/constants/maintenance-mode'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
+import { toast } from '@/lib/toast'
 
 /** A 400 carrying detail for one field and one schema-level issue. */
 function validationFailure(): AxiosError {

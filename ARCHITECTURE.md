@@ -19,8 +19,8 @@ src/
     dev/        TanStack devtools, development builds only
     features/   composed, app-specific pieces
     layouts/    the signed-out shell (AuthLayout, AuthCard) and the signed-in one (AppLayout, NavMain)
-    shared/     app-wide pieces that are not shadcn output (<Pii>)
-    ui/         vendored shadcn output, plus the hand-written form.tsx and sonner.tsx
+    shared/     app-wide pieces that are not shadcn output (<Pii>, the lazy <ToastHost>)
+    ui/         vendored shadcn output (toast.tsx with local edits), plus the hand-written form.tsx
   configs/      the run-time configuration (getRuntimeConfig)
   constants/    routes and the API prefix, roles, maintenance-mode constants
   hooks/        use-* hooks, the notification stream among them
@@ -113,7 +113,15 @@ token is memory-only, so every page load starts signed out and restores the
 session this way ([Token storage and refresh](SECURITY.md#token-storage-and-refresh)).
 
 The root route's component renders the page inside `MaintenanceGate`, plus
-the toaster and the analytics consent banner. Beside the router,
+the toast host and the analytics consent banner. The toast UI
+(`src/components/ui/toast.tsx`) is a lazy chunk that `ToastHost` fetches when
+the root route first renders. `toast.*` from `src/lib/toast.ts` is small and
+outside that chunk; it queues the newest ten toasts raised before the UI has
+mounted, and those raised in its first 100 ms, and replays them in order once
+the empty live region has been in the document for that long, so they are not
+inserted together with the region, which screen readers often skip. A failed
+chunk load is reported as a `chunk_load` error and leaves the page without
+toasts. Beside the router,
 `src/main.tsx` mounts the TanStack Query and Router devtools, which load only
 in development; a production build drops them.
 
@@ -700,7 +708,7 @@ request, and the description says what happened there.
 | `src/lib/api-error.ts`                                                                                                                                                                                                                                         | Error envelope parsing                                                                                                 |
 | `src/schemas/auth.schemas.ts`, `src/schemas/safe-text.schemas.ts`                                                                                                                                                                                              | Mirror the API's validators                                                                                            |
 | `src/schemas/profile.schemas.ts`, `src/schemas/invitation.schemas.ts`, `src/schemas/email-domain.schemas.ts` and their tests in `tests/unit/schemas/`                                                                                                          | Mirror the API's validators                                                                                            |
-| `src/components/ui/form.tsx`, `src/components/ui/sonner.tsx`                                                                                                                                                                                                   | Hand-written, shared behaviour                                                                                         |
+| `src/components/ui/form.tsx`, `src/components/ui/toast.tsx`, `src/lib/toast.ts`, `src/components/shared/toast-host.tsx`                                                                                                                                        | Shared behaviour; form.tsx is hand-written, toast.tsx is vendored with local edits                                     |
 | `nginx.conf` security headers and CSP, `location /api/v1/collect/` and `location ~* ^/api/v1/auth/google/callback/?$`, `tests/unit/docker/nginx-conf.test.ts` (react's also covers the stream location)                                                        | Same threat model; same replay batch size                                                                              |
 | `src/observability/telemetry/*`, except `config.ts`'s per-app constants and `event-registry.ts`'s registry                                                                                                                                                     | One PII, consent, handoff and identity contract                                                                        |
 | `src/components/shared/pii.tsx`, `e2e/helpers/fake-posthog.ts`, `tests/mocks/posthog.ts`                                                                                                                                                                       | The masking class, the egress guard's fake PostHog, and the posthog-js stand-in the unit tests share                   |

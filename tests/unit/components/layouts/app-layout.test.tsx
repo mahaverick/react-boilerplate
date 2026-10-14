@@ -643,7 +643,7 @@ describe('AppLayout system theme', () => {
 
     unmount()
     document.documentElement.classList.remove('dark')
-    // Asserted by behaviour, not by counting listeners: sonner's <Toaster> registers on the same query, so the count is never just ours.
+    // Asserted by behaviour, not by counting listeners: a count would include any other subscriber to the query, so it could not tell which one is the layout's.
     osSwitchesTo(true)
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })

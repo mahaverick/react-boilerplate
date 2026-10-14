@@ -1,6 +1,6 @@
 import { useId } from 'react'
-import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
+import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
 import {
   getAnalyticsConfig,

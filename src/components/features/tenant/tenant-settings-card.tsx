@@ -1,5 +1,4 @@
 import { useForm } from '@tanstack/react-form'
-import { toast } from 'sonner'
 import { z } from 'zod'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { Button } from '@/components/ui/button'
@@ -21,6 +20,7 @@ import { canManageTenant } from '@/constants/roles'
 import { useChangedFields } from '@/hooks/use-changed-fields'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
+import { toast } from '@/lib/toast'
 import {
   useMyRole,
   useTenantSettings,

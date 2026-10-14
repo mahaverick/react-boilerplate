@@ -30,6 +30,11 @@
      dialog; the preset's 0.577 measures 4:1 there. 0.48 clears 4.5:1. */
   --destructive: oklch(0.48 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
+  /* Status colours for the toast's border and icon (`ui/toast.tsx`). Each
+     clears 4.5:1 on --popover in its theme (success 5.6:1, warning 5:1 here;
+     9.2:1 and 10.1:1 in dark), so either may also carry text. */
+  --success: oklch(0.5 0.13 150);
+  --warning: oklch(0.55 0.13 70);
   --border: oklch(0.925 0.005 214.3);
   --input: oklch(0.925 0.005 214.3);
   --ring: oklch(0.723 0.014 214.4);
@@ -67,6 +72,8 @@
   /* The preset's 0.704 measures 4.48:1 on the --destructive/20 hover fill. */
   --destructive: oklch(0.75 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.78 0.16 150);
+  --warning: oklch(0.83 0.15 80);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.56 0.021 213.5);
@@ -102,6 +109,8 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

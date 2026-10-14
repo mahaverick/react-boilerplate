@@ -1,5 +1,4 @@
 import { useForm } from '@tanstack/react-form'
-import { toast } from 'sonner'
 import type { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,6 +28,7 @@ import {
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { codeFrom, messageFrom } from '@/lib/api-error'
+import { toast } from '@/lib/toast'
 import { SIGN_IN_AGAIN } from '@/lib/write-failure'
 import { useInviteMember } from '@/queries/tenant.queries'
 import { inviteMemberSchema } from '@/schemas/tenant.schemas'

@@ -5,7 +5,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import { toast } from 'sonner'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { InviteMemberForm } from '@/components/features/tenant/invite-member-form'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
@@ -52,6 +51,7 @@ import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { useFocusAfter } from '@/hooks/use-focus-after'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { statusFrom } from '@/lib/api-error'
+import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
 import {
   dropTenantCache,

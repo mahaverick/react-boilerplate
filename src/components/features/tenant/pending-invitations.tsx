@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
 import { LoadError } from '@/components/features/load-error'
 import { Pii } from '@/components/shared/pii'
 import {
@@ -20,6 +19,7 @@ import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants
 import { useFocusAfter } from '@/hooks/use-focus-after'
 import { codeFrom } from '@/lib/api-error'
 import { formatDate } from '@/lib/format'
+import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
 import { inviterName } from '@/queries/invitation.queries'
 import { useInvitations, useResendInvitation, useRevokeInvitation } from '@/queries/tenant.queries'

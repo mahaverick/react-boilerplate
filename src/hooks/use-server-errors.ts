@@ -1,8 +1,8 @@
 import * as React from 'react'
 import { flushSync } from 'react-dom'
-import { toast } from 'sonner'
 import { READ_ONLY_TOAST_ID } from '@/constants/maintenance-mode'
 import { codeFrom, fieldErrorsFrom, formErrorsFrom, messageFrom } from '@/lib/api-error'
+import { toast } from '@/lib/toast'
 import { READ_ONLY_MODE } from '@/types/api.types'
 
 /**

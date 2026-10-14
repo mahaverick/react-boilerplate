@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react-router'
 import { ConsentBanner } from '@/components/features/consent/consent-banner'
 import { MaintenanceGate } from '@/components/features/maintenance/maintenance-gate'
-import { Toaster } from '@/components/ui/sonner'
+import { ToastHost } from '@/components/shared/toast-host'
 import { APP_NAME } from '@/constants/app'
 import { bootstrapSession } from '@/router'
 
@@ -40,7 +40,7 @@ function RootComponent() {
       <MaintenanceGate>
         <Outlet />
       </MaintenanceGate>
-      <Toaster position="top-right" richColors closeButton />
+      <ToastHost />
       <ConsentBanner />
     </>
   )
