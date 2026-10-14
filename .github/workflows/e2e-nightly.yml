@@ -1,0 +1,297 @@
+name: Nightly e2e
+
+# The `live` and `nginx` Playwright projects against express-boilerplate's
+# main, every night and on demand. Not a required check, and never run on a
+# pull request. A red run on main opens an issue labelled e2e-nightly, or
+# comments on the open one; a green run closes it. README.md, "Nightly live
+# and nginx run", describes it.
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      exercise_issue:
+        description: 'none runs the suites; fail or pass skips them, forces that outcome and runs the issue step on any branch'
+        type: choice
+        options: [none, fail, pass]
+        default: none
+
+# One run at a time; a run in progress is never cancelled.
+concurrency:
+  group: e2e-nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # A schedule run has no inputs, so the input is empty there.
+      EXERCISE: ${{ inputs.exercise_issue || 'none' }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      # This repo in app/ and express in express/, side by side, so neither
+      # lands in the other's Docker build context or Vite's file scan.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.EXERCISE == 'none'
+        with:
+          path: app
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        id: express
+        if: env.EXERCISE == 'none'
+        with:
+          repository: mahaverick/express-boilerplate
+          ref: main
+          path: express
+          persist-credentials: false
+      - id: express-sha
+        if: env.EXERCISE == 'none'
+        working-directory: express
+        run: |
+          sha=$(git rev-parse HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "express-boilerplate main under test: $sha" >> "$GITHUB_STEP_SUMMARY"
+      # BEFORE setup-node: `cache: pnpm` needs the pnpm binary on PATH. Both
+      # repos pin the same pnpm in packageManager; this reads the app's.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: env.EXERCISE == 'none'
+        with:
+          package_json_file: app/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: env.EXERCISE == 'none'
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            app/pnpm-lock.yaml
+            express/pnpm-lock.yaml
+      - id: install
+        if: env.EXERCISE == 'none'
+        run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: '0'
+      - id: express-install
+        if: env.EXERCISE == 'none'
+        working-directory: express
+        run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: '0'
+      # The same key as ci.yml's e2e job, so both share one browser cache.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
+        if: env.EXERCISE == 'none'
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('app/pnpm-lock.yaml') }}
+      - id: browsers
+        if: env.EXERCISE == 'none' && steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - id: browser-deps
+        if: env.EXERCISE == 'none' && steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+      # Written here, never from a secret: every value is local and throwaway.
+      # COMPOSE_PROJECT_NAME names the compose project `docker compose` finds
+      # from ./express. RATE_LIMIT_SCALE gives headroom to the per-IP budgets
+      # that every request from this one runner shares. No CORS allowlist:
+      # nginx/cors.test.ts expects the default. The POSTHOG_* lines point
+      # express at the fake flags host, which also takes its analytics.
+      - id: env
+        if: env.EXERCISE == 'none'
+        working-directory: express
+        run: |
+          jwt=$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")
+          session=$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")
+          cat > .env <<EOF
+          COMPOSE_PROJECT_NAME=e2e
+          APP_ENV=local
+          NODE_ENV=development
+          APP_PORT=4040
+          APP_URL=http://localhost:4040
+          WEB_URL=http://localhost:5173
+          APEX_URL=http://localhost:5174
+          DATABASE_URL=postgres://boilerplate:boilerplate@localhost:5433/boilerplate
+          REDIS_URL=redis://localhost:6380
+          SMTP_HOST=127.0.0.1
+          SMTP_PORT=1025
+          JWT_ACCESS_SECRET=$jwt
+          SESSION_SECRET=$session
+          WORKER_ENABLED=true
+          RATE_LIMIT_SCALE=10
+          POSTHOG_HOST=http://127.0.0.1:4064
+          POSTHOG_ASSETS_HOST=http://127.0.0.1:4064
+          POSTHOG_PROJECT_KEY=phc_test_key_not_real
+          POSTHOG_FEATURE_FLAGS_KEY=phs_test_key_not_real
+          EOF
+      - id: stack
+        if: env.EXERCISE == 'none'
+        working-directory: express
+        run: docker compose up -d --wait postgres redis mailpit
+      - id: fake-flags
+        if: env.EXERCISE == 'none'
+        run: |
+          node e2e/helpers/fake-flags.mjs > fake-flags.log 2>&1 &
+          echo $! > fake-flags.pid
+          for _ in $(seq 1 30); do
+            curl -sf -o /dev/null -H 'Authorization: Bearer phs_test_key_not_real' \
+              'http://127.0.0.1:4064/flags/definitions?token=phc_test_key_not_real' && exit 0
+            sleep 1
+          done
+          cat fake-flags.log
+          exit 1
+      # /health/ready answers once Postgres and Redis do, not only the process.
+      - id: api
+        if: env.EXERCISE == 'none'
+        working-directory: express
+        run: |
+          pnpm build
+          node dist/database/migrate.js
+          node dist/index.js > api.log 2>&1 &
+          echo $! > api.pid
+          for _ in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:4040/health/ready && exit 0
+            sleep 1
+          done
+          cat api.log
+          exit 1
+      - id: live
+        if: always() && env.EXERCISE == 'none' && steps.api.outcome == 'success'
+        run: pnpm test:e2e:live
+        env:
+          E2E_API_DIR: ${{ github.workspace }}/express
+          E2E_FLAGS_SET_CMD: ${{ github.workspace }}/app/scripts/e2e-flags-set.mjs
+      # test:e2e:nginx writes the same two directories, so live's move out of
+      # app/, which is also that script's Docker build context.
+      - if: always() && env.EXERCISE == 'none'
+        run: |
+          if [ -d playwright-report ]; then mv playwright-report "$GITHUB_WORKSPACE/live-playwright-report"; fi
+          if [ -d test-results ]; then mv test-results "$GITHUB_WORKSPACE/live-test-results"; fi
+      - id: nginx
+        if: always() && env.EXERCISE == 'none' && steps.api.outcome == 'success'
+        run: pnpm test:e2e:nginx
+        env:
+          E2E_API_DIR: ${{ github.workspace }}/express
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && env.EXERCISE == 'none'
+        with:
+          name: e2e-nightly
+          path: |
+            live-playwright-report/
+            live-test-results/
+            app/playwright-report/
+            app/test-results/
+            app/fake-flags.log
+            express/api.log
+          retention-days: 7
+          if-no-files-found: ignore
+      - if: always() && env.EXERCISE == 'none'
+        working-directory: express
+        run: |
+          if [ -f api.pid ]; then kill "$(cat api.pid)" || true; fi
+          if [ -f ../app/fake-flags.pid ]; then kill "$(cat ../app/fake-flags.pid)" || true; fi
+          docker compose down -v || true
+      - name: Open, comment on or close the e2e-nightly issue
+        if: always() && (env.EXERCISE != 'none' || github.ref == 'refs/heads/main')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          JOB_STATUS: ${{ job.status }}
+          STEPS_JSON: ${{ toJSON(steps) }}
+          EXPRESS_SHA: ${{ steps.express-sha.outputs.sha }}
+        with:
+          script: |
+            const label = 'e2e-nightly'
+            const { owner, repo } = context.repo
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`
+            const exercise = process.env.EXERCISE
+            const failed =
+              exercise === 'none' ? process.env.JOB_STATUS !== 'success' : exercise === 'fail'
+            const failedSteps = Object.entries(JSON.parse(process.env.STEPS_JSON))
+              .filter(([, step]) => step.outcome === 'failure')
+              .map(([id]) => `\`${id}\``)
+            const why =
+              exercise !== 'none'
+                ? `none: exercise_issue=${exercise} skipped the suites`
+                : failedSteps.length > 0
+                  ? failedSteps.join(', ')
+                  : 'none recorded: the run was cancelled or timed out'
+            const details = [
+              `- Run: ${runUrl}`,
+              `- Failed steps: ${why}`,
+              `- ${repo} commit: ${context.sha}`,
+              `- express-boilerplate main: ${process.env.EXPRESS_SHA || 'not checked out'}`,
+            ].join('\n')
+
+            try {
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name: label,
+                color: 'b60205',
+                description: 'Opened by the nightly live and nginx e2e workflow',
+              })
+            } catch (error) {
+              // 422: the label exists already.
+              if (error.status !== 422) throw error
+            }
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              labels: label,
+              per_page: 10,
+            })
+            const issue = open.find((item) => !item.pull_request)
+
+            if (failed && issue) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body: `Still failing.\n\n${details}`,
+              })
+              core.notice(`Commented on #${issue.number}`)
+            } else if (failed) {
+              const { data: created } = await github.rest.issues.create({
+                owner,
+                repo,
+                title: 'Nightly e2e failed',
+                labels: [label],
+                body: [
+                  'The nightly live and nginx e2e run failed.',
+                  '',
+                  details,
+                  '',
+                  "The run's `e2e-nightly` artifact holds both Playwright reports, the test results, express's api.log and the fake flags host's log. The next green run closes this issue.",
+                ].join('\n'),
+              })
+              core.notice(`Opened #${created.number}`)
+            } else if (issue) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body: `Green again: ${runUrl}`,
+              })
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: 'completed',
+              })
+              core.notice(`Closed #${issue.number}`)
+            } else {
+              core.info('Green, and no open e2e-nightly issue to close.')
+            }
+      - name: Fail the run, as exercise_issue=fail asks
+        if: always() && env.EXERCISE == 'fail'
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "::error::exercise_issue=fail skipped the suites and fails the run on purpose"
+          exit 1
