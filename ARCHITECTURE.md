@@ -117,9 +117,11 @@ the toast host and the analytics consent banner. The toast UI
 (`src/components/ui/toast.tsx`) is a lazy chunk that `ToastHost` fetches when
 the root route first renders. `toast.*` from `src/lib/toast.ts` is small and
 outside that chunk; it queues the newest ten toasts raised before the UI has
-mounted and replays them shortly after, once the empty live region is in the
-document, so screen readers announce them. A failed chunk load is reported as a
-`chunk_load` error and leaves the page without toasts. Beside the router,
+mounted, and those raised in its first 100 ms, and replays them in order once
+the empty live region has been in the document for that long, so they are not
+inserted together with the region, which screen readers often skip. A failed
+chunk load is reported as a `chunk_load` error and leaves the page without
+toasts. Beside the router,
 `src/main.tsx` mounts the TanStack Query and Router devtools, which load only
 in development; a production build drops them.
 

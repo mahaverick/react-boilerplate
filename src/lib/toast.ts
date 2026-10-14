@@ -28,6 +28,18 @@ const inner = Toast.createToastManager()
 /** How many providers are subscribed to `inner`: 0 until the lazy `<Toaster>` mounts. */
 let subscribers = 0
 
+/**
+ * Whether raises go straight to the provider. Only the replay sets it, so a
+ * toast raised between the subscribe and the replay still joins the queue
+ * behind the older ones: order holds, and a newer raise with an id replaces a
+ * queued one instead of being overwritten by it. Cleared when the last
+ * provider unsubscribes.
+ */
+let live = false
+
+/** The scheduled replay, if one is pending. */
+let replayTimer: ReturnType<typeof setTimeout> | undefined
+
 /** The most toasts the queue keeps; the provider shows at most 3 at once anyway. */
 const PENDING_LIMIT = 10
 
@@ -49,11 +61,13 @@ const REPLAY_DELAY_MS = 100
 let pending: ToastManagerAddOptions<object>[] = []
 
 /**
- * Hands the queue to the subscribed provider, or leaves it queued if that
- * provider unmounted before the replay ran.
+ * Hands the queue to the subscribed provider and lets later raises through.
+ * The unsubscribe that drops `subscribers` to 0 cancels it, so it never runs
+ * without a provider.
  */
 function replayPending(): void {
-  if (subscribers === 0) return
+  replayTimer = undefined
+  live = true
   const queued = pending
   pending = []
   for (const options of queued) inner.add(options)
@@ -61,29 +75,36 @@ function replayPending(): void {
 
 /**
  * The manager `<Toaster>` subscribes to. It is Base UI's own, except that the
- * first subscriber receives the toasts queued before it arrived, after
- * `REPLAY_DELAY_MS`.
+ * first subscriber receives the toasts queued before it arrived, and those
+ * raised in the meantime, `REPLAY_DELAY_MS` after it subscribed.
  */
 export const toastManager: ToastManager = {
   ...inner,
   ' subscribe': (listener) => {
     const unsubscribe = inner[' subscribe'](listener)
     subscribers += 1
-    if (pending.length > 0) setTimeout(replayPending, REPLAY_DELAY_MS)
+    if (!live && replayTimer === undefined) {
+      replayTimer = setTimeout(replayPending, REPLAY_DELAY_MS)
+    }
     return () => {
       subscribers -= 1
       unsubscribe()
+      if (subscribers > 0) return
+      live = false
+      clearTimeout(replayTimer)
+      replayTimer = undefined
     }
   },
 }
 
 /**
- * Raises a toast of `type`, or queues it while no `<Toaster>` is mounted. A
- * queued toast with an `id` replaces an earlier queued one with the same id.
+ * Raises a toast of `type`, or queues it until a mounted `<Toaster>` has
+ * replayed the queue. A queued toast with an `id` replaces an earlier queued
+ * one with the same id.
  */
 function show(type: ToastType, title: ReactNode, options: ToastOptions = {}): void {
   const add: ToastManagerAddOptions<object> = { ...options, title, type }
-  if (subscribers > 0) {
+  if (live) {
     inner.add(add)
     return
   }
