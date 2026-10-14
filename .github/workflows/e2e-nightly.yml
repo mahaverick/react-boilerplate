@@ -8,8 +8,6 @@ name: Nightly e2e
 on:
   schedule:
     - cron: '17 2 * * *'
-  push: # TEMPORARY: proves the branch before merge; removed before review
-    branches: [feat/e2e-nightly]
   workflow_dispatch:
     inputs:
       exercise_issue:
