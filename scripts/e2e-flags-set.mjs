@@ -19,14 +19,23 @@ import { fileURLToPath } from 'node:url'
  * @param input.value - `on`/`off` for `example_beta_page`, `control`/`bold` for `example_cta_experiment`.
  * @param input.fetchImpl - `fetch`, injected so a test can answer without a socket.
  * @returns Resolves once the fake answered 2xx.
- * @throws {Error} Naming the status and the fake's answer, for any other answer.
+ * @throws {Error} Naming the origin and the errno when unreachable, else the status and the fake's answer.
  */
 export async function setFakeFlag({ origin, key, value, fetchImpl = fetch }) {
-  const response = await fetchImpl(`${origin}/__flags`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ key, value }),
-  })
+  let response
+  try {
+    response = await fetchImpl(`${origin}/__flags`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key, value }),
+    })
+  } catch (error) {
+    // fetch's own message is a bare "fetch failed"; the cause names the errno.
+    const code = error instanceof Error && error.cause?.code ? ` (${error.cause.code})` : ''
+    throw new Error(`fake flags host unreachable at ${origin}${code}: setting ${key}=${value}`, {
+      cause: error,
+    })
+  }
   if (response.ok) return
   const text = await response.text()
   throw new Error(`fake flags host answered ${response.status} to ${key}=${value}: ${text}`)

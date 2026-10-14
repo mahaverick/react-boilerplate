@@ -55,7 +55,12 @@ describe('scripts/e2e-flags-set.mjs', () => {
     const { port } = fake
     await fake.close()
 
-    await expect(runScript(['example_beta_page', 'on'], port)).rejects.toMatchObject({ code: 1 })
+    await expect(runScript(['example_beta_page', 'on'], port)).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringMatching(
+        new RegExp(`ECONNREFUSED.*127\\.0\\.0\\.1:${port}|127\\.0\\.0\\.1:${port}.*ECONNREFUSED`)
+      ) as string,
+    })
   })
 
   it('exits 2 with its usage when the value is missing', async () => {

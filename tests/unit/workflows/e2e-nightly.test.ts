@@ -11,6 +11,15 @@ import { FAKE_FLAGS_PROJECT_KEY, FAKE_FLAGS_SECURE_KEY } from '../../../e2e/help
 const ROOT = path.resolve(import.meta.dirname, '../../..')
 const WORKFLOW = readFileSync(path.join(ROOT, '.github/workflows/e2e-nightly.yml'), 'utf8')
 
+/** The text of the step with this `id`. */
+function stepOf(id: string): string {
+  const step = WORKFLOW.split(/^ {6}- /m).find((text) =>
+    new RegExp(`^(id: |\\s+id: )${id}$`, 'm').test(text)
+  )
+  if (step === undefined) throw new Error(`no step ${id}`)
+  return step
+}
+
 describe('e2e-nightly.yml', () => {
   it('reads exercise_issue once, as none when absent, since a schedule run has no inputs', () => {
     expect(WORKFLOW).toContain("EXERCISE: ${{ inputs.exercise_issue || 'none' }}")
@@ -26,7 +35,7 @@ describe('e2e-nightly.yml', () => {
   it('runs both suites whatever the other did, once the API is up', () => {
     expect(
       WORKFLOW.match(
-        /if: always\(\) && env\.EXERCISE == 'none' && steps\.api\.outcome == 'success'/g
+        /if: "!cancelled\(\) && env\.EXERCISE == 'none' && steps\.api\.outcome == 'success'"/g
       )
     ).toHaveLength(2)
   })
@@ -65,5 +74,14 @@ describe('e2e-nightly.yml', () => {
     expect(WORKFLOW).toContain('$RUNNER_TEMP/fake-flags.log')
     expect(WORKFLOW).toContain('$RUNNER_TEMP/fake-flags.pid')
     expect(WORKFLOW).not.toMatch(/app\/fake-flags|[^/]fake-flags\.(log|pid)/)
+  })
+
+  it('stops the suites and the report move on a cancel, but still uploads, tears down and files the issue', () => {
+    for (const id of ['live', 'move-reports', 'nginx']) {
+      expect(stepOf(id), id).toMatch(/if: "!cancelled\(\) && /)
+    }
+    for (const id of ['upload-artifact', 'teardown', 'issue']) {
+      expect(stepOf(id), id).toMatch(/if: always\(\) && /)
+    }
   })
 })

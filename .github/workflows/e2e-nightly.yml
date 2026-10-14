@@ -164,7 +164,7 @@ jobs:
           cat api.log
           exit 1
       - id: live
-        if: always() && env.EXERCISE == 'none' && steps.api.outcome == 'success'
+        if: "!cancelled() && env.EXERCISE == 'none' && steps.api.outcome == 'success'"
         run: pnpm test:e2e:live
         env:
           E2E_API_DIR: ${{ github.workspace }}/express
@@ -172,12 +172,12 @@ jobs:
       # test:e2e:nginx writes the same two directories, so live's move out of
       # app/, which is also that script's Docker build context.
       - id: move-reports
-        if: always() && env.EXERCISE == 'none'
+        if: "!cancelled() && env.EXERCISE == 'none' && steps.app-checkout.outcome == 'success'"
         run: |
           if [ -d playwright-report ]; then mv playwright-report "$GITHUB_WORKSPACE/live-playwright-report"; fi
           if [ -d test-results ]; then mv test-results "$GITHUB_WORKSPACE/live-test-results"; fi
       - id: nginx
-        if: always() && env.EXERCISE == 'none' && steps.api.outcome == 'success'
+        if: "!cancelled() && env.EXERCISE == 'none' && steps.api.outcome == 'success'"
         run: pnpm test:e2e:nginx
         env:
           E2E_API_DIR: ${{ github.workspace }}/express
@@ -196,7 +196,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
       - id: teardown
-        if: always() && env.EXERCISE == 'none'
+        if: always() && env.EXERCISE == 'none' && steps.express-checkout.outcome == 'success'
         working-directory: express
         run: |
           if [ -f api.pid ]; then kill "$(cat api.pid)" || true; fi
@@ -229,6 +229,7 @@ jobs:
                   : 'no step with an id failed; see the run log'
             const details = [
               `- Run: ${runUrl}`,
+              `- Job status: ${process.env.JOB_STATUS}`,
               `- Failed steps: ${why}`,
               `- ${repo} commit: ${context.sha}`,
               `- express-boilerplate main: ${process.env.EXPRESS_SHA || 'not checked out'}`,
