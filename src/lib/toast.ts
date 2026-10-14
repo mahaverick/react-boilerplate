@@ -2,7 +2,8 @@
  * @file The app's toast API: `toast.success`, `toast.error` and `toast.warning`,
  * callable from anywhere, React or not. It feeds Base UI's toast manager, which
  * the lazily loaded `<Toaster>` (`@/components/ui/toast`) renders. This module
- * stays small and eager; the toast UI does not.
+ * is small and stays outside that lazy UI chunk, so a toast raised before the
+ * UI has mounted is queued rather than lost.
  */
 import { Toast, type ToastManager, type ToastManagerAddOptions } from '@base-ui/react/toast'
 import type { ReactNode } from 'react'
@@ -27,25 +28,48 @@ const inner = Toast.createToastManager()
 /** How many providers are subscribed to `inner`: 0 until the lazy `<Toaster>` mounts. */
 let subscribers = 0
 
+/** The most toasts the queue keeps; the provider shows at most 3 at once anyway. */
+const PENDING_LIMIT = 10
+
 /**
- * Toasts raised while no provider listened. Base UI's manager only emits to
- * current listeners, so without this queue a toast raised before the lazy
- * `<Toaster>` has mounted would be dropped.
+ * How long after the first subscribe the queue is replayed. The provider
+ * subscribes in an effect as it mounts, while its live region is being
+ * inserted; a toast inserted together with its region is often not announced,
+ * so the replay waits until the empty region has been in the document for a
+ * moment.
+ */
+const REPLAY_DELAY_MS = 100
+
+/**
+ * Toasts raised while no provider listened, the newest `PENDING_LIMIT` of
+ * them. Base UI's manager only emits to current listeners, so without this
+ * queue a toast raised before the lazy `<Toaster>` has mounted would be
+ * dropped. The cap bounds it in a session whose toast chunk never loads.
  */
 let pending: ToastManagerAddOptions<object>[] = []
 
 /**
+ * Hands the queue to the subscribed provider, or leaves it queued if that
+ * provider unmounted before the replay ran.
+ */
+function replayPending(): void {
+  if (subscribers === 0) return
+  const queued = pending
+  pending = []
+  for (const options of queued) inner.add(options)
+}
+
+/**
  * The manager `<Toaster>` subscribes to. It is Base UI's own, except that the
- * first subscriber receives the toasts queued before it arrived.
+ * first subscriber receives the toasts queued before it arrived, after
+ * `REPLAY_DELAY_MS`.
  */
 export const toastManager: ToastManager = {
   ...inner,
   ' subscribe': (listener) => {
     const unsubscribe = inner[' subscribe'](listener)
     subscribers += 1
-    const queued = pending
-    pending = []
-    for (const options of queued) inner.add(options)
+    if (pending.length > 0) setTimeout(replayPending, REPLAY_DELAY_MS)
     return () => {
       subscribers -= 1
       unsubscribe()
@@ -63,7 +87,9 @@ function show(type: ToastType, title: ReactNode, options: ToastOptions = {}): vo
     inner.add(add)
     return
   }
-  pending = [...pending.filter((queued) => !add.id || queued.id !== add.id), add]
+  pending = [...pending.filter((queued) => !add.id || queued.id !== add.id), add].slice(
+    -PENDING_LIMIT
+  )
 }
 
 /** The app's toasts. Each call returns nothing; dedupe through `options.id`. */

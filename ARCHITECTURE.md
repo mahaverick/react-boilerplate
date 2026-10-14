@@ -114,9 +114,12 @@ session this way ([Token storage and refresh](SECURITY.md#token-storage-and-refr
 
 The root route's component renders the page inside `MaintenanceGate`, plus
 the toast host and the analytics consent banner. The toast UI
-(`src/components/ui/toast.tsx`) is a lazy chunk that `ToastHost` loads after
-first paint; `toast.*` from `src/lib/toast.ts` is eager and queues what it is
-asked to show until that chunk has mounted. Beside the router,
+(`src/components/ui/toast.tsx`) is a lazy chunk that `ToastHost` fetches when
+the root route first renders. `toast.*` from `src/lib/toast.ts` is small and
+outside that chunk; it queues the newest ten toasts raised before the UI has
+mounted and replays them shortly after, once the empty live region is in the
+document, so screen readers announce them. A failed chunk load is reported as a
+`chunk_load` error and leaves the page without toasts. Beside the router,
 `src/main.tsx` mounts the TanStack Query and Router devtools, which load only
 in development; a production build drops them.
 
