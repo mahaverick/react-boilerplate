@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/mahaverick/react-boilerplate/compare/v2.3.3...v2.4.0) (2026-10-14)
+
+
+### Features
+
+* **tenant:** carry the current tenant in the URL ([#100](https://github.com/mahaverick/react-boilerplate/issues/100)) ([b15d9a2](https://github.com/mahaverick/react-boilerplate/commit/b15d9a2eb8edf7b565e68eacb89170fbb61026fc))
+
 ## [2.3.3](https://github.com/mahaverick/react-boilerplate/compare/v2.3.2...v2.3.3) (2026-10-13)
 
 
