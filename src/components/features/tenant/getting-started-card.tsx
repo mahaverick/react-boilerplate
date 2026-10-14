@@ -2,7 +2,6 @@ import { IconCircle, IconCircleCheck } from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
-import { toast } from 'sonner'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +26,7 @@ import {
 import { canManageTenant, type MembershipRole } from '@/constants/roles'
 import { useFocusAfter, type FocusAfter } from '@/hooks/use-focus-after'
 import { messageFrom } from '@/lib/api-error'
+import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useVariant } from '@/observability/flags/flag-hooks'
 import { analyticsKey, track, type AnalyticsKey } from '@/observability/telemetry'

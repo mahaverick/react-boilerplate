@@ -16,11 +16,9 @@ src/routeTree.gen.ts
 # the negations below silently do nothing. Excluding the entries instead of the
 # directory is what makes them work.
 src/components/ui/*
-# ...except the files in there that are OURS, not upstream's. sonner.tsx is
-# hand-written (the registry one imports next-themes) and so is form.tsx (the
-# registry one is built on react-hook-form). Without these negations our own
-# code would sit in the directory unformatted and unchecked.
-!src/components/ui/sonner.tsx
+# ...except the file in there that is OURS, not upstream's: form.tsx is
+# hand-written (the registry one is built on react-hook-form). Without this
+# negation our own code would sit in the directory unformatted and unchecked.
 !src/components/ui/form.tsx
 
 # StyleSeed's compiled output. resolve-context.mjs records a sha256 for the

@@ -2,11 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { act, type ReactNode } from 'react'
-import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_PREFIX } from '@/constants/routes'
 import { useNotificationStream } from '@/hooks/use-notifications'
 import { resetSessionForTests } from '@/http/session'
+import { toast } from '@/lib/toast'
 import {
   notificationKeys,
   useNotifications,

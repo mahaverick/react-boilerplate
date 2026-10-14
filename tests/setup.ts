@@ -2,8 +2,8 @@ import '@/lib/zod-jitless'
 import '@testing-library/jest-dom/vitest'
 import { cleanup, configure } from '@testing-library/react'
 import { toHaveNoViolations } from 'jest-axe'
-import { toast } from 'sonner'
 import { afterAll, afterEach, beforeAll, expect } from 'vitest'
+import { toast } from '@/lib/toast'
 import { server } from '@/tests/mocks/server'
 
 expect.extend(toHaveNoViolations)
@@ -32,10 +32,9 @@ declare module 'vitest' {
 }
 
 /**
- * jsdom ships no `window.matchMedia`. `__root` renders sonner's `<Toaster>` on every
- * route, and sonner calls `window.matchMedia('(prefers-color-scheme: dark)')` unguarded in
- * an effect, so a test that mounts the real route tree would render sonner's error boundary
- * instead of the page. Every query is false except a `max-width` one, which answers from
+ * jsdom ships no `window.matchMedia`. `useIsMobile` and `AppLayout`'s system-theme effect
+ * call it unguarded, so a test that mounts the real route tree would throw instead of
+ * rendering the page. Every query is false except a `max-width` one, which answers from
  * `window.innerWidth`, so a test picks the viewport `useIsMobile` reports by setting the
  * width. A test about another query overrides the stub locally, as theme.store.test.ts does.
  */
@@ -74,9 +73,10 @@ if (typeof window !== 'undefined') {
  */
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 /**
- * Sonner's toast store is module-global and outlives each test's `<Toaster>`: a toast
- * still active when its Toaster unmounts is replayed into the next test's Toaster for a
- * fresh 4 s. Unmount first, so no Toaster is subscribed, then dismiss every active toast.
+ * `@/lib/toast` queues a toast raised while no `<Toaster>` is mounted, and the queue is
+ * module-global: a test that toasts without a Toaster would hand its toast to the next
+ * test's Toaster. Unmount first, so no Toaster is subscribed, then dismiss, which empties
+ * the queue.
  */
 afterEach(() => {
   cleanup()

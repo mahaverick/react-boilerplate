@@ -1,9 +1,9 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { broadcastLogout } from '@/http/session'
 import { statusFrom } from '@/lib/api-error'
+import { toast } from '@/lib/toast'
 import type {
   ChangePasswordInput,
   ForgotPasswordInput,

@@ -231,7 +231,7 @@ is in [Error-tracking privacy](SECURITY.md#error-tracking-privacy).
 
 ## Never install
 
-`react-hook-form`, `@hookform/resolvers`, `next-themes`,
+`react-hook-form`, `@hookform/resolvers`, `next-themes`, `sonner`,
 `@tanstack/zod-form-adapter`, `clsx`, `tailwind-merge`, any `@radix-ui/*`.
 
 Each has an in-repo replacement:
@@ -239,12 +239,15 @@ Each has an in-repo replacement:
 - TanStack Form with a Zod validator, which needs no adapter package;
 - `theme.store` with `public/theme-init.js`;
 - the `cn` package;
-- Base UI through shadcn.
+- Base UI through shadcn, its toast included (`src/lib/toast.ts`).
 
 Adding one back gives the project two ways to do the same thing.
 
-**Never run `shadcn add form` or `shadcn add toast`.** The registry's `form.tsx` is
-built on react-hook-form and its toast on next-themes. Ours are hand-written.
+**Never run `shadcn add form` or `shadcn add sonner`.** The registry's `form.tsx` is
+built on react-hook-form, and ours is hand-written. The toast is Base UI's, from
+base-vega's `toast` item (`src/components/ui/toast.tsx`); raise toasts with `toast`
+from `@/lib/toast`, never from the UI file. Re-adding `toast` drops its local edits,
+listed below.
 
 ## `src/components/ui/`
 
@@ -257,19 +260,25 @@ the component is added again.
   requirement and the `cn` import restriction. Every other rule, type-aware rules
   at error included, still applies, so a type error there fails CI. Settle a doubt
   with `pnpm exec eslint --print-config <file>`, not by reading the config.
-- **`form.tsx` and `sonner.tsx` are ours**, fully linted and formatted. They are
-  named in five places: four `eslint.config.js` blocks (the block that re-enables
-  the Tailwind and `react-refresh` rules, plus the `!(form|sonner)` globs of the
-  `cn` restriction, comment-style and JSDoc blocks), and the `!` negations in
-  `.prettierignore`. A third hand-written file there goes into all five in the same
-  change.
+- **`form.tsx` is ours**, fully linted and formatted. It is named in five places:
+  four `eslint.config.js` blocks (the block that re-enables the Tailwind and
+  `react-refresh` rules, plus the `!(form)` globs of the `cn` restriction,
+  comment-style and JSDoc blocks), and the `!` negation in `.prettierignore`. A
+  second hand-written file there goes into all five in the same change.
 - **A re-add drops these local edits; put them back.** `avatar.tsx`: the fallback
   and group count use `text-foreground` (contrast). `tabs.tsx`: the panel keeps
   `rounded-md focus-visible:ring-3 focus-visible:ring-ring/50` (WCAG 2.4.7).
   `badge`, `button`, `switch`, `tabs` and the sidebar rail name their transition
   properties instead of `transition-all`. The sidebar rail uses `after:w-0.5` and
-  the dropdown `min-w-24`. `shadcn init` also overwrites `src/lib/utils.ts`,
-  `src/hooks/use-mobile.ts` and `sonner.tsx`, and resets `--muted-foreground`
+  the dropdown `min-w-24`. `toast.tsx`: Tabler icons for the registry's
+  `IconPlaceholder`; `PII_CLASS_NAME` last in the root's `cn(...)`, after
+  `className`, so a caller cannot unmask a toast; top-right anchoring (`top-4`,
+  `top-0 origin-top`, every Y offset sign-flipped, `swipeDirection={["up",
+"right"]}`); the `data-[type=…]` border and icon colours on `--success`,
+  `--warning` and `--destructive`; and `<Toaster>` defaulting to `toastManager`
+  from `@/lib/toast` instead of a manager of its own. `tests/unit/components/ui/toast.test.tsx`
+  fails without the mask, the icon colours or the shared manager. `shadcn init` also overwrites
+  `src/lib/utils.ts` and `src/hooks/use-mobile.ts`, and resets `--muted-foreground`
   and `--destructive` in `globals.css`, which `pnpm test:contrast` then fails.
   Every Tabler icon in `src/components/ui/` carries `aria-hidden="true"` (the
   guard test `tests/unit/ui-icons-aria-hidden.test.ts` fails otherwise); the
