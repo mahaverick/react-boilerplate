@@ -11,7 +11,7 @@ import { gzipSync } from 'node:zlib'
 import { build } from 'vite'
 
 /** The ceiling for first-visit JS in bytes. Raise it only with a measured reason. */
-const ENTRY_BUDGET_BYTES = 628_790
+const ENTRY_BUDGET_BYTES = 584_000
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module
