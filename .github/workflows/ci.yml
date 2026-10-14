@@ -90,7 +90,7 @@ jobs:
   # enforced Content-Security-Policy, the pre-paint theme script, the
   # run-time configuration, and posthog-js's replay under that policy with no
   # probe value reaching a fake PostHog. The rest of `nginx` needs a live API
-  # and stays local (`pnpm test:e2e:nginx`).
+  # and runs in e2e-nightly.yml, or locally with `pnpm test:e2e:nginx`.
   #
   # `live`, and the `nginx` tests that need an API, are not here: they need a
   # real express-boilerplate plus postgres, redis and mailpit, and register

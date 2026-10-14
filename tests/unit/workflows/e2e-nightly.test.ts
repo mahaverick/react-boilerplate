@@ -50,4 +50,20 @@ describe('e2e-nightly.yml', () => {
     )
     expect(statSync(path.join(ROOT, 'scripts/e2e-flags-set.mjs')).mode & 0o111).not.toBe(0)
   })
+
+  it('gives every step an id, so a failure there is named in the issue', () => {
+    const steps = WORKFLOW.split('\n    steps:\n')[1]!
+      .split(/^ {6}- /m)
+      .slice(1)
+    expect(steps.length).toBeGreaterThan(10)
+    for (const step of steps) {
+      expect(step, step.split('\n')[0]).toMatch(/^id: [a-z][a-z0-9-]*$|^\s+id: [a-z][a-z0-9-]*$/m)
+    }
+  })
+
+  it('keeps the fake flags files out of app/, the image build context', () => {
+    expect(WORKFLOW).toContain('$RUNNER_TEMP/fake-flags.log')
+    expect(WORKFLOW).toContain('$RUNNER_TEMP/fake-flags.pid')
+    expect(WORKFLOW).not.toMatch(/app\/fake-flags|[^/]fake-flags\.(log|pid)/)
+  })
 })
