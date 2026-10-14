@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/mahaverick/react-boilerplate/compare/v3.0.0...v3.0.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **toast:** add an action button option and match apex's toast files ([#104](https://github.com/mahaverick/react-boilerplate/issues/104)) ([1fac049](https://github.com/mahaverick/react-boilerplate/commit/1fac049fc6b160f7eb4032738e04c44fb8b9f1e8))
+
 ## [3.0.0](https://github.com/mahaverick/react-boilerplate/compare/v2.4.0...v3.0.0) (2026-10-14)
 
 
