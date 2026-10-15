@@ -2,8 +2,8 @@ import { useForm } from '@tanstack/react-form'
 import { createFileRoute } from '@tanstack/react-router'
 import { AnalyticsSection } from '@/components/features/profile/analytics-section'
 import { SettingsRouteError } from '@/components/features/route-error'
+import { BusyButton } from '@/components/shared/busy-button'
 import { Pii } from '@/components/shared/pii'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -152,9 +152,9 @@ function ProfileDetails({ user }: { user: User }) {
 
         <FormError />
 
-        <Button type="submit" disabled={updateProfile.isPending}>
-          {updateProfile.isPending ? 'Saving…' : 'Save changes'}
-        </Button>
+        <BusyButton busy={updateProfile.isPending} busyLabel="Saving…" type="submit">
+          Save changes
+        </BusyButton>
       </Form>
 
       <dl className="mt-6 grid gap-3 border-t pt-6 text-sm">

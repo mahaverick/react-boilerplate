@@ -1,6 +1,7 @@
 import { IconBell, IconCheck, IconTrash } from '@tabler/icons-react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { LoadError } from '@/components/features/load-error'
+import { BusyButton } from '@/components/shared/busy-button'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
@@ -144,13 +145,14 @@ function NotificationsPage() {
           )}
           {notifications.hasNextPage && (
             <div>
-              <Button
+              <BusyButton
+                busy={notifications.isFetchingNextPage}
+                busyLabel="Loading…"
                 variant="outline"
-                disabled={notifications.isFetchingNextPage}
                 onClick={() => void notifications.fetchNextPage()}
               >
-                {notifications.isFetchingNextPage ? 'Loading…' : 'Load more'}
-              </Button>
+                Load more
+              </BusyButton>
             </div>
           )}
         </CardContent>

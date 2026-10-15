@@ -1,8 +1,8 @@
 import { LoadError } from '@/components/features/load-error'
+import { BusyButton } from '@/components/shared/busy-button'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { actorName, auditSentence } from '@/constants/audit-actions'
@@ -117,14 +117,15 @@ export function ActivityList<T extends AuditEntry>({
         isError && <LoadError message={REFETCH_ERROR} onRetry={onRetry} />
       )}
       {hasNextPage && (
-        <Button
+        <BusyButton
+          busy={isFetchingNextPage}
+          busyLabel="Loading…"
           variant="outline"
           className="justify-self-start"
-          disabled={isFetchingNextPage}
           onClick={onLoadMore}
         >
-          {isFetchingNextPage ? 'Loading…' : 'Load more activity'}
-        </Button>
+          Load more activity
+        </BusyButton>
       )}
     </div>
   )

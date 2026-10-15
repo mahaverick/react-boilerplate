@@ -3,9 +3,9 @@ import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { z } from 'zod'
 import { LoadError } from '@/components/features/load-error'
+import { BusyButton } from '@/components/shared/busy-button'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -172,9 +172,9 @@ function CreateTenantCard() {
 
           <FormError />
 
-          <Button type="submit" disabled={createTenant.isPending}>
-            {createTenant.isPending ? 'Creating…' : 'Create tenant'}
-          </Button>
+          <BusyButton busy={createTenant.isPending} busyLabel="Creating…" type="submit">
+            Create tenant
+          </BusyButton>
         </Form>
       </CardContent>
     </Card>

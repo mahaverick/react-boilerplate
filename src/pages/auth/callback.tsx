@@ -1,8 +1,8 @@
-import { IconLoader2 } from '@tabler/icons-react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
+import { Spinner } from '@/components/ui/spinner'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { useAuthStore } from '@/states/auth.store'
@@ -38,7 +38,7 @@ function OAuthCallbackPage() {
           role="status"
           className="flex items-center justify-center gap-3 text-sm text-muted-foreground"
         >
-          <IconLoader2 className="size-5 animate-spin" aria-hidden="true" />
+          <Spinner aria-hidden="true" />
           <span>Completing sign-in…</span>
         </div>
       </AuthCard>

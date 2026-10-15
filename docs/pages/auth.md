@@ -16,7 +16,7 @@ All of them render inside `AuthLayout` (`src/components/layouts/auth-layout.tsx`
 | Layout              | `AuthLayout` + `AuthCard`, `TermsNote` under the card                                                                                                                                                                 |
 | Data                | no query; `POST /auth/login` on submit                                                                                                                                                                                |
 | Sections            | Email and password form (no request until submit); "Or continue with" and one link per social provider (`SocialSignIn`, a top-level navigation to `/api/v1/auth/google`)                                              |
-| Components          | `Form`, `FormField`, `FormError`, `Input`, `Button`, `FieldGroup`, `FieldDescription`, `FieldSeparator`; hand-rolled: `AuthCard`'s brand panel, `TermsNote`                                                           |
+| Components          | `Form`, `FormField`, `FormError`, `Input`, `BusyButton`, `FieldGroup`, `FieldDescription`, `FieldSeparator`; hand-rolled: `AuthCard`'s brand panel, `TermsNote`                                                       |
 | Transitions         | Forgot password? → `/forgot-password`; Create an account → `/register`; Sign in → `?redirect` or `/dashboard`; Continue with Google → the API's Google flow → `/auth/callback`                                        |
 
 Pending state: the button reads "Signing in…" and is disabled. Errors: `FormError` above the button, field messages under the fields.
@@ -40,7 +40,7 @@ Findings: [F-auth-5](findings.md#f-auth-5)
 | Layout              | `AuthLayout` + `AuthCard`, `TermsNote` under the card                                                                                                                                                                                           |
 | Data                | no query; `POST /auth/register` on submit; `POST /auth/resend-verification` from the "Check your email" card                                                                                                                                    |
 | Sections            | First and last name (optional), email, password and confirmation, the minimum-length hint; social sign-in; after a successful submit the card is replaced by "Check your email" with a "Resend verification email" button and "Back to sign in" |
-| Components          | `Form`, `FormField`, `FormDescription`, `FormError`, `Input`, `Button`, `Pii`; hand-rolled: `TermsNote`                                                                                                                                         |
+| Components          | `Form`, `FormField`, `FormDescription`, `FormError`, `Input`, `BusyButton` (also the resend), `Pii`; hand-rolled: `TermsNote`                                                                                                                   |
 | Transitions         | Sign in → `/login`; Create account → the "Check your email" card (same URL); the emailed link → `/verify-email?token=`                                                                                                                          |
 
 Pending state: "Creating account…" on the button. The "Check your email" card is not shot.
@@ -59,7 +59,7 @@ Findings: [F-auth-5](findings.md#f-auth-5)
 | Layout              | `AuthLayout` + `AuthCard`                                                                                                                                                                                                                   |
 | Data                | no query; `POST /auth/forgot-password` on submit                                                                                                                                                                                            |
 | Sections            | Email form; after submit, whatever the outcome, the fixed message "If that address has an account, a reset email has been sent." (`role="status"`). Server errors are never shown, so the page cannot reveal which addresses have accounts. |
-| Components          | `Form`, `FormField`, `Input`, `Button`, `FieldDescription`                                                                                                                                                                                  |
+| Components          | `Form`, `FormField`, `Input`, `BusyButton`, `FieldDescription`                                                                                                                                                                              |
 | Transitions         | Back to sign in → `/login`; the emailed link → `/reset-password?token=`                                                                                                                                                                     |
 
 ### `/reset-password` — Choose a new password
@@ -74,7 +74,7 @@ Findings: [F-auth-5](findings.md#f-auth-5)
 | Layout              | `AuthLayout` + `AuthCard`, rendered by the page                                                                                                            |
 | Data                | no query; `POST /auth/reset-password` on submit (the token rides in the form values, unrendered)                                                           |
 | Sections            | New password and confirmation; `FormError` for a refused token                                                                                             |
-| Components          | `Form`, `FormField`, `FormError`, `Input`, `Button`                                                                                                        |
+| Components          | `Form`, `FormField`, `FormError`, `Input`, `BusyButton`                                                                                                    |
 | Transitions         | Reset password → `/login`; Back to sign in → `/login`; without a token, Request a new link → `/forgot-password`                                            |
 
 | Empty                                                              |
@@ -94,7 +94,7 @@ Findings: [F-auth-5](findings.md#f-auth-5)
 | Layout              | `AuthLayout` + `AuthCard`, rendered by the page                                                                                                                                                                                                                                  |
 | Data                | no query; `POST /auth/verify-email` on submit; `POST /auth/resend-verification` from the resend form                                                                                                                                                                             |
 | Sections            | A visible, editable "Verification token" field prefilled from `?token`, and a password field. After a failed try, a resend form ("Links expire. Enter your address and we will send a fresh one."). After `EMAIL_ALREADY_VERIFIED`, the server's message and a "Sign in" button. |
-| Components          | `Form`, `FormField`, `FormError`, `Input`, `Button`, `FieldSeparator`                                                                                                                                                                                                            |
+| Components          | `Form`, `FormField`, `FormError`, `Input`, `BusyButton`, `FieldSeparator`                                                                                                                                                                                                        |
 | Transitions         | Verify email → `/login`; Back to sign in → `/login`; Sign in (already verified) → `/login`                                                                                                                                                                                       |
 
 | Empty                                                 |
@@ -115,7 +115,7 @@ No shot: the page redirects as soon as it mounts.
 | Guard and redirects | none (top level). In an effect: signed in → `/dashboard`, else `/login?error=google_auth_failed`, which toasts "Google sign-in failed. Please try again." |
 | Layout              | `AuthLayout` + `AuthCard` titled "Signing in", with a spinner and "Completing sign-in…" (`role="status"`) for the instant before the redirect             |
 | Data                | no query; the session restore has already used the cookie the API set                                                                                     |
-| Components          | `AuthCard`, `IconLoader2`                                                                                                                                 |
+| Components          | `AuthCard`, `Spinner`                                                                                                                                     |
 | Transitions         | → `/dashboard` or `/login?error=google_auth_failed`                                                                                                       |
 
 The walk confirmed both exits: signed in, `/auth/callback` landed on `/dashboard`; signed out, on `/login?error=google_auth_failed`.
@@ -132,7 +132,7 @@ The walk confirmed both exits: signed in, `/auth/callback` landed on `/dashboard
 | Layout              | `AuthLayout` + `AuthCard` (`InvitationCard`), rendered by the page                                                                                                                                                    |
 | Data                | started: `POST /invitations/preview` (`['invitations', 'preview', token]`; no auth; a failure other than 404 is retried once); `POST /invitations/accept` on accept; `POST /auth/logout` from the wrong-account state |
 | Sections            | Chosen by `?token` and who is signed in, below.                                                                                                                                                                       |
-| Components          | `AuthCard`, `Skeleton`, `LoadError`, `Alert` (destructive, the refusal), `Button`, `Pii`                                                                                                                              |
+| Components          | `AuthCard`, `Skeleton`, `LoadError`, `Alert` (destructive, the refusal), `Button`, `BusyButton` (accept, sign out), `Pii`                                                                                             |
 | Transitions         | Log in → `/login` and back here; Create account → `/register`; Sign out → here, signed out; Accept invitation → `/tenants/$slug`; Go to the home page → `/`                                                           |
 
 The page has these states (`AcceptInvitationPage` and `InvitationForToken`):

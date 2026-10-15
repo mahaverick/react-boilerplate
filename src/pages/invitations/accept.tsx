@@ -5,9 +5,10 @@ import { z } from 'zod'
 import { LoadError } from '@/components/features/load-error'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
+import { BusyButton } from '@/components/shared/busy-button'
 import { Pii } from '@/components/shared/pii'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
@@ -154,9 +155,14 @@ function WrongAccount({
           This invitation was sent to <Pii>{invitation.email}</Pii>. You’re signed in as{' '}
           <Pii>{currentEmail}</Pii>.
         </p>
-        <Button className="w-full" disabled={logout.isPending} onClick={() => logout.mutate()}>
-          {logout.isPending ? 'Signing out…' : 'Sign out'}
-        </Button>
+        <BusyButton
+          busy={logout.isPending}
+          busyLabel="Signing out…"
+          className="w-full"
+          onClick={() => logout.mutate()}
+        >
+          Sign out
+        </BusyButton>
         <HomeLink />
       </div>
     </InvitationCard>
@@ -222,9 +228,14 @@ function AcceptPanel({ token, invitation }: { token: string; invitation: Invitat
             )}
           </Alert>
         )}
-        <Button className="w-full" disabled={accept.isPending} onClick={() => void onAccept()}>
-          {accept.isPending ? 'Accepting…' : 'Accept invitation'}
-        </Button>
+        <BusyButton
+          busy={accept.isPending}
+          busyLabel="Accepting…"
+          className="w-full"
+          onClick={() => void onAccept()}
+        >
+          Accept invitation
+        </BusyButton>
         <HomeLink />
       </div>
     </InvitationCard>

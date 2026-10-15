@@ -1,6 +1,7 @@
 import { useForm } from '@tanstack/react-form'
 import { useId } from 'react'
 import { LoadError } from '@/components/features/load-error'
+import { BusyButton } from '@/components/shared/busy-button'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -238,9 +239,9 @@ function ChangePasswordForm() {
 
         <FormError />
 
-        <Button type="submit" disabled={changePassword.isPending}>
-          {changePassword.isPending ? 'Changing…' : 'Change password'}
-        </Button>
+        <BusyButton busy={changePassword.isPending} busyLabel="Changing…" type="submit">
+          Change password
+        </BusyButton>
       </Form>
     </div>
   )

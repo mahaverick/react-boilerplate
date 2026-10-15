@@ -1,6 +1,6 @@
 import { useForm } from '@tanstack/react-form'
 import type { z } from 'zod'
-import { Button } from '@/components/ui/button'
+import { BusyButton } from '@/components/shared/busy-button'
 import {
   Form,
   FormControl,
@@ -142,9 +142,9 @@ export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: Membe
 
       <div className="grid gap-2 sm:pt-6">
         <FormError />
-        <Button type="submit" disabled={inviteMember.isPending}>
-          {inviteMember.isPending ? 'Sending…' : 'Invite member'}
-        </Button>
+        <BusyButton busy={inviteMember.isPending} busyLabel="Sending…" type="submit">
+          Invite member
+        </BusyButton>
       </div>
     </Form>
   )

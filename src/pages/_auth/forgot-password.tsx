@@ -2,7 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { AuthCard } from '@/components/layouts/auth-card'
-import { Button } from '@/components/ui/button'
+import { BusyButton } from '@/components/shared/busy-button'
 import { FieldDescription, FieldGroup } from '@/components/ui/field'
 import {
   Form,
@@ -82,9 +82,14 @@ function ForgotPasswordPage() {
               )}
             </FormField>
 
-            <Button type="submit" className="w-full" disabled={forgotPassword.isPending}>
-              {forgotPassword.isPending ? 'Sending…' : 'Send reset link'}
-            </Button>
+            <BusyButton
+              busy={forgotPassword.isPending}
+              busyLabel="Sending…"
+              type="submit"
+              className="w-full"
+            >
+              Send reset link
+            </BusyButton>
           </FieldGroup>
         </Form>
       )}
