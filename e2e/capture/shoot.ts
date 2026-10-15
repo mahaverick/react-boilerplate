@@ -9,7 +9,7 @@ import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type BrowserContext, type Page } from '@playwright/test'
 import { afterFontsAndFrames } from '../timing'
-import { controlRequests, waitForLoadingUi, type Rule } from './route-control'
+import { controlRequests, waitForLoadingUi, type Control, type Rule } from './route-control'
 import type { RouteCapture, Seed, ShotRecord } from './types'
 
 /** Where the shots go: the repo's docs/pages/. */
@@ -26,7 +26,7 @@ export interface SessionContexts {
 type PageCapture = RouteCapture & { kind: 'page' }
 
 /** Waits on the page after navigation and returns what it saw. */
-type Settle = (page: Page) => Promise<Partial<ShotRecord>>
+type Settle = (page: Page, control: Control) => Promise<Partial<ShotRecord>>
 
 /**
  * Fills `{name}` placeholders from the seed.
@@ -78,7 +78,7 @@ async function shootOne(
   const control = await controlRequests(page, rules)
   const started = Date.now()
   await page.goto(target, { waitUntil: 'commit' })
-  const extra = await settle(page)
+  const extra = await settle(page, control)
   await afterFontsAndFrames(page)
   const file = `img/${capture.area}/${capture.shot}--${state}.jpg`
   await page.screenshot({
@@ -141,8 +141,8 @@ export async function shootRoute(
         'loading',
         url,
         [{ action: 'hold', endpoints }],
-        async (page) => ({
-          loadingUi: await waitForLoadingUi(page),
+        async (page, control) => ({
+          loadingUi: await waitForLoadingUi(page, control),
         })
       ),
       await shoot(

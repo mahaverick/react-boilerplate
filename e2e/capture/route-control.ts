@@ -100,17 +100,31 @@ export async function controlRequests(page: Page, rules: readonly Rule[]): Promi
 }
 
 /**
- * Waits up to 5 s for loading UI and names what appeared first: a shadcn
- * `Skeleton` (`data-slot="skeleton"`), a `role=status` spinner, or index.html's
- * boot splash. `'none'` when nothing did.
+ * Waits for the held request to arrive, then up to 5 s for loading UI and names
+ * what appeared: a shadcn `Skeleton` (`data-slot="skeleton"`) or a `role=status`
+ * spinner outside the toast viewport. Only when neither shows and index.html's
+ * boot splash is still up does it answer `'splash'`; `'none'` otherwise. The
+ * splash is visible on every dev load, so it never counts until a hold has bitten.
  * @param page - A page with a held request.
+ * @param control - The page's installed control.
  * @returns The kind of loading UI found.
  */
-export async function waitForLoadingUi(page: Page): Promise<LoadingUi> {
+export async function waitForLoadingUi(page: Page, control: Control): Promise<LoadingUi> {
+  // The page never closes here, so the event wait is a 15 s timeout that resolves to false.
+  const arrived = await Promise.race([
+    control.seen.then(() => true),
+    page.waitForEvent('close', { timeout: 15_000 }).then(
+      () => false,
+      () => false
+    ),
+  ])
+  if (!arrived) return 'none'
   const candidates: [LoadingUi, string][] = [
-    ['splash', '.boot-splash'],
     ['skeleton', '[data-slot="skeleton"]'],
-    ['spinner', '[role="status"]'],
+    [
+      'spinner',
+      '[role="status"]:not(.boot-splash, [data-slot="toast-viewport"], [data-slot="toast-viewport"] *)',
+    ],
   ]
   const found = await Promise.any(
     candidates.map(([name, selector]) =>
@@ -120,6 +134,7 @@ export async function waitForLoadingUi(page: Page): Promise<LoadingUi> {
         .waitFor({ state: 'visible', timeout: 5_000 })
         .then(() => name)
     )
-  ).catch(() => 'none' as const)
-  return found
+  ).catch(() => null)
+  if (found) return found
+  return (await page.locator('.boot-splash').first().isVisible()) ? 'splash' : 'none'
 }
