@@ -175,7 +175,7 @@ The empty inbox is a muted `p`, "You have no notifications." ([shot](img/notific
 
 ### F-notifications-3
 
-Status: fixed in 5d98dd5. Load more is a `BusyButton`, which shows a spinner and its busy label while the next page is fetched; `tests/unit/components/shared/busy-button.test.tsx` and `tests/unit/pages/_app/notifications.test.tsx` cover it. There is no after-shot of the busy state, because the capture’s inbox has one notification and no Load more button.
+Status: fixed in 5d98dd5. Load more is a `BusyButton`, which shows a spinner and its busy label while the next page is fetched; `tests/unit/components/shared/busy-button.test.tsx` covers the component, and no test drives the Load more fetch. There is no after-shot of the busy state, because the capture’s inbox has one notification and no Load more button.
 
 Load more is an outline `Button` whose label turns to "Loading…" while the next page is fetched (`src/pages/_app/notifications.tsx`). Fix: shadcn's `spinner` in the button, or `pagination` if the inbox moves to pages.
 
