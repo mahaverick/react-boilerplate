@@ -265,7 +265,8 @@ the component is added again.
   `react-refresh` rules, plus the `!(form)` globs of the `cn` restriction,
   comment-style and JSDoc blocks), and the `!` negation in `.prettierignore`. A
   second hand-written file there goes into all five in the same change.
-- **A re-add drops these local edits; put them back.** `avatar.tsx`: the fallback
+- **A re-add drops these local edits; put them back.** `docs/ui-local-edits.md`
+  is the full record. `alert.tsx`: the `warning` and `info` variants. `avatar.tsx`: the fallback
   and group count use `text-foreground` (contrast). `tabs.tsx`: the panel keeps
   `rounded-md focus-visible:ring-3 focus-visible:ring-ring/50` (WCAG 2.4.7).
   `badge`, `button`, `switch`, `tabs` and the sidebar rail name their transition
@@ -285,8 +286,8 @@ the component is added again.
   `shadcn init` also overwrites `src/lib/utils.ts` and `src/hooks/use-mobile.ts`,
   and resets `--muted-foreground` and `--destructive` in `globals.css`, which
   `pnpm test:contrast` then fails.
-  Every Tabler icon in `src/components/ui/` carries `aria-hidden="true"` (the
-  guard test `tests/unit/ui-icons-aria-hidden.test.ts` fails otherwise); the
+  Every Tabler icon in `src/components/ui/` except the one in `spinner.tsx`
+  carries `aria-hidden="true"` (the guard test `tests/unit/ui-icons-aria-hidden.test.ts` fails otherwise); the
   combobox clear and chip-remove buttons carry `aria-label` for the same reason.
 - **The vitest config's coverage `exclude` is the inverse list.** It names the
   vendored files, so a new vendored file goes there and a hand-written one stays

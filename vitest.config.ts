@@ -46,6 +46,7 @@ export default defineConfig({
         'src/components/ui/{alert-dialog,avatar,badge,breadcrumb,button,card,collapsible,combobox,dialog,dropdown-menu}.tsx',
         'src/components/ui/{field,input,input-group,label,select,separator,sheet,sidebar,skeleton,switch}.tsx',
         'src/components/ui/{table,tabs,textarea,toast,tooltip}.tsx',
+        'src/components/ui/{alert,empty,item,kbd,spinner}.tsx',
       ],
       /** About ten points under the measured coverage, so a large drop fails CI. */
       thresholds: { statements: 88, branches: 82, functions: 86, lines: 89 },
