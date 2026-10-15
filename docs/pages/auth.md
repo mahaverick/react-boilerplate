@@ -132,7 +132,7 @@ The walk confirmed both exits: signed in, `/auth/callback` landed on `/dashboard
 | Layout              | `AuthLayout` + `AuthCard` (`InvitationCard`), rendered by the page                                                                                                                                                    |
 | Data                | started: `POST /invitations/preview` (`['invitations', 'preview', token]`; no auth; a failure other than 404 is retried once); `POST /invitations/accept` on accept; `POST /auth/logout` from the wrong-account state |
 | Sections            | Chosen by `?token` and who is signed in, below.                                                                                                                                                                       |
-| Components          | `AuthCard`, `Skeleton`, `LoadError`, `Button`, `Pii`                                                                                                                                                                  |
+| Components          | `AuthCard`, `Skeleton`, `LoadError`, `Alert` (destructive, the refusal), `Button`, `Pii`                                                                                                                              |
 | Transitions         | Log in → `/login` and back here; Create account → `/register`; Sign out → here, signed out; Accept invitation → `/tenants/$slug`; Go to the home page → `/`                                                           |
 
 The page has these states (`AcceptInvitationPage` and `InvitationForToken`):

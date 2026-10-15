@@ -1,3 +1,4 @@
+import { IconAlertCircle } from '@tabler/icons-react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState, type ReactNode } from 'react'
 import { z } from 'zod'
@@ -5,6 +6,7 @@ import { LoadError } from '@/components/features/load-error'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
 import { Pii } from '@/components/shared/pii'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
@@ -210,14 +212,15 @@ function AcceptPanel({ token, invitation }: { token: string; invitation: Invitat
     >
       <div className="grid gap-3">
         {refusal && (
-          <div role="alert" className="grid gap-1 text-sm">
-            <p className="text-destructive">{refusal.message}</p>
+          <Alert variant="destructive">
+            <IconAlertCircle aria-hidden="true" />
+            <AlertTitle>{refusal.message}</AlertTitle>
             {refusal.unverified && (
-              <p className="text-muted-foreground">
+              <AlertDescription>
                 Use the link in your verification email, then open this invitation link again.
-              </p>
+              </AlertDescription>
             )}
-          </div>
+          </Alert>
         )}
         <Button className="w-full" disabled={accept.isPending} onClick={() => void onAccept()}>
           {accept.isPending ? 'Accepting…' : 'Accept invitation'}
