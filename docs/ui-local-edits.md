@@ -18,8 +18,10 @@ Edits on every file.
   is announced through its own `role="status"` and `aria-label`, so it stays
   as the registry has it. Re-apply: yes, except in `spinner.tsx`.
 - **A `"use client"` line** in files added before this record. The registry
-  (`rsc: false`) omits it, and the directive does nothing in a Vite
-  single-page app. The rule treats the line as noise on our side. Re-apply: no.
+  (`rsc: false`) omits it from most components; where it ships one
+  (`sidebar` among them), that file's section records it. The directive
+  does nothing in a Vite single-page app. The rule treats the line as
+  noise on our side. Re-apply: no.
 - **Narrowed `transition`.** The registry writes `transition-all`; we list the
   properties that animate (as `button.tsx` does) so layout properties are not
   transitioned. The rule reads any `transition-[...]` as `transition-all`.

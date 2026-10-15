@@ -3,7 +3,9 @@
  * accounts, signs each in three times (default, dark, mobile contexts), then
  * shoots every page route in the manifest and writes
  * test-results/capture/report.json. `CAPTURE_ONLY=auth,tenants` limits the run
- * to those areas. Needs the dev stack already up; starts nothing.
+ * to those areas, and a route key such as `/tenants/$tenantId/timeline` in the
+ * same list limits it to that route, for an area too large for one rate-limit
+ * window. Needs the dev stack already up; starts nothing.
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -65,7 +67,7 @@ test('capture every page route', async ({ browser, baseURL }) => {
       skipped.push({ route, capture })
       continue
     }
-    if (ONLY.size > 0 && !ONLY.has(capture.area)) continue
+    if (ONLY.size > 0 && !ONLY.has(capture.area) && !ONLY.has(route)) continue
     /** The named session's contexts; the manifest names only sessions the seed made. */
     const contextsFor = (name: string) => {
       const contexts = sessions.get(name)
