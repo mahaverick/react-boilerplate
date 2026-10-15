@@ -39,6 +39,11 @@ export type RouteCapture =
       empty?: { url: string } | { stubs: readonly Stub[] }
       /** Also shoot the default state in dark mode and at 390×844. */
       responsive?: boolean
+      /**
+       * Also shoot the default URL as a session whose role sees less: a key of
+       * `Seed.sessions`. `note` goes into that shot's record.
+       */
+      roleDenied?: { as: string; note?: string }
       /** Shown in the report next to the shots, for the doc writer. */
       note?: string
     }
@@ -57,7 +62,7 @@ export type LoadingUi = 'skeleton' | 'spinner' | 'splash' | 'none'
 /** One screenshot and what was seen while taking it. */
 export interface ShotRecord {
   route: string
-  state: 'default' | 'loading' | 'error' | 'empty' | 'dark' | 'mobile'
+  state: 'default' | 'loading' | 'error' | 'empty' | 'dark' | 'mobile' | 'role-denied'
   /** Path under docs/pages/, e.g. `img/tenants/tenants--loading.jpg`. */
   file: string
   requestedUrl: string
@@ -67,6 +72,8 @@ export interface ShotRecord {
   loadingUi?: LoadingUi
   /** Whether a `role=alert` element appeared within 10 s. */
   errorUi?: 'alert' | 'none'
+  /** The manifest's `roleDenied.note`, on a role-denied shot. */
+  note?: string
   /** Milliseconds from navigation to the shot. */
   ms: number
 }

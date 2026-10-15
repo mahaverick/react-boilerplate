@@ -176,6 +176,10 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     url: '/tenants/{slug}',
     as: 'owner',
     responsive: true,
+    roleDenied: {
+      as: 'member',
+      note: 'An editor: no Dismiss; owner-or-admin steps say "An owner or admin can do this".',
+    },
     sections: [TENANT, { name: 'Getting started', endpoints: ['GET /tenants/:slug/onboarding'] }],
     empty: {
       stubs: [
@@ -199,6 +203,10 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     shot: 'workspace-activity',
     url: '/settings/workspace/{slug}/activity',
     as: 'owner',
+    roleDenied: {
+      as: 'member',
+      note: 'An editor: the owners-and-admins message; no members or audit-log request.',
+    },
     sections: [
       TENANT,
       { name: 'Members (actor filter)', endpoints: ['GET /tenants/:slug/members'] },
@@ -216,6 +224,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     shot: 'workspace-general',
     url: '/settings/workspace/{slug}/general',
     as: 'owner',
+    roleDenied: { as: 'member', note: 'An editor: ReadOnlyBanner and read-only details.' },
     sections: [TENANT, { name: 'Settings', endpoints: ['GET /tenants/:slug/settings'] }],
   },
   '/settings/workspace/$slug/members': {
@@ -225,6 +234,10 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     url: '/settings/workspace/{slug}/members',
     as: 'owner',
     responsive: true,
+    roleDenied: {
+      as: 'member',
+      note: 'An editor: ReadOnlyBanner, plain-text roles, no invite form or pending invitations.',
+    },
     sections: [
       TENANT,
       { name: 'Members', endpoints: ['GET /tenants/:slug/members'] },

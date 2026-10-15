@@ -1,7 +1,8 @@
 /**
  * @file The react capture's data: an owner with one tenant, a second member
- * who accepted an invitation (so the owner has a notification and the members
- * list has two rows), and an invitation still pending (for /invitations/accept).
+ * who accepted an invitation as an editor (so the owner has a notification,
+ * the members list has two rows, and the role-denied shots have a session),
+ * and an invitation still pending (for /invitations/accept).
  */
 import {
   apiLogin,
@@ -34,7 +35,7 @@ export async function seedCapture(): Promise<Seed> {
   await invite(token, slug, pending, 'viewer')
   const invitationToken = await mailedToken(pending, '/invitations/accept')
 
-  return { sessions: { owner }, params: { slug, invitationToken } }
+  return { sessions: { owner, member }, params: { slug, invitationToken } }
 }
 
 /** Invites `email` to the tenant as `role`; the API answers 202. */

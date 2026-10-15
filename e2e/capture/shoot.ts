@@ -1,9 +1,10 @@
 /**
  * @file Shoots one route: default, then loading (its sections' requests
  * held), error (answered 500) and empty, each from a fresh page, plus dark and
- * mobile defaults when the manifest asks. Never fails a route for missing UI:
- * what it saw goes into the records for the doc writer. A 429 anywhere stops
- * the run, since every shot after it would show the limiter, not the page.
+ * mobile defaults and a role-denied default (as another session) when the
+ * manifest asks. Never fails a route for missing UI: what it saw goes into the
+ * records for the doc writer. A 429 anywhere stops the run, since every shot
+ * after it would show the limiter, not the page.
  */
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
@@ -24,6 +25,12 @@ export interface SessionContexts {
 
 /** A manifest entry that is a page. */
 type PageCapture = RouteCapture & { kind: 'page' }
+
+/**
+ * A session's contexts by its name in `Seed.sessions` (or `'anonymous'`).
+ * @throws When the run has no such session.
+ */
+export type ContextsFor = (session: string) => SessionContexts
 
 /** Waits on the page after navigation and returns what it saw. */
 type Settle = (page: Page, control: Control) => Promise<Partial<ShotRecord>>
@@ -91,7 +98,7 @@ async function shootOne(
       path: path.join(DOCS_DIR, file),
       type: 'jpeg',
       quality: 70,
-      fullPage: state === 'default',
+      fullPage: state === 'default' || state === 'role-denied',
     })
     if (limited) throw limitedError()
     return {
@@ -116,17 +123,18 @@ async function shootOne(
 
 /**
  * Takes every shot the manifest asks of one route.
- * @param contexts - The route's session, signed in three times.
+ * @param contextsFor - Each session's three signed-in contexts, by name.
  * @param route - The route's full path, for the records.
  * @param capture - The manifest entry.
  * @param seed - Placeholder values.
  */
 export async function shootRoute(
-  contexts: SessionContexts,
+  contextsFor: ContextsFor,
   route: string,
   capture: PageCapture,
   seed: Seed
 ): Promise<ShotRecord[]> {
+  const contexts = contextsFor(capture.as)
   await mkdir(path.join(DOCS_DIR, 'img', capture.area), { recursive: true })
   const url = fillUrl(capture.url, seed)
   const endpoints = capture.sections.flatMap((section) => section.endpoints)
@@ -183,6 +191,12 @@ export async function shootRoute(
       await shoot(contexts.dark, 'dark', url, [], settled),
       await shoot(contexts.mobile, 'mobile', url, [], settled)
     )
+  }
+
+  const { roleDenied } = capture
+  if (roleDenied) {
+    const denied = await shoot(contextsFor(roleDenied.as).default, 'role-denied', url, [], settled)
+    records.push(roleDenied.note === undefined ? denied : { ...denied, note: roleDenied.note })
   }
   return records
 }

@@ -66,9 +66,13 @@ test('capture every page route', async ({ browser, baseURL }) => {
       continue
     }
     if (ONLY.size > 0 && !ONLY.has(capture.area)) continue
-    const contexts = sessions.get(capture.as)
-    if (!contexts) throw new Error(`${route}: no session "${capture.as}" in the seed`)
-    records.push(...(await shootRoute(contexts, route, capture, seed)))
+    /** The named session's contexts; the manifest names only sessions the seed made. */
+    const contextsFor = (name: string) => {
+      const contexts = sessions.get(name)
+      if (!contexts) throw new Error(`${route}: no session "${name}" in the seed`)
+      return contexts
+    }
+    records.push(...(await shootRoute(contextsFor, route, capture, seed)))
     await writeFile(path.join(dir, 'report.json'), JSON.stringify({ records, skipped }, null, 2))
   }
   await writeFile(path.join(dir, 'report.json'), JSON.stringify({ records, skipped }, null, 2))
