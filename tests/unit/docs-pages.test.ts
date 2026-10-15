@@ -12,7 +12,7 @@ const MAX_IMG_BYTES = 10 * 1024 * 1024
 function routePaths(): string[] {
   const tree = readFileSync(path.join(ROOT, 'src/routeTree.gen.ts'), 'utf8')
   const block = /export interface FileRoutesByFullPath \{([\s\S]*?)\n\}/.exec(tree)?.[1] ?? ''
-  return [...block.matchAll(/'([^']+)':/g)].map((match) => match[1])
+  return [...block.matchAll(/'([^']+)':/g)].flatMap((match) => match[1] ?? [])
 }
 
 /** Every file under `dir`, recursively. */
