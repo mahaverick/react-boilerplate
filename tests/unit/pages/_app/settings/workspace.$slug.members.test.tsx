@@ -305,6 +305,16 @@ describe('members page permissions', () => {
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
   })
 
+  it('keeps the "(you)" marker spaced from the name on a phone card', async () => {
+    setViewportWidth(390)
+    mockTenant('owner', [member(ME, 'owner', 'A'), member(USER_ID_2, 'viewer', 'Cleo')])
+    renderAppAt('/settings/workspace/acme/members')
+
+    const marker = await screen.findByText('(you)')
+    expect(marker.parentElement).toHaveClass('flex', 'gap-2')
+    expect(marker.parentElement).toHaveTextContent(/A.*\(you\)/)
+  })
+
   /** A header row over nothing reads as missing data. The error branch above still runs first: `[]` means "no members" only once the request is known to have answered. */
   it('says the list is empty rather than showing a bare table header', async () => {
     mockTenant('owner', [])

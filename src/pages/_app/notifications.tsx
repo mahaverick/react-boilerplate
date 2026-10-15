@@ -65,9 +65,11 @@ function NotificationRow({ notification }: { notification: Notification }) {
       className={cn('items-start', isUnread && 'bg-muted/50')}
     >
       <ItemContent className="min-w-0">
-        <ItemTitle className="line-clamp-none flex-wrap">
-          <h3>{notification.title}</h3>
-          {isUnread && <Badge variant="secondary">Unread</Badge>}
+        <ItemTitle className="line-clamp-none">
+          <span className="flex flex-wrap items-center gap-2">
+            <h3>{notification.title}</h3>
+            {isUnread && <Badge variant="secondary">Unread</Badge>}
+          </span>
         </ItemTitle>
         <ItemDescription className="line-clamp-none">
           <Pii>{notification.body}</Pii>

@@ -444,8 +444,10 @@ function MemberRow({
       <Item variant="outline" role="listitem">
         <ItemContent className="min-w-0">
           <ItemTitle className="line-clamp-none">
-            <Pii>{memberName(member)}</Pii>
-            {isSelf && <span className="text-xs font-normal text-muted-foreground">(you)</span>}
+            <span className="flex flex-wrap items-center gap-2">
+              <Pii>{memberName(member)}</Pii>
+              {isSelf && <span className="text-xs font-normal text-muted-foreground">(you)</span>}
+            </span>
           </ItemTitle>
           <ItemDescription className="line-clamp-none break-all">
             <Pii>{member.user.email}</Pii>
