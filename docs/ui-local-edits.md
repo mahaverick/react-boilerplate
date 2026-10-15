@@ -14,7 +14,9 @@ Edits on every file.
 
 - **`aria-hidden="true"` on each Tabler icon.** Tabler, unlike Lucide, does
   not hide its icons from assistive tech. `tests/unit/ui-icons-aria-hidden.test.ts`
-  fails when one is missing. Re-apply: yes.
+  fails when one is missing. `spinner.tsx` is the one exception: its icon
+  is announced through its own `role="status"` and `aria-label`, so it stays
+  as the registry has it. Re-apply: yes, except in `spinner.tsx`.
 - **No `"use client"` line** where the registry adds one. The app is a Vite
   single-page app, so the directive does nothing. Files that already carry
   it keep it; the rule treats the line as noise on our side. Re-apply: no.
