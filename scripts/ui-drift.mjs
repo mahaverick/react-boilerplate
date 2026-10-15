@@ -57,6 +57,20 @@ export function parseRules(markdown) {
 }
 
 /**
+ * Whether the CLI output has a section for `<target>.tsx`. Without one the
+ * output is not in the format this script reads, and an empty comparison would
+ * pass for real drift.
+ * @param output - The CLI's stdout.
+ * @param target - Component name, e.g. `field`.
+ * @returns True when a `├ …/<target>.tsx` header is present.
+ */
+export function hasSection(output, target) {
+  return output
+    .split('\n')
+    .some((line) => /^├ (\S+)/.exec(line)?.[1]?.endsWith(`/${target}.tsx`) === true)
+}
+
+/**
  * The changed lines of `shadcn add <name> --diff` output: `-` lines are ours,
  * `+` lines the registry's; file headers and context are dropped. The CLI
  * also diffs the components a component depends on, so with `target` only the
@@ -129,12 +143,19 @@ function main() {
       console.log(`${entry}: ours (skipped)`)
       continue
     }
+    const name = path.basename(entry, '.tsx')
+    // Without the path the CLI lists only the first few files, and sidebar's section is cut off.
     const output = execFileSync(
       'pnpm',
-      ['dlx', SHADCN, 'add', path.basename(entry, '.tsx'), '--diff'],
+      ['dlx', SHADCN, 'add', name, '--diff', `src/components/ui/${entry}`],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
     )
-    const left = unrecorded(changedLines(output, path.basename(entry, '.tsx')), [...global, ...own])
+    if (!hasSection(output, name)) {
+      drifted += 1
+      console.log(`${entry}: unreadable CLI output`)
+      continue
+    }
+    const left = unrecorded(changedLines(output, name), [...global, ...own])
     if (left.ours.length === 0 && left.theirs.length === 0) {
       console.log(`${entry}: ok`)
       continue

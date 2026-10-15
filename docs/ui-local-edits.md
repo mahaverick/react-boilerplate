@@ -17,9 +17,9 @@ Edits on every file.
   fails when one is missing. `spinner.tsx` is the one exception: its icon
   is announced through its own `role="status"` and `aria-label`, so it stays
   as the registry has it. Re-apply: yes, except in `spinner.tsx`.
-- **No `"use client"` line** where the registry adds one. The app is a Vite
-  single-page app, so the directive does nothing. Files that already carry
-  it keep it; the rule treats the line as noise on our side. Re-apply: no.
+- **A `"use client"` line** in files added before this record. The registry
+  (`rsc: false`) omits it, and the directive does nothing in a Vite
+  single-page app. The rule treats the line as noise on our side. Re-apply: no.
 - **Narrowed `transition`.** The registry writes `transition-all`; we list the
   properties that animate (as `button.tsx` does) so layout properties are not
   transitioned. The rule reads any `transition-[...]` as `transition-all`.
@@ -82,6 +82,19 @@ Hand-written, not vendored; there is no registry file to compare.
 
 ```ui-drift
 skip
+```
+
+### sidebar.tsx
+
+- **`after:w-0.5`** on the rail, where the registry writes `after:w-[2px]`: the
+  lint rule for canonical Tailwind classes rejects the arbitrary value.
+  Re-apply: yes.
+- **No `"use client"` line.** The registry adds one; the app does not need it.
+  Re-apply: no.
+
+```ui-drift
+ours: s/after:w-0\.5/after:w-[2px]/
+theirs: s/^"use client"$//
 ```
 
 ### tabs.tsx

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changedLines, parseRules, unrecorded } from '../../scripts/ui-drift.mjs'
+import { changedLines, hasSection, parseRules, unrecorded } from '../../scripts/ui-drift.mjs'
 
 const RECORD = `
 ### *
@@ -47,6 +47,15 @@ describe('changedLines', () => {
       ours: ['"use client"', '            <IconX aria-hidden="true" />'],
       theirs: ['            <IconX />'],
     })
+  })
+})
+
+describe('hasSection', () => {
+  it('finds the target header, and reports output without one as unreadable', () => {
+    const output = '├ src/components/ui/field.tsx (skip)\n│ │ No changes.'
+    expect(hasSection(output, 'field')).toBe(true)
+    expect(hasSection(output, 'dialog')).toBe(false)
+    expect(hasSection('Something went wrong', 'field')).toBe(false)
   })
 })
 
