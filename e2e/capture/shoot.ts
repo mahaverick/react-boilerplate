@@ -76,35 +76,42 @@ async function shootOne(
     if (response.status() === 429) limited = pathname
   })
   const control = await controlRequests(page, rules)
-  const started = Date.now()
-  await page.goto(target, { waitUntil: 'commit' })
-  const extra = await settle(page, control)
-  await afterFontsAndFrames(page)
-  const file = `img/${capture.area}/${capture.shot}--${state}.jpg`
-  await page.screenshot({
-    path: path.join(DOCS_DIR, file),
-    type: 'jpeg',
-    quality: 70,
-    fullPage: state === 'default',
-  })
-  const record: ShotRecord = {
-    route,
-    state,
-    file,
-    requestedUrl: target,
-    finalUrl: page.url(),
-    requests,
-    ms: Date.now() - started,
-    ...extra,
-  }
-  await control.dispose()
-  await page.close()
-  if (limited) {
-    throw new Error(
+  /** The stop message for a spent limiter; it replaces any other failure the 429 caused. */
+  const limitedError = () =>
+    new Error(
       `429 from ${limited}: a rate limiter is spent (refresh allows 300 per 5 min). Wait 5 minutes, then rerun with CAPTURE_ONLY=<areas not yet done>.`
     )
+  try {
+    const started = Date.now()
+    await page.goto(target, { waitUntil: 'commit' })
+    const extra = await settle(page, control)
+    await afterFontsAndFrames(page)
+    const file = `img/${capture.area}/${capture.shot}--${state}.jpg`
+    await page.screenshot({
+      path: path.join(DOCS_DIR, file),
+      type: 'jpeg',
+      quality: 70,
+      fullPage: state === 'default',
+    })
+    if (limited) throw limitedError()
+    return {
+      route,
+      state,
+      file,
+      requestedUrl: target,
+      finalUrl: page.url(),
+      requests,
+      ms: Date.now() - started,
+      ...extra,
+    }
+  } catch (error) {
+    // A refresh the limiter refused can leave a screen with no main or card, so settle times out first.
+    if (limited) throw limitedError()
+    throw error
+  } finally {
+    await control.dispose().catch(() => undefined)
+    await page.close().catch(() => undefined)
   }
-  return record
 }
 
 /**
