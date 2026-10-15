@@ -16,11 +16,11 @@ The tag names the work that fixes it: `[P2 loading]` boot and loading states, `[
 
 [P3 shadcn]
 
-- [F-tenants-4](#f-tenants-4), [F-notifications-2](#f-notifications-2), [F-notifications-3](#f-notifications-3), [F-settings-8](#f-settings-8)
+- [F-tenants-4](#f-tenants-4), [F-notifications-2](#f-notifications-2), [F-notifications-3](#f-notifications-3), [F-settings-7](#f-settings-7), [F-settings-8](#f-settings-8)
 
 [P4 table]
 
-- [F-settings-6](#f-settings-6), [F-settings-7](#f-settings-7)
+- [F-settings-6](#f-settings-6)
 
 [P5 palette]
 
@@ -72,7 +72,7 @@ The tag names the work that fixes it: `[P2 loading]` boot and loading states, `[
 | F-settings-4      | `/settings/account/notifications`                  | [P2 loading] | One bar stands in for four preference rows.                                                                                                                           | [shots](settings.md#settingsaccountnotifications--notifications)           |
 | F-settings-5      | workspace members, activity, general               | [P2 loading] | Plain bars stand in for a table, a filtered log and forms; the member table's arrival pushes the cards below it 77 px.                                                | [walk](settings.md#settingsworkspaceslugmembers--members)                  |
 | F-settings-6      | `/settings/workspace/$slug/members`                | [P4 table]   | At 1440 px the member table's Actions column (Remove, Leave) is outside the card and needs a sideways scroll; a member without a name shows the address twice.        | [walk](settings.md#settingsworkspaceslugmembers--members)                  |
-| F-settings-7      | workspace activity, members                        | [P4 table]   | The audit log, with server-side filters and Load more, and the pending invitations are hand-rolled lists rather than a table.                                         | [shots](settings.md#settingsworkspaceslugactivity--activity)               |
+| F-settings-7      | workspace activity, members                        | [P3 shadcn]  | The audit log, with server-side filters and Load more, and the pending invitations are hand-rolled lists rather than a table.                                         | [shots](settings.md#settingsworkspaceslugactivity--activity)               |
 | F-settings-8      | account notifications, workspace members, activity | [P3 shadcn]  | Every empty list is a muted sentence, not an empty state.                                                                                                             | [shots](settings.md#settingsworkspaceslugmembers--members)                 |
 | F-settings-9      | `/settings/workspace/$slug/activity`               | [UX]         | The activity card has no visible title, and its first line, "What platform staff did is marked Staff.", reads like a stray footnote.                                  | [shot](settings.md#settingsworkspaceslugactivity--activity)                |
 | F-settings-10     | `/settings/account/notifications`                  | [UX]         | The card's description repeats the page's subtitle word for word before saying anything new.                                                                          | [shot](settings.md#settingsaccountnotifications--notifications)            |
@@ -211,7 +211,7 @@ The members `Table` is `min-w-2xl` inside the vendored table's `overflow-x-auto`
 
 ### F-settings-7
 
-The audit log is a `ul` of entries with two `Select` filters (sent to the API as `action`, `actorUserId`, `access`) and a "Load more activity" button ([shot](img/settings/workspace-activity--default.jpg)); pending invitations are a `ul` of bordered rows with Resend and Revoke ([shot](img/settings/workspace-members--default.jpg)). Both are tabular (actor, action, time; address, role, inviter, expiry) and have the toolbar and paging the data table provides. Fix: move both onto the data table, with ordering, filtering and paging kept on the API.
+The audit log is a `ul` of entries with two `Select` filters (sent to the API as `action`, `actorUserId`, `access`) and a "Load more activity" button ([shot](img/settings/workspace-activity--default.jpg)); pending invitations are a `ul` of bordered rows with Resend and Revoke ([shot](img/settings/workspace-members--default.jpg)). Both are tabular (actor, action, time; address, role, inviter, expiry), and Load more is hand-rolled paging. Fix: render both with shadcn's `table`, and the log's paging with `pagination`, keeping ordering, filtering and paging on the API.
 
 ### F-settings-8
 
