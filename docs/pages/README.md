@@ -1,8 +1,8 @@
 # React pages
 
-This folder is the inventory of every route in the app: what each page is for, which file renders it, what guards it, which requests it waits on, which components it is built from, and what it looks like in its default, loading, error and empty states. The screenshots under `img/` are taken by the Playwright `capture` project in `e2e/capture/`: with the dev stack up (react on `:5173`, the API on `:4040`, Mailpit on `:8025`), run `pnpm capture:pages`, or `CAPTURE_ONLY=<areas> pnpm capture:pages` to redo some areas (for example `CAPTURE_ONLY=auth,system`). The run writes its records to `test-results/capture/report.json` and the boot frames to `test-results/capture/boot.json`. The problems found are listed in [findings.md](findings.md). `tests/unit/docs-pages.test.ts` fails when a route is missing from the map below, when a screenshot is linked from no page, or when `img/` grows past 10 MiB.
+This folder is the inventory of every route in the app: what each page is for, which file renders it, what guards it, which requests it waits on, which components it is built from, and what it looks like in its default, loading, error and empty states. The screenshots under `img/` are taken by the Playwright `capture` project in `e2e/capture/`: with the dev stack up (react on `:5173`, the API on `:4040`, Mailpit on `:8025`), run `pnpm capture:pages`, or `CAPTURE_ONLY=<areas> pnpm capture:pages` to redo some areas (for example `CAPTURE_ONLY=auth,system`). Run it only through `pnpm capture:pages`: the script sets `E2E_CAPTURE=1`, which turns Playwright's `webServer` off, and a bare `pnpm exec playwright test --project=capture` without it starts `pnpm dev` and then skips every test. The run writes its records to `test-results/capture/report.json` and the boot frames to `test-results/capture/boot.json`. A 429 from the API stops the run with a message naming `CAPTURE_ONLY` and the 5-minute wait; the shot that saw the 429 may already be written under its real name, so restore it before the rerun with `git checkout -- docs/pages/img/<area>/<shot>--<state>.jpg`. The problems found are listed in [findings.md](findings.md). `tests/unit/docs-pages.test.ts` fails when a route is missing from the map below, when a screenshot is linked from no page, or when `img/` grows past 10 MiB.
 
-The shots come from `vite dev`, so the TanStack Router and Query devtools buttons show in the bottom-right corner of some of them. Those buttons are dev-only (`src/components/dev/devtools.tsx`) and are not part of any page.
+The shots come from `vite dev`, so the TanStack Router and Query devtools buttons show in the bottom-right corner of some of them. Those buttons are dev-only (`src/components/dev/devtools.tsx`) and are not part of any page. The default shots are full-page, so the sticky sidebar ends at the viewport's height (900 px) with blank space below it; that is a capture artifact, not the page.
 
 | Area                                 | Covers                                                                        |
 | ------------------------------------ | ----------------------------------------------------------------------------- |
@@ -106,16 +106,16 @@ Every area file describes each route with the same block, so the docs stay compa
 
 ![Tenants](img/<area>/<shot>--default.jpg)
 
-|                     |                                                             |
-| ------------------- | ----------------------------------------------------------- |
-| Purpose             | …                                                           |
-| File                | `src/pages/_app/tenants/index.tsx`                          |
-| Guard and redirects | …                                                           |
-| Layout              | `AppLayout` (sidebar)                                       |
-| Data                | `GET /tenants` — awaited by the `_app` guard (3 s cap)      |
-| Sections            | Tenants list ← `GET /tenants`; Create a tenant (no request) |
-| Components          | `Card`, `Skeleton`, `LoadError`, … ; hand-rolled: …         |
-| Transitions         | row → `/tenants/$slug`; create → `/tenants/$slug`           |
+|                     |                                                              |
+| ------------------- | ------------------------------------------------------------ |
+| Purpose             | …                                                            |
+| File                | `src/pages/_app/tenants/index.tsx`                           |
+| Guard and redirects | …                                                            |
+| Layout              | `AppLayout` (sidebar)                                        |
+| Data                | `GET /tenants` (`['tenants']`) — awaited by `_app` (3 s cap) |
+| Sections            | Tenants list ← `GET /tenants`; Create a tenant (no request)  |
+| Components          | `Card`, `Skeleton`, `LoadError`, … ; hand-rolled: …          |
+| Transitions         | row → `/tenants/$slug`; create → `/tenants/$slug`            |
 
 | Loading                             | Error                             | Empty                                   |
 | ----------------------------------- | --------------------------------- | --------------------------------------- |
@@ -126,8 +126,19 @@ Findings: [F-tenants-1](findings.md#f-tenants-1) …
 ```
 
 - The heading is the route in backticks, an em dash, and the page's name. The name differs between routes whose paths differ only by a trailing slash, so their anchors never collide.
-- The `Loading` cell's first line is the report's `loadingUi` (`skeleton`, `status` or `splash`, or `none`), the `Error` cell's is its `errorUi` (`alert` or `none`). The second line names what is drawn.
+- The `Data` row names each query's endpoint and its query key as the code defines it (`tenantKeys.list` is `['tenants']`), whether it is awaited or only started, and its `staleTime` when it is not the default 30 s (`src/router.tsx`). A row with mutations only says "no query".
+- The `Loading` cell's first line is the report's `loadingUi` (`skeleton`, `spinner` or `splash`, or `none`), the `Error` cell's is its `errorUi` (`alert` or `none`). The second line names what is drawn.
 - A state with no shot has no column. A route with no shot at all (a redirect) has no image.
 - Dark and mobile shots go in a second table under the first, when the route has them.
+- A route with a role gate has a `Role-denied` table: what an editor (the seed's `member` session) sees instead, from the code. Its shot is `img/<area>/<shot>--role-denied.jpg`.
 - The image paths are `img/<area>/<shot>--<state>.jpg`, with the area and shot stem from `e2e/capture/manifest.ts`; the example writes them as placeholders so it links no real screenshot.
 - Findings ids are `F-<area>-<n>`, and each one has a heading in [findings.md](findings.md).
+
+## Pending shots
+
+The manifest's `roleDenied` entries add these shots on the next capture run; the `Role-denied` tables link them then:
+
+- `img/tenants/tenant-overview--role-denied.jpg`
+- `img/settings/workspace-general--role-denied.jpg`
+- `img/settings/workspace-members--role-denied.jpg`
+- `img/settings/workspace-activity--role-denied.jpg`

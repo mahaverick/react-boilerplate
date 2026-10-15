@@ -139,7 +139,7 @@ The capture failed `GET /tenants` and `GET /notifications` on `/dashboard` and r
 
 ### F-tenants-2
 
-A failed `GET /tenants/:slug` reaches the layout's `errorComponent`, `TenantLoadFailed`, which replaces the tenant's header, role badge and tabs as well as the page with one `LoadError`; the breadcrumb above still says Overview or Beta ([overview](img/tenants/tenant-overview--error.jpg), [beta](img/tenants/tenant-beta--error.jpg)). The capture fails every section at once, so this shot is the worst case; but the onboarding card and the beta card read their own endpoints and would render without the detail except for the header's name. Fix: keep the header and tabs (from the slug) and put the failure in the region that needs the detail.
+A failed `GET /tenants/:slug` reaches the layout's `errorComponent`, `TenantLoadFailed`, which replaces the tenant's header, role badge and tabs as well as the page with one `LoadError`; the breadcrumb above still says Overview or Beta ([overview](img/tenants/tenant-overview--error.jpg), [beta](img/tenants/tenant-beta--error.jpg)). The capture fails every section at once, so this shot is the worst case; but the onboarding card and the beta card read their own endpoints and would render without the detail except for the header's name (from the code). Fix: keep the header and tabs (from the slug) and put the failure in the region that needs the detail.
 
 ### F-tenants-3
 

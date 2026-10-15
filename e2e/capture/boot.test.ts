@@ -7,8 +7,8 @@
  */
 import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { test, type Page } from '@playwright/test'
-import { createVerifiedUser, freshEmail, logIn } from '../live/helpers'
+import { expect, test, type Page } from '@playwright/test'
+import { apiIsReady, createVerifiedUser, freshEmail, logIn } from '../live/helpers'
 import { DOCS_DIR } from './shoot'
 
 test.skip(process.env.E2E_CAPTURE !== '1', 'capture only — run pnpm capture:pages')
@@ -99,13 +99,24 @@ async function recordBoot(name: string, entry: BootEntry): Promise<void> {
   await writeFile(file, JSON.stringify({ ...existing, [name]: entry }, null, 2))
 }
 
+// baseURL is a test fixture, which a beforeAll cannot take, so the project's option is read instead.
+test.beforeAll(async () => {
+  const baseURL = test.info().project.use.baseURL ?? ''
+  expect(await apiIsReady(), 'the API on :4040 is not up; start the dev stack first').toBe(true)
+  const probe = await fetch(baseURL).catch(() => null)
+  expect(probe?.ok, `${baseURL} is not serving; start the dev stack first`).toBe(true)
+})
+
 for (const scenario of SCENARIOS) {
   test(`boot: ${scenario.name}`, async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL })
     if (scenario.signedIn) {
       const email = freshEmail()
       await createVerifiedUser(email)
-      await logIn(await context.newPage(), email)
+      const page = await context.newPage()
+      await logIn(page, email)
+      // Closed so its notifications stream holds none of the boot's connections.
+      await page.close()
     }
     const entry = await screencast(
       await context.newPage(),
