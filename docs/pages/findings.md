@@ -169,13 +169,13 @@ The loading branch is three `Skeleton className="h-16 w-full"` blocks ([shot](im
 
 ### F-notifications-2
 
-Status: fixed in cb66096. The inbox shows an `EmptyState`, and the bell a compact one ([after](img/notifications/notifications--empty.jpg)).
+Status: fixed in cb66096. The inbox shows an `EmptyState` ([after](img/notifications/notifications--empty.jpg)). The bell now renders a compact `EmptyState` too; `tests/unit/components/features/notification-bell.test.tsx` covers it, and there is no after-shot of the bell’s empty state.
 
 The empty inbox is a muted `p`, "You have no notifications." ([shot](img/notifications/notifications--empty.jpg)), as is the bell's "You have no notifications.". Fix: shadcn's `empty` on the page.
 
 ### F-notifications-3
 
-Status: fixed in 5d98dd5. Load more is a `BusyButton`: a spinner and the busy label while the next page is fetched ([after](img/notifications/notifications--default.jpg)).
+Status: fixed in 5d98dd5. Load more is a `BusyButton`, which shows a spinner and its busy label while the next page is fetched; `tests/unit/components/shared/busy-button.test.tsx` and `tests/unit/pages/_app/notifications.test.tsx` cover it. There is no after-shot of the busy state, because the capture’s inbox has one notification and no Load more button.
 
 Load more is an outline `Button` whose label turns to "Loading…" while the next page is fetched (`src/pages/_app/notifications.tsx`). Fix: shadcn's `spinner` in the button, or `pagination` if the inbox moves to pages.
 
