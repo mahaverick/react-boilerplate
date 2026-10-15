@@ -39,7 +39,8 @@
     "e2e:fake-flags": "node e2e/helpers/fake-flags.mjs",
     "test:contrast": "playwright test --project=contrast",
     "capture:pages": "E2E_CAPTURE=1 E2E_LIVE=1 playwright test --project=capture",
-    "check:bundle": "node scripts/check-bundle.mjs"
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "ui:drift": "node scripts/ui-drift.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",
