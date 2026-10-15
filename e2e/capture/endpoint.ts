@@ -7,7 +7,7 @@
  */
 
 /** The path every API request starts with, in dev and behind nginx. */
-export const API_PREFIX = '/api/v1'
+const API_PREFIX = '/api/v1'
 
 /** A parsed endpoint spec: the HTTP method and the path segments after the prefix. */
 export interface Endpoint {

@@ -4,7 +4,7 @@
  */
 
 /** A doc page under docs/pages/ that a route's shots belong to. */
-export type Area = string
+type Area = string
 
 /** One API response replaced by a canned success, for an empty state. */
 export interface Stub {
