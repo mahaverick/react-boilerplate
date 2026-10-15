@@ -92,6 +92,7 @@ function RouteErrorCard({
 }) {
   return (
     <div className="flex justify-center px-4 py-16">
+      {/* Capped: a standalone centred card. */}
       <Card role="alert" className="w-full max-w-md">
         <CardHeader>
           <CardTitle>

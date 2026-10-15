@@ -98,7 +98,7 @@ function NotificationsPage() {
   const hasUnread = rows.some((notification) => notification.readAt === null)
 
   return (
-    <div className="grid max-w-3xl gap-6">
+    <div className="grid gap-6">
       <Card>
         <CardHeader>
           <CardTitle>

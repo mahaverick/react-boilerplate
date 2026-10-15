@@ -30,6 +30,7 @@ export function MaintenancePage({
         tabIndex={-1}
         className="flex min-h-svh items-center justify-center bg-background p-4 outline-none sm:p-6"
       >
+        {/* Capped: a standalone centred card. */}
         <Card className="w-full max-w-md">
           <CardHeader>
             <IconTool aria-hidden="true" className="mb-2 size-6 text-muted-foreground" />

@@ -1,8 +1,9 @@
+import { IconBuildingOff, IconLock } from '@tabler/icons-react'
 import { Link, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
 import { useEffect, type ReactNode } from 'react'
 import { LoadError } from '@/components/features/load-error'
 import { PlatformAccessBanner } from '@/components/features/platform-access-banner'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { noteError } from '@/observability/errors'
 import { useTenant, useTenants } from '@/queries/tenant.queries'
@@ -34,22 +35,21 @@ export function TenantLoadFailed({ error }: ErrorComponentProps) {
  */
 function TenantNotFound({ slug, heading: Heading }: { slug: string; heading: GateHeading }) {
   return (
-    <Card className="max-w-2xl">
-      <CardHeader>
-        <CardTitle>
-          <Heading>Tenant not available</Heading>
-        </CardTitle>
-        <CardDescription>
+    <EmptyState
+      icon={<IconBuildingOff aria-hidden="true" />}
+      title={<Heading>Tenant not available</Heading>}
+      description={
+        <>
           We could not open <span className="font-medium">/{slug}</span>. Either it does not exist
           or it is not one of yours.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </>
+      }
+      action={
         <Link to="/tenants" className="text-sm underline underline-offset-4">
           Back to your tenants
         </Link>
-      </CardContent>
-    </Card>
+      }
+    />
   )
 }
 
@@ -61,22 +61,21 @@ function TenantNotFound({ slug, heading: Heading }: { slug: string; heading: Gat
  */
 function TenantSuspended({ name, heading: Heading }: { name: string; heading: GateHeading }) {
   return (
-    <Card className="max-w-2xl">
-      <CardHeader>
-        <CardTitle>
-          <Heading>Tenant suspended</Heading>
-        </CardTitle>
-        <CardDescription>
+    <EmptyState
+      icon={<IconLock aria-hidden="true" />}
+      title={<Heading>Tenant suspended</Heading>}
+      description={
+        <>
           <span className="font-medium">{name}</span> is unavailable right now.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        <p className="text-sm">This tenant is suspended. Contact support.</p>
+          <span className="mt-2 block">This tenant is suspended. Contact support.</span>
+        </>
+      }
+      action={
         <Link to="/tenants" className="text-sm underline underline-offset-4">
           Back to your tenants
         </Link>
-      </CardContent>
-    </Card>
+      }
+    />
   )
 }
 
@@ -119,7 +118,7 @@ export function TenantGate({
   // With no tenant, the list decides between suspended and not found, so wait for it.
   if (tenant.isPending || (!tenant.data && (tenants.isPending || tenants.isFetching))) {
     return (
-      <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
+      <div className="grid gap-4">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-40 w-full" />

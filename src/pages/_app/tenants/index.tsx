@@ -188,7 +188,7 @@ function TenantsPage() {
   const tenants = useTenants()
 
   return (
-    <div className="grid max-w-3xl gap-6">
+    <div className="grid gap-6">
       <Card>
         <CardHeader>
           <CardTitle>
