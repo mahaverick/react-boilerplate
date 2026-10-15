@@ -395,7 +395,8 @@ Three fake-timer traps:
 
 ## End-to-end tests
 
-Playwright has four projects: `fixtures`, `live`, `contrast` and `nginx`.
+Playwright has five projects: `fixtures`, `live`, `contrast`, `nginx` and
+`capture`.
 
 - **Name e2e files `*.test.ts`.** `playwright.config.ts` sets `testMatch` to
   match. `vitest.config.ts` keeps an explicit `include` of `tests/**`, or Vitest
@@ -552,6 +553,13 @@ surface asserts a heading only it renders before axe runs, because a redirected
 route still paints a legible page. It is opt-in and not in CI. Component
 composition changes contrast as much as the palette does, so run it before merging
 UI work. Never judge a contrast change by eye.
+
+**`capture`** (`pnpm capture:pages`) takes the page inventory's screenshots in
+`docs/pages/img/` against a dev stack that is already up, and starts nothing.
+Run it only through `pnpm capture:pages`: that script sets `E2E_CAPTURE=1`,
+which turns `webServer` off, and a bare `--project=capture` starts `pnpm dev`
+and then skips every test. It is opt-in and not in CI. How to run it is in
+[docs/pages/README.md](docs/pages/README.md).
 
 ## Accessibility
 

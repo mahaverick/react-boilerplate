@@ -180,6 +180,7 @@ environment variable.
 | `pnpm test:e2e:nginx` | Builds the production image and runs the Playwright `nginx` project against it on :8088, started with the run-time settings CI uses; all but the `@no-api` tests need a live API                                                           |
 | `pnpm e2e:fake-flags` | Fake PostHog flag definitions on 127.0.0.1:4064 (`E2E_FAKE_FLAGS_PORT`) for `live/flags.test.ts`; `scripts/e2e-flags-set.mjs <key> <value>` changes one                                                                                    |
 | `pnpm test:contrast`  | axe colour contrast in a real browser, both themes; no backend needed                                                                                                                                                                      |
+| `pnpm capture:pages`  | Playwright `capture` project: the page inventory's screenshots into `docs/pages/img/`. Needs the dev stack up (react :5173, API :4040, Mailpit :8025) and starts nothing; `CAPTURE_ONLY=auth,tenants` limits it to those areas             |
 | `pnpm check:bundle`   | Builds in memory; fails on one JS chunk, first-visit JS over budget or holding posthog-js or `@posthog/core`, the error listener over 1 KB gzipped, or devtools in a chunk. CI runs it                                                     |
 | `pnpm prepare`        | Installs the husky git hooks; `pnpm install` runs it                                                                                                                                                                                       |
 
@@ -200,7 +201,7 @@ Unit tests live under `tests/unit/`, mirroring `src/`. No test file lives under
 pass it, and a violation is fixed in the markup. What it covers, and why colour
 contrast is measured elsewhere, is in [CLAUDE.md](CLAUDE.md#accessibility).
 
-Playwright has four projects in `e2e/`:
+Playwright has five projects in `e2e/`:
 
 | Project    | Command               | Runs against                                        | In CI                         |
 | ---------- | --------------------- | --------------------------------------------------- | ----------------------------- |
@@ -208,6 +209,7 @@ Playwright has four projects in `e2e/`:
 | `live`     | `pnpm test:e2e:live`  | A real express and its services, with `E2E_LIVE=1`  | Nightly                       |
 | `nginx`    | `pnpm test:e2e:nginx` | The production image on :8088                       | `@no-api` on PRs; all nightly |
 | `contrast` | `pnpm test:contrast`  | The harness, in both themes; no API                 | No                            |
+| `capture`  | `pnpm capture:pages`  | An already-running dev stack; starts nothing        | No                            |
 
 The `live` and `nginx` projects read these variables (defaults in
 `playwright.config.ts` and the helpers):
