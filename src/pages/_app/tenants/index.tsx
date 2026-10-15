@@ -1,7 +1,9 @@
+import { IconBuilding } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { z } from 'zod'
 import { LoadError } from '@/components/features/load-error'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -211,9 +213,11 @@ function TenantsPage() {
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              You do not belong to any tenants yet. Create one below.
-            </p>
+            <EmptyState
+              icon={<IconBuilding aria-hidden="true" />}
+              title="You do not belong to any tenants yet."
+              description="Create one below."
+            />
           )}
         </CardContent>
       </Card>

@@ -1,3 +1,4 @@
+import { IconUsers } from '@tabler/icons-react'
 /**
  * @file The members tab of a tenant: the member list with role and removal
  * controls, and, for owners and admins, the invite form and pending invitations.
@@ -8,6 +9,7 @@ import { useState } from 'react'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { InviteMemberForm } from '@/components/features/tenant/invite-member-form'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Pii } from '@/components/shared/pii'
 import {
   AlertDialog,
@@ -531,9 +533,11 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
               <Skeleton className="h-10 w-full" />
             </div>
           ) : (members.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No one has access to this tenant yet.{!isStaffView && ' Invite someone below.'}
-            </p>
+            <EmptyState
+              icon={<IconUsers aria-hidden="true" />}
+              title="No one has access to this tenant yet."
+              description={!isStaffView ? 'Invite someone below.' : undefined}
+            />
           ) : isMobile ? (
             <ul className="grid gap-3">
               {(members.data ?? []).map((member) => (

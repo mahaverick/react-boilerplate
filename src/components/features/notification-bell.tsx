@@ -1,5 +1,6 @@
 import { IconBell } from '@tabler/icons-react'
 import { Link } from '@tanstack/react-router'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -87,7 +88,7 @@ export function NotificationBell() {
           ) : notifications.isPending ? (
             <p className="px-1.5 py-2 text-sm text-muted-foreground">Loading notifications…</p>
           ) : (
-            <p className="px-1.5 py-2 text-sm text-muted-foreground">You have no notifications.</p>
+            <EmptyState size="compact" title="You have no notifications." />
           )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

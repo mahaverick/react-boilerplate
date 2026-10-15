@@ -1,6 +1,7 @@
-import { IconCheck, IconTrash } from '@tabler/icons-react'
+import { IconBell, IconCheck, IconTrash } from '@tabler/icons-react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { LoadError } from '@/components/features/load-error'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -133,7 +134,7 @@ function NotificationsPage() {
           ) : notifications.isError ? (
             <LoadError message={NOTIFICATIONS_ERROR} onRetry={() => void notifications.refetch()} />
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">You have no notifications.</p>
+            <EmptyState icon={<IconBell aria-hidden="true" />} title="You have no notifications." />
           ) : (
             <ul className="grid gap-2">
               {rows.map((notification) => (

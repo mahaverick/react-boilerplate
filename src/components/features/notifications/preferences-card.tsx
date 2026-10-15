@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { LoadError } from '@/components/features/load-error'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
@@ -90,9 +91,7 @@ export function PreferencesCard() {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            This account has no notification types yet.
-          </p>
+          <EmptyState size="compact" title="This account has no notification types yet." />
         )}
       </CardContent>
     </Card>
