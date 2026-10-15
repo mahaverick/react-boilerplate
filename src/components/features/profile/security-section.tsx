@@ -12,6 +12,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Item, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
@@ -99,12 +100,24 @@ function SignInMethods({ providers, hasPassword }: AuthProviders) {
   return (
     <div className="grid gap-2">
       <h3 className="text-sm font-medium">Sign-in methods</h3>
-      <ul className="grid gap-1 text-sm">
-        {hasPassword && <li>Email &amp; password</li>}
+      <ItemGroup className="gap-1 has-data-[size=xs]:gap-1">
+        {hasPassword && (
+          <Item size="xs" role="listitem" className="p-0">
+            <ItemContent>
+              <ItemTitle className="line-clamp-none font-normal">Email &amp; password</ItemTitle>
+            </ItemContent>
+          </Item>
+        )}
         {linked.map((link) => (
-          <li key={link.provider}>{PROVIDER_LABELS[link.provider] ?? link.provider}</li>
+          <Item key={link.provider} size="xs" role="listitem" className="p-0">
+            <ItemContent>
+              <ItemTitle className="line-clamp-none font-normal">
+                {PROVIDER_LABELS[link.provider] ?? link.provider}
+              </ItemTitle>
+            </ItemContent>
+          </Item>
         ))}
-      </ul>
+      </ItemGroup>
     </div>
   )
 }

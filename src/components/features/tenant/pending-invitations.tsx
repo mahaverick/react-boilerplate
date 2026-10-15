@@ -15,6 +15,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
 import { useFocusAfter } from '@/hooks/use-focus-after'
@@ -223,18 +231,20 @@ function InvitationItem({
     : `grant-reason-${invitation.id}`
 
   return (
-    <li className="grid gap-3 rounded-lg border p-4 sm:flex sm:items-center sm:justify-between">
-      <div className="grid min-w-0 gap-0.5">
-        <Pii className="font-medium break-all">{invitation.email}</Pii>
-        <span className="text-sm text-muted-foreground">
+    <Item variant="outline" role="listitem">
+      <ItemContent className="min-w-0">
+        <ItemTitle className="line-clamp-none">
+          <Pii className="break-all">{invitation.email}</Pii>
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none">
           {ROLE_LABELS[invitation.role]} · Invited by <Pii>{inviterName(invitation.invitedBy)}</Pii>
-        </span>
-        <span className="text-sm text-muted-foreground">
+        </ItemDescription>
+        <ItemDescription className="line-clamp-none">
           Expires {expiresOn(invitation.expiresAt)}
-        </span>
-      </div>
+        </ItemDescription>
+      </ItemContent>
       {!readOnly && (
-        <div className="grid gap-1">
+        <ItemActions className="grid gap-1">
           <div className="flex gap-2">
             <ResendInvitationButton slug={slug} invitation={invitation} reasonId={reasonId} />
             <RevokeInvitationButton
@@ -249,9 +259,9 @@ function InvitationItem({
               {GRANT_REASON}
             </p>
           )}
-        </div>
+        </ItemActions>
       )}
-    </li>
+    </Item>
   )
 }
 
@@ -295,7 +305,7 @@ export function PendingInvitations({
         ) : invitations.data.length === 0 ? (
           <EmptyState size="compact" title="No invitations are waiting to be accepted." />
         ) : (
-          <ul className="grid gap-3">
+          <ItemGroup className="gap-3">
             {invitations.data.map((invitation) => (
               <InvitationItem
                 key={invitation.id}
@@ -308,7 +318,7 @@ export function PendingInvitations({
                 }}
               />
             ))}
-          </ul>
+          </ItemGroup>
         )}
       </CardContent>
     </Card>

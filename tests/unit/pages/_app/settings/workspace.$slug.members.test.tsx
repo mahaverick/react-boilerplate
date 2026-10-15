@@ -670,12 +670,14 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     expect(await screen.findByRole('heading', { name: 'Pending invitations' })).toBeInTheDocument()
-    const first = within((await screen.findByText('invitee@b.com')).closest('li') as HTMLElement)
+    const first = within(
+      (await screen.findByText('invitee@b.com')).closest('[role="listitem"]') as HTMLElement
+    )
     expect(first.getByText(/^Editor · Invited by/)).toHaveTextContent('Editor · Invited by A B')
     expect(first.getByText('A B')).toHaveClass('ph-sensitive', 'ph-mask')
     expect(first.getByText(/^Expires /)).toBeInTheDocument()
     // An inviter whose account is gone is `null` and must not crash the row.
-    const second = within(screen.getByText('old@b.com').closest('li') as HTMLElement)
+    const second = within(screen.getByText('old@b.com').closest('[role="listitem"]') as HTMLElement)
     expect(second.getByText(/^Viewer · Invited by/)).toHaveTextContent(
       'Viewer · Invited by A teammate'
     )

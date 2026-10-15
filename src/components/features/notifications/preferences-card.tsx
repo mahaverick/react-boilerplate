@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { LoadError } from '@/components/features/load-error'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { humanizeNotificationType } from '@/lib/notification-type'
@@ -32,9 +33,11 @@ function PreferenceRow({ preference }: { preference: NotificationPreference }) {
   const inAppEnabled = update.isPending ? update.variables.inAppEnabled : preference.inAppEnabled
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-      <span className="font-medium">{label}</span>
-      <div className="flex items-center gap-6 text-sm text-muted-foreground">
+    <Item variant="outline" size="sm" role="listitem">
+      <ItemContent>
+        <ItemTitle className="line-clamp-none">{label}</ItemTitle>
+      </ItemContent>
+      <ItemActions className="gap-6 text-sm text-muted-foreground">
         {/* Read-only: NON_DISABLEABLE_NOTIFICATION_TYPES (API) covers every type, */}
         {/* so email is always on and this reads "On". */}
         <span>Email: {preference.emailEnabled ? 'On' : 'Off'}</span>
@@ -59,8 +62,8 @@ function PreferenceRow({ preference }: { preference: NotificationPreference }) {
             }}
           />
         </div>
-      </div>
-    </li>
+      </ItemActions>
+    </Item>
   )
 }
 
@@ -85,11 +88,11 @@ export function PreferencesCard() {
         ) : preferences.isError ? (
           <LoadError message={PREFERENCES_ERROR} onRetry={() => void preferences.refetch()} />
         ) : preferences.data && preferences.data.length > 0 ? (
-          <ul className="grid gap-2">
+          <ItemGroup className="gap-2 has-data-[size=sm]:gap-2">
             {preferences.data.map((preference) => (
               <PreferenceRow key={preference.notificationType} preference={preference} />
             ))}
-          </ul>
+          </ItemGroup>
         ) : (
           <EmptyState size="compact" title="This account has no notification types yet." />
         )}

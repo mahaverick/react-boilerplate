@@ -25,6 +25,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemFooter,
+  ItemGroup,
+  ItemTitle,
+} from '@/components/ui/item'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -433,17 +441,21 @@ function MemberRow({
 
   if (asCard) {
     return (
-      <li className="grid gap-3 rounded-lg border p-4">
-        <div className="grid gap-0.5">
-          <span className="font-medium">
+      <Item variant="outline" role="listitem">
+        <ItemContent className="min-w-0">
+          <ItemTitle className="line-clamp-none">
             <Pii>{memberName(member)}</Pii>
-            {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
-          </span>
-          <Pii className="text-sm break-all text-muted-foreground">{member.user.email}</Pii>
-        </div>
-        {role}
-        {remove && <div>{remove}</div>}
-      </li>
+            {isSelf && <span className="text-xs font-normal text-muted-foreground">(you)</span>}
+          </ItemTitle>
+          <ItemDescription className="line-clamp-none break-all">
+            <Pii>{member.user.email}</Pii>
+          </ItemDescription>
+        </ItemContent>
+        <ItemFooter className="flex-wrap justify-start">
+          {role}
+          {remove}
+        </ItemFooter>
+      </Item>
     )
   }
 
@@ -539,7 +551,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
               description={!isStaffView ? 'Invite someone below.' : undefined}
             />
           ) : isMobile ? (
-            <ul className="grid gap-3">
+            <ItemGroup className="gap-3">
               {(members.data ?? []).map((member) => (
                 <MemberRow
                   key={member.membership.id}
@@ -553,7 +565,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
                   onRemoved={onRemoved}
                 />
               ))}
-            </ul>
+            </ItemGroup>
           ) : (
             <Table className="min-w-2xl">
               <TableHeader>

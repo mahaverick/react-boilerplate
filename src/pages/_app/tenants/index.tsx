@@ -18,6 +18,14 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { pageTitle } from '@/constants/app'
@@ -48,31 +56,32 @@ function TenantRow({ entry }: { entry: TenantWithRole }) {
   const suspended = entry.tenant.lifecycleState === 'suspended'
   const content = (
     <>
-      <span className="min-w-0">
-        <span className="block font-medium">{entry.tenant.name}</span>
-        <span className="block text-sm text-muted-foreground">/{entry.tenant.slug}</span>
-      </span>
-      <span className="flex items-center gap-2">
+      <ItemContent className="min-w-0">
+        <ItemTitle className="line-clamp-none">{entry.tenant.name}</ItemTitle>
+        <ItemDescription className="line-clamp-none">/{entry.tenant.slug}</ItemDescription>
+      </ItemContent>
+      <ItemActions>
         {suspended && <Badge variant="outline">Suspended</Badge>}
         <Badge variant="secondary">{ROLE_LABELS[entry.role]}</Badge>
-      </span>
+      </ItemActions>
     </>
   )
-  const rowClass = 'flex flex-wrap items-center justify-between gap-2 rounded-md border p-3'
   return (
-    <li>
+    <div role="listitem">
       {suspended ? (
-        <div className={rowClass}>{content}</div>
+        <Item variant="outline" size="sm">
+          {content}
+        </Item>
       ) : (
-        <Link
-          to="/tenants/$slug"
-          params={{ slug: entry.tenant.slug }}
-          className={`${rowClass} hover:bg-muted/50`}
+        <Item
+          variant="outline"
+          size="sm"
+          render={<Link to="/tenants/$slug" params={{ slug: entry.tenant.slug }} />}
         >
           {content}
-        </Link>
+        </Item>
       )}
-    </li>
+    </div>
   )
 }
 
@@ -207,11 +216,11 @@ function TenantsPage() {
           ) : tenants.isError ? (
             <LoadError message={TENANTS_ERROR} onRetry={() => void tenants.refetch()} />
           ) : tenants.data && tenants.data.length > 0 ? (
-            <ul className="grid gap-2">
+            <ItemGroup className="gap-2 has-data-[size=sm]:gap-2">
               {tenants.data.map((entry) => (
                 <TenantRow key={entry.tenant.id} entry={entry} />
               ))}
-            </ul>
+            </ItemGroup>
           ) : (
             <EmptyState
               icon={<IconBuilding aria-hidden="true" />}

@@ -7,6 +7,14 @@ import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
@@ -50,41 +58,48 @@ function NotificationRow({ notification }: { notification: Notification }) {
   const isUnread = notification.readAt === null
 
   return (
-    <li className={cn('flex items-start gap-3 rounded-md border p-3', isUnread && 'bg-muted/50')}>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-medium">{notification.title}</h3>
+    <Item
+      variant="outline"
+      size="sm"
+      role="listitem"
+      className={cn('items-start', isUnread && 'bg-muted/50')}
+    >
+      <ItemContent className="min-w-0">
+        <ItemTitle className="line-clamp-none flex-wrap">
+          <h3>{notification.title}</h3>
           {isUnread && <Badge variant="secondary">Unread</Badge>}
-        </div>
-        <Pii as="p" className="text-sm text-muted-foreground">
-          {notification.body}
-        </Pii>
-        <p className="text-xs text-muted-foreground">
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none">
+          <Pii>{notification.body}</Pii>
+        </ItemDescription>
+        <ItemDescription className="line-clamp-none text-xs">
           {humanizeNotificationType(notification.type)} &middot;{' '}
           {receivedAt(notification.createdAt)}
-        </p>
-      </div>
-      {isUnread && (
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        {isUnread && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Mark "${notification.title}" as read`}
+            disabled={markRead.isPending}
+            onClick={() => markRead.mutate(notification.id)}
+          >
+            <IconCheck aria-hidden="true" className="size-4" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
-          aria-label={`Mark "${notification.title}" as read`}
-          disabled={markRead.isPending}
-          onClick={() => markRead.mutate(notification.id)}
+          aria-label={`Delete "${notification.title}"`}
+          disabled={remove.isPending}
+          onClick={() => remove.mutate(notification.id)}
         >
-          <IconCheck aria-hidden="true" className="size-4" />
+          <IconTrash aria-hidden="true" className="size-4" />
         </Button>
-      )}
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={`Delete "${notification.title}"`}
-        disabled={remove.isPending}
-        onClick={() => remove.mutate(notification.id)}
-      >
-        <IconTrash aria-hidden="true" className="size-4" />
-      </Button>
-    </li>
+      </ItemActions>
+    </Item>
   )
 }
 
@@ -137,11 +152,11 @@ function NotificationsPage() {
           ) : rows.length === 0 ? (
             <EmptyState icon={<IconBell aria-hidden="true" />} title="You have no notifications." />
           ) : (
-            <ul className="grid gap-2">
+            <ItemGroup className="gap-2 has-data-[size=sm]:gap-2">
               {rows.map((notification) => (
                 <NotificationRow key={notification.id} notification={notification} />
               ))}
-            </ul>
+            </ItemGroup>
           )}
           {notifications.hasNextPage && (
             <div>

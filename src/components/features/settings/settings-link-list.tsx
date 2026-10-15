@@ -2,18 +2,28 @@ import { IconChevronRight } from '@tabler/icons-react'
 import { Link } from '@tanstack/react-router'
 import { useId } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from '@/components/ui/item'
 import { SETTINGS_SECTIONS, type SettingsGroup, type SettingsSection } from '@/constants/settings'
 import { useCurrentTenantSlug } from '@/hooks/use-current-tenant-slug'
 
-/** One row: the section's icon, label and description, and a chevron when it links. */
+/** One row's parts: the section's icon, label and description, and a chevron when it links. */
 function Row({ section, links = true }: { section: SettingsSection; links?: boolean }) {
   return (
     <>
-      <section.Icon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
-      <span className="grid flex-1 gap-0.5">
-        <span className="font-medium">{section.label}</span>
-        <span className="text-sm text-muted-foreground">{section.description}</span>
-      </span>
+      <ItemMedia>
+        <section.Icon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle className="line-clamp-none">{section.label}</ItemTitle>
+        <ItemDescription className="line-clamp-none">{section.description}</ItemDescription>
+      </ItemContent>
       {links && <IconChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />}
     </>
   )
@@ -32,8 +42,6 @@ export function SettingsLinkList({ group }: { group: SettingsGroup }) {
   const headingId = `settings-group-${group.id}`
   const hintId = useId()
   const needsTenant = group.id === 'workspace' && slug === null
-  const rowLayout = 'flex items-center gap-3 rounded-md px-2 py-3'
-  const rowClass = `${rowLayout} hover:bg-muted/50`
   return (
     <Card role="region" aria-labelledby={headingId}>
       <CardHeader>
@@ -48,28 +56,29 @@ export function SettingsLinkList({ group }: { group: SettingsGroup }) {
             Choose a tenant first.
           </p>
         )}
-        <ul className="grid divide-y">
+        <ItemGroup className="gap-0 divide-y has-data-[size=sm]:gap-0">
           {sections.map((section) => (
-            <li key={section.to}>
+            <div key={section.to} role="listitem">
               {section.group === 'account' ? (
-                <Link to={section.to} className={rowClass}>
+                <Item size="sm" render={<Link to={section.to} />}>
                   <Row section={section} />
-                </Link>
+                </Item>
               ) : slug !== null ? (
-                <Link to={section.to} params={{ slug }} className={rowClass}>
+                <Item size="sm" render={<Link to={section.to} params={{ slug }} />}>
                   <Row section={section} />
-                </Link>
+                </Item>
               ) : (
-                <span
-                  className={`${rowLayout} cursor-not-allowed text-muted-foreground`}
+                <Item
+                  size="sm"
+                  className="cursor-not-allowed text-muted-foreground"
                   aria-describedby={hintId}
                 >
                   <Row section={section} links={false} />
-                </span>
+                </Item>
               )}
-            </li>
+            </div>
           ))}
-        </ul>
+        </ItemGroup>
       </CardContent>
     </Card>
   )
