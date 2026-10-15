@@ -128,7 +128,7 @@ Findings: [F-tenants-1](findings.md#f-tenants-1) …
 - The heading is the route in backticks, an em dash, and the page's name. The name differs between routes whose paths differ only by a trailing slash, so their anchors never collide.
 - The `Data` row names each query's endpoint and its query key as the code defines it (`tenantKeys.list` is `['tenants']`), whether it is awaited or only started, and its `staleTime` when it is not the default 30 s (`src/router.tsx`). A row with mutations only says "no query".
 - The `Loading` cell's first line is the report's `loadingUi` (`skeleton`, `spinner` or `splash`, or `none`), the `Error` cell's is its `errorUi` (`alert` or `none`). The second line names what is drawn.
-- A state with no shot has no column. A route with no shot at all (a redirect) has no image.
+- A state with no shot has no column, except `Role-denied`, whose shots are listed under [Pending shots](#pending-shots) until the next capture run. A route with no shot at all (a redirect) has no image.
 - Dark and mobile shots go in a second table under the first, when the route has them.
 - A route with a role gate has a `Role-denied` table: what an editor (the seed's `member` session) sees instead, from the code. Its shot is `img/<area>/<shot>--role-denied.jpg`.
 - The image paths are `img/<area>/<shot>--<state>.jpg`, with the area and shot stem from `e2e/capture/manifest.ts`; the example writes them as placeholders so it links no real screenshot.
