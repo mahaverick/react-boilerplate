@@ -19,7 +19,7 @@ export function LoadError({ message, onRetry }: { message: string; onRetry: () =
     <Alert variant="destructive" className="has-data-[slot=alert-action]:pr-28">
       <IconAlertCircle aria-hidden="true" />
       <AlertTitle>Couldn’t load</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
+      <AlertDescription className="min-w-0 wrap-anywhere">{message}</AlertDescription>
       <AlertAction>
         <Button variant="outline" size="sm" onClick={onRetry}>
           Try again

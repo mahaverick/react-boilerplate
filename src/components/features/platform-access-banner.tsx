@@ -16,7 +16,7 @@ export function PlatformAccessBanner({
   role: MembershipRole
 }) {
   return (
-    <Note tone="info">
+    <Note tone="info" className="mb-6">
       You’re viewing <strong>{tenantName}</strong> as platform staff ({ROLE_LABELS[role]}).{' '}
       <Link to={ROUTES.tenants} className="font-medium underline underline-offset-4">
         Back to your tenants
