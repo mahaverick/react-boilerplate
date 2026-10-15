@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/mahaverick/react-boilerplate/compare/v3.0.1...v3.1.0) (2026-10-15)
+
+
+### Features
+
+* **ui:** shadcn sweep — shared empty/note/busy/error components, full width ([#109](https://github.com/mahaverick/react-boilerplate/issues/109)) ([add27b4](https://github.com/mahaverick/react-boilerplate/commit/add27b4c866aedcb4ad55b5cbcfb7d42a850cf72))
+
 ## [3.0.1](https://github.com/mahaverick/react-boilerplate/compare/v3.0.0...v3.0.1) (2026-10-14)
 
 
