@@ -35,15 +35,18 @@ export default defineConfig({
    * Starts the dev server, reusing a running one outside CI. Skipped for the
    * `nginx` project, which serves the production bundle from a container;
    * `webServer` has no per-project form, so the switch is an env var.
+   * `E2E_CAPTURE` turns it off as well: the capture runs against a dev stack
+   * that is already up.
    */
-  webServer: process.env.E2E_NGINX
-    ? undefined
-    : {
-        command: 'pnpm dev',
-        url: 'http://localhost:5173',
-        reuseExistingServer: !process.env.CI,
-        timeout: 60_000,
-      },
+  webServer:
+    process.env.E2E_NGINX || process.env.E2E_CAPTURE
+      ? undefined
+      : {
+          command: 'pnpm dev',
+          url: 'http://localhost:5173',
+          reuseExistingServer: !process.env.CI,
+          timeout: 60_000,
+        },
   projects: [
     {
       name: 'fixtures',
@@ -65,6 +68,17 @@ export default defineConfig({
       name: 'contrast',
       testMatch: 'contrast/**/*.test.ts',
       use: { ...devices['Desktop Chrome'] },
+    },
+    /**
+     * The page inventory's screenshots (docs/pages/). Opt-in, never in CI: it
+     * runs against an already-running dev stack and starts nothing, so
+     * `E2E_CAPTURE` also turns `webServer` off. Run `pnpm capture:pages`.
+     */
+    {
+      name: 'capture',
+      testMatch: 'capture/**/*.test.ts',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+      timeout: 30 * 60_000,
     },
     /**
      * Against the production image. The SSE reconnect is only observable here:
