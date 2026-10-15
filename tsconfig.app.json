@@ -17,5 +17,5 @@
     "paths": { "@/tests/*": ["./tests/*"], "@/*": ["./src/*"] },
     "types": ["vite/client", "vitest/globals"]
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests", "e2e/capture/endpoint.ts"]
 }
