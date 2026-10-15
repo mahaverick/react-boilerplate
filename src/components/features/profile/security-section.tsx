@@ -2,7 +2,6 @@ import { useForm } from '@tanstack/react-form'
 import { useId } from 'react'
 import { LoadError } from '@/components/features/load-error'
 import { BusyButton } from '@/components/shared/busy-button'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -126,10 +125,11 @@ function OtherSessions() {
         {OTHER_SESSIONS_HINT}
       </p>
       <div>
-        <Button
+        <BusyButton
+          busy={revokeOthers.isPending}
+          busyLabel="Signing out…"
           variant="outline"
           aria-describedby={hintId}
-          disabled={revokeOthers.isPending}
           onClick={() => {
             revokeOthers.mutate(undefined, {
               onSuccess: ({ revoked }) => toast.success(revokedMessage(revoked)),
@@ -137,8 +137,8 @@ function OtherSessions() {
             })
           }}
         >
-          {revokeOthers.isPending ? 'Signing out…' : 'Sign out other sessions'}
-        </Button>
+          Sign out other sessions
+        </BusyButton>
       </div>
     </div>
   )
