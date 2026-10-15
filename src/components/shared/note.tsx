@@ -25,8 +25,8 @@ export function Note({ tone, title, children, className }: NoteProps) {
     return (
       <Item variant="muted" size="sm" className={className}>
         <ItemContent>
-          {title && <ItemTitle>{title}</ItemTitle>}
-          <ItemDescription>{children}</ItemDescription>
+          {title && <ItemTitle className="line-clamp-none">{title}</ItemTitle>}
+          <ItemDescription className="line-clamp-none">{children}</ItemDescription>
         </ItemContent>
       </Item>
     )

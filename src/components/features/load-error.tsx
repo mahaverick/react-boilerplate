@@ -16,7 +16,7 @@ export const ROLE_ERROR =
  */
 export function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <Alert variant="destructive">
+    <Alert variant="destructive" className="has-data-[slot=alert-action]:pr-28">
       <IconAlertCircle aria-hidden="true" />
       <AlertTitle>Couldn’t load</AlertTitle>
       <AlertDescription>{message}</AlertDescription>

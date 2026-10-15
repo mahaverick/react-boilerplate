@@ -20,4 +20,16 @@ describe('Note', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
+
+  it('never truncates a long passive note', () => {
+    render(
+      <Note tone="passive" title="Not set up">
+        A long explanation that must stay readable in full.
+      </Note>
+    )
+    expect(screen.getByText('A long explanation that must stay readable in full.')).toHaveClass(
+      'line-clamp-none'
+    )
+    expect(screen.getByText('Not set up')).toHaveClass('line-clamp-none')
+  })
 })

@@ -13,4 +13,9 @@ describe('LoadError', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
+
+  it('reserves room for the retry button beside the message', () => {
+    render(<LoadError message="Failed." onRetry={() => {}} />)
+    expect(screen.getByRole('alert')).toHaveClass('has-data-[slot=alert-action]:pr-28')
+  })
 })
