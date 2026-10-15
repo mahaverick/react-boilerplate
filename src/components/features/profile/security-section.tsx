@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { useId } from 'react'
 import { LoadError } from '@/components/features/load-error'
 import { BusyButton } from '@/components/shared/busy-button'
+import { Note } from '@/components/shared/note'
 import {
   Form,
   FormControl,
@@ -80,7 +81,7 @@ export function SecuritySection() {
           {providers.data.hasPassword ? (
             <ChangePasswordForm />
           ) : (
-            <p className="text-sm text-muted-foreground">{GOOGLE_ONLY}</p>
+            <Note tone="passive">{GOOGLE_ONLY}</Note>
           )}
         </>
       )}

@@ -82,13 +82,13 @@ export function NotificationBell() {
               </DropdownMenuItem>
             ))
           ) : notifications.isError ? (
-            <p className="px-1.5 py-2 text-sm text-muted-foreground">
+            <p className="p-2 text-center text-sm text-muted-foreground">
               Notifications could not be loaded.
             </p>
           ) : notifications.isPending ? (
-            <p className="px-1.5 py-2 text-sm text-muted-foreground">Loading notifications…</p>
+            <p className="p-2 text-center text-sm text-muted-foreground">Loading notifications…</p>
           ) : (
-            <EmptyState size="compact" title="You have no notifications." />
+            <EmptyState size="compact" title="You have no notifications." className="p-2" />
           )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

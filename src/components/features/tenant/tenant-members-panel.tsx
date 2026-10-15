@@ -1,11 +1,11 @@
-import { IconUsers } from '@tabler/icons-react'
 /**
  * @file The members tab of a tenant: the member list with role and removal
  * controls, and, for owners and admins, the invite form and pending invitations.
  */
+import { IconUsers } from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { InviteMemberForm } from '@/components/features/tenant/invite-member-form'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
@@ -512,6 +512,14 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
   const otherOwners = otherOwnerCount(members.data, myUserId, slug === PLATFORM_TENANT_SLUG)
   const isMobile = useIsMobile()
   const focus = useFocusAfter<'heading'>()
+  const inviteCard = useRef<HTMLDivElement>(null)
+
+  /** Brings the invite form into view and puts the cursor in its first field. */
+  const showInviteForm = () => {
+    inviteCard.current?.scrollIntoView({ block: 'center' })
+    inviteCard.current?.querySelector('input')?.focus()
+  }
+
   /** Moves focus to the heading once the row that held the focused control is gone. */
   const onRemoved = () => {
     focus.focusAfter('heading')
@@ -551,6 +559,13 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
               icon={<IconUsers aria-hidden="true" />}
               title="No one has access to this tenant yet."
               description={!isStaffView ? 'Invite someone below.' : undefined}
+              action={
+                canManageTenant(myRole) && !isStaffView ? (
+                  <Button variant="outline" size="sm" onClick={showInviteForm}>
+                    Invite someone
+                  </Button>
+                ) : undefined
+              }
             />
           ) : isMobile ? (
             <ItemGroup className="gap-3">
@@ -602,7 +617,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
       )}
       {myRole && canManageTenant(myRole) && !isStaffView && (
         <>
-          <Card>
+          <Card ref={inviteCard}>
             <CardHeader>
               <CardTitle>
                 <h2>Invite a member</h2>

@@ -139,6 +139,8 @@ describe('the Beta page', () => {
     const nav = screen.getByRole('navigation', { name: 'Tenant sections' })
     await waitFor(() => expect(within(nav).queryByRole('link', { name: 'Beta' })).toBeNull())
     expect(nav).toHaveTextContent('Overview')
+    // The page's flags refetch must finish before jsdom is torn down, or its XHR is still in flight.
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0))
   })
 
   it('offers a retry, after re-reading the flags once, when the API 404s with the flag still on', async () => {
@@ -163,6 +165,8 @@ describe('the Beta page', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Tenant sections' })
     expect(within(nav).getByRole('link', { name: 'Beta' })).toBeInTheDocument()
+    // No request may be in flight when jsdom is torn down.
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0))
   })
 })
 

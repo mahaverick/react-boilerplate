@@ -1,11 +1,13 @@
 import { IconBuilding } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useRef, type Ref } from 'react'
 import { z } from 'zod'
 import { LoadError } from '@/components/features/load-error'
 import { BusyButton } from '@/components/shared/busy-button'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -93,7 +95,7 @@ function TenantRow({ entry }: { entry: TenantWithRole }) {
  * rather than sent as `''`, which the API refuses. `<FormError />` shows
  * schema-level server errors, which `<Form>` does not render itself.
  */
-function CreateTenantCard() {
+function CreateTenantCard({ cardRef }: { cardRef: Ref<HTMLDivElement> }) {
   const createTenant = useCreateTenant()
   const serverErrors = useServerErrors()
 
@@ -116,7 +118,7 @@ function CreateTenantCard() {
   })
 
   return (
-    <Card>
+    <Card ref={cardRef}>
       <CardHeader>
         <CardTitle>
           <h2>Create a tenant</h2>
@@ -197,6 +199,13 @@ function CreateTenantCard() {
  */
 function TenantsPage() {
   const tenants = useTenants()
+  const createCard = useRef<HTMLDivElement>(null)
+
+  /** Brings the create form into view and puts the cursor in its first field. */
+  const showCreateForm = () => {
+    createCard.current?.scrollIntoView({ block: 'center' })
+    createCard.current?.querySelector('input')?.focus()
+  }
 
   return (
     <div className="grid gap-6">
@@ -226,11 +235,16 @@ function TenantsPage() {
               icon={<IconBuilding aria-hidden="true" />}
               title="You do not belong to any tenants yet."
               description="Create one below."
+              action={
+                <Button variant="outline" size="sm" onClick={showCreateForm}>
+                  Create a tenant
+                </Button>
+              }
             />
           )}
         </CardContent>
       </Card>
-      <CreateTenantCard />
+      <CreateTenantCard cardRef={createCard} />
     </div>
   )
 }
