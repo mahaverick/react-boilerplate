@@ -97,7 +97,7 @@ function TenantLayout() {
   return (
     <TenantGate slug={slug}>
       {(tenant) => (
-        <div className="grid max-w-4xl gap-4 xl:max-w-6xl">
+        <div className="grid gap-4">
           <header className="grid gap-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold lg:text-3xl">{tenant.name}</h1>

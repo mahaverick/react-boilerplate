@@ -5,8 +5,8 @@ import { z } from 'zod'
 import { SocialSignIn } from '@/components/features/auth/social-sign-in'
 import { TermsNote } from '@/components/features/auth/terms-note'
 import { AuthCard } from '@/components/layouts/auth-card'
+import { BusyButton } from '@/components/shared/busy-button'
 import { Pii } from '@/components/shared/pii'
-import { Button } from '@/components/ui/button'
 import { FieldDescription, FieldGroup } from '@/components/ui/field'
 import {
   Form,
@@ -100,10 +100,11 @@ function RegisterPage() {
           </>
         }
       >
-        <Button
+        <BusyButton
+          busy={resend.isPending}
+          busyLabel="Sending…"
           variant="outline"
           className="w-full"
-          disabled={resend.isPending}
           onClick={() => {
             resend.mutate(
               { email: registeredEmail },
@@ -115,8 +116,8 @@ function RegisterPage() {
             )
           }}
         >
-          {resend.isPending ? 'Sending…' : 'Resend verification email'}
-        </Button>
+          Resend verification email
+        </BusyButton>
         <FieldDescription className="text-center">
           <Link to={ROUTES.login}>Back to sign in</Link>
         </FieldDescription>
@@ -228,9 +229,14 @@ function RegisterPage() {
 
           <FormError />
 
-          <Button type="submit" className="w-full" disabled={register.isPending}>
-            {register.isPending ? 'Creating account…' : 'Create account'}
-          </Button>
+          <BusyButton
+            busy={register.isPending}
+            busyLabel="Creating account…"
+            type="submit"
+            className="w-full"
+          >
+            Create account
+          </BusyButton>
 
           <SocialSignIn />
 

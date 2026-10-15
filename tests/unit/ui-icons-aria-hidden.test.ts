@@ -48,9 +48,12 @@ describe('vendored ui Tabler icons', () => {
   })
 
   it('every icon carries aria-hidden', () => {
-    const offenders = Object.entries(UI_SOURCES).flatMap(([path, source]) =>
-      iconsMissingAriaHidden(source).map((line) => `${path.slice(1)}:${line}`)
-    )
+    // The spinner is announced through its own role="status" and aria-label.
+    const offenders = Object.entries(UI_SOURCES)
+      .filter(([path]) => path !== '/src/components/ui/spinner.tsx')
+      .flatMap(([path, source]) =>
+        iconsMissingAriaHidden(source).map((line) => `${path.slice(1)}:${line}`)
+      )
     expect(offenders).toEqual([])
   })
 })

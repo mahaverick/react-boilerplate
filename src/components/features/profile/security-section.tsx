@@ -1,7 +1,8 @@
 import { useForm } from '@tanstack/react-form'
 import { useId } from 'react'
 import { LoadError } from '@/components/features/load-error'
-import { Button } from '@/components/ui/button'
+import { BusyButton } from '@/components/shared/busy-button'
+import { Note } from '@/components/shared/note'
 import {
   Form,
   FormControl,
@@ -12,6 +13,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Item, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
@@ -79,7 +81,7 @@ export function SecuritySection() {
           {providers.data.hasPassword ? (
             <ChangePasswordForm />
           ) : (
-            <p className="text-sm text-muted-foreground">{GOOGLE_ONLY}</p>
+            <Note tone="passive">{GOOGLE_ONLY}</Note>
           )}
         </>
       )}
@@ -99,12 +101,24 @@ function SignInMethods({ providers, hasPassword }: AuthProviders) {
   return (
     <div className="grid gap-2">
       <h3 className="text-sm font-medium">Sign-in methods</h3>
-      <ul className="grid gap-1 text-sm">
-        {hasPassword && <li>Email &amp; password</li>}
+      <ItemGroup className="gap-1 has-data-[size=xs]:gap-1">
+        {hasPassword && (
+          <Item size="xs" role="listitem" className="p-0">
+            <ItemContent>
+              <ItemTitle className="line-clamp-none font-normal">Email &amp; password</ItemTitle>
+            </ItemContent>
+          </Item>
+        )}
         {linked.map((link) => (
-          <li key={link.provider}>{PROVIDER_LABELS[link.provider] ?? link.provider}</li>
+          <Item key={link.provider} size="xs" role="listitem" className="p-0">
+            <ItemContent>
+              <ItemTitle className="line-clamp-none font-normal">
+                {PROVIDER_LABELS[link.provider] ?? link.provider}
+              </ItemTitle>
+            </ItemContent>
+          </Item>
         ))}
-      </ul>
+      </ItemGroup>
     </div>
   )
 }
@@ -125,10 +139,11 @@ function OtherSessions() {
         {OTHER_SESSIONS_HINT}
       </p>
       <div>
-        <Button
+        <BusyButton
+          busy={revokeOthers.isPending}
+          busyLabel="Signing out…"
           variant="outline"
           aria-describedby={hintId}
-          disabled={revokeOthers.isPending}
           onClick={() => {
             revokeOthers.mutate(undefined, {
               onSuccess: ({ revoked }) => toast.success(revokedMessage(revoked)),
@@ -136,8 +151,8 @@ function OtherSessions() {
             })
           }}
         >
-          {revokeOthers.isPending ? 'Signing out…' : 'Sign out other sessions'}
-        </Button>
+          Sign out other sessions
+        </BusyButton>
       </div>
     </div>
   )
@@ -238,9 +253,9 @@ function ChangePasswordForm() {
 
         <FormError />
 
-        <Button type="submit" disabled={changePassword.isPending}>
-          {changePassword.isPending ? 'Changing…' : 'Change password'}
-        </Button>
+        <BusyButton busy={changePassword.isPending} busyLabel="Changing…" type="submit">
+          Change password
+        </BusyButton>
       </Form>
     </div>
   )

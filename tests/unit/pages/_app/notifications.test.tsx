@@ -122,6 +122,15 @@ describe('notifications page', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps the title and the Unread badge in one flex wrapper', async () => {
+    renderNotifications()
+
+    const badge = await screen.findByText('Unread')
+    const wrapper = badge.parentElement
+    expect(wrapper).toHaveClass('flex', 'flex-wrap', 'gap-2')
+    expect(wrapper).toContainElement(screen.getByRole('heading', { name: unreadRow.title }))
+  })
+
   it('restores the snapshot when a delete fails', async () => {
     const user = userEvent.setup()
     renderNotifications()

@@ -305,6 +305,17 @@ describe('members page permissions', () => {
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
   })
 
+  it('keeps the "(you)" marker spaced from the name on a phone card', async () => {
+    setViewportWidth(390)
+    mockTenant('owner', [member(ME, 'owner', 'A'), member(USER_ID_2, 'viewer', 'Cleo')])
+    renderAppAt('/settings/workspace/acme/members')
+
+    const marker = await screen.findByText('(you)')
+    expect(marker.parentElement).toHaveClass('flex', 'gap-2')
+    expect(marker.parentElement).toHaveTextContent(/A.*\(you\)/)
+    expect(screen.getAllByRole('listitem')).toContain(marker.closest('[role="listitem"]'))
+  })
+
   /** A header row over nothing reads as missing data. The error branch above still runs first: `[]` means "no members" only once the request is known to have answered. */
   it('says the list is empty rather than showing a bare table header', async () => {
     mockTenant('owner', [])
@@ -312,6 +323,32 @@ describe('members page permissions', () => {
 
     expect(await screen.findByText(/no one has access to this tenant yet/i)).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('scrolls to the invite form and focuses its email field from the empty state', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      mockTenant('owner', [])
+      renderAppAt('/settings/workspace/acme/members')
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Invite someone' }))
+
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+      expect(screen.getByLabelText('Email')).toHaveFocus()
+    } finally {
+      // @ts-expect-error jsdom defines no scrollIntoView; removing the stub restores that.
+      delete Element.prototype.scrollIntoView
+    }
+  })
+
+  it('offers no invite action in the empty state to a role without the form', async () => {
+    mockTenant('viewer', [])
+    renderAppAt('/settings/workspace/acme/members')
+
+    expect(await screen.findByText(/no one has access to this tenant yet/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Invite someone' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
   })
 
   // The role comes from the tenant detail, not the tenant list, so a list failure (the switcher's problem) must not take the page's controls with it.
@@ -670,12 +707,14 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     expect(await screen.findByRole('heading', { name: 'Pending invitations' })).toBeInTheDocument()
-    const first = within((await screen.findByText('invitee@b.com')).closest('li') as HTMLElement)
+    const first = within(
+      (await screen.findByText('invitee@b.com')).closest('[role="listitem"]') as HTMLElement
+    )
     expect(first.getByText(/^Editor · Invited by/)).toHaveTextContent('Editor · Invited by A B')
     expect(first.getByText('A B')).toHaveClass('ph-sensitive', 'ph-mask')
     expect(first.getByText(/^Expires /)).toBeInTheDocument()
     // An inviter whose account is gone is `null` and must not crash the row.
-    const second = within(screen.getByText('old@b.com').closest('li') as HTMLElement)
+    const second = within(screen.getByText('old@b.com').closest('[role="listitem"]') as HTMLElement)
     expect(second.getByText(/^Viewer · Invited by/)).toHaveTextContent(
       'Viewer · Invited by A teammate'
     )

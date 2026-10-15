@@ -147,6 +147,8 @@ A failed `GET /tenants/:slug` reaches the layout's `errorComponent`, `TenantLoad
 
 ### F-tenants-4
 
+Status: fixed in cb66096. The empty list is an `EmptyState` and the rows an `Item` list ([after](img/tenants/tenants--empty.jpg), [list](img/tenants/tenants--default.jpg)).
+
 The tenant list's empty state is `<p className="text-sm text-muted-foreground">You do not belong to any tenants yet. Create one below.</p>` ([shot](img/tenants/tenants--empty.jpg)), and the list itself is a `ul` of hand-rolled bordered link rows. Fix: shadcn's `empty` for the empty state; the rows can stay a list or move to the data table with the other lists.
 
 ### F-tenants-5
@@ -167,9 +169,13 @@ The loading branch is three `Skeleton className="h-16 w-full"` blocks ([shot](im
 
 ### F-notifications-2
 
+Status: fixed in cb66096. The inbox shows an `EmptyState` ([after](img/notifications/notifications--empty.jpg)). The bell renders a compact `EmptyState` too; `tests/unit/components/features/notification-bell.test.tsx` covers it, and there is no after-shot of the bell’s empty state.
+
 The empty inbox is a muted `p`, "You have no notifications." ([shot](img/notifications/notifications--empty.jpg)), as is the bell's "You have no notifications.". Fix: shadcn's `empty` on the page.
 
 ### F-notifications-3
+
+Status: fixed in 5d98dd5. Load more is a `BusyButton`, which shows a spinner and its busy label while the next page is fetched; `tests/unit/components/shared/busy-button.test.tsx` covers the component, and no test drives the Load more fetch. There is no after-shot of the busy state, because the capture’s inbox has one notification and no Load more button.
 
 Load more is an outline `Button` whose label turns to "Loading…" while the next page is fetched (`src/pages/_app/notifications.tsx`). Fix: shadcn's `spinner` in the button, or `pagination` if the inbox moves to pages.
 
@@ -207,13 +213,19 @@ On the workspace pages, once the gate has the detail: members shows 2× `h-10` a
 
 ### F-settings-6
 
+Status: the width cap is fixed in 580a5b3, so the Actions column is on-screen at 1440 px ([after](img/settings/workspace-members--default.jpg)). The table’s column fit and the empty-name fallback stay for part 4.
+
 The members `Table` is `min-w-2xl` inside the vendored table's `overflow-x-auto` wrapper, inside a card capped at `max-w-3xl xl:max-w-4xl`. In the walk at 1440×900 the wrapper was 848 px wide and the table 1075 px: the header cells ran Name 304–632, Email 632–920, Role 920–1287, Actions 1287–1379, and the wrapper ended at 1152. The Remove and Leave buttons sit past the card's edge, behind a sideways scroll, at the default desktop size ([shot](img/settings/workspace-members--default.jpg) shows no Actions column). The Name column falls back to the address, so a member with no name has the same address in Name and Email. Fix: in the data table, fit the columns to the card (two columns of long addresses and the last-owner note under the role select push the table past it), and show "—" or the address once when there is no name.
 
 ### F-settings-7
 
+Status: the pending-invitations half is fixed in 80f0f29, which builds it as an `Item` list with Resend and Revoke ([after](img/settings/workspace-members--default.jpg)). The audit log and its paging stay for part 4.
+
 The audit log is a `ul` of entries with two `Select` filters (sent to the API as `action`, `actorUserId`, `access`) and a "Load more activity" button ([shot](img/settings/workspace-activity--default.jpg)); pending invitations are a `ul` of bordered rows with Resend and Revoke ([shot](img/settings/workspace-members--default.jpg)). Both are tabular (actor, action, time; address, role, inviter, expiry), and Load more is hand-rolled paging. Fix: render both with shadcn's `table`, and the log's paging with `pagination`, keeping ordering, filtering and paging on the API.
 
 ### F-settings-8
+
+Status: fixed in cb66096. Each empty list is an `EmptyState` ([notifications](img/settings/account-notifications--empty.jpg), [members](img/settings/workspace-members--empty.jpg), [activity](img/settings/workspace-activity--empty.jpg)).
 
 Every empty list in settings is a muted `p`: "This account has no notification types yet." ([shot](img/settings/account-notifications--empty.jpg)), "No one has access to this tenant yet. Invite someone below." and "No invitations are waiting to be accepted." ([shot](img/settings/workspace-members--empty.jpg)), "Nothing has happened in this tenant yet." and "Nothing matches these filters." ([shot](img/settings/workspace-activity--empty.jpg)). Fix: shadcn's `empty`, with the invite form or a clear-filters button as its action where one applies.
 

@@ -1,4 +1,4 @@
-import { IconLoader2 } from '@tabler/icons-react'
+import { Spinner } from '@/components/ui/spinner'
 
 /**
  * What a route shows while its loader runs. The router holds it back until
@@ -7,7 +7,7 @@ import { IconLoader2 } from '@tabler/icons-react'
 export function RoutePending() {
   return (
     <div role="status" aria-label="Loading" className="flex justify-center px-4 py-16">
-      <IconLoader2 className="size-6 animate-spin text-muted-foreground" aria-hidden="true" />
+      <Spinner aria-hidden="true" className="size-6 text-muted-foreground" />
     </div>
   )
 }

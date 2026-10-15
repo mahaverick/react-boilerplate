@@ -33,6 +33,7 @@ export function ConsentBanner({
       aria-label="Analytics consent"
       className="fixed inset-x-0 bottom-0 z-50 flex flex-wrap items-center justify-between gap-3 border-t bg-background p-4 shadow-lg"
     >
+      {/* Capped: the floating banner keeps its text a readable line. */}
       <p className="max-w-2xl text-sm">
         May we record how you use this app, with names and addresses masked, to improve it? If you
         decline, we only count visits, anonymously and without cookies.

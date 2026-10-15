@@ -1,7 +1,7 @@
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
-import { Button } from '@/components/ui/button'
+import { BusyButton } from '@/components/shared/busy-button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -172,9 +172,9 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
 
       <FormError />
 
-      <Button type="submit" disabled={updateTenant.isPending}>
-        {updateTenant.isPending ? 'Saving…' : 'Save changes'}
-      </Button>
+      <BusyButton busy={updateTenant.isPending} busyLabel="Saving…" type="submit">
+        Save changes
+      </BusyButton>
     </Form>
   )
 }

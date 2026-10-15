@@ -8,7 +8,7 @@ import { DEFAULT_MAINTENANCE_MESSAGE } from './maintenance-page'
  * stays true for as long as writes are refused. It collapses to its one-line
  * summary, and the owner's message, rendered as text, is the part that hides.
  *
- * `text-foreground` on `bg-muted`, the same pair as `PlatformAccessBanner`.
+ * `text-foreground` on `bg-muted`: a neutral band, not a tinted note.
  */
 export function ReadOnlyBanner({ message }: { message: string | null }) {
   const [isCollapsed, setCollapsed] = useState(false)

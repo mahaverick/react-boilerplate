@@ -371,6 +371,36 @@ test.describe('staff surfaces', () => {
   }
 })
 
+// Each tinted note and error alert is asserted present: a page without it grades clean and proves nothing.
+test.describe('notes and errors', () => {
+  for (const theme of THEMES) {
+    test(`the settings read-only note meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      const result = await contrastOf(page, '/e2e/harness/?state=viewer', theme, {
+        name: 'Members',
+        level: 2,
+      })
+      await expect(
+        page.getByRole('status').filter({ hasText: 'You can view these settings.' })
+      ).toBeVisible()
+      expect(report('read-only note', theme, result), report('read-only note', theme, result)).toBe(
+        ''
+      )
+    })
+
+    test(`the load error with its retry meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      const result = await contrastOf(page, '/e2e/harness/?state=error', theme, {
+        name: 'Members',
+        level: 2,
+      })
+      const alert = page
+        .getByRole('alert')
+        .filter({ has: page.getByRole('button', { name: 'Try again' }) })
+      await expect(alert).toBeVisible()
+      expect(report('load error', theme, result), report('load error', theme, result)).toBe('')
+    })
+  }
+})
+
 // Each maintenance surface is driven by answering the status read, and asserted present before its grade counts.
 test.describe('maintenance surfaces', () => {
   for (const theme of THEMES) {

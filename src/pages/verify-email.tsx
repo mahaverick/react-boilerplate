@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { z } from 'zod'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { BusyButton } from '@/components/shared/busy-button'
+import { buttonVariants } from '@/components/ui/button'
 import { FieldDescription, FieldGroup, FieldSeparator } from '@/components/ui/field'
 import {
   Form,
@@ -134,9 +135,14 @@ function VerifyEmailPage() {
 
             <FormError />
 
-            <Button type="submit" className="w-full" disabled={verifyEmail.isPending}>
-              {verifyEmail.isPending ? 'Verifying…' : 'Verify email'}
-            </Button>
+            <BusyButton
+              busy={verifyEmail.isPending}
+              busyLabel="Verifying…"
+              type="submit"
+              className="w-full"
+            >
+              Verify email
+            </BusyButton>
           </FieldGroup>
         </Form>
 
@@ -178,14 +184,15 @@ function VerifyEmailPage() {
                   )}
                 </FormField>
 
-                <Button
+                <BusyButton
+                  busy={resend.isPending}
+                  busyLabel="Sending…"
                   type="submit"
                   variant="outline"
                   className="w-full"
-                  disabled={resend.isPending}
                 >
-                  {resend.isPending ? 'Sending…' : 'Resend verification email'}
-                </Button>
+                  Resend verification email
+                </BusyButton>
               </FieldGroup>
             </Form>
           </div>

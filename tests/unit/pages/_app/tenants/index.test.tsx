@@ -72,6 +72,22 @@ describe('tenants list', () => {
     expect(await screen.findByText(/do not belong to any tenants/i)).toBeInTheDocument()
   })
 
+  it('scrolls to the create form and focuses its name field from the empty state', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      renderAppAt('/tenants')
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Create a tenant' }))
+
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+      expect(screen.getByLabelText('Name')).toHaveFocus()
+    } finally {
+      // @ts-expect-error jsdom defines no scrollIntoView; removing the stub restores that.
+      delete Element.prototype.scrollIntoView
+    }
+  })
+
   it('lists each tenant as a link carrying its role', async () => {
     server.use(
       http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'admin' }], 'Tenants.'))

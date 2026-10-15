@@ -3,7 +3,8 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { BusyButton } from '@/components/shared/busy-button'
+import { buttonVariants } from '@/components/ui/button'
 import { FieldDescription, FieldGroup } from '@/components/ui/field'
 import {
   Form,
@@ -125,9 +126,14 @@ function ResetPasswordPage() {
 
             <FormError />
 
-            <Button type="submit" className="w-full" disabled={resetPassword.isPending}>
-              {resetPassword.isPending ? 'Saving…' : 'Reset password'}
-            </Button>
+            <BusyButton
+              busy={resetPassword.isPending}
+              busyLabel="Saving…"
+              type="submit"
+              className="w-full"
+            >
+              Reset password
+            </BusyButton>
           </FieldGroup>
         </Form>
 

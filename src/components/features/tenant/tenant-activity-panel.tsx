@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { ActivityList } from '@/components/features/activity/activity-list'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
+import { Note } from '@/components/shared/note'
 import { Pii } from '@/components/shared/pii'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -85,7 +86,7 @@ function TenantActivity({ slug }: { slug: string }) {
   }
 
   if (forbidden) {
-    return <p className="text-sm text-muted-foreground">{OWNERS_AND_ADMINS_MESSAGE}</p>
+    return <Note tone="passive">{OWNERS_AND_ADMINS_MESSAGE}</Note>
   }
 
   return (

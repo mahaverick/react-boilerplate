@@ -2,12 +2,14 @@
  * @file The members tab of a tenant: the member list with role and removal
  * controls, and, for owners and admins, the invite form and pending invitations.
  */
+import { IconUsers } from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { InviteMemberForm } from '@/components/features/tenant/invite-member-form'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Pii } from '@/components/shared/pii'
 import {
   AlertDialog,
@@ -22,6 +24,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemFooter,
+  ItemGroup,
+  ItemTitle,
+} from '@/components/ui/item'
 import {
   Select,
   SelectContent,
@@ -431,17 +441,23 @@ function MemberRow({
 
   if (asCard) {
     return (
-      <li className="grid gap-3 rounded-lg border p-4">
-        <div className="grid gap-0.5">
-          <span className="font-medium">
-            <Pii>{memberName(member)}</Pii>
-            {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
-          </span>
-          <Pii className="text-sm break-all text-muted-foreground">{member.user.email}</Pii>
-        </div>
-        {role}
-        {remove && <div>{remove}</div>}
-      </li>
+      <Item variant="outline" role="listitem">
+        <ItemContent className="min-w-0">
+          <ItemTitle className="line-clamp-none">
+            <span className="flex flex-wrap items-center gap-2">
+              <Pii>{memberName(member)}</Pii>
+              {isSelf && <span className="text-xs font-normal text-muted-foreground">(you)</span>}
+            </span>
+          </ItemTitle>
+          <ItemDescription className="line-clamp-none break-all">
+            <Pii>{member.user.email}</Pii>
+          </ItemDescription>
+        </ItemContent>
+        <ItemFooter className="flex-wrap justify-start">
+          {role}
+          {remove}
+        </ItemFooter>
+      </Item>
     )
   }
 
@@ -496,6 +512,14 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
   const otherOwners = otherOwnerCount(members.data, myUserId, slug === PLATFORM_TENANT_SLUG)
   const isMobile = useIsMobile()
   const focus = useFocusAfter<'heading'>()
+  const inviteCard = useRef<HTMLDivElement>(null)
+
+  /** Brings the invite form into view and puts the cursor in its first field. */
+  const showInviteForm = () => {
+    inviteCard.current?.scrollIntoView({ block: 'center' })
+    inviteCard.current?.querySelector('input')?.focus()
+  }
+
   /** Moves focus to the heading once the row that held the focused control is gone. */
   const onRemoved = () => {
     focus.focusAfter('heading')
@@ -531,11 +555,20 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
               <Skeleton className="h-10 w-full" />
             </div>
           ) : (members.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No one has access to this tenant yet.{!isStaffView && ' Invite someone below.'}
-            </p>
+            <EmptyState
+              icon={<IconUsers aria-hidden="true" />}
+              title="No one has access to this tenant yet."
+              description={!isStaffView ? 'Invite someone below.' : undefined}
+              action={
+                canManageTenant(myRole) && !isStaffView ? (
+                  <Button variant="outline" size="sm" onClick={showInviteForm}>
+                    Invite someone
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : isMobile ? (
-            <ul className="grid gap-3">
+            <ItemGroup className="gap-3">
               {(members.data ?? []).map((member) => (
                 <MemberRow
                   key={member.membership.id}
@@ -549,7 +582,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
                   onRemoved={onRemoved}
                 />
               ))}
-            </ul>
+            </ItemGroup>
           ) : (
             <Table className="min-w-2xl">
               <TableHeader>
@@ -584,7 +617,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
       )}
       {myRole && canManageTenant(myRole) && !isStaffView && (
         <>
-          <Card>
+          <Card ref={inviteCard}>
             <CardHeader>
               <CardTitle>
                 <h2>Invite a member</h2>

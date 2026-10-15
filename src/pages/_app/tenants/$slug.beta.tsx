@@ -47,11 +47,11 @@ function TenantBetaTab() {
       .then(() => router.invalidate())
   }, [isClosed, errorUpdatedAt, queryClient, router, slug])
 
-  if (beta.isPending) return <Skeleton className="h-32 w-full max-w-2xl" />
+  if (beta.isPending) return <Skeleton className="h-32 w-full" />
   if (beta.isError) return <LoadError message={BETA_ERROR} onRetry={() => void beta.refetch()} />
 
   return (
-    <Card className="max-w-2xl">
+    <Card>
       <CardHeader>
         <CardTitle>
           <h2>Beta</h2>

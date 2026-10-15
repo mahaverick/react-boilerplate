@@ -11,6 +11,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">
       <SkipLink />
+      {/* Capped: the sign-in card stays a narrow, centred column. */}
       <main
         id={MAIN_CONTENT_ID}
         tabIndex={-1}
