@@ -372,6 +372,12 @@ describe('tenant activity page', () => {
           metadata: {},
           target: { type: 'billing_plan', id: TENANT_ID },
         }),
+        entry({
+          id: AUDIT_ID_1,
+          action: 'odd.thing',
+          metadata: {},
+          target: { type: 'constructor', id: TENANT_ID },
+        }),
       ])
     )
     renderAppAt('/settings/workspace/acme/activity')
@@ -381,6 +387,7 @@ describe('tenant activity page', () => {
       rowFor(/performed platform maintenance mode changed/).getByText('Platform')
     ).toBeInTheDocument()
     expect(rowFor(/performed billing plan changed/).getByText('Billing plan')).toBeInTheDocument()
+    expect(rowFor(/performed odd thing/).getByText('Constructor')).toBeInTheDocument()
   })
 
   it('promises only what the API searches in the search box', async () => {

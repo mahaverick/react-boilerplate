@@ -21,7 +21,8 @@ export const AUDIT_TARGET_LABELS: Record<KnownAuditTargetType, string> = {
  * @param type - The target's kind.
  */
 export function auditTargetLabel(type: AuditTargetType): string {
-  if (type in AUDIT_TARGET_LABELS) return AUDIT_TARGET_LABELS[type as KnownAuditTargetType]
+  if (Object.hasOwn(AUDIT_TARGET_LABELS, type))
+    return AUDIT_TARGET_LABELS[type as KnownAuditTargetType]
   const words = type.replaceAll(/[._]+/g, ' ').trim()
   return words === '' ? '—' : words.charAt(0).toUpperCase() + words.slice(1)
 }
