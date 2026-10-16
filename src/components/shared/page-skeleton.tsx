@@ -173,7 +173,7 @@ export function AuthPagePending() {
       data-slot="auth-frame-skeleton"
       className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10"
     >
-      <main className="flex w-full max-w-sm flex-col gap-6 md:max-w-3xl">
+      <main className="flex w-full max-w-sm flex-col gap-6 md:max-w-(--boot-auth-width)">
         <AuthPending />
       </main>
     </div>

@@ -45,6 +45,7 @@ describe('PageSkeleton', () => {
     expect(region).toHaveAttribute('data-variant', 'auth')
     expect(container.querySelector('[data-slot="page-heading-skeleton"]')).toBeNull()
     expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-slot="field-skeleton"]')).toHaveLength(2)
     expect(container.querySelectorAll('[data-slot="auth-button-skeleton"]')).toHaveLength(1)
     expect(container.querySelector('[data-slot="card"]')).toHaveClass(
       'max-w-sm',
