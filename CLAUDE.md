@@ -237,7 +237,7 @@ is in [Error-tracking privacy](SECURITY.md#error-tracking-privacy).
 Each has an in-repo replacement:
 
 - TanStack Form with a Zod validator, which needs no adapter package;
-- `theme.store` with `public/theme-init.js`;
+- `theme.store` with the pre-paint files `public/theme-init.js` and `public/boot-variant.js`;
 - the `cn` package;
 - Base UI through shadcn, its toast included (`src/lib/toast.ts`).
 
@@ -589,7 +589,7 @@ the markup. No rule is disabled to make it pass.
   `aria-required-children` passed, which happens only when axe evaluated a
   `role="menu"`. The popups are not rendered inside `<main>`, because their
   triggers live in the sidebar and header.
-- **`RouteError`, `RoutePending` and `RouteNotFound` render no `<main>`.** They
+- **`RouteError`, `PageSkeleton` and `RouteNotFound` render no `<main>`.** They
   render inside the matched route's `Outlet`, which a layout's `<main>` already
   wraps. The top-level splat route `src/pages/$.tsx` has no layout, so it wraps
   `RouteNotFound` in its own `<main>`.

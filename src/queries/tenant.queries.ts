@@ -147,8 +147,8 @@ export function useTenants() {
  * `GET /tenants/:slug` answers the same 404 for "no such tenant" and "no
  * access", and the route renders both as one not-found panel. A rejection
  * would be retried (the query client's `retry: 1`), refetched on mount, and
- * thrown by `ensureQueryData` in `$slug.tsx`'s loader into the error boundary.
- * Every other failure still rejects and reaches the boundary. A 404 also
+ * shown as the gate's load-error panel. Every other failure still rejects and
+ * reaches that panel (`TenantGate`). A 404 also
  * invalidates the tenant list (exact key only, so the detail is not
  * refetched), because the page reads the list to tell a suspended tenant from
  * a missing one.
@@ -184,7 +184,7 @@ export function useTenant(slug: string) {
  *
  * Three states. `isPending` is not known yet (render a skeleton). `isError` is
  * a failed refetch with the cached row still in place (say so and offer a
- * retry); a failed first load is caught by `$slug.tsx`'s error boundary
+ * retry); a failed first load is the layout gate's load-error panel
  * instead. A `role` of `undefined` after a successful load is a 404, which the
  * layout has already turned into its not-found panel.
  */

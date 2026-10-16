@@ -36,7 +36,7 @@ The tag names the work that fixes it: `[P2 loading]` boot and loading states, `[
 
 ## All findings
 
-"The walk" below is a Playwright walk of the signed-in app as a new account owning two tenants, with a layout-shift observer on every page; "the capture" is `pnpm capture:pages` and its `report.json`.
+Each finding's text says what was found; its `Status:` line says what has changed since, with the shot and test that show it. "The walk" below is a Playwright walk of the signed-in app as a new account owning two tenants, with a layout-shift observer on every page; "the capture" is `pnpm capture:pages` and its `report.json`.
 
 | Id                | Route                                              | Tag          | Finding                                                                                                                                                               | Evidence                                                                   |
 | ----------------- | -------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -83,11 +83,15 @@ The tag names the work that fixes it: `[P2 loading]` boot and loading states, `[
 
 ### F-boot-1
 
-On every cold load under `vite dev`, the splash in `index.html` shows for about half a second as unstyled black serif "Loading…" in the top-left corner, with no spinner, before it jumps to the centred, styled splash (frames 01 and 02 of each scenario in [boot.md](boot.md#frame-by-frame): 69 → 557 ms, 23 → 590 ms, 32 → 544 ms). The splash's only styles are in `src/styles/globals.css`, which `vite dev` delivers through JavaScript after the module graph runs ([why](boot.md#why-the-first-frame-is-unstyled)). A production build links that CSS in `<head>`, so production is not affected. Fix: give the splash styles that do not depend on the bundle, for example a small stylesheet linked from `index.html`.
+Status: fixed. The shell's CSS is inline in `index.html`, so after the browser's own blank frame the first frame is the styled shell, in both builds ([frames](boot.md#the-first-frame)). `tests/unit/boot-shell.test.ts` ("paints only colours it copied", "sizes its boxes as border-box…") and `e2e/nginx/boot-shell.test.ts` (the styled shell with the bundle blocked, in a light and a dark colour scheme) cover it.
+
+On every cold load under `vite dev`, the splash in `index.html` shows for about half a second as unstyled black serif "Loading…" in the top-left corner, with no spinner, before it jumps to the centred, styled splash. Its only styles are in `src/styles/globals.css`, which `vite dev` delivers through JavaScript after the module graph runs. A production build links that CSS in `<head>`, so production was not affected. Fix: give the splash styles that do not depend on the bundle.
 
 ### F-boot-2
 
-React mounts only after `router.load()` settles (`src/main.tsx`), and `router.load()` awaits the session restore, `_app`'s tenant guard (`GET /tenants`, up to 3 s), the flags, and on tenant pages `GET /tenants/:slug`. While any of these is slow, the user sees only the boot splash: no shell, no skeleton, no sign of which page is coming. The capture held each tenant page's requests: the loading shots of `/tenants/$slug/`, `/tenants/$slug/beta` and the three `/settings/workspace/$slug/…` pages all recorded `loadingUi: "splash"` in `test-results/capture/report.json`. Fix: mount the shell before the awaited reads finish and show route-level skeletons in place of the splash.
+Status: fixed. The boot waits on the session restore and the flags only, and on the flags at most 10 s (`FLAGS_BOOT_WAIT_MS`); the tenant list is read after mount and a tenant's detail is started without being awaited ([frames](boot.md#what-happens)). `tests/unit/observability/flags/flag-query.test.ts` ("resolves to the fallbacks once FLAGS_BOOT_WAIT_MS passes with no answer…") and `tests/unit/components/features/tenant/tenant-search-guard.test.tsx` (the list template and the dashboard template in the page slot while the list is in flight) and `tests/unit/pages/_app/tenants/$slug.test.tsx` ("shows the detail template under the app shell while the tenant loads") cover it.
+
+React mounts only after `router.load()` settles (`src/main.tsx`), and `router.load()` awaits the session restore, `_app`'s tenant guard (`GET /tenants`, up to 3 s), the flags, and on tenant pages `GET /tenants/:slug`. While any of these is slow, the user sees only the boot splash: no shell, no skeleton, no sign of which page is coming. The capture held each tenant page's requests: the loading shots of `/tenants/$slug/`, `/tenants/$slug/beta` and the three `/settings/workspace/$slug/…` pages all recorded `loadingUi: "splash"` in `capture-records/report.json`. Fix: mount the shell before the awaited reads finish and show route-level skeletons in place of the splash.
 
 ### F-auth-1
 
@@ -98,6 +102,8 @@ React mounts only after `router.load()` settles (`src/main.tsx`), and `router.lo
 `/verify-email` renders the token from the link in a labelled, editable text input ([shot](img/auth/verify-email--default.jpg)). The reset page carries its token in the form values without rendering it. The visible field adds a step that means nothing to the user and invites accidental edits. Fix: carry the token like the reset page does, and show the field only when there is no token.
 
 ### F-auth-3
+
+Status: partly fixed. The loading card is shaped like the loaded one, a sentence, two buttons and a hint as skeleton bars, so it has about the loaded card's height ([after](img/auth/invitation-accept--loading.jpg), which shows the height); its title stays "Checking your invitation", since only the preview knows the tenant's name. `tests/unit/pages/invitations/accept.test.tsx` ("holds the loaded card’s height while the preview loads…") covers the shape, not the height, which jsdom cannot measure.
 
 While the preview loads, the card is titled "Checking your invitation" and holds two skeleton bars; when it lands, the card becomes "Join {tenant}" with a sentence, two buttons and a hint paragraph ([loading](img/auth/invitation-accept--loading.jpg), [loaded](img/auth/invitation-accept--default.jpg)). The card grows from about 200 px to about 345 px tall and its title changes, so everything in it moves. Fix: a skeleton shaped like the loaded state (title line, sentence, two button-height bars).
 
@@ -115,9 +121,13 @@ The preview-failure state has the title "We could not load this invitation" and,
 
 ### F-dashboard-1
 
+Status: fixed. While the tenant list is in flight, the page slot holds the dashboard template and the switcher reads "Loading tenants…" ([after](img/dashboard/dashboard--loading.jpg)). `tenant-search-guard.test.tsx` ("shows the dashboard template in the page slot…") and `tests/unit/components/features/tenant-switcher.test.tsx` ("names the list as loading on the trigger…") cover it.
+
 `/dashboard` has no request of its own; the capture held the `_app` guard's `GET /tenants` and the bell's `GET /notifications`, and recorded `loadingUi: "none"` (5466 ms). The guard awaits the tenant list with a 3 s cap (`src/lib/tenant-guard.ts`), so the boot splash covers the first 3 s, then the page renders as if loading were done: "Choose a tenant" in the switcher, no badge on the bell ([shot](img/dashboard/dashboard--loading.jpg)). The same happens on every page without `$slug` (`/tenants/` shows "Choose a tenant" over its own skeleton, [shot](img/tenants/tenants--loading.jpg)). Fix: render the shell without waiting on the tenant list, with a skeleton in the switcher and the bell while their reads are in flight.
 
 ### F-dashboard-2
+
+Status: fixed. A failed tenant list reads "Tenants could not be loaded" on the switcher trigger, and a failed notifications read marks the bell ([after](img/dashboard/dashboard--error.jpg)). `tenant-switcher.test.tsx` ("names the failure on the trigger…"), `tests/unit/components/features/notification-bell.test.tsx` ("marks a failed read on the bell…") and `e2e/fixtures/sections.test.ts` ("a failed tenant list shows on the switcher…") cover it.
 
 The capture failed `GET /tenants` and `GET /notifications` on `/dashboard` and recorded `errorUi: "none"`: the page renders normally, the switcher says "Choose a tenant", the words it uses for an account with no tenants, and the bell's badge is gone ([shot](img/dashboard/dashboard--error.jpg)). Only the bell's accessible name changes ("Notifications, count unavailable"), and the switcher's popup says "Tenants could not be loaded" once opened (`ownTenantsMessage` in `src/components/features/tenant-switcher.tsx`). `/tenants/` does show a `LoadError` for the same failure, but its switcher also says "Choose a tenant" ([shot](img/tenants/tenants--error.jpg)). Fix: give the switcher trigger and the bell a visible failed state with a retry, distinct from "no tenants" and "no notifications".
 
@@ -135,13 +145,19 @@ The capture failed `GET /tenants` and `GET /notifications` on `/dashboard` and r
 
 ### F-tenants-1
 
+Status: fixed. A cold load and an in-app navigation both show the detail template under the app shell while the tenant loads ([cold load](img/tenants/tenant-overview--loading.jpg), [navigation](img/tenants/tenant-overview--nav-route.jpg)). `tests/unit/pages/_app/tenants/$slug.test.tsx` ("shows the detail template under the app shell while the tenant loads") covers it.
+
 `/tenants/$slug` and `/settings/workspace/$slug` await `GET /tenants/:slug` and its flags in their loaders. On a cold load that runs inside `router.load()`, before React mounts: the capture's loading shots of `/tenants/$slug/` and `/tenants/$slug/beta` recorded `loadingUi: "splash"` ([shot](img/tenants/tenant-overview--loading.jpg)), the mechanism in [F-boot-2](#f-boot-2). On an in-app navigation the router shows `RoutePending` after 300 ms instead: in the walk, with the detail held 2.5 s, the page was one centred spinner under a breadcrumb that already read Tenants › {slug} › Overview, for about 2.3 s. `TenantGate`'s skeleton (`h-10 w-64`, `h-8`, `h-40`) is reachable only in the narrow cases [tenants.md](tenants.md#layout) lists, inferred from the code. Fix: let the layout render from the route match with a header-and-tabs skeleton while the detail loads.
 
 ### F-tenants-2
 
-A failed `GET /tenants/:slug` reaches the layout's `errorComponent`, `TenantLoadFailed`, which replaces the tenant's header, role badge and tabs as well as the page with one `LoadError`; the breadcrumb above still says Overview or Beta ([overview](img/tenants/tenant-overview--error.jpg), [beta](img/tenants/tenant-beta--error.jpg)). The capture fails every section at once, so this shot is the worst case; but the onboarding card and the beta card read their own endpoints and would render without the detail except for the header's name (from the code). Fix: keep the header and tabs (from the slug) and put the failure in the region that needs the detail.
+Status: open. A tenant tab reads the tenant it is about first, so a failed tenant read still replaces the tab.
+
+A failed `GET /tenants/:slug` makes `TenantGate` show the tenant `LoadError` (`TENANT_LOAD_ERROR`), which replaces the tenant's header, role badge and tabs as well as the page; the breadcrumb above still says Overview or Beta ([overview](img/tenants/tenant-overview--error.jpg), [beta](img/tenants/tenant-beta--error.jpg)). The capture fails every section at once, so this shot is the worst case; but the onboarding card and the beta card read their own endpoints and would render without the detail except for the header's name (from the code). Fix: keep the header and tabs (from the slug) and put the failure in the region that needs the detail.
 
 ### F-tenants-3
+
+Status: fixed. The checklist holds its place with a skeleton, with Details already up, and says so in its own place when it fails. `$slug.test.tsx` ("holds the checklist’s place with a skeleton…", "says the checklist failed, in its own place…") and `e2e/fixtures/sections.test.ts` ("a held checklist read leaves the tenant’s details on screen", "a failed checklist read shows one error, in the checklist’s place") cover it. There is no after-shot: the capture holds the tenant read together with the checklist's, so [its loading shot](img/tenants/tenant-overview--loading.jpg) shows the detail template instead.
 
 `GettingStartedCard` returns `null` until `GET /tenants/:slug/onboarding` has data (`src/components/features/tenant/getting-started-card.tsx`), and has no error branch. In the walk the Details card painted first and was pushed from y 217 to y 761 when the checklist arrived about 60 ms later (layout shift 0.143, the largest on any page). With that request answering 500, the card was absent and nothing said so. Fix: a checklist-shaped skeleton while pending, and a `LoadError` in the card's place on failure.
 
@@ -164,6 +180,8 @@ With `example_beta_page` off, `/tenants/$slug/beta`'s `beforeLoad` throws `notFo
 Switching tenant is reachable only from the switcher at the top of the sidebar; on a phone, from inside the sidebar sheet. In the walk the switcher searched both tenants well, but there is no keyboard way in and no command palette in react at all. Creating a tenant is a link at the bottom of the switcher that goes to the tenant list page. Fix: the palette lists the user's tenants ("Switch to…") and "Create a tenant".
 
 ### F-notifications-1
+
+Status: open. The inbox's list body moves to the data table.
 
 The loading branch is three `Skeleton className="h-16 w-full"` blocks ([shot](img/notifications/notifications--loading.jpg)), while each row has a title, an Unread badge, a body line, a type and date line and two icon buttons. Mark all read renders only once loaded data has an unread row, so in the walk the row moved from y 184 to y 220 when the button appeared. Fix: a row-shaped skeleton, and the Mark all read slot reserved (disabled) while loading.
 
@@ -193,21 +211,31 @@ The capture's owner and the walk's owner were both registered and verified befor
 
 ### F-settings-1
 
+Status: fixed. The workspace pages show the settings template under the real heading while the tenant loads ([after](img/settings/workspace-general--loading.jpg)). `tests/unit/pages/_app/settings/workspace.$slug.test.tsx` ("shows the settings template under the settings heading while the tenant loads") covers it.
+
 The three workspace pages await the tenant detail in the `/settings/workspace/$slug` loader, so their capture loading shots recorded `loadingUi: "splash"` ([general](img/settings/workspace-general--loading.jpg), [members](img/settings/workspace-members--loading.jpg), [activity](img/settings/workspace-activity--loading.jpg)), the mechanism in [F-boot-2](#f-boot-2). In the app, the same wait shows `RoutePending`'s lone spinner, as in [F-tenants-1](#f-tenants-1) (inferred from the shared loader; the walk timed it on the tenant layout). Fix: as F-tenants-1, a settings-shaped skeleton under the settings shell's heading while the detail loads.
 
 ### F-settings-2
 
-With the tenant read failing, every workspace page shows the settings heading and one `LoadError` from `TenantLoadFailed` in place of all its cards ([general](img/settings/workspace-general--error.jpg), [members](img/settings/workspace-members--error.jpg), [activity](img/settings/workspace-activity--error.jpg)). The cards below the gate each have their own request and their own error branch: in the walk, a 500 on only `GET /tenants/:slug/invitations` showed one `LoadError` in Pending invitations, and a 500 on only `GET /tenants/:slug/settings` one in the Settings card, the rest usable. The gate needs the detail for the "{name} · /{slug}" line and the role. Fix: render the cards that do not need the detail while it loads or fails, and put the tenant failure in the line it feeds.
+Status: open. As F-tenants-2, the workspace pages read their tenant first.
+
+With the tenant read failing, every workspace page shows the settings heading and one `LoadError` from `TenantGate` in place of all its cards ([general](img/settings/workspace-general--error.jpg), [members](img/settings/workspace-members--error.jpg), [activity](img/settings/workspace-activity--error.jpg)). The cards below the gate each have their own request and their own error branch: in the walk, a 500 on only `GET /tenants/:slug/invitations` showed one `LoadError` in Pending invitations, and a 500 on only `GET /tenants/:slug/settings` one in the Settings card, the rest usable. The gate needs the detail for the "{name} · /{slug}" line and the role. Fix: render the cards that do not need the detail while it loads or fails, and put the tenant failure in the line it feeds.
 
 ### F-settings-3
+
+Status: fixed. The sign-in methods and the password form hold their place while the methods load ([after](img/settings/account-security--loading.jpg)). `tests/unit/components/features/profile/security-section.test.tsx` ("holds the sign-in methods and the password form’s place…") covers it.
 
 `SecuritySection`'s loading branch is `h-5 w-40` and `h-9` ([shot](img/settings/account-security--loading.jpg)). It is replaced by "Sign-in methods", the method, "Change password" and three labelled fields with a button ([shot](img/settings/account-security--default.jpg)): in the walk Other sessions moved from y 284 to y 578 (layout shift 0.026). Fix: a skeleton shaped like the methods line and the password form.
 
 ### F-settings-4
 
+Status: fixed. Four preference rows hold the place while the preferences load ([after](img/settings/account-notifications--loading.jpg), [on navigation](img/settings/account-notifications--nav-sections.jpg)). `tests/unit/pages/_app/settings/account.notifications.test.tsx` ("holds four preference rows…") covers it.
+
 `PreferencesCard` shows one `h-14` bar ([shot](img/settings/account-notifications--loading.jpg)) for four bordered rows of about 46 px each ([shot](img/settings/account-notifications--default.jpg)). Fix: one skeleton row per expected kind.
 
 ### F-settings-5
+
+Status: partly fixed. General's Settings card is form-shaped while its settings or its role load, and its Overview card renders once the tenant has loaded, under the settings template ([after](img/settings/workspace-general--loading.jpg)). `tests/unit/components/features/tenant/tenant-settings-card.test.tsx` ("holds the form’s place while the role loads…") covers it. The members table, invitations and activity log move to the data table.
 
 On the workspace pages, once the gate has the detail: members shows 2× `h-10` and invitations 2× `h-10` for a table with a header row and a list of invitation rows (in the walk the table's arrival pushed Invite a member from y 438 to y 515.5, layout shift 0.017); activity shows `h-24` while the role resolves and 2× `h-14` for the log, with no filter row; General's Overview card shows 2× `h-9` for four fields and a button. Shapes from `tenant-members-panel.tsx`, `pending-invitations.tsx`, `activity-list.tsx`, `tenant-activity-panel.tsx` and `tenant-overview-card.tsx`; the capture's shots of these pages are the splash, so these skeletons are seen only in the walk. Fix: skeletons with the table's columns, the filter row and the form's fields.
 

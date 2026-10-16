@@ -10,6 +10,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { act, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { templatesReady } from '@/components/shared/pending-templates'
 import { noteError } from '@/observability/errors'
 import { router as appRouter, ROUTER_DEFAULTS } from '@/router'
 import { settle } from '@/tests/fixtures/timing'
@@ -229,6 +230,14 @@ describe('unknown URLs', () => {
 })
 
 describe('pending navigation', () => {
+  it('paints the default pending template without suspending once the startup preload has settled', async () => {
+    await templatesReady
+    const DefaultPending = ROUTER_DEFAULTS.defaultPendingComponent
+    // No Suspense boundary: a template that had to suspend would throw here instead of rendering.
+    render(<DefaultPending />)
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
+  })
+
   it('shows the pending screen for a navigation slower than 300ms', async () => {
     let release!: () => void
     const gate = new Promise<void>((resolve) => {

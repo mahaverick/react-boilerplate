@@ -67,7 +67,7 @@ function NotificationRow({ notification }: { notification: Notification }) {
       <ItemContent className="min-w-0">
         <ItemTitle className="line-clamp-none">
           <div className="flex flex-wrap items-center gap-2">
-            <h3>{notification.title}</h3>
+            <h2>{notification.title}</h2>
             {isUnread && <Badge variant="secondary">Unread</Badge>}
           </div>
         </ItemTitle>

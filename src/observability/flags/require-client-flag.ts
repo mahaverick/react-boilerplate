@@ -11,8 +11,9 @@ import type { ClientFlagKey, ClientFlagValue } from './flag-types'
 /**
  * For a route's `beforeLoad`: throws `notFound()` unless the flag has the
  * expected value. It loads the scope's values itself, since `beforeLoad` runs
- * before any loader. A failed load means the fallbacks, so the page opens only
- * if `expected` equals the flag's fallback: a page gated on `true` is closed
+ * before any loader. A failed load, or one still out after
+ * `FLAGS_BOOT_WAIT_MS`, means the fallbacks, so the page opens only if
+ * `expected` equals the flag's fallback: a page gated on `true` is closed
  * whenever the flags cannot be read.
  * @param queryClient - The app's query client.
  * @param scope - The scope the page reads its flags in.

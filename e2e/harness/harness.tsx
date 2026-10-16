@@ -289,7 +289,34 @@ const membersHandler =
               ok(selfRole ? NON_OWNER_MEMBERS : MEMBERS, 'Members retrieved.')
             )
 
+/**
+ * `?hold=` and `?fail=` each take comma-separated API paths
+ * (`/api/v1/notifications`), matched exactly as MSW path patterns (a `:param`
+ * segment matches any value; there is no prefix match). A held path never answers and a failed one
+ * answers 500, so a fixture can show that one section's request changes only
+ * that section. Only `/api/v1/` paths are taken. These handlers come first,
+ * so they win over the defaults below.
+ */
+const sectionParams = new URLSearchParams(location.search)
+/** The `/api/v1/` paths listed under `key`. */
+const pathsOf = (key: string) =>
+  (sectionParams.get(key) ?? '').split(',').filter((path) => path.startsWith('/api/v1/'))
+const sectionHandlers = [
+  ...pathsOf('hold').map((path) => http.get(path, () => new Promise<Response>(() => {}))),
+  ...pathsOf('fail').map((path) =>
+    http.get(
+      path,
+      () =>
+        new Response(
+          JSON.stringify({ success: false, message: 'Harness failure', statusCode: 500 }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        )
+    )
+  ),
+]
+
 const worker = setupWorker(
+  ...sectionHandlers,
   // The signed-in layout reads the page's flags on every route; unmocked, they 401 and sign the harness user out.
   ...flagHandlers,
   http.get('/api/v1/tenants', () =>

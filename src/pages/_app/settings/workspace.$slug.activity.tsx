@@ -1,6 +1,7 @@
 import { createFileRoute, useParams } from '@tanstack/react-router'
 import { SettingsRouteError } from '@/components/features/route-error'
 import { TenantActivityPanel } from '@/components/features/tenant/tenant-activity-panel'
+import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 
 /** Settings › Workspace › Activity: the tenant's audit log, for owners and admins. */
@@ -8,6 +9,7 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug/activity')(
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Activity · ${params.slug}`) }] }),
   staticData: { crumb: 'Activity' },
   component: WorkspaceActivity,
+  pendingComponent: SettingsPagePending,
   /**
    * Kept out of a lazy chunk, as the router's default error screen is: a failed
    * fetch could not load it. Splitting it would also pull the error listener

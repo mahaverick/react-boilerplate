@@ -195,8 +195,40 @@ describe('TenantSwitcher', () => {
     renderShell()
     await openSwitcher()
 
-    expect(await screen.findByText('Tenants could not be loaded')).toBeInTheDocument()
+    const popup = screen.getByRole('dialog', { name: 'Switch tenant' })
+    expect(await within(popup).findByText('Tenants could not be loaded')).toBeInTheDocument()
     expect(screen.queryByText('No tenants yet')).not.toBeInTheDocument()
+  })
+
+  it('names the list as loading on the trigger while it is in flight', async () => {
+    server.use(http.get('/api/v1/tenants', async () => delay('infinite')))
+    renderShell('/dashboard')
+    expect(
+      await screen.findByRole('combobox', { name: 'Switch tenant. Current: Loading tenants…' })
+    ).toBeVisible()
+  })
+
+  it('names the failure on the trigger, and Try again reads the list again', async () => {
+    let calls = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        calls += 1
+        return calls <= 2
+          ? fail('Something went wrong', 500)
+          : ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants retrieved.')
+      })
+    )
+    renderShell()
+    // The queryClient is `retry: 1`: the failure lands after the second attempt.
+    expect(
+      await screen.findByRole('combobox', {
+        name: 'Switch tenant. Current: Tenants could not be loaded',
+      })
+    ).toBeVisible()
+    const user = await openSwitcher()
+    await user.click(await screen.findByRole('button', { name: 'Try again' }))
+    const popup = screen.getByRole('dialog', { name: 'Switch tenant' })
+    expect(await within(popup).findByText('Acme Corp')).toBeInTheDocument()
   })
 
   it('filters Your tenants by what is typed', async () => {

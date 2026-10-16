@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router'
+import { SettingsPending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 import { SETTINGS_DESCRIPTION, settingsActiveSection } from '@/constants/settings'
 
@@ -7,6 +8,7 @@ export const Route = createFileRoute('/_app/settings')({
   head: () => ({ meta: [{ title: pageTitle('Settings') }] }),
   staticData: { crumb: 'Settings' },
   component: SettingsLayout,
+  pendingComponent: SettingsPending,
 })
 
 /**

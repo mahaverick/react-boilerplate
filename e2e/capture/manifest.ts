@@ -4,11 +4,16 @@
  * listed here. Endpoints are relative to /api/v1 (see endpoint.ts).
  */
 import type { FileRoutesByFullPath } from '@/routeTree.gen'
-import type { RouteCapture, Section } from './types'
+import type { NavigationCapture, RouteCapture, Section } from './types'
 
+/**
+ * The tenant read. Its flags are not held with it: the boot waits up to 10 s
+ * for them before it mounts anything, so a held flags read shows the boot shell,
+ * not the page's loading state (`docs/pages/boot.md` has that frame).
+ */
 const TENANT: Section = {
   name: 'Tenant',
-  endpoints: ['GET /tenants/:slug', 'GET /tenants/:slug/flags'],
+  endpoints: ['GET /tenants/:slug'],
 }
 
 /** Each route's capture, keyed by its full path. */
@@ -106,7 +111,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
   },
   '/tenants/$slug': {
     kind: 'layout',
-    note: 'TenantGate + header + tab nav; loader awaits the tenant and its flags.',
+    note: 'TenantGate + header + tab nav; the loader starts the tenant and awaits its flags.',
   },
   '/settings/': {
     kind: 'page',
@@ -154,7 +159,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
   },
   '/settings/workspace/$slug': {
     kind: 'layout',
-    note: 'TenantGate (h2); loader awaits the tenant and its flags.',
+    note: 'TenantGate (h2); the loader starts the tenant and awaits its flags.',
   },
   '/tenants/$slug/activity': { kind: 'redirect', to: '/settings/workspace/$slug/activity' },
   '/tenants/$slug/beta': {
@@ -252,3 +257,34 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
   },
   '/settings/workspace/$slug/': { kind: 'redirect', to: '/settings/workspace/$slug/general' },
 }
+
+/** The in-app navigations the capture shoots mid-flight: the route template, then the section skeletons. */
+export const NAVIGATIONS: readonly NavigationCapture[] = [
+  {
+    area: 'settings',
+    shot: 'account-notifications',
+    as: 'owner',
+    from: '/settings/account/profile',
+    link: 'Notifications',
+    template: { variant: 'settings', nested: true },
+    endpoints: ['GET /notifications/preferences'],
+  },
+  {
+    area: 'tenants',
+    shot: 'tenant-overview',
+    as: 'owner',
+    from: '/tenants',
+    link: '{tenantName}',
+    template: { variant: 'detail', nested: false },
+    endpoints: ['GET /tenants/:slug', 'GET /tenants/:slug/onboarding'],
+  },
+  {
+    area: 'settings',
+    shot: 'account-security',
+    as: 'owner',
+    from: '/settings/account/profile',
+    link: 'Security',
+    template: { variant: 'settings', nested: true },
+    endpoints: ['GET /auth/providers'],
+  },
+]

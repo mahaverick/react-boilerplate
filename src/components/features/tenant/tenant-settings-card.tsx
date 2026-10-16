@@ -2,6 +2,8 @@ import { useForm } from '@tanstack/react-form'
 import { z } from 'zod'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { BusyButton } from '@/components/shared/busy-button'
+import { QueryState } from '@/components/shared/query-state'
+import { FormFieldsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -14,7 +16,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { canManageTenant } from '@/constants/roles'
 import { useChangedFields } from '@/hooks/use-changed-fields'
@@ -182,7 +183,8 @@ function SettingsDetails({ settings }: { settings: TenantSettings }) {
 
 /**
  * The settings tab. A settings failure and a role failure render as stacked
- * errors, each retrying its own request, since either can fail alone. The form
+ * errors, each retrying its own request, since either can fail alone. Settings
+ * that land before the role keep the form's skeleton. The form
  * is keyed on the row's `updatedAt`, so its defaults come from loaded data.
  */
 export function TenantSettingsCard({ slug }: { slug: string }) {
@@ -202,26 +204,27 @@ export function TenantSettingsCard({ slug }: { slug: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {settings.isError || isRoleError || (!isRolePending && !role) ? (
-          <div className="grid gap-3">
-            {settings.isError && (
-              <LoadError message={SETTINGS_ERROR} onRetry={() => void settings.refetch()} />
-            )}
-            {(isRoleError || (!isRolePending && !role)) && (
-              <LoadError message={ROLE_ERROR} onRetry={retry} />
-            )}
-          </div>
-        ) : settings.isPending || isRolePending || !role || !settings.data ? (
-          <div className="grid gap-4">
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        ) : canManageTenant(role) ? (
-          <SettingsForm key={settings.data.updatedAt} slug={slug} settings={settings.data} />
-        ) : (
-          <SettingsDetails settings={settings.data} />
-        )}
+        <div className="grid gap-3">
+          {(isRoleError || (!isRolePending && !role)) && (
+            <LoadError message={ROLE_ERROR} onRetry={retry} />
+          )}
+          <QueryState
+            query={settings}
+            name="Settings"
+            errorMessage={SETTINGS_ERROR}
+            skeleton={<FormFieldsSkeleton fields={3} />}
+          >
+            {(data) =>
+              isRolePending ? (
+                <FormFieldsSkeleton fields={3} />
+              ) : role === undefined ? null : canManageTenant(role) ? (
+                <SettingsForm key={data.updatedAt} slug={slug} settings={data} />
+              ) : (
+                <SettingsDetails settings={data} />
+              )
+            }
+          </QueryState>
+        </div>
       </CardContent>
     </Card>
   )

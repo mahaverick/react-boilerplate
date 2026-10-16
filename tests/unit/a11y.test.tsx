@@ -9,6 +9,7 @@ import axeCore from 'axe-core'
 import { http } from 'msw'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { ThemeToggle } from '@/components/features/theme-toggle'
+import { PageSkeleton, type PageVariant } from '@/components/shared/page-skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GOOGLE_OAUTH_PATH } from '@/constants/routes'
 import { resetSessionForTests } from '@/http/session'
@@ -323,6 +324,18 @@ async function expectNoViolations() {
   // `page-has-heading-one` and `landmark-one-main`, by hand.
   expect(document.querySelectorAll('main')).toHaveLength(1)
   expect(document.querySelectorAll('h1')).toHaveLength(1)
+}
+
+/**
+ * `expectNoViolations` for a page whose content is still loading: the same
+ * rules, without the one-`h1` check, since a page-shaped skeleton has no
+ * heading yet and the shell's `main` is already there.
+ */
+async function expectNoViolationsWhileLoading() {
+  const results = await axeCore.run(document, AXE_OPTIONS)
+  expect(results).toHaveNoViolations()
+  expect(unexpectedIncomplete(results)).toEqual([])
+  expect(document.querySelectorAll('main')).toHaveLength(1)
 }
 
 /**
@@ -662,6 +675,41 @@ describe('signed-in pages', () => {
       await expectNoViolations()
     }
   )
+
+  describe('loading states', () => {
+    it.each([
+      ['the dashboard template while the tenant list loads', '/dashboard', '/api/v1/tenants'],
+      ['the detail template while the tenant loads', '/tenants/acme', '/api/v1/tenants/acme'],
+    ])('%s has no axe violations', async (_name, path, held) => {
+      server.use(http.get(held, () => new Promise<Response>(() => {})))
+      renderAppAt(path)
+      await screen.findByRole('status', { name: 'Loading' })
+      await expectNoViolationsWhileLoading()
+    })
+
+    it('the overview with its checklist loading has no axe violations', async () => {
+      server.use(http.get('/api/v1/tenants/acme/onboarding', () => new Promise<Response>(() => {})))
+      renderAppAt('/tenants/acme')
+      await screen.findByRole('heading', { name: 'Details' })
+      await expectNoViolationsWhileLoading()
+    })
+
+    it('the security section with its sign-in methods loading has no axe violations', async () => {
+      server.use(http.get('/api/v1/auth/providers', () => new Promise<Response>(() => {})))
+      renderAppAt('/settings/account/security')
+      await screen.findByRole('region', { name: 'Security' })
+      await expectNoViolationsWhileLoading()
+    })
+
+    it('the dashboard with the tenant list failed has no axe violations', async () => {
+      server.use(http.get('/api/v1/tenants', () => fail('Something went wrong', 500)))
+      renderAppAt('/dashboard')
+      await screen.findByRole('combobox', {
+        name: 'Switch tenant. Current: Tenants could not be loaded',
+      })
+      await expectNoViolations()
+    })
+  })
 })
 
 /** Makes the status endpoint answer `mode` with the owner's message. */
@@ -1040,4 +1088,19 @@ describe('keyboard', () => {
       expect(document.activeElement).toBe(trigger)
     })
   })
+})
+
+describe('page skeletons', () => {
+  it.each<PageVariant>(['list', 'detail', 'dashboard', 'settings'])(
+    'the %s template has no axe violations inside a page',
+    async (variant) => {
+      render(
+        <main>
+          <h1>Page</h1>
+          <PageSkeleton variant={variant} />
+        </main>
+      )
+      await expectNoViolationsWhileLoading()
+    }
+  )
 })

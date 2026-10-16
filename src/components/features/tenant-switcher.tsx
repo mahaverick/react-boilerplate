@@ -3,6 +3,7 @@ import { IconBuilding, IconPlus, IconSelector } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Combobox,
   ComboboxCollection,
@@ -83,6 +84,9 @@ function ownTenantsMessage({
  * otherwise sit in no landmark. It reads `$slug` with `strict: false`, since
  * the app shell renders it on routes without one, and filters before
  * rendering (`filter={null}`).
+ *
+ * The trigger says whether the list is loading or failed, rather than "Choose
+ * a tenant", until the list is in; a failed list offers Try again in the popup.
  */
 export function TenantSwitcher() {
   const navigate = useNavigate()
@@ -109,7 +113,13 @@ export function TenantSwitcher() {
     ownMatches.length > 0 ? [{ label: 'Your tenants', items: ownMatches }] : []
 
   const openName = own.find((option) => option.slug === currentSlug)?.name ?? current.data?.name
-  const label = openName ?? 'Choose a tenant'
+  const label =
+    openName ??
+    (tenants.data !== undefined
+      ? 'Choose a tenant'
+      : tenants.isError
+        ? 'Tenants could not be loaded'
+        : 'Loading tenants…')
   const ownMessage = ownTenantsMessage({
     hasData: tenants.data !== undefined,
     isPending: tenants.isPending,
@@ -183,6 +193,13 @@ export function TenantSwitcher() {
               />
               {ownMessage && (
                 <p className="px-2 py-1.5 text-sm text-muted-foreground">{ownMessage}</p>
+              )}
+              {tenants.data === undefined && tenants.isError && (
+                <div className="px-2 pb-1.5">
+                  <Button variant="outline" size="sm" onClick={() => void tenants.refetch()}>
+                    Try again
+                  </Button>
+                </div>
               )}
               <ComboboxEmpty>{noMatches ? 'No tenants match your search' : null}</ComboboxEmpty>
               <ComboboxList>

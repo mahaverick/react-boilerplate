@@ -1,14 +1,16 @@
 /**
  * @file The entry point. React mounts only after `router.load()` settles, so
- * index.html's static splash stays up until the first commit already has a
+ * index.html's static boot shell stays up until the first commit already has a
  * real match (or an error match). `createRoot().render()` clears `#root` on
  * its first commit and the router renders nothing until a match exists, so
- * mounting earlier would blank the splash. `finally` mounts React whether `load()`
- * resolves or rejects, and the trailing `catch` logs a rejection of `load()`
- * or a throw from the mount (say `#root` missing), which would otherwise
- * strand the splash with nothing saying why. Analytics starts after that
+ * mounting earlier would blank the shell. React mounts once `load()` has settled,
+ * whether it resolved or rejected. `loading.catch` logs a rejection of
+ * `load()`, and the mount chain's `catch` logs a throw from the mount (say
+ * `#root` missing); either would otherwise strand the shell with nothing
+ * saying why. Analytics starts after that
  * first load, so the restored session's identity is queued before posthog-js
- * loads.
+ * loads. The mount also waits, in parallel with the load, for the pending
+ * templates' chunks (`waitForTemplates`, capped), so the first render does not suspend on one.
  */
 // First import: must run before any module builds a Zod schema (see the file).
 import '@/lib/zod-jitless'
@@ -19,14 +21,15 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Devtools } from '@/components/dev/devtools'
+import { waitForTemplates } from '@/components/shared/pending-templates'
 import { rootErrorOptions } from '@/observability/errors'
 import { initAnalytics } from '@/observability/telemetry'
 import '@/styles/globals.css'
 import { queryClient, router } from '@/router'
 
-void router
-  .load()
-  .finally(() => {
+const loading = router.load()
+void Promise.allSettled([loading, waitForTemplates()])
+  .then(() => {
     createRoot(document.getElementById('root')!, rootErrorOptions).render(
       <StrictMode>
         <QueryClientProvider client={queryClient}>
@@ -40,3 +43,6 @@ void router
   .catch((error: unknown) => {
     console.error(error)
   })
+loading.catch((error: unknown) => {
+  console.error(error)
+})

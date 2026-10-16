@@ -100,11 +100,11 @@ export default tseslint.config(
   },
   {
     /**
-     * The pre-paint theme script: a classic browser script served as-is from
-     * public/, outside every tsconfig, so it is linted syntactically only. The
+     * The pre-paint scripts: classic browser scripts served as-is from
+     * public/, outside every tsconfig, so they are linted syntactically only. The
      * Tailwind rules are off for the reason given on the root-config block.
      */
-    files: ['public/theme-init.js'],
+    files: ['public/theme-init.js', 'public/boot-variant.js'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: { globals: globals.browser, sourceType: 'script' },
     rules: {

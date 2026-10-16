@@ -19,7 +19,7 @@ src/
     dev/        TanStack devtools, development builds only
     features/   composed, app-specific pieces
     layouts/    the signed-out shell (AuthLayout, AuthCard) and the signed-in one (AppLayout, NavMain)
-    shared/     app-wide pieces that are not shadcn output (<Pii>, the lazy <ToastHost>)
+    shared/     app-wide pieces that are not shadcn output (<Pii>, the lazy <ToastHost>, the loading templates)
     ui/         vendored shadcn output (toast.tsx with local edits), plus the hand-written form.tsx
   configs/      the run-time configuration (getRuntimeConfig)
   constants/    routes and the API prefix, roles, maintenance-mode constants
@@ -56,7 +56,12 @@ closes the drawer on a phone.
 
 `src/routeTree.gen.ts` is generated from `src/pages/` by the TanStack Router
 plugin in `vite.config.ts`, which also splits each route's component into
-its own chunk (`autoCodeSplitting`).
+its own chunk (`autoCodeSplitting`). A route's pending template is not split
+with it: a route names one of the lazy wrappers in
+`src/components/shared/pending-templates.ts`, whose chunk is fetched at
+startup (`templatesReady`, which `main.tsx` waits for, capped), so a template
+renders without suspending and the page templates still stay out of the entry
+chunk.
 
 A lazy route with its own `errorComponent` keeps that screen in the route
 module, with `codeSplitGroupings: [['component']]`, as the settings leaves do.
@@ -75,8 +80,8 @@ instead of `Route.useParams()`. Either mistake fails `pnpm check:bundle`
    the first paint.
 2. `/runtime-config.js` sets `window.__APP_CONFIG__`
    ([run-time config](#the-container-and-run-time-config)).
-3. `src/main.tsx`, the module entry. `#root` holds a static splash until
-   React's first commit replaces it.
+3. `src/main.tsx`, the module entry. `#root` holds a static boot shell, styled
+   by inline CSS in `index.html`, until React's first commit replaces it.
 
 `src/main.tsx` runs in this order:
 
@@ -95,10 +100,13 @@ instead of `Route.useParams()`. Either mistake fails `pnpm check:bundle`
   it.
 - **`router.load()` runs before React mounts.** The root route's
   `beforeLoad` awaits `bootstrapSession()`, so the first match is resolved
-  against a settled session. React mounts in the load's `finally`, whether
-  it resolved or rejected: mounting earlier would blank the splash, because
-  `createRoot().render()` clears `#root` and the router renders nothing until
-  it has a match.
+  against a settled session, and `_app`'s loader waits for the flags, at most
+  10 s. React mounts once the load has settled, whether it resolved or
+  rejected (and once the pending templates' chunks have, or after 3 s):
+  mounting earlier would blank the boot shell, because `createRoot().render()`
+  clears `#root` and the router renders nothing until it has a match. The tenant
+  list and the tenant reads are not waited for; the page shows its template
+  while they load ([boot.md](docs/pages/boot.md)).
 - **`initAnalytics()` runs after that first load**, so the identity the
   session restore queued is applied before posthog-js sends anything.
 
@@ -154,26 +162,36 @@ The Google sign-in button on `/login` is a plain anchor to
 `useQuery` uses, so the page renders from the cache. Three loaders do this:
 
 - `/_app` reads the flags of the page the shell is entered on. It does not
-  run again for a navigation that stays in the shell.
-- `/_app/tenants/$slug` reads the tenant's detail and, for a navigation that
-  commits, the tenant's flags in parallel; a hover preload reads the detail
-  only. `preloadStaleTime: 0` with a blocking stale reload makes the commit
-  run the loader again after a preload, before the page renders. A 404 on
-  the detail resolves to `null`, and the layout reads the tenant list to
-  choose between the suspended panel and the not-found panel; any other
-  failure reaches the route's own error component.
-- `/_app/settings/workspace/$slug` runs the same `loadTenantRoute` and renders
+  run again for a navigation that stays in the shell. `ensureFlags` waits at
+  most `FLAGS_BOOT_WAIT_MS` (10 s), then resolves to the fallbacks; the read
+  keeps going and its values land in the cache.
+- `/_app/tenants/$slug` (`startTenantRoute`) starts the tenant's detail read
+  without waiting on it and, for a navigation that commits, awaits the
+  tenant's flags (same cap); a hover preload starts the detail only. It
+  returns `{ tenant }`, the detail read, which route analytics awaits.
+  `preloadStaleTime: 0` with a blocking stale reload makes the commit run the
+  loader again after a preload, before the page renders. `TenantGate` shows
+  the page's template until the detail lands. A 404 on the detail resolves to
+  `null`, and the gate reads the tenant list to choose between the suspended
+  panel and the not-found panel; any other failure is the gate's load-error
+  panel, whose retry refetches the detail.
+- `/_app/settings/workspace/$slug` runs the same `startTenantRoute` and renders
   the same `TenantGate`, so flags, the tenant switcher and analytics grouping
-  resolve the tenant there exactly as on `/tenants/$slug`.
+  resolve the tenant there as on `/tenants/$slug`.
 
 Links preload on intent (`defaultPreload: 'intent'`). The pending component
-waits 300 ms before it shows and then stays at least 300 ms. The error,
-not-found and pending components are imported statically in
-`src/router.tsx`: when a chunk cannot be fetched, a lazy error screen could
-not load either. `RouteError` recognises a failed chunk load
-(`src/lib/chunk-load-error.ts`) and offers a reload, the only way to pick up
-a new deploy's file names; any other error offers a retry that re-runs the
-loaders.
+waits 300 ms before it shows and then stays at least 300 ms. The error and
+not-found components are imported statically in `src/router.tsx`: when a
+chunk cannot be fetched, a lazy error screen could not load either. The
+pending templates are lazy wrappers fetched at startup, and fetched again once
+if that failed (`templatesReady`), since the router preloads none of them. `RouteError`
+recognises a failed chunk load (`src/lib/chunk-load-error.ts`) and offers a
+reload, the only way to pick up a new deploy's file names; any other error
+offers a retry that re-runs the loaders.
+
+`QueryState` (`components/shared/query-state.tsx`) renders every query-backed
+section: skeleton, role refusal, retryable error, empty, content in a
+`SectionBoundary`.
 
 **A flag-gated page** calls `requireClientFlag` in its `beforeLoad`, which
 throws `notFound()` unless the flag has the opening value
@@ -209,9 +227,10 @@ search param.
 | `/tenants/$slug/*` and `/settings/workspace/$slug/*` | the path          | never; removed if present |
 | every other `/_app` page                             | the search param  | always, once resolved     |
 
-`src/lib/current-tenant.ts` holds the schema and middlewares, and
-`src/lib/tenant-guard.ts` the guard, which `_app` loads on demand so the tenant
-queries stay out of the entry chunk. `_app` owns the param:
+`src/lib/current-tenant.ts` holds the schema and middlewares,
+`src/lib/tenant-guard.ts` the pure resolution (`correctTenant`), and
+`TenantSearchGuard` (`components/features/tenant/tenant-search-guard.tsx`),
+around the layout's page slot, the guard. `_app` owns the param:
 
 - **`validateSearch`** (`tenantSearchSchema`) accepts `tenant` only as a slug
   express's pattern allows (`src/schemas/slug.schemas.ts`); anything else is caught as `undefined`.
@@ -227,28 +246,23 @@ queries stay out of the entry chunk. `_app` owns the param:
   A navigation that names `tenant` itself wins, `undefined` included. The two
   `$slug` layouts declare `stripTenant`, so a link to them never carries
   `?tenant`.
-- **The guard** (`tenantSearchCorrection`, after the auth check in `_app`'s
-  `beforeLoad`). On a `$slug` page it redirects without `?tenant`. On any other
-  page it resolves the tenant from the tenant list (`ensureQueryData`, the
-  switcher's cached query): the URL's `?tenant` if it is eligible, else the
-  remembered tenant if it is, else the first eligible tenant in list order,
-  else none. "Eligible" is a tenant in the caller's `GET /tenants` list that is
-  neither the platform tenant nor suspended. When the result differs from the
-  URL it redirects to the same page with the other params kept and `tenant`
-  set, or removed when there is none. Redirects replace the entry. The resolved
-  tenant is remembered for the user. The guard waits at most
-  `TENANT_LIST_WAIT_MS` (3 s) for the list. A list that fails or takes longer
-  leaves the URL as it is, so the page is never bounced and never held for
-  long; the read stays in flight for the shell, and the first time the list
-  query holds data the guard runs again (`router.invalidate()`, through
-  `armTenantGuardRerun`), so the fill or correction still lands, replacing the
-  entry. That watch belongs to the router `installCurrentTenant` was given:
-  uninstalling or replacing the router stops it, so it never re-runs another
-  router's guards, such as the next user's after a sign-out. If the guard's
-  chunk itself cannot be fetched, `_app` notes the failure
-  (`noteError(…, 'chunk_load', true)`) and renders the page; `retainTenant`
-  still carries the tenant. A hover preload is never redirected and remembers
-  nothing, and the guard stands down while maintenance is `full`.
+- **The guard** (`TenantSearchGuard`, after mount, around the `_app`
+  layout's page slot). On a `$slug` page it never reads the list: it renders
+  the page and drops any `?tenant` with a replace. On any other page it reads
+  the tenant list (the switcher's query) and shows, in the page slot under the
+  already-rendered sidebar and header, the pending template of the route
+  directly under `_app` (the `dashboard` template on `/dashboard`, the list
+  template on `/tenants`) until the list lands. It then resolves the tenant: the URL's `?tenant` if it is eligible,
+  else the remembered tenant if it is, else the first eligible tenant in list
+  order, else none. "Eligible" is a tenant in the caller's `GET /tenants` list
+  that is neither the platform tenant nor suspended. When the result differs
+  from the URL it navigates to the same page with the other params kept and
+  `tenant` set, or removed when there is none, replacing the entry. The
+  resolved tenant is remembered for the user. A list that fails renders the
+  page with the URL as it is; the switcher shows the failure and a retry. The
+  guard decides only while the router is idle, when the location and the
+  rendered matches belong to the same page. A hover preload renders nothing,
+  so it is never corrected and remembers nothing.
 
 Components read the tenant with `useCurrentTenantSlug()`: the route's `$slug`,
 else `?tenant`, else null. A `?tenant` that a loaded tenant list lacks or lists
@@ -513,9 +527,11 @@ runs for a hover preload. A fourth, `installCurrentTenant`, records the tenant
 
 - **Page views and the tenant group.** `installRouteAnalytics`
   (`src/observability/route-telemetry.ts`) runs on `onResolved`: it sets the
-  tenant group from the tenant route's loader data, or clears it, and only
-  then captures `$pageview` when the path changed. It is installed before
-  the first load, so the landing page is counted.
+  tenant group from the tenant read in the tenant route's loader data,
+  awaited for at most `TENANT_GROUP_WAIT_MS` (10 s), or clears it, and only
+  then captures `$pageview` when the path changed. Resolves are handled in
+  order, so a later page's view waits behind an earlier tenant read. It is
+  installed before the first load, so the landing page is counted.
 - **Flag scopes.** A tenant page reads `/tenants/:slug/flags` and every other
   page `/flags` (`flagScopeFor` in `flag-scope.ts`). The `_app` loader warms
   the scope the shell is entered on, and the tenant route's loader warms a
@@ -536,7 +552,7 @@ Error tracking is split so that every page pays almost nothing for it:
   the window listeners, React's root `onUncaughtError` and `onCaughtError`
   (`rootErrorOptions`, passed to `createRoot`), and `noteError` for an error
   the app catches that those hooks never see (this app's callers are
-  `RouteError` and the tenant route's error component). It drops repeats,
+  `RouteError` and `ToastHost`). It drops repeats,
   buffers a few errors, and loads the reporter on the first error or when
   the browser is idle. It imports only `identity-epoch.ts`.
   `pnpm check:bundle` caps it at 1 KB gzipped and keeps `@posthog/core` and
@@ -702,33 +718,35 @@ ones, and the content type of the JavaScript the image serves.
 A change to one here means checking the other app in the same pull
 request, and the description says what happened there.
 
-| Path                                                                                                                                                                                                                                                           | Why it must stay in step                                                                                               |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `src/http/*`, except `sse.ts` (this app only)                                                                                                                                                                                                                  | Session refresh single-flight, 401-verdict sign-out, trace headers, analytics identity order                           |
-| `src/lib/api-error.ts`                                                                                                                                                                                                                                         | Error envelope parsing                                                                                                 |
-| `src/schemas/auth.schemas.ts`, `src/schemas/safe-text.schemas.ts`                                                                                                                                                                                              | Mirror the API's validators                                                                                            |
-| `src/schemas/profile.schemas.ts`, `src/schemas/invitation.schemas.ts`, `src/schemas/email-domain.schemas.ts` and their tests in `tests/unit/schemas/`                                                                                                          | Mirror the API's validators                                                                                            |
-| `src/components/ui/form.tsx`, `src/components/ui/toast.tsx`, `src/lib/toast.ts`, `src/components/shared/toast-host.tsx`                                                                                                                                        | Shared behaviour; form.tsx is hand-written, toast.tsx is vendored with local edits                                     |
-| `nginx.conf` security headers and CSP, `location /api/v1/collect/` and `location ~* ^/api/v1/auth/google/callback/?$`, `tests/unit/docker/nginx-conf.test.ts` (react's also covers the stream location)                                                        | Same threat model; same replay batch size                                                                              |
-| `src/observability/telemetry/*`, except `config.ts`'s per-app constants and `event-registry.ts`'s registry                                                                                                                                                     | One PII, consent, handoff and identity contract                                                                        |
-| `src/components/shared/pii.tsx`, `e2e/helpers/fake-posthog.ts`, `tests/mocks/posthog.ts`                                                                                                                                                                       | The masking class, the egress guard's fake PostHog, and the posthog-js stand-in the unit tests share                   |
-| `src/observability/flags/**`, except `flag-keys.ts` (each app's registry slice) and `flag-scope.ts` (each app's scope); `tests/unit/observability/flags/**`, except `flag-scope.test.ts` and apex's `flag-keys.test.ts`; `tests/fixtures/test-client-flags.ts` | One flag read, exposure and `$feature/*` contract; the tests mock `flag-keys` with test keys so they pass in both apps |
-| `docker/10-runtime-config.sh`, `src/configs/runtime-config.ts`, `scripts/runtime-config-plugin.mjs`, `nginx.conf`'s `location = /runtime-config.js`                                                                                                            | One run-time configuration contract: the same variable names, patterns and file in both images                         |
-| `docker/05-prepare.sh`, `tests/unit/docker/prepare-script.test.ts`                                                                                                                                                                                             | Validates `API_UPSTREAM`, the other half of the container contract                                                     |
-| `public/theme-init.js`, `src/lib/zod-jitless.ts`                                                                                                                                                                                                               | CSP compatibility                                                                                                      |
-| `src/observability/errors/**`, `src/observability/identity-epoch.ts`, `tests/fixtures/error-scrub-vectors.json`                                                                                                                                                | One capture, filter, scrub and consent contract; the vectors are express-boilerplate's, byte for byte                  |
-| `src/main.tsx`, `src/components/features/route-error.tsx`, the `setErrorRouteSource` line in `src/router.tsx`                                                                                                                                                  | The same boot order, and router and React root errors reported with their route the same way                           |
-| `docker/upload-sourcemaps.sh`, `docker/check-image.sh`, `docker/posthog-cli.sha256`, `.github/workflows/deploy.yml`                                                                                                                                            | One source map pipeline                                                                                                |
-| `nginx.conf`'s `.map` location                                                                                                                                                                                                                                 | No source map is ever served                                                                                           |
-| `docker/nginx.main.conf`, `pnpm-workspace.yaml`, `tests/unit/docker/check-image-script.test.ts`, `tests/unit/docker/nginx-main-conf.test.ts`, `tests/unit/docker/dockerfile.test.ts`                                                                           | Same container limits, dependency overrides and script tests                                                           |
-| `e2e/nginx/cors.test.ts`                                                                                                                                                                                                                                       | The CORS seam through nginx; this app adds a preflight for its stream                                                  |
-| `src/components/features/profile/security-section.tsx` and its test                                                                                                                                                                                            | One sign-out-other-sessions section                                                                                    |
-| `src/schemas/changed-fields.schemas.ts`, `src/hooks/use-changed-fields.ts`, `tests/unit/hooks/use-changed-fields.test.tsx`                                                                                                                                     | Changed-field edit forms; each app keeps its own schema test                                                           |
-| `scripts/check-bundle.mjs`, except `ENTRY_BUDGET_BYTES` (each app's measured budget)                                                                                                                                                                           | One first-visit budget check; the budgets differ                                                                       |
-| `eslint.config.js`'s shared conventions                                                                                                                                                                                                                        | Same conventions; each app adds its own import restrictions and file lists                                             |
-| `e2e/capture/*`, except `seed.ts`, `manifest.ts` and `boot.test.ts` (each app's own); `tests/unit/capture-endpoint.test.ts`, `tests/unit/docs-pages.test.ts`                                                                                                   | One page-inventory capture harness and docs check                                                                      |
-| `src/components/ui/{alert,spinner,item}.tsx`, the `*` section of `docs/ui-local-edits.md`, `scripts/ui-drift.mjs`, `scripts/ui-drift.d.mts`, `tests/unit/ui-drift.test.ts`                                                                                     | Byte-identical vendored components and the one drift check over them                                                   |
-| `src/components/shared/{empty-state,note,busy-button}.tsx`, `src/components/features/load-error.tsx`, `tests/unit/components/shared/*.test.tsx`, `tests/unit/components/features/load-error.test.tsx`                                                          | Byte-identical shared empty, note, busy and load-error components                                                      |
+| Path                                                                                                                                                                                                                                                                                                                                                                                | Why it must stay in step                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/http/*`, except `sse.ts` (this app only)                                                                                                                                                                                                                                                                                                                                       | Session refresh single-flight, 401-verdict sign-out, trace headers, analytics identity order                                                                                                 |
+| `src/lib/api-error.ts`                                                                                                                                                                                                                                                                                                                                                              | Error envelope parsing                                                                                                                                                                       |
+| `src/schemas/auth.schemas.ts`, `src/schemas/safe-text.schemas.ts`                                                                                                                                                                                                                                                                                                                   | Mirror the API's validators                                                                                                                                                                  |
+| `src/schemas/profile.schemas.ts`, `src/schemas/invitation.schemas.ts`, `src/schemas/email-domain.schemas.ts` and their tests in `tests/unit/schemas/`                                                                                                                                                                                                                               | Mirror the API's validators                                                                                                                                                                  |
+| `src/components/ui/form.tsx`, `src/components/ui/toast.tsx`, `src/lib/toast.ts`, `src/components/shared/toast-host.tsx`                                                                                                                                                                                                                                                             | Shared behaviour; form.tsx is hand-written, toast.tsx is vendored with local edits                                                                                                           |
+| `nginx.conf` security headers and CSP, `location /api/v1/collect/` and `location ~* ^/api/v1/auth/google/callback/?$`, `tests/unit/docker/nginx-conf.test.ts` (react's also covers the stream location)                                                                                                                                                                             | Same threat model; same replay batch size                                                                                                                                                    |
+| `src/observability/telemetry/*`, except `config.ts`'s per-app constants and `event-registry.ts`'s registry                                                                                                                                                                                                                                                                          | One PII, consent, handoff and identity contract                                                                                                                                              |
+| `src/components/shared/pii.tsx`, `e2e/helpers/fake-posthog.ts`, `tests/mocks/posthog.ts`                                                                                                                                                                                                                                                                                            | The masking class, the egress guard's fake PostHog, and the posthog-js stand-in the unit tests share                                                                                         |
+| `src/components/shared/{query-state,page-skeleton,section-skeleton,section-boundary,pending-templates}.tsx` (`pending-templates.ts`), `tests/unit/components/shared/{query-state,page-skeleton,section-skeleton,section-boundary,pending-templates,pending-templates-preload}.test.tsx`; the `retryDelay: 0` `QueryClient` mock block in `tests/setup.ts` (the block, not the file) | Byte-identical loading templates and section states; each app keeps its own `src/lib/role-denied.ts` (react: 403, apex: 404) and `src/components/features/role-denied.tsx` at the same paths |
+| `src/observability/flags/**`, except `flag-keys.ts` (each app's registry slice) and `flag-scope.ts` (each app's scope); `tests/unit/observability/flags/**`, except `flag-scope.test.ts` and apex's `flag-keys.test.ts`; `tests/fixtures/test-client-flags.ts`                                                                                                                      | One flag read, exposure and `$feature/*` contract; the tests mock `flag-keys` with test keys so they pass in both apps                                                                       |
+| `docker/10-runtime-config.sh`, `src/configs/runtime-config.ts`, `scripts/runtime-config-plugin.mjs`, `nginx.conf`'s `location = /runtime-config.js`                                                                                                                                                                                                                                 | One run-time configuration contract: the same variable names, patterns and file in both images                                                                                               |
+| `docker/05-prepare.sh`, `tests/unit/docker/prepare-script.test.ts`                                                                                                                                                                                                                                                                                                                  | Validates `API_UPSTREAM`, the other half of the container contract                                                                                                                           |
+| `public/theme-init.js`, `src/lib/zod-jitless.ts`                                                                                                                                                                                                                                                                                                                                    | CSP compatibility                                                                                                                                                                            |
+| `src/observability/errors/**`, `src/observability/identity-epoch.ts`, `tests/fixtures/error-scrub-vectors.json`                                                                                                                                                                                                                                                                     | One capture, filter, scrub and consent contract; the vectors are express-boilerplate's, byte for byte                                                                                        |
+| `src/main.tsx`, `src/components/features/route-error.tsx`, the `setErrorRouteSource` line in `src/router.tsx`                                                                                                                                                                                                                                                                       | The same boot order, and router and React root errors reported with their route the same way                                                                                                 |
+| `docker/upload-sourcemaps.sh`, `docker/check-image.sh`, `docker/posthog-cli.sha256`, `.github/workflows/deploy.yml`                                                                                                                                                                                                                                                                 | One source map pipeline                                                                                                                                                                      |
+| `nginx.conf`'s `.map` location                                                                                                                                                                                                                                                                                                                                                      | No source map is ever served                                                                                                                                                                 |
+| `docker/nginx.main.conf`, `pnpm-workspace.yaml`, `tests/unit/docker/check-image-script.test.ts`, `tests/unit/docker/nginx-main-conf.test.ts`, `tests/unit/docker/dockerfile.test.ts`                                                                                                                                                                                                | Same container limits, dependency overrides and script tests                                                                                                                                 |
+| `e2e/nginx/cors.test.ts`                                                                                                                                                                                                                                                                                                                                                            | The CORS seam through nginx; this app adds a preflight for its stream                                                                                                                        |
+| `src/components/features/profile/security-section.tsx` and its test                                                                                                                                                                                                                                                                                                                 | One sign-out-other-sessions section                                                                                                                                                          |
+| `src/schemas/changed-fields.schemas.ts`, `src/hooks/use-changed-fields.ts`, `tests/unit/hooks/use-changed-fields.test.tsx`                                                                                                                                                                                                                                                          | Changed-field edit forms; each app keeps its own schema test                                                                                                                                 |
+| `scripts/check-bundle.mjs`, except `ENTRY_BUDGET_BYTES` (each app's measured budget)                                                                                                                                                                                                                                                                                                | One first-visit budget check; the budgets differ                                                                                                                                             |
+| `eslint.config.js`'s shared conventions                                                                                                                                                                                                                                                                                                                                             | Same conventions; each app adds its own import restrictions and file lists                                                                                                                   |
+| `e2e/capture/*`, except `seed.ts`, `manifest.ts` and `boot.test.ts` (each app's own); `tests/unit/capture-endpoint.test.ts`, `tests/unit/docs-pages.test.ts`                                                                                                                                                                                                                        | One page-inventory capture harness and docs check                                                                                                                                            |
+| `src/components/ui/{alert,spinner,item}.tsx`, the `*` section of `docs/ui-local-edits.md`, `scripts/ui-drift.mjs`, `scripts/ui-drift.d.mts`, `tests/unit/ui-drift.test.ts`                                                                                                                                                                                                          | Byte-identical vendored components and the one drift check over them                                                                                                                         |
+| `src/components/shared/{empty-state,note,busy-button}.tsx`, `src/components/features/load-error.tsx`, `tests/unit/components/shared/*.test.tsx`, `tests/unit/components/features/load-error.test.tsx`                                                                                                                                                                               | Byte-identical shared empty, note, busy and load-error components                                                                                                                            |
+| `public/boot-variant.js`, `index.html`'s `<style id="boot-shell">` block and `#root` markup (not its `<style id="boot-tokens">` colours, each app's own), `tests/unit/boot-shell.test.ts`, `tests/unit/boot-variant.test.ts`                                                                                                                                                        | One first-paint shell; the colours are pinned to each app's `globals.css`                                                                                                                    |
 
 The error scrubber is also held in step with express-boilerplate; see
 [The scrubber](SECURITY.md#the-scrubber).

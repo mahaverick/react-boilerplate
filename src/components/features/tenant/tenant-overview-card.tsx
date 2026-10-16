@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { z } from 'zod'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { BusyButton } from '@/components/shared/busy-button'
+import { FormFieldsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -14,7 +15,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { canManageTenant } from '@/constants/roles'
 import { useChangedFields } from '@/hooks/use-changed-fields'
@@ -206,10 +206,7 @@ export function TenantOverviewCard({ slug }: { slug: string }) {
         {isRoleError || (!isRolePending && !role) ? (
           <LoadError message={ROLE_ERROR} onRetry={retry} />
         ) : isRolePending || !role ? (
-          <div className="grid gap-4">
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
-          </div>
+          <FormFieldsSkeleton fields={4} />
         ) : canManageTenant(role) ? (
           <EditTenantForm key={tenant.data.id} tenant={tenant.data} />
         ) : (

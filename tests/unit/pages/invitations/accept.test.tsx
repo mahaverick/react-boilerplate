@@ -152,6 +152,16 @@ describe('accept page: the link itself', () => {
     expect(screen.getByRole('link', { name: 'Go to the home page' })).toHaveAttribute('href', '/')
   })
 
+  it('holds the loaded card’s height while the preview loads: a sentence, two buttons and a hint', async () => {
+    server.use(http.post('/api/v1/invitations/preview', () => new Promise<Response>(() => {})))
+    renderAt(ACCEPT_PATH)
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Checking your invitation' })
+    ).toBeVisible()
+    const card = screen.getByRole('heading', { level: 1 }).closest('[data-slot="card"]')
+    expect(card?.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(4)
+  })
+
   it('does not call a failed request "invalid", and its retry asks again', async () => {
     let attempt = 0
     countPreviews(() => {

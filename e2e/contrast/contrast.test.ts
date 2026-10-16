@@ -112,6 +112,36 @@ const SURFACES = [
     url: '/e2e/harness/?path=/settings/workspace/acme/activity',
     heading: { name: 'Activity', level: 2 },
   },
+  {
+    name: 'dashboard template (tenant list loading)',
+    url: '/e2e/harness/?path=/dashboard&hold=/api/v1/tenants',
+    heading: { loading: 'template' },
+  },
+  {
+    name: 'tenant detail template (tenant loading)',
+    url: '/e2e/harness/?path=/tenants/acme&hold=/api/v1/tenants/acme',
+    heading: { loading: 'template' },
+  },
+  {
+    name: 'dashboard (tenant list failed)',
+    url: '/e2e/harness/?path=/dashboard&fail=/api/v1/tenants',
+    heading: { name: /^Welcome back,/, level: 1 },
+  },
+  {
+    name: 'tenant overview (checklist loading)',
+    url: '/e2e/harness/?path=/tenants/acme&hold=/api/v1/tenants/acme/onboarding',
+    heading: { loading: 'section', heading: { name: 'Details', level: 2 } },
+  },
+  {
+    name: 'tenant overview (checklist failed)',
+    url: '/e2e/harness/?path=/tenants/acme&fail=/api/v1/tenants/acme/onboarding',
+    heading: { name: 'Details', level: 2 },
+  },
+  {
+    name: 'security (methods loading)',
+    url: '/e2e/harness/?path=/settings/account/security&hold=/api/v1/auth/providers',
+    heading: { loading: 'section', heading: { name: 'Security', level: 1 } },
+  },
 ] as const
 
 /** What `contrastOf` waits for: a heading's name, or its name and level where the name alone is not unique. */
@@ -120,6 +150,22 @@ type Heading = string | RegExp | { name: string | RegExp; level: number }
 /** The `getByRole('heading', …)` options for `heading`. */
 function headingOptions(heading: Heading): { name: string | RegExp; level?: number } {
   return typeof heading === 'string' || heading instanceof RegExp ? { name: heading } : heading
+}
+
+/**
+ * A surface graded while it loads: `template` waits for the route template's
+ * `status` region named "Loading", `section` for a busy section's skeleton,
+ * each under `heading` when the state renders one. Neither waits for the
+ * skeletons to go: they are what is graded.
+ */
+type LoadingWait = { loading: 'template' | 'section'; heading?: Heading }
+
+/** What `contrastOf` waits for: a loaded surface's heading, or a loading state. */
+type Wait = Heading | LoadingWait
+
+/** Whether `wait` names a loading state rather than a loaded heading. */
+function isLoadingWait(wait: Wait): wait is LoadingWait {
+  return typeof wait === 'object' && !(wait instanceof RegExp) && 'loading' in wait
 }
 
 const THEMES = ['light', 'dark'] as const
@@ -131,8 +177,9 @@ type ContrastResult = {
 }
 
 /**
- * Loads `url` in `theme`, waits until the surface named by `heading` has
- * rendered with its data, and returns axe's contrast result for it.
+ * Loads `url` in `theme`, waits until the surface `wait` names has rendered:
+ * with its data, or in the loading state it names. Returns axe's contrast
+ * result for it.
  *
  * The theme goes into localStorage before the document runs because
  * index.html's pre-paint script reads it and toggles `.dark` before the bundle
@@ -144,16 +191,29 @@ async function contrastOf(
   page: Page,
   url: string,
   theme: string,
-  heading: Heading,
+  wait: Wait,
   scope?: string
 ): Promise<ContrastResult> {
   await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
   await page.goto(url)
-  await expect(page.getByRole('heading', headingOptions(heading))).toBeVisible({
-    timeout: COLD_TRANSFORM_BUDGET_MS,
-  })
-  // The heading can render outside each page's data conditional, so it can show while the data behind it is still a skeleton. Grade the loaded page.
-  await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
+  if (isLoadingWait(wait)) {
+    if (wait.heading) {
+      await expect(page.getByRole('heading', headingOptions(wait.heading))).toBeVisible({
+        timeout: COLD_TRANSFORM_BUDGET_MS,
+      })
+    }
+    const loading =
+      wait.loading === 'template'
+        ? page.getByRole('status', { name: 'Loading' })
+        : page.locator('[data-slot="query-state"][aria-busy="true"] [data-slot="skeleton"]')
+    await expect(loading.first()).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
+  } else {
+    await expect(page.getByRole('heading', headingOptions(wait))).toBeVisible({
+      timeout: COLD_TRANSFORM_BUDGET_MS,
+    })
+    // The heading can render outside each page's data conditional, so it can show while the data behind it is still a skeleton. Grade the loaded page.
+    await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
+  }
 
   // A late font swap can move text over a different background, so sample once it has reflowed.
   await afterFontsAndFrames(page)

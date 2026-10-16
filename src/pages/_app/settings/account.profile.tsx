@@ -3,7 +3,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { AnalyticsSection } from '@/components/features/profile/analytics-section'
 import { SettingsRouteError } from '@/components/features/route-error'
 import { BusyButton } from '@/components/shared/busy-button'
+import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { Pii } from '@/components/shared/pii'
+import { QueryState } from '@/components/shared/query-state'
+import { FormFieldsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -15,7 +18,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { useChangedFields } from '@/hooks/use-changed-fields'
 import { fieldValue } from '@/hooks/use-form-field'
@@ -31,6 +33,7 @@ export const Route = createFileRoute('/_app/settings/account/profile')({
   head: () => ({ meta: [{ title: pageTitle('Profile') }] }),
   staticData: { crumb: 'Profile' },
   component: ProfilePage,
+  pendingComponent: SettingsPagePending,
   /**
    * Kept out of a lazy chunk, as the router's default error screen is: a failed
    * fetch could not load it. Splitting it would also pull the error listener
@@ -60,14 +63,14 @@ function ProfilePage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {profile.data ? (
-          <ProfileDetails key={profile.data.id} user={profile.data} />
-        ) : (
-          <div className="grid gap-4">
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
-          </div>
-        )}
+        <QueryState
+          query={profile}
+          name="Profile"
+          className="gap-3"
+          skeleton={<FormFieldsSkeleton fields={4} />}
+        >
+          {(user) => <ProfileDetails key={user.id} user={user} />}
+        </QueryState>
       </CardContent>
     </Card>
   )

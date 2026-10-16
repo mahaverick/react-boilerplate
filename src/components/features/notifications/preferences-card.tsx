@@ -1,9 +1,9 @@
 import { useId } from 'react'
-import { LoadError } from '@/components/features/load-error'
 import { EmptyState } from '@/components/shared/empty-state'
+import { QueryState } from '@/components/shared/query-state'
+import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { humanizeNotificationType } from '@/lib/notification-type'
 import { toast } from '@/lib/toast'
@@ -83,19 +83,22 @@ export function PreferencesCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {preferences.isPending ? (
-          <Skeleton className="h-14 w-full" />
-        ) : preferences.isError ? (
-          <LoadError message={PREFERENCES_ERROR} onRetry={() => void preferences.refetch()} />
-        ) : preferences.data && preferences.data.length > 0 ? (
-          <ItemGroup className="gap-2 has-data-[size=sm]:gap-2">
-            {preferences.data.map((preference) => (
-              <PreferenceRow key={preference.notificationType} preference={preference} />
-            ))}
-          </ItemGroup>
-        ) : (
-          <EmptyState size="compact" title="This account has no notification types yet." />
-        )}
+        <QueryState
+          query={preferences}
+          name="Preferences"
+          errorMessage={PREFERENCES_ERROR}
+          skeleton={<CardRowsSkeleton rows={4} rowHeight="2.875rem" />}
+          isEmpty={(rows) => rows.length === 0}
+          empty={<EmptyState size="compact" title="This account has no notification types yet." />}
+        >
+          {(rows) => (
+            <ItemGroup className="gap-2 has-data-[size=sm]:gap-2">
+              {rows.map((preference) => (
+                <PreferenceRow key={preference.notificationType} preference={preference} />
+              ))}
+            </ItemGroup>
+          )}
+        </QueryState>
       </CardContent>
     </Card>
   )

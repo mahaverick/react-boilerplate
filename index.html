@@ -6,13 +6,196 @@
     <title>React Boilerplate</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <script src="/theme-init.js"></script>
+    <script src="/boot-variant.js"></script>
     <script src="/runtime-config.js" vite-ignore></script>
+    <style id="boot-tokens">
+      :root {
+        --background: oklch(1 0 0);
+        --card: oklch(1 0 0);
+        --muted: oklch(0.963 0.002 197.1);
+        --border: oklch(0.925 0.005 214.3);
+        --sidebar: oklch(0.987 0.002 197.1);
+        --sidebar-border: oklch(0.925 0.005 214.3);
+        --boot-auth-width: 48rem;
+      }
+      .dark {
+        --background: oklch(0.148 0.004 228.8);
+        --card: oklch(0.218 0.008 223.9);
+        --muted: oklch(0.275 0.011 216.9);
+        --border: oklch(1 0 0 / 10%);
+        --sidebar: oklch(0.218 0.008 223.9);
+        --sidebar-border: oklch(1 0 0 / 10%);
+      }
+    </style>
+    <style id="boot-shell">
+      html {
+        background: var(--background);
+      }
+      .boot-shell {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        background: var(--background);
+      }
+      .boot-shell * {
+        box-sizing: border-box;
+      }
+      .boot-sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      .boot-bar {
+        display: block;
+        border-radius: 0.375rem;
+        background: var(--muted);
+        animation: boot-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      @keyframes boot-pulse {
+        50% {
+          opacity: 0.5;
+        }
+      }
+      .boot-app,
+      .boot-main {
+        display: flex;
+        flex: 1;
+        min-width: 0;
+      }
+      .boot-main {
+        flex-direction: column;
+      }
+      .boot-side {
+        display: none;
+        width: 16rem;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        background: var(--sidebar);
+        border-right: 1px solid var(--sidebar-border);
+      }
+      .boot-side .boot-bar {
+        height: 2rem;
+      }
+      .boot-side .boot-brand {
+        height: 3rem;
+        margin-bottom: 0.5rem;
+      }
+      .boot-head {
+        display: flex;
+        height: 4rem;
+        flex-shrink: 0;
+        align-items: center;
+        padding: 0 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .boot-crumb {
+        width: 10rem;
+        height: 1rem;
+      }
+      .boot-page {
+        display: grid;
+        align-content: start;
+        gap: 1rem;
+        padding: 1rem;
+      }
+      .boot-h {
+        width: 12rem;
+        height: 2rem;
+      }
+      .boot-tools {
+        width: min(100%, 20rem);
+        height: 2.25rem;
+      }
+      .boot-table {
+        height: calc(26.5rem + 10px);
+        border-radius: 0.75rem;
+      }
+      .boot-auth {
+        display: none;
+        flex: 1;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        background: var(--muted);
+      }
+      .boot-card {
+        display: grid;
+        gap: 1.5rem;
+        width: 100%;
+        max-width: 24rem;
+        padding: 1.5rem;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        background: var(--card);
+      }
+      .boot-card .boot-h {
+        justify-self: center;
+      }
+      .boot-field {
+        height: 2.25rem;
+      }
+      [data-boot='auth'] .boot-app {
+        display: none;
+      }
+      [data-boot='auth'] .boot-auth {
+        display: flex;
+      }
+      @media (min-width: 48rem) {
+        .boot-side {
+          display: flex;
+        }
+        .boot-page {
+          padding: 1.5rem;
+        }
+        .boot-auth {
+          padding: 2.5rem;
+        }
+        .boot-card {
+          max-width: var(--boot-auth-width);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-bar {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root">
-      <div class="boot-splash" role="status">
-        <span class="boot-splash-spinner" aria-hidden="true"></span>
-        <span>Loading…</span>
+      <div class="boot-shell" role="status">
+        <span class="boot-sr">Loading…</span>
+        <div class="boot-app" aria-hidden="true">
+          <div class="boot-side">
+            <span class="boot-bar boot-brand"></span>
+            <span class="boot-bar"></span>
+            <span class="boot-bar"></span>
+            <span class="boot-bar"></span>
+            <span class="boot-bar"></span>
+            <span class="boot-bar"></span>
+            <span class="boot-bar"></span>
+          </div>
+          <div class="boot-main">
+            <div class="boot-head"><span class="boot-bar boot-crumb"></span></div>
+            <div class="boot-page">
+              <span class="boot-bar boot-h"></span>
+              <span class="boot-bar boot-tools"></span>
+              <span class="boot-bar boot-table"></span>
+            </div>
+          </div>
+        </div>
+        <div class="boot-auth" aria-hidden="true">
+          <div class="boot-card">
+            <span class="boot-bar boot-h"></span>
+            <span class="boot-bar boot-field"></span>
+            <span class="boot-bar boot-field"></span>
+            <span class="boot-bar boot-field"></span>
+          </div>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>

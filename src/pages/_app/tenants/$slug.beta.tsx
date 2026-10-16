@@ -1,7 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { LoadError } from '@/components/features/load-error'
+import { DetailTabPending } from '@/components/shared/pending-templates'
+import { QueryState } from '@/components/shared/query-state'
+import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
@@ -25,6 +27,7 @@ export const Route = createFileRoute('/_app/tenants/$slug/beta')({
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Beta · ${params.slug}`) }] }),
   staticData: { crumb: 'Beta' },
   component: TenantBetaTab,
+  pendingComponent: DetailTabPending,
 })
 
 /** Said when the beta route failed; a 404 there means the flag closed after the page opened. */
@@ -47,19 +50,35 @@ function TenantBetaTab() {
       .then(() => router.invalidate())
   }, [isClosed, errorUpdatedAt, queryClient, router, slug])
 
-  if (beta.isPending) return <Skeleton className="h-32 w-full" />
-  if (beta.isError) return <LoadError message={BETA_ERROR} onRetry={() => void beta.refetch()} />
+  return (
+    <QueryState query={beta} name="Beta" errorMessage={BETA_ERROR} skeleton={<BetaSkeleton />}>
+      {(data) => (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <h2>Beta</h2>
+            </CardTitle>
+            <CardDescription>Features this tenant sees before everyone else.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">Beta features are on for {data.slug}.</p>
+          </CardContent>
+        </Card>
+      )}
+    </QueryState>
+  )
+}
 
+/** The beta card's place while it loads: its title, description and the one line of content. */
+function BetaSkeleton() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
-          <h2>Beta</h2>
-        </CardTitle>
-        <CardDescription>Features this tenant sees before everyone else.</CardDescription>
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-4 w-64" />
       </CardHeader>
       <CardContent>
-        <p className="text-sm">Beta features are on for {beta.data.slug}.</p>
+        <CardRowsSkeleton rows={1} rowHeight="1.25rem" />
       </CardContent>
     </Card>
   )

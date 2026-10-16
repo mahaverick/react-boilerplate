@@ -101,10 +101,10 @@ export async function controlRequests(page: Page, rules: readonly Rule[]): Promi
 
 /**
  * Waits for the held request to arrive, then up to 5 s for loading UI and names
- * what appeared: a shadcn `Skeleton` (`data-slot="skeleton"`) or a `role=status`
- * spinner outside the toast viewport. Only when neither shows and index.html's
- * boot splash is still up does it answer `'splash'`; `'none'` otherwise. The
- * splash is visible on every dev load, so it never counts until a hold has bitten.
+ * what appeared: a shadcn `Skeleton` (`data-slot="skeleton"`) or a visible
+ * `Spinner`. Only when neither shows and index.html's boot shell is still up
+ * does it answer `'shell'`; `'none'` otherwise. The shell is visible on every
+ * dev load, so it never counts until a hold has bitten.
  * @param page - A page with a held request.
  * @param control - The page's installed control.
  * @returns The kind of loading UI found.
@@ -121,10 +121,7 @@ export async function waitForLoadingUi(page: Page, control: Control): Promise<Lo
   if (!arrived) return 'none'
   const candidates: [LoadingUi, string][] = [
     ['skeleton', '[data-slot="skeleton"]'],
-    [
-      'spinner',
-      '[role="status"]:not(.boot-splash, [data-slot="toast-viewport"], [data-slot="toast-viewport"] *)',
-    ],
+    ['spinner', '[data-slot="spinner"]:not([aria-hidden="true"])'],
   ]
   const found = await Promise.any(
     candidates.map(([name, selector]) =>
@@ -136,5 +133,5 @@ export async function waitForLoadingUi(page: Page, control: Control): Promise<Lo
     )
   ).catch(() => null)
   if (found) return found
-  return (await page.locator('.boot-splash').first().isVisible()) ? 'splash' : 'none'
+  return (await page.locator('.boot-shell').first().isVisible()) ? 'shell' : 'none'
 }

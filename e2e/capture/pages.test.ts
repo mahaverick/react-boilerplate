@@ -2,7 +2,7 @@
  * @file The page inventory's capture run (`pnpm capture:pages`): seeds the
  * accounts, signs each in three times (default, dark, mobile contexts), then
  * shoots every page route in the manifest and writes
- * test-results/capture/report.json. `CAPTURE_ONLY=auth,tenants` limits the run
+ * capture-records/report.json. `CAPTURE_ONLY=auth,tenants` limits the run
  * to those areas, and a route key such as `/tenants/$tenantId/timeline` in the
  * same list limits it to that route, for an area too large for one rate-limit
  * window. Needs the dev stack already up; starts nothing.
@@ -13,7 +13,7 @@ import { expect, test, type Browser } from '@playwright/test'
 import { apiIsReady, logIn } from '../live/helpers'
 import { CAPTURES } from './manifest'
 import { seedCapture } from './seed'
-import { shootRoute, type SessionContexts } from './shoot'
+import { RECORDS_DIR, shootRoute, type SessionContexts } from './shoot'
 import type { RouteCapture, ShotRecord } from './types'
 
 test.skip(process.env.E2E_CAPTURE !== '1', 'capture only — run pnpm capture:pages')
@@ -58,7 +58,7 @@ test('capture every page route', async ({ browser, baseURL }) => {
     sessions.set(name, await sessionContexts(browser, baseURL!, email))
   }
 
-  const dir = path.resolve(import.meta.dirname, '../../test-results/capture')
+  const dir = RECORDS_DIR
   await mkdir(dir, { recursive: true })
   const records: ShotRecord[] = []
   const skipped: { route: string; capture: RouteCapture }[] = []

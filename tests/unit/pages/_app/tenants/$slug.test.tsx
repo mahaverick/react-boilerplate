@@ -7,12 +7,10 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AxiosError } from 'axios'
 import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
-import { noteError } from '@/observability/errors'
 import { installRouteAnalytics } from '@/observability/route-telemetry'
 import * as analytics from '@/observability/telemetry'
 import { tenantKeys } from '@/queries/tenant.queries'
@@ -24,11 +22,6 @@ import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantAccess } from '@/types/api.types'
-
-vi.mock('@/observability/errors', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/observability/errors')>()),
-  noteError: vi.fn(),
-}))
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -137,10 +130,9 @@ describe('tenant detail', () => {
 
   /**
    * `tenantQueryOptions` turns a 404 into `null`, and every other failure still rejects and
-   * reaches the boundary. Without a configured boundary a 500 would reach TanStack's bare
-   * default: the raw error text, no retry, none of the app's chrome.
+   * reaches the gate's load-error panel, with a retry, inside the app's chrome.
    */
-  it('renders the route error boundary, with a retry, for a non-404 failure', async () => {
+  it('renders the load-error panel, with a retry, for a non-404 failure', async () => {
     server.use(
       http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
       http.get('/api/v1/tenants/acme', () => fail('Something went wrong', 500))
@@ -152,18 +144,6 @@ describe('tenant detail', () => {
     expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     // Not the 404 panel: the tenant may exist and merely be unreachable.
     expect(screen.queryByText(/Tenant not available/i)).not.toBeInTheDocument()
-  })
-
-  it('hands the load failure to error tracking as handled, from the router', async () => {
-    vi.mocked(noteError).mockClear()
-    server.use(
-      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
-      http.get('/api/v1/tenants/acme', () => fail('Something went wrong', 500))
-    )
-    renderAppAt('/tenants/acme')
-
-    await screen.findByRole('alert')
-    expect(noteError).toHaveBeenCalledWith(expect.any(AxiosError), 'router', true)
   })
 
   it('says a suspended tenant is suspended, not that it is missing', async () => {
@@ -182,15 +162,23 @@ describe('tenant detail', () => {
   })
 
   it('shows no not-found text while the tenant list is still loading, then the suspended panel', async () => {
+    let detailAnswered!: () => void
+    const detailSeen = new Promise<void>((resolve) => {
+      detailAnswered = resolve
+    })
     server.use(
       http.get('/api/v1/tenants', async () => {
-        await settle(150, 'delays the list so the loader resolves first')
+        // The list answers only after the tenant read has, so the page is in its list-pending window while the 404 lands.
+        await detailSeen
         return ok(
           [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
           'Tenants.'
         )
       }),
-      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+      http.get('/api/v1/tenants/acme', () => {
+        detailAnswered()
+        return fail('Tenant not found', 404)
+      })
     )
     renderAppAt('/tenants/acme')
 
@@ -220,7 +208,7 @@ describe('tenant detail', () => {
     expect(screen.queryByText(/Tenant suspended/)).not.toBeInTheDocument()
   })
 
-  it('re-runs the loader from that retry, and renders the tenant when it returns', async () => {
+  it('refetches the tenant from that retry, and renders it when it returns', async () => {
     let failNext = true
     server.use(
       http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants.')),
@@ -242,7 +230,7 @@ describe('tenant detail', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Acme Corp' })).toBeInTheDocument()
   })
 
-  it('renders a not-found state for a 404, not an error boundary', async () => {
+  it('renders a not-found state for a 404, not the load-error panel', async () => {
     server.use(
       http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
       http.get('/api/v1/tenants/ghost', () => fail('Tenant not found', 404))
@@ -254,6 +242,44 @@ describe('tenant detail', () => {
     // The API answers the same 404 for "no such tenant" and "you are not a member", so the page must not guess between them: "you are not a member of ghost" would confirm ghost exists.
     expect(screen.queryByText(/not a member/i)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Back to your tenants' })).toBeInTheDocument()
+  })
+
+  it('shows the detail template under the app shell while the tenant loads', async () => {
+    mockTenant('owner')
+    server.use(http.get('/api/v1/tenants/acme', () => new Promise<Response>(() => {})))
+    renderAppAt('/tenants/acme')
+    const template = await screen.findByRole('status', { name: 'Loading' })
+    expect(template.querySelector('[data-slot="page-heading-skeleton"]')).not.toBeNull()
+    expect(template.querySelector('[data-slot="page-tabs-skeleton"]')).not.toBeNull()
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Acme Corp' })).not.toBeInTheDocument()
+  })
+
+  it('holds the checklist’s place with a skeleton while it loads, with Details already up', async () => {
+    mockTenant('owner')
+    server.use(http.get('/api/v1/tenants/acme/onboarding', () => new Promise<Response>(() => {})))
+    renderAppAt('/tenants/acme')
+    expect(await screen.findByRole('heading', { level: 2, name: 'Details' })).toBeVisible()
+    const section = document.querySelector('[data-slot="query-state"][aria-busy="true"]')
+    expect(section).not.toBeNull()
+  })
+
+  it('says the checklist failed, in its own place, and keeps Details', async () => {
+    mockTenant('owner')
+    server.use(http.get('/api/v1/tenants/acme/onboarding', () => fail('Something went wrong', 500)))
+    renderAppAt('/tenants/acme')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Getting started could not be loaded.'
+    )
+    expect(screen.getByRole('heading', { level: 2, name: 'Details' })).toBeVisible()
+  })
+
+  it('shows nothing for an API without the checklist (404)', async () => {
+    mockTenant('owner')
+    server.use(http.get('/api/v1/tenants/acme/onboarding', () => fail('Not found', 404)))
+    renderAppAt('/tenants/acme')
+    expect(await screen.findByRole('heading', { level: 2, name: 'Details' })).toBeVisible()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('renders the tenant header, the role badge and only the Overview tab', async () => {

@@ -254,8 +254,10 @@ function InvitationForToken({ token }: { token: string }) {
   if (preview.isPending) {
     return (
       <InvitationCard title="Checking your invitation">
-        <div className="grid gap-2">
-          <Skeleton className="h-4 w-3/4" />
+        <div className="grid gap-3">
+          <Skeleton className="h-4 w-3/4 justify-self-center" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
           <Skeleton className="h-10 w-full" />
         </div>
       </InvitationCard>

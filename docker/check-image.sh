@@ -171,7 +171,7 @@ esac
 asset=$({ curl -sf "$base/" || true; } | { grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' || true; } | head -n 1)
 [ -n "$asset" ] || problem "index.html names no /assets/index-*.js entry chunk"
 csp="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
-for path in / /dashboard "$asset" /theme-init.js /runtime-config.js /assets/does-not-exist.js; do
+for path in / /dashboard "$asset" /theme-init.js /boot-variant.js /runtime-config.js /assets/does-not-exist.js; do
   curl -s -D "$work/headers" -o /dev/null "$base$path"
   while IFS='|' read -r field value; do
     got=$(header "$field" "$work/headers")
@@ -260,6 +260,9 @@ fi
 curl -s -D "$work/headers" -o /dev/null "$base/theme-init.js"
 [ "$(header Content-Type "$work/headers")" = application/javascript ] || problem "/theme-init.js is not served as JavaScript"
 [ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/theme-init.js is not no-store"
+curl -s -D "$work/headers" -o /dev/null "$base/boot-variant.js"
+[ "$(header Content-Type "$work/headers")" = application/javascript ] || problem "/boot-variant.js is not served as JavaScript"
+[ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/boot-variant.js is not no-store"
 
 # The build stage uploads the maps and deletes them: none may ship. The prune
 # keeps find out of the kernel's own trees.

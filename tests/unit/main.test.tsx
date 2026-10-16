@@ -14,8 +14,10 @@ import {
 import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
+import { waitForTemplates } from '@/components/shared/pending-templates'
 import { ROUTER_DEFAULTS } from '@/router'
 import { settle } from '@/tests/fixtures/timing'
+import indexHtml from '../../index.html?raw'
 
 /** Every root `boot` created, unmounted after each test before the DOM is cleared. */
 const roots: Root[] = []
@@ -24,7 +26,7 @@ const roots: Root[] = []
 function boot(container: HTMLElement, router: AnyRouter) {
   const root = createRoot(container)
   roots.push(root)
-  return router.load().finally(() => {
+  return Promise.allSettled([router.load(), waitForTemplates()]).then(() => {
     root.render(
       <StrictMode>
         <RouterProvider router={router as never} />
@@ -48,12 +50,15 @@ function buildGatedRouter(gate: Promise<void>) {
   })
 }
 
-/** The exact static markup index.html ships inside `#root`. */
-function mountSplashContainer(): HTMLElement {
+/** `#root`'s static markup as index.html ships it. */
+const SHELL_MARKUP =
+  /<div id="root">([\s\S]*?)<\/div>\s*<script type="module"/.exec(indexHtml)?.[1] ?? ''
+
+/** A `#root` holding index.html's own shell markup. */
+function mountShellContainer(): HTMLElement {
   const container = document.createElement('div')
   container.id = 'root'
-  container.innerHTML =
-    '<div class="boot-splash" role="status"><span class="boot-splash-spinner" aria-hidden="true"></span><span>Loading…</span></div>'
+  container.innerHTML = SHELL_MARKUP
   document.body.appendChild(container)
   return container
 }
@@ -66,13 +71,13 @@ afterEach(() => {
 })
 
 describe('the boot sequence', () => {
-  it('keeps the splash on screen with no blank gap and no second spinner until the first load resolves', async () => {
+  it('keeps the shell on screen with no blank gap and no route pending screen until the first load resolves', async () => {
     let release!: () => void
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
     const router = buildGatedRouter(gate)
-    const container = mountSplashContainer()
+    const container = mountShellContainer()
 
     let sawEmpty = false
     let sawPendingScreen = false
@@ -95,10 +100,11 @@ describe('the boot sequence', () => {
     await act(async () => {
       await settle(
         500,
-        'past defaultPendingMs (300): a boot that rendered before the root load resolved would have replaced the splash or shown the pending screen by now'
+        'past defaultPendingMs (300): a boot that rendered before the root load resolved would have replaced the shell or shown the pending screen by now'
       )
     })
-    expect(container.querySelector('.boot-splash')).not.toBeNull()
+    expect(container.querySelector('.boot-shell')).not.toBeNull()
+    expect(SHELL_MARKUP).toContain('boot-shell')
 
     release()
     await act(async () => {
@@ -128,7 +134,7 @@ describe('the boot sequence', () => {
       history: createMemoryHistory({ initialEntries: ['/'] }),
       ...ROUTER_DEFAULTS,
     })
-    const container = mountSplashContainer()
+    const container = mountShellContainer()
 
     await act(async () => {
       await boot(container, router)
@@ -154,7 +160,7 @@ describe('the boot sequence', () => {
       history: createMemoryHistory({ initialEntries: ['/'] }),
       ...ROUTER_DEFAULTS,
     })
-    const container = mountSplashContainer()
+    const container = mountShellContainer()
 
     await act(async () => {
       await boot(container, router)

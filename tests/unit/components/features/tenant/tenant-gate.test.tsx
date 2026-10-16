@@ -5,10 +5,11 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { http } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { TENANT_LOAD_ERROR, TenantGate } from '@/components/features/tenant/tenant-gate'
+import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
 import { readRememberedTenant, useCurrentTenantStore } from '@/states/current-tenant.store'
@@ -36,7 +37,11 @@ const ACME = {
  */
 function renderGate(slug: string) {
   const rootRoute = createRootRoute({
-    component: () => <TenantGate slug={slug}>{(tenant) => <p>Loaded {tenant.name}</p>}</TenantGate>,
+    component: () => (
+      <TenantGate slug={slug} skeleton={<p>Loading tenant</p>}>
+        {(tenant) => <p>Loaded {tenant.name}</p>}
+      </TenantGate>
+    ),
   })
   const router = createRouter({
     routeTree: rootRoute,
@@ -99,6 +104,45 @@ describe('TenantGate', () => {
     expect(screen.getByRole('button', { name: /Try again/ })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Tenant suspended' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Tenant not available' })).toBeNull()
+  })
+
+  it('a failed refetch with the tenant on screen shows no gate alert', async () => {
+    let fails = false
+    server.use(
+      http.get('/api/v1/tenants/acme', () =>
+        fails
+          ? fail('Something went wrong.', 500)
+          : ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')
+      )
+    )
+    renderGate('acme')
+    expect(await screen.findByText('Loaded Acme Corp')).toBeInTheDocument()
+
+    fails = true
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme'), exact: true })
+    })
+
+    await waitFor(() =>
+      expect(queryClient.getQueryState(tenantKeys.detail('acme'))?.status).toBe('error')
+    )
+    expect(screen.getByText('Loaded Acme Corp')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('decides from a cached list whose refetch fails, with no load error above the panel', async () => {
+    queryClient.setQueryData(tenantKeys.list, [])
+    server.use(
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404)),
+      http.get('/api/v1/tenants', () => fail('Something went wrong.', 500))
+    )
+    renderGate('acme')
+
+    expect(await screen.findByRole('heading', { name: 'Tenant not available' })).toBeInTheDocument()
+    // The 404 invalidated the list; once its refetch has failed, the panel still stands alone.
+    await waitFor(() => expect(queryClient.getQueryState(tenantKeys.list)?.status).toBe('error'))
+    expect(screen.getByRole('heading', { name: 'Tenant not available' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('shows the platform-access banner, and does not replace the remembered tenant', async () => {

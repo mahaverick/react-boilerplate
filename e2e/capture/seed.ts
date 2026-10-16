@@ -15,13 +15,16 @@ import {
 import { mailedToken } from './mailpit'
 import type { Seed } from './types'
 
+/** The name the owner's tenant gets. */
+const TENANT_NAME = 'Capture Co'
+
 /** Creates the run's accounts and tenant through the API. */
 export async function seedCapture(): Promise<Seed> {
   const owner = freshEmail()
   await createVerifiedUser(owner)
   const token = await apiLogin(owner)
   const slug = freshSlug()
-  await createTenant(token, { name: 'Capture Co', slug })
+  await createTenant(token, { name: TENANT_NAME, slug })
 
   const member = freshEmail()
   await createVerifiedUser(member)
@@ -35,7 +38,7 @@ export async function seedCapture(): Promise<Seed> {
   await invite(token, slug, pending, 'viewer')
   const invitationToken = await mailedToken(pending, '/invitations/accept')
 
-  return { sessions: { owner, member }, params: { slug, invitationToken } }
+  return { sessions: { owner, member }, params: { slug, invitationToken, tenantName: TENANT_NAME } }
 }
 
 /** Invites `email` to the tenant as `role`; the API answers 202. */

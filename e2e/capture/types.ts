@@ -57,7 +57,7 @@ export interface Seed {
 }
 
 /** What the loading shot found on screen. */
-export type LoadingUi = 'skeleton' | 'spinner' | 'splash' | 'none'
+export type LoadingUi = 'skeleton' | 'spinner' | 'shell' | 'none'
 
 /** One screenshot and what was seen while taking it. */
 export interface ShotRecord {
@@ -76,4 +76,29 @@ export interface ShotRecord {
   note?: string
   /** Milliseconds from navigation to the shot. */
   ms: number
+}
+
+/** One in-app navigation the capture shoots while the target is still loading. */
+export interface NavigationCapture {
+  area: Area
+  /** The file-name stem: `<shot>--nav-route.jpg` and `<shot>--nav-sections.jpg`. */
+  shot: string
+  /** Which seeded session navigates: a key of `Seed.sessions`. */
+  as: string
+  /** The page it starts on; `{name}` is replaced from `Seed.params`. */
+  from: string
+  /** The link it clicks: the one whose accessible name starts with this, then ends or continues after a space. */
+  link: string
+  /** The pending template the route shot must show: `PageSkeleton`'s variant, and whether it is the nested one. */
+  template: { variant: 'list' | 'detail' | 'dashboard' | 'settings'; nested: boolean }
+  /** The target's section requests, held for the sections shot. */
+  endpoints: readonly string[]
+}
+
+/** A boot frame, and the moment it marks if any. */
+export interface BootFrame {
+  file: string
+  ms: number
+  /** The moments the frame marks: `first-paint`, `shell`, `first-content` or `ready`, joined by `+` when one frame marks several. */
+  label?: string
 }
