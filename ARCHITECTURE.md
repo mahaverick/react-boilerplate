@@ -184,10 +184,10 @@ waits 300 ms before it shows and then stays at least 300 ms. The error and
 not-found components are imported statically in `src/router.tsx`: when a
 chunk cannot be fetched, a lazy error screen could not load either. The
 pending templates are lazy wrappers fetched once at startup
-(`templatesReady`), since the router preloads none of them. `RouteError` recognises a failed chunk load
-(`src/lib/chunk-load-error.ts`) and offers a reload, the only way to pick up
-a new deploy's file names; any other error offers a retry that re-runs the
-loaders.
+(`templatesReady`), since the router preloads none of them. `RouteError`
+recognises a failed chunk load (`src/lib/chunk-load-error.ts`) and offers a
+reload, the only way to pick up a new deploy's file names; any other error
+offers a retry that re-runs the loaders.
 
 `QueryState` (`components/shared/query-state.tsx`) renders every query-backed
 section: skeleton, role refusal, retryable error, empty, content in a

@@ -15,7 +15,7 @@ The tenant list (`/tenants/`), a tenant's overview (`/tenants/$slug/`) and beta 
 | Header and tabs | The tenant's name as the `h1`, the caller's role `Badge`, `/{slug}`, then a `nav` "Tenant sections" of link tabs: Overview, and Beta while `example_beta_page` is on for this tenant. A `PlatformAccessBanner` sits above when staff reached the tenant through platform access.                                                                                                                                                                               |
 | Breadcrumbs     | Tenants › {slug} › {tab}. The tenant crumb is the slug, not the name, because static data resolves before any fetch.                                                                                                                                                                                                                                                                                                                                           |
 
-Before the pending templates, in the walk, a navigation from the list to a tenant whose detail was held for 2.5 s showed the breadcrumb Tenants › {slug} › Overview over an empty page with one spinner for about 2.3 s, then the whole page at once.
+A navigation from the list to a tenant whose detail is held shows the breadcrumb Tenants › {slug} › Overview over the detail template (heading, tabs and two cards) under the app shell ([shot](img/tenants/tenant-overview--nav-route.jpg)), then the whole page at once.
 
 Findings: [F-tenants-1](findings.md#f-tenants-1), [F-tenants-2](findings.md#f-tenants-2), [F-tenants-5](findings.md#f-tenants-5)
 
@@ -36,7 +36,7 @@ Findings: [F-tenants-1](findings.md#f-tenants-1), [F-tenants-2](findings.md#f-te
 | Components          | `Card`, `Badge`, `Skeleton`, `LoadError`, `EmptyState` (full), `Form` fields, `Input`, `Textarea`, `BusyButton`; `ItemGroup`, `Item` (link rows), `ItemContent`, `ItemTitle`, `ItemDescription`, `ItemActions`                                                      |
 | Transitions         | row → `/tenants/$slug`; Create tenant → a toast "{name} created." and the form clears (it stays on the list)                                                                                                                                                        |
 
-The error branch comes before the empty one, so a failed load never invites the reader to create a duplicate. While the list is held, the switcher says "Choose a tenant", the same words it uses when there are none.
+The error branch comes before the empty one, so a failed load never invites the reader to create a duplicate. While the list is held, the switcher says "Loading tenants…" and the page slot holds the list template.
 
 | Loading                                                                                               | Error                               | Empty                                                     |
 | ----------------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------- |

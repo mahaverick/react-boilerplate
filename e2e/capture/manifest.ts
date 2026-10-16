@@ -111,7 +111,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
   },
   '/tenants/$slug': {
     kind: 'layout',
-    note: 'TenantGate + header + tab nav; loader awaits the tenant and its flags.',
+    note: 'TenantGate + header + tab nav; the loader starts the tenant and awaits its flags.',
   },
   '/settings/': {
     kind: 'page',
@@ -159,7 +159,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
   },
   '/settings/workspace/$slug': {
     kind: 'layout',
-    note: 'TenantGate (h2); loader awaits the tenant and its flags.',
+    note: 'TenantGate (h2); the loader starts the tenant and awaits its flags.',
   },
   '/tenants/$slug/activity': { kind: 'redirect', to: '/settings/workspace/$slug/activity' },
   '/tenants/$slug/beta': {
