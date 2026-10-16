@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0](https://github.com/mahaverick/react-boilerplate/compare/v3.1.0...v3.2.0) (2026-10-16)
+
+
+### Features
+
+* **loading:** styled boot shell, skeleton templates and per-section loading ([#112](https://github.com/mahaverick/react-boilerplate/issues/112)) ([8545b99](https://github.com/mahaverick/react-boilerplate/commit/8545b9944194572fb8b02c6dc2f6e7e9fdbdfa04))
+
 ## [3.1.0](https://github.com/mahaverick/react-boilerplate/compare/v3.0.1...v3.1.0) (2026-10-15)
 
 
