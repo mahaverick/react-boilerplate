@@ -9,7 +9,7 @@
 import { z } from 'zod'
 import type { AnalyticsKey } from '@/observability/telemetry'
 import { searchText } from '@/schemas/search.schemas'
-import { LIST_DIRECTIONS, PAGE_SIZES, type PageSize } from '@/types/list.types'
+import { LIST_DIRECTIONS, PAGE_SIZES, type ListDirection, type PageSize } from '@/types/list.types'
 
 /** How one filter travels: a comma list of known values, a yes/no, a record id, or a calendar day. */
 export type ListFilter =
@@ -18,27 +18,30 @@ export type ListFilter =
   | { kind: 'id' }
   | { kind: 'day' }
 
+/** The filter of one `kind`, so a definition can read a filter's value type off its kind. */
+export type ListFilterOf<K extends ListFilter['kind']> = Extract<ListFilter, { kind: K }>
+
 /**
  * A filter that takes any number of `values`, written as a comma list
  * (`status=active,inactive`). Unknown and repeated values are dropped, and the rest are sorted as the API sorts them.
  * @param values - Every value the API accepts.
  */
-export function listFilter(values: readonly string[]): ListFilter {
+export function listFilter(values: readonly string[]): ListFilterOf<'list'> {
   return { kind: 'list', values }
 }
 
 /** A yes/no filter (`verified=true`). The router parses `true` and `false` as booleans. */
-export function booleanFilter(): ListFilter {
+export function booleanFilter(): ListFilterOf<'boolean'> {
   return { kind: 'boolean' }
 }
 
 /** A filter on one record id (`tenant=<uuid>`); anything that is not a UUID is no filter. */
-export function idFilter(): ListFilter {
+export function idFilter(): ListFilterOf<'id'> {
   return { kind: 'id' }
 }
 
 /** A calendar-day bound (`from=2026-10-01`); anything else is no bound. */
-export function dayFilter(): ListFilter {
+export function dayFilter(): ListFilterOf<'day'> {
   return { kind: 'day' }
 }
 
@@ -51,15 +54,25 @@ export const LIST_FIELDS = ['search', 'sort', 'cursor', 'direction', 'limit', 'h
 /** One of `LIST_FIELDS`, or a filter's name. */
 export type ListKey = (typeof LIST_FIELDS)[number] | (string & {})
 
-/** A validated search as the router holds it: every value optional, keyed by URL name. */
+/**
+ * A search as the readers see it: every value optional, keyed by URL name. The
+ * route's own search type is the precise one on `ListDefinition['schema']`;
+ * this is the untyped view `listValues` reads through.
+ */
 export type ListUrlSearch = Record<string, string | number | boolean | undefined>
 
 /** What `defineList` takes. */
-export interface ListDefinitionInput<E extends z.ZodRawShape> {
+export interface ListDefinitionInput<
+  S extends readonly [string, ...string[]],
+  F extends Readonly<Record<string, ListFilter>>,
+  P extends string | undefined,
+  A extends readonly ListSchemaHolder[],
+  E extends z.ZodRawShape,
+> {
   /** The API's sort whitelist, its default first. The default is never written or sent. */
-  sorts: readonly [string, ...string[]]
+  sorts: S
   /** The list's filters, by their API name. */
-  filters: Readonly<Record<string, ListFilter>>
+  filters: F
   /** The list's name in `table_filtered`, `table_sorted` and `table_paged`. */
   table: AnalyticsKey
   /**
@@ -67,7 +80,7 @@ export interface ListDefinitionInput<E extends z.ZodRawShape> {
    * `<prefix>Sort`, `<prefix>Status` and so on, so the two lists never share
    * a param. The request keeps the API's names.
    */
-  prefix?: string
+  prefix?: P
   /** The route's own params beside the list's, such as a tab or a range. */
   extra?: E
   /**
@@ -75,7 +88,13 @@ export interface ListDefinitionInput<E extends z.ZodRawShape> {
    * fields join this list's schema, so the route's one `validateSearch` keeps
    * them all.
    */
-  also?: readonly ListDefinition<z.ZodRawShape>[]
+  also?: A
+}
+
+/** What the route's schema needs of another list that shares its route. */
+export interface ListSchemaHolder {
+  shape: z.ZodRawShape
+  schema: z.ZodType
 }
 
 /** The route's own params' type, input or output side; nothing when there are none. */
@@ -85,19 +104,64 @@ type ExtraSearch<E extends z.ZodRawShape, Side extends 'input' | 'output'> = key
     ? z.input<z.ZodObject<E>>
     : z.output<z.ZodObject<E>>
 
-/** A list's URL contract, built once per list at module scope. */
-export interface ListDefinition<
-  E extends z.ZodRawShape = Record<never, never>,
-> extends ListDefinitionInput<E> {
+/** The other lists' search types, intersected, on one side of their schemas. */
+type AlsoSearch<
+  A extends readonly ListSchemaHolder[],
+  Side extends 'input' | 'output',
+> = A extends readonly [
+  infer Head extends ListSchemaHolder,
+  ...infer Rest extends readonly ListSchemaHolder[],
+]
+  ? (Side extends 'input' ? z.input<Head['schema']> : z.output<Head['schema']>) &
+      AlsoSearch<Rest, Side>
+  : unknown
+
+/** A field's URL name: itself, or after the prefix with its first letter raised. */
+type UrlKey<P extends string | undefined, K extends string> = P extends string
+  ? `${P}${Capitalize<K>}`
+  : K
+
+/** A filter's URL value: a boolean for a yes/no filter, else text (a comma list, an id or a day). */
+type FilterValue<F> = F extends { kind: 'boolean' } ? boolean : string
+
+/** One list's own URL fields, each with its own type. */
+type OwnSearch<
+  S extends readonly string[],
+  F extends Readonly<Record<string, ListFilter>>,
+  P extends string | undefined,
+> = { [K in 'search' | 'cursor' | 'hidden' as UrlKey<P, K>]?: string } & {
+  [K in 'sort' as UrlKey<P, K>]?: S[number]
+} & { [K in 'direction' as UrlKey<P, K>]?: ListDirection } & {
+  [K in 'limit' as UrlKey<P, K>]?: PageSize
+} & { [K in keyof F & string as UrlKey<P, K>]?: FilterValue<F[K]> }
+
+/** What the readers and writers of a list need, whatever its sorts and filters. */
+export interface ListContract {
+  sorts: readonly [string, ...string[]]
+  filters: Readonly<Record<string, ListFilter>>
+  table: AnalyticsKey
   /** This list's own fields' schemas, by URL name, for a list that shares its route. */
   shape: z.ZodRawShape
-  /** The route's `validateSearch`. */
-  schema: z.ZodType<
-    ListUrlSearch & ExtraSearch<E, 'output'>,
-    ListUrlSearch & ExtraSearch<E, 'input'>
-  >
   /** A field's or filter's URL name: itself, or prefixed. */
   urlKey: (key: ListKey) => string
+}
+
+/** A list's URL contract, built once per list at module scope. */
+export interface ListDefinition<
+  S extends readonly [string, ...string[]] = readonly [string, ...string[]],
+  F extends Readonly<Record<string, ListFilter>> = Readonly<Record<string, ListFilter>>,
+  P extends string | undefined = undefined,
+  A extends readonly ListSchemaHolder[] = readonly [],
+  E extends z.ZodRawShape = Record<never, never>,
+>
+  extends ListDefinitionInput<S, F, P, A, E>, ListContract {
+  sorts: S
+  filters: F
+  /** The route's `validateSearch`: each URL key has its own type, and no other key is allowed. */
+  schema: z.ZodType<
+    OwnSearch<S, F, P> & AlsoSearch<A, 'output'> & ExtraSearch<E, 'output'>,
+    OwnSearch<S, F, P> & AlsoSearch<A, 'input'> & ExtraSearch<E, 'input'>
+  >
 }
 
 /**
@@ -192,9 +256,13 @@ export function listSearchSchema(
  * @param input - The list's sorts, filters, analytics name, optional prefix and the route's own params.
  * @returns The definition `useListSearch` and `listRequest` read.
  */
-export function defineList<E extends z.ZodRawShape = Record<never, never>>(
-  input: ListDefinitionInput<E>
-): ListDefinition<E> {
+export function defineList<
+  const S extends readonly [string, ...string[]],
+  const F extends Readonly<Record<string, ListFilter>>,
+  const P extends string | undefined = undefined,
+  const A extends readonly ListSchemaHolder[] = readonly [],
+  E extends z.ZodRawShape = Record<never, never>,
+>(input: ListDefinitionInput<S, F, P, A, E>): ListDefinition<S, F, P, A, E> {
   const { prefix } = input
   /** A field's URL name: as is, or after the prefix with its first letter raised. */
   const urlKey = (key: ListKey): string =>
@@ -207,6 +275,6 @@ export function defineList<E extends z.ZodRawShape = Record<never, never>>(
     urlKey,
     shape,
     // The shape's keys are chosen at run time, so its type is stated rather than inferred.
-    schema: z.object(routeShape) as unknown as ListDefinition<E>['schema'],
+    schema: z.object(routeShape) as unknown as ListDefinition<S, F, P, A, E>['schema'],
   }
 }

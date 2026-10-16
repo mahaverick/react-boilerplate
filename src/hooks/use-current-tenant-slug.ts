@@ -13,7 +13,7 @@ import { isEligibleTenant, useTenants } from '@/queries/tenant.queries'
  */
 export function useCurrentTenantSlug(): string | null {
   const { slug } = useParams({ strict: false })
-  const tenant = useSearch({ from: '/_app', select: (search) => search.tenant })
+  const tenant = useSearch({ strict: false, select: (search) => search.tenant })
   const tenants = useTenants()
   if (slug) return slug
   if (!tenant) return null

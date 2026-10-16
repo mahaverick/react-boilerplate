@@ -1,5 +1,4 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import type { z } from 'zod'
 import { track, type AnalyticsKey } from '@/observability/telemetry'
 import {
   cleanSearch,
@@ -8,7 +7,7 @@ import {
   listValues,
   type ListValues,
 } from '@/schemas/list-request.schemas'
-import { sortFilterValues, type ListDefinition, type ListUrlSearch } from '@/schemas/list.schemas'
+import { sortFilterValues, type ListContract, type ListUrlSearch } from '@/schemas/list.schemas'
 import {
   DEFAULT_PAGE_SIZE,
   type ListDirection,
@@ -60,7 +59,7 @@ type UrlPatch = Record<string, string | number | boolean | undefined>
 
 /** What `useListSearch` returns: one list's URL state and the writes that change it. */
 export interface ListSearchState {
-  definition: ListDefinition<z.ZodRawShape>
+  definition: ListContract
   values: ListValues
   /** The API request for `values`, without `total`. */
   request: ListRequest
@@ -110,13 +109,10 @@ function tidy(search: Record<string, unknown>): Record<string, unknown> {
  *
  * The search is read with `strict: false`, so a route module need not import
  * its own `Route` back (react's settings pages avoid that for the bundle).
- * @param definition - The list, from `defineList`.
+ * @param list - The list, from `defineList`.
  * @returns The state and its writes.
  */
-export function useListSearch<E extends z.ZodRawShape>(
-  definition: ListDefinition<E>
-): ListSearchState {
-  const list = definition as unknown as ListDefinition<z.ZodRawShape>
+export function useListSearch(list: ListContract): ListSearchState {
   const raw: ListUrlSearch = useSearch({ strict: false })
   const navigate = useNavigate()
   const values = listValues(list, raw)

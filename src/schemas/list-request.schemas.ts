@@ -5,8 +5,7 @@
  * the entry bundle carries, do not carry the request builder with them.
  * Defaults are omitted from the request, so a default view sends no list params.
  */
-import type { z } from 'zod'
-import type { ListDefinition, ListFilter, ListKey, ListUrlSearch } from '@/schemas/list.schemas'
+import type { ListContract, ListFilter, ListKey, ListUrlSearch } from '@/schemas/list.schemas'
 import {
   DEFAULT_PAGE_SIZE,
   MAX_SEARCH_LENGTH,
@@ -54,10 +53,7 @@ export interface ListValues {
  * @param search - The route's validated search.
  * @returns The values, defaults filled in.
  */
-export function listValues(
-  definition: ListDefinition<z.ZodRawShape>,
-  search: ListUrlSearch
-): ListValues {
+export function listValues(definition: ListContract, search: ListUrlSearch): ListValues {
   /** One field's validated URL value. */
   const read = (key: ListKey) => search[definition.urlKey(key)]
   const filters: Record<string, readonly string[]> = {}
@@ -108,10 +104,7 @@ export function filterUrlValue(
  * @param values - From `listValues`.
  * @returns The request params.
  */
-export function listRequest(
-  definition: ListDefinition<z.ZodRawShape>,
-  values: ListValues
-): ListRequest {
+export function listRequest(definition: ListContract, values: ListValues): ListRequest {
   const request: ListRequest = {}
   const term = cleanSearch(values.search)
   if (term !== '') request.search = term
