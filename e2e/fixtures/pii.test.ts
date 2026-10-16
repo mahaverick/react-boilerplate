@@ -7,6 +7,7 @@
  * is `e2e/nginx/analytics.test.ts`.
  */
 import type { Page } from '@playwright/test'
+import { USER_ID_2 } from '../../tests/fixtures/ids'
 import { expect, test } from '../hermetic'
 
 /** Each name part alone (the dashboard greets by first name) and the address prefix. */
@@ -102,6 +103,12 @@ test('the activity log masks actors, and so does its actor filter', async ({ pag
   await expect(page.getByRole('dialog', { name: 'Filter by actor, Activity' })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: /Pii Probe/ }).first()).toBeVisible()
   await expectAllMasked(page, 4)
+
+  // A chosen actor shows as a chip ("Actor: {name}") and as the remove button's label.
+  await page.goto(harness('/settings/workspace/acme/activity', `&actor=${USER_ID_2}`))
+  await expect(page.getByText('Actor: ')).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Remove filter: Actor: / })).toBeVisible()
+  await expectAllMasked(page, 3)
 })
 
 test('the invitation page masks the inviter and both addresses', async ({ page }) => {

@@ -13,6 +13,7 @@ const COLD_TRANSFORM_BUDGET_MS = 20_000
 const LISTS = [
   { path: '/tenants', name: 'Tenants' },
   { path: '/settings/workspace/acme/members', name: 'Members' },
+  { path: '/settings/workspace/acme/members', name: 'Pending invitations' },
   { path: '/settings/workspace/acme/activity', name: 'Activity' },
   { path: '/notifications', name: 'Notifications' },
 ] as const
