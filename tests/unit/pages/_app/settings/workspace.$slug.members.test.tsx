@@ -1869,6 +1869,17 @@ describe('the members list', () => {
     await waitFor(() => expect(seen.some((params) => params.get('sort') === 'email')).toBe(true))
   })
 
+  it('shows a dash in Name for a member with no name, and the address once in Email', async () => {
+    const nameless = member(USER_ID_3, 'viewer', '')
+    nameless.user.lastName = ''
+    mockTenant('owner', [OWNER_ROW, nameless])
+    renderAppAt('/settings/workspace/acme/members')
+    const table = await screen.findByRole('table', { name: 'Members' })
+    const row = within(table).getByRole('row', { name: new RegExp(`${USER_ID_3}@b.com`) })
+    expect(within(row).getByText('—')).toBeInTheDocument()
+    expect(within(row).getAllByText(`${USER_ID_3}@b.com`)).toHaveLength(1)
+  })
+
   it('counts an owner who is not on this page toward the last-owner rule', async () => {
     const other = member(USER_ID_4, 'owner', 'Otto')
     mockTenant('owner', [OWNER_ROW])

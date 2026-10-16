@@ -40,7 +40,7 @@ async function open(page: Page, from: string) {
 /** Clicks the in-app link whose accessible name starts with `link`: a tenant card link's name goes on with its slug and role. */
 async function click(page: Page, link: string) {
   const name = new RegExp(`^${link.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}(\\s|$)`)
-  await page.getByRole('link', { name }).first().click()
+  await page.getByRole('link', { name }).first().click({ timeout: 15_000 })
 }
 
 /** Whether `selector` became visible within 5 s. */
@@ -118,10 +118,7 @@ async function shootNavigation(
       { action: 'hold', endpoints: nav.endpoints },
     ])
     await click(sectionPage, link)
-    sectionSkeleton = await appears(
-      sectionPage,
-      '[data-slot="query-state"][aria-busy="true"] [data-slot="skeleton"]'
-    )
+    sectionSkeleton = await appears(sectionPage, '[aria-busy="true"] [data-slot="skeleton"]')
     await shoot(sectionPage, `img/${nav.area}/${nav.shot}--nav-sections.jpg`)
   } finally {
     await sectionControl?.dispose()

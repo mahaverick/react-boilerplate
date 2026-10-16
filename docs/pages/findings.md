@@ -241,13 +241,13 @@ On the workspace pages, once the gate has the detail: members shows 2× `h-10` a
 
 ### F-settings-6
 
-Status: the width cap is fixed in #109, so the Actions column is on-screen at 1440 px ([after](img/settings/workspace-members--default.jpg)). The table’s column fit and the empty-name fallback stay for part 4.
+Status: fixed. The width cap is fixed in #109, so the Actions column is on-screen at 1440 px ([after](img/settings/workspace-members--default.jpg)). The members list is now the shared data table, which sets no minimum width, and a member with no name shows “—” in Name with the address once, in Email. `tests/unit/pages/_app/settings/workspace.$slug.members.test.tsx` (“shows a dash in Name for a member with no name…”) covers the fallback; the fit at 1440 px is checked in the after-shot the controller adds.
 
 The members `Table` is `min-w-2xl` inside the vendored table's `overflow-x-auto` wrapper, inside a card capped at `max-w-3xl xl:max-w-4xl`. In the walk at 1440×900 the wrapper was 848 px wide and the table 1075 px: the header cells ran Name 304–632, Email 632–920, Role 920–1287, Actions 1287–1379, and the wrapper ended at 1152. The Remove and Leave buttons sit past the card's edge, behind a sideways scroll, at the default desktop size ([shot](img/settings/workspace-members--default.jpg) shows no Actions column). The Name column falls back to the address, so a member with no name has the same address in Name and Email. Fix: in the data table, fit the columns to the card (two columns of long addresses and the last-owner note under the role select push the table past it), and show "—" or the address once when there is no name.
 
 ### F-settings-7
 
-Status: the pending-invitations half is fixed in #109, which builds it as an `Item` list with Resend and Revoke ([after](img/settings/workspace-members--default.jpg)). The audit log and its paging stay for part 4.
+Status: fixed. The pending-invitations half is fixed in #109, which builds it as an `Item` list with Resend and Revoke ([after](img/settings/workspace-members--default.jpg)); the audit log is now a table with URL filters (`?action=`, `?actor=`, `?access=`, `?search=`) and cursor paging. `tests/unit/pages/_app/settings/workspace.$slug.activity.test.tsx` (“lists the log in a table…”, “pages with Next page, keeping the cursor in the URL”, “filters by action through ?action=…”) covers it.
 
 The audit log is a `ul` of entries with two `Select` filters (sent to the API as `action`, `actorUserId`, `access`) and a "Load more activity" button ([shot](img/settings/workspace-activity--default.jpg)); pending invitations are a `ul` of bordered rows with Resend and Revoke ([shot](img/settings/workspace-members--default.jpg)). Both are tabular (actor, action, time; address, role, inviter, expiry), and Load more is hand-rolled paging. Fix: render both with shadcn's `table`, and the log's paging with `pagination`, keeping ordering, filtering and paging on the API.
 
