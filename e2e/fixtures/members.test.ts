@@ -14,7 +14,8 @@ test.describe('desktop', () => {
 
   test('loads the member list with the webfont actually applied', async ({ page }) => {
     await page.goto('/e2e/harness/')
-    await expect(page.getByRole('row')).toHaveCount(3) // header + two members
+    // Scoped to the Members region, since the pending invitations below it are a table too: header + two members.
+    await expect(page.getByRole('region', { name: 'Members' }).getByRole('row')).toHaveCount(3)
 
     // A failed webfont load is invisible to code-reading checks (the text just falls back to sans-serif); `fonts.ready` waits out a face still loading on a cold dev server.
     const inter = await page.evaluate(async () => {
@@ -27,15 +28,17 @@ test.describe('desktop', () => {
   test('says the list is empty instead of drawing a bare header', async ({ page }) => {
     await page.goto('/e2e/harness/?state=empty')
     await expect(page.getByText(/no one has access to this tenant yet/i)).toBeVisible()
-    await expect(page.getByRole('table')).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Members' }).getByRole('table')).toHaveCount(0)
   })
 
   test('offers a retry when the member list fails, rather than a stuck skeleton', async ({
     page,
   }) => {
     await page.goto('/e2e/harness/?state=error')
-    // The list query retries once (`retry: 1`, src/router.tsx) after TanStack Query's 1s default retry delay, so the error state replaces the skeleton after about 1.5s; 10s is headroom for a loaded machine.
-    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible({ timeout: 10_000 })
+    // The list query retries once (`retry: 1`, src/router.tsx) after TanStack Query's 1s default retry delay, so the error state replaces the skeleton after about 1.5s; 10s is headroom for a loaded machine. Scoped to the Members region, because the owners read fails too and its own Try again sits above the list.
+    await expect(
+      page.getByRole('region', { name: 'Members' }).getByRole('button', { name: 'Try again' })
+    ).toBeVisible({ timeout: 10_000 })
     // `.` rather than an apostrophe: the copy uses a typographic ’ (U+2019), and an ASCII ' silently matches nothing.
     await expect(page.getByText(/could not load this tenant.s members/i)).toBeVisible()
   })

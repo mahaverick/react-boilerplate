@@ -416,7 +416,9 @@ describe('?tenant on $slug pages', () => {
 
   it('removes a ?tenant from a workspace settings page', async () => {
     serveTenants([ACME, GLOBEX])
-    server.use(http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.')))
+    server.use(
+      http.get('/api/v1/tenants/acme/members', () => ok(listPage([]), 'Members retrieved.'))
+    )
     const { router } = renderAt('/settings/workspace/acme/members?tenant=globex')
 
     await expectHref(router, '/settings/workspace/acme/members')

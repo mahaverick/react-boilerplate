@@ -215,8 +215,10 @@ export const handlers = [
    * are `{ tenant, role, joinedAt }`, in the list envelope, not bare tenants.
    */
   http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')),
+  // Members, empty; a test about them overrides it.
+  http.get('/api/v1/tenants/:slug/members', () => ok(listPage([]), 'Members retrieved.')),
   // Pending invitations, empty; a test about them overrides it.
-  http.get('/api/v1/tenants/:slug/invitations', () => ok([], 'Invitations retrieved.')),
+  http.get('/api/v1/tenants/:slug/invitations', () => ok(listPage([]), 'Invitations retrieved.')),
   // Invite and resend answer 202 with `data: null` whether or not the address has an account, the same way register does.
   http.post('/api/v1/tenants/:slug/invitations', () => ok(null, INVITATION_SENT_MESSAGE, 202)),
   http.post('/api/v1/tenants/:slug/invitations/:id/resend', () =>

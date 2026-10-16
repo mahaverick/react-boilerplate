@@ -329,7 +329,7 @@ describe('AppLayout', () => {
         )
       ),
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'viewer'), 'Tenant retrieved.')),
-      http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+      http.get('/api/v1/tenants/acme/members', () => ok(listPage([]), 'Members retrieved.'))
     )
     renderAppAt('/settings/workspace/acme/members')
     const breadcrumb = await screen.findByRole('navigation', { name: 'breadcrumb' })

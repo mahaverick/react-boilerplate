@@ -382,7 +382,10 @@ test.describe('popups that are not menus', () => {
       })
 
       // Cleo is a plain member and not the last owner, so her row's Remove is the enabled one.
-      const row = page.getByRole('row').filter({ hasText: 'Cleo' })
+      const row = page
+        .getByRole('region', { name: 'Members' })
+        .getByRole('row')
+        .filter({ hasText: 'Cleo' })
       await row.getByRole('button', { name: 'Remove' }).click()
       const confirm = page.getByRole('alertdialog')
       await expect(confirm).toBeVisible()

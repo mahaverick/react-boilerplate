@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { delay, http } from 'msw'
 import type { ReactNode } from 'react'
@@ -6,10 +6,13 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import * as tenantQueries from '@/queries/tenant.queries'
 import {
+  invitationsListOptions,
+  ownersBesides,
+  ownersQueryOptions,
   tenantKeys,
   tenantsQueryOptions,
-  useInvitations,
   useInviteMember,
+  useMembers,
   useMyRole,
   useResendInvitation,
   useRevokeInvitation,
@@ -36,6 +39,19 @@ import {
   testUser,
 } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+
+/** One `{ membership, user }` row, as the member list returns it. */
+const MEMBER_ROW = {
+  membership: {
+    id: MEMBERSHIP_ID,
+    userId: USER_ID,
+    tenantId: TENANT_ID,
+    role: 'owner' as const,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+  user: { id: USER_ID, email: 'me@b.com', firstName: 'Me', lastName: 'X' },
+}
 
 describe('tenant invitation queries', () => {
   let client: QueryClient
@@ -72,15 +88,78 @@ describe('tenant invitation queries', () => {
   it('lists pending invitations under their own key', async () => {
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () =>
-        ok([testInvitation], 'Invitations retrieved.')
+        ok(listPage([testInvitation]), 'Invitations retrieved.')
       )
     )
 
-    const { result } = renderHook(() => useInvitations('acme'), { wrapper })
+    const { result } = renderHook(() => useQuery(invitationsListOptions('acme', {})), { wrapper })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(result.current.data).toEqual([testInvitation])
+    expect(result.current.data?.items).toEqual([testInvitation])
     expect(tenantKeys.invitations('acme')).toEqual(['tenants', 'acme', 'invitations'])
+  })
+
+  it('reads a tenant’s first hundred members by name for pickers', async () => {
+    let seen: URLSearchParams | undefined
+    server.use(
+      http.get('/api/v1/tenants/acme/members', ({ request }) => {
+        seen = new URL(request.url).searchParams
+        return ok(listPage([MEMBER_ROW]), 'Members retrieved.')
+      })
+    )
+
+    const { result } = renderHook(() => useMembers('acme'), { wrapper })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([MEMBER_ROW])
+    expect(seen?.get('limit')).toBe('100')
+    expect(seen?.has('sort')).toBe(false)
+  })
+
+  it('reads the owners under their own key, a hundred at a time', async () => {
+    let seen: URLSearchParams | undefined
+    server.use(
+      http.get('/api/v1/tenants/acme/members', ({ request }) => {
+        seen = new URL(request.url).searchParams
+        return ok(listPage([MEMBER_ROW]), 'Members retrieved.')
+      })
+    )
+
+    const { result } = renderHook(() => useQuery(ownersQueryOptions('acme')), { wrapper })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(seen?.get('role')).toBe('owner')
+    expect(seen?.get('limit')).toBe('100')
+    expect(ownersQueryOptions('acme').queryKey.slice(0, 3)).toEqual(tenantKeys.members('acme'))
+  })
+
+  describe('ownersBesides', () => {
+    /** An owner row for `userId`, active unless `active` says otherwise. */
+    function owner(userId: string, active?: boolean) {
+      return {
+        ...MEMBER_ROW,
+        user: { ...MEMBER_ROW.user, id: userId, ...(active === undefined ? {} : { active }) },
+      }
+    }
+
+    it('counts none while the owners read has not landed, which keeps the last owner locked', () => {
+      expect(ownersBesides(undefined, USER_ID, false)).toBe(0)
+    })
+
+    it('counts the owners other than the caller', () => {
+      expect(ownersBesides(listPage([owner(USER_ID), owner(USER_ID_2)]), USER_ID, false)).toBe(1)
+    })
+
+    it('counts one more owner when the read says another page follows', () => {
+      const page = listPage([owner(USER_ID)], { hasNext: true, nextCursor: 'c2' })
+      expect(ownersBesides(page, USER_ID, false)).toBe(1)
+    })
+
+    it('leaves a deactivated owner out on the platform tenant only', () => {
+      const page = listPage([owner(USER_ID), owner(USER_ID_2, false)])
+      expect(ownersBesides(page, USER_ID, true)).toBe(0)
+      expect(ownersBesides(page, USER_ID, false)).toBe(1)
+    })
   })
 
   it('posts the invite body and invalidates the invitations list and the checklist', async () => {

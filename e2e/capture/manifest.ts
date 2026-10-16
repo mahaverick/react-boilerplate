@@ -16,6 +16,12 @@ const TENANT: Section = {
   endpoints: ['GET /tenants/:slug'],
 }
 
+/** What a list endpoint answers when it has no rows: the list envelope, empty. */
+const EMPTY_PAGE = {
+  items: [],
+  page: { nextCursor: null, prevCursor: null, hasNext: false, hasPrev: false, limit: 20 },
+}
+
 /** Each route's capture, keyed by its full path. */
 export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
   '/': { kind: 'redirect', to: '/dashboard when signed in, else /login' },
@@ -260,8 +266,8 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     ],
     empty: {
       stubs: [
-        { endpoint: 'GET /tenants/:slug/members', data: [] },
-        { endpoint: 'GET /tenants/:slug/invitations', data: [] },
+        { endpoint: 'GET /tenants/:slug/members', data: EMPTY_PAGE },
+        { endpoint: 'GET /tenants/:slug/invitations', data: EMPTY_PAGE },
       ],
     },
   },

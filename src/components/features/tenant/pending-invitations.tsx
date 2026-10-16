@@ -1,5 +1,12 @@
-import { useState } from 'react'
-import { LoadError } from '@/components/features/load-error'
+import { createColumnHelper } from '@tanstack/react-table'
+import { createContext, useContext, useState } from 'react'
+import { DataTable } from '@/components/shared/data-table/data-table'
+import type {
+  DataTableFeatures,
+  DataTableFilter,
+} from '@/components/shared/data-table/data-table-model'
+import { useListQuery } from '@/components/shared/data-table/use-list-query'
+import { useListSearch } from '@/components/shared/data-table/use-list-search'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Pii } from '@/components/shared/pii'
 import {
@@ -15,23 +22,26 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item'
 import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from '@/components/ui/item'
-import { Skeleton } from '@/components/ui/skeleton'
-import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
+  canActorGrantRole,
+  MEMBERSHIP_ROLES,
+  ROLE_LABELS,
+  type MembershipRole,
+} from '@/constants/roles'
 import { useFocusAfter } from '@/hooks/use-focus-after'
 import { codeFrom } from '@/lib/api-error'
 import { formatDate } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
+import { analyticsKey } from '@/observability/telemetry'
 import { inviterName } from '@/queries/invitation.queries'
-import { useInvitations, useResendInvitation, useRevokeInvitation } from '@/queries/tenant.queries'
+import {
+  invitationsList,
+  invitationsListOptions,
+  useResendInvitation,
+  useRevokeInvitation,
+} from '@/queries/tenant.queries'
 import { INVITATION_NOT_FOUND, type TenantInvitation } from '@/types/api.types'
 
 /** Said of the request, not of the tenant: a failed load is not "none pending". */
@@ -203,15 +213,48 @@ function RevokeInvitationButton({
 }
 
 /**
- * One pending invitation.
+ * Resend and Revoke for one invitation, the table's Actions cell and the
+ * card's action area alike.
  *
- * One list item at every width rather than a table row with a card twin: one
- * render path keeps every id unique, and there is no fixed-width table to
- * scroll off a phone screen.
- *
- * When the actor may not grant the invitation's role, Resend and Revoke are
- * both off and the reason renders once, under them, with both pointing at it.
+ * When the actor may not grant the invitation's role, both are off and the
+ * reason renders once, under them, with both pointing at it.
  */
+function InvitationActions({
+  slug,
+  invitation,
+  myRole,
+  onRevoked,
+}: {
+  slug: string
+  invitation: TenantInvitation
+  myRole: MembershipRole
+  onRevoked: () => void
+}) {
+  const reasonId = canActorGrantRole(myRole, invitation.role)
+    ? undefined
+    : `grant-reason-${invitation.id}`
+
+  return (
+    <div className="grid gap-1">
+      <div className="flex gap-2">
+        <ResendInvitationButton slug={slug} invitation={invitation} reasonId={reasonId} />
+        <RevokeInvitationButton
+          slug={slug}
+          invitation={invitation}
+          reasonId={reasonId}
+          onRevoked={onRevoked}
+        />
+      </div>
+      {reasonId && (
+        <p id={reasonId} className="text-xs text-muted-foreground">
+          {GRANT_REASON}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** One pending invitation as a stacked card, for phones. */
 function InvitationItem({
   slug,
   invitation,
@@ -226,10 +269,6 @@ function InvitationItem({
   readOnly: boolean
   onRevoked: () => void
 }) {
-  const reasonId = canActorGrantRole(myRole, invitation.role)
-    ? undefined
-    : `grant-reason-${invitation.id}`
-
   return (
     <Item variant="outline" role="listitem">
       <ItemContent className="min-w-0">
@@ -245,24 +284,85 @@ function InvitationItem({
       </ItemContent>
       {!readOnly && (
         <ItemActions className="grid gap-1">
-          <div className="flex gap-2">
-            <ResendInvitationButton slug={slug} invitation={invitation} reasonId={reasonId} />
-            <RevokeInvitationButton
-              slug={slug}
-              invitation={invitation}
-              reasonId={reasonId}
-              onRevoked={onRevoked}
-            />
-          </div>
-          {reasonId && (
-            <p id={reasonId} className="text-xs text-muted-foreground">
-              {GRANT_REASON}
-            </p>
-          )}
+          <InvitationActions
+            slug={slug}
+            invitation={invitation}
+            myRole={myRole}
+            onRevoked={onRevoked}
+          />
         </ItemActions>
       )}
     </Item>
   )
+}
+
+/** What the invitations panel hands its cells: the tenant, the caller's role and the revoke callback. */
+interface InvitationsPanelContext {
+  slug: string
+  myRole: MembershipRole
+  onRevoked: () => void
+}
+
+const InvitationsPanelScope = createContext<InvitationsPanelContext | null>(null)
+
+/**
+ * The table's Actions cell. The columns are module-level, so the cell reads
+ * what changes between renders from context, and re-renders in place rather
+ * than remounting with its dialog state.
+ */
+function InvitationActionsCell({ invitation }: { invitation: TenantInvitation }) {
+  const panel = useContext(InvitationsPanelScope)
+  if (panel === null) throw new Error('An invitation cell renders inside the invitations panel.')
+  return <InvitationActions {...panel} invitation={invitation} />
+}
+
+const column = createColumnHelper<DataTableFeatures, TenantInvitation>()
+
+/** The email, role, sent and expiry columns every viewer sees. */
+const READ_COLUMNS = [
+  column.accessor('email', {
+    header: 'Email',
+    meta: { sorts: ['email'], sortName: analyticsKey('email') },
+    cell: ({ getValue }) => <Pii className="break-all">{getValue()}</Pii>,
+  }),
+  column.accessor('role', { header: 'Role', cell: ({ getValue }) => ROLE_LABELS[getValue()] }),
+  column.accessor('createdAt', {
+    header: 'Invited',
+    meta: { sorts: ['-created'], sortName: analyticsKey('created'), sortWords: 'date' },
+    cell: ({ row }) => (
+      <span className="grid">
+        <span>{formatDate(row.original.createdAt, 'medium') ?? 'Unknown'}</span>
+        <span className="text-xs text-muted-foreground">
+          by <Pii>{inviterName(row.original.invitedBy)}</Pii>
+        </span>
+      </span>
+    ),
+  }),
+  column.accessor('expiresAt', {
+    header: 'Expires',
+    cell: ({ getValue }) => expiresOn(getValue()),
+  }),
+]
+
+/** The columns of a caller who can resend and revoke: the read columns, then Actions. */
+const INVITATION_COLUMNS = column.columns([
+  ...READ_COLUMNS,
+  column.display({
+    id: 'actions',
+    header: () => <span className="sr-only">Actions</span>,
+    meta: { label: 'Actions', actions: true },
+    cell: ({ row }) => <InvitationActionsCell invitation={row.original} />,
+  }),
+])
+
+/** The columns for staff through platform access, who resend and revoke nothing. */
+const STAFF_INVITATION_COLUMNS = column.columns(READ_COLUMNS)
+
+/** The Role facet, every role in descending authority. */
+const ROLE_FILTER: DataTableFilter = {
+  name: 'role',
+  label: 'Role',
+  options: MEMBERSHIP_ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] })),
 }
 
 /**
@@ -281,8 +381,11 @@ export function PendingInvitations({
   myRole: MembershipRole
   readOnly?: boolean
 }) {
-  const invitations = useInvitations(slug)
+  const list = useListSearch(invitationsList)
+  const invitations = useListQuery(list, (request) => invitationsListOptions(slug, request))
   const focus = useFocusAfter<'heading'>()
+  /** Moves focus to the heading once the row that held the revoke button is gone. */
+  const onRevoked = () => focus.focusAfter('heading')
 
   return (
     <Card>
@@ -295,31 +398,28 @@ export function PendingInvitations({
         <CardDescription>Sent, and not yet accepted.</CardDescription>
       </CardHeader>
       <CardContent>
-        {invitations.isError ? (
-          <LoadError message={INVITATIONS_ERROR} onRetry={() => void invitations.refetch()} />
-        ) : invitations.isPending ? (
-          <div className="grid gap-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : invitations.data.length === 0 ? (
-          <EmptyState size="compact" title="No invitations are waiting to be accepted." />
-        ) : (
-          <ItemGroup className="gap-3">
-            {invitations.data.map((invitation) => (
+        <InvitationsPanelScope value={{ slug, myRole, onRevoked }}>
+          <DataTable
+            columns={readOnly ? STAFF_INVITATION_COLUMNS : INVITATION_COLUMNS}
+            query={invitations}
+            label="Pending invitations"
+            errorMessage={INVITATIONS_ERROR}
+            getRowId={(invitation) => invitation.id}
+            search={{ label: 'Search invitations', placeholder: 'Search by email' }}
+            filters={[ROLE_FILTER]}
+            card={(invitation) => (
               <InvitationItem
                 key={invitation.id}
                 slug={slug}
                 invitation={invitation}
                 myRole={myRole}
                 readOnly={readOnly}
-                onRevoked={() => {
-                  focus.focusAfter('heading')
-                }}
+                onRevoked={onRevoked}
               />
-            ))}
-          </ItemGroup>
-        )}
+            )}
+            empty={<EmptyState size="compact" title="No invitations are waiting to be accepted." />}
+          />
+        </InvitationsPanelScope>
       </CardContent>
     </Card>
   )

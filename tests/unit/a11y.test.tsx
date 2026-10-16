@@ -173,8 +173,10 @@ function mockSignedInData() {
       )
     ),
     http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')),
-    http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.')),
-    http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
+    http.get('/api/v1/tenants/acme/members', () => ok(listPage(MEMBERS), 'Members retrieved.')),
+    http.get('/api/v1/tenants/acme/invitations', () =>
+      ok(listPage(INVITATIONS), 'Invitations retrieved.')
+    ),
     http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
     // The Beta tab and page are graded too, so the flag is on.
     http.get('/api/v1/tenants/acme/flags', () =>
@@ -556,7 +558,7 @@ describe('signed-in pages', () => {
       '/settings/workspace/acme/members',
       // Both lists: the member table and the pending invitations under it.
       async () => {
-        await screen.findByRole('table')
+        await screen.findByRole('table', { name: 'Members' })
         return screen.findByText('invitee@b.com')
       },
     ],
@@ -928,13 +930,30 @@ describe('open overlays', () => {
       )
     )
     renderAppAt('/settings/workspace/acme/members')
-    await screen.findByRole('table')
+    await screen.findByRole('table', { name: 'Members' })
     await screen.findByText('invitee@b.com')
 
     expect(
       screen.getByText('You’re viewing this tenant as staff. Make changes from the staff console.')
     ).toBeInTheDocument()
     await expectNoViolations()
+  })
+
+  it('has no violations with a facet popover open on the members list', async () => {
+    renderAppAt('/settings/workspace/acme/members')
+    await screen.findByRole('table', { name: 'Members' })
+    const members = screen.getByRole('region', { name: 'Members' })
+    await userEvent.setup().click(within(members).getByRole('button', { name: 'Filter by role' }))
+    await screen.findByRole('dialog', { name: 'Filter by role' })
+    await expectNoViolations()
+  })
+
+  it('has no violations with the column menu open on the members list', async () => {
+    renderAppAt('/settings/workspace/acme/members')
+    await screen.findByRole('table', { name: 'Members' })
+    const members = screen.getByRole('region', { name: 'Members' })
+    await userEvent.setup().click(within(members).getByRole('button', { name: 'Columns' }))
+    await expectNoViolationsIn(await screen.findByRole('menu'))
   })
 
   it('has no violations with the member list stacked as cards on a phone', async () => {
@@ -945,6 +964,7 @@ describe('open overlays', () => {
     await screen.findByText('invitee@b.com')
 
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'Members' })).toBeInTheDocument()
     await expectNoViolations()
   })
 

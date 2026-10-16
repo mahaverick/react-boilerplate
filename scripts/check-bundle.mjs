@@ -19,9 +19,11 @@ import { build } from 'vite'
  * The request builder sits in `list-request.schemas`, which only the list table
  * loads, and `MEMBERSHIP_ROLES` has its own module. What the entry gained is the
  * list contract's own code and the paged membership read. Measured with the
- * Tenants list moved: 586,000 B.
+ * Tenants list moved: 586,000 B. The members page's two route schemas, its
+ * owner-count rule and the page query options reach it through `tenant.queries`
+ * and the members route's `validateSearch`, again with no new zod class: 586,272 B.
  */
-const ENTRY_BUDGET_BYTES = 586_100
+const ENTRY_BUDGET_BYTES = 586_300
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

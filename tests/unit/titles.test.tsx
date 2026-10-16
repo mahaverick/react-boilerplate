@@ -13,6 +13,7 @@ import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -128,7 +129,7 @@ describe('page titles', () => {
     })
     server.use(
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')),
-      http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+      http.get('/api/v1/tenants/acme/members', () => ok(listPage([]), 'Members retrieved.'))
     )
     renderAppAt('/settings/workspace/acme/members')
 
@@ -154,7 +155,7 @@ describe('page titles', () => {
     })
     server.use(
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')),
-      http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+      http.get('/api/v1/tenants/acme/members', () => ok(listPage([]), 'Members retrieved.'))
     )
     renderAppAt(path)
 

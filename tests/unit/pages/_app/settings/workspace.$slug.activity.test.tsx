@@ -25,6 +25,7 @@ import {
   USER_ID,
   USER_ID_9,
 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { AuditEntry, TenantAccess } from '@/types/api.types'
@@ -98,7 +99,7 @@ function mockTenant(role: MembershipRole, access: TenantAccess = 'member') {
     http.get('/api/v1/tenants/acme', () =>
       ok(tenantDetail(TENANT, role, access), 'Tenant retrieved.')
     ),
-    http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
+    http.get('/api/v1/tenants/acme/members', () => ok(listPage(MEMBERS), 'Members retrieved.'))
   )
 }
 
@@ -442,7 +443,7 @@ describe('tenant activity page', () => {
         detailCalls += 1
         return ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
       }),
-      http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.'))
+      http.get('/api/v1/tenants/acme/members', () => ok(listPage(MEMBERS), 'Members retrieved.'))
     )
     mockLog(() => fail('Forbidden', 403))
     renderAppAt('/settings/workspace/acme/activity')

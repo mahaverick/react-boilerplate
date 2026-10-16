@@ -302,21 +302,87 @@ export function useUpdateTenant(slug: string) {
   })
 }
 
-/** A tenant's members, each with their membership and a projection of their user. */
-export function useMembers(slug: string) {
-  return useQuery({
-    queryKey: tenantKeys.members(slug),
-    queryFn: async () =>
-      unwrap(await apiClient.get<ApiSuccess<TenantMember[]>>(`/tenants/${slug}/members`)),
+/** Pending invitations' URL contract on the members page: its keys are prefixed, since the member list shares the route. */
+export const invitationsList = defineList({
+  sorts: ['-created', 'email'],
+  filters: { role: listFilter(MEMBERSHIP_ROLES) },
+  table: analyticsKey('invitations'),
+  prefix: 'invitations',
+})
+
+/** The members page's URL contract: the member list's, with the invitations list's keys kept. */
+export const membersList = defineList({
+  sorts: ['name', 'email', 'role', '-joined'],
+  filters: { role: listFilter(MEMBERSHIP_ROLES) },
+  table: analyticsKey('members'),
+  also: [invitationsList],
+})
+
+/**
+ * One page of a tenant's members.
+ * @param slug - The tenant.
+ * @param request - From `listRequest(membersList, …)`.
+ */
+export function membersListOptions(slug: string, request: ListRequest) {
+  return listQueryOptions<TenantMember>({
+    key: tenantKeys.members(slug),
+    path: `/tenants/${slug}/members`,
+    request,
   })
 }
 
-/** Pending invitations. Owner and admin only: anyone else gets a 403. */
-export function useInvitations(slug: string) {
+/**
+ * A tenant's owners (the first 100), for the last-owner rule: a page of the
+ * member list may not hold them all. Its own key under the members prefix,
+ * apart from the table's pages, so every member write refreshes it and no
+ * table view ever reads it.
+ * @param slug - The tenant.
+ */
+export function ownersQueryOptions(slug: string) {
+  return listQueryOptions<TenantMember>({
+    key: [...tenantKeys.members(slug), 'owners'],
+    path: `/tenants/${slug}/members`,
+    request: { role: 'owner', limit: 100 },
+  })
+}
+
+/**
+ * How many owners besides `userId` the API counts toward the last-owner rule,
+ * from the owners read: `otherOwnerCount` over its rows, plus one when the
+ * read says more owners follow (`page.hasNext`), since another owner then
+ * certainly remains. 0 while the read has not landed, which keeps the last
+ * owner's own controls locked until it does.
+ * @param owners - The owners read's page, if it has landed.
+ * @param userId - The owner acting on their own membership.
+ * @param isPlatform - Whether this is the platform tenant (only active owners count there).
+ */
+export function ownersBesides(
+  owners: ListPage<TenantMember> | undefined,
+  userId: string | undefined,
+  isPlatform: boolean
+): number {
+  if (owners === undefined) return 0
+  return otherOwnerCount(owners.items, userId, isPlatform) + (owners.page.hasNext ? 1 : 0)
+}
+
+/**
+ * One page of a tenant's pending invitations. Owner and admin only.
+ * @param slug - The tenant.
+ * @param request - From `listRequest(invitationsList, …)`.
+ */
+export function invitationsListOptions(slug: string, request: ListRequest) {
+  return listQueryOptions<TenantInvitation>({
+    key: tenantKeys.invitations(slug),
+    path: `/tenants/${slug}/invitations`,
+    request,
+  })
+}
+
+/** A tenant's first hundred members by name, for pickers such as the activity actor filter. */
+export function useMembers(slug: string) {
   return useQuery({
-    queryKey: tenantKeys.invitations(slug),
-    queryFn: async () =>
-      unwrap(await apiClient.get<ApiSuccess<TenantInvitation[]>>(`/tenants/${slug}/invitations`)),
+    ...membersListOptions(slug, { limit: 100 }),
+    select: (page: ListPage<TenantMember>) => page.items,
   })
 }
 

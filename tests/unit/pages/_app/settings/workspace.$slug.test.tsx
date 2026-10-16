@@ -65,7 +65,7 @@ function mockTenant(myRole: MembershipRole, access: TenantAccess = 'member') {
     http.get('/api/v1/tenants/acme', () =>
       ok(tenantDetail(TENANT, myRole, access), 'Tenant retrieved.')
     ),
-    http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.')),
+    http.get('/api/v1/tenants/acme/members', () => ok(listPage([]), 'Members retrieved.')),
     http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.'))
   )
 }
