@@ -9,7 +9,7 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http } from 'msw'
+import { delay, http } from 'msw'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useListQuery } from '@/components/shared/data-table/use-list-query'
 import { useListSearch } from '@/components/shared/data-table/use-list-search'
@@ -50,12 +50,16 @@ function membersOptions(request: ListRequest) {
   })
 }
 
+/** Every render's `query.isError`, reset by `renderProbe`. */
+const errorRenders: boolean[] = []
+
 /** Shows both lists' values and requests, with a button per write. */
 function Probe() {
   const list = useListSearch(members)
   const other = useListSearch(invitations)
   const query = useListQuery(list, membersOptions)
   const page = query.page
+  errorRenders.push(query.query.isError)
   return (
     <div>
       <output aria-label="members request">{JSON.stringify(list.request)}</output>
@@ -64,6 +68,19 @@ function Probe() {
       <output aria-label="total">{query.total ? String(query.total.count) : 'none'}</output>
       <output aria-label="failed">{String(query.query.isError)}</output>
       <output aria-label="has next">{String(page?.hasNext ?? false)}</output>
+      <output aria-label="restarting">{String(query.isRestarting)}</output>
+      <button type="button" onClick={() => page && list.prev(page)}>
+        Prev
+      </button>
+      <button type="button" onClick={() => list.reset()}>
+        Reset
+      </button>
+      <button type="button" onClick={() => list.setFilters({ role: ['viewer'] })}>
+        Pick viewer
+      </button>
+      <button type="button" onClick={() => list.setFilters({ nope: ['x'] })}>
+        Unknown filter
+      </button>
       <button type="button" onClick={() => list.setSearch('grace')}>
         Search
       </button>
@@ -109,6 +126,7 @@ function Probe() {
  * @param path - The URL, search included.
  */
 function renderProbe(path: string) {
+  errorRenders.length = 0
   const rootRoute = createRootRoute({ component: () => <Outlet /> })
   const route = createRoute({
     getParentRoute: () => rootRoute,
@@ -146,7 +164,8 @@ function serveMembers(): URLSearchParams[] {
         return fail('Validation failed', 400, 'CURSOR_INVALID')
       }
       if (params.get('cursor') === 'wrong') return fail('Validation failed', 400)
-      if (params.get('cursor') === 'c2') return ok(listPage([{ id: 'b' }], { hasPrev: true }))
+      if (params.get('cursor') === 'c2')
+        return ok(listPage([{ id: 'b' }], { hasPrev: true, prevCursor: 'c1' }))
       // A cursor whose page came back empty: 4a answers with the first page instead.
       if (params.get('cursor') === 'gone') {
         return ok(listPage([{ id: 'a' }], { nextCursor: 'c2-fresh', hasNext: true }))
@@ -284,7 +303,7 @@ describe('useListSearch', () => {
       sort: 'name',
       direction: 'default',
     })
-    expect(track).toHaveBeenCalledWith('table_filtered', { table: 'test_members' })
+    expect(track.mock.calls.filter(([event]) => event === 'table_filtered')).toHaveLength(2)
     expect(JSON.stringify(track.mock.calls)).not.toMatch(/grace|viewer/)
   })
 
@@ -323,6 +342,30 @@ describe('useListQuery', () => {
     expect(screen.getByRole('status', { name: 'total' })).toHaveTextContent('2')
   })
 
+  it('shows no total for a new view until its own lands, and drops the old one', async () => {
+    const seen = serveMembers()
+    const user = userEvent.setup()
+    renderProbe('/members')
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'total' })).toHaveTextContent('2')
+    )
+    seen.length = 0
+    server.use(
+      http.get('/api/v1/test/members', async ({ request }) => {
+        const params = new URL(request.url).searchParams
+        seen.push(params)
+        await delay(100)
+        return ok(listPage([{ id: 'z' }], {}, { count: 7, capped: false }))
+      })
+    )
+    await user.click(screen.getByRole('button', { name: 'Filter' }))
+    await waitFor(() => expect(seen).toHaveLength(1))
+    expect(screen.getByRole('status', { name: 'total' })).toHaveTextContent('none')
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'total' })).toHaveTextContent('7')
+    )
+  })
+
   it('goes back to the first page, replacing the entry, when the API refuses the cursor', async () => {
     const seen = serveMembers()
     const router = renderProbe('/members?cursor=bad&sort=email')
@@ -331,17 +374,98 @@ describe('useListQuery', () => {
     expect(router.history.length).toBe(1)
   })
 
-  it('restarts once, without a load error, and then stays on the first page', async () => {
+  it('restarts once and never renders the refused cursor as an error', async () => {
     const seen = serveMembers()
     const router = renderProbe('/members?cursor=bad&direction=prev')
     await waitFor(() => expect(router.state.location.search).toEqual({}))
     await waitFor(() =>
       expect(screen.getByRole('status', { name: 'total' })).toHaveTextContent('2')
     )
-    expect(screen.getByRole('status', { name: 'failed' })).toHaveTextContent('false')
+    expect(screen.getByRole('status', { name: 'restarting' })).toHaveTextContent('false')
+    expect(errorRenders).not.toContain(true)
     await settle(50, 'a looping restart would send more requests within a tick of the first page')
     expect(seen.map((params) => params.get('cursor'))).toEqual(['bad', null])
     expect(seen[1]?.get('direction')).toBeNull()
+  })
+
+  it('drops the direction on a search, a filter, a sort and a page size', async () => {
+    serveMembers()
+    const user = userEvent.setup()
+    const router = renderProbe('/members?cursor=c2&direction=prev')
+    const start = { to: '/members', search: { cursor: 'c2', direction: 'prev' } } as never
+    await user.click(await screen.findByRole('button', { name: 'Search' }))
+    await waitFor(() => expect(router.state.location.search).toEqual({ search: 'grace' }))
+    for (const [name, expected] of [
+      ['Filter', { role: 'viewer' }],
+      ['Sort', { sort: 'email' }],
+      ['Limit', { limit: 50 }],
+    ] as const) {
+      await router.navigate(start)
+      await user.click(screen.getByRole('button', { name }))
+      await waitFor(() => expect(router.state.location.search).toEqual(expected))
+    }
+  })
+
+  it('pages back, counting down, and reports it', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    serveMembers()
+    const user = userEvent.setup()
+    const router = renderProbe('/members')
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'has next' })).toHaveTextContent('true')
+    )
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'page index' })).toHaveTextContent('1')
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'total' })).toHaveTextContent('2')
+    )
+    await user.click(screen.getByRole('button', { name: 'Prev' }))
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual({ cursor: 'c1', direction: 'prev' })
+    )
+    expect(screen.getByRole('status', { name: 'page index' })).toHaveTextContent('0')
+    expect(track).toHaveBeenCalledWith('table_paged', { table: 'test_members', direction: 'prev' })
+  })
+
+  it('clears the search and every filter in one entry, and does nothing when none is set', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    serveMembers()
+    const user = userEvent.setup()
+    const router = renderProbe('/members?cursor=c2')
+    await user.click(await screen.findByRole('button', { name: 'Reset' }))
+    expect(track).not.toHaveBeenCalled()
+    expect(router.history.length).toBe(1)
+    await router.navigate({
+      to: '/members',
+      search: { search: 'grace', role: 'viewer', cursor: 'c2', invitationsSearch: 'ada' },
+    } as never)
+    await user.click(screen.getByRole('button', { name: 'Reset' }))
+    await waitFor(() => expect(router.state.location.search).toEqual({ invitationsSearch: 'ada' }))
+    expect(track.mock.calls.filter(([event]) => event === 'table_filtered')).toHaveLength(1)
+  })
+
+  it('does nothing when a filter is set to what it already is, or to an unknown one', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    serveMembers()
+    const user = userEvent.setup()
+    const router = renderProbe('/members?role=viewer&cursor=c2')
+    await user.click(await screen.findByRole('button', { name: 'Pick viewer' }))
+    await user.click(screen.getByRole('button', { name: 'Unknown filter' }))
+    expect(track).not.toHaveBeenCalled()
+    expect(router.history.length).toBe(1)
+    expect(router.state.location.search).toEqual({ role: 'viewer', cursor: 'c2' })
+  })
+
+  it('leaves a sibling list’s cursor alone when this list is written', async () => {
+    serveMembers()
+    const user = userEvent.setup()
+    const router = renderProbe('/members?cursor=c2&invitationsCursor=i2')
+    await user.click(await screen.findByRole('button', { name: 'Search' }))
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual({ search: 'grace', invitationsCursor: 'i2' })
+    )
   })
 
   it('shows the error, and keeps the cursor, when a 400 is not a refused cursor', async () => {

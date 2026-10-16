@@ -26,6 +26,23 @@ import {
  */
 const pageIndexes = new Map<string, number>()
 
+/** How many views' page positions a tab keeps; the oldest are forgotten, which only hides "Showing". */
+const MAX_PAGE_INDEXES = 50
+
+/**
+ * Records which page a cursor opened, keeping only the most recent entries.
+ * @param key - From `pageKey`.
+ * @param index - The page's position, from 0.
+ */
+function recordPageIndex(key: string, index: number): void {
+  pageIndexes.delete(key)
+  pageIndexes.set(key, index)
+  for (const oldest of pageIndexes.keys()) {
+    if (pageIndexes.size <= MAX_PAGE_INDEXES) break
+    pageIndexes.delete(oldest)
+  }
+}
+
 /** `pageIndexes`' key for a cursor and its direction. */
 function pageKey(cursor: string, direction: ListDirection): string {
   return `${direction}:${cursor}`
@@ -78,7 +95,8 @@ function tidy(search: Record<string, unknown>): Record<string, unknown> {
 /**
  * One list's URL state: search, filters, sort, cursor, direction, page size
  * and hidden columns, read from the route's validated search and written
- * back with defaults left out; a search is written cleaned (`cleanSearch`), and a blank one is no search. Any write but paging and column choice drops
+ * back with defaults left out; a search is written cleaned (`cleanSearch`),
+ * and a blank one is no search. Any write but paging and column choice drops
  * the cursor, since a cursor belongs to the view it was cut from; hiding a
  * column changes no row, so the page stays. Typing and paging fire
  * `table_filtered`, `table_sorted` and `table_paged` with fixed values only.
@@ -119,10 +137,18 @@ export function useListSearch<E extends z.ZodRawShape>(
   /** Writes each named filter's picks, from the first page; an unknown name is ignored. */
   const setFilters = (picks: Readonly<Record<string, readonly string[]>>) => {
     const patch: UrlPatch = { ...firstPagePatch }
+    let changed = false
     for (const [name, picked] of Object.entries(picks)) {
       const filter = list.filters[name]
-      if (filter !== undefined) patch[urlKey(name)] = filterUrlValue(filter, picked)
+      if (filter === undefined) continue
+      // The URL holds a comma list in the API's order, so compare in that order.
+      const ordered =
+        filter.kind === 'list' ? picked.toSorted((a, b) => a.localeCompare(b, 'en')) : picked
+      const value = filterUrlValue(filter, ordered)
+      if (value !== filterUrlValue(filter, values.filters[name] ?? [])) changed = true
+      patch[urlKey(name)] = value
     }
+    if (!changed) return
     track('table_filtered', { table })
     write(patch)
   }
@@ -171,7 +197,7 @@ export function useListSearch<E extends z.ZodRawShape>(
       if (!page.hasNext || page.nextCursor === null) return
       // A page with nothing before it is the first, whatever the tab recorded: the API answers a cursor whose page came back empty with its first page.
       const from = page.hasPrev ? pageIndex : 0
-      if (from !== undefined) pageIndexes.set(pageKey(page.nextCursor, 'next'), from + 1)
+      if (from !== undefined) recordPageIndex(pageKey(page.nextCursor, 'next'), from + 1)
       track('table_paged', { table, direction: 'next' })
       write({ [urlKey('cursor')]: page.nextCursor, [urlKey('direction')]: undefined })
     },
@@ -180,7 +206,7 @@ export function useListSearch<E extends z.ZodRawShape>(
       // A `prev` page with nothing after it is the API's last-page answer to a cursor whose page came back empty: its position is unknown.
       const from = values.direction === 'prev' && !page.hasNext ? undefined : pageIndex
       if (from !== undefined && from > 0) {
-        pageIndexes.set(pageKey(page.prevCursor, 'prev'), from - 1)
+        recordPageIndex(pageKey(page.prevCursor, 'prev'), from - 1)
       }
       track('table_paged', { table, direction: 'prev' })
       write({ [urlKey('cursor')]: page.prevCursor, [urlKey('direction')]: 'prev' })

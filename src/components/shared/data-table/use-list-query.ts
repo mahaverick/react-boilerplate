@@ -17,6 +17,8 @@ export interface ListQueryState<T> {
   query: UseQueryResult<ListPage<T>>
   items: T[]
   page: ListPageInfo | undefined
+  /** The API refused the cursor and the list is going back to its first page; `query` reads as pending until it has. */
+  isRestarting: boolean
   /** The view's capped total: this page's, or the first page's while paging the same view. */
   total: ListTotal | undefined
 }
@@ -29,10 +31,13 @@ export interface ListQueryState<T> {
  * list drops `cursor` and `direction` and reloads its first page, replacing
  * the refused entry. The retry carries no cursor, so it cannot be refused for
  * one and the restart cannot loop. Any other 400 (a bad filter value) is an
- * error the table shows.
+ * error the table shows. While the restart is pending the query reads as
+ * pending, never as an error. The kept total is held by an observer on the
+ * first page's entry, so it survives collection and refreshes after an
+ * invalidation; it is the new view's, never the view being left.
  * @param list - From `useListSearch`.
  * @param options - The list's `…ListOptions`, called with the request.
- * @param enabled - False holds the request, for a role gate.
+ * @param options.enabled - False holds the request, for a role gate.
  * @returns The state, query and page.
  */
 export function useListQuery<T>(
@@ -54,18 +59,54 @@ export function useListQuery<T>(
     if (refused) restart()
   }, [refused])
 
+  // A disabled observer on the first page's entry keeps it alive while a later page is open (see the JSDoc).
   const firstRequest: ListRequest = { ...list.request }
   delete firstRequest.cursor
   delete firstRequest.direction
-  const total =
-    query.data?.total ??
-    queryClient.getQueryData<ListPage<T>>(options(firstRequest).queryKey)?.total
+  const firstOptions = options(firstRequest)
+  const firstCached = queryClient.getQueryData(firstOptions.queryKey) !== undefined
+  const first = useQuery({
+    ...firstOptions,
+    // No placeholder: the total of the view being left must not stand in for the new view's.
+    placeholderData: undefined,
+    enabled: enabled && cursor !== undefined && firstCached,
+    // Fresh for good, so enabling it never fetches; an invalidation still refetches it.
+    staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  })
+  const total = first.data?.total
+
+  if (refused) {
+    return {
+      list,
+      // One cast: a pending-shaped view of the failed query, so no consumer renders the refused cursor as a load error.
+      query: {
+        ...query,
+        status: 'pending',
+        isPending: true,
+        isLoading: true,
+        isError: false,
+        isLoadingError: false,
+        isSuccess: false,
+        error: null,
+        data: undefined,
+        isPlaceholderData: false,
+      } as unknown as UseQueryResult<ListPage<T>>,
+      items: [],
+      page: undefined,
+      isRestarting: true,
+      total,
+    }
+  }
 
   return {
     list,
     query,
     items: query.data?.items ?? [],
     page: query.data?.page,
+    isRestarting: false,
     total,
   }
 }
