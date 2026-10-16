@@ -74,4 +74,29 @@ describe('the startup preload', () => {
     expect(calls['ListPending']).toBe(2)
     vi.doUnmock('@tanstack/react-router')
   })
+
+  it('stops waiting for a template whose chunk never settles after TEMPLATES_WAIT_MS', async () => {
+    vi.resetModules()
+    vi.doMock('@tanstack/react-router', () => ({
+      /** A wrapper whose preload never settles. */
+      lazyRouteComponent: () => {
+        /** A stand-in route component. */
+        const wrapper = () => null
+        wrapper.preload = () => new Promise<void>(() => undefined)
+        return wrapper
+      },
+    }))
+    const templates = await import('@/components/shared/pending-templates')
+    vi.useFakeTimers()
+    let done = false
+    void templates.waitForTemplates().then(() => {
+      done = true
+    })
+    await vi.advanceTimersByTimeAsync(templates.TEMPLATES_WAIT_MS - 1)
+    expect(done).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(done).toBe(true)
+    vi.useRealTimers()
+    vi.doUnmock('@tanstack/react-router')
+  })
 })

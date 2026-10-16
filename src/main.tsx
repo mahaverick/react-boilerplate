@@ -9,7 +9,7 @@
  * strand the shell with nothing saying why. Analytics starts after that
  * first load, so the restored session's identity is queued before posthog-js
  * loads. The mount also waits, in parallel with the load, for the pending
- * templates' chunks (`templatesReady`), so the first render never suspends on one.
+ * templates' chunks (`waitForTemplates`, capped), so the first render does not suspend on one.
  */
 // First import: must run before any module builds a Zod schema (see the file).
 import '@/lib/zod-jitless'
@@ -20,14 +20,14 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Devtools } from '@/components/dev/devtools'
-import { templatesReady } from '@/components/shared/pending-templates'
+import { waitForTemplates } from '@/components/shared/pending-templates'
 import { rootErrorOptions } from '@/observability/errors'
 import { initAnalytics } from '@/observability/telemetry'
 import '@/styles/globals.css'
 import { queryClient, router } from '@/router'
 
 const loading = router.load()
-void Promise.allSettled([loading, templatesReady])
+void Promise.allSettled([loading, waitForTemplates()])
   .then(() => {
     createRoot(document.getElementById('root')!, rootErrorOptions).render(
       <StrictMode>

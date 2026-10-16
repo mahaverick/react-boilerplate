@@ -15,7 +15,8 @@ import { ROUTER_DEFAULTS } from '@/router'
 describe('pending templates', () => {
   it.each(
     Object.entries(module).filter(
-      (entry): entry is [string, AsyncRouteComponent<unknown>] => entry[0] !== 'templatesReady'
+      (entry): entry is [string, AsyncRouteComponent<unknown>] =>
+        entry[1] && entry[0].endsWith('Pending')
     )
   )('%s renders without suspending once the module has loaded', async (_name, Template) => {
     // No Suspense boundary: a template still being fetched would throw here instead of rendering.

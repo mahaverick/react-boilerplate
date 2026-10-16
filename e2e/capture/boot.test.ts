@@ -101,6 +101,12 @@ async function screencast(
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
   )
+  // The ready element can be visible a frame before the screencast delivers the page: wait for a frame stamped after it.
+  const readyAt = Date.now()
+  await expect
+    .poll(() => frames.at(-1)?.at ?? 0, { timeout: 2000 })
+    .toBeGreaterThanOrEqual(readyAt)
+    .catch(() => undefined)
   await cdp.send('Page.stopScreencast')
 
   const distinct = frames.filter(

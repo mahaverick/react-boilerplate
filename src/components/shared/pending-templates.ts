@@ -49,3 +49,23 @@ async function preloadAll(): Promise<void> {
  * template, never suspends on a template.
  */
 export const templatesReady: Promise<void> = preloadAll()
+
+/**
+ * The longest the first render waits for the templates. A chunk fetch that hangs
+ * without failing would otherwise keep the boot shell up for good; after this the
+ * app mounts and a template that has still not loaded behaves as it did before the
+ * preload (it suspends until it lands). `router.load()` is not capped here: the
+ * flags read inside it has its own cap.
+ */
+export const TEMPLATES_WAIT_MS = 3000
+
+/** Settles when `templatesReady` does, or after `TEMPLATES_WAIT_MS`, whichever is first. */
+export function waitForTemplates(): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, TEMPLATES_WAIT_MS)
+    void templatesReady.then(() => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+}
