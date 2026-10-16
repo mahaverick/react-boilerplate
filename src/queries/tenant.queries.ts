@@ -5,12 +5,16 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query'
+import { MEMBERSHIP_ROLES } from '@/constants/membership-roles'
 import type { MembershipRole } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
+import { analyticsKey } from '@/observability/telemetry'
+import { listQueryOptions, retryList } from '@/queries/list.queries'
 import { refreshProfile } from '@/queries/profile.queries'
+import { defineList, listFilter } from '@/schemas/list.schemas'
 import type {
   InviteMemberInput,
   NewTenantInput,
@@ -26,6 +30,7 @@ import {
   type TenantAccess,
   type TenantInvitation,
 } from '@/types/api.types'
+import type { ListPage, ListRequest } from '@/types/list.types'
 
 /**
  * A `tenants` row as the API returns it: every column but the onboarding
@@ -81,6 +86,8 @@ export interface TenantMember {
 export interface TenantWithRole {
   tenant: Tenant
   role: MembershipRole
+  /** When the caller joined: their membership's `createdAt`. */
+  joinedAt: string
   /** The platform tenant's row, which the tenant switcher leaves out: staff reach it from the user menu. */
   isPlatform: boolean
 }
@@ -112,6 +119,8 @@ export interface TenantSettings {
  */
 export const tenantKeys = {
   list: ['tenants'] as const,
+  /** Every page of the Tenants list. A slug never starts with `_`, so no tenant's keys share it. */
+  pages: ['tenants', '_pages'] as const,
   detail: (slug: string) => ['tenants', slug] as const,
   members: (slug: string) => ['tenants', slug, 'members'] as const,
   settings: (slug: string) => ['tenants', slug, 'settings'] as const,
@@ -125,19 +134,82 @@ export function isEligibleTenant(entry: TenantWithRole): boolean {
   return !entry.isPlatform && entry.tenant.lifecycleState !== 'suspended'
 }
 
+/** How many memberships one request asks for: the API's most. */
+export const MEMBERSHIPS_PAGE_LIMIT = 100
+
+/** The most pages `readMemberships` follows: 5,000 memberships, far past any account. */
+const MAX_MEMBERSHIP_PAGES = 50
+
 /**
- * The tenant list's query: the tenants the caller is a member of, each with
- * their role in it. Shared by `useTenants` and `_app`'s guard, which reads
- * the same cached list to resolve the URL's `?tenant`.
+ * Every membership, by name: one `GET /tenants` page, then the next until the
+ * API says there is none. A cursor the API repeats, or more than
+ * `MAX_MEMBERSHIP_PAGES` pages, is a fault and rejects, so the read never
+ * loops. A tenant that moved across a page boundary between two reads is
+ * listed once.
+ * @returns The rows of every page, the first of any repeated tenant kept.
+ */
+async function readMemberships(): Promise<TenantWithRole[]> {
+  const rows = new Map<string, TenantWithRole>()
+  const sent = new Set<string>()
+  let cursor: string | undefined
+  for (let pages = 0; pages < MAX_MEMBERSHIP_PAGES; pages += 1) {
+    const { items, page } = unwrap(
+      await apiClient.get<ApiSuccess<ListPage<TenantWithRole>>>('/tenants', {
+        params: { limit: MEMBERSHIPS_PAGE_LIMIT, ...(cursor === undefined ? {} : { cursor }) },
+      })
+    )
+    for (const item of items) if (!rows.has(item.tenant.id)) rows.set(item.tenant.id, item)
+    if (!page.hasNext || page.nextCursor === null) return [...rows.values()]
+    if (sent.has(page.nextCursor)) throw new Error('GET /tenants repeated a cursor.')
+    sent.add(page.nextCursor)
+    cursor = page.nextCursor
+  }
+  throw new Error(`GET /tenants went past ${MAX_MEMBERSHIP_PAGES} pages.`)
+}
+
+/**
+ * The tenant list's query: every tenant the caller is a member of, by name,
+ * each with their role in it, read a page of `MEMBERSHIPS_PAGE_LIMIT` at a
+ * time, so the guard and the switcher see them all. Shared by `useTenants`
+ * and `_app`'s guard, which reads the same cached list to resolve the URL's
+ * `?tenant`.
  */
 export function tenantsQueryOptions() {
   return queryOptions({
     queryKey: tenantKeys.list,
-    queryFn: async () => unwrap(await apiClient.get<ApiSuccess<TenantWithRole[]>>('/tenants')),
+    queryFn: () => readMemberships(),
   })
 }
 
-/** The tenants the caller is a member of, each with their role in it. */
+/** The Tenants page's URL contract: by name, or newest membership first, filtered by role. */
+export const myTenantsList = defineList({
+  sorts: ['name', '-joined'],
+  filters: { role: listFilter(MEMBERSHIP_ROLES) },
+  table: analyticsKey('tenants'),
+})
+
+/**
+ * One page of the caller's tenants (`GET /tenants`), for the Tenants table.
+ * @param request - From `listRequest(myTenantsList, …)`.
+ * @returns Query options for `useListQuery`.
+ */
+export function myTenantsListOptions(request: ListRequest) {
+  return listQueryOptions<TenantWithRole>({ key: tenantKeys.pages, path: '/tenants', request })
+}
+
+/**
+ * Refetches the caller's tenant list and every page of the Tenants list,
+ * leaving each tenant's own queries alone.
+ * @param queryClient - The app's query client.
+ */
+export async function invalidateTenantList(queryClient: QueryClient): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true }),
+    queryClient.invalidateQueries({ queryKey: tenantKeys.pages }),
+  ])
+}
+
+/** Every tenant the caller is a member of, each with their role in it. */
 export function useTenants() {
   return useQuery(tenantsQueryOptions())
 }
@@ -162,7 +234,7 @@ export function tenantQueryOptions(slug: string) {
       } catch (error) {
         if (statusFrom(error) === 404) {
           // A suspended tenant answers 404 too; the list is what tells it apart, and may be stale.
-          void client.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+          void invalidateTenantList(client)
           return null
         }
         throw error
@@ -213,7 +285,7 @@ export function useCreateTenant() {
   return useMutation({
     mutationFn: async (input: NewTenantInput) =>
       unwrap(await apiClient.post<ApiSuccess<Tenant>>('/tenants', input)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true }),
+    onSuccess: () => invalidateTenantList(queryClient),
   })
 }
 
@@ -225,26 +297,107 @@ export function useUpdateTenant(slug: string) {
       unwrap(await apiClient.patch<ApiSuccess<Tenant>>(`/tenants/${slug}`, input)),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.detail(slug) })
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      await invalidateTenantList(queryClient)
     },
   })
 }
 
-/** A tenant's members, each with their membership and a projection of their user. */
-export function useMembers(slug: string) {
-  return useQuery({
-    queryKey: tenantKeys.members(slug),
-    queryFn: async () =>
-      unwrap(await apiClient.get<ApiSuccess<TenantMember[]>>(`/tenants/${slug}/members`)),
+/** Pending invitations' URL contract on the members page: its keys are prefixed, since the member list shares the route. */
+export const invitationsList = defineList({
+  sorts: ['-created', 'email'],
+  filters: { role: listFilter(MEMBERSHIP_ROLES) },
+  table: analyticsKey('invitations'),
+  prefix: 'invitations',
+})
+
+/** The members page's URL contract: the member list's, with the invitations list's keys kept. */
+export const membersList = defineList({
+  sorts: ['name', 'email', 'role', '-joined'],
+  filters: { role: listFilter(MEMBERSHIP_ROLES) },
+  table: analyticsKey('members'),
+  also: [invitationsList],
+})
+
+/**
+ * One page of a tenant's members.
+ * @param slug - The tenant.
+ * @param request - From `listRequest(membersList, …)`.
+ * @param options - `total: false` for a read that never shows the total (the pickers).
+ */
+export function membersListOptions(
+  slug: string,
+  request: ListRequest,
+  options: { total?: boolean } = {}
+) {
+  return listQueryOptions<TenantMember>({
+    key: tenantKeys.members(slug),
+    path: `/tenants/${slug}/members`,
+    request,
+    ...options,
   })
 }
 
-/** Pending invitations. Owner and admin only: anyone else gets a 403. */
-export function useInvitations(slug: string) {
-  return useQuery({
-    queryKey: tenantKeys.invitations(slug),
+/**
+ * A tenant's owners (the first 100), for the last-owner rule: a page of the
+ * member list may not hold them all. Its own key under the members prefix,
+ * apart from the table's pages, so every member write refreshes it and no
+ * table view ever reads it.
+ * @param slug - The tenant.
+ */
+export function ownersQueryOptions(slug: string) {
+  return queryOptions({
+    queryKey: [...tenantKeys.members(slug), 'owners'] as const,
+    // Not `listQueryOptions`: it asks a first page for a total, which this read never shows.
     queryFn: async () =>
-      unwrap(await apiClient.get<ApiSuccess<TenantInvitation[]>>(`/tenants/${slug}/invitations`)),
+      unwrap(
+        await apiClient.get<ApiSuccess<ListPage<TenantMember>>>(`/tenants/${slug}/members`, {
+          params: { role: 'owner', limit: 100 },
+        })
+      ),
+    retry: retryList,
+  })
+}
+
+/**
+ * How many owners besides `userId` the API counts toward the last-owner rule,
+ * from the owners read: `otherOwnerCount` over its rows, plus one when the
+ * read says more owners follow (`page.hasNext`), since another owner then
+ * certainly remains. (On the platform tenant that page's owners may all be
+ * inactive, which the count cannot see; the API still refuses the last
+ * active owner's leave with 409, and the refusal refetches.) 0 while the read
+ * has not landed, which keeps the last
+ * owner's own controls locked until it does.
+ * @param owners - The owners read's page, if it has landed.
+ * @param userId - The owner acting on their own membership.
+ * @param isPlatform - Whether this is the platform tenant (only active owners count there).
+ */
+export function ownersBesides(
+  owners: ListPage<TenantMember> | undefined,
+  userId: string | undefined,
+  isPlatform: boolean
+): number {
+  if (owners === undefined) return 0
+  return otherOwnerCount(owners.items, userId, isPlatform) + (owners.page.hasNext ? 1 : 0)
+}
+
+/**
+ * One page of a tenant's pending invitations. Owner and admin only.
+ * @param slug - The tenant.
+ * @param request - From `listRequest(invitationsList, …)`.
+ */
+export function invitationsListOptions(slug: string, request: ListRequest) {
+  return listQueryOptions<TenantInvitation>({
+    key: tenantKeys.invitations(slug),
+    path: `/tenants/${slug}/invitations`,
+    request,
+  })
+}
+
+/** A tenant's first hundred members by name, for pickers such as the activity actor filter. */
+export function useMembers(slug: string) {
+  return useQuery({
+    ...membersListOptions(slug, { limit: 100 }, { total: false }),
+    select: (page: ListPage<TenantMember>) => page.items,
   })
 }
 
@@ -327,8 +480,10 @@ export function useUpdateMemberRole(slug: string) {
       ),
     onSuccess: async (_data, { userId }) => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
+      // The API revokes the target's pending invitations with the change.
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) })
       await queryClient.invalidateQueries({ queryKey: tenantKeys.detail(slug), exact: true })
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      await invalidateTenantList(queryClient)
       if (slug === PLATFORM_TENANT_SLUG && userId === useAuthStore.getState().user?.id) {
         await refreshProfile(queryClient)
       }
@@ -355,7 +510,7 @@ export function useLeaveTenant(slug: string) {
   const queryClient = useQueryClient()
   /** Refetches the tenant list, and the stored user's platformRole when the platform tenant was left. */
   const afterLeaving = async () => {
-    await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+    await invalidateTenantList(queryClient)
     if (slug === PLATFORM_TENANT_SLUG) await refreshProfile(queryClient)
   }
   return useMutation({
@@ -393,7 +548,9 @@ export function useRemoveMember(slug: string) {
       apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/members/${userId}`),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      // The API revokes the removed member's pending invitations with the removal.
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) })
+      await invalidateTenantList(queryClient)
     },
     onError: async (error) => {
       if (isMemberNotFound(error)) {

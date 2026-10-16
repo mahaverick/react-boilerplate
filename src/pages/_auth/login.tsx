@@ -6,6 +6,7 @@ import { SocialSignIn } from '@/components/features/auth/social-sign-in'
 import { TermsNote } from '@/components/features/auth/terms-note'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { BusyButton } from '@/components/shared/busy-button'
+import { AuthPending } from '@/components/shared/pending-templates'
 import { FieldDescription, FieldGroup } from '@/components/ui/field'
 import {
   Form,
@@ -37,6 +38,7 @@ export const Route = createFileRoute('/_auth/login')({
   }),
   head: () => ({ meta: [{ title: pageTitle('Sign in') }] }),
   component: LoginPage,
+  pendingComponent: AuthPending,
 })
 
 /** Keyed by the `?error=` codes the API's Google callback redirects with. */

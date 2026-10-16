@@ -4,6 +4,8 @@ import { cleanup, configure } from '@testing-library/react'
 import { toHaveNoViolations } from 'jest-axe'
 import { createElement } from 'react'
 import { afterAll, afterEach, beforeAll, expect, vi } from 'vitest'
+// This import loads `use-list-search` for every test file: a `vi.mock` of that module must use `vi.doMock` or a reset.
+import { resetListPositions } from '@/components/shared/data-table/use-list-search'
 import { toast } from '@/lib/toast'
 import { server } from '@/tests/mocks/server'
 
@@ -124,6 +126,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => {
   cleanup()
   toast.dismiss()
+  resetListPositions()
   server.resetHandlers()
 })
 afterAll(() => server.close())

@@ -8,6 +8,7 @@ import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testFlags, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -33,7 +34,19 @@ let flagReads: number
 /** Serves the acme tenant to its owner, with the beta flag on or off and the beta endpoint answering. */
 function mockTenant(isBetaOn: boolean) {
   server.use(
-    http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants.')),
+    http.get('/api/v1/tenants', () =>
+      ok(
+        listPage([
+          {
+            tenant: TENANT,
+            role: 'owner',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ]),
+        'Tenants.'
+      )
+    ),
     http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'owner'), 'Tenant.')),
     http.get('/api/v1/tenants/acme/flags', () => {
       flagReads += 1
@@ -193,10 +206,20 @@ function mockTwoTenants(options: { globexFlags?: 'ok' | 'fail' } = {}) {
   server.use(
     http.get('/api/v1/tenants', () =>
       ok(
-        [
-          { tenant: TENANT, role: 'owner' },
-          { tenant: GLOBEX, role: 'owner' },
-        ],
+        listPage([
+          {
+            tenant: TENANT,
+            role: 'owner',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+          {
+            tenant: GLOBEX,
+            role: 'owner',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ]),
         'Tenants.'
       )
     ),

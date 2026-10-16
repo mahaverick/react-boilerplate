@@ -1,35 +1,20 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
-import { ActivityList } from '@/components/features/activity/activity-list'
+import { useEffect } from 'react'
+import { ACCESS_FILTER, ACTION_FILTER } from '@/components/features/activity/activity-filters'
+import { ActivityTable } from '@/components/features/activity/activity-table'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
+import { DataTableChip } from '@/components/shared/data-table/data-table-chip'
+import type { DataTableFilter } from '@/components/shared/data-table/data-table-model'
+import { useListQuery } from '@/components/shared/data-table/use-list-query'
+import { useListSearch } from '@/components/shared/data-table/use-list-search'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Note } from '@/components/shared/note'
-import { Pii } from '@/components/shared/pii'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AUDIT_ACTION_LABELS, AUDIT_ACTIONS, isAuditAction } from '@/constants/audit-actions'
 import { canViewActivity } from '@/constants/roles'
 import { statusFrom } from '@/lib/api-error'
-import { analyticsKey, track } from '@/observability/telemetry'
-import {
-  flattenAuditPages,
-  useTenantAuditLog,
-  type TenantAuditFilters,
-} from '@/queries/audit.queries'
+import { tenantActivityList, tenantAuditListOptions } from '@/queries/audit.queries'
 import { memberName, tenantKeys, useMembers, useMyRole } from '@/queries/tenant.queries'
-
-/** The select value meaning "no filter". */
-const ANY = 'any'
-/** The actor select's "anyone acting under platform access". */
-const STAFF = 'staff'
-/** The list `table_filtered` names; the filter values themselves are never sent. */
-const ACTIVITY_TABLE = analyticsKey('activity')
 
 /**
  * Said both when the cached role statically fails `canViewActivity` and when
@@ -38,31 +23,21 @@ const ACTIVITY_TABLE = analyticsKey('activity')
  */
 const OWNERS_AND_ADMINS_MESSAGE = 'Only this tenant’s owners and admins can see its activity.'
 
-/** The action filter's label for a select value; `All actions` for the no-filter value. */
-function actionLabel(value: string): string {
-  return isAuditAction(value) ? AUDIT_ACTION_LABELS[value] : 'All actions'
-}
-
 /**
  * The log and its filters. Its own component so the member list behind the
- * actor filter is only requested once the role check has passed. A 403 means
+ * Actor facet (the tenant's first hundred members by name, `useMembers`) is only
+ * requested once the role check has passed; a URL naming someone outside them
+ * reads "A member" on its chip. A 403 means
  * the cached role that passed the gate no longer qualifies, so the detail
  * query `useMyRole` reads is invalidated (`exact`, or the log under the same
  * prefix would refetch and 403 again) and the gate re-checks.
  */
 function TenantActivity({ slug }: { slug: string }) {
   const queryClient = useQueryClient()
-  const [action, setAction] = useState(ANY)
-  const [actor, setActor] = useState(ANY)
+  const list = useListSearch(tenantActivityList)
+  const log = useListQuery(list, (request) => tenantAuditListOptions(slug, request))
   const members = useMembers(slug)
-  const filters: TenantAuditFilters = {
-    action: isAuditAction(action) ? action : undefined,
-    actorUserId: actor === ANY || actor === STAFF ? undefined : actor,
-    access: actor === STAFF ? 'platform' : undefined,
-  }
-  const log = useTenantAuditLog(slug, filters, { enabled: true })
-  const isFiltered = action !== ANY || actor !== ANY
-  const forbidden = log.isError && statusFrom(log.error) === 403
+  const forbidden = log.query.isError && statusFrom(log.query.error) === 403
 
   useEffect(() => {
     if (forbidden) {
@@ -70,19 +45,36 @@ function TenantActivity({ slug }: { slug: string }) {
     }
   }, [forbidden, slug, queryClient])
 
-  /** Applies a filter change, and reports that the list was filtered when it really changed. */
-  function changeFilter(next: string, current: string, apply: (value: string) => void): void {
-    if (next === current) return
-    apply(next)
-    track('table_filtered', { table: ACTIVITY_TABLE })
+  /**
+   * The member an actor id names, for its chip: "Loading…" until the member
+   * list settles, then the name, else "A member" (outside the first hundred,
+   * or the list failed).
+   * @param id - The actor's user id.
+   */
+  const nameOf = (id: string) => {
+    if (members.isPending) return 'Loading…'
+    const member = members.data?.find((entry) => entry.user.id === id)
+    return member ? memberName(member) : 'A member'
   }
-
-  /** The actor filter's label for a select value: a member's name, `Staff` or `Anyone`. */
-  function actorLabel(value: string): string {
-    if (value === ANY) return 'Anyone'
-    if (value === STAFF) return 'Staff'
-    const match = members.data?.find((member) => member.user.id === value)
-    return match ? memberName(match) : 'A member'
+  /** The Actor facet: one member at a time, from the tenant's first hundred members by name. */
+  const actorFilter: DataTableFilter = {
+    name: 'actor',
+    label: 'Actor',
+    single: true,
+    isPersonal: true,
+    options: (members.data ?? []).map((member) => ({
+      value: member.user.id,
+      label: memberName(member),
+    })),
+    // The member list's own failure shows in the facet, with a retry.
+    optionsState: {
+      isPending: members.isPending,
+      isError: members.isError,
+      retry: () => void members.refetch(),
+    },
+    renderChip: (value, onRemove) => (
+      <DataTableChip prefix="Actor: " value={nameOf(value)} isPersonal onRemove={onRemove} />
+    ),
   }
 
   if (forbidden) {
@@ -90,56 +82,11 @@ function TenantActivity({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap gap-2">
-        <Select
-          value={action}
-          onValueChange={(value: string | null) => changeFilter(value ?? ANY, action, setAction)}
-        >
-          <SelectTrigger aria-label="Filter by action" className="w-52">
-            <SelectValue>{(value: string) => actionLabel(value)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>All actions</SelectItem>
-            {AUDIT_ACTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {AUDIT_ACTION_LABELS[option]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={actor}
-          onValueChange={(value: string | null) => changeFilter(value ?? ANY, actor, setActor)}
-        >
-          <SelectTrigger aria-label="Filter by who acted" className="w-52">
-            <SelectValue>{(value: string) => <Pii>{actorLabel(value)}</Pii>}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>Anyone</SelectItem>
-            <SelectItem value={STAFF}>Staff</SelectItem>
-            {(members.data ?? []).map((member) => (
-              <SelectItem key={member.user.id} value={member.user.id}>
-                <Pii>{memberName(member)}</Pii>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <ActivityList
-        entries={flattenAuditPages(log.data)}
-        isPending={log.isPending}
-        isError={log.isError}
-        onRetry={() => void log.refetch()}
-        hasNextPage={log.hasNextPage}
-        isFetchingNextPage={log.isFetchingNextPage}
-        isFetchNextPageError={log.isFetchNextPageError}
-        onLoadMore={() => void log.fetchNextPage()}
-        emptyMessage={
-          isFiltered ? 'Nothing matches these filters.' : 'Nothing has happened in this tenant yet.'
-        }
-      />
-    </div>
+    <ActivityTable
+      query={log}
+      filters={[ACTION_FILTER, actorFilter, ACCESS_FILTER]}
+      empty={<EmptyState size="compact" title="Nothing has happened in this tenant yet." />}
+    />
   )
 }
 

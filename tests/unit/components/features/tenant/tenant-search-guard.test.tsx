@@ -16,6 +16,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { TENANT_ID, TENANT_ID_2 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -41,13 +42,18 @@ const GLOBEX = tenantRow(TENANT_ID_2, 'Globex', 'globex')
 
 /** A `GET /tenants` row for `tenant`, as an owner. */
 function listed(tenant: ReturnType<typeof tenantRow>) {
-  return { tenant, role: 'owner', isPlatform: tenant.isPlatform }
+  return {
+    tenant,
+    role: 'owner',
+    isPlatform: tenant.isPlatform,
+    joinedAt: '2026-01-01T00:00:00.000Z',
+  }
 }
 
 /** Serves `rows` as the caller's tenant list, and each row's detail. */
 function serveTenants(rows: ReturnType<typeof tenantRow>[]) {
   server.use(
-    http.get('/api/v1/tenants', () => ok(rows.map(listed), 'Tenants retrieved.')),
+    http.get('/api/v1/tenants', () => ok(listPage(rows.map(listed)), 'Tenants retrieved.')),
     ...rows.map((row) =>
       http.get(`/api/v1/tenants/${row.slug}`, () =>
         ok(tenantDetail(row, 'owner'), 'Tenant retrieved.')
@@ -113,7 +119,7 @@ describe('TenantSearchGuard', () => {
     server.use(
       http.get('/api/v1/tenants', async () => {
         await new Promise<void>(() => undefined)
-        return ok([], 'Tenants retrieved.')
+        return ok(listPage([]), 'Tenants retrieved.')
       })
     )
     renderAt('/tenants')
@@ -132,7 +138,7 @@ describe('TenantSearchGuard', () => {
     server.use(
       http.get('/api/v1/tenants', async () => {
         await held
-        return ok([listed(ACME)], 'Tenants retrieved.')
+        return ok(listPage([listed(ACME)]), 'Tenants retrieved.')
       })
     )
     const { router } = renderAt('/dashboard')
@@ -195,7 +201,7 @@ describe('TenantSearchGuard', () => {
         attempts += 1
         return attempts === 1
           ? fail('Something went wrong.', 500)
-          : ok([listed(GLOBEX)], 'Tenants.')
+          : ok(listPage([listed(GLOBEX)]), 'Tenants.')
       })
     )
     const { router } = renderAt('/dashboard?tenant=acme')
@@ -233,7 +239,7 @@ describe('TenantSearchGuard', () => {
         attempts += 1
         return attempts === 1
           ? fail('Something went wrong.', 500)
-          : ok([listed(GLOBEX)], 'Tenants.')
+          : ok(listPage([listed(GLOBEX)]), 'Tenants.')
       })
     )
     const { router } = renderAt('/dashboard')
@@ -290,7 +296,7 @@ describe('TenantSearchGuard', () => {
     server.use(
       http.get('/api/v1/tenants', async () => {
         await held
-        return ok([listed(ACME)], 'Tenants retrieved.')
+        return ok(listPage([listed(ACME)]), 'Tenants retrieved.')
       }),
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.'))
     )

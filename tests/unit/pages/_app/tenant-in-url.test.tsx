@@ -25,6 +25,7 @@ import {
   TENANT_ID_9,
   USER_ID_2,
 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -52,13 +53,18 @@ const PLATFORM = { ...tenantRow(PLATFORM_TENANT_ID, 'Platform', 'platform'), isP
 
 /** A `GET /tenants` row for `tenant`, as an owner. */
 function listed(tenant: ReturnType<typeof tenantRow>) {
-  return { tenant, role: 'owner', isPlatform: tenant.isPlatform }
+  return {
+    tenant,
+    role: 'owner',
+    isPlatform: tenant.isPlatform,
+    joinedAt: '2026-01-01T00:00:00.000Z',
+  }
 }
 
 /** Serves `rows` as the caller's tenant list, and each row's detail. */
 function serveTenants(rows: ReturnType<typeof tenantRow>[]) {
   server.use(
-    http.get('/api/v1/tenants', () => ok(rows.map(listed), 'Tenants retrieved.')),
+    http.get('/api/v1/tenants', () => ok(listPage(rows.map(listed)), 'Tenants retrieved.')),
     ...rows.map((row) =>
       http.get(`/api/v1/tenants/${row.slug}`, () =>
         ok(tenantDetail(row, 'owner'), 'Tenant retrieved.')
@@ -334,7 +340,7 @@ describe('a tenant list that fails or is slow', () => {
         attempt += 1
         return attempt === 1
           ? fail('Something went wrong.', 500)
-          : ok([listed(ACME)], 'Tenants retrieved.')
+          : ok(listPage([listed(ACME)]), 'Tenants retrieved.')
       }),
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.'))
     )
@@ -359,7 +365,7 @@ describe('a tenant list that fails or is slow', () => {
     server.use(
       http.get('/api/v1/tenants', async () => {
         await held
-        return ok([listed(ACME)], 'Tenants retrieved.')
+        return ok(listPage([listed(ACME)]), 'Tenants retrieved.')
       }),
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.'))
     )
@@ -383,7 +389,7 @@ describe('a tenant list that fails or is slow', () => {
     server.use(
       http.get('/api/v1/tenants', async () => {
         await held
-        return ok([listed(ACME)], 'Tenants retrieved.')
+        return ok(listPage([listed(ACME)]), 'Tenants retrieved.')
       }),
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.'))
     )
@@ -410,7 +416,9 @@ describe('?tenant on $slug pages', () => {
 
   it('removes a ?tenant from a workspace settings page', async () => {
     serveTenants([ACME, GLOBEX])
-    server.use(http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.')))
+    server.use(
+      http.get('/api/v1/tenants/acme/members', () => ok(listPage([]), 'Members retrieved.'))
+    )
     const { router } = renderAt('/settings/workspace/acme/members?tenant=globex')
 
     await expectHref(router, '/settings/workspace/acme/members')

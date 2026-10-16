@@ -16,6 +16,12 @@ const TENANT: Section = {
   endpoints: ['GET /tenants/:slug'],
 }
 
+/** What a list endpoint answers when it has no rows: the list envelope, empty. */
+const EMPTY_PAGE = {
+  items: [],
+  page: { nextCursor: null, prevCursor: null, hasNext: false, hasPrev: false, limit: 20 },
+}
+
 /** Each route's capture, keyed by its full path. */
 export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
   '/': { kind: 'redirect', to: '/dashboard when signed in, else /login' },
@@ -64,7 +70,14 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     url: '/notifications',
     as: 'owner',
     sections: [{ name: 'Notifications', endpoints: ['GET /notifications'] }],
-    empty: { stubs: [{ endpoint: 'GET /notifications', data: { notifications: [] } }] },
+    empty: {
+      stubs: [
+        {
+          endpoint: 'GET /notifications',
+          data: { ...EMPTY_PAGE, total: { count: 0, capped: false } },
+        },
+      ],
+    },
   },
   '/profile': { kind: 'redirect', to: '/settings/account/profile' },
   '/settings': {
@@ -129,7 +142,14 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     as: 'owner',
     responsive: true,
     sections: [{ name: 'Tenants', endpoints: ['GET /tenants'] }],
-    empty: { stubs: [{ endpoint: 'GET /tenants', data: [] }] },
+    empty: {
+      stubs: [
+        {
+          endpoint: 'GET /tenants',
+          data: EMPTY_PAGE,
+        },
+      ],
+    },
   },
   '/settings/account/notifications': {
     kind: 'page',
@@ -218,9 +238,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
       { name: 'Activity', endpoints: ['GET /tenants/:slug/audit-log'] },
     ],
     empty: {
-      stubs: [
-        { endpoint: 'GET /tenants/:slug/audit-log', data: { entries: [], nextCursor: null } },
-      ],
+      stubs: [{ endpoint: 'GET /tenants/:slug/audit-log', data: EMPTY_PAGE }],
     },
   },
   '/settings/workspace/$slug/general': {
@@ -250,8 +268,8 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     ],
     empty: {
       stubs: [
-        { endpoint: 'GET /tenants/:slug/members', data: [] },
-        { endpoint: 'GET /tenants/:slug/invitations', data: [] },
+        { endpoint: 'GET /tenants/:slug/members', data: EMPTY_PAGE },
+        { endpoint: 'GET /tenants/:slug/invitations', data: EMPTY_PAGE },
       ],
     },
   },

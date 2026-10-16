@@ -3,6 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { BusyButton } from '@/components/shared/busy-button'
+import { AuthPending } from '@/components/shared/pending-templates'
 import { FieldDescription, FieldGroup } from '@/components/ui/field'
 import {
   Form,
@@ -23,6 +24,7 @@ import { forgotPasswordSchema } from '@/schemas/auth.schemas'
 export const Route = createFileRoute('/_auth/forgot-password')({
   head: () => ({ meta: [{ title: pageTitle('Forgot password') }] }),
   component: ForgotPasswordPage,
+  pendingComponent: AuthPending,
 })
 
 /**

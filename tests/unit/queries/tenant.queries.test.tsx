@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { delay, http } from 'msw'
 import type { ReactNode } from 'react'
@@ -6,9 +6,13 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import * as tenantQueries from '@/queries/tenant.queries'
 import {
+  invitationsListOptions,
+  ownersBesides,
+  ownersQueryOptions,
   tenantKeys,
-  useInvitations,
+  tenantsQueryOptions,
   useInviteMember,
+  useMembers,
   useMyRole,
   useResendInvitation,
   useRevokeInvitation,
@@ -24,6 +28,7 @@ import {
   USER_ID,
   USER_ID_2,
 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import {
   fail,
   INVITATION_SENT_MESSAGE,
@@ -34,6 +39,19 @@ import {
   testUser,
 } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+
+/** One `{ membership, user }` row, as the member list returns it. */
+const MEMBER_ROW = {
+  membership: {
+    id: MEMBERSHIP_ID,
+    userId: USER_ID,
+    tenantId: TENANT_ID,
+    role: 'owner' as const,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+  user: { id: USER_ID, email: 'me@b.com', firstName: 'Me', lastName: 'X' },
+}
 
 describe('tenant invitation queries', () => {
   let client: QueryClient
@@ -70,15 +88,82 @@ describe('tenant invitation queries', () => {
   it('lists pending invitations under their own key', async () => {
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () =>
-        ok([testInvitation], 'Invitations retrieved.')
+        ok(listPage([testInvitation]), 'Invitations retrieved.')
       )
     )
 
-    const { result } = renderHook(() => useInvitations('acme'), { wrapper })
+    const { result } = renderHook(() => useQuery(invitationsListOptions('acme', {})), { wrapper })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(result.current.data).toEqual([testInvitation])
+    expect(result.current.data?.items).toEqual([testInvitation])
     expect(tenantKeys.invitations('acme')).toEqual(['tenants', 'acme', 'invitations'])
+  })
+
+  it('reads a tenant’s first hundred members by name for pickers', async () => {
+    let seen: URLSearchParams | undefined
+    server.use(
+      http.get('/api/v1/tenants/acme/members', ({ request }) => {
+        seen = new URL(request.url).searchParams
+        return ok(listPage([MEMBER_ROW]), 'Members retrieved.')
+      })
+    )
+
+    const { result } = renderHook(() => useMembers('acme'), { wrapper })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([MEMBER_ROW])
+    expect(seen?.get('limit')).toBe('100')
+    expect(seen?.has('sort')).toBe(false)
+    // The pickers never show a total, so the read does not ask the API to count.
+    expect(seen?.has('total')).toBe(false)
+  })
+
+  it('reads the owners under their own key, a hundred at a time', async () => {
+    let seen: URLSearchParams | undefined
+    server.use(
+      http.get('/api/v1/tenants/acme/members', ({ request }) => {
+        seen = new URL(request.url).searchParams
+        return ok(listPage([MEMBER_ROW]), 'Members retrieved.')
+      })
+    )
+
+    const { result } = renderHook(() => useQuery(ownersQueryOptions('acme')), { wrapper })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(seen?.get('role')).toBe('owner')
+    expect(seen?.get('limit')).toBe('100')
+    // The rule reads the owners, never a total.
+    expect(seen?.has('total')).toBe(false)
+    expect(ownersQueryOptions('acme').queryKey.slice(0, 3)).toEqual(tenantKeys.members('acme'))
+  })
+
+  describe('ownersBesides', () => {
+    /** An owner row for `userId`, active unless `active` says otherwise. */
+    function owner(userId: string, active?: boolean) {
+      return {
+        ...MEMBER_ROW,
+        user: { ...MEMBER_ROW.user, id: userId, ...(active === undefined ? {} : { active }) },
+      }
+    }
+
+    it('counts none while the owners read has not landed, which keeps the last owner locked', () => {
+      expect(ownersBesides(undefined, USER_ID, false)).toBe(0)
+    })
+
+    it('counts the owners other than the caller', () => {
+      expect(ownersBesides(listPage([owner(USER_ID), owner(USER_ID_2)]), USER_ID, false)).toBe(1)
+    })
+
+    it('counts one more owner when the read says another page follows', () => {
+      const page = listPage([owner(USER_ID)], { hasNext: true, nextCursor: 'c2' })
+      expect(ownersBesides(page, USER_ID, false)).toBe(1)
+    })
+
+    it('leaves a deactivated owner out on the platform tenant only', () => {
+      const page = listPage([owner(USER_ID), owner(USER_ID_2, false)])
+      expect(ownersBesides(page, USER_ID, true)).toBe(0)
+      expect(ownersBesides(page, USER_ID, false)).toBe(1)
+    })
   })
 
   it('posts the invite body and invalidates the invitations list and the checklist', async () => {
@@ -307,7 +392,7 @@ describe('useMyRole', () => {
     server.use(
       http.get('/api/v1/tenants', () => {
         listCalls += 1
-        return ok([], 'Tenants retrieved.')
+        return ok(listPage([]), 'Tenants retrieved.')
       }),
       http.get('/api/v1/tenants/acme', () =>
         ok(tenantDetail(DETAIL_TENANT, 'viewer', 'platform'), 'Tenant retrieved.')
@@ -494,6 +579,46 @@ describe('member mutations and the caller’s own profile', () => {
     })
   })
 
+  describe('invitations the API revokes with a member', () => {
+    it('refetches the pending invitations when a member is removed', async () => {
+      client.setQueryData(tenantKeys.invitations('acme'), [])
+      server.use(
+        http.delete(`/api/v1/tenants/acme/members/${USER_ID_2}`, () => ok(null, 'Member removed.'))
+      )
+
+      const { result } = renderHook(() => tenantQueries.useRemoveMember('acme'), { wrapper })
+      result.current.mutate(USER_ID_2)
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(client.getQueryState(tenantKeys.invitations('acme'))?.isInvalidated).toBe(true)
+    })
+
+    it('refetches the pending invitations when a role changes', async () => {
+      client.setQueryData(tenantKeys.invitations('acme'), [])
+      server.use(
+        http.patch(`/api/v1/tenants/acme/members/${USER_ID_2}`, () =>
+          ok(
+            {
+              id: MEMBERSHIP_ID_2,
+              userId: USER_ID_2,
+              tenantId: TENANT_ID,
+              role: 'viewer',
+              createdAt: '',
+              updatedAt: '',
+            },
+            'Member role updated.'
+          )
+        )
+      )
+
+      const { result } = renderHook(() => tenantQueries.useUpdateMemberRole('acme'), { wrapper })
+      result.current.mutate({ userId: USER_ID_2, role: 'viewer' })
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(client.getQueryState(tenantKeys.invitations('acme'))?.isInvalidated).toBe(true)
+    })
+  })
+
   describe('useLeaveTenant', () => {
     it('leaves through the membership route and refetches the tenant list', async () => {
       client.setQueryData(tenantKeys.list, [])
@@ -611,5 +736,121 @@ describe('member mutations and the caller’s own profile', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(profileCalls).toBe(0)
     })
+  })
+})
+
+describe('tenantsQueryOptions', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  it('reads every page of the caller’s tenants', async () => {
+    const seen: URLSearchParams[] = []
+    /** One membership row in the list's shape. */
+    const row = (slug: string) => ({
+      tenant: { id: slug, name: slug, slug },
+      role: 'owner',
+      isPlatform: false,
+      joinedAt: '2026-01-01T00:00:00.000Z',
+    })
+    server.use(
+      http.get('/api/v1/tenants', ({ request }) => {
+        const params = new URL(request.url).searchParams
+        seen.push(params)
+        return params.get('cursor') === 'c2'
+          ? ok(listPage([row('beta')]), 'Tenants retrieved.')
+          : ok(listPage([row('acme')], { nextCursor: 'c2', hasNext: true }), 'Tenants retrieved.')
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    const rows = await client.fetchQuery(tenantsQueryOptions())
+
+    expect(rows.map((entry) => entry.tenant.slug)).toEqual(['acme', 'beta'])
+    expect(seen.map((params) => params.get('limit'))).toEqual(['100', '100'])
+    expect(seen.map((params) => params.get('cursor'))).toEqual([null, 'c2'])
+  })
+
+  /** One membership row in the list's shape. */
+  const member = (slug: string, id = slug) => ({
+    tenant: { id, name: slug, slug },
+    role: 'owner',
+    isPlatform: false,
+    joinedAt: '2026-01-01T00:00:00.000Z',
+  })
+
+  it('rejects when the API repeats a cursor', async () => {
+    let calls = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        calls += 1
+        return ok(
+          listPage([member(`t${calls}`)], { nextCursor: 'same', hasNext: true }),
+          'Tenants retrieved.'
+        )
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    await expect(client.fetchQuery(tenantsQueryOptions())).rejects.toThrow(/cursor/i)
+    expect(calls).toBe(2)
+  })
+
+  it('rejects past 50 pages', async () => {
+    let calls = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        calls += 1
+        return ok(
+          listPage([member(`t${calls}`)], { nextCursor: `c${calls}`, hasNext: true }),
+          'Tenants retrieved.'
+        )
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    await expect(client.fetchQuery(tenantsQueryOptions())).rejects.toThrow(/pages/i)
+    expect(calls).toBe(50)
+  })
+
+  it('lists a tenant that appears on two pages once', async () => {
+    server.use(
+      http.get('/api/v1/tenants', ({ request }) =>
+        new URL(request.url).searchParams.get('cursor') === 'c2'
+          ? ok(listPage([member('acme'), member('beta')]), 'Tenants retrieved.')
+          : ok(
+              listPage([member('acme')], { nextCursor: 'c2', hasNext: true }),
+              'Tenants retrieved.'
+            )
+      )
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    const rows = await client.fetchQuery(tenantsQueryOptions())
+
+    expect(rows.map((entry) => entry.tenant.slug)).toEqual(['acme', 'beta'])
+  })
+
+  it('caches nothing when a later page fails', async () => {
+    server.use(
+      http.get('/api/v1/tenants', ({ request }) =>
+        new URL(request.url).searchParams.get('cursor') === 'c2'
+          ? fail('Something went wrong.', 500)
+          : ok(
+              listPage([member('acme')], { nextCursor: 'c2', hasNext: true }),
+              'Tenants retrieved.'
+            )
+      )
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    await expect(client.fetchQuery(tenantsQueryOptions())).rejects.toThrow()
+    expect(client.getQueryData(tenantKeys.list)).toBeUndefined()
   })
 })

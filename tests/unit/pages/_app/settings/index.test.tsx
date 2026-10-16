@@ -14,6 +14,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -77,7 +78,7 @@ describe('settings landing page', () => {
   })
 
   it('links workspace pages to the remembered tenant', async () => {
-    server.use(http.get('/api/v1/tenants', () => ok([ACME_ROW], 'Tenants.')))
+    server.use(http.get('/api/v1/tenants', () => ok(listPage([ACME_ROW]), 'Tenants.')))
     useCurrentTenantStore.getState().remember(testUser.id, 'acme')
     renderAt('/settings')
     const workspace = await screen.findByRole('region', { name: 'Workspace' })

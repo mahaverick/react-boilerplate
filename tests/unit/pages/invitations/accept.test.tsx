@@ -14,6 +14,7 @@ import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import {
   fail,
   ok,
@@ -95,7 +96,17 @@ function countPreviews(answer = () => ok(testInvitationPreview, 'Invitation retr
 function mockTenantRoute() {
   server.use(
     http.get('/api/v1/tenants', () =>
-      ok([{ tenant: TENANT, role: 'editor' }], 'Tenants retrieved.')
+      ok(
+        listPage([
+          {
+            tenant: TENANT,
+            role: 'editor',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ]),
+        'Tenants retrieved.'
+      )
     ),
     http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'editor'), 'Tenant retrieved.'))
   )
@@ -244,7 +255,15 @@ describe('accept page, signed in', () => {
       http.post('/api/v1/invitations/accept', async ({ request }) => {
         body = await request.json()
         authorization = request.headers.get('authorization')
-        return ok({ tenant: { name: 'Acme Corp', slug: 'acme' }, role: 'editor' }, 'Accepted.')
+        return ok(
+          {
+            tenant: { name: 'Acme Corp', slug: 'acme' },
+            role: 'editor',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+          'Accepted.'
+        )
       })
     )
     const user = userEvent.setup()
@@ -267,7 +286,15 @@ describe('accept page, signed in', () => {
     // Invited as editor but already an admin: the server keeps the admin role and answers with it.
     server.use(
       http.post('/api/v1/invitations/accept', () =>
-        ok({ tenant: { name: 'Acme Corp', slug: 'acme' }, role: 'admin' }, 'Accepted.')
+        ok(
+          {
+            tenant: { name: 'Acme Corp', slug: 'acme' },
+            role: 'admin',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+          'Accepted.'
+        )
       )
     )
     const user = userEvent.setup()

@@ -29,8 +29,6 @@ describe('AUDIT_ACTIONS', () => {
         'tenant.created',
         'tenant.settings_updated',
         'tenant.updated',
-        'tenant.errors_viewed',
-        'user.errors_viewed',
       ].sort()
     )
     for (const action of AUDIT_ACTIONS) expect(AUDIT_ACTION_LABELS[action]).not.toBe('')
@@ -116,10 +114,16 @@ describe('auditSentence', () => {
       { reason: 'Stuck', recipientCount: 1, emailDomains: ['acme.test'], messageIds: [] },
       'sent an onboarding reminder to 1 owner',
     ],
-    ['user.errors_viewed', {}, 'viewed a user’s errors'],
-    ['tenant.errors_viewed', {}, 'viewed a tenant’s errors'],
   ])('%s reads as a sentence', (action, metadata, sentence) => {
     expect(auditSentence({ action, metadata })).toBe(sentence)
+  })
+
+  it.each([
+    ['tenant.errors_viewed', 'performed tenant errors viewed'],
+    ['user.timeline_viewed', 'performed user timeline viewed'],
+  ])('reads a retired action (%s) through the fallback sentence', (action, sentence) => {
+    expect(isAuditAction(action)).toBe(false)
+    expect(auditSentence({ action, metadata: {} })).toBe(sentence)
   })
 
   it('degrades rather than throwing on missing or mistyped metadata', () => {
@@ -130,7 +134,7 @@ describe('auditSentence', () => {
       'updated the tenant'
     )
     expect(auditSentence({ action: 'tenant.archived', metadata: {} })).toBe(
-      'performed tenant.archived'
+      'performed tenant archived'
     )
     expect(
       auditSentence({

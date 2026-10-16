@@ -1,12 +1,13 @@
 import { IconBuilding } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useRef, type Ref } from 'react'
 import { z } from 'zod'
-import { LoadError } from '@/components/features/load-error'
+import { MyTenantsTable } from '@/components/features/tenant/my-tenants-table'
 import { BusyButton } from '@/components/shared/busy-button'
+import { useListQuery } from '@/components/shared/data-table/use-list-query'
+import { useListSearch } from '@/components/shared/data-table/use-list-search'
 import { EmptyState } from '@/components/shared/empty-state'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -20,72 +21,25 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from '@/components/ui/item'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { pageTitle } from '@/constants/app'
-import { ROLE_LABELS } from '@/constants/roles'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { toast } from '@/lib/toast'
-import { useCreateTenant, useTenants, type TenantWithRole } from '@/queries/tenant.queries'
+import { myTenantsList, myTenantsListOptions, useCreateTenant } from '@/queries/tenant.queries'
 import { newTenantSchema, slugSchema } from '@/schemas/tenant.schemas'
 
 /** The caller's tenant list and the form to create another. */
 export const Route = createFileRoute('/_app/tenants/')({
-  head: () => ({ meta: [{ title: pageTitle('Tenants') }] }),
+  validateSearch: myTenantsList.schema,
   staticData: { crumb: 'Tenants' },
+  head: () => ({ meta: [{ title: pageTitle('Tenants') }] }),
   component: TenantsPage,
 })
 
 /** What the list says when it could not be loaded: a claim about the request, not the account. */
 const TENANTS_ERROR =
   'We could not load your tenants, so none are listed here. This is not a sign that you have none.'
-
-/**
- * One tenant: the whole row is one link, and the role badge states the role in
- * words. A suspended tenant's own routes answer 404, so its row is not a link:
- * it says "Suspended" instead of leading to a dead end.
- */
-function TenantRow({ entry }: { entry: TenantWithRole }) {
-  const suspended = entry.tenant.lifecycleState === 'suspended'
-  const content = (
-    <>
-      <ItemContent className="min-w-0">
-        <ItemTitle className="line-clamp-none">{entry.tenant.name}</ItemTitle>
-        <ItemDescription className="line-clamp-none">/{entry.tenant.slug}</ItemDescription>
-      </ItemContent>
-      <ItemActions>
-        {suspended && <Badge variant="outline">Suspended</Badge>}
-        <Badge variant="secondary">{ROLE_LABELS[entry.role]}</Badge>
-      </ItemActions>
-    </>
-  )
-  return (
-    <div role="listitem">
-      {suspended ? (
-        <Item variant="outline" size="sm">
-          {content}
-        </Item>
-      ) : (
-        <Item
-          variant="outline"
-          size="sm"
-          render={<Link to="/tenants/$slug" params={{ slug: entry.tenant.slug }} />}
-        >
-          {content}
-        </Item>
-      )}
-    </div>
-  )
-}
 
 /**
  * The create-tenant form. The whole schema validates on submit only, so typing
@@ -193,12 +147,14 @@ function CreateTenantCard({ cardRef }: { cardRef: Ref<HTMLDivElement> }) {
 }
 
 /**
- * The tenant list and the create form. The error branch comes before the empty
- * one, since a failed load and an account with no tenants render alike, and an
- * empty state would invite the reader to create a duplicate.
+ * The tenant list and the create form. The list's loading, error and empty
+ * states are `DataTable`'s: a failed load is never the empty state, since the
+ * two render alike and an empty state would invite the reader to create a
+ * duplicate.
  */
 function TenantsPage() {
-  const tenants = useTenants()
+  const list = useListSearch(myTenantsList)
+  const tenants = useListQuery(list, myTenantsListOptions)
   const createCard = useRef<HTMLDivElement>(null)
 
   /** Brings the create form into view and puts the cursor in its first field. */
@@ -217,31 +173,22 @@ function TenantsPage() {
           <CardDescription>Every organization this account belongs to.</CardDescription>
         </CardHeader>
         <CardContent>
-          {tenants.isPending ? (
-            <div className="grid gap-2">
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-            </div>
-          ) : tenants.isError ? (
-            <LoadError message={TENANTS_ERROR} onRetry={() => void tenants.refetch()} />
-          ) : tenants.data && tenants.data.length > 0 ? (
-            <ItemGroup className="gap-2 has-data-[size=sm]:gap-2">
-              {tenants.data.map((entry) => (
-                <TenantRow key={entry.tenant.id} entry={entry} />
-              ))}
-            </ItemGroup>
-          ) : (
-            <EmptyState
-              icon={<IconBuilding aria-hidden="true" />}
-              title="You do not belong to any tenants yet."
-              description="Create one below."
-              action={
-                <Button variant="outline" size="sm" onClick={showCreateForm}>
-                  Create a tenant
-                </Button>
-              }
-            />
-          )}
+          <MyTenantsTable
+            query={tenants}
+            errorMessage={TENANTS_ERROR}
+            empty={
+              <EmptyState
+                icon={<IconBuilding aria-hidden="true" />}
+                title="You do not belong to any tenants yet."
+                description="Create one below."
+                action={
+                  <Button variant="outline" size="sm" onClick={showCreateForm}>
+                    Create a tenant
+                  </Button>
+                }
+              />
+            }
+          />
         </CardContent>
       </Card>
       <CreateTenantCard cardRef={createCard} />

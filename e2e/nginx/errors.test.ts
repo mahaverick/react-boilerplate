@@ -95,7 +95,19 @@ async function stubApi(page: Page, options: StubOptions = {}): Promise<void> {
       )
     }
     if (pathname === '/api/v1/tenants') {
-      return route.fulfill(envelope([{ tenant: TENANT_ROW, role: 'owner', isPlatform: false }]))
+      return route.fulfill(
+        envelope({
+          items: [
+            {
+              tenant: TENANT_ROW,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+          page: { nextCursor: null, prevCursor: null, hasNext: false, hasPrev: false, limit: 20 },
+        })
+      )
     }
     if (pathname === '/api/v1/tenants/acme') {
       if (tenantDetail === 'network') return route.abort('failed')

@@ -1,29 +1,7 @@
+import { AUDIT_ACTIONS, type AuditAction } from '@/constants/audit-action-names'
 import { MEMBERSHIP_ROLES, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
 
-/** The audit actions this app has wording for. An action the server writes that is not listed still renders, through the fallback sentence. */
-export const AUDIT_ACTIONS = [
-  'tenant.created',
-  'tenant.updated',
-  'tenant.settings_updated',
-  'member.role_changed',
-  'member.removed',
-  'member.left',
-  'invitation.created',
-  'invitation.resent',
-  'invitation.revoked',
-  'invitation.accepted',
-  'platform.member.auto_joined',
-  'platform.member.granted',
-  'tenant.accessed_by_platform',
-  'onboarding.dismissed',
-  'onboarding.undismissed',
-  'onboarding.step_completed',
-  'onboarding.reminder_sent',
-  'user.errors_viewed',
-  'tenant.errors_viewed',
-] as const
-/** An audit action this app has wording for. */
-export type AuditAction = (typeof AUDIT_ACTIONS)[number]
+export { AUDIT_ACTIONS, type AuditAction } from '@/constants/audit-action-names'
 
 /** Whether a string from the API is an action this app has wording for. */
 export function isAuditAction(value: string): value is AuditAction {
@@ -49,8 +27,6 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'onboarding.undismissed': 'Getting started shown',
   'onboarding.step_completed': 'Onboarding step completed',
   'onboarding.reminder_sent': 'Onboarding reminder sent',
-  'user.errors_viewed': 'User errors viewed',
-  'tenant.errors_viewed': 'Tenant errors viewed',
 }
 
 /** An audit row's per-action metadata, whose shape the server owns, so it is read defensively. */
@@ -127,8 +103,15 @@ const SENTENCES: Record<AuditAction, (metadata: Metadata) => string> = {
   'onboarding.undismissed': () => 'showed the getting started checklist again',
   'onboarding.step_completed': (m) => `marked ${stepName(m)} complete`,
   'onboarding.reminder_sent': (m) => `sent an onboarding reminder to ${recipients(m)}`,
-  'user.errors_viewed': () => 'viewed a user’s errors',
-  'tenant.errors_viewed': () => 'viewed a tenant’s errors',
+}
+
+/**
+ * An action name as words ("tenant errors viewed"), for a stored action this
+ * app has no sentence for.
+ * @param action - The stored action name, such as `tenant.errors_viewed`.
+ */
+function readableAction(action: string): string {
+  return action.replaceAll(/[._]+/g, ' ')
 }
 
 /**
@@ -139,7 +122,7 @@ export function auditSentence(entry: { action: string; metadata: Metadata }): st
   const build: ((metadata: Metadata) => string) | undefined = isAuditAction(entry.action)
     ? SENTENCES[entry.action]
     : undefined
-  return build ? build(entry.metadata) : `performed ${entry.action}`
+  return build ? build(entry.metadata) : `performed ${readableAction(entry.action)}`
 }
 
 /**

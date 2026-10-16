@@ -10,8 +10,28 @@ import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { build } from 'vite'
 
-/** The ceiling for first-visit JS in bytes. Raise it only with a measured reason. */
-const ENTRY_BUDGET_BYTES = 584_000
+/**
+ * The ceiling for first-visit JS in bytes. Raise it only with a measured reason.
+ * The list contract's route schemas (`defineList` in `list.schemas`, `searchText`)
+ * and the list query options reach the entry through every list route's
+ * `validateSearch` and the tenant queries; they add no zod classes the entry did
+ * not already carry (the number, literal and boolean schemas are `z.custom`).
+ * The request builder sits in `list-request.schemas`, which only the list table
+ * loads, and `MEMBERSHIP_ROLES` has its own module. What the entry gained is the
+ * list contract's own code and the paged membership read. Measured with the
+ * Tenants list moved: 586,000 B. The members page's two route schemas, its
+ * owner-count rule and the page query options reach it through `tenant.queries`
+ * and the members route's `validateSearch`, again with no new zod class: 586,272 B.
+ * The owners read's own query function and the member writes' invitation
+ * refresh add 152 B: 586,424 B. The activity route's list schema (three
+ * filters), its page query options and the audit action names (a module of
+ * their own, so the sentences stay out of the entry) add 729 B: 587,153 B,
+ * again with no new zod class. The inbox's writes then left the entry and
+ * `_app`'s guard became lazy, which took it to 586,530 B; the members read's
+ * `total` opt-out added 67 B: 586,597 B. The budget is that measurement rounded
+ * up to the next 100 B, so any new entry code raises it with its own reason.
+ */
+const ENTRY_BUDGET_BYTES = 586_600
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

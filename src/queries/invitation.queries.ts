@@ -66,6 +66,7 @@ export function useAcceptInvitation() {
         exact: true,
         refetchType: 'all',
       })
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.pages, refetchType: 'all' })
       await refreshProfile(queryClient)
     },
   })

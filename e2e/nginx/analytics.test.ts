@@ -179,13 +179,15 @@ async function stubSignedInApi(page: Page): Promise<void> {
     }
     if (pathname === '/api/v1/tenants') {
       return route.fulfill(
-        envelope(
-          (['acme', 'globex'] as const).map((slug) => ({
+        envelope({
+          items: (['acme', 'globex'] as const).map((slug) => ({
             tenant: tenantRow(slug),
             role: 'owner',
             isPlatform: false,
-          }))
-        )
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          })),
+          page: { nextCursor: null, prevCursor: null, hasNext: false, hasPrev: false, limit: 20 },
+        })
       )
     }
     // Express's flag answer: the CTA experiment at bold, so events can be checked for its $feature property.
@@ -681,9 +683,9 @@ test.describe('analytics end to end, through express', () => {
     await page.getByRole('button', { name: /^Resend invitation to/ }).click()
     await expect(page.getByText(/^Invitation resent to/)).toBeVisible()
     await page.goto(`/settings/workspace/${slug}/activity`)
-    await expect(page.getByRole('list', { name: 'Activity' })).toBeVisible()
-    await page.getByRole('combobox', { name: 'Filter by who acted' }).click()
-    await page.getByRole('option', { name: 'Staff' }).click()
+    await expect(page.getByRole('table', { name: 'Activity' })).toBeVisible()
+    await page.getByRole('button', { name: 'Filter by access, Activity' }).click()
+    await page.getByRole('checkbox', { name: 'Staff' }).click()
 
     // The control: the walk really was captured, replay included, and decoded.
     await replayContains(fake, 'Pending invitations')

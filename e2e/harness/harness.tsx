@@ -28,6 +28,7 @@ import {
   USER_ID,
   USER_ID_2,
 } from '../../tests/fixtures/ids'
+import { listPage } from '../../tests/fixtures/list-page'
 
 const TENANT = {
   id: TENANT_ID,
@@ -271,9 +272,9 @@ const flagHandlers =
 
 const membersHandler =
   state === 'soleowner'
-    ? http.get('/api/v1/tenants/acme/members', () => ok(SOLE_OWNER, 'Members retrieved.'))
+    ? http.get('/api/v1/tenants/acme/members', () => ok(listPage(SOLE_OWNER), 'Members retrieved.'))
     : state === 'empty'
-      ? http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))
+      ? http.get('/api/v1/tenants/acme/members', () => ok(listPage([]), 'Members retrieved.'))
       : state === 'error'
         ? http.get(
             '/api/v1/tenants/acme/members',
@@ -286,7 +287,7 @@ const membersHandler =
         : state === 'loading'
           ? http.get('/api/v1/tenants/acme/members', () => new Promise<Response>(() => {}))
           : http.get('/api/v1/tenants/acme/members', () =>
-              ok(selfRole ? NON_OWNER_MEMBERS : MEMBERS, 'Members retrieved.')
+              ok(listPage(selfRole ? NON_OWNER_MEMBERS : MEMBERS), 'Members retrieved.')
             )
 
 /**
@@ -321,14 +322,18 @@ const worker = setupWorker(
   ...flagHandlers,
   http.get('/api/v1/tenants', () =>
     ok(
-      asStaff
-        ? []
-        : [
-            {
-              tenant: suspended ? { ...TENANT, lifecycleState: 'suspended' } : TENANT,
-              role: selfRole ?? 'owner',
-            },
-          ],
+      listPage(
+        asStaff
+          ? []
+          : [
+              {
+                tenant: suspended ? { ...TENANT, lifecycleState: 'suspended' } : TENANT,
+                role: selfRole ?? 'owner',
+                isPlatform: false,
+                joinedAt: '2026-01-01T00:00:00.000Z',
+              },
+            ]
+      ),
       'Tenants retrieved.'
     )
   ),
@@ -353,7 +358,9 @@ const worker = setupWorker(
   membersHandler,
   http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.')),
   // The members page lists pending invitations for an owner; unmocked, this 401s and signs the harness user out.
-  http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
+  http.get('/api/v1/tenants/acme/invitations', () =>
+    ok(listPage(INVITATIONS), 'Invitations retrieved.')
+  ),
   http.post('/api/v1/tenants/acme/invitations/:id/resend', () =>
     ok(null, 'If that address can be invited, an invitation has been sent.')
   ),
@@ -363,8 +370,8 @@ const worker = setupWorker(
   http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
   http.get('/api/v1/tenants/acme/audit-log', () =>
     ok(
-      {
-        entries: [
+      listPage(
+        [
           {
             id: AUDIT_ID_2,
             occurredAt: '2026-09-25T10:00:00.000Z',
@@ -384,14 +391,19 @@ const worker = setupWorker(
             metadata: { name: 'Acme Corp', slug: 'acme' },
           },
         ],
-        nextCursor: 'c2',
-      },
+        { nextCursor: 'c2', hasNext: true }
+      ),
       'Audit log retrieved.'
     )
   ),
-  http.get('/api/v1/notifications', () =>
-    ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
-  ),
+  http.get('/api/v1/notifications', ({ request }) => {
+    // The bell and the nav badge read the unread view's total; the inbox reads all of them.
+    const unreadOnly = new URL(request.url).searchParams.get('unread') === 'true'
+    const rows = unreadOnly
+      ? NOTIFICATIONS.filter((notification) => notification.readAt === null)
+      : NOTIFICATIONS
+    return ok(listPage(rows, {}, { count: rows.length, capped: false }), 'Notifications retrieved.')
+  }),
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: PREFERENCES }, 'Notification preferences retrieved.')
   ),

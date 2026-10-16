@@ -33,6 +33,7 @@ import {
   USER_ID,
   USER_ID_2,
 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import {
   fail,
   ok,
@@ -159,11 +160,23 @@ const PREFERENCES = [
 function mockSignedInData() {
   server.use(
     http.get('/api/v1/tenants', () =>
-      ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+      ok(
+        listPage([
+          {
+            tenant: TENANT,
+            role: 'owner',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ]),
+        'Tenants retrieved.'
+      )
     ),
     http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')),
-    http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.')),
-    http.get('/api/v1/tenants/acme/invitations', () => ok(INVITATIONS, 'Invitations retrieved.')),
+    http.get('/api/v1/tenants/acme/members', () => ok(listPage(MEMBERS), 'Members retrieved.')),
+    http.get('/api/v1/tenants/acme/invitations', () =>
+      ok(listPage(INVITATIONS), 'Invitations retrieved.')
+    ),
     http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
     // The Beta tab and page are graded too, so the flag is on.
     http.get('/api/v1/tenants/acme/flags', () =>
@@ -173,10 +186,13 @@ function mockSignedInData() {
       ok({ slug: 'acme', enabledAt: '2026-10-05T09:00:00.000Z' }, 'Beta retrieved.')
     ),
     http.get('/api/v1/tenants/acme/audit-log', () =>
-      ok({ entries: AUDIT_ENTRIES, nextCursor: 'c2' }, 'Audit log retrieved.')
+      ok(listPage(AUDIT_ENTRIES, { nextCursor: 'c2', hasNext: true }), 'Audit log retrieved.')
     ),
     http.get('/api/v1/notifications', () =>
-      ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
+      ok(
+        listPage(NOTIFICATIONS, {}, { count: NOTIFICATIONS.length, capped: false }),
+        'Notifications retrieved.'
+      )
     ),
     http.get('/api/v1/notifications/preferences', () =>
       ok({ preferences: PREFERENCES }, 'Notification preferences retrieved.')
@@ -545,7 +561,7 @@ describe('signed-in pages', () => {
       '/settings/workspace/acme/members',
       // Both lists: the member table and the pending invitations under it.
       async () => {
-        await screen.findByRole('table')
+        await screen.findByRole('table', { name: 'Members' })
         return screen.findByText('invitee@b.com')
       },
     ],
@@ -581,7 +597,16 @@ describe('signed-in pages', () => {
     useCurrentTenantStore.setState({ remembered: {} })
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: { ...TENANT, lifecycleState: 'suspended' },
+              role: 'owner',
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     renderAppAt('/settings/account/profile')
@@ -597,14 +622,20 @@ describe('signed-in pages', () => {
     ['missing', [], 'Tenant not available'],
     [
       'suspended',
-      [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
+      [
+        {
+          tenant: { ...TENANT, lifecycleState: 'suspended' },
+          role: 'owner',
+          joinedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
       'Tenant suspended',
     ],
   ])(
     'a workspace settings page for a %s tenant has one h1 and no axe violations',
     async (_name, list, panel) => {
       server.use(
-        http.get('/api/v1/tenants', () => ok(list, 'Tenants.')),
+        http.get('/api/v1/tenants', () => ok(listPage(list), 'Tenants.')),
         http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
       )
       renderAppAt('/settings/workspace/acme/members')
@@ -618,7 +649,16 @@ describe('signed-in pages', () => {
   it('tenants list with a suspended row has no axe violations', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: { ...TENANT, lifecycleState: 'suspended' },
+              role: 'owner',
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     renderAppAt('/tenants')
@@ -629,7 +669,16 @@ describe('signed-in pages', () => {
   it('suspended tenant page has no axe violations', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: { ...TENANT, lifecycleState: 'suspended' },
+              role: 'owner',
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       ),
       http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
     )
@@ -884,13 +933,32 @@ describe('open overlays', () => {
       )
     )
     renderAppAt('/settings/workspace/acme/members')
-    await screen.findByRole('table')
+    await screen.findByRole('table', { name: 'Members' })
     await screen.findByText('invitee@b.com')
 
     expect(
       screen.getByText('You’re viewing this tenant as staff. Make changes from the staff console.')
     ).toBeInTheDocument()
     await expectNoViolations()
+  })
+
+  it('has no violations with a facet popover open on the members list', async () => {
+    renderAppAt('/settings/workspace/acme/members')
+    await screen.findByRole('table', { name: 'Members' })
+    const members = screen.getByRole('region', { name: 'Members' })
+    await userEvent
+      .setup()
+      .click(within(members).getByRole('button', { name: 'Filter by role, Members' }))
+    await screen.findByRole('dialog', { name: 'Filter by role, Members' })
+    await expectNoViolations()
+  })
+
+  it('has no violations with the column menu open on the members list', async () => {
+    renderAppAt('/settings/workspace/acme/members')
+    await screen.findByRole('table', { name: 'Members' })
+    const members = screen.getByRole('region', { name: 'Members' })
+    await userEvent.setup().click(within(members).getByRole('button', { name: 'Columns, Members' }))
+    await expectNoViolationsIn(await screen.findByRole('menu'))
   })
 
   it('has no violations with the member list stacked as cards on a phone', async () => {
@@ -901,6 +969,7 @@ describe('open overlays', () => {
     await screen.findByText('invitee@b.com')
 
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'Members' })).toBeInTheDocument()
     await expectNoViolations()
   })
 

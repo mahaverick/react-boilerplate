@@ -5,10 +5,11 @@ import { TenantMembersPanel } from '@/components/features/tenant/tenant-members-
 import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
-import { useMyRole } from '@/queries/tenant.queries'
+import { membersList, useMyRole } from '@/queries/tenant.queries'
 
 /** Settings › Workspace › Members: the member list with role, remove and leave actions, and pending invitations. */
 export const Route = createFileRoute('/_app/settings/workspace/$slug/members')({
+  validateSearch: membersList.schema,
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Members · ${params.slug}`) }] }),
   staticData: { crumb: 'Members' },
   component: WorkspaceMembers,

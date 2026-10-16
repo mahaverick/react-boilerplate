@@ -85,3 +85,5 @@ export const AUDIT_ID_1 = '60000000-0000-4000-8000-000000000001'
 export const AUDIT_ID_2 = '60000000-0000-4000-8000-000000000002'
 /** The invitation entry whose actor has no name on file, in the activity tests. */
 export const AUDIT_ID_3 = '60000000-0000-4000-8000-000000000003'
+/** An older entry, for paging and retired-action rows in the activity tests. */
+export const AUDIT_ID_4 = '60000000-0000-4000-8000-000000000004'

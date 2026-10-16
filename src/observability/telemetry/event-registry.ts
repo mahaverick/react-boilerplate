@@ -42,6 +42,10 @@ export interface BrowserEventProps {
   feature_cta_clicked: { cta: AnalyticsKey }
   /** A list's filters or search changed; which values were chosen is never sent. */
   table_filtered: { table: AnalyticsKey }
+  /** A list was sorted from a column header or the card sort menu: which list and column, and the direction, never a row. `sort` is `default` when the menu's "Default order" was chosen, which no column owns. */
+  table_sorted: { table: AnalyticsKey; sort: AnalyticsKey; direction: 'asc' | 'desc' | 'default' }
+  /** A list moved one page. */
+  table_paged: { table: AnalyticsKey; direction: 'next' | 'prev' }
   /** A list was exported. */
   table_exported: { table: AnalyticsKey }
   /** The maintenance page (`full`) or the read-only banner was shown, once per maintenance period. */

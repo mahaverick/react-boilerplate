@@ -84,7 +84,7 @@ export function FormFieldsSkeleton({
   return (
     <div className="grid gap-4">
       {Array.from({ length: fields }, (_, field) => (
-        <div key={field} className="grid gap-2">
+        <div key={field} data-slot="field-skeleton" className="grid gap-2">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-9 w-full" />
         </div>

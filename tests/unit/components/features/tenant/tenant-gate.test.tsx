@@ -14,6 +14,7 @@ import { queryClient } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
 import { readRememberedTenant, useCurrentTenantStore } from '@/states/current-tenant.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -74,7 +75,7 @@ describe('TenantGate', () => {
   it('says the tenant is not available on a 404, without remembering it', async () => {
     server.use(
       http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404)),
-      http.get('/api/v1/tenants', () => ok([], 'Tenants.'))
+      http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants.'))
     )
     renderGate('acme')
     expect(await screen.findByRole('heading', { name: 'Tenant not available' })).toBeInTheDocument()
@@ -85,7 +86,17 @@ describe('TenantGate', () => {
     server.use(
       http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404)),
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: { ...ACME, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: { ...ACME, lifecycleState: 'suspended' },
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     renderGate('acme')

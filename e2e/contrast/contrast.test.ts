@@ -382,7 +382,10 @@ test.describe('popups that are not menus', () => {
       })
 
       // Cleo is a plain member and not the last owner, so her row's Remove is the enabled one.
-      const row = page.getByRole('row').filter({ hasText: 'Cleo' })
+      const row = page
+        .getByRole('region', { name: 'Members' })
+        .getByRole('row')
+        .filter({ hasText: 'Cleo' })
       await row.getByRole('button', { name: 'Remove' }).click()
       const confirm = page.getByRole('alertdialog')
       await expect(confirm).toBeVisible()
@@ -396,6 +399,58 @@ test.describe('popups that are not menus', () => {
       expect(
         report('remove-member confirm', theme, result),
         report('remove-member confirm', theme, result)
+      ).toBe('')
+    })
+
+    test(`the list toolbar, a facet popover, its chips and the column menu meet WCAG AA contrast in ${theme}`, async ({
+      page,
+    }) => {
+      // The facet popover, the chip row and the column menu carry their own tokens, and no page entry opens them.
+      await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
+      await page.goto('/e2e/harness/')
+      await expect(page.getByRole('table', { name: 'Members' })).toBeVisible({
+        timeout: COLD_TRANSFORM_BUDGET_MS,
+      })
+
+      const members = page.getByRole('region', { name: 'Members' })
+      await members.getByRole('button', { name: 'Filter by role, Members' }).click()
+      const facet = page.getByRole('dialog', { name: 'Filter by role, Members' })
+      await expect(facet.getByRole('checkbox').first()).toBeVisible()
+      await afterAnimations(facet)
+      await afterFontsAndFrames(page)
+      await page.addScriptTag({ path: AXE_PATH })
+      const popup = await runAxe(page, '[role="dialog"]')
+      expect(report('facet popover', theme, popup), report('facet popover', theme, popup)).toBe('')
+
+      await facet.getByRole('checkbox', { name: 'Owner' }).click()
+      await page.keyboard.press('Escape')
+      await expect(
+        members.getByRole('button', { name: 'Remove filter: Role: Owner' })
+      ).toBeVisible()
+      const chips = await runAxe(page)
+      expect(report('filter chips', theme, chips), report('filter chips', theme, chips)).toBe('')
+
+      await members.getByRole('button', { name: 'Columns, Members' }).click()
+      const menu = page.getByRole('menu')
+      await expect(menu.getByRole('menuitemcheckbox').first()).toBeVisible()
+      await afterAnimations(menu)
+      const columns = await runAxe(page, '[role="menu"]')
+      expect(report('column menu', theme, columns), report('column menu', theme, columns)).toBe('')
+    })
+
+    test(`the notification cards on a phone meet WCAG AA contrast in ${theme}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 })
+      const result = await contrastOf(
+        page,
+        '/e2e/harness/?path=/notifications',
+        theme,
+        'Notifications'
+      )
+      expect(
+        report('notification cards', theme, result),
+        report('notification cards', theme, result)
       ).toBe('')
     })
   }
@@ -424,7 +479,7 @@ test.describe('staff surfaces', () => {
         theme,
         { name: 'Activity', level: 2 }
       )
-      const row = page.getByRole('listitem').filter({ hasText: 'Sam Staff' })
+      const row = page.getByRole('row').filter({ hasText: 'Sam Staff' })
       await expect(row.getByText('Staff', { exact: true })).toBeVisible()
       expect(report('staff badge', theme, result), report('staff badge', theme, result)).toBe('')
     })
@@ -452,10 +507,13 @@ test.describe('notes and errors', () => {
         name: 'Members',
         level: 2,
       })
-      const alert = page
+      // The members list and the owners read (the last-owner rule's) each show their own error with a retry, and the grade covers both.
+      const alerts = page
         .getByRole('alert')
         .filter({ has: page.getByRole('button', { name: 'Try again' }) })
-      await expect(alert).toBeVisible()
+      await expect(alerts).toHaveCount(2)
+      await expect(alerts.first()).toBeVisible()
+      await expect(alerts.last()).toBeVisible()
       expect(report('load error', theme, result), report('load error', theme, result)).toBe('')
     })
   }

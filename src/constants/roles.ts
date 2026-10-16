@@ -5,8 +5,9 @@
  * `canActorGrantRole`); collapsing any pair offers actions the API refuses.
  */
 
-/** Descending authority. Mirrors MEMBERSHIP_ROLES on the server. */
-export const MEMBERSHIP_ROLES = ['owner', 'admin', 'manager', 'editor', 'viewer'] as const
+import { MEMBERSHIP_ROLES } from '@/constants/membership-roles'
+
+export { MEMBERSHIP_ROLES }
 /** A role a tenant membership can hold; one of `MEMBERSHIP_ROLES`. */
 export type MembershipRole = (typeof MEMBERSHIP_ROLES)[number]
 

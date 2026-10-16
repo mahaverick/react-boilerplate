@@ -1,4 +1,5 @@
 import { IconBell } from '@tabler/icons-react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Badge } from '@/components/ui/badge'
@@ -13,19 +14,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ROUTES } from '@/constants/routes'
-import { flattenPages, unreadCount, useNotifications } from '@/queries/notification.queries'
-
-const PREVIEW_COUNT = 5
+import {
+  BELL_PREVIEW_LIMIT,
+  notificationsListOptions,
+  useUnreadCount,
+} from '@/queries/notification.queries'
 
 /**
  * The header's notification menu: an unread count and the latest few.
  *
- * The count comes from the loaded pages (the API has no unread-count
- * endpoint) and is unknown, not zero, until data exists. It lives in the
+ * The count is the API's capped total of the unread view (a second read, one
+ * row at a time), shown as "1,000+" at the cap, and is unknown, not zero,
+ * until that read lands. It lives in the
  * trigger's label, because Base UI's Tooltip emits neither role="tooltip" nor
  * aria-describedby and the badge is aria-hidden, so neither would carry it;
- * the label says "count unavailable" rather than "0 unread" when nothing has
- * loaded. The label sits on the rendered element, whose own props win under
+ * the label says "count unavailable" rather than "0 unread" when the count has
+ * not loaded. The label sits on the rendered element, whose own props win under
  * useRender.
  *
  * The `DropdownMenuGroup` is required: `DropdownMenuLabel` is Base UI's
@@ -39,15 +43,21 @@ const PREVIEW_COUNT = 5
  * Each preview is a real anchor (Base UI's Menu.Item has no `onSelect`), and
  * its unread dot is aria-hidden, since the label spells out the count.
  *
- * A failed read with nothing loaded marks the bell with a muted dot (hidden
- * from assistive tech; the label already says the count is unavailable) and
- * offers Try again in the menu.
+ * A failed unread read (or an answer with no total) marks the bell with a muted dot (hidden from
+ * assistive tech; the label already says the count is unavailable). A failed
+ * preview read offers Try again in the menu, which reads a failed count again
+ * too; a failed count alone gets its own Try again under the rows.
  */
 export function NotificationBell() {
-  const notifications = useNotifications()
-  const recent = flattenPages(notifications.data).slice(0, PREVIEW_COUNT)
-  const unread = unreadCount(notifications.data)
-  const isCountKnown = notifications.data !== undefined
+  const preview = useQuery(
+    notificationsListOptions({ limit: BELL_PREVIEW_LIMIT }, { total: false })
+  )
+  const recent = preview.data?.items ?? []
+  const unreadQuery = useUnreadCount()
+  const unread = unreadQuery.data
+  // A count answer without a total is as unknown as a failed one: neither is "0 unread".
+  const countFailed = unread === undefined && (unreadQuery.isError || unreadQuery.isSuccess)
+  const countText = unread && `${unread.count.toLocaleString('en-US')}${unread.capped ? '+' : ''}`
 
   return (
     <DropdownMenu>
@@ -58,22 +68,24 @@ export function NotificationBell() {
             size="icon"
             className="relative"
             aria-label={
-              isCountKnown ? `Notifications, ${unread} unread` : 'Notifications, count unavailable'
+              countText === undefined
+                ? 'Notifications, count unavailable'
+                : `Notifications, ${countText} unread`
             }
           />
         }
       >
         <IconBell aria-hidden="true" className="size-4" />
-        {unread > 0 && (
+        {unread !== undefined && unread.count > 0 && (
           <Badge
             variant="destructive"
             aria-hidden="true"
             className="absolute -top-1 -right-1 min-w-4 px-1"
           >
-            {unread}
+            {countText}
           </Badge>
         )}
-        {!isCountKnown && notifications.isError && (
+        {countFailed && (
           <span
             aria-hidden="true"
             data-slot="bell-unavailable"
@@ -92,19 +104,30 @@ export function NotificationBell() {
                 <span className="truncate">{notification.title}</span>
               </DropdownMenuItem>
             ))
-          ) : notifications.isError ? (
+          ) : preview.isError ? (
             <>
               <p className="p-2 text-center text-sm text-muted-foreground">
                 Notifications could not be loaded.
               </p>
-              <DropdownMenuItem closeOnClick={false} onClick={() => void notifications.refetch()}>
+              <DropdownMenuItem
+                closeOnClick={false}
+                onClick={() => {
+                  void preview.refetch()
+                  if (countFailed) void unreadQuery.refetch()
+                }}
+              >
                 Try again
               </DropdownMenuItem>
             </>
-          ) : notifications.isPending ? (
+          ) : preview.isPending ? (
             <p className="p-2 text-center text-sm text-muted-foreground">Loading notifications…</p>
           ) : (
             <EmptyState size="compact" title="You have no notifications." className="p-2" />
+          )}
+          {countFailed && !preview.isError && (
+            <DropdownMenuItem closeOnClick={false} onClick={() => void unreadQuery.refetch()}>
+              Try again
+            </DropdownMenuItem>
           )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

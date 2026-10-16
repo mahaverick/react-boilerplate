@@ -1,45 +1,69 @@
 import { IconBell, IconCheck, IconTrash } from '@tabler/icons-react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { LoadError } from '@/components/features/load-error'
-import { BusyButton } from '@/components/shared/busy-button'
+import { createColumnHelper } from '@tanstack/react-table'
+import type { RefCallback } from 'react'
+import { DataTable } from '@/components/shared/data-table/data-table'
+import type {
+  DataTableFeatures,
+  DataTableFilter,
+} from '@/components/shared/data-table/data-table-model'
+import { useListQuery } from '@/components/shared/data-table/use-list-query'
+import { useListSearch } from '@/components/shared/data-table/use-list-search'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from '@/components/ui/item'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
+import { useFocusAfter } from '@/hooks/use-focus-after'
 import { formatDateTime } from '@/lib/format'
 import { humanizeNotificationType } from '@/lib/notification-type'
 import { cn } from '@/lib/utils'
+import { notificationsList } from '@/queries/notification-list.queries'
 import {
-  flattenPages,
+  notificationsListOptions,
   useDeleteNotification,
   useMarkAllRead,
   useMarkRead,
-  useNotifications,
+  useUnreadCount,
   type Notification,
 } from '@/queries/notification.queries'
 
 /** The notification inbox; delivery preferences live in Settings. */
 export const Route = createFileRoute('/_app/notifications')({
-  head: () => ({ meta: [{ title: pageTitle('Notifications') }] }),
+  validateSearch: notificationsList.schema,
   staticData: { crumb: 'Notifications' },
+  head: () => ({ meta: [{ title: pageTitle('Notifications') }] }),
   component: NotificationsPage,
 })
 
 /** What the inbox says when its query failed, as opposed to came back empty. */
 const NOTIFICATIONS_ERROR =
   'We could not load your notifications, so none are listed here. This is not a sign that you have none.'
+
+const column = createColumnHelper<DataTableFeatures, Notification>()
+
+/** The inbox's fields; the cards are `NotificationRow`, so these only name them. */
+const columns = column.columns([
+  column.accessor('title', { header: 'Title' }),
+  column.accessor('type', { header: 'Type' }),
+  column.accessor('createdAt', { header: 'Received' }),
+])
+
+/** The read-state facet: unread or read, one at a time. */
+const FILTERS: readonly DataTableFilter[] = [
+  {
+    name: 'unread',
+    label: 'Status',
+    options: [
+      { value: 'true', label: 'Unread' },
+      { value: 'false', label: 'Read' },
+    ],
+    single: true,
+  },
+]
 
 /** The notification's own timestamp, in the reader's locale. */
 function receivedAt(createdAt: string): string {
@@ -52,7 +76,20 @@ function receivedAt(createdAt: string): string {
  * aria-labels (Base UI's Tooltip emits no role="tooltip" or aria-describedby),
  * which include the notification's title, since the page renders many.
  */
-function NotificationRow({ notification }: { notification: Notification }) {
+function NotificationRow({
+  notification,
+  target,
+  onRead,
+  onDeleted,
+}: {
+  notification: Notification
+  /** The card's focus-landmark ref, so focus can land on it. */
+  target: RefCallback<HTMLElement> | undefined
+  /** Called once the server has marked the card read. */
+  onRead: (id: string) => void
+  /** Called once the server has deleted the card. */
+  onDeleted: (id: string) => void
+}) {
   const markRead = useMarkRead()
   const remove = useDeleteNotification()
   const isUnread = notification.readAt === null
@@ -62,7 +99,9 @@ function NotificationRow({ notification }: { notification: Notification }) {
       variant="outline"
       size="sm"
       role="listitem"
-      className={cn('items-start', isUnread && 'bg-muted/50')}
+      ref={target}
+      tabIndex={-1}
+      className={cn('items-start outline-none', isUnread && 'bg-muted/50')}
     >
       <ItemContent className="min-w-0">
         <ItemTitle className="line-clamp-none">
@@ -86,7 +125,14 @@ function NotificationRow({ notification }: { notification: Notification }) {
             size="icon"
             aria-label={`Mark "${notification.title}" as read`}
             disabled={markRead.isPending}
-            onClick={() => markRead.mutate(notification.id)}
+            onClick={() =>
+              // The card may be gone before the server answers, so a mutate callback would never run.
+              void markRead.mutateAsync(notification.id).then(
+                () => onRead(notification.id),
+                // A failure restores the card and keeps focus on its button.
+                () => undefined
+              )
+            }
           >
             <IconCheck aria-hidden="true" className="size-4" />
           </Button>
@@ -96,7 +142,12 @@ function NotificationRow({ notification }: { notification: Notification }) {
           size="icon"
           aria-label={`Delete "${notification.title}"`}
           disabled={remove.isPending}
-          onClick={() => remove.mutate(notification.id)}
+          onClick={() =>
+            void remove.mutateAsync(notification.id).then(
+              () => onDeleted(notification.id),
+              () => undefined
+            )
+          }
         >
           <IconTrash aria-hidden="true" className="size-4" />
         </Button>
@@ -106,22 +157,42 @@ function NotificationRow({ notification }: { notification: Notification }) {
 }
 
 /**
- * The inbox. Its error branch comes
- * before its empty state: `rows` is `[]` for a failed load and an empty inbox
- * alike.
+ * The inbox: every notification as a card, a page at a time, with a search box
+ * and a read-state filter. The list's loading, error and empty states are
+ * `DataTable`'s, so a failed load is never the empty inbox. "Mark all read"
+ * shows while the API's unread total is above zero.
  */
 function NotificationsPage() {
-  const notifications = useNotifications()
+  const list = useListSearch(notificationsList)
+  const notifications = useListQuery(list, notificationsListOptions)
+  const unread = useUnreadCount().data
   const markAllRead = useMarkAllRead()
-  const rows = flattenPages(notifications.data)
-  const hasUnread = rows.some((notification) => notification.readAt === null)
+  const focus = useFocusAfter<'heading' | `card:${string}`>()
+  const unreadOnly = list.values.filters.unread?.includes('true') === true
+
+  /**
+   * Moves focus off the body once an action took the focused button away: to
+   * `own` when that card stays, else to the card after `id` as the page was
+   * when the button was used, else to the heading.
+   * @param id - The card that was acted on.
+   * @param own - Whether the card is still on the page.
+   */
+  const focusAfterAction = (id: string, own: boolean) => {
+    if (own) return focus.focusAfter(`card:${id}`)
+    const rows = notifications.query.data?.items ?? []
+    const index = rows.findIndex((row) => row.id === id)
+    const next = index === -1 ? undefined : rows[index + 1]
+    focus.focusAfter(next ? `card:${next.id}` : 'heading')
+  }
 
   return (
     <div className="grid gap-6">
       <Card>
         <CardHeader>
           <CardTitle>
-            <h1>Notifications</h1>
+            <h1 ref={focus.target('heading')} tabIndex={-1} className="outline-none">
+              Notifications
+            </h1>
           </CardTitle>
           <CardDescription>
             Everything this account has been sent, newest first.{' '}
@@ -129,7 +200,7 @@ function NotificationsPage() {
               Notification settings
             </Link>
           </CardDescription>
-          {hasUnread && (
+          {unread !== undefined && unread.count > 0 && (
             <div>
               <Button
                 variant="outline"
@@ -143,35 +214,32 @@ function NotificationsPage() {
           )}
         </CardHeader>
         <CardContent className="grid gap-3">
-          {notifications.isPending ? (
-            <div className="grid gap-2">
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-            </div>
-          ) : notifications.isError ? (
-            <LoadError message={NOTIFICATIONS_ERROR} onRetry={() => void notifications.refetch()} />
-          ) : rows.length === 0 ? (
-            <EmptyState icon={<IconBell aria-hidden="true" />} title="You have no notifications." />
-          ) : (
-            <ItemGroup className="gap-2 has-data-[size=sm]:gap-2">
-              {rows.map((notification) => (
-                <NotificationRow key={notification.id} notification={notification} />
-              ))}
-            </ItemGroup>
-          )}
-          {notifications.hasNextPage && (
-            <div>
-              <BusyButton
-                busy={notifications.isFetchingNextPage}
-                busyLabel="Loading…"
-                variant="outline"
-                onClick={() => void notifications.fetchNextPage()}
-              >
-                Load more
-              </BusyButton>
-            </div>
-          )}
+          <DataTable
+            columns={columns}
+            query={notifications}
+            label="Notifications"
+            errorMessage={NOTIFICATIONS_ERROR}
+            layout="cards"
+            getRowId={(notification) => notification.id}
+            rowTarget={(id) => focus.target(`card:${id}`)}
+            card={(notification, { target }) => (
+              <NotificationRow
+                key={notification.id}
+                notification={notification}
+                target={target}
+                onRead={(id) => focusAfterAction(id, !unreadOnly)}
+                onDeleted={(id) => focusAfterAction(id, false)}
+              />
+            )}
+            search={{ label: 'Search notifications', placeholder: 'Search by title or text' }}
+            filters={FILTERS}
+            empty={
+              <EmptyState
+                icon={<IconBell aria-hidden="true" />}
+                title="You have no notifications."
+              />
+            }
+          />
         </CardContent>
       </Card>
     </div>

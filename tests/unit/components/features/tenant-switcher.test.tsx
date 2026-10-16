@@ -14,6 +14,7 @@ import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { PLATFORM_TENANT_ID, TENANT_ID, TENANT_ID_2, TENANT_ID_9 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -86,7 +87,17 @@ describe('TenantSwitcher', () => {
   it('lists each tenant the account belongs to', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: ACME,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     renderShell()
@@ -100,7 +111,14 @@ describe('TenantSwitcher', () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
-          [{ tenant: { ...ACME, lifecycleState: 'suspended' }, role: 'owner', isPlatform: false }],
+          listPage([
+            {
+              tenant: { ...ACME, lifecycleState: 'suspended' },
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
           'Tenants.'
         )
       )
@@ -116,10 +134,20 @@ describe('TenantSwitcher', () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
-          [
-            { tenant: { ...ACME, lifecycleState: 'suspended' }, role: 'owner', isPlatform: false },
-            { tenant: BETA, role: 'owner', isPlatform: false },
-          ],
+          listPage([
+            {
+              tenant: { ...ACME, lifecycleState: 'suspended' },
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+            {
+              tenant: BETA,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
           'Tenants.'
         )
       )
@@ -140,10 +168,20 @@ describe('TenantSwitcher', () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
-          [
-            { tenant: ACME, role: 'owner', isPlatform: false },
-            { tenant: PLATFORM, role: 'viewer', isPlatform: true },
-          ],
+          listPage([
+            {
+              tenant: ACME,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+            {
+              tenant: PLATFORM,
+              role: 'viewer',
+              isPlatform: true,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
           'Tenants.'
         )
       )
@@ -159,7 +197,17 @@ describe('TenantSwitcher', () => {
     signInAs('viewer')
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: PLATFORM, role: 'viewer', isPlatform: true }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: PLATFORM,
+              role: 'viewer',
+              isPlatform: true,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     renderShell()
@@ -215,7 +263,17 @@ describe('TenantSwitcher', () => {
         calls += 1
         return calls <= 2
           ? fail('Something went wrong', 500)
-          : ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants retrieved.')
+          : ok(
+              listPage([
+                {
+                  tenant: ACME,
+                  role: 'owner',
+                  isPlatform: false,
+                  joinedAt: '2026-01-01T00:00:00.000Z',
+                },
+              ]),
+              'Tenants retrieved.'
+            )
       })
     )
     renderShell()
@@ -235,14 +293,19 @@ describe('TenantSwitcher', () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
-          [
-            { tenant: ACME, role: 'owner', isPlatform: false },
+          listPage([
+            {
+              tenant: ACME,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
             {
               tenant: tenantRow(TENANT_ID_9, 'Umbrella', 'umbrella'),
               role: 'viewer',
               isPlatform: false,
             },
-          ],
+          ]),
           'Tenants.'
         )
       )
@@ -289,10 +352,20 @@ describe('TenantSwitcher', () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
-          [
-            { tenant: ACME, role: 'owner', isPlatform: false },
-            { tenant: BETA, role: 'owner', isPlatform: false },
-          ],
+          listPage([
+            {
+              tenant: ACME,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+            {
+              tenant: BETA,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
           'Tenants.'
         )
       ),
@@ -315,10 +388,20 @@ describe('TenantSwitcher', () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
-          [
-            { tenant: ACME, role: 'owner', isPlatform: false },
-            { tenant: BETA, role: 'owner', isPlatform: false },
-          ],
+          listPage([
+            {
+              tenant: ACME,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+            {
+              tenant: BETA,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
           'Tenants.'
         )
       ),
@@ -336,7 +419,17 @@ describe('TenantSwitcher', () => {
   it('links the tenants page, where a tenant is created, and closes on the way', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: ACME,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     const router = renderShell()
@@ -355,7 +448,17 @@ describe('TenantSwitcher', () => {
   it('reaches the create-tenant link from the search box by keyboard', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: ACME,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     const router = renderShell()
@@ -392,7 +495,17 @@ describe('TenantSwitcher', () => {
   it('captions an open tenant as Tenant', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: ACME, role: 'owner', isPlatform: false }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: ACME,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     renderShell('/tenants/acme')

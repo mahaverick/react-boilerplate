@@ -10,6 +10,7 @@ import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { NOTIFICATION_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -24,12 +25,15 @@ const unreadRow: Notification = {
   createdAt: '2026-09-21T10:00:00.000Z',
 }
 
-/** Mounts the real route tree on `/notifications`. */
-function renderNotifications() {
+/**
+ * Mounts the real route tree on `/notifications`.
+ * @param path - The URL to open, search included.
+ */
+function renderNotifications(path = '/notifications') {
   const router = createRouter({
     routeTree,
     context: { queryClient },
-    history: createMemoryHistory({ initialEntries: ['/notifications'] }),
+    history: createMemoryHistory({ initialEntries: [path] }),
     ...ROUTER_DEFAULTS,
   })
   render(
@@ -51,7 +55,7 @@ describe('notifications page', () => {
     })
     server.use(
       http.get('/api/v1/notifications', () =>
-        ok({ notifications: [unreadRow] }, 'Notifications retrieved.')
+        ok(listPage([unreadRow], {}, { count: 1, capped: false }), 'Notifications retrieved.')
       )
     )
   })
@@ -74,6 +78,127 @@ describe('notifications page', () => {
     expect(inbox).toBeDefined()
     expect(within(inbox!).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     expect(screen.queryByText('You have no notifications.')).not.toBeInTheDocument()
+  })
+
+  it('shows the inbox as cards at every width, with a search box and paging', async () => {
+    renderNotifications()
+    const cards = await screen.findByRole('list', { name: 'Notifications' })
+    expect(within(cards).getByRole('listitem')).toHaveTextContent('Verify your email')
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Search notifications' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Notifications pagination' })).toBeInTheDocument()
+  })
+
+  it('shows only unread notifications through ?unread=true', async () => {
+    const seen: URLSearchParams[] = []
+    server.use(
+      http.get('/api/v1/notifications', ({ request }) => {
+        seen.push(new URL(request.url).searchParams)
+        return ok(listPage([unreadRow]), 'Notifications retrieved.')
+      })
+    )
+    const user = userEvent.setup()
+    renderNotifications()
+    await screen.findByRole('list', { name: 'Notifications' })
+    await user.click(screen.getByRole('button', { name: 'Filter by status, Notifications' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by status, Notifications' })
+    await user.click(within(popup).getByRole('checkbox', { name: 'Unread' }))
+    await waitFor(() =>
+      expect(
+        seen.some((params) => params.get('unread') === 'true' && params.get('limit') !== '1')
+      ).toBe(true)
+    )
+  })
+
+  it('searches the title and the text, and says only that', async () => {
+    const seen: URLSearchParams[] = []
+    server.use(
+      http.get('/api/v1/notifications', ({ request }) => {
+        seen.push(new URL(request.url).searchParams)
+        return ok(listPage([unreadRow]), 'Notifications retrieved.')
+      })
+    )
+    const user = userEvent.setup()
+    renderNotifications()
+    const box = await screen.findByRole('searchbox', { name: 'Search notifications' })
+    expect(box).toHaveAttribute('placeholder', 'Search by title or text')
+    await user.type(box, 'verify')
+    await waitFor(() => expect(seen.some((params) => params.get('search') === 'verify')).toBe(true))
+  })
+
+  it('refreshes the badge, the bell and the inbox when a row is marked read', async () => {
+    let unread = 1
+    const reads: URLSearchParams[] = []
+    server.use(
+      http.get('/api/v1/notifications', ({ request }) => {
+        const params = new URL(request.url).searchParams
+        reads.push(params)
+        const row = unread === 1 ? unreadRow : { ...unreadRow, readAt: '2026-09-21T11:00:00.000Z' }
+        return ok(listPage([row], {}, { count: unread, capped: false }), 'Notifications retrieved.')
+      }),
+      http.patch('/api/v1/notifications/:id/read', () => {
+        unread = 0
+        return ok({ ...unreadRow, readAt: '2026-09-21T11:00:00.000Z' }, 'Marked.')
+      })
+    )
+    const user = userEvent.setup()
+    renderNotifications()
+    await screen.findByRole('button', { name: 'Notifications, 1 unread' })
+    await user.click(
+      await screen.findByRole('button', { name: `Mark "${unreadRow.title}" as read` })
+    )
+    expect(await screen.findByRole('button', { name: 'Notifications, 0 unread' })).toBeVisible()
+    await waitFor(() => expect(screen.queryByText('Unread')).not.toBeInTheDocument())
+  })
+
+  it('has no sort menu, since the inbox has one order', async () => {
+    renderNotifications()
+    await screen.findByRole('list', { name: 'Notifications' })
+    expect(screen.queryByRole('button', { name: 'Sort by, Notifications' })).not.toBeInTheDocument()
+  })
+
+  describe('the unread count at the click', () => {
+    /** Serves a count of two, then holds every refetch so only the optimistic edit shows. */
+    async function openWithTwoUnread() {
+      server.use(
+        http.get('/api/v1/notifications', ({ request }) => {
+          const unreadOnly = new URL(request.url).searchParams.get('unread') === 'true'
+          return ok(
+            listPage([unreadRow], {}, unreadOnly ? { count: 2, capped: false } : undefined),
+            'Notifications retrieved.'
+          )
+        })
+      )
+      renderNotifications()
+      await screen.findByRole('button', { name: 'Notifications, 2 unread' })
+      const secondary = screen.getByRole('navigation', { name: 'Secondary' })
+      await within(secondary).findByRole('link', { name: 'Notifications, 2 unread' })
+      server.use(http.get('/api/v1/notifications', () => delay('infinite')))
+      return secondary
+    }
+
+    it('drops the bell and the badge before the request answers', async () => {
+      const secondary = await openWithTwoUnread()
+      server.use(http.patch('/api/v1/notifications/:id/read', () => delay('infinite')))
+      await userEvent
+        .setup()
+        .click(screen.getByRole('button', { name: `Mark "${unreadRow.title}" as read` }))
+
+      expect(await screen.findByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible()
+      expect(within(secondary).getByRole('link', { name: 'Notifications, 1 unread' })).toBeVisible()
+    })
+
+    it('puts them back when the request fails', async () => {
+      const secondary = await openWithTwoUnread()
+      server.use(http.patch('/api/v1/notifications/:id/read', () => fail('Not found', 404)))
+      await userEvent
+        .setup()
+        .click(screen.getByRole('button', { name: `Mark "${unreadRow.title}" as read` }))
+
+      await waitFor(() => expect(screen.getByText('Unread')).toBeInTheDocument())
+      expect(screen.getByRole('button', { name: 'Notifications, 2 unread' })).toBeVisible()
+      expect(within(secondary).getByRole('link', { name: 'Notifications, 2 unread' })).toBeVisible()
+    })
   })
 
   it('lists the inbox under a level-one heading', async () => {
@@ -148,6 +273,98 @@ describe('notifications page', () => {
     expect(screen.getByText('Unread')).toBeInTheDocument()
   })
 
+  describe('focus after an action takes the focused button away', () => {
+    const second: Notification = {
+      ...unreadRow,
+      id: '50000000-0000-4000-8000-000000000002',
+      title: 'Second',
+    }
+    const third: Notification = {
+      ...unreadRow,
+      id: '50000000-0000-4000-8000-000000000003',
+      title: 'Third',
+    }
+
+    /** Serves a live inbox of the three cards, which the read and delete answers change. */
+    function serveInbox() {
+      let rows = [unreadRow, second, third]
+      server.use(
+        http.get('/api/v1/notifications', ({ request }) => {
+          const unread = new URL(request.url).searchParams.get('unread') === 'true'
+          const shown = unread ? rows.filter((row) => row.readAt === null) : rows
+          return ok(
+            listPage(shown, {}, { count: shown.length, capped: false }),
+            'Notifications retrieved.'
+          )
+        }),
+        http.patch('/api/v1/notifications/:id/read', ({ params }) => {
+          rows = rows.map((row) =>
+            row.id === params.id ? { ...row, readAt: '2026-09-22T10:00:00.000Z' } : row
+          )
+          return ok(
+            rows.find((row) => row.id === params.id),
+            'Marked read.'
+          )
+        }),
+        http.delete('/api/v1/notifications/:id', ({ params }) => {
+          rows = rows.filter((row) => row.id !== params.id)
+          return ok(null, 'Deleted.')
+        })
+      )
+    }
+
+    /** The card whose title is `title`. */
+    const card = (title: string) =>
+      screen.getByRole('heading', { name: title }).closest('[role="listitem"]')
+
+    it('moves to the next card after a delete', async () => {
+      serveInbox()
+      const user = userEvent.setup()
+      renderNotifications()
+      await screen.findByText(unreadRow.title)
+
+      await user.click(screen.getByRole('button', { name: `Delete "${unreadRow.title}"` }))
+
+      await waitFor(() => expect(card('Second')).toHaveFocus())
+    })
+
+    it('moves to the heading after deleting the last card', async () => {
+      serveInbox()
+      const user = userEvent.setup()
+      renderNotifications()
+      await screen.findByText('Third')
+
+      await user.click(screen.getByRole('button', { name: 'Delete "Third"' }))
+
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1, name: 'Notifications' })).toHaveFocus()
+      )
+    })
+
+    it('moves to the next card when marking read takes the card out of the Unread view', async () => {
+      serveInbox()
+      const user = userEvent.setup()
+      renderNotifications('/notifications?unread=true')
+      await screen.findByText('Second')
+
+      await user.click(screen.getByRole('button', { name: 'Mark "Second" as read' }))
+
+      await waitFor(() => expect(card('Third')).toHaveFocus())
+      expect(screen.queryByRole('heading', { name: 'Second' })).not.toBeInTheDocument()
+    })
+
+    it('stays on the same card when marking read leaves it on the page', async () => {
+      serveInbox()
+      const user = userEvent.setup()
+      renderNotifications()
+      await screen.findByText('Second')
+
+      await user.click(screen.getByRole('button', { name: 'Mark "Second" as read' }))
+
+      await waitFor(() => expect(card('Second')).toHaveFocus())
+    })
+  })
+
   it('links to the notification settings', async () => {
     renderNotifications()
 
@@ -158,7 +375,7 @@ describe('notifications page', () => {
   })
 
   it('says so when the inbox is empty', async () => {
-    server.use(http.get('/api/v1/notifications', () => ok({ notifications: [] }, 'Retrieved.')))
+    server.use(http.get('/api/v1/notifications', () => ok(listPage([]), 'Retrieved.')))
     renderNotifications()
 
     const main = await screen.findByRole('main')

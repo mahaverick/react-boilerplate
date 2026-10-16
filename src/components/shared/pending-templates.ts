@@ -23,6 +23,10 @@ export const DashboardPending = template('DashboardPending')
 export const SettingsPending = template('SettingsPending')
 /** A settings page's pending template, under the settings layout's own heading. */
 export const SettingsPagePending = template('SettingsPagePending')
+/** An auth page's pending template: the sign-in card's shape. */
+export const AuthPending = template('AuthPending')
+/** An auth page's pending template where the page draws its own frame: the frame around the sign-in card's shape. */
+export const AuthPagePending = template('AuthPagePending')
 
 /** Every template, for the startup preload. */
 const ALL = [
@@ -32,6 +36,8 @@ const ALL = [
   DashboardPending,
   SettingsPending,
   SettingsPagePending,
+  AuthPending,
+  AuthPagePending,
 ]
 
 /**
@@ -51,8 +57,8 @@ async function preloadAll(): Promise<void> {
 /**
  * Settles once every template's chunk has loaded (or failed twice). Started when
  * this module loads; `main.tsx` waits on it beside `router.load()`, so the first
- * render, including the tenant guard's hold on a page whose own route names no
- * template, never suspends on a template.
+ * render, including a page held before its own route's template is known, never
+ * suspends on a template.
  */
 export const templatesReady: Promise<void> = preloadAll()
 

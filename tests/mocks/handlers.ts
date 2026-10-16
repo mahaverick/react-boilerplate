@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw'
 import type { MembershipRole } from '@/constants/roles'
 import type { ClientFlagValues } from '@/observability/flags/flag-types'
 import { INVITATION_ID, USER_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import type {
   InvitationPreview,
   OnboardingStepView,
@@ -187,9 +188,11 @@ export const handlers = [
    * The notification bell is in the app shell's header, so every test that mounts an
    * authenticated route hits these two, and `onUnhandledRequest: 'error'` would fail each
    * one otherwise. Empty; a test about notification content overrides them. The shape is
-   * `NotificationRepository.list`'s: `notifications`, and `nextCursor` absent rather than null.
+   * the list envelope, with the empty inbox's total, since the bell and the nav badge ask for one.
    */
-  http.get('/api/v1/notifications', () => ok({ notifications: [] }, 'Notifications retrieved.')),
+  http.get('/api/v1/notifications', () =>
+    ok(listPage([], {}, { count: 0, capped: false }), 'Notifications retrieved.')
+  ),
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: [] }, 'Notification preferences retrieved.')
   ),
@@ -211,11 +214,13 @@ export const handlers = [
   /**
    * The tenant switcher is in the app shell's sidebar, so every test that mounts an
    * authenticated route hits this one too. Empty; a test about tenants overrides it. Rows
-   * are `{ tenant, role }`, not bare tenants, as `TenantRepository.listForUser` returns them.
+   * are `{ tenant, role, joinedAt }`, in the list envelope, not bare tenants.
    */
-  http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+  http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')),
+  // Members, empty; a test about them overrides it.
+  http.get('/api/v1/tenants/:slug/members', () => ok(listPage([]), 'Members retrieved.')),
   // Pending invitations, empty; a test about them overrides it.
-  http.get('/api/v1/tenants/:slug/invitations', () => ok([], 'Invitations retrieved.')),
+  http.get('/api/v1/tenants/:slug/invitations', () => ok(listPage([]), 'Invitations retrieved.')),
   // Invite and resend answer 202 with `data: null` whether or not the address has an account, the same way register does.
   http.post('/api/v1/tenants/:slug/invitations', () => ok(null, INVITATION_SENT_MESSAGE, 202)),
   http.post('/api/v1/tenants/:slug/invitations/:id/resend', () =>
@@ -255,9 +260,7 @@ export const handlers = [
   http.post('/api/v1/flags/exposures', () => new HttpResponse(null, { status: 204 })),
   http.post('/api/v1/tenants/:slug/flags/exposures', () => new HttpResponse(null, { status: 204 })),
   // Tenant audit log, empty. A test about activity overrides it.
-  http.get('/api/v1/tenants/:slug/audit-log', () =>
-    ok({ entries: [], nextCursor: null }, 'Audit log retrieved.')
-  ),
+  http.get('/api/v1/tenants/:slug/audit-log', () => ok(listPage([]), 'Audit log retrieved.')),
   // Read by the root route on every mount; no maintenance, which a test about maintenance overrides.
   http.get('/api/v1/status/maintenance', () =>
     ok({ mode: 'off', message: null, since: null }, 'Maintenance status retrieved.')

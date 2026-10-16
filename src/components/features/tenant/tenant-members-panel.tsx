@@ -3,14 +3,21 @@
  * controls, and, for owners and admins, the invite form and pending invitations.
  */
 import { IconUsers } from '@tabler/icons-react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useRef, useState } from 'react'
+import { createColumnHelper } from '@tanstack/react-table'
+import { createContext, useContext, useRef, useState } from 'react'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { InviteMemberForm } from '@/components/features/tenant/invite-member-form'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
+import { ROLE_FILTER } from '@/components/features/tenant/role-filter'
+import { DataTable } from '@/components/shared/data-table/data-table'
+import type { DataTableFeatures } from '@/components/shared/data-table/data-table-model'
+import { useListQuery } from '@/components/shared/data-table/use-list-query'
+import { useListSearch } from '@/components/shared/data-table/use-list-search'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Pii } from '@/components/shared/pii'
+import { TableRowsSkeleton } from '@/components/shared/section-skeleton'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,14 +31,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemFooter,
-  ItemGroup,
-  ItemTitle,
-} from '@/components/ui/item'
+import { Item, ItemContent, ItemDescription, ItemFooter, ItemTitle } from '@/components/ui/item'
 import {
   Select,
   SelectContent,
@@ -39,15 +39,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   canActorModifyTarget,
   canChangeRoles,
@@ -59,17 +50,20 @@ import {
 } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { useFocusAfter } from '@/hooks/use-focus-after'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { statusFrom } from '@/lib/api-error'
+import { fullName } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
+import { analyticsKey } from '@/observability/telemetry'
 import {
   dropTenantCache,
   isMemberNotFound,
   memberName,
-  otherOwnerCount,
+  membersList,
+  membersListOptions,
+  ownersBesides,
+  ownersQueryOptions,
   useLeaveTenant,
-  useMembers,
   useMyRole,
   useRemoveMember,
   useUpdateMemberRole,
@@ -146,7 +140,7 @@ const MEMBERS_ERROR =
  * The role cell: a select when the actor may change this member's role, plain
  * text otherwise. That takes two predicates: `canChangeRoles`, because the
  * PATCH members route is owner-only, and `canActorModifyTarget` for which
- * target this actor may touch. Removal uses a different pair (see `MemberRow`).
+ * target this actor may touch. Removal uses a different pair (see `memberControls`).
  *
  * The select's accessible name includes the member's name, since there is one
  * select per row. When `isLastOwner`, this cell renders the row's one
@@ -165,6 +159,7 @@ function RoleCell({
   myRole,
   isSelf,
   isLastOwner,
+  ownersPending,
   reasonId,
   onGone,
 }: {
@@ -173,6 +168,8 @@ function RoleCell({
   myRole: MembershipRole
   isSelf: boolean
   isLastOwner: boolean
+  /** The owner count is not known yet (loading or failed): the select stays off, with no reason claimed. */
+  ownersPending: boolean
   /** The row's one last-owner explanation, which this cell renders. */
   reasonId: string
   /** Called once a role change found the member already gone and the list has refetched. */
@@ -190,7 +187,7 @@ function RoleCell({
     <div className="grid gap-1">
       <Select
         value={targetRole}
-        disabled={isLastOwner || updateRole.isPending}
+        disabled={isLastOwner || ownersPending || updateRole.isPending}
         onValueChange={(value: string | null) => {
           if (value === null || value === targetRole) return
           updateRole.mutateAsync({ userId: member.user.id, role: value as MembershipRole }).then(
@@ -252,6 +249,7 @@ function RemoveMemberButton({
   myRole,
   isSelf,
   isLastOwner,
+  ownersPending,
   reasonId,
   onRemoved,
 }: {
@@ -260,6 +258,8 @@ function RemoveMemberButton({
   myRole: MembershipRole
   isSelf: boolean
   isLastOwner: boolean
+  /** The owner count is not known yet (loading or failed): the control stays off, with no reason claimed. */
+  ownersPending: boolean
   /** The row's one last-owner explanation, rendered by `RoleCell`. */
   reasonId: string
   /** Called once another member's removal has succeeded, or found them already gone, and the list has refetched. */
@@ -292,9 +292,14 @@ function RemoveMemberButton({
     dropTenantCache(queryClient, slug)
   }
 
-  if (isLastOwner) {
+  if (isLastOwner || ownersPending) {
     return (
-      <Button variant="outline" size="sm" disabled aria-describedby={reasonId}>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        aria-describedby={isLastOwner ? reasonId : undefined}
+      >
         {isSelf ? 'Leave' : 'Remove'}
       </Button>
     )
@@ -372,134 +377,225 @@ function RemoveMemberButton({
   )
 }
 
-/**
- * One member, as a table row or, with `asCard`, a stacked card. Removal needs
- * `canManageTenant` (owner or admin, as the DELETE members route requires)
- * and `canActorModifyTarget`, a different pair from the role-change gate in
- * `RoleCell`. `reasonId` is one id per row: the last-owner explanation renders
- * once, in the role cell, and every control the guard disables points at it;
- * your own row always has Leave.
- */
-function MemberRow({
-  slug,
-  member,
-  myRole,
-  myUserId,
-  otherOwners,
-  readOnly,
-  onRemoved,
-  asCard = false,
-}: {
+/** What a member's cells and card are built from. */
+interface MemberRowContext {
   slug: string
   member: TenantMember
   myRole: MembershipRole
   myUserId: string | undefined
   /** The other owners the API counts toward the last-owner rule, besides the caller. */
   otherOwners: number
+  /** Whether the owners read has landed. An owner's own controls stay off until it has, since the count is not known. */
+  ownersKnown: boolean
   /** Staff through platform access: the row offers no role change and no removal. */
   readOnly: boolean
   /** Called once removing another member has succeeded, or found them already gone. */
   onRemoved: () => void
-  /**
-   * Render a stacked card instead of a table row, for phones, where the
-   * scrolling table puts the Actions column off-screen.
-   */
-  asCard?: boolean
-}) {
+}
+
+/**
+ * The rules one member's controls follow. Removal needs `canManageTenant`
+ * (owner or admin, as the DELETE members route requires) and
+ * `canActorModifyTarget`, a different pair from the role-change gate in
+ * `RoleCell`. `reasonId` is one id per row: the last-owner explanation renders
+ * once, in the role cell, and every control the guard disables points at it;
+ * your own row always has Leave.
+ * @param context - The member and the caller.
+ */
+function memberControls({
+  member,
+  myRole,
+  myUserId,
+  otherOwners,
+  ownersKnown,
+  readOnly,
+}: MemberRowContext) {
   const targetRole = member.membership.role
   const isSelf = member.user.id === myUserId
-  const isLastOwner = isLastOwnerBlocked({ targetRole, isSelf, otherOwners })
-  const canRemove =
-    !readOnly &&
-    (isSelf || (canManageTenant(myRole) && canActorModifyTarget(myRole, targetRole, isSelf)))
-  const reasonId = `last-owner-${member.membership.id}`
+  // Only an owner acting on their own owner row depends on the owner count.
+  const countMatters = isSelf && targetRole === 'owner'
+  return {
+    targetRole,
+    isSelf,
+    isLastOwner: ownersKnown && isLastOwnerBlocked({ targetRole, isSelf, otherOwners }),
+    ownersPending: countMatters && !ownersKnown,
+    canRemove:
+      !readOnly &&
+      (isSelf || (canManageTenant(myRole) && canActorModifyTarget(myRole, targetRole, isSelf))),
+    reasonId: `last-owner-${member.membership.id}`,
+  }
+}
 
-  const role = readOnly ? (
-    <span>{ROLE_LABELS[targetRole]}</span>
-  ) : (
+/** One member's role: a select when the caller may change it, text otherwise. */
+function MemberRole(context: MemberRowContext) {
+  const { slug, member, myRole, onRemoved, readOnly } = context
+  const { targetRole, isSelf, isLastOwner, ownersPending, reasonId } = memberControls(context)
+  if (readOnly) return <span>{ROLE_LABELS[targetRole]}</span>
+  return (
     <RoleCell
       slug={slug}
       member={member}
       myRole={myRole}
       isSelf={isSelf}
       isLastOwner={isLastOwner}
+      ownersPending={ownersPending}
       reasonId={reasonId}
       onGone={onRemoved}
     />
   )
-  const remove = canRemove ? (
+}
+
+/** One member's Remove (or Leave) control; nothing when the caller has none. */
+function MemberActions(context: MemberRowContext) {
+  const { slug, member, myRole, onRemoved } = context
+  const { isSelf, isLastOwner, ownersPending, canRemove, reasonId } = memberControls(context)
+  if (!canRemove) return null
+  return (
     <RemoveMemberButton
       slug={slug}
       member={member}
       myRole={myRole}
       isSelf={isSelf}
       isLastOwner={isLastOwner}
+      ownersPending={ownersPending}
       reasonId={reasonId}
       onRemoved={onRemoved}
     />
-  ) : null
-
-  if (asCard) {
-    return (
-      <Item variant="outline" role="listitem">
-        <ItemContent className="min-w-0">
-          <ItemTitle className="line-clamp-none">
-            <span className="flex flex-wrap items-center gap-2">
-              <Pii>{memberName(member)}</Pii>
-              {isSelf && <span className="text-xs font-normal text-muted-foreground">(you)</span>}
-            </span>
-          </ItemTitle>
-          <ItemDescription className="line-clamp-none break-all">
-            <Pii>{member.user.email}</Pii>
-          </ItemDescription>
-        </ItemContent>
-        <ItemFooter className="flex-wrap justify-start">
-          {role}
-          {remove}
-        </ItemFooter>
-      </Item>
-    )
-  }
-
-  return (
-    <TableRow>
-      <TableCell className="font-medium">
-        <Pii>{memberName(member)}</Pii>
-        {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
-      </TableCell>
-      <TableCell>
-        <Pii>{member.user.email}</Pii>
-      </TableCell>
-      <TableCell>{role}</TableCell>
-      {!readOnly && <TableCell className="text-right">{remove}</TableCell>}
-    </TableRow>
   )
 }
 
 /**
+ * One member as a stacked card, for phones, where the scrolling table puts
+ * the Actions column off-screen. The role and Remove controls are the table
+ * cells' own.
+ */
+function MemberCard(context: MemberRowContext) {
+  const { member, myUserId } = context
+  return (
+    <Item variant="outline" role="listitem">
+      <ItemContent className="min-w-0">
+        <ItemTitle className="line-clamp-none">
+          <span className="flex flex-wrap items-center gap-2">
+            <Pii>{memberName(member)}</Pii>
+            {member.user.id === myUserId && (
+              <span className="text-xs font-normal text-muted-foreground">(you)</span>
+            )}
+          </span>
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none break-all">
+          <Pii>{member.user.email}</Pii>
+        </ItemDescription>
+      </ItemContent>
+      <ItemFooter className="flex-wrap justify-start">
+        <MemberRole {...context} />
+        <MemberActions {...context} />
+      </ItemFooter>
+    </Item>
+  )
+}
+
+/** What the panel hands its cells: the caller and the tenant, which every row's controls read. */
+type MembersPanelContext = Omit<MemberRowContext, 'member'>
+
+const MembersPanelScope = createContext<MembersPanelContext | null>(null)
+
+/**
+ * A member's row context: the panel's, with the row's member. The columns are
+ * module-level, so a cell reads what changes between renders (the caller, the
+ * owner count, the removal callback) from context, and re-renders in place
+ * rather than remounting with its dialog state.
+ * @param member - The row's member.
+ */
+function useMemberRowContext(member: TenantMember): MemberRowContext {
+  const panel = useContext(MembersPanelScope)
+  if (panel === null) throw new Error('A member cell renders inside the members panel.')
+  return { ...panel, member }
+}
+
+/** The name cell: the full name, or a dash for a member with none, and "(you)" on the caller's own row. */
+function MemberNameCell({ member }: { member: TenantMember }) {
+  const { myUserId } = useMemberRowContext(member)
+  const name = fullName(member.user)
+  return (
+    <span className="font-medium">
+      {name === null ? <span className="text-muted-foreground">—</span> : <Pii>{name}</Pii>}
+      {member.user.id === myUserId && (
+        <span className="ml-2 text-xs text-muted-foreground">(you)</span>
+      )}
+    </span>
+  )
+}
+
+/** The role cell of the table. */
+function MemberRoleCell({ member }: { member: TenantMember }) {
+  return <MemberRole {...useMemberRowContext(member)} />
+}
+
+/** The actions cell of the table. */
+function MemberActionsCell({ member }: { member: TenantMember }) {
+  return <MemberActions {...useMemberRowContext(member)} />
+}
+
+const column = createColumnHelper<DataTableFeatures, TenantMember>()
+
+/** The name, email and role columns every viewer sees. */
+const READ_COLUMNS = [
+  column.accessor((member) => fullName(member.user) ?? '', {
+    id: 'name',
+    header: 'Name',
+    meta: { sorts: ['name'], sortName: analyticsKey('name') },
+    cell: ({ row }) => <MemberNameCell member={row.original} />,
+  }),
+  column.accessor((member) => member.user.email, {
+    id: 'email',
+    header: 'Email',
+    meta: { sorts: ['email'], sortName: analyticsKey('email') },
+    cell: ({ getValue }) => <Pii className="break-all">{getValue()}</Pii>,
+  }),
+  column.accessor((member) => member.membership.role, {
+    id: 'role',
+    header: 'Role',
+    // The cell holds the row's controls and the last-owner explanation they point at.
+    enableHiding: false,
+    meta: { sorts: ['role'], sortName: analyticsKey('role') },
+    cell: ({ row }) => <MemberRoleCell member={row.original} />,
+  }),
+]
+
+/** The columns of a caller who can act on members: the read columns, then Actions. */
+const MEMBER_COLUMNS = column.columns([
+  ...READ_COLUMNS,
+  column.display({
+    id: 'actions',
+    header: () => <span className="sr-only">Actions</span>,
+    meta: { label: 'Actions', actions: true, className: 'text-right' },
+    cell: ({ row }) => <MemberActionsCell member={row.original} />,
+  }),
+])
+
+/** The columns for staff through platform access, who act on no member. */
+const STAFF_MEMBER_COLUMNS = column.columns(READ_COLUMNS)
+
+/**
  * The members tab. Its states, in order:
  *
- * - An error, or no role: the member list and the role lookup are independent
- *   queries that can fail alone, so each failure shows its own `LoadError`
- *   retrying its own request; when both fail, both render. A failed request
- *   never shows a skeleton, which would wait forever with no retry.
- * - A skeleton while either query is pending.
- * - The empty message, only after the error branch, because a failed load and
- *   an empty tenant both give `[]` (as in `notifications.tsx`).
- * - Cards on a phone, because the scrolling table puts the Actions column and
- *   the last-owner explanation off-screen; otherwise the table. The layout is
- *   picked in JS with `useIsMobile`, the hook the sidebar uses, because
- *   rendering both layouts and hiding one with CSS would put two role selects
- *   per member and two elements with one `reasonId` in the DOM. The table is
- *   `min-w-2xl`, so the vendored Table's `overflow-x-auto` wrapper scrolls
- *   instead of crushing four columns.
+ * - No role: the role lookup is its own request and can fail alone, so its
+ *   failure shows a `LoadError` retrying that request, and a skeleton shows
+ *   while it is pending. A failed request never shows a skeleton, which would
+ *   wait forever with no retry.
+ * - Then `DataTable`'s: its own skeleton, load error with Try again, empty
+ *   message (only for a list that answered with no rows) and the rows, as a
+ *   table or, on a phone, as member cards. A failed owners read, which the
+ *   last-owner rule needs, shows its own `LoadError` above the list and keeps
+ *   the last owner's controls locked.
  *
  * The invite form and pending invitations mount only for owners and admins,
  * the roles the tenant invitation routes require; `PendingInvitations` requests
  * the list only once mounted.
  */
 export function TenantMembersPanel({ slug }: { slug: string }) {
-  const members = useMembers(slug)
+  const list = useListSearch(membersList)
+  const members = useListQuery(list, (request) => membersListOptions(slug, request))
   const {
     role: myRole,
     access,
@@ -508,9 +604,13 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
     retry,
   } = useMyRole(slug)
   const isStaffView = access === 'platform'
+  // Only an owner can act on an owner row (remove, demote or leave as one), so only an owner needs the count.
+  const owners = useQuery({
+    ...ownersQueryOptions(slug),
+    enabled: myRole === 'owner' && !isStaffView,
+  })
   const myUserId = useAuthStore((state) => state.user?.id)
-  const otherOwners = otherOwnerCount(members.data, myUserId, slug === PLATFORM_TENANT_SLUG)
-  const isMobile = useIsMobile()
+  const otherOwners = ownersBesides(owners.data, myUserId, slug === PLATFORM_TENANT_SLUG)
   const focus = useFocusAfter<'heading'>()
   const inviteCard = useRef<HTMLDivElement>(null)
 
@@ -524,6 +624,20 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
   const onRemoved = () => {
     focus.focusAfter('heading')
   }
+
+  /** What the cells read, once the caller's role is known. */
+  const panel: MembersPanelContext | null =
+    myRole && !isRoleError
+      ? {
+          slug,
+          myRole,
+          myUserId,
+          otherOwners,
+          ownersKnown: owners.isSuccess,
+          readOnly: isStaffView,
+          onRemoved,
+        }
+      : null
 
   return (
     <div className="grid gap-6">
@@ -539,75 +653,48 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
             <p className="text-sm text-muted-foreground">{STAFF_VIEW}</p>
           )}
         </CardHeader>
-        <CardContent>
-          {members.isError || isRoleError || (!isRolePending && !myRole) ? (
-            <div className="grid gap-3">
-              {members.isError && (
-                <LoadError message={MEMBERS_ERROR} onRetry={() => void members.refetch()} />
-              )}
-              {(isRoleError || (!isRolePending && !myRole)) && (
-                <LoadError message={ROLE_ERROR} onRetry={retry} />
-              )}
-            </div>
-          ) : members.isPending || isRolePending || !myRole ? (
-            <div className="grid gap-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : (members.data ?? []).length === 0 ? (
-            <EmptyState
-              icon={<IconUsers aria-hidden="true" />}
-              title="No one has access to this tenant yet."
-              description={!isStaffView ? 'Invite someone below.' : undefined}
-              action={
-                canManageTenant(myRole) && !isStaffView ? (
-                  <Button variant="outline" size="sm" onClick={showInviteForm}>
-                    Invite someone
-                  </Button>
-                ) : undefined
-              }
-            />
-          ) : isMobile ? (
-            <ItemGroup className="gap-3">
-              {(members.data ?? []).map((member) => (
-                <MemberRow
-                  key={member.membership.id}
-                  asCard
-                  slug={slug}
-                  member={member}
-                  myRole={myRole}
-                  myUserId={myUserId}
-                  otherOwners={otherOwners}
-                  readOnly={isStaffView}
-                  onRemoved={onRemoved}
-                />
-              ))}
-            </ItemGroup>
+        <CardContent className="grid gap-3">
+          {panel === null && (isRoleError || !isRolePending) ? (
+            <LoadError message={ROLE_ERROR} onRetry={retry} />
+          ) : panel === null ? (
+            <TableRowsSkeleton rows={4} columns={isStaffView ? 3 : 4} />
           ) : (
-            <Table className="min-w-2xl">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  {!isStaffView && <TableHead className="text-right">Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(members.data ?? []).map((member) => (
-                  <MemberRow
-                    key={member.membership.id}
-                    slug={slug}
-                    member={member}
-                    myRole={myRole}
-                    myUserId={myUserId}
-                    otherOwners={otherOwners}
-                    readOnly={isStaffView}
-                    onRemoved={onRemoved}
-                  />
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              {owners.isError && (
+                <LoadError
+                  message="Owners could not be loaded."
+                  onRetry={() => void owners.refetch()}
+                />
+              )}
+              <MembersPanelScope value={panel}>
+                <DataTable
+                  columns={isStaffView ? STAFF_MEMBER_COLUMNS : MEMBER_COLUMNS}
+                  query={members}
+                  label="Members"
+                  errorMessage={MEMBERS_ERROR}
+                  getRowId={(member) => member.membership.id}
+                  search={{ label: 'Search members', placeholder: 'Search by name or email' }}
+                  filters={[ROLE_FILTER]}
+                  card={(member) => (
+                    <MemberCard key={member.membership.id} {...panel} member={member} />
+                  )}
+                  empty={
+                    <EmptyState
+                      icon={<IconUsers aria-hidden="true" />}
+                      title="No one has access to this tenant yet."
+                      description={!isStaffView ? 'Invite someone below.' : undefined}
+                      action={
+                        canManageTenant(panel.myRole) && !isStaffView ? (
+                          <Button variant="outline" size="sm" onClick={showInviteForm}>
+                            Invite someone
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  }
+                />
+              </MembersPanelScope>
+            </>
           )}
         </CardContent>
       </Card>

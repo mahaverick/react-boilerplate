@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { PageSkeleton, type PageVariant } from '@/components/shared/page-skeleton'
+import { AuthPagePending, PageSkeleton, type PageVariant } from '@/components/shared/page-skeleton'
 
 const VARIANTS: PageVariant[] = ['list', 'detail', 'dashboard', 'settings']
 
@@ -39,10 +39,34 @@ describe('PageSkeleton', () => {
     expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(3)
   })
 
+  it('draws the auth card', () => {
+    const { container } = render(<PageSkeleton variant="auth" />)
+    const region = screen.getByRole('status', { name: 'Loading' })
+    expect(region).toHaveAttribute('data-variant', 'auth')
+    expect(container.querySelector('[data-slot="page-heading-skeleton"]')).toBeNull()
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-slot="field-skeleton"]')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-slot="auth-button-skeleton"]')).toHaveLength(1)
+    expect(container.querySelector('[data-slot="card"]')).toHaveClass(
+      'max-w-sm',
+      'md:max-w-(--boot-auth-width)'
+    )
+    expect(container.querySelector('[data-slot="spinner"]')).toBeNull()
+  })
+
   it('leaves the heading and tab bar to the layout when nested', () => {
     const { container } = render(<PageSkeleton variant="detail" nested />)
     expect(container.querySelector('[data-slot="page-heading-skeleton"]')).toBeNull()
     expect(container.querySelector('[data-slot="page-tabs-skeleton"]')).toBeNull()
     expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(2)
+  })
+
+  it('draws the auth page frame around the card, with a main landmark', () => {
+    const { container } = render(<AuthPagePending />)
+    const frame = container.querySelector('[data-slot="auth-frame-skeleton"]')
+    expect(frame).toHaveClass('min-h-svh', 'bg-muted')
+    expect(screen.getByRole('main')).toContainElement(
+      screen.getByRole('status', { name: 'Loading' })
+    )
   })
 })

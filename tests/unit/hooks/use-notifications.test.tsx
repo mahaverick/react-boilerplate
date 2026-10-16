@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { act, type ReactNode } from 'react'
@@ -7,13 +7,10 @@ import { API_PREFIX } from '@/constants/routes'
 import { useNotificationStream } from '@/hooks/use-notifications'
 import { resetSessionForTests } from '@/http/session'
 import { toast } from '@/lib/toast'
-import {
-  notificationKeys,
-  useNotifications,
-  type Notification,
-} from '@/queries/notification.queries'
+import { notificationsListOptions, type Notification } from '@/queries/notification.queries'
 import { useAuthStore } from '@/states/auth.store'
 import { NOTIFICATION_ID, NOTIFICATION_ID_7 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import {
   latestFetchStream as latest,
   MockFetchStream,
@@ -119,11 +116,11 @@ describe('useNotificationStream', () => {
    */
   it('sends Last-Event-ID with the id of the last delivered event, on reconnect', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
-    client.setQueryData(notificationKeys.list, { pages: [{ notifications: [] }], pageParams: [] })
+    client.setQueryData(notificationsListOptions({}).queryKey, listPage([]))
 
     // Wait for the initial connect's own refetch before isolating the delivered event's effect, as in the unnamed-frame test below.
     await waitFor(() =>
-      expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(true)
+      expect(client.getQueryState(notificationsListOptions({}).queryKey)?.isInvalidated).toBe(true)
     )
     const invalidate = vi.spyOn(client, 'invalidateQueries')
 
@@ -165,18 +162,16 @@ describe('useNotificationStream', () => {
     const { result } = renderHook(
       () => {
         useNotificationStream()
-        return useNotifications()
+        return useQuery(notificationsListOptions({}))
       },
       { wrapper }
     )
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(result.current.data?.pages[0]?.notifications).toHaveLength(0)
+    expect(result.current.data?.items).toHaveLength(0)
 
     server.use(
-      http.get('/api/v1/notifications', () =>
-        ok({ notifications: [listRow] }, 'Notifications retrieved.')
-      )
+      http.get('/api/v1/notifications', () => ok(listPage([listRow]), 'Notifications retrieved.'))
     )
 
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
@@ -188,7 +183,7 @@ describe('useNotificationStream', () => {
       })
     )
 
-    await waitFor(() => expect(result.current.data?.pages[0]?.notifications).toEqual([listRow]))
+    await waitFor(() => expect(result.current.data?.items).toEqual([listRow]))
   })
 
   /**
@@ -202,10 +197,10 @@ describe('useNotificationStream', () => {
    */
   it('ignores an unnamed frame, and invalidates on a named one', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
-    client.setQueryData(notificationKeys.list, { pages: [{ notifications: [] }], pageParams: [] })
+    client.setQueryData(notificationsListOptions({}).queryKey, listPage([]))
 
     await waitFor(() =>
-      expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(true)
+      expect(client.getQueryState(notificationsListOptions({}).queryKey)?.isInvalidated).toBe(true)
     )
     const invalidate = vi.spyOn(client, 'invalidateQueries')
 
@@ -222,10 +217,10 @@ describe('useNotificationStream', () => {
    */
   it('invalidates the list on every successful connect, which is what recovers the very first connect', async () => {
     renderHook(() => useNotificationStream(), { wrapper })
-    client.setQueryData(notificationKeys.list, { pages: [{ notifications: [] }], pageParams: [] })
+    client.setQueryData(notificationsListOptions({}).queryKey, listPage([]))
 
     await waitFor(() =>
-      expect(client.getQueryState(notificationKeys.list)?.isInvalidated).toBe(true)
+      expect(client.getQueryState(notificationsListOptions({}).queryKey)?.isInvalidated).toBe(true)
     )
   })
 
@@ -281,7 +276,7 @@ describe('useNotificationStream', () => {
         requestId: 'r',
       },
     })
-    client.setQueryData(notificationKeys.list, { pages: [{ notifications: [] }], pageParams: [] })
+    client.setQueryData(notificationsListOptions({}).queryKey, listPage([]))
     const invalidate = vi.spyOn(client, 'invalidateQueries')
 
     renderHook(() => useNotificationStream(), { wrapper })
