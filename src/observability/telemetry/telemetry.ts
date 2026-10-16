@@ -652,13 +652,20 @@ export function track<E extends BrowserEvent>(event: E, ...args: TrackArgs<E>): 
 }
 
 /**
- * Captures a `$pageview` for the current location. posthog-js's own history
- * pageviews are off: the router calls this once a route has resolved and
- * its tenant group is set, so a pageview never carries the previous page's
- * tenant.
+ * Captures a `$pageview`. posthog-js's own history pageviews are off: the
+ * router calls this once a route has resolved and its tenant group is set, so
+ * a pageview never carries the previous page's tenant. Without `page` the
+ * SDK records the location it is on when it captures; the router passes the
+ * location it resolved, since its view can wait for a tenant read while the
+ * user moves on. `before_send` sanitises these URLs like any other.
+ * @param page - The resolved page's `$current_url`, `$host` and `$pathname`.
  */
-export function capturePageview(): void {
-  run((ph) => ph.capture('$pageview', {}), true)
+export function capturePageview(page?: {
+  $current_url: string
+  $host: string
+  $pathname: string
+}): void {
+  run((ph) => ph.capture('$pageview', page ? { ...page } : {}), true)
 }
 
 /**

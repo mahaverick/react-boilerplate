@@ -82,7 +82,14 @@ function attributionCalls(): string[] {
 
 /** How many page views have been captured since `sdk.calls` was last cleared. */
 function pageviews(): number {
-  return sdk.calls.filter((call) => call === 'capture("$pageview", {})').length
+  return sdk.calls.filter((call) => call.startsWith('capture("$pageview"')).length
+}
+
+/** The SDK call for a page view of `path`, carrying the location the router resolved. */
+function view(path: string): string {
+  const url = new URL(path, window.location.origin)
+  const page = { $current_url: url.href, $host: url.host, $pathname: url.pathname }
+  return `capture("$pageview", ${JSON.stringify(page)})`
 }
 
 const MEMBER = 'register({"tenant_access":"member"})'
@@ -122,7 +129,7 @@ describe('installRouteAnalytics', () => {
       expect(attributionCalls()).toEqual([
         MEMBER,
         'group("tenant", "tenant-acme")',
-        'capture("$pageview", {})',
+        view('/tenants/acme/members'),
       ])
     )
   })
@@ -133,7 +140,7 @@ describe('installRouteAnalytics', () => {
       expect(attributionCalls()).toEqual([
         MEMBER,
         'group("tenant", "tenant-acme")',
-        'capture("$pageview", {})',
+        view('/settings/workspace/acme/members'),
       ])
     )
   })
@@ -148,7 +155,7 @@ describe('installRouteAnalytics', () => {
         MEMBER,
         'group("tenant", "tenant-globex")',
         'capture("tenant_switched", {})',
-        'capture("$pageview", {})',
+        view('/tenants/globex'),
       ])
     )
     expect(sdk.properties.$groups).toEqual({ tenant: 'tenant-globex' })
@@ -159,7 +166,7 @@ describe('installRouteAnalytics', () => {
     await vi.waitFor(() => expect(pageviews()).toBe(1))
     sdk.calls = []
     await router.navigate({ to: '/profile' })
-    await vi.waitFor(() => expect(sdk.calls).toEqual([...LEAVE_TENANT, 'capture("$pageview", {})']))
+    await vi.waitFor(() => expect(sdk.calls).toEqual([...LEAVE_TENANT, view('/profile')]))
     expect(sdk.properties.$groups).toEqual({})
   })
 
@@ -181,7 +188,7 @@ describe('installRouteAnalytics', () => {
       expect(attributionCalls()).toEqual([
         PLATFORM,
         'group("tenant", "tenant-initech")',
-        'capture("$pageview", {})',
+        view('/tenants/initech'),
       ])
     )
     sdk.calls = []
@@ -201,7 +208,7 @@ describe('installRouteAnalytics', () => {
     await vi.waitFor(() => expect(pageviews()).toBe(1))
     sdk.calls = []
     await router.navigate({ to: '/tenants/$slug', params: { slug } })
-    await vi.waitFor(() => expect(sdk.calls).toEqual([...LEAVE_TENANT, 'capture("$pageview", {})']))
+    await vi.waitFor(() => expect(sdk.calls).toEqual([...LEAVE_TENANT, view(`/tenants/${slug}`)]))
   })
 
   it('a resolve that keeps the path re-applies the group without a pageview', async () => {
@@ -213,7 +220,7 @@ describe('installRouteAnalytics', () => {
     // A later page view is queued behind both resolves above, so once it lands they have run.
     await router.navigate({ to: '/profile' })
     await vi.waitFor(() => expect(pageviews()).toBe(1))
-    expect(sdk.calls).toEqual([...LEAVE_TENANT, 'capture("$pageview", {})'])
+    expect(sdk.calls).toEqual([...LEAVE_TENANT, view('/profile')])
   })
 
   it('waits for the tenant before the page view, so the view carries its group', async () => {
@@ -226,7 +233,7 @@ describe('installRouteAnalytics', () => {
       expect(attributionCalls()).toEqual([
         MEMBER,
         'group("tenant", "tenant-acme")',
-        'capture("$pageview", {})',
+        view('/tenants/acme'),
       ])
     )
   })
@@ -237,13 +244,14 @@ describe('installRouteAnalytics', () => {
     const router = await start('/tenants/acme')
     await router.navigate({ to: '/profile' })
     land(TENANTS.acme)
+    // The first view is captured while the router is on /profile, and still records /tenants/acme.
     await vi.waitFor(() =>
       expect(attributionCalls()).toEqual([
         MEMBER,
         'group("tenant", "tenant-acme")',
-        'capture("$pageview", {})',
+        view('/tenants/acme'),
         ...LEAVE_TENANT,
-        'capture("$pageview", {})',
+        view('/profile'),
       ])
     )
   })
@@ -257,7 +265,7 @@ describe('installRouteAnalytics', () => {
       expect(attributionCalls()).toEqual([])
       await vi.advanceTimersByTimeAsync(1)
       // Nothing was grouped before, so leaving the group sends nothing: the view alone, with no tenant.
-      expect(attributionCalls()).toEqual(['capture("$pageview", {})'])
+      expect(attributionCalls()).toEqual([view('/tenants/acme')])
       expect(sdk.properties).not.toHaveProperty('tenant_access')
     } finally {
       vi.useRealTimers()
@@ -267,6 +275,6 @@ describe('installRouteAnalytics', () => {
   it('a page load that starts on a non-tenant page drops a tenant left in storage first', async () => {
     sdk.properties = { $groups: { tenant: 'tenant-stale' }, tenant_access: 'member' }
     await start('/profile')
-    expect(attributionCalls()).toEqual([...LEAVE_TENANT, 'capture("$pageview", {})'])
+    expect(attributionCalls()).toEqual([...LEAVE_TENANT, view('/profile')])
   })
 })

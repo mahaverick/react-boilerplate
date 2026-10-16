@@ -123,3 +123,43 @@ describe('the banner answer over the pinned posthog-js', () => {
     expect(instance.get_distinct_id()).toBe('user-a')
   })
 })
+
+/** The router's page view over the real SDK: the location it passes is what is sent, through `before_send`. */
+describe('a page view with a resolved location over the pinned posthog-js', () => {
+  let facade: typeof import('@/observability/telemetry/telemetry')
+  let instance: PostHog
+
+  afterEach(() => {
+    facade.resetAnalyticsForTests()
+    stopPersisting(instance)
+    vi.doUnmock('posthog-js')
+    window.localStorage.clear()
+  })
+
+  it('sends the location it is given, sanitised like any other URL', async () => {
+    server.use(http.all('http://localhost:3000/api/v1/collect/*', () => HttpResponse.json({})))
+    vi.resetModules()
+    const sdk = await vi.importActual<typeof import('posthog-js')>('posthog-js')
+    instance = new sdk.PostHog()
+    vi.doMock('posthog-js', () => ({ ...sdk, default: instance }))
+    facade = await import('@/observability/telemetry/telemetry')
+    await facade.initAnalytics(
+      analyticsConfigFor({ POSTHOG_KEY: 'phc_test_key_not_real', APP_ENVIRONMENT: 'test' })
+    )
+    await expect.poll((): unknown => instance.get_property('app')).toBe(ANALYTICS_APP)
+    const sent: CaptureResult[] = []
+    instance.on('eventCaptured', (event: CaptureResult) => sent.push(event))
+
+    facade.capturePageview({
+      $current_url: 'http://localhost:3000/tenants/acme?token=secret#frag',
+      $host: 'localhost:3000',
+      $pathname: '/tenants/acme',
+    })
+
+    await expect.poll(() => sent.filter((event) => event.event === '$pageview')).toHaveLength(1)
+    const [view] = sent.filter((event) => event.event === '$pageview')
+    // The page the router resolved, not the test page the SDK is on, with the query and hash dropped.
+    expect(view?.properties.$current_url).toBe('http://localhost:3000/tenants/acme')
+    expect(view?.properties.$pathname).toBe('/tenants/acme')
+  })
+})
