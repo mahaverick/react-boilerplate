@@ -78,7 +78,7 @@ export interface DataTableProps<T extends RowData> {
   getRowId: (row: T) => string
   /** What an unfiltered empty list says. */
   empty: ReactNode
-  /** The list's own load-error copy; `QueryState`'s `{label} could not be loaded.` without it. */
+  /** The list's own copy for a first load that fails; `QueryState`'s `{label} could not be loaded.` without it. */
   errorMessage?: string
   /**
    * Wrap the list in a region named `label` (the default). False renders a
@@ -341,7 +341,12 @@ export function DataTable<T extends RowData>({
       <QueryState
         query={query.query}
         name={label}
-        errorMessage={errorMessage}
+        // The list's copy says none are listed; with rows on screen that would be false.
+        errorMessage={
+          query.query.data === undefined
+            ? errorMessage
+            : `${label} could not be refreshed. What is listed may be out of date.`
+        }
         skeleton={skeleton}
         isEmpty={(data) => data.items.length === 0 && !query.query.isPlaceholderData}
         empty={emptyState}

@@ -167,13 +167,14 @@ export function serveTestItems(
  * Mounts `/items` with `DataTable` over the test list, at `path`.
  * @param path - The URL to start at, search included.
  * @param props - Props to pass the table beside the defaults.
+ * @param queryClient - The client to mount under, when the test needs to refetch through it.
  * @returns The router, to read its location.
  */
 export function renderTestList(
   path = '/items',
-  props: Partial<DataTableProps<TestItem>> = {}
+  props: Partial<DataTableProps<TestItem>> = {},
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 ): AnyRouter {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const rootRoute = createRootRoute({ component: () => <Outlet /> })
   /** The list page. */
   function ItemsPage() {

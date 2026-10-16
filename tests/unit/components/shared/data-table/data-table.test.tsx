@@ -1,5 +1,6 @@
+import { QueryClient } from '@tanstack/react-query'
 import type { RouterHistory } from '@tanstack/react-router'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextSort, showingText } from '@/components/shared/data-table/data-table-model'
@@ -110,6 +111,26 @@ describe('DataTable states', () => {
     serveTestItems(() => 500)
     renderTestList('/items', { errorMessage: 'We could not load the items.' })
     expect(await screen.findByText('We could not load the items.')).toBeInTheDocument()
+  })
+
+  it('says the rows may be out of date, not that none are listed, when a refetch fails', async () => {
+    let calls = 0
+    serveTestItems(() => (++calls === 1 ? listPage(rows(1, 2)) : 500))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    renderTestList(
+      '/items',
+      { errorMessage: 'We could not load the items, so none are listed.' },
+      client
+    )
+    expect(await screen.findByText('Item 01')).toBeInTheDocument()
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ['test-items'] })
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Items could not be refreshed. What is listed may be out of date.'
+    )
+    expect(screen.queryByText(/none are listed/)).not.toBeInTheDocument()
+    expect(screen.getByText('Item 01')).toBeInTheDocument()
   })
 
   it('leaves the region to its parent with landmark={false}', async () => {
