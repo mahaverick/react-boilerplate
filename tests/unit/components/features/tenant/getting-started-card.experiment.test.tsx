@@ -13,6 +13,7 @@ import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { settle } from '@/tests/fixtures/timing'
 import { ok, tenantDetail, testFlags, testOnboarding, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -38,7 +39,7 @@ let exposures: string[][]
 function mockTenant(variant: 'control' | 'bold', role: MembershipRole, access: TenantAccess) {
   server.use(
     http.get('/api/v1/tenants', () =>
-      ok(access === 'member' ? [{ tenant: TENANT, role }] : [], 'Tenants retrieved.')
+      ok(listPage(access === 'member' ? [{ tenant: TENANT, role }] : []), 'Tenants retrieved.')
     ),
     http.get('/api/v1/tenants/acme', () =>
       ok(tenantDetail(TENANT, role, access), 'Tenant retrieved.')

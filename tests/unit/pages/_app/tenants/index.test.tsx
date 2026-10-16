@@ -15,7 +15,8 @@ import { toast } from '@/lib/toast'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { TENANT_ID } from '@/tests/fixtures/ids'
+import { TENANT_ID, TENANT_ID_2 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { latestFetchStream, MockFetchStream, stubStreamFetch } from '@/tests/mocks/fetch-stream'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -88,21 +89,105 @@ describe('tenants list', () => {
     }
   })
 
-  it('lists each tenant as a link carrying its role', async () => {
+  /** Two rows: Acme (owner, joined first) and Beta (viewer, joined later). */
+  function serveTwo(seen: URLSearchParams[] = []) {
     server.use(
-      http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'admin' }], 'Tenants.'))
+      http.get('/api/v1/tenants', ({ request }) => {
+        seen.push(new URL(request.url).searchParams)
+        return ok(
+          listPage(
+            [
+              {
+                tenant: TENANT,
+                role: 'owner',
+                isPlatform: false,
+                joinedAt: '2026-01-01T00:00:00.000Z',
+              },
+              {
+                tenant: { ...TENANT, id: TENANT_ID_2, name: 'Beta', slug: 'beta' },
+                role: 'viewer',
+                isPlatform: false,
+                joinedAt: '2026-03-01T00:00:00.000Z',
+              },
+            ],
+            {},
+            { count: 2, capped: false }
+          ),
+          'Tenants retrieved.'
+        )
+      })
+    )
+    return seen
+  }
+
+  it('lists tenants in a table by name, with role and join date', async () => {
+    serveTwo()
+    renderAppAt('/tenants')
+    const table = await screen.findByRole('table', { name: 'Tenants' })
+    expect(within(table).getByRole('columnheader', { name: /Name/ })).toHaveAttribute(
+      'aria-sort',
+      'ascending'
+    )
+    expect(within(table).getByRole('link', { name: /Acme Corp/ })).toBeInTheDocument()
+    expect(within(table).getByText('Viewer')).toBeInTheDocument()
+    expect(screen.getByText('2 results')).toBeInTheDocument()
+  })
+
+  it('sorts by join date, newest first, through ?sort=-joined', async () => {
+    const seen = serveTwo()
+    const user = userEvent.setup()
+    const router = renderAppAt('/tenants')
+    await screen.findByRole('table', { name: 'Tenants' })
+    await user.click(screen.getByRole('button', { name: /Joined/ }))
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ sort: '-joined' }))
+    await waitFor(() => expect(seen.at(-1)?.get('sort')).toBe('-joined'))
+  })
+
+  it('filters by role through ?role=, sent as a comma list', async () => {
+    const seen = serveTwo()
+    const user = userEvent.setup()
+    const router = renderAppAt('/tenants')
+    await screen.findByRole('table', { name: 'Tenants' })
+    await user.click(screen.getByRole('button', { name: 'Filter by role' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by role' })
+    await user.click(within(popup).getByRole('checkbox', { name: 'Owner' }))
+    await user.click(within(popup).getByRole('checkbox', { name: 'Viewer' }))
+    await waitFor(() =>
+      expect(router.state.location.search).toMatchObject({ role: 'owner,viewer' })
+    )
+    await waitFor(() => expect(seen.at(-1)?.get('role')).toBe('owner,viewer'))
+  })
+
+  it('lists each tenant as a link in a row carrying its role', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok(
+          listPage([{ tenant: TENANT, role: 'admin', joinedAt: '2026-01-01T00:00:00.000Z' }]),
+          'Tenants.'
+        )
+      )
     )
     renderAppAt('/tenants')
 
-    const link = await screen.findByRole('link', { name: /Acme Corp/ })
+    const table = await screen.findByRole('table', { name: 'Tenants' })
+    const link = within(table).getByRole('link', { name: /Acme Corp/ })
     expect(link).toHaveAttribute('href', '/tenants/acme')
-    expect(link).toHaveTextContent('Admin')
+    expect(link.closest('tr')).toHaveTextContent('Admin')
   })
 
   it('shows a suspended tenant with a badge, and not as a link', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'admin' }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: { ...TENANT, lifecycleState: 'suspended' },
+              role: 'admin',
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     renderAppAt('/tenants')
@@ -170,7 +255,10 @@ describe('tenants list', () => {
       http.get('/api/v1/tenants', () =>
         failNext
           ? fail('Something went wrong', 500)
-          : ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+          : ok(
+              listPage([{ tenant: TENANT, role: 'owner', joinedAt: '2026-01-01T00:00:00.000Z' }]),
+              'Tenants retrieved.'
+            )
       )
     )
     const user = userEvent.setup()

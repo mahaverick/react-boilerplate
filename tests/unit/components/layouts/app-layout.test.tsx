@@ -23,6 +23,7 @@ import {
   NOTIFICATION_ID_7,
   TENANT_ID,
 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -283,7 +284,7 @@ describe('AppLayout', () => {
   it('shows a breadcrumb trail on a DYNAMIC route', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: ACME, role: 'viewer' }], 'Tenants retrieved.')
+        ok(listPage([{ tenant: ACME, role: 'viewer' }]), 'Tenants retrieved.')
       ),
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'viewer'), 'Tenant retrieved.'))
     )
@@ -305,7 +306,7 @@ describe('AppLayout', () => {
   it('shows a breadcrumb trail on a DYNAMIC settings route, under Settings', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: ACME, role: 'viewer' }], 'Tenants retrieved.')
+        ok(listPage([{ tenant: ACME, role: 'viewer' }]), 'Tenants retrieved.')
       ),
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'viewer'), 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))

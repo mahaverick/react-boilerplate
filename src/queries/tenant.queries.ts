@@ -5,12 +5,15 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query'
-import type { MembershipRole } from '@/constants/roles'
+import { MEMBERSHIP_ROLES, type MembershipRole } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
+import { analyticsKey } from '@/observability/telemetry'
+import { listQueryOptions } from '@/queries/list.queries'
 import { refreshProfile } from '@/queries/profile.queries'
+import { defineList, listFilter } from '@/schemas/list.schemas'
 import type {
   InviteMemberInput,
   NewTenantInput,
@@ -26,6 +29,7 @@ import {
   type TenantAccess,
   type TenantInvitation,
 } from '@/types/api.types'
+import type { ListPage, ListRequest } from '@/types/list.types'
 
 /**
  * A `tenants` row as the API returns it: every column but the onboarding
@@ -81,6 +85,8 @@ export interface TenantMember {
 export interface TenantWithRole {
   tenant: Tenant
   role: MembershipRole
+  /** When the caller joined: their membership's `createdAt`. */
+  joinedAt: string
   /** The platform tenant's row, which the tenant switcher leaves out: staff reach it from the user menu. */
   isPlatform: boolean
 }
@@ -112,6 +118,8 @@ export interface TenantSettings {
  */
 export const tenantKeys = {
   list: ['tenants'] as const,
+  /** Every page of the Tenants list. A slug never starts with `_`, so no tenant's keys share it. */
+  pages: ['tenants', '_pages'] as const,
   detail: (slug: string) => ['tenants', slug] as const,
   members: (slug: string) => ['tenants', slug, 'members'] as const,
   settings: (slug: string) => ['tenants', slug, 'settings'] as const,
@@ -125,19 +133,69 @@ export function isEligibleTenant(entry: TenantWithRole): boolean {
   return !entry.isPlatform && entry.tenant.lifecycleState !== 'suspended'
 }
 
+/** How many memberships one request asks for: the API's most. */
+export const MEMBERSHIPS_PAGE_LIMIT = 100
+
 /**
- * The tenant list's query: the tenants the caller is a member of, each with
- * their role in it. Shared by `useTenants` and `_app`'s guard, which reads
- * the same cached list to resolve the URL's `?tenant`.
+ * Every membership from `cursor` on, by name: one `GET /tenants` page, then
+ * the next until the API says there is none.
+ * @param cursor - Where to read from; the first page without one.
+ * @returns The rows of this page and every later one.
+ */
+async function readMemberships(cursor?: string): Promise<TenantWithRole[]> {
+  const { items, page } = unwrap(
+    await apiClient.get<ApiSuccess<ListPage<TenantWithRole>>>('/tenants', {
+      params: { limit: MEMBERSHIPS_PAGE_LIMIT, ...(cursor === undefined ? {} : { cursor }) },
+    })
+  )
+  if (!page.hasNext || page.nextCursor === null) return items
+  return [...items, ...(await readMemberships(page.nextCursor))]
+}
+
+/**
+ * The tenant list's query: every tenant the caller is a member of, by name,
+ * each with their role in it, read a page of `MEMBERSHIPS_PAGE_LIMIT` at a
+ * time, so the guard and the switcher see them all. Shared by `useTenants`
+ * and `_app`'s guard, which reads the same cached list to resolve the URL's
+ * `?tenant`.
  */
 export function tenantsQueryOptions() {
   return queryOptions({
     queryKey: tenantKeys.list,
-    queryFn: async () => unwrap(await apiClient.get<ApiSuccess<TenantWithRole[]>>('/tenants')),
+    queryFn: () => readMemberships(),
   })
 }
 
-/** The tenants the caller is a member of, each with their role in it. */
+/** The Tenants page's URL contract: by name, or newest membership first, filtered by role. */
+export const myTenantsList = defineList({
+  sorts: ['name', '-joined'],
+  filters: { role: listFilter(MEMBERSHIP_ROLES) },
+  table: analyticsKey('tenants'),
+})
+
+/**
+ * One page of the caller's tenants (`GET /tenants`), for the Tenants table
+ * and the switcher's search.
+ * @param request - From `listRequest(myTenantsList, …)`, or `{ search }`.
+ * @returns Query options for `useListQuery` or `useQuery`.
+ */
+export function myTenantsListOptions(request: ListRequest) {
+  return listQueryOptions<TenantWithRole>({ key: tenantKeys.pages, path: '/tenants', request })
+}
+
+/**
+ * Refetches the caller's tenant list and every page of the Tenants list,
+ * leaving each tenant's own queries alone.
+ * @param queryClient - The app's query client.
+ */
+export async function invalidateTenantList(queryClient: QueryClient): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true }),
+    queryClient.invalidateQueries({ queryKey: tenantKeys.pages }),
+  ])
+}
+
+/** Every tenant the caller is a member of, each with their role in it. */
 export function useTenants() {
   return useQuery(tenantsQueryOptions())
 }
@@ -162,7 +220,7 @@ export function tenantQueryOptions(slug: string) {
       } catch (error) {
         if (statusFrom(error) === 404) {
           // A suspended tenant answers 404 too; the list is what tells it apart, and may be stale.
-          void client.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+          void invalidateTenantList(client)
           return null
         }
         throw error
@@ -213,7 +271,7 @@ export function useCreateTenant() {
   return useMutation({
     mutationFn: async (input: NewTenantInput) =>
       unwrap(await apiClient.post<ApiSuccess<Tenant>>('/tenants', input)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true }),
+    onSuccess: () => invalidateTenantList(queryClient),
   })
 }
 
@@ -225,7 +283,7 @@ export function useUpdateTenant(slug: string) {
       unwrap(await apiClient.patch<ApiSuccess<Tenant>>(`/tenants/${slug}`, input)),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.detail(slug) })
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      await invalidateTenantList(queryClient)
     },
   })
 }
@@ -328,7 +386,7 @@ export function useUpdateMemberRole(slug: string) {
     onSuccess: async (_data, { userId }) => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
       await queryClient.invalidateQueries({ queryKey: tenantKeys.detail(slug), exact: true })
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      await invalidateTenantList(queryClient)
       if (slug === PLATFORM_TENANT_SLUG && userId === useAuthStore.getState().user?.id) {
         await refreshProfile(queryClient)
       }
@@ -355,7 +413,7 @@ export function useLeaveTenant(slug: string) {
   const queryClient = useQueryClient()
   /** Refetches the tenant list, and the stored user's platformRole when the platform tenant was left. */
   const afterLeaving = async () => {
-    await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+    await invalidateTenantList(queryClient)
     if (slug === PLATFORM_TENANT_SLUG) await refreshProfile(queryClient)
   }
   return useMutation({
@@ -393,7 +451,7 @@ export function useRemoveMember(slug: string) {
       apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/members/${userId}`),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.list, exact: true })
+      await invalidateTenantList(queryClient)
     },
     onError: async (error) => {
       if (isMemberNotFound(error)) {

@@ -1,22 +1,15 @@
 /**
  * @file The URL contract every list page shares. `defineList` builds a
- * route's `validateSearch` from the list's sort whitelist and filters, and
- * `listRequest` turns the validated search into the API request. Params use
+ * route's `validateSearch` from the list's sort whitelist and filters; the
+ * request side (`listValues`, `listRequest`) lives in `list-request.schemas`,
+ * which only the list table loads, so a route's schema stays small. Params use
  * the API's names (camelCase, one word each), so a list's URL reads like its
  * request. Defaults are omitted from both, so a default view's URL is clean.
  */
 import { z } from 'zod'
 import type { AnalyticsKey } from '@/observability/telemetry'
 import { searchText } from '@/schemas/search.schemas'
-import {
-  DEFAULT_PAGE_SIZE,
-  LIST_DIRECTIONS,
-  MAX_SEARCH_LENGTH,
-  PAGE_SIZES,
-  type ListDirection,
-  type ListRequest,
-  type PageSize,
-} from '@/types/list.types'
+import { LIST_DIRECTIONS, PAGE_SIZES } from '@/types/list.types'
 
 /** How one filter travels: a comma list of known values, a yes/no, a record id, or a calendar day. */
 export type ListFilter =
@@ -52,30 +45,11 @@ export function dayFilter(): ListFilter {
 /** The longest cursor the API accepts (4096 characters); it refuses a longer one. Every cursor it issues fits. */
 const MAX_CURSOR_LENGTH = 4096
 
-/**
- * A search term made safe to send: NUL stripped, trimmed, and cut to what the
- * API accepts. An empty result means no search, and callers then leave
- * `search` out of the URL and the request (the API refuses an empty one).
- * @param text - What the reader typed or the URL held.
- * @returns The term, possibly empty.
- */
-export function cleanSearch(text: string): string {
-  return (
-    text
-      .replaceAll('\0', '')
-      .trim()
-      .slice(0, MAX_SEARCH_LENGTH)
-      // A cut can leave half of a surrogate pair, which encodeURIComponent refuses.
-      .replace(/[\uD800-\uDBFF]$/, '')
-      .trimEnd()
-  )
-}
-
 /** The shared fields every list's URL may carry, before any prefix. */
 export const LIST_FIELDS = ['search', 'sort', 'cursor', 'direction', 'limit', 'hidden'] as const
 
 /** One of `LIST_FIELDS`, or a filter's name. */
-type ListKey = (typeof LIST_FIELDS)[number] | (string & {})
+export type ListKey = (typeof LIST_FIELDS)[number] | (string & {})
 
 /** A validated search as the router holds it: every value optional, keyed by URL name. */
 export type ListUrlSearch = Record<string, string | number | boolean | undefined>
@@ -229,97 +203,4 @@ export function defineList<E extends z.ZodRawShape = Record<never, never>>(
     // The shape's keys are chosen at run time, so its type is stated rather than inferred.
     schema: z.object(routeShape) as unknown as ListDefinition<E>['schema'],
   }
-}
-
-/** A list's search by field name, after validation, with defaults filled in. */
-export interface ListValues {
-  search: string
-  /** The effective sort: the URL's, or the default. */
-  sort: string
-  cursor: string | undefined
-  direction: ListDirection
-  limit: PageSize
-  hidden: readonly string[]
-  /** Every filter as a list of string values; a yes/no filter is `['true']` or `['false']`. */
-  filters: Readonly<Record<string, readonly string[]>>
-}
-
-/**
- * Reads one list's fields out of the route's validated search.
- * @param definition - The list.
- * @param search - The route's validated search.
- * @returns The values, defaults filled in.
- */
-export function listValues(
-  definition: ListDefinition<z.ZodRawShape>,
-  search: ListUrlSearch
-): ListValues {
-  /** One field's validated URL value. */
-  const read = (key: ListKey) => search[definition.urlKey(key)]
-  const filters: Record<string, readonly string[]> = {}
-  for (const [name, filter] of Object.entries(definition.filters)) {
-    const value = read(name)
-    if (value === undefined) continue
-    filters[name] = filter.kind === 'list' ? String(value).split(',') : [String(value)]
-  }
-  const sort = read('sort')
-  const limit = read('limit')
-  const cursor = read('cursor')
-  const hidden = read('hidden')
-  return {
-    search: String(read('search') ?? ''),
-    sort: typeof sort === 'string' ? sort : definition.sorts[0],
-    cursor: typeof cursor === 'string' && cursor !== '' ? cursor : undefined,
-    direction: read('direction') === 'prev' ? 'prev' : 'next',
-    limit: PAGE_SIZES.find((size) => size === limit) ?? DEFAULT_PAGE_SIZE,
-    hidden: typeof hidden === 'string' ? hidden.split(',') : [],
-    filters,
-  }
-}
-
-/**
- * The URL value that writes `values` for one filter: a comma list, the first
- * value for an id or a day, a boolean for a yes/no filter (only when exactly
- * one of yes and no is picked), and `undefined` (no filter) for no values.
- * @param filter - The filter.
- * @param values - The picked values.
- * @returns The value to write.
- */
-export function filterUrlValue(
-  filter: ListFilter,
-  values: readonly string[]
-): string | boolean | undefined {
-  if (values.length === 0) return undefined
-  if (filter.kind === 'list') return values.join(',')
-  if (filter.kind === 'boolean') return values.length === 1 ? values[0] === 'true' : undefined
-  return values[0]
-}
-
-/**
- * The API request for a list's values: the default sort, the default page
- * size and `direction=next` are left out, `direction` is sent only with a
- * cursor, and `search` and `cursor` are left out when empty (the API refuses
- * `search=` and `cursor=`). Pure, so a route loader prefetches exactly what the page reads.
- * @param definition - The list.
- * @param values - From `listValues`.
- * @returns The request params.
- */
-export function listRequest(
-  definition: ListDefinition<z.ZodRawShape>,
-  values: ListValues
-): ListRequest {
-  const request: ListRequest = {}
-  const term = cleanSearch(values.search)
-  if (term !== '') request.search = term
-  if (values.sort !== definition.sorts[0]) request.sort = values.sort
-  if (values.cursor !== undefined && values.cursor !== '') {
-    request.cursor = values.cursor
-    if (values.direction === 'prev') request.direction = 'prev'
-  }
-  if (values.limit !== DEFAULT_PAGE_SIZE) request.limit = values.limit
-  for (const [name, filter] of Object.entries(definition.filters)) {
-    const value = filterUrlValue(filter, values.filters[name] ?? [])
-    if (value !== undefined) request[name] = value
-  }
-  return request
 }

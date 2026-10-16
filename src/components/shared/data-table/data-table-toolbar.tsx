@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { cleanSearch } from '@/schemas/list.schemas'
+import { cleanSearch } from '@/schemas/list-request.schemas'
 import { LIST_SEARCH_DEBOUNCE_MS, MAX_SEARCH_LENGTH, type ListTotal } from '@/types/list.types'
 
 /**

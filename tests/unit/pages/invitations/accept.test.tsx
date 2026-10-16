@@ -14,6 +14,7 @@ import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import {
   fail,
   ok,
@@ -95,7 +96,7 @@ function countPreviews(answer = () => ok(testInvitationPreview, 'Invitation retr
 function mockTenantRoute() {
   server.use(
     http.get('/api/v1/tenants', () =>
-      ok([{ tenant: TENANT, role: 'editor' }], 'Tenants retrieved.')
+      ok(listPage([{ tenant: TENANT, role: 'editor' }]), 'Tenants retrieved.')
     ),
     http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'editor'), 'Tenant retrieved.'))
   )

@@ -129,7 +129,17 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     as: 'owner',
     responsive: true,
     sections: [{ name: 'Tenants', endpoints: ['GET /tenants'] }],
-    empty: { stubs: [{ endpoint: 'GET /tenants', data: [] }] },
+    empty: {
+      stubs: [
+        {
+          endpoint: 'GET /tenants',
+          data: {
+            items: [],
+            page: { nextCursor: null, prevCursor: null, hasNext: false, hasPrev: false, limit: 20 },
+          },
+        },
+      ],
+    },
   },
   '/settings/account/notifications': {
     kind: 'page',

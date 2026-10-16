@@ -33,6 +33,7 @@ import {
   USER_ID,
   USER_ID_2,
 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import {
   fail,
   ok,
@@ -159,7 +160,10 @@ const PREFERENCES = [
 function mockSignedInData() {
   server.use(
     http.get('/api/v1/tenants', () =>
-      ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+      ok(
+        listPage([{ tenant: TENANT, role: 'owner', joinedAt: '2026-01-01T00:00:00.000Z' }]),
+        'Tenants retrieved.'
+      )
     ),
     http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')),
     http.get('/api/v1/tenants/acme/members', () => ok(MEMBERS, 'Members retrieved.')),
@@ -581,7 +585,16 @@ describe('signed-in pages', () => {
     useCurrentTenantStore.setState({ remembered: {} })
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: { ...TENANT, lifecycleState: 'suspended' },
+              role: 'owner',
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     renderAppAt('/settings/account/profile')
@@ -597,14 +610,20 @@ describe('signed-in pages', () => {
     ['missing', [], 'Tenant not available'],
     [
       'suspended',
-      [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
+      [
+        {
+          tenant: { ...TENANT, lifecycleState: 'suspended' },
+          role: 'owner',
+          joinedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
       'Tenant suspended',
     ],
   ])(
     'a workspace settings page for a %s tenant has one h1 and no axe violations',
     async (_name, list, panel) => {
       server.use(
-        http.get('/api/v1/tenants', () => ok(list, 'Tenants.')),
+        http.get('/api/v1/tenants', () => ok(listPage(list), 'Tenants.')),
         http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
       )
       renderAppAt('/settings/workspace/acme/members')
@@ -618,7 +637,16 @@ describe('signed-in pages', () => {
   it('tenants list with a suspended row has no axe violations', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: { ...TENANT, lifecycleState: 'suspended' },
+              role: 'owner',
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       )
     )
     renderAppAt('/tenants')
@@ -629,7 +657,16 @@ describe('signed-in pages', () => {
   it('suspended tenant page has no axe violations', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: { ...TENANT, lifecycleState: 'suspended' },
+              role: 'owner',
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       ),
       http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
     )

@@ -7,6 +7,7 @@ import { resetSessionForTests } from '@/http/session'
 import * as tenantQueries from '@/queries/tenant.queries'
 import {
   tenantKeys,
+  tenantsQueryOptions,
   useInvitations,
   useInviteMember,
   useMyRole,
@@ -24,6 +25,7 @@ import {
   USER_ID,
   USER_ID_2,
 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import {
   fail,
   INVITATION_SENT_MESSAGE,
@@ -307,7 +309,7 @@ describe('useMyRole', () => {
     server.use(
       http.get('/api/v1/tenants', () => {
         listCalls += 1
-        return ok([], 'Tenants retrieved.')
+        return ok(listPage([]), 'Tenants retrieved.')
       }),
       http.get('/api/v1/tenants/acme', () =>
         ok(tenantDetail(DETAIL_TENANT, 'viewer', 'platform'), 'Tenant retrieved.')
@@ -611,5 +613,44 @@ describe('member mutations and the caller’s own profile', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(profileCalls).toBe(0)
     })
+  })
+})
+
+describe('tenantsQueryOptions', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  it('reads every page of the caller’s tenants', async () => {
+    const seen: URLSearchParams[] = []
+    /** One membership row in the list's shape. */
+    const row = (slug: string) => ({
+      tenant: { id: slug, name: slug, slug },
+      role: 'owner',
+      isPlatform: false,
+      joinedAt: '2026-01-01T00:00:00.000Z',
+    })
+    server.use(
+      http.get('/api/v1/tenants', ({ request }) => {
+        const params = new URL(request.url).searchParams
+        seen.push(params)
+        return params.get('cursor') === 'c2'
+          ? ok(listPage([row('beta')]), 'Tenants retrieved.')
+          : ok(listPage([row('acme')], { nextCursor: 'c2', hasNext: true }), 'Tenants retrieved.')
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    const rows = await client.fetchQuery(tenantsQueryOptions())
+
+    expect(rows.map((entry) => entry.tenant.slug)).toEqual(['acme', 'beta'])
+    expect(seen.map((params) => params.get('limit'))).toEqual(['100', '100'])
+    expect(seen.map((params) => params.get('cursor'))).toEqual([null, 'c2'])
   })
 })

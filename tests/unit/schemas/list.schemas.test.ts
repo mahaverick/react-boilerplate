@@ -2,16 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { analyticsKey } from '@/observability/telemetry'
 import {
-  booleanFilter,
   cleanSearch,
-  dayFilter,
-  defineList,
   filterUrlValue,
-  idFilter,
-  listFilter,
   listRequest,
   listValues,
-} from '@/schemas/list.schemas'
+} from '@/schemas/list-request.schemas'
+import { booleanFilter, dayFilter, defineList, idFilter, listFilter } from '@/schemas/list.schemas'
 
 const list = defineList({
   sorts: ['name', 'created', '-created'],

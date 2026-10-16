@@ -10,8 +10,16 @@ import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { build } from 'vite'
 
-/** The ceiling for first-visit JS in bytes. Raise it only with a measured reason. */
-const ENTRY_BUDGET_BYTES = 584_000
+/**
+ * The ceiling for first-visit JS in bytes. Raise it only with a measured reason.
+ * The list contract's route schemas (`defineList` in `list.schemas`) reach the
+ * entry through every list route's `validateSearch`, and with them the parts of
+ * zod they use (union, pipe, catch, literal, uuid, iso date, length checks):
+ * about 10,000 B more than the entry carried without them. The request builder
+ * sits in `list-request.schemas`, which only the list table loads (about 1,060 B
+ * kept out). Measured with the Tenants list moved: 593,094 B.
+ */
+const ENTRY_BUDGET_BYTES = 593_100
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

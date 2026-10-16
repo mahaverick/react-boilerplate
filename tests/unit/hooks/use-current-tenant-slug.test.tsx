@@ -8,6 +8,7 @@ import { queryClient } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
 import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -63,7 +64,9 @@ describe('useCurrentTenantSlug', () => {
     url.tenant = undefined
     useCurrentTenantStore.setState({ remembered: {} })
     useAuthStore.setState({ user: testUser, isAuthenticated: true, isBootstrapped: true })
-    server.use(http.get('/api/v1/tenants', () => ok([row('acme'), row('umbrella', 'suspended')])))
+    server.use(
+      http.get('/api/v1/tenants', () => ok(listPage([row('acme'), row('umbrella', 'suspended')])))
+    )
   })
 
   it('reads the route’s $slug, even one the list lacks (platform access)', async () => {

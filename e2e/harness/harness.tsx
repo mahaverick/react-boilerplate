@@ -28,6 +28,7 @@ import {
   USER_ID,
   USER_ID_2,
 } from '../../tests/fixtures/ids'
+import { listPage } from '../../tests/fixtures/list-page'
 
 const TENANT = {
   id: TENANT_ID,
@@ -321,14 +322,18 @@ const worker = setupWorker(
   ...flagHandlers,
   http.get('/api/v1/tenants', () =>
     ok(
-      asStaff
-        ? []
-        : [
-            {
-              tenant: suspended ? { ...TENANT, lifecycleState: 'suspended' } : TENANT,
-              role: selfRole ?? 'owner',
-            },
-          ],
+      listPage(
+        asStaff
+          ? []
+          : [
+              {
+                tenant: suspended ? { ...TENANT, lifecycleState: 'suspended' } : TENANT,
+                role: selfRole ?? 'owner',
+                isPlatform: false,
+                joinedAt: '2026-01-01T00:00:00.000Z',
+              },
+            ]
+      ),
       'Tenants retrieved.'
     )
   ),

@@ -10,9 +10,10 @@ import {
   useAcceptInvitation,
   useInvitationPreview,
 } from '@/queries/invitation.queries'
-import { tenantKeys, useTenants } from '@/queries/tenant.queries'
+import { myTenantsListOptions, tenantKeys, useTenants } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import {
   fail,
   ok,
@@ -177,7 +178,7 @@ describe('invitation queries', () => {
       server.use(
         http.get('/api/v1/tenants', () => {
           listCalls += 1
-          return ok(listCalls === 1 ? [] : joined, 'Tenants retrieved.')
+          return ok(listPage(listCalls === 1 ? [] : joined), 'Tenants retrieved.')
         })
       )
       // Loaded by a page that then unmounted, as when the reader visited /tenants before opening the link.
@@ -191,6 +192,24 @@ describe('invitation queries', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(listCalls).toBe(2)
       expect(client.getQueryData(tenantKeys.list)).toEqual(joined)
+    })
+
+    it('refetches a cached page of the Tenants list that nothing is observing', async () => {
+      let pageCalls = 0
+      server.use(
+        http.get('/api/v1/tenants', () => {
+          pageCalls += 1
+          return ok(listPage([]), 'Tenants retrieved.')
+        })
+      )
+      await client.fetchQuery(myTenantsListOptions({}))
+      expect(pageCalls).toBe(1)
+
+      const { result } = renderHook(() => useAcceptInvitation(), { wrapper })
+      result.current.mutate(TEST_INVITATION_TOKEN)
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(pageCalls).toBe(2)
     })
 
     it('refreshes the profile, so a role gained by accepting is live without a reload', async () => {

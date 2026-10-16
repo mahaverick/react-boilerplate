@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw'
 import type { MembershipRole } from '@/constants/roles'
 import type { ClientFlagValues } from '@/observability/flags/flag-types'
 import { INVITATION_ID, USER_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import type {
   InvitationPreview,
   OnboardingStepView,
@@ -211,9 +212,9 @@ export const handlers = [
   /**
    * The tenant switcher is in the app shell's sidebar, so every test that mounts an
    * authenticated route hits this one too. Empty; a test about tenants overrides it. Rows
-   * are `{ tenant, role }`, not bare tenants, as `TenantRepository.listForUser` returns them.
+   * are `{ tenant, role, joinedAt }`, in the list envelope, not bare tenants.
    */
-  http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+  http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')),
   // Pending invitations, empty; a test about them overrides it.
   http.get('/api/v1/tenants/:slug/invitations', () => ok([], 'Invitations retrieved.')),
   // Invite and resend answer 202 with `data: null` whether or not the address has an account, the same way register does.

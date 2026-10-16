@@ -20,6 +20,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantAccess } from '@/types/api.types'
@@ -50,7 +51,7 @@ function mockTenant(myRole: MembershipRole, access: TenantAccess = 'member') {
   server.use(
     http.get('/api/v1/tenants', () =>
       ok(
-        [{ tenant: { ...TENANT, isPlatform: false }, role: myRole, isPlatform: false }],
+        listPage([{ tenant: { ...TENANT, isPlatform: false }, role: myRole, isPlatform: false }]),
         'Tenants retrieved.'
       )
     ),
@@ -657,7 +658,9 @@ describe('workspace general settings', () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
-          [{ tenant: { ...TENANT, isPlatform: false }, role: 'owner', isPlatform: false }],
+          listPage([
+            { tenant: { ...TENANT, isPlatform: false }, role: 'owner', isPlatform: false },
+          ]),
           'Tenants.'
         )
       ),

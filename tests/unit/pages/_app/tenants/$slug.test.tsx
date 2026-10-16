@@ -18,6 +18,7 @@ import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -51,7 +52,9 @@ const SETTINGS = {
 /** Serves the acme tenant, its list entry, members and settings, with the caller holding `myRole` through `access`. */
 function mockTenant(myRole: MembershipRole, access: TenantAccess = 'member') {
   server.use(
-    http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: myRole }], 'Tenants retrieved.')),
+    http.get('/api/v1/tenants', () =>
+      ok(listPage([{ tenant: TENANT, role: myRole }]), 'Tenants retrieved.')
+    ),
     http.get('/api/v1/tenants/acme', () =>
       ok(tenantDetail(TENANT, myRole, access), 'Tenant retrieved.')
     ),
@@ -95,7 +98,7 @@ describe('tenant detail', () => {
       http.get('/api/v1/tenants', () => {
         listFetches += 1
         return ok(
-          [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
+          listPage([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }]),
           'Tenants.'
         )
       }),
@@ -121,7 +124,7 @@ describe('tenant detail', () => {
   it('still says not found for a tenant the refreshed list does not carry', async () => {
     queryClient.setQueryData(tenantKeys.list, [{ tenant: TENANT, role: 'owner' }])
     server.use(
-      http.get('/api/v1/tenants', () => ok([], 'Tenants.')),
+      http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants.')),
       http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
     )
     renderAppAt('/tenants/acme')
@@ -134,7 +137,7 @@ describe('tenant detail', () => {
    */
   it('renders the load-error panel, with a retry, for a non-404 failure', async () => {
     server.use(
-      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+      http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')),
       http.get('/api/v1/tenants/acme', () => fail('Something went wrong', 500))
     )
     renderAppAt('/tenants/acme')
@@ -149,7 +152,10 @@ describe('tenant detail', () => {
   it('says a suspended tenant is suspended, not that it is missing', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }], 'Tenants.')
+        ok(
+          listPage([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }]),
+          'Tenants.'
+        )
       ),
       http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
     )
@@ -171,7 +177,7 @@ describe('tenant detail', () => {
         // The list answers only after the tenant read has, so the page is in its list-pending window while the 404 lands.
         await detailSeen
         return ok(
-          [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
+          listPage([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }]),
           'Tenants.'
         )
       }),
@@ -211,7 +217,9 @@ describe('tenant detail', () => {
   it('refetches the tenant from that retry, and renders it when it returns', async () => {
     let failNext = true
     server.use(
-      http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: 'owner' }], 'Tenants.')),
+      http.get('/api/v1/tenants', () =>
+        ok(listPage([{ tenant: TENANT, role: 'owner' }]), 'Tenants.')
+      ),
       http.get('/api/v1/tenants/acme', () =>
         failNext
           ? fail('Something went wrong', 500)
@@ -232,7 +240,7 @@ describe('tenant detail', () => {
 
   it('renders a not-found state for a 404, not the load-error panel', async () => {
     server.use(
-      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+      http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')),
       http.get('/api/v1/tenants/ghost', () => fail('Tenant not found', 404))
     )
     renderAppAt('/tenants/ghost')
@@ -404,7 +412,7 @@ describe('tenant analytics group', () => {
     const setTenantGroup = vi.spyOn(analytics, 'setTenantGroup')
     const clearTenantGroup = vi.spyOn(analytics, 'clearTenantGroup')
     server.use(
-      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+      http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')),
       http.get('/api/v1/tenants/ghost', () => fail('Tenant not found', 404))
     )
     renderWithRouteAnalytics('/tenants/ghost')

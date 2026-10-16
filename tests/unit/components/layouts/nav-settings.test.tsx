@@ -14,6 +14,7 @@ import { NavSettings } from '@/components/layouts/nav-settings'
 import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { queryClient } from '@/router'
 import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import { ok } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -103,7 +104,7 @@ describe('NavSettings', () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
-          [
+          listPage([
             {
               tenant: {
                 id: TENANT_ID,
@@ -119,7 +120,7 @@ describe('NavSettings', () => {
               },
               role: 'owner',
             },
-          ],
+          ]),
           'Tenants retrieved.'
         )
       )

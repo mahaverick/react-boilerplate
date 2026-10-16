@@ -13,7 +13,11 @@ import { isEligibleTenant, useTenants } from '@/queries/tenant.queries'
  */
 export function useCurrentTenantSlug(): string | null {
   const { slug } = useParams({ strict: false })
-  const tenant = useSearch({ strict: false, select: (search) => search.tenant })
+  // A list route's search is keyed by name, so `tenant` is read as text only.
+  const tenant = useSearch({
+    strict: false,
+    select: (search) => (typeof search.tenant === 'string' ? search.tenant : undefined),
+  })
   const tenants = useTenants()
   if (slug) return slug
   if (!tenant) return null

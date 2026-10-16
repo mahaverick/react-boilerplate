@@ -179,13 +179,15 @@ async function stubSignedInApi(page: Page): Promise<void> {
     }
     if (pathname === '/api/v1/tenants') {
       return route.fulfill(
-        envelope(
-          (['acme', 'globex'] as const).map((slug) => ({
+        envelope({
+          items: (['acme', 'globex'] as const).map((slug) => ({
             tenant: tenantRow(slug),
             role: 'owner',
             isPlatform: false,
-          }))
-        )
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          })),
+          page: { nextCursor: null, prevCursor: null, hasNext: false, hasPrev: false, limit: 20 },
+        })
       )
     }
     // Express's flag answer: the CTA experiment at bold, so events can be checked for its $feature property.

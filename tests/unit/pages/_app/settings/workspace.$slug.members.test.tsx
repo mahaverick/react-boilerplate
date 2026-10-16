@@ -35,6 +35,7 @@ import {
   USER_ID_4,
   USER_ID_5,
 } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
 import {
   fail,
   INVITATION_SENT_MESSAGE,
@@ -95,7 +96,9 @@ const ME = USER_ID
 /** Serves the acme tenant, its list entry and its members, with the caller holding `myRole`. */
 function mockTenant(myRole: MembershipRole, members: ReturnType<typeof member>[]) {
   server.use(
-    http.get('/api/v1/tenants', () => ok([{ tenant: TENANT, role: myRole }], 'Tenants retrieved.')),
+    http.get('/api/v1/tenants', () =>
+      ok(listPage([{ tenant: TENANT, role: myRole }]), 'Tenants retrieved.')
+    ),
     http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, myRole), 'Tenant retrieved.')),
     http.get('/api/v1/tenants/acme/members', () => ok(members, 'Members retrieved.'))
   )
@@ -106,7 +109,7 @@ function mockPlatformTenant(myRole: MembershipRole, members: ReturnType<typeof m
   const platform = { ...TENANT, name: 'Platform', slug: 'platform' }
   server.use(
     http.get('/api/v1/tenants', () =>
-      ok([{ tenant: platform, role: myRole, isPlatform: true }], 'Tenants retrieved.')
+      ok(listPage([{ tenant: platform, role: myRole, isPlatform: true }]), 'Tenants retrieved.')
     ),
     http.get('/api/v1/tenants/platform', () =>
       ok(tenantDetail(platform, myRole), 'Tenant retrieved.')
@@ -1054,7 +1057,7 @@ describe('the remove and leave dialogs', () => {
           left += 1
           return ok(null, 'You left the tenant.')
         }),
-        http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.'))
+        http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.'))
       )
       const user = userEvent.setup()
       const router = renderAppAt('/settings/workspace/acme/members')
@@ -1439,7 +1442,7 @@ describe('a customer tenant reached through platform access', () => {
   /** The tenant as staff reach it: an effective role through platform access, and no membership. */
   function mockStaffView(role: MembershipRole) {
     server.use(
-      http.get('/api/v1/tenants', () => ok([], 'Tenants retrieved.')),
+      http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')),
       http.get('/api/v1/tenants/acme', () =>
         ok(tenantDetail(TENANT, role, 'platform'), 'Tenant retrieved.')
       ),
@@ -1679,7 +1682,7 @@ describe('keyboard focus after a row action succeeds', () => {
     const everyone = [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')]
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok([{ tenant: TENANT, role: 'owner' }], 'Tenants retrieved.')
+        ok(listPage([{ tenant: TENANT, role: 'owner' }]), 'Tenants retrieved.')
       ),
       http.get('/api/v1/tenants/acme', () =>
         ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')
