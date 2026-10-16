@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { PlatformAccessBanner } from '@/components/features/platform-access-banner'
 import { EmptyState } from '@/components/shared/empty-state'
 import { QueryState } from '@/components/shared/query-state'
-import { useTenant, useTenants } from '@/queries/tenant.queries'
+import { useTenant, useTenants, type TenantWithRole } from '@/queries/tenant.queries'
 import { useRememberTenant } from '@/states/current-tenant.store'
 
 /** Said of the request, not of the tenant: unlike `TenantNotFound`, the tenant may be fine. */
@@ -98,20 +98,24 @@ export function TenantGate({
     !!tenant.data && tenant.data.access !== 'platform' && !tenant.data.isPlatform
   )
 
+  /** The page, or the 404 panels, for a detail that has loaded. */
+  const loaded = (detail: LoadedTenant | null) =>
+    detail === null ? (
+      <MissingTenant slug={slug} heading={heading} skeleton={skeleton} />
+    ) : (
+      <>
+        {detail.access === 'platform' && (
+          <PlatformAccessBanner tenantName={detail.name} role={detail.role} />
+        )}
+        {children(detail)}
+      </>
+    )
+
+  // A failed refetch with the tenant on screen is the sections' to show (`useMyRole`), not a second alert over the page.
+  if (tenant.data !== undefined) return loaded(tenant.data)
   return (
     <QueryState query={tenant} name="Tenant" errorMessage={TENANT_LOAD_ERROR} skeleton={skeleton}>
-      {(detail) =>
-        detail === null ? (
-          <MissingTenant slug={slug} heading={heading} skeleton={skeleton} />
-        ) : (
-          <>
-            {detail.access === 'platform' && (
-              <PlatformAccessBanner tenantName={detail.name} role={detail.role} />
-            )}
-            {children(detail)}
-          </>
-        )
-      }
+      {loaded}
     </QueryState>
   )
 }
@@ -132,16 +136,20 @@ function MissingTenant({
 }) {
   const tenants = useTenants()
   if (tenants.isFetching && !tenants.isError) return skeleton
+  /** The suspended or not-found panel, as `list` tells them apart. */
+  const panel = (list: readonly TenantWithRole[]) => {
+    const listed = list.find((entry) => entry.tenant.slug === slug)
+    return listed?.tenant.lifecycleState === 'suspended' ? (
+      <TenantSuspended name={listed.tenant.name} heading={heading} />
+    ) : (
+      <TenantNotFound slug={slug} heading={heading} />
+    )
+  }
+  // A cached list whose refetch failed still decides: a load error above the panel would contradict it.
+  if (tenants.data !== undefined) return panel(tenants.data)
   return (
     <QueryState query={tenants} name="Tenants" errorMessage={TENANT_LOAD_ERROR} skeleton={skeleton}>
-      {(list) => {
-        const listed = list.find((entry) => entry.tenant.slug === slug)
-        return listed?.tenant.lifecycleState === 'suspended' ? (
-          <TenantSuspended name={listed.tenant.name} heading={heading} />
-        ) : (
-          <TenantNotFound slug={slug} heading={heading} />
-        )
-      }}
+      {panel}
     </QueryState>
   )
 }

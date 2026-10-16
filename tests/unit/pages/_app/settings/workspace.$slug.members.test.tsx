@@ -398,10 +398,8 @@ describe('members page permissions', () => {
       await queryClient.refetchQueries({ queryKey: tenantKeys.detail('acme'), exact: true })
     })
 
-    // The gate's own load-error panel stands above the page too: pick the role's.
-    const alerts = await screen.findAllByRole('alert')
-    const alert = alerts.find((entry) => /could not load your role/i.test(entry.textContent))
-    if (!alert) throw new Error('No alert says the role could not be loaded.')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/could not load your role/i)
     expect(document.querySelector('[data-slot="skeleton"]')).toBeNull()
 
     const before = detailCalls
@@ -413,7 +411,7 @@ describe('members page permissions', () => {
       expect(detailCalls).toBeGreaterThan(before)
     })
     expect(await screen.findByRole('combobox', { name: 'Role for Me X' })).toBeInTheDocument()
-    expect(screen.queryAllByRole('alert')).toHaveLength(0)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   /**
@@ -475,12 +473,7 @@ describe('members page permissions', () => {
 
     // Stacked rather than chained: showing only one would pick a winner whose retry cannot fix the other failure.
     await waitFor(() => {
-      expect(
-        screen
-          .getAllByRole('alert')
-          .map((alert) => alert.textContent)
-          .join(' ')
-      ).toMatch(/could not load your role in this tenant/i)
+      expect(screen.getAllByRole('alert')).toHaveLength(2)
     })
     const text = screen
       .getAllByRole('alert')
