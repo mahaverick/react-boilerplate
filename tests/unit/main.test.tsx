@@ -14,6 +14,7 @@ import {
 import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
+import { templatesReady } from '@/components/shared/pending-templates'
 import { ROUTER_DEFAULTS } from '@/router'
 import { settle } from '@/tests/fixtures/timing'
 import indexHtml from '../../index.html?raw'
@@ -25,7 +26,7 @@ const roots: Root[] = []
 function boot(container: HTMLElement, router: AnyRouter) {
   const root = createRoot(container)
   roots.push(root)
-  return router.load().finally(() => {
+  return Promise.allSettled([router.load(), templatesReady]).then(() => {
     root.render(
       <StrictMode>
         <RouterProvider router={router as never} />

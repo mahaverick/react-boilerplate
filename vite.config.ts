@@ -15,9 +15,11 @@ export default defineConfig({
       /** Each route's component is its own chunk, fetched on first visit to it. */
       autoCodeSplitting: true,
       /**
-       * The pending template is not split: it has to render synchronously, since a
-       * lazy template that is still loading when the router needs it suspends to
-       * an ancestor and replaces the whole layout with that ancestor's fallback.
+       * The pending template is not split: a route names a wrapper from
+       * `pending-templates.ts`, preloaded at startup so it renders without
+       * suspending. A lazy template still loading when the router needs it would
+       * suspend to an ancestor and replace the whole layout with that ancestor's
+       * fallback.
        */
     }),
     /**

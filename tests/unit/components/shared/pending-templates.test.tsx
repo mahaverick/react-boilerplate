@@ -5,22 +5,24 @@ import {
   createRouter,
   Outlet,
   RouterProvider,
+  type AsyncRouteComponent,
 } from '@tanstack/react-router'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import * as templates from '@/components/shared/pending-templates'
+import * as module from '@/components/shared/pending-templates'
 import { ROUTER_DEFAULTS } from '@/router'
 
 describe('pending templates', () => {
-  it.each(Object.entries(templates))(
-    '%s renders without suspending once the module has loaded',
-    async (_name, Template) => {
-      // No Suspense boundary: a template still being fetched would throw here instead of rendering.
-      await Template.preload?.()
-      render(<Template />)
-      expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
-    }
-  )
+  it.each(
+    Object.entries(module).filter(
+      (entry): entry is [string, AsyncRouteComponent<unknown>] => entry[0] !== 'templatesReady'
+    )
+  )('%s renders without suspending once the module has loaded', async (_name, Template) => {
+    // No Suspense boundary: a template still being fetched would throw here instead of rendering.
+    await Template.preload?.()
+    render(<Template />)
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
+  })
 
   it('shows a nested route its own template inside the layout, not an ancestor fallback', async () => {
     let release!: () => void
@@ -47,7 +49,7 @@ describe('pending templates', () => {
       getParentRoute: () => layout,
       path: '/detail',
       loader: () => gate,
-      pendingComponent: templates.DetailPending,
+      pendingComponent: module.DetailPending,
       component: () => <h1>Detail</h1>,
     })
     const router = createRouter({

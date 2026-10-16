@@ -41,8 +41,8 @@ function MatchedPending() {
  * A `$slug` page needs no list: its tenant is the path, and any `?tenant` is
  * dropped. Any other page waits on the caller's tenant list, showing in the
  * page slot (the sidebar and header are already up) the pending template of
- * the route directly under `_app`, the one the router would show for it, then moves to the resolved `?tenant` with a replace and remembers it
- * for the user. A failed list renders the page with the URL as it is; the
+ * the route directly under `_app`, the one the router would show for it, then
+ * moves to the resolved `?tenant` with a replace and remembers it for the user. A failed list renders the page with the URL as it is; the
  * tenant switcher says the list failed and offers a retry. It decides only
  * while the router is idle, when the location and the rendered matches are
  * the same page's, so a page reached with an ineligible `?tenant` (a stale

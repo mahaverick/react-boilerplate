@@ -3,8 +3,8 @@ import { lazyRouteComponent } from '@tanstack/react-router'
 /**
  * The route pending templates, each a lazy wrapper over `page-skeleton` so the
  * templates stay out of the entry chunk (pnpm check:bundle). This module is not
- * split from the routes that name its exports, and every wrapper is fetched here,
- * at startup: the router does not preload a template, and one still loading when
+ * split from the routes that name its exports, and every wrapper is fetched at
+ * startup (`templatesReady`): the router does not preload a template, and one still loading when
  * a navigation passes `defaultPendingMs` would suspend to an ancestor and replace
  * its whole layout with that ancestor's fallback.
  */
@@ -24,13 +24,28 @@ export const SettingsPending = template('SettingsPending')
 /** A settings page's pending template, under the settings layout's own heading. */
 export const SettingsPagePending = template('SettingsPagePending')
 
-for (const loaded of [
+/** Every template, for the startup preload. */
+const ALL = [
   ListPending,
   DetailPending,
   DetailTabPending,
   DashboardPending,
   SettingsPending,
   SettingsPagePending,
-]) {
-  void loaded.preload?.()
+]
+
+/** Fetches every template's chunk, retrying once what failed. Never rejects: a template that still fails shows its error when it renders. */
+async function preloadAll(): Promise<void> {
+  const failed = (
+    await Promise.allSettled(ALL.map(async (template) => template.preload?.()))
+  ).flatMap((result, index) => (result.status === 'rejected' ? [ALL[index]] : []))
+  await Promise.allSettled(failed.map(async (template) => template?.preload?.()))
 }
+
+/**
+ * Settles once every template's chunk has loaded (or failed twice). Started when
+ * this module loads; `main.tsx` waits on it beside `router.load()`, so the first
+ * render, including the tenant guard's hold on a page whose own route names no
+ * template, never suspends on a template.
+ */
+export const templatesReady: Promise<void> = preloadAll()
