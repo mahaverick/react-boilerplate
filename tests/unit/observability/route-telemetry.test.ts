@@ -6,6 +6,7 @@ import {
   Outlet,
 } from '@tanstack/react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { identityEpoch } from '@/observability/identity-epoch'
 import {
   installRouteAnalytics,
   TENANT_GROUP_WAIT_MS,
@@ -221,9 +222,35 @@ describe('installRouteAnalytics', () => {
     // A later page view is queued behind both resolves above, so once it lands they have run.
     await router.navigate({ to: '/profile' })
     await vi.waitFor(() => expect(pageviews()).toBe(1))
-    // Each tenant resolve leaves the group and re-enters it; the profile's leave and view come last.
-    expect(sdk.calls.slice(-3)).toEqual([...LEAVE_TENANT, view('/profile')])
-    expect(sdk.calls.filter((call) => call.startsWith('capture("$pageview"'))).toHaveLength(1)
+    expect(sdk.calls).toEqual([...LEAVE_TENANT, view('/profile')])
+  })
+
+  it('keeps the group for the same tenant’s next page, without touching the identity epoch', async () => {
+    const router = await start('/tenants/acme')
+    await vi.waitFor(() => expect(pageviews()).toBe(1))
+    const before = identityEpoch()
+    sdk.calls = []
+    await router.navigate({ to: '/tenants/$slug/members', params: { slug: 'acme' } })
+    await vi.waitFor(() => expect(pageviews()).toBe(1))
+    // No leave and no re-enter: an error noted just before this click is still the user's own.
+    expect(sdk.calls).toEqual([view('/tenants/acme/members')])
+    expect(identityEpoch()).toBe(before)
+  })
+
+  it('keeps the first page’s group when the same tenant’s next page resolves while its read is out', async () => {
+    let land!: (tenant: unknown) => void
+    reads.set('acme', new Promise((resolve) => (land = resolve)))
+    const router = await start('/tenants/acme')
+    await router.navigate({ to: '/tenants/$slug/members', params: { slug: 'acme' } })
+    land(TENANTS.acme)
+    await vi.waitFor(() =>
+      expect(attributionCalls()).toEqual([
+        MEMBER,
+        'group("tenant", "tenant-acme")',
+        view('/tenants/acme'),
+        view('/tenants/acme/members'),
+      ])
+    )
   })
 
   it('leaves the previous tenant’s group as soon as a tenant page resolves, before its read lands', async () => {

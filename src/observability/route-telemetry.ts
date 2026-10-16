@@ -72,23 +72,24 @@ function within(promise: Promise<unknown>, ms: number, cut: Promise<void>): Prom
  * The tenant layout match of the page the router has just resolved, when its
  * loader started a tenant read.
  * @param router - The app's router, at a resolve.
- * @returns The match's tenant read, or null for any other page.
+ * @returns The match's tenant slug and read, or null for any other page.
  */
-function tenantRead(router: AnyRouter): Promise<unknown> | null {
+function tenantRead(router: AnyRouter): { slug: string; read: Promise<unknown> } | null {
   const match = router.state.matches.find((entry) => TENANT_ROUTE_IDS.includes(entry.routeId))
   if (match?.status !== 'success' || !hasTenantRead(match.loaderData)) return null
-  return match.loaderData.tenant
+  const { slug } = match.params as { slug?: unknown }
+  return typeof slug === 'string' ? { slug, read: match.loaderData.tenant } : null
 }
 
 /**
  * The tenant whose page the router has just resolved: a tenant layout match's
  * tenant read, awaited for at most `TENANT_GROUP_WAIT_MS`, or until a newer
- * tenant page resolves (`cut`). A 404 (`null`), a failure, a read past the wait,
+ * page of a different tenant resolves (`cut`). A 404 (`null`), a failure, a read past the wait,
  * a cut wait or any other page has none.
  * @param read - The page's tenant read, taken synchronously at its resolve so a
  * later navigation cannot change which page this answers for; null for a page
  * without one.
- * @param cut - Settles when a newer tenant page resolves.
+ * @param cut - Settles when a newer page of a different tenant resolves.
  * @returns The tenant id and how the user reached it, or null.
  */
 async function resolvedTenant(
@@ -117,7 +118,7 @@ function resolvedPage(router: AnyRouter) {
  * Subscribes analytics to the router's resolves. Each resolve sets or clears
  * the tenant group, then, when the path changed, captures a page view, in
  * resolve order: a tenant page's view waits for its tenant read, and every
- * later resolve waits behind it. A newer tenant page cuts an earlier page's
+ * later resolve waits behind it. A newer page of a different tenant cuts an earlier page's
  * wait short, so that earlier view is captured at once with no group and the
  * newer page's events never carry an older tenant's. Install it before the
  * router's first load, so the first page is counted too.
@@ -132,18 +133,35 @@ function resolvedPage(router: AnyRouter) {
  */
 export function installRouteAnalytics(router: AnyRouter): () => void {
   let queue: Promise<void> = Promise.resolve()
-  let cutEarlier: (() => void) | null = null
+  /** The tenant of the latest tenant page's resolve, and what cuts every wait still out for it. */
+  let earlier: { slug: string; cut: () => void } | null = null
+  /** The tenant slug whose page the latest resolve was, or null when it was not a tenant page. */
+  let inForce: string | null = null
   return router.subscribe('onResolved', ({ pathChanged }) => {
-    const read = tenantRead(router)
+    const found = tenantRead(router)
     let cut: Promise<void> = Promise.resolve()
-    if (read) {
-      cutEarlier?.()
+    if (found) {
+      const previous = earlier
+      const sameTenant = previous !== null && previous.slug === found.slug
+      const previousCut = sameTenant ? previous.cut : null
+      // A different tenant's page cuts the earlier waits short; the same tenant's read is the same fetch, so its waits stand.
+      if (!sameTenant) previous?.cut()
       cut = new Promise<void>((resolve) => {
-        cutEarlier = resolve
+        earlier = {
+          slug: found.slug,
+          cut: () => {
+            previousCut?.()
+            resolve()
+          },
+        }
       })
-      clearTenantGroup()
+      // Same tenant in force: the group stays, and clearing it would only bump the identity epoch.
+      if (inForce !== found.slug) clearTenantGroup()
+      inForce = found.slug
+    } else {
+      inForce = null
     }
-    const tenant = resolvedTenant(read, cut)
+    const tenant = resolvedTenant(found?.read ?? null, cut)
     const page = resolvedPage(router)
     queue = queue
       .then(async () => {

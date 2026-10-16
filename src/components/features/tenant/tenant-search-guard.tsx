@@ -68,8 +68,6 @@ export function TenantSearchGuard({ children }: { children: ReactNode }) {
   const failed = list.data === undefined && (list.failureCount > 0 || list.errorUpdateCount > 0)
   /** The path whose page this guard already released on a failed list read; a later correction there must not swap it for the template and back. */
   const [releasedPath, setReleasedPath] = useState<string | null>(null)
-  // Derived during render, as React allows for state that follows props.
-  if (failed && !onSlugPage && releasedPath !== pathname) setReleasedPath(pathname)
 
   const decision =
     !settled || onSlugPage || list.data === undefined
@@ -86,6 +84,12 @@ export function TenantSearchGuard({ children }: { children: ReactNode }) {
       : decision?.correction
         ? (decision.correction.tenant ?? '')
         : null
+
+  // Derived during render, as React allows for state that follows props: released on a failed read, forgotten once the list is in and nothing needs correcting.
+  if (failed && !onSlugPage && releasedPath !== pathname) setReleasedPath(pathname)
+  else if (settled && list.data !== undefined && target === null && releasedPath !== null) {
+    setReleasedPath(null)
+  }
 
   useEffect(() => {
     if (resolved !== null && userId && resolved !== remembered) remember(userId, resolved)
