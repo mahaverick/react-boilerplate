@@ -158,6 +158,16 @@ async function rowFor(name: string) {
   return within(row)
 }
 
+/**
+ * The caller's own Leave button, once it can be clicked: an owner's stays off
+ * until the separate owners read has landed.
+ */
+async function enabledLeave() {
+  const leave = (await rowFor('Me')).getByRole('button', { name: 'Leave' })
+  await waitFor(() => expect(leave).toBeEnabled())
+  return leave
+}
+
 /** Picks the viewport `useIsMobile` reports: the `matchMedia` stub in `tests/setup.ts` answers its `max-width` query from `window.innerWidth`. */
 function setViewportWidth(width: number) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
@@ -1076,7 +1086,7 @@ describe('the remove and leave dialogs', () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/platform/members')
 
-    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    await user.click(await enabledLeave())
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
       'You lose staff access immediately. An owner or admin will have to invite you back, unless your address is on an auto-join domain: then you rejoin as a viewer at your next sign-in.'
     )
@@ -1087,7 +1097,7 @@ describe('the remove and leave dialogs', () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/platform/members')
 
-    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    await user.click(await enabledLeave())
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
       'You lose staff access immediately. An owner or admin will have to invite you back, unless your address is on an auto-join domain: then you rejoin as a viewer at your next sign-in. Pending invitations you sent here are revoked, and so are any you sent in other tenants for a role you can no longer grant there.'
     )
@@ -1108,7 +1118,7 @@ describe('the remove and leave dialogs', () => {
       const user = userEvent.setup()
       const router = renderAppAt('/settings/workspace/acme/members')
 
-      await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+      await user.click(await enabledLeave())
       const dialog = await screen.findByRole('alertdialog')
       expect(dialog).toHaveAccessibleName('Leave this tenant?')
       expect(dialog).toHaveAccessibleDescription(
@@ -1129,7 +1139,7 @@ describe('the remove and leave dialogs', () => {
       const user = userEvent.setup()
       renderAppAt('/settings/workspace/acme/members')
 
-      await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+      await user.click(await enabledLeave())
       expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
         'You will lose access to this tenant immediately. An owner or admin will have to invite you back. Pending invitations you sent are revoked.'
       )
@@ -1155,7 +1165,7 @@ describe('the remove and leave dialogs', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     const me = await rowFor('Me')
-    await user.click(me.getByRole('button', { name: 'Leave' }))
+    await user.click(await enabledLeave())
     const confirm = within(await screen.findByRole('alertdialog')).getByRole('button', {
       name: 'Leave',
     })
@@ -1188,7 +1198,7 @@ describe('the remove and leave dialogs', () => {
       const user = userEvent.setup()
       const router = renderAppAt('/settings/workspace/acme/members')
 
-      await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+      await user.click(await enabledLeave())
       await user.click(
         within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
       )
@@ -1229,7 +1239,7 @@ describe('the remove and leave dialogs', () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/members')
 
-    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    await user.click(await enabledLeave())
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
     )
@@ -1248,7 +1258,7 @@ describe('the remove and leave dialogs', () => {
     const user = userEvent.setup()
     const router = renderAppAt('/settings/workspace/acme/members')
 
-    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    await user.click(await enabledLeave())
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
     )
@@ -1275,7 +1285,7 @@ describe('the remove and leave dialogs', () => {
     const router = renderAppAt('/settings/workspace/acme/members')
 
     const me = await rowFor('Me')
-    await user.click(me.getByRole('button', { name: 'Leave' }))
+    await user.click(await enabledLeave())
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
     )
@@ -1635,7 +1645,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
     const user = userEvent.setup()
     const router = renderAppAt('/settings/workspace/acme/members')
 
-    await user.click((await rowFor('Me')).getByRole('button', { name: 'Leave' }))
+    await user.click(await enabledLeave())
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Leave' }))
 
@@ -1810,8 +1820,7 @@ describe('keyboard focus after a row action succeeds', () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/members')
 
-    const me = await rowFor('Me')
-    await user.click(me.getByRole('button', { name: 'Leave' }))
+    await user.click(await enabledLeave())
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
     )
@@ -1820,6 +1829,9 @@ describe('keyboard focus after a row action succeeds', () => {
     expect(document.activeElement?.tagName).not.toBe('H2')
   })
 })
+
+/** The last-owner explanation. */
+const LAST_OWNER_TEXT = 'A tenant must always have an owner. Add another owner first.'
 
 describe('the members list', () => {
   beforeEach(() => {
@@ -1902,6 +1914,8 @@ describe('the members list', () => {
     renderAppAt('/settings/workspace/acme/members')
     expect(await screen.findByText('Owners could not be loaded.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Leave' })).toBeDisabled()
+    // Failed is not the same as one owner: the page does not claim the tenant has only one.
+    expect(screen.queryByText(LAST_OWNER_TEXT)).not.toBeInTheDocument()
   })
 
   it('keeps the members search and the invitations search apart in the URL', async () => {
@@ -1914,5 +1928,124 @@ describe('the members list', () => {
     await waitFor(() =>
       expect(router.state.location.search).toEqual({ search: 'cleo', invitationsSearch: 'inv' })
     )
+  })
+
+  it('keeps the Role column, and the last owner’s reason, when ?hidden=role asks to hide it', async () => {
+    mockTenant('owner', [OWNER_ROW])
+    renderAppAt('/settings/workspace/acme/members?hidden=role')
+
+    const members = await screen.findByRole('table', { name: 'Members' })
+    expect(within(members).getByRole('columnheader', { name: 'Role' })).toBeInTheDocument()
+    const reason = await within(members).findByText(LAST_OWNER_TEXT)
+    const leave = within(members).getByRole('button', { name: 'Leave' })
+    expect(leave).toBeDisabled()
+    expect(leave).toHaveAttribute('aria-describedby', reason.id)
+    expect(document.getElementById(reason.id)).toBe(reason)
+  })
+
+  it('offers no Role toggle in the Columns menu', async () => {
+    mockTenant('owner', [OWNER_ROW])
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    const members = await screen.findByRole('region', { name: 'Members' })
+    await user.click(await within(members).findByRole('button', { name: 'Columns' }))
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).queryByRole('menuitemcheckbox', { name: 'Role' })).not.toBeInTheDocument()
+    expect(within(menu).getByRole('menuitemcheckbox', { name: 'Email' })).toBeInTheDocument()
+  })
+
+  it('locks the last owner’s controls without claiming a reason while the owners are loading', async () => {
+    mockTenant('owner', [OWNER_ROW])
+    server.use(
+      http.get('/api/v1/tenants/acme/members', ({ request }) =>
+        new URL(request.url).searchParams.get('role') === 'owner'
+          ? new Promise<Response>(() => {})
+          : ok(listPage([OWNER_ROW]), 'Members retrieved.')
+      )
+    )
+    renderAppAt('/settings/workspace/acme/members')
+
+    const leave = await screen.findByRole('button', { name: 'Leave' })
+    expect(leave).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Role for Me X' })).toBeDisabled()
+    expect(screen.queryByText(LAST_OWNER_TEXT)).not.toBeInTheDocument()
+    expect(leave).not.toHaveAttribute('aria-describedby')
+  })
+
+  it.each(['admin', 'manager', 'editor', 'viewer'] as const)(
+    'does not read the owners for %s, who cannot act on an owner row',
+    async (role) => {
+      const ownerReads: URLSearchParams[] = []
+      mockTenant(role, [member(ME, role, 'Me'), member(USER_ID_4, 'owner', 'Otto')])
+      server.use(
+        http.get('/api/v1/tenants/acme/members', ({ request }) => {
+          const params = new URL(request.url).searchParams
+          if (params.get('role') === 'owner') ownerReads.push(params)
+          return ok(
+            listPage([member(ME, role, 'Me'), member(USER_ID_4, 'owner', 'Otto')]),
+            'Members retrieved.'
+          )
+        })
+      )
+      renderAppAt('/settings/workspace/acme/members')
+
+      await rowFor('Otto')
+      expect(ownerReads).toEqual([])
+    }
+  )
+
+  it('reads the owners for an owner, with no total', async () => {
+    const ownerReads: URLSearchParams[] = []
+    mockTenant('owner', [OWNER_ROW])
+    server.use(
+      http.get('/api/v1/tenants/acme/members', ({ request }) => {
+        const params = new URL(request.url).searchParams
+        if (params.get('role') === 'owner') ownerReads.push(params)
+        return ok(listPage([OWNER_ROW]), 'Members retrieved.')
+      })
+    )
+    renderAppAt('/settings/workspace/acme/members')
+
+    await waitFor(() => expect(ownerReads).toHaveLength(1))
+    expect(ownerReads[0]?.has('total')).toBe(false)
+  })
+
+  describe('two lists on one URL', () => {
+    /** Serves one member and one invitation, so both tables render their headers. */
+    function serveBoth() {
+      mockTenant('owner', [OWNER_ROW, member(USER_ID_3, 'viewer', 'Vic')])
+      server.use(
+        http.get('/api/v1/tenants/acme/invitations', () =>
+          ok(listPage([testInvitation]), 'Invitations retrieved.')
+        )
+      )
+    }
+
+    it('keeps the members cursor when the invitations list is sorted', async () => {
+      serveBoth()
+      const user = userEvent.setup()
+      const router = renderAppAt(
+        '/settings/workspace/acme/members?cursor=abc&invitationsCursor=xyz'
+      )
+      const table = await screen.findByRole('table', { name: 'Pending invitations' })
+      await user.click(within(table).getByRole('button', { name: 'Email' }))
+      await waitFor(() =>
+        expect(router.state.location.search).toEqual({ cursor: 'abc', invitationsSort: 'email' })
+      )
+    })
+
+    it('keeps the invitations cursor when the members list is sorted', async () => {
+      serveBoth()
+      const user = userEvent.setup()
+      const router = renderAppAt(
+        '/settings/workspace/acme/members?cursor=abc&invitationsCursor=xyz'
+      )
+      const table = await screen.findByRole('table', { name: 'Members' })
+      await user.click(within(table).getByRole('button', { name: 'Email' }))
+      await waitFor(() =>
+        expect(router.state.location.search).toEqual({ sort: 'email', invitationsCursor: 'xyz' })
+      )
+    })
   })
 })

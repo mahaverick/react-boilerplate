@@ -22,8 +22,10 @@ import { build } from 'vite'
  * Tenants list moved: 586,000 B. The members page's two route schemas, its
  * owner-count rule and the page query options reach it through `tenant.queries`
  * and the members route's `validateSearch`, again with no new zod class: 586,272 B.
+ * The owners read's own query function and the member writes' invitation
+ * refresh add 152 B: 586,424 B.
  */
-const ENTRY_BUDGET_BYTES = 586_300
+const ENTRY_BUDGET_BYTES = 586_500
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

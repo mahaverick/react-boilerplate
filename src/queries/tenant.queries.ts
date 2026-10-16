@@ -12,7 +12,7 @@ import { apiClient, unwrap } from '@/http/client'
 import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
 import { analyticsKey } from '@/observability/telemetry'
-import { listQueryOptions } from '@/queries/list.queries'
+import { listQueryOptions, retryList } from '@/queries/list.queries'
 import { refreshProfile } from '@/queries/profile.queries'
 import { defineList, listFilter } from '@/schemas/list.schemas'
 import type {
@@ -339,10 +339,16 @@ export function membersListOptions(slug: string, request: ListRequest) {
  * @param slug - The tenant.
  */
 export function ownersQueryOptions(slug: string) {
-  return listQueryOptions<TenantMember>({
-    key: [...tenantKeys.members(slug), 'owners'],
-    path: `/tenants/${slug}/members`,
-    request: { role: 'owner', limit: 100 },
+  return queryOptions({
+    queryKey: [...tenantKeys.members(slug), 'owners'] as const,
+    // Not `listQueryOptions`: it asks a first page for a total, which this read never shows.
+    queryFn: async () =>
+      unwrap(
+        await apiClient.get<ApiSuccess<ListPage<TenantMember>>>(`/tenants/${slug}/members`, {
+          params: { role: 'owner', limit: 100 },
+        })
+      ),
+    retry: retryList,
   })
 }
 
@@ -350,7 +356,10 @@ export function ownersQueryOptions(slug: string) {
  * How many owners besides `userId` the API counts toward the last-owner rule,
  * from the owners read: `otherOwnerCount` over its rows, plus one when the
  * read says more owners follow (`page.hasNext`), since another owner then
- * certainly remains. 0 while the read has not landed, which keeps the last
+ * certainly remains. (On the platform tenant that page's owners may all be
+ * inactive, which the count cannot see; the API still refuses the last
+ * active owner's leave with 409, and the refusal refetches.) 0 while the read
+ * has not landed, which keeps the last
  * owner's own controls locked until it does.
  * @param owners - The owners read's page, if it has landed.
  * @param userId - The owner acting on their own membership.
@@ -465,6 +474,8 @@ export function useUpdateMemberRole(slug: string) {
       ),
     onSuccess: async (_data, { userId }) => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
+      // The API revokes the target's pending invitations with the change.
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) })
       await queryClient.invalidateQueries({ queryKey: tenantKeys.detail(slug), exact: true })
       await invalidateTenantList(queryClient)
       if (slug === PLATFORM_TENANT_SLUG && userId === useAuthStore.getState().user?.id) {
@@ -531,6 +542,8 @@ export function useRemoveMember(slug: string) {
       apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/members/${userId}`),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
+      // The API revokes the removed member's pending invitations with the removal.
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) })
       await invalidateTenantList(queryClient)
     },
     onError: async (error) => {

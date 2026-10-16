@@ -139,10 +139,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
       stubs: [
         {
           endpoint: 'GET /tenants',
-          data: {
-            items: [],
-            page: { nextCursor: null, prevCursor: null, hasNext: false, hasPrev: false, limit: 20 },
-          },
+          data: EMPTY_PAGE,
         },
       ],
     },

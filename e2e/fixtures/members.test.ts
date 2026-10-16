@@ -47,7 +47,10 @@ test.describe('desktop', () => {
     page,
   }) => {
     await page.goto('/e2e/harness/?state=viewer')
-    const leave = page.getByRole('row', { name: /A B/ }).getByRole('button', { name: 'Leave' })
+    const leave = page
+      .getByRole('region', { name: 'Members' })
+      .getByRole('row', { name: /A B/ })
+      .getByRole('button', { name: 'Leave' })
     await leave.click()
 
     const dialog = page.getByRole('alertdialog', { name: 'Leave this tenant?' })

@@ -10,11 +10,9 @@ import { createContext, useContext, useRef, useState } from 'react'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { InviteMemberForm } from '@/components/features/tenant/invite-member-form'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
+import { ROLE_FILTER } from '@/components/features/tenant/role-filter'
 import { DataTable } from '@/components/shared/data-table/data-table'
-import type {
-  DataTableFeatures,
-  DataTableFilter,
-} from '@/components/shared/data-table/data-table-model'
+import type { DataTableFeatures } from '@/components/shared/data-table/data-table-model'
 import { useListQuery } from '@/components/shared/data-table/use-list-query'
 import { useListSearch } from '@/components/shared/data-table/use-list-search'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -161,6 +159,7 @@ function RoleCell({
   myRole,
   isSelf,
   isLastOwner,
+  ownersPending,
   reasonId,
   onGone,
 }: {
@@ -169,6 +168,8 @@ function RoleCell({
   myRole: MembershipRole
   isSelf: boolean
   isLastOwner: boolean
+  /** The owner count is not known yet (loading or failed): the select stays off, with no reason claimed. */
+  ownersPending: boolean
   /** The row's one last-owner explanation, which this cell renders. */
   reasonId: string
   /** Called once a role change found the member already gone and the list has refetched. */
@@ -186,7 +187,7 @@ function RoleCell({
     <div className="grid gap-1">
       <Select
         value={targetRole}
-        disabled={isLastOwner || updateRole.isPending}
+        disabled={isLastOwner || ownersPending || updateRole.isPending}
         onValueChange={(value: string | null) => {
           if (value === null || value === targetRole) return
           updateRole.mutateAsync({ userId: member.user.id, role: value as MembershipRole }).then(
@@ -248,6 +249,7 @@ function RemoveMemberButton({
   myRole,
   isSelf,
   isLastOwner,
+  ownersPending,
   reasonId,
   onRemoved,
 }: {
@@ -256,6 +258,8 @@ function RemoveMemberButton({
   myRole: MembershipRole
   isSelf: boolean
   isLastOwner: boolean
+  /** The owner count is not known yet (loading or failed): the control stays off, with no reason claimed. */
+  ownersPending: boolean
   /** The row's one last-owner explanation, rendered by `RoleCell`. */
   reasonId: string
   /** Called once another member's removal has succeeded, or found them already gone, and the list has refetched. */
@@ -288,9 +292,14 @@ function RemoveMemberButton({
     dropTenantCache(queryClient, slug)
   }
 
-  if (isLastOwner) {
+  if (isLastOwner || ownersPending) {
     return (
-      <Button variant="outline" size="sm" disabled aria-describedby={reasonId}>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        aria-describedby={isLastOwner ? reasonId : undefined}
+      >
         {isSelf ? 'Leave' : 'Remove'}
       </Button>
     )
@@ -376,6 +385,8 @@ interface MemberRowContext {
   myUserId: string | undefined
   /** The other owners the API counts toward the last-owner rule, besides the caller. */
   otherOwners: number
+  /** Whether the owners read has landed. An owner's own controls stay off until it has, since the count is not known. */
+  ownersKnown: boolean
   /** Staff through platform access: the row offers no role change and no removal. */
   readOnly: boolean
   /** Called once removing another member has succeeded, or found them already gone. */
@@ -391,13 +402,23 @@ interface MemberRowContext {
  * your own row always has Leave.
  * @param context - The member and the caller.
  */
-function memberControls({ member, myRole, myUserId, otherOwners, readOnly }: MemberRowContext) {
+function memberControls({
+  member,
+  myRole,
+  myUserId,
+  otherOwners,
+  ownersKnown,
+  readOnly,
+}: MemberRowContext) {
   const targetRole = member.membership.role
   const isSelf = member.user.id === myUserId
+  // Only an owner acting on their own owner row depends on the owner count.
+  const countMatters = isSelf && targetRole === 'owner'
   return {
     targetRole,
     isSelf,
-    isLastOwner: isLastOwnerBlocked({ targetRole, isSelf, otherOwners }),
+    isLastOwner: ownersKnown && isLastOwnerBlocked({ targetRole, isSelf, otherOwners }),
+    ownersPending: countMatters && !ownersKnown,
     canRemove:
       !readOnly &&
       (isSelf || (canManageTenant(myRole) && canActorModifyTarget(myRole, targetRole, isSelf))),
@@ -408,7 +429,7 @@ function memberControls({ member, myRole, myUserId, otherOwners, readOnly }: Mem
 /** One member's role: a select when the caller may change it, text otherwise. */
 function MemberRole(context: MemberRowContext) {
   const { slug, member, myRole, onRemoved, readOnly } = context
-  const { targetRole, isSelf, isLastOwner, reasonId } = memberControls(context)
+  const { targetRole, isSelf, isLastOwner, ownersPending, reasonId } = memberControls(context)
   if (readOnly) return <span>{ROLE_LABELS[targetRole]}</span>
   return (
     <RoleCell
@@ -417,6 +438,7 @@ function MemberRole(context: MemberRowContext) {
       myRole={myRole}
       isSelf={isSelf}
       isLastOwner={isLastOwner}
+      ownersPending={ownersPending}
       reasonId={reasonId}
       onGone={onRemoved}
     />
@@ -426,7 +448,7 @@ function MemberRole(context: MemberRowContext) {
 /** One member's Remove (or Leave) control; nothing when the caller has none. */
 function MemberActions(context: MemberRowContext) {
   const { slug, member, myRole, onRemoved } = context
-  const { isSelf, isLastOwner, canRemove, reasonId } = memberControls(context)
+  const { isSelf, isLastOwner, ownersPending, canRemove, reasonId } = memberControls(context)
   if (!canRemove) return null
   return (
     <RemoveMemberButton
@@ -435,6 +457,7 @@ function MemberActions(context: MemberRowContext) {
       myRole={myRole}
       isSelf={isSelf}
       isLastOwner={isLastOwner}
+      ownersPending={ownersPending}
       reasonId={reasonId}
       onRemoved={onRemoved}
     />
@@ -532,6 +555,8 @@ const READ_COLUMNS = [
   column.accessor((member) => member.membership.role, {
     id: 'role',
     header: 'Role',
+    // The cell holds the row's controls and the last-owner explanation they point at.
+    enableHiding: false,
     meta: { sorts: ['role'], sortName: analyticsKey('role') },
     cell: ({ row }) => <MemberRoleCell member={row.original} />,
   }),
@@ -550,13 +575,6 @@ const MEMBER_COLUMNS = column.columns([
 
 /** The columns for staff through platform access, who act on no member. */
 const STAFF_MEMBER_COLUMNS = column.columns(READ_COLUMNS)
-
-/** The Role facet, every role in descending authority. */
-const ROLE_FILTER: DataTableFilter = {
-  name: 'role',
-  label: 'Role',
-  options: MEMBERSHIP_ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] })),
-}
 
 /**
  * The members tab. Its states, in order:
@@ -578,7 +596,6 @@ const ROLE_FILTER: DataTableFilter = {
 export function TenantMembersPanel({ slug }: { slug: string }) {
   const list = useListSearch(membersList)
   const members = useListQuery(list, (request) => membersListOptions(slug, request))
-  const owners = useQuery(ownersQueryOptions(slug))
   const {
     role: myRole,
     access,
@@ -587,6 +604,11 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
     retry,
   } = useMyRole(slug)
   const isStaffView = access === 'platform'
+  // Only an owner can act on an owner row (remove, demote or leave as one), so only an owner needs the count.
+  const owners = useQuery({
+    ...ownersQueryOptions(slug),
+    enabled: myRole === 'owner' && !isStaffView,
+  })
   const myUserId = useAuthStore((state) => state.user?.id)
   const otherOwners = ownersBesides(owners.data, myUserId, slug === PLATFORM_TENANT_SLUG)
   const focus = useFocusAfter<'heading'>()
@@ -603,14 +625,19 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
     focus.focusAfter('heading')
   }
 
-  const panel: MembersPanelContext = {
-    slug,
-    myRole: myRole ?? 'viewer',
-    myUserId,
-    otherOwners,
-    readOnly: isStaffView,
-    onRemoved,
-  }
+  /** What the cells read, once the caller's role is known. */
+  const panel: MembersPanelContext | null =
+    myRole && !isRoleError
+      ? {
+          slug,
+          myRole,
+          myUserId,
+          otherOwners,
+          ownersKnown: owners.isSuccess,
+          readOnly: isStaffView,
+          onRemoved,
+        }
+      : null
 
   return (
     <div className="grid gap-6">
@@ -627,9 +654,9 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
           )}
         </CardHeader>
         <CardContent className="grid gap-3">
-          {isRoleError || (!isRolePending && !myRole) ? (
+          {panel === null && (isRoleError || !isRolePending) ? (
             <LoadError message={ROLE_ERROR} onRetry={retry} />
-          ) : isRolePending || !myRole ? (
+          ) : panel === null ? (
             <TableRowsSkeleton rows={4} columns={isStaffView ? 3 : 4} />
           ) : (
             <>
@@ -657,7 +684,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
                       title="No one has access to this tenant yet."
                       description={!isStaffView ? 'Invite someone below.' : undefined}
                       action={
-                        canManageTenant(myRole) && !isStaffView ? (
+                        canManageTenant(panel.myRole) && !isStaffView ? (
                           <Button variant="outline" size="sm" onClick={showInviteForm}>
                             Invite someone
                           </Button>

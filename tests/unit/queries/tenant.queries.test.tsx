@@ -130,6 +130,8 @@ describe('tenant invitation queries', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(seen?.get('role')).toBe('owner')
     expect(seen?.get('limit')).toBe('100')
+    // The rule reads the owners, never a total.
+    expect(seen?.has('total')).toBe(false)
     expect(ownersQueryOptions('acme').queryKey.slice(0, 3)).toEqual(tenantKeys.members('acme'))
   })
 
@@ -572,6 +574,46 @@ describe('member mutations and the caller’s own profile', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(client.getQueryState(tenantKeys.detail('acme'))?.data).toEqual({ id: TENANT_ID })
       expect(client.getQueryState(tenantKeys.members('acme'))?.isInvalidated).toBe(true)
+    })
+  })
+
+  describe('invitations the API revokes with a member', () => {
+    it('refetches the pending invitations when a member is removed', async () => {
+      client.setQueryData(tenantKeys.invitations('acme'), [])
+      server.use(
+        http.delete(`/api/v1/tenants/acme/members/${USER_ID_2}`, () => ok(null, 'Member removed.'))
+      )
+
+      const { result } = renderHook(() => tenantQueries.useRemoveMember('acme'), { wrapper })
+      result.current.mutate(USER_ID_2)
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(client.getQueryState(tenantKeys.invitations('acme'))?.isInvalidated).toBe(true)
+    })
+
+    it('refetches the pending invitations when a role changes', async () => {
+      client.setQueryData(tenantKeys.invitations('acme'), [])
+      server.use(
+        http.patch(`/api/v1/tenants/acme/members/${USER_ID_2}`, () =>
+          ok(
+            {
+              id: MEMBERSHIP_ID_2,
+              userId: USER_ID_2,
+              tenantId: TENANT_ID,
+              role: 'viewer',
+              createdAt: '',
+              updatedAt: '',
+            },
+            'Member role updated.'
+          )
+        )
+      )
+
+      const { result } = renderHook(() => tenantQueries.useUpdateMemberRole('acme'), { wrapper })
+      result.current.mutate({ userId: USER_ID_2, role: 'viewer' })
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(client.getQueryState(tenantKeys.invitations('acme'))?.isInvalidated).toBe(true)
     })
   })
 

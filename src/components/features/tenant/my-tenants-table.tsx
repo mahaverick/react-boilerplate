@@ -6,14 +6,12 @@
 import { Link } from '@tanstack/react-router'
 import { createColumnHelper } from '@tanstack/react-table'
 import type { ReactNode } from 'react'
+import { ROLE_FILTER } from '@/components/features/tenant/role-filter'
 import { DataTable } from '@/components/shared/data-table/data-table'
-import type {
-  DataTableFeatures,
-  DataTableFilter,
-} from '@/components/shared/data-table/data-table-model'
+import type { DataTableFeatures } from '@/components/shared/data-table/data-table-model'
 import type { ListQueryState } from '@/components/shared/data-table/use-list-query'
 import { Badge } from '@/components/ui/badge'
-import { MEMBERSHIP_ROLES, ROLE_LABELS } from '@/constants/roles'
+import { ROLE_LABELS } from '@/constants/roles'
 import { formatDate } from '@/lib/format'
 import { analyticsKey } from '@/observability/telemetry'
 import type { TenantWithRole } from '@/queries/tenant.queries'
@@ -62,15 +60,6 @@ const columns = column.columns([
   }),
 ])
 
-/** The Role facet, every role in descending authority. */
-const FILTERS: readonly DataTableFilter[] = [
-  {
-    name: 'role',
-    label: 'Role',
-    options: MEMBERSHIP_ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] })),
-  },
-]
-
 /** The caller's tenants, through the shared list table. */
 export function MyTenantsTable({
   query,
@@ -91,7 +80,7 @@ export function MyTenantsTable({
       empty={empty}
       errorMessage={errorMessage}
       search={{ label: 'Search tenants', placeholder: 'Search by name' }}
-      filters={FILTERS}
+      filters={[ROLE_FILTER]}
     />
   )
 }

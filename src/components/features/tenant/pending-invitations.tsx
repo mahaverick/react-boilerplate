@@ -1,10 +1,8 @@
 import { createColumnHelper } from '@tanstack/react-table'
 import { createContext, useContext, useState } from 'react'
+import { ROLE_FILTER } from '@/components/features/tenant/role-filter'
 import { DataTable } from '@/components/shared/data-table/data-table'
-import type {
-  DataTableFeatures,
-  DataTableFilter,
-} from '@/components/shared/data-table/data-table-model'
+import type { DataTableFeatures } from '@/components/shared/data-table/data-table-model'
 import { useListQuery } from '@/components/shared/data-table/use-list-query'
 import { useListSearch } from '@/components/shared/data-table/use-list-search'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -23,12 +21,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item'
-import {
-  canActorGrantRole,
-  MEMBERSHIP_ROLES,
-  ROLE_LABELS,
-  type MembershipRole,
-} from '@/constants/roles'
+import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
 import { useFocusAfter } from '@/hooks/use-focus-after'
 import { codeFrom } from '@/lib/api-error'
 import { formatDate } from '@/lib/format'
@@ -357,13 +350,6 @@ const INVITATION_COLUMNS = column.columns([
 
 /** The columns for staff through platform access, who resend and revoke nothing. */
 const STAFF_INVITATION_COLUMNS = column.columns(READ_COLUMNS)
-
-/** The Role facet, every role in descending authority. */
-const ROLE_FILTER: DataTableFilter = {
-  name: 'role',
-  label: 'Role',
-  options: MEMBERSHIP_ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] })),
-}
 
 /**
  * Invitations sent and not yet accepted. Mount it for owners and admins
