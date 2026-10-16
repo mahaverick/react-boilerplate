@@ -16,7 +16,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { TENANT_ID, TENANT_ID_2 } from '@/tests/fixtures/ids'
-import { ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /** A tenant row as `GET /tenants` and `GET /tenants/:slug` carry it. */
@@ -153,6 +153,38 @@ describe('TenantSearchGuard', () => {
     serveTenants([ACME, GLOBEX])
     const { router } = renderAt('/notifications?tenant=initech')
     await expectHref(router, '/notifications?tenant=acme')
+  })
+
+  it('renders the page on the list’s first failure, without waiting for its retry', async () => {
+    let attempts = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        attempts += 1
+        // The retry never answers: the page must not be waiting on it.
+        return attempts === 1 ? fail('Something went wrong.', 500) : new Promise<Response>(() => {})
+      })
+    )
+    const { router } = renderAt('/dashboard?tenant=acme')
+
+    expect(await screen.findByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
+    expect(router.state.location.href).toBe('/dashboard?tenant=acme')
+  })
+
+  it('moves between tenant pages and pages without $slug with no correction of its own', async () => {
+    serveTenants([ACME, GLOBEX])
+    const { router, history } = renderAt('/dashboard?tenant=acme')
+    expect(await screen.findByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
+
+    await router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } })
+    expect(await screen.findByRole('heading', { level: 1, name: 'Globex' })).toBeVisible()
+    await expectHref(router, '/tenants/globex')
+
+    await router.navigate({ to: '/dashboard' })
+    expect(await screen.findByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
+    // The carried tenant is globex's, never a correction back toward acme, and no entry was added or replaced.
+    await expectHref(router, '/dashboard?tenant=globex')
+    expect(history.length).toBe(3)
+    expect(useCurrentTenantStore.getState().remembered[testUser.id]).toBe('globex')
   })
 
   it('never holds a $slug page on the dashboard template, and only drops ?tenant there', async () => {

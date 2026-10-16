@@ -22,7 +22,8 @@ import { readRememberedTenant, useCurrentTenantStore } from '@/states/current-te
  * for the user. A failed list renders the page with the URL as it is; the
  * tenant switcher says the list failed and offers a retry. It decides only
  * while the router is idle, when the location and the rendered matches are
- * the same page's.
+ * the same page's, so a page reached with an ineligible `?tenant` (a stale
+ * history entry) may render once with it before the guard replaces it.
  */
 export function TenantSearchGuard({ children }: { children: ReactNode }) {
   const { slug } = useParams({ strict: false })
@@ -69,8 +70,10 @@ export function TenantSearchGuard({ children }: { children: ReactNode }) {
   }, [target, navigate])
 
   if (onSlugPage) return children
-  // Once the list has failed, a refetch (a page's own read mounting retries it) keeps the page up.
-  if (list.data === undefined && (list.isError || list.errorUpdateCount > 0)) return children
+  // Once a read has failed, its retry and any refetch (a page's own read mounting retries it) keep the page up.
+  if (list.data === undefined && (list.failureCount > 0 || list.errorUpdateCount > 0)) {
+    return children
+  }
   if (list.data === undefined || target !== null) return <PageSkeleton variant="dashboard" />
   return children
 }
