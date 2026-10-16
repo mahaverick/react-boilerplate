@@ -163,7 +163,7 @@ Status: fixed. The checklist holds its place with a skeleton, with Details alrea
 
 ### F-tenants-4
 
-Status: fixed in #109. The empty list is an `EmptyState` and the rows an `Item` list ([after](img/tenants/tenants--empty.jpg), [list](img/tenants/tenants--default.jpg)).
+Status: fixed. The empty list was first fixed in #109 and is an `EmptyState` ([after](img/tenants/tenants--empty.jpg)); the rows are now the shared `DataTable`, a table with role and join date that stacks as cards below 768 px. `tests/unit/pages/_app/tenants/index.test.tsx` (“lists tenants in a table by name, with role and join date”, “lists each tenant as a link in a row carrying its role”) and `e2e/fixtures/lists.test.ts` (“Tenants stacks as cards with no sideways scroll”) cover it.
 
 The tenant list's empty state is `<p className="text-sm text-muted-foreground">You do not belong to any tenants yet. Create one below.</p>` ([shot](img/tenants/tenants--empty.jpg)), and the list itself is a `ul` of hand-rolled bordered link rows. Fix: shadcn's `empty` for the empty state; the rows can stay a list or move to the data table with the other lists.
 
@@ -193,7 +193,7 @@ The empty inbox is a muted `p`, "You have no notifications." ([shot](img/notific
 
 ### F-notifications-3
 
-Status: fixed in #109. Load more is a `BusyButton`, which shows a spinner and its busy label while the next page is fetched; `tests/unit/components/shared/busy-button.test.tsx` covers the component, and no test drives the Load more fetch. There is no after-shot of the busy state, because the capture’s inbox has one notification and no Load more button.
+Status: fixed. The inbox first got a `BusyButton` Load more in #109; it now pages with Previous page and Next page like every list, and has no Load more. `tests/unit/pages/_app/notifications.test.tsx` (“shows the inbox as cards at every width, with a search box and paging”) and `tests/unit/components/shared/data-table/data-table.test.tsx` (the paging cases) cover it.
 
 Load more is an outline `Button` whose label turns to "Loading…" while the next page is fetched (`src/pages/_app/notifications.tsx`). Fix: shadcn's `spinner` in the button, or `pagination` if the inbox moves to pages.
 
@@ -247,7 +247,7 @@ The members `Table` is `min-w-2xl` inside the vendored table's `overflow-x-auto`
 
 ### F-settings-7
 
-Status: fixed. The pending-invitations half is fixed in #109, which builds it as an `Item` list with Resend and Revoke ([after](img/settings/workspace-members--default.jpg)); the audit log is now a table with URL filters (`?action=`, `?actor=`, `?access=`, `?search=`) and cursor paging. `tests/unit/pages/_app/settings/workspace.$slug.activity.test.tsx` (“lists the log in a table…”, “pages with Next page, keeping the cursor in the URL”, “filters by action through ?action=…”) covers it.
+Status: fixed. The pending-invitations half was first fixed in #109 and is now a `DataTable` with Resend and Revoke, cards below 768 px and its own paging (`tests/unit/pages/_app/settings/workspace.$slug.members.test.tsx`, “lists each pending invitation with its role, inviter and expiry” and “stacks pending invitations as cards on a phone…”); the audit log is now a table with URL filters (`?action=`, `?actor=`, `?access=`, `?search=`) and cursor paging. `tests/unit/pages/_app/settings/workspace.$slug.activity.test.tsx` (“lists the log in a table…”, “pages with Next page, keeping the cursor in the URL”, “filters by action through ?action=…”) covers it.
 
 The audit log is a `ul` of entries with two `Select` filters (sent to the API as `action`, `actorUserId`, `access`) and a "Load more activity" button ([shot](img/settings/workspace-activity--default.jpg)); pending invitations are a `ul` of bordered rows with Resend and Revoke ([shot](img/settings/workspace-members--default.jpg)). Both are tabular (actor, action, time; address, role, inviter, expiry), and Load more is hand-rolled paging. Fix: render both with shadcn's `table`, and the log's paging with `pagination`, keeping ordering, filtering and paging on the API.
 
