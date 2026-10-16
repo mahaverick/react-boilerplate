@@ -1,6 +1,7 @@
 import { IconBell, IconCheck, IconTrash } from '@tabler/icons-react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { createColumnHelper } from '@tanstack/react-table'
+import type { RefCallback } from 'react'
 import { DataTable } from '@/components/shared/data-table/data-table'
 import type {
   DataTableFeatures,
@@ -16,6 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
+import { useFocusAfter } from '@/hooks/use-focus-after'
 import { formatDateTime } from '@/lib/format'
 import { humanizeNotificationType } from '@/lib/notification-type'
 import { cn } from '@/lib/utils'
@@ -74,7 +76,20 @@ function receivedAt(createdAt: string): string {
  * aria-labels (Base UI's Tooltip emits no role="tooltip" or aria-describedby),
  * which include the notification's title, since the page renders many.
  */
-function NotificationRow({ notification }: { notification: Notification }) {
+function NotificationRow({
+  notification,
+  target,
+  onRead,
+  onDeleted,
+}: {
+  notification: Notification
+  /** The card's focus-landmark ref, so focus can land on it. */
+  target: RefCallback<HTMLElement> | undefined
+  /** Called once the server has marked the card read. */
+  onRead: (id: string) => void
+  /** Called once the server has deleted the card. */
+  onDeleted: (id: string) => void
+}) {
   const markRead = useMarkRead()
   const remove = useDeleteNotification()
   const isUnread = notification.readAt === null
@@ -84,7 +99,9 @@ function NotificationRow({ notification }: { notification: Notification }) {
       variant="outline"
       size="sm"
       role="listitem"
-      className={cn('items-start', isUnread && 'bg-muted/50')}
+      ref={target}
+      tabIndex={-1}
+      className={cn('items-start outline-none', isUnread && 'bg-muted/50')}
     >
       <ItemContent className="min-w-0">
         <ItemTitle className="line-clamp-none">
@@ -108,7 +125,14 @@ function NotificationRow({ notification }: { notification: Notification }) {
             size="icon"
             aria-label={`Mark "${notification.title}" as read`}
             disabled={markRead.isPending}
-            onClick={() => markRead.mutate(notification.id)}
+            onClick={() =>
+              // The card may be gone before the server answers, so a mutate callback would never run.
+              void markRead.mutateAsync(notification.id).then(
+                () => onRead(notification.id),
+                // A failure restores the card and keeps focus on its button.
+                () => undefined
+              )
+            }
           >
             <IconCheck aria-hidden="true" className="size-4" />
           </Button>
@@ -118,7 +142,12 @@ function NotificationRow({ notification }: { notification: Notification }) {
           size="icon"
           aria-label={`Delete "${notification.title}"`}
           disabled={remove.isPending}
-          onClick={() => remove.mutate(notification.id)}
+          onClick={() =>
+            void remove.mutateAsync(notification.id).then(
+              () => onDeleted(notification.id),
+              () => undefined
+            )
+          }
         >
           <IconTrash aria-hidden="true" className="size-4" />
         </Button>
@@ -138,13 +167,32 @@ function NotificationsPage() {
   const notifications = useListQuery(list, notificationsListOptions)
   const unread = useUnreadCount().data
   const markAllRead = useMarkAllRead()
+  const focus = useFocusAfter<'heading' | `card:${string}`>()
+  const unreadOnly = list.values.filters.unread?.includes('true') === true
+
+  /**
+   * Moves focus off the body once an action took the focused button away: to
+   * `own` when that card stays, else to the card after `id` as the page was
+   * when the button was used, else to the heading.
+   * @param id - The card that was acted on.
+   * @param own - Whether the card is still on the page.
+   */
+  const focusAfterAction = (id: string, own: boolean) => {
+    if (own) return focus.focusAfter(`card:${id}`)
+    const rows = notifications.query.data?.items ?? []
+    const index = rows.findIndex((row) => row.id === id)
+    const next = index === -1 ? undefined : rows[index + 1]
+    focus.focusAfter(next ? `card:${next.id}` : 'heading')
+  }
 
   return (
     <div className="grid gap-6">
       <Card>
         <CardHeader>
           <CardTitle>
-            <h1>Notifications</h1>
+            <h1 ref={focus.target('heading')} tabIndex={-1} className="outline-none">
+              Notifications
+            </h1>
           </CardTitle>
           <CardDescription>
             Everything this account has been sent, newest first.{' '}
@@ -173,8 +221,15 @@ function NotificationsPage() {
             errorMessage={NOTIFICATIONS_ERROR}
             layout="cards"
             getRowId={(notification) => notification.id}
-            card={(notification) => (
-              <NotificationRow key={notification.id} notification={notification} />
+            rowTarget={(id) => focus.target(`card:${id}`)}
+            card={(notification, { target }) => (
+              <NotificationRow
+                key={notification.id}
+                notification={notification}
+                target={target}
+                onRead={(id) => focusAfterAction(id, !unreadOnly)}
+                onDeleted={(id) => focusAfterAction(id, false)}
+              />
             )}
             search={{ label: 'Search notifications', placeholder: 'Search by title or text' }}
             filters={FILTERS}

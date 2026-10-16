@@ -25,12 +25,15 @@ const unreadRow: Notification = {
   createdAt: '2026-09-21T10:00:00.000Z',
 }
 
-/** Mounts the real route tree on `/notifications`. */
-function renderNotifications() {
+/**
+ * Mounts the real route tree on `/notifications`.
+ * @param path - The URL to open, search included.
+ */
+function renderNotifications(path = '/notifications') {
   const router = createRouter({
     routeTree,
     context: { queryClient },
-    history: createMemoryHistory({ initialEntries: ['/notifications'] }),
+    history: createMemoryHistory({ initialEntries: [path] }),
     ...ROUTER_DEFAULTS,
   })
   render(
@@ -268,6 +271,98 @@ describe('notifications page', () => {
 
     await waitFor(() => expect(screen.getByText(unreadRow.title)).toBeInTheDocument())
     expect(screen.getByText('Unread')).toBeInTheDocument()
+  })
+
+  describe('focus after an action takes the focused button away', () => {
+    const second: Notification = {
+      ...unreadRow,
+      id: '50000000-0000-4000-8000-000000000002',
+      title: 'Second',
+    }
+    const third: Notification = {
+      ...unreadRow,
+      id: '50000000-0000-4000-8000-000000000003',
+      title: 'Third',
+    }
+
+    /** Serves a live inbox of the three cards, which the read and delete answers change. */
+    function serveInbox() {
+      let rows = [unreadRow, second, third]
+      server.use(
+        http.get('/api/v1/notifications', ({ request }) => {
+          const unread = new URL(request.url).searchParams.get('unread') === 'true'
+          const shown = unread ? rows.filter((row) => row.readAt === null) : rows
+          return ok(
+            listPage(shown, {}, { count: shown.length, capped: false }),
+            'Notifications retrieved.'
+          )
+        }),
+        http.patch('/api/v1/notifications/:id/read', ({ params }) => {
+          rows = rows.map((row) =>
+            row.id === params.id ? { ...row, readAt: '2026-09-22T10:00:00.000Z' } : row
+          )
+          return ok(
+            rows.find((row) => row.id === params.id),
+            'Marked read.'
+          )
+        }),
+        http.delete('/api/v1/notifications/:id', ({ params }) => {
+          rows = rows.filter((row) => row.id !== params.id)
+          return ok(null, 'Deleted.')
+        })
+      )
+    }
+
+    /** The card whose title is `title`. */
+    const card = (title: string) =>
+      screen.getByRole('heading', { name: title }).closest('[role="listitem"]')
+
+    it('moves to the next card after a delete', async () => {
+      serveInbox()
+      const user = userEvent.setup()
+      renderNotifications()
+      await screen.findByText(unreadRow.title)
+
+      await user.click(screen.getByRole('button', { name: `Delete "${unreadRow.title}"` }))
+
+      await waitFor(() => expect(card('Second')).toHaveFocus())
+    })
+
+    it('moves to the heading after deleting the last card', async () => {
+      serveInbox()
+      const user = userEvent.setup()
+      renderNotifications()
+      await screen.findByText('Third')
+
+      await user.click(screen.getByRole('button', { name: 'Delete "Third"' }))
+
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1, name: 'Notifications' })).toHaveFocus()
+      )
+    })
+
+    it('moves to the next card when marking read takes the card out of the Unread view', async () => {
+      serveInbox()
+      const user = userEvent.setup()
+      renderNotifications('/notifications?unread=true')
+      await screen.findByText('Second')
+
+      await user.click(screen.getByRole('button', { name: 'Mark "Second" as read' }))
+
+      await waitFor(() => expect(card('Third')).toHaveFocus())
+      expect(screen.queryByRole('heading', { name: 'Second' })).not.toBeInTheDocument()
+    })
+
+    it('stays on the same card when marking read leaves it on the page', async () => {
+      serveInbox()
+      const user = userEvent.setup()
+      renderNotifications()
+      await screen.findByText('Second')
+
+      await user.click(screen.getByRole('button', { name: 'Mark "Second" as read' }))
+
+      await waitFor(() => expect(card('Second')).toHaveFocus())
+    })
   })
 
   it('links to the notification settings', async () => {
