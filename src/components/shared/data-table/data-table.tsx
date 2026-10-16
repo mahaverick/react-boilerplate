@@ -19,9 +19,11 @@ import {
   nextSort,
   sortPhrase,
   type DataTableColumns,
+  type DataTableFilter,
 } from '@/components/shared/data-table/data-table-model'
 import { DataTablePagination } from '@/components/shared/data-table/data-table-pagination'
 import { DataTableSortMenu } from '@/components/shared/data-table/data-table-sort-menu'
+import { DataTableToolbar } from '@/components/shared/data-table/data-table-toolbar'
 import type { ListQueryState } from '@/components/shared/data-table/use-list-query'
 import { EmptyState } from '@/components/shared/empty-state'
 import { QueryState } from '@/components/shared/query-state'
@@ -69,6 +71,10 @@ export interface DataTableProps<T extends RowData> {
   card?: (row: T, helpers: DataTableCardHelpers) => ReactNode
   /** `cards` stacks cards at every width. */
   layout?: 'table' | 'cards'
+  /** The search box's name and placeholder; no search box without it. */
+  search?: { label: string; placeholder?: string }
+  /** The faceted filters, one button and one chip set each. */
+  filters?: readonly DataTableFilter[]
   /** The list's own toolbar controls: a date range, the primary action. */
   toolbar?: ReactNode
   /**
@@ -96,6 +102,8 @@ export function DataTable<T extends RowData>({
   empty,
   errorMessage,
   landmark = true,
+  search,
+  filters = [],
   card,
   layout = 'table',
   toolbar,
@@ -193,6 +201,15 @@ export function DataTable<T extends RowData>({
     sortOptions.unshift({ key: defaultSort, label: 'Default order' })
   }
 
+  const usesCards = layout === 'cards' || isMobile
+  const sortMenu =
+    usesCards && sortOptions.length > 0 ? (
+      <DataTableSortMenu
+        options={sortOptions}
+        value={list.values.sort}
+        onSort={(key) => sortTo(key, ownerOf(key) ? undefined : DEFAULT_ORDER_NAME)}
+      />
+    ) : undefined
   const visibleColumns = table.getVisibleLeafColumns().length
   // The section template has no live region of its own; the list's loading state is this one.
   const skeleton = (
@@ -231,19 +248,8 @@ export function DataTable<T extends RowData>({
   /** The rows of a settled page, as a table or as cards. */
   const rows = (data: ListPage<T>) => {
     if (data.items.length === 0) return skeleton
-    if (layout === 'cards' || isMobile) {
-      return (
-        <>
-          {sortOptions.length > 0 && (
-            <DataTableSortMenu
-              options={sortOptions}
-              value={list.values.sort}
-              onSort={(key) => sortTo(key, ownerOf(key) ? undefined : DEFAULT_ORDER_NAME)}
-            />
-          )}
-          <DataTableCards table={table} label={label} card={card} rowTarget={rowTarget} />
-        </>
-      )
+    if (usesCards) {
+      return <DataTableCards table={table} label={label} card={card} rowTarget={rowTarget} />
     }
     return (
       <Table aria-label={label}>
@@ -301,7 +307,18 @@ export function DataTable<T extends RowData>({
   const Frame = landmark ? 'section' : 'div'
   return (
     <Frame aria-label={landmark ? label : undefined} className="grid min-w-0 gap-3">
-      {toolbar && <div className="flex flex-wrap items-center gap-2">{toolbar}</div>}
+      <DataTableToolbar
+        list={list}
+        table={table}
+        filters={filters}
+        search={search}
+        total={query.total}
+        // A list's own card shows what it chooses, whatever the column menu says.
+        showColumns={!(usesCards && card)}
+        sortMenu={sortMenu}
+      >
+        {toolbar}
+      </DataTableToolbar>
       <QueryState
         query={query.query}
         name={label}

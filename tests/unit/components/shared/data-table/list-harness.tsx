@@ -19,7 +19,10 @@ import { render } from '@testing-library/react'
 import { http } from 'msw'
 import { afterEach } from 'vitest'
 import { DataTable, type DataTableProps } from '@/components/shared/data-table/data-table'
-import type { DataTableFeatures } from '@/components/shared/data-table/data-table-model'
+import type {
+  DataTableFeatures,
+  DataTableFilter,
+} from '@/components/shared/data-table/data-table-model'
 import { useListQuery } from '@/components/shared/data-table/use-list-query'
 import { useListSearch } from '@/components/shared/data-table/use-list-search'
 import { analyticsKey } from '@/observability/telemetry'
@@ -89,6 +92,27 @@ export const testColumns = column.columns([
     cell: ({ row }) => <button type="button">Open {row.original.name}</button>,
   }),
 ])
+
+/** The Status facet (any number of values) and the Verified facet (one at a time). */
+export const testFilters: readonly DataTableFilter[] = [
+  {
+    name: 'status',
+    label: 'Status',
+    options: [
+      { value: 'active', label: 'Active' },
+      { value: 'inactive', label: 'Inactive' },
+    ],
+  },
+  {
+    name: 'verified',
+    label: 'Verified',
+    options: [
+      { value: 'true', label: 'Verified' },
+      { value: 'false', label: 'Unverified' },
+    ],
+    single: true,
+  },
+]
 
 /**
  * Test row `index`: "Item NN", active unless `status` says otherwise.
@@ -162,6 +186,8 @@ export function renderTestList(
         label="Items"
         getRowId={(row) => row.id}
         empty={<p>No items yet.</p>}
+        search={{ label: 'Search items' }}
+        filters={testFilters}
         {...props}
       />
     )
