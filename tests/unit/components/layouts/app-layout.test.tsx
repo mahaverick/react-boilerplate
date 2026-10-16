@@ -17,12 +17,7 @@ import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-import {
-  NOTIFICATION_ID,
-  NOTIFICATION_ID_2,
-  NOTIFICATION_ID_7,
-  TENANT_ID,
-} from '@/tests/fixtures/ids'
+import { NOTIFICATION_ID, NOTIFICATION_ID_2, TENANT_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -147,15 +142,15 @@ describe('AppLayout', () => {
 
   it('shows the unread count on the Notifications item', async () => {
     server.use(
-      http.get('/api/v1/notifications', () =>
+      http.get('/api/v1/notifications', ({ request }) =>
         ok(
-          {
-            notifications: [
-              notificationRow(NOTIFICATION_ID, null),
-              notificationRow(NOTIFICATION_ID_2, null),
-              notificationRow(NOTIFICATION_ID_7, '2026-09-22T10:00:00.000Z'),
-            ],
-          },
+          listPage(
+            [notificationRow(NOTIFICATION_ID, null), notificationRow(NOTIFICATION_ID_2, null)],
+            {},
+            new URL(request.url).searchParams.get('unread') === 'true'
+              ? { count: 2, capped: false }
+              : undefined
+          ),
           'Notifications retrieved.'
         )
       )

@@ -1,45 +1,67 @@
 import { IconBell, IconCheck, IconTrash } from '@tabler/icons-react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { LoadError } from '@/components/features/load-error'
-import { BusyButton } from '@/components/shared/busy-button'
+import { createColumnHelper } from '@tanstack/react-table'
+import { DataTable } from '@/components/shared/data-table/data-table'
+import type {
+  DataTableFeatures,
+  DataTableFilter,
+} from '@/components/shared/data-table/data-table-model'
+import { useListQuery } from '@/components/shared/data-table/use-list-query'
+import { useListSearch } from '@/components/shared/data-table/use-list-search'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from '@/components/ui/item'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { formatDateTime } from '@/lib/format'
 import { humanizeNotificationType } from '@/lib/notification-type'
 import { cn } from '@/lib/utils'
+import { notificationsList } from '@/queries/notification-list.queries'
 import {
-  flattenPages,
+  notificationsListOptions,
   useDeleteNotification,
   useMarkAllRead,
   useMarkRead,
-  useNotifications,
+  useUnreadCount,
   type Notification,
 } from '@/queries/notification.queries'
 
 /** The notification inbox; delivery preferences live in Settings. */
 export const Route = createFileRoute('/_app/notifications')({
-  head: () => ({ meta: [{ title: pageTitle('Notifications') }] }),
+  validateSearch: notificationsList.schema,
   staticData: { crumb: 'Notifications' },
+  head: () => ({ meta: [{ title: pageTitle('Notifications') }] }),
   component: NotificationsPage,
 })
 
 /** What the inbox says when its query failed, as opposed to came back empty. */
 const NOTIFICATIONS_ERROR =
   'We could not load your notifications, so none are listed here. This is not a sign that you have none.'
+
+const column = createColumnHelper<DataTableFeatures, Notification>()
+
+/** The inbox's fields; the cards are `NotificationRow`, so these only name them. */
+const columns = column.columns([
+  column.accessor('title', { header: 'Title' }),
+  column.accessor('type', { header: 'Type' }),
+  column.accessor('createdAt', { header: 'Received' }),
+])
+
+/** The read-state facet: unread or read, one at a time. */
+const FILTERS: readonly DataTableFilter[] = [
+  {
+    name: 'unread',
+    label: 'Status',
+    options: [
+      { value: 'true', label: 'Unread' },
+      { value: 'false', label: 'Read' },
+    ],
+    single: true,
+  },
+]
 
 /** The notification's own timestamp, in the reader's locale. */
 function receivedAt(createdAt: string): string {
@@ -106,15 +128,16 @@ function NotificationRow({ notification }: { notification: Notification }) {
 }
 
 /**
- * The inbox. Its error branch comes
- * before its empty state: `rows` is `[]` for a failed load and an empty inbox
- * alike.
+ * The inbox: every notification as a card, a page at a time, with a search box
+ * and a read-state filter. The list's loading, error and empty states are
+ * `DataTable`'s, so a failed load is never the empty inbox. "Mark all read"
+ * shows while the API's unread total is above zero.
  */
 function NotificationsPage() {
-  const notifications = useNotifications()
+  const list = useListSearch(notificationsList)
+  const notifications = useListQuery(list, notificationsListOptions)
+  const unread = useUnreadCount().data
   const markAllRead = useMarkAllRead()
-  const rows = flattenPages(notifications.data)
-  const hasUnread = rows.some((notification) => notification.readAt === null)
 
   return (
     <div className="grid gap-6">
@@ -129,7 +152,7 @@ function NotificationsPage() {
               Notification settings
             </Link>
           </CardDescription>
-          {hasUnread && (
+          {unread !== undefined && unread.count > 0 && (
             <div>
               <Button
                 variant="outline"
@@ -143,35 +166,25 @@ function NotificationsPage() {
           )}
         </CardHeader>
         <CardContent className="grid gap-3">
-          {notifications.isPending ? (
-            <div className="grid gap-2">
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-            </div>
-          ) : notifications.isError ? (
-            <LoadError message={NOTIFICATIONS_ERROR} onRetry={() => void notifications.refetch()} />
-          ) : rows.length === 0 ? (
-            <EmptyState icon={<IconBell aria-hidden="true" />} title="You have no notifications." />
-          ) : (
-            <ItemGroup className="gap-2 has-data-[size=sm]:gap-2">
-              {rows.map((notification) => (
-                <NotificationRow key={notification.id} notification={notification} />
-              ))}
-            </ItemGroup>
-          )}
-          {notifications.hasNextPage && (
-            <div>
-              <BusyButton
-                busy={notifications.isFetchingNextPage}
-                busyLabel="Loading…"
-                variant="outline"
-                onClick={() => void notifications.fetchNextPage()}
-              >
-                Load more
-              </BusyButton>
-            </div>
-          )}
+          <DataTable
+            columns={columns}
+            query={notifications}
+            label="Notifications"
+            errorMessage={NOTIFICATIONS_ERROR}
+            layout="cards"
+            getRowId={(notification) => notification.id}
+            card={(notification) => (
+              <NotificationRow key={notification.id} notification={notification} />
+            )}
+            search={{ label: 'Search notifications', placeholder: 'Search by title or text' }}
+            filters={FILTERS}
+            empty={
+              <EmptyState
+                icon={<IconBell aria-hidden="true" />}
+                title="You have no notifications."
+              />
+            }
+          />
         </CardContent>
       </Card>
     </div>

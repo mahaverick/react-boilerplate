@@ -1,22 +1,26 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { http } from 'msw'
+import { delay, http } from 'msw'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
 import {
   notificationKeys,
+  notificationsListOptions,
   useDeleteNotification,
   useMarkAllRead,
   useMarkRead,
-  useNotifications,
   usePreferences,
+  useUnreadCount,
   useUpdatePreferences,
+  type Notification,
 } from '@/queries/notification.queries'
 import { useAuthStore } from '@/states/auth.store'
 import { NOTIFICATION_ID, USER_ID } from '@/tests/fixtures/ids'
-import { ok, testUser } from '@/tests/mocks/handlers'
+import { listPage } from '@/tests/fixtures/list-page'
+import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+import type { ListPage } from '@/types/list.types'
 
 /**
  * These tests keep the preference endpoints' wire shape honest: it is nothing like the flat
@@ -117,7 +121,8 @@ describe('notification list mutations', () => {
   /** Every hook at once, so the preferences query has a live observer to refetch. */
   function useAll() {
     return {
-      list: useNotifications(),
+      list: useQuery(notificationsListOptions({})),
+      unread: useUnreadCount(),
       preferences: usePreferences(),
       markRead: useMarkRead(),
       markAllRead: useMarkAllRead(),
@@ -139,7 +144,7 @@ describe('notification list mutations', () => {
     server.use(
       http.get('/api/v1/notifications', () => {
         listRequests += 1
-        return ok({ notifications: [UNREAD] }, 'Notifications retrieved.')
+        return ok(listPage([UNREAD], {}, { count: 1, capped: false }), 'Notifications retrieved.')
       }),
       http.get('/api/v1/notifications/preferences', () => {
         preferenceRequests += 1
@@ -183,5 +188,82 @@ describe('notification list mutations', () => {
     const preferences = client.getQueryState(notificationKeys.preferences)
     expect(preferences?.dataUpdatedAt).toBe(preferencesUpdatedAt)
     expect(preferences?.isInvalidated).toBe(false)
+  })
+
+  it('marks the row read on every cached page, filtered views included', async () => {
+    const all = notificationsListOptions({}).queryKey
+    const unreadOnly = notificationsListOptions({ unread: true }).queryKey
+    client.setQueryData(all, listPage([UNREAD]))
+    client.setQueryData(unreadOnly, listPage([UNREAD]))
+    // A refetch would overwrite the optimistic write; hold it so only that write is observed.
+    server.use(http.get('/api/v1/notifications', () => delay('infinite')))
+    const { result } = renderHook(() => useAll(), { wrapper })
+
+    act(() => {
+      result.current.markRead.mutate(NOTIFICATION_ID)
+    })
+
+    await waitFor(() => {
+      expect(client.getQueryData<ListPage<Notification>>(all)?.items[0]?.readAt).not.toBeNull()
+      expect(
+        client.getQueryData<ListPage<Notification>>(unreadOnly)?.items[0]?.readAt
+      ).not.toBeNull()
+    })
+  })
+
+  it('puts every cached page back when a mark-read fails', async () => {
+    const all = notificationsListOptions({}).queryKey
+    const unreadOnly = notificationsListOptions({ unread: true }).queryKey
+    client.setQueryData(all, listPage([UNREAD]))
+    client.setQueryData(unreadOnly, listPage([UNREAD]))
+    let refused = false
+    server.use(
+      http.get('/api/v1/notifications', () => delay('infinite')),
+      http.patch('/api/v1/notifications/:id/read', () => {
+        refused = true
+        return fail('Not found', 404)
+      })
+    )
+    const { result } = renderHook(() => useAll(), { wrapper })
+
+    // The settled invalidation waits on the held refetch, so the mutation is observed, not awaited.
+    act(() => {
+      result.current.markRead.mutate(NOTIFICATION_ID)
+    })
+    await waitFor(() => expect(refused).toBe(true))
+
+    await waitFor(() => {
+      expect(client.getQueryData<ListPage<Notification>>(all)?.items[0]?.readAt).toBeNull()
+      expect(client.getQueryData<ListPage<Notification>>(unreadOnly)?.items[0]?.readAt).toBeNull()
+    })
+  })
+
+  it('reads the unread count as the capped total of the unread view', async () => {
+    let seen: URLSearchParams | undefined
+    server.use(
+      http.get('/api/v1/notifications', ({ request }) => {
+        seen = new URL(request.url).searchParams
+        return ok(listPage([UNREAD], {}, { count: 1000, capped: true }), 'Notifications retrieved.')
+      })
+    )
+    const { result } = renderHook(() => useUnreadCount(), { wrapper })
+
+    expect(result.current.data).toBeUndefined()
+    await waitFor(() => expect(result.current.data).toEqual({ count: 1000, capped: true }))
+    expect(seen?.get('unread')).toBe('true')
+    expect(seen?.get('limit')).toBe('1')
+    expect(seen?.get('total')).toBe('1')
+  })
+
+  it('refetches the unread count when a row is marked read', async () => {
+    const { result } = renderHook(() => useAll(), { wrapper })
+    await waitFor(() => expect(result.current.unread.isSuccess).toBe(true))
+    const before = listRequests
+
+    await act(async () => {
+      await result.current.markRead.mutateAsync(NOTIFICATION_ID)
+    })
+
+    await waitFor(() => expect(listRequests).toBeGreaterThanOrEqual(before + 2))
   })
 })

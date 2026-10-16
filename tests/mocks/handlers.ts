@@ -188,9 +188,11 @@ export const handlers = [
    * The notification bell is in the app shell's header, so every test that mounts an
    * authenticated route hits these two, and `onUnhandledRequest: 'error'` would fail each
    * one otherwise. Empty; a test about notification content overrides them. The shape is
-   * `NotificationRepository.list`'s: `notifications`, and `nextCursor` absent rather than null.
+   * the list envelope, with the empty inbox's total, since the bell and the nav badge ask for one.
    */
-  http.get('/api/v1/notifications', () => ok({ notifications: [] }, 'Notifications retrieved.')),
+  http.get('/api/v1/notifications', () =>
+    ok(listPage([], {}, { count: 0, capped: false }), 'Notifications retrieved.')
+  ),
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: [] }, 'Notification preferences retrieved.')
   ),

@@ -396,9 +396,14 @@ const worker = setupWorker(
       'Audit log retrieved.'
     )
   ),
-  http.get('/api/v1/notifications', () =>
-    ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
-  ),
+  http.get('/api/v1/notifications', ({ request }) => {
+    // The bell and the nav badge read the unread view's total; the inbox reads all of them.
+    const unreadOnly = new URL(request.url).searchParams.get('unread') === 'true'
+    const rows = unreadOnly
+      ? NOTIFICATIONS.filter((notification) => notification.readAt === null)
+      : NOTIFICATIONS
+    return ok(listPage(rows, {}, { count: rows.length, capped: false }), 'Notifications retrieved.')
+  }),
   http.get('/api/v1/notifications/preferences', () =>
     ok({ preferences: PREFERENCES }, 'Notification preferences retrieved.')
   ),

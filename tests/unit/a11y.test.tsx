@@ -189,7 +189,10 @@ function mockSignedInData() {
       ok(listPage(AUDIT_ENTRIES, { nextCursor: 'c2', hasNext: true }), 'Audit log retrieved.')
     ),
     http.get('/api/v1/notifications', () =>
-      ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')
+      ok(
+        listPage(NOTIFICATIONS, {}, { count: NOTIFICATIONS.length, capped: false }),
+        'Notifications retrieved.'
+      )
     ),
     http.get('/api/v1/notifications/preferences', () =>
       ok({ preferences: PREFERENCES }, 'Notification preferences retrieved.')

@@ -1,12 +1,14 @@
 import {
-  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
-  type InfiniteData,
+  type QueryClient,
+  type QueryKey,
 } from '@tanstack/react-query'
 import { apiClient, unwrap } from '@/http/client'
+import { listQueryOptions } from '@/queries/list.queries'
 import type { ApiSuccess } from '@/types/api.types'
+import type { ListPage, ListRequest } from '@/types/list.types'
 
 /**
  * One row of `GET /api/v1/notifications`: a `notifications` row without its
@@ -23,15 +25,6 @@ export interface Notification {
   /** ISO timestamp, or null while unread. Never cleared back to null. */
   readAt: string | null
   createdAt: string
-}
-
-/**
- * A page of the inbox. `nextCursor` is omitted, never null, when no further
- * page exists, which is what useInfiniteQuery reads as "no next page".
- */
-export interface NotificationPage {
-  notifications: Notification[]
-  nextCursor?: string
 }
 
 /**
@@ -61,59 +54,63 @@ export const notificationKeys = {
   preferences: ['notifications', 'preferences'] as const,
 }
 
-/** The API's own default page size; its cap is 100. */
-const PAGE_SIZE = 20
+/** How many notifications the bell previews. */
+export const BELL_PREVIEW_LIMIT = 5
 
-/** The inbox, newest first, a page at a time. */
-export function useNotifications() {
-  return useInfiniteQuery({
-    queryKey: notificationKeys.list,
-    initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) =>
-      unwrap(
-        await apiClient.get<ApiSuccess<NotificationPage>>('/notifications', {
-          params: { limit: PAGE_SIZE, cursor: pageParam },
-        })
-      ),
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+/**
+ * One page of the inbox (`GET /notifications`), under `notificationKeys.list`,
+ * which the stream invalidates.
+ * @param request - From `listRequest(notificationsList, …)`, or the bell's.
+ */
+export function notificationsListOptions(request: ListRequest) {
+  return listQueryOptions<Notification>({
+    key: notificationKeys.list,
+    path: '/notifications',
+    request,
   })
 }
 
-/** Every loaded page, flattened. The cache holds pages; callers want rows. */
-export function flattenPages(data: InfiniteData<NotificationPage> | undefined): Notification[] {
-  return data?.pages.flatMap((page) => page.notifications) ?? []
+/**
+ * How many notifications are unread: the capped total of the unread view,
+ * read one row at a time. The query, so a reader can tell a failed count
+ * from one still loading; its `data` is `undefined` until it lands.
+ */
+export function useUnreadCount() {
+  return useQuery({
+    ...notificationsListOptions({ unread: true, limit: 1 }),
+    select: (page: ListPage<Notification>) => page.total,
+  })
 }
 
-/**
- * How many loaded notifications are unread, derived from the cached pages
- * because the API has no unread-count endpoint. It counts what is loaded, not
- * a true total.
- */
-export function unreadCount(data: InfiniteData<NotificationPage> | undefined): number {
-  return flattenPages(data).filter((notification) => notification.readAt === null).length
-}
+/** Every cached inbox page, before a write rewrote them, so `onError` can put them back. */
+type PageSnapshot = Array<[QueryKey, ListPage<Notification> | undefined]>
 
 /**
- * Rewrite every loaded page through `update`, and return the whole previous
- * cache entry, which `onError` restores: the row may sit on any loaded page.
+ * Rewrites every cached inbox page through `update` and returns them as they
+ * were: the row may be on any page, in any filtered view.
+ * @param queryClient - The app's query client.
+ * @param update - The new rows for a page's rows.
  */
-function optimisticallyUpdatePages(
-  queryClient: ReturnType<typeof useQueryClient>,
-  update: (notifications: Notification[]) => Notification[]
-): InfiniteData<NotificationPage> | undefined {
-  const snapshot = queryClient.getQueryData<InfiniteData<NotificationPage>>(notificationKeys.list)
-  queryClient.setQueryData<InfiniteData<NotificationPage>>(notificationKeys.list, (current) =>
-    current === undefined
-      ? current
-      : {
-          ...current,
-          pages: current.pages.map((page) => ({
-            ...page,
-            notifications: update(page.notifications),
-          })),
-        }
+function rewritePages(
+  queryClient: QueryClient,
+  update: (rows: Notification[]) => Notification[]
+): PageSnapshot {
+  const snapshot = queryClient.getQueriesData<ListPage<Notification>>({
+    queryKey: notificationKeys.list,
+  })
+  queryClient.setQueriesData<ListPage<Notification>>({ queryKey: notificationKeys.list }, (page) =>
+    page === undefined ? page : { ...page, items: update(page.items) }
   )
   return snapshot
+}
+
+/**
+ * Puts back the pages `rewritePages` returned.
+ * @param queryClient - The app's query client.
+ * @param snapshot - What `rewritePages` returned.
+ */
+function restorePages(queryClient: QueryClient, snapshot: PageSnapshot | undefined): void {
+  for (const [key, page] of snapshot ?? []) queryClient.setQueryData(key, page)
 }
 
 /** Marks one notification read. The row shows read at once and is restored if the request fails. */
@@ -126,8 +123,8 @@ export function useMarkRead() {
       // Cancelled so an earlier in-flight refetch cannot land after this and overwrite the row.
       await queryClient.cancelQueries({ queryKey: notificationKeys.list })
       const readAt = new Date().toISOString()
-      const snapshot = optimisticallyUpdatePages(queryClient, (notifications) =>
-        notifications.map((notification) =>
+      const snapshot = rewritePages(queryClient, (rows) =>
+        rows.map((notification) =>
           notification.id === id && notification.readAt === null
             ? { ...notification, readAt }
             : notification
@@ -136,7 +133,7 @@ export function useMarkRead() {
       return { snapshot }
     },
     onError: (_error, _id, context) => {
-      queryClient.setQueryData(notificationKeys.list, context?.snapshot)
+      restorePages(queryClient, context?.snapshot)
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: notificationKeys.list }),
   })
@@ -159,13 +156,13 @@ export function useDeleteNotification() {
     mutationFn: async (id: string) => apiClient.delete<ApiSuccess<null>>(`/notifications/${id}`),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: notificationKeys.list })
-      const snapshot = optimisticallyUpdatePages(queryClient, (notifications) =>
-        notifications.filter((notification) => notification.id !== id)
+      const snapshot = rewritePages(queryClient, (rows) =>
+        rows.filter((notification) => notification.id !== id)
       )
       return { snapshot }
     },
     onError: (_error, _id, context) => {
-      queryClient.setQueryData(notificationKeys.list, context?.snapshot)
+      restorePages(queryClient, context?.snapshot)
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: notificationKeys.list }),
   })

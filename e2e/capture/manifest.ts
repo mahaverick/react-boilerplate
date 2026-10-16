@@ -70,7 +70,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     url: '/notifications',
     as: 'owner',
     sections: [{ name: 'Notifications', endpoints: ['GET /notifications'] }],
-    empty: { stubs: [{ endpoint: 'GET /notifications', data: { notifications: [] } }] },
+    empty: { stubs: [{ endpoint: 'GET /notifications', data: EMPTY_PAGE }] },
   },
   '/profile': { kind: 'redirect', to: '/settings/account/profile' },
   '/settings': {
