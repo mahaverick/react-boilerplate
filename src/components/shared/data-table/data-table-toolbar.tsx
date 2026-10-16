@@ -1,4 +1,5 @@
 import { IconLayoutColumns } from '@tabler/icons-react'
+import { useRouter } from '@tanstack/react-router'
 import type { ReactTable, RowData } from '@tanstack/react-table'
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
 import { DataTableChip } from '@/components/shared/data-table/data-table-chip'
@@ -45,6 +46,9 @@ function DataTableSearch({
   const [followed, setFollowed] = useState(current)
   const [written, setWritten] = useState<string | undefined>(undefined)
   const [composing, setComposing] = useState(false)
+  const [pops, setPops] = useState(0)
+  const [seenPops, setSeenPops] = useState(0)
+  const { history } = useRouter()
   const apply = useEffectEvent((value: string) => {
     setWritten(cleanSearch(value))
     list.setSearch(value)
@@ -52,10 +56,27 @@ function DataTableSearch({
 
   if (current !== followed) {
     setFollowed(current)
+    // The cleaned draft too: an outside change that lands on exactly the term the pending draft cleans to (the reader typed "acme " as the palette set "acme") keeps the reader's raw text.
     if (current !== written && current !== cleanSearch(draft)) {
       setDraft(current)
       setWritten(undefined)
     }
+  }
+
+  // Back, Forward and go() restore an entry as it was, so a keystroke pending for the entry being left must not be written over it, even when both entries hold the same term.
+  useEffect(
+    () =>
+      history.subscribe(({ action }) => {
+        if (action.type === 'BACK' || action.type === 'FORWARD' || action.type === 'GO') {
+          setPops((count) => count + 1)
+        }
+      }),
+    [history]
+  )
+  if (pops !== seenPops) {
+    setSeenPops(pops)
+    setDraft(current)
+    setWritten(undefined)
   }
 
   // The debounce: a change to the draft (typed, or taken from outside) cancels the write pending for the old one.
@@ -76,6 +97,8 @@ function DataTableSearch({
       onChange={(event) => setDraft(event.target.value)}
       onCompositionStart={() => setComposing(true)}
       onCompositionEnd={() => setComposing(false)}
+      // Some keyboards drop focus mid-composition without reporting its end.
+      onBlur={() => setComposing(false)}
     />
   )
 }
@@ -124,6 +147,7 @@ export function DataTableToolbar<T extends RowData>({
   filters,
   search,
   total,
+  totalPending,
   showColumns,
   sortMenu,
   children,
@@ -134,6 +158,8 @@ export function DataTableToolbar<T extends RowData>({
   search?: { label: string; placeholder?: string }
   /** The view's total; absent while a new view's first page loads, so it never shows a stale count. */
   total: ListTotal | undefined
+  /** The page is loading, so a total may still arrive. */
+  totalPending: boolean
   /** False when the cards do not follow the column choice (a list's own `card`). */
   showColumns: boolean
   /** The sort menu of the card layout, which has no column headers. */
@@ -169,12 +195,13 @@ export function DataTableToolbar<T extends RowData>({
     !sortMenu &&
     !hasColumnMenu &&
     !total &&
+    !totalPending &&
     !list.isFiltered
   ) {
     return null
   }
   return (
-    <div className="grid gap-2">
+    <div data-slot="data-table-toolbar" className="grid gap-2">
       <div className="flex flex-wrap items-center gap-2">
         {search && (
           <DataTableSearch list={list} label={search.label} placeholder={search.placeholder} />

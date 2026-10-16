@@ -331,6 +331,7 @@ export function DataTable<T extends RowData>({
         filters={filters}
         search={search}
         total={query.total}
+        totalPending={query.query.isFetching}
         // A list's own card shows what it chooses, whatever the column menu says.
         showColumns={!(usesCards && card)}
         sortMenu={sortMenu}

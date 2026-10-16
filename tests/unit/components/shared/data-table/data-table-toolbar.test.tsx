@@ -27,6 +27,12 @@ function onePage(params: URLSearchParams) {
   )
 }
 
+/** The router history's pops, which `AnyRouter` types as `any`. */
+interface RouterHistoryPops {
+  back: () => void
+  go: (n: number) => void
+}
+
 afterEach(() => vi.restoreAllMocks())
 
 /**
@@ -138,6 +144,74 @@ describe('DataTable search', () => {
     expect(router.state.location.search).toEqual({ search: 'qq' })
     expect(box).toHaveValue('qq')
     expect(count()).toBe(0)
+  })
+
+  it('keeps a raw draft when an outside change lands on exactly its cleaned term', async () => {
+    const count = filteredCount()
+    serveTestItems(onePage)
+    const router = renderTestList()
+    const box = await screen.findByRole('searchbox', { name: 'Search items' })
+    await screen.findByText('Item 01')
+
+    fireEvent.change(box, { target: { value: 'acme ' } })
+    await router.navigate({ to: '/items', search: { search: 'acme' } } as never)
+    await settle(500, 'the pending write must not change the box or the URL, which nothing shows')
+
+    expect(box).toHaveValue('acme ')
+    expect(router.state.location.search).toEqual({ search: 'acme' })
+    expect(count()).toBe(0)
+  })
+
+  it.each([
+    ['Back', (history: RouterHistoryPops) => history.back()],
+    ['go(-1)', (history: RouterHistoryPops) => history.go(-1)],
+  ])('never lets a pending keystroke overwrite an entry %s restored', async (_name, pop) => {
+    const count = filteredCount()
+    serveTestItems(onePage)
+    const user = userEvent.setup()
+    const router = renderTestList('/items?search=ab')
+    const box = await screen.findByRole('searchbox', { name: 'Search items' })
+    await screen.findByText('Item 01')
+    // A facet click pushes an entry with the same search term.
+    await router.navigate({ to: '/items', search: { search: 'ab', status: 'active' } } as never)
+    await screen.findByRole('button', { name: 'Remove filter: Status: Active' })
+
+    await user.type(box, 'c')
+    pop(router.history as RouterHistoryPops)
+    await waitFor(() => expect(router.state.location.search).toEqual({ search: 'ab' }))
+    await settle(500, 'the 250 ms debounce for "abc" fires, or must not, and nothing shows it')
+
+    expect(router.state.location.search).toEqual({ search: 'ab' })
+    expect(box).toHaveValue('ab')
+    expect(count()).toBe(0)
+  })
+
+  it('writes a keystroke typed just before a facet click, with the facet applied', async () => {
+    serveTestItems(onePage)
+    const user = userEvent.setup()
+    const router = renderTestList('/items?search=ab')
+    const box = await screen.findByRole('searchbox', { name: 'Search items' })
+    await screen.findByText('Item 01')
+
+    await user.type(box, 'c')
+    await user.click(screen.getByRole('button', { name: 'Filter by status' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by status' })
+    await user.click(within(popup).getByRole('checkbox', { name: 'Active' }))
+
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual({ search: 'abc', status: 'active' })
+    )
+    expect(box).toHaveValue('abc')
+  })
+
+  it('writes again after a blur ends a composition that never reported its end', async () => {
+    serveTestItems(onePage)
+    const router = renderTestList()
+    const box = await screen.findByRole('searchbox', { name: 'Search items' })
+    fireEvent.compositionStart(box)
+    fireEvent.blur(box)
+    fireEvent.change(box, { target: { value: 'ni' } })
+    await waitFor(() => expect(router.state.location.search).toEqual({ search: 'ni' }))
   })
 
   it('writes nothing for a change that cleans to the same term', async () => {
@@ -436,7 +510,7 @@ describe('DataTable total', () => {
     expect(region.isConnected).toBe(true)
   })
 
-  it('renders no toolbar when it has nothing to show', async () => {
+  it('renders no toolbar when it has nothing to show, once no total can arrive', async () => {
     serveTestItems(() => listPage([testItem(1)]))
     renderTestList('/items', {
       search: undefined,
@@ -445,7 +519,31 @@ describe('DataTable total', () => {
       layout: 'table',
     })
     await screen.findByText('Item 01')
-    expect(document.body.querySelector('section > div.grid.gap-2')).toBeNull()
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="data-table-toolbar"]')).toBeNull()
+    )
+  })
+
+  it('keeps a total-only toolbar mounted while the total is still to come', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    serveTestItems(async () => {
+      await gate
+      return listPage([testItem(1)], undefined, { count: 9, capped: false })
+    })
+    renderTestList('/items', {
+      search: undefined,
+      filters: [],
+      columns: testColumns.slice(0, 1),
+      layout: 'table',
+    })
+    const slot = '[data-slot="data-table-toolbar"] [role="status"]'
+    await waitFor(() => expect(document.querySelector(slot)).not.toBeNull())
+    const region = document.querySelector(slot)
+    release()
+    expect(await screen.findByText('9 results')).toBe(region)
   })
 
   it('shows no total while the next view’s first page loads, never the old one', async () => {
