@@ -51,7 +51,14 @@ function mockTenant(myRole: MembershipRole, access: TenantAccess = 'member') {
   server.use(
     http.get('/api/v1/tenants', () =>
       ok(
-        listPage([{ tenant: { ...TENANT, isPlatform: false }, role: myRole, isPlatform: false }]),
+        listPage([
+          {
+            tenant: { ...TENANT, isPlatform: false },
+            role: myRole,
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ]),
         'Tenants retrieved.'
       )
     ),
@@ -659,7 +666,12 @@ describe('workspace general settings', () => {
       http.get('/api/v1/tenants', () =>
         ok(
           listPage([
-            { tenant: { ...TENANT, isPlatform: false }, role: 'owner', isPlatform: false },
+            {
+              tenant: { ...TENANT, isPlatform: false },
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
           ]),
           'Tenants.'
         )

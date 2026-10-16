@@ -284,7 +284,17 @@ describe('AppLayout', () => {
   it('shows a breadcrumb trail on a DYNAMIC route', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok(listPage([{ tenant: ACME, role: 'viewer' }]), 'Tenants retrieved.')
+        ok(
+          listPage([
+            {
+              tenant: ACME,
+              role: 'viewer',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants retrieved.'
+        )
       ),
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'viewer'), 'Tenant retrieved.'))
     )
@@ -306,7 +316,17 @@ describe('AppLayout', () => {
   it('shows a breadcrumb trail on a DYNAMIC settings route, under Settings', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok(listPage([{ tenant: ACME, role: 'viewer' }]), 'Tenants retrieved.')
+        ok(
+          listPage([
+            {
+              tenant: ACME,
+              role: 'viewer',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants retrieved.'
+        )
       ),
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'viewer'), 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/members', () => ok([], 'Members retrieved.'))

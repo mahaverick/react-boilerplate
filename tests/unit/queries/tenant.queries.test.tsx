@@ -653,4 +653,81 @@ describe('tenantsQueryOptions', () => {
     expect(seen.map((params) => params.get('limit'))).toEqual(['100', '100'])
     expect(seen.map((params) => params.get('cursor'))).toEqual([null, 'c2'])
   })
+
+  /** One membership row in the list's shape. */
+  const member = (slug: string, id = slug) => ({
+    tenant: { id, name: slug, slug },
+    role: 'owner',
+    isPlatform: false,
+    joinedAt: '2026-01-01T00:00:00.000Z',
+  })
+
+  it('rejects when the API repeats a cursor', async () => {
+    let calls = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        calls += 1
+        return ok(
+          listPage([member(`t${calls}`)], { nextCursor: 'same', hasNext: true }),
+          'Tenants retrieved.'
+        )
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    await expect(client.fetchQuery(tenantsQueryOptions())).rejects.toThrow(/cursor/i)
+    expect(calls).toBe(2)
+  })
+
+  it('rejects past 50 pages', async () => {
+    let calls = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        calls += 1
+        return ok(
+          listPage([member(`t${calls}`)], { nextCursor: `c${calls}`, hasNext: true }),
+          'Tenants retrieved.'
+        )
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    await expect(client.fetchQuery(tenantsQueryOptions())).rejects.toThrow(/pages/i)
+    expect(calls).toBe(50)
+  })
+
+  it('lists a tenant that appears on two pages once', async () => {
+    server.use(
+      http.get('/api/v1/tenants', ({ request }) =>
+        new URL(request.url).searchParams.get('cursor') === 'c2'
+          ? ok(listPage([member('acme'), member('beta')]), 'Tenants retrieved.')
+          : ok(
+              listPage([member('acme')], { nextCursor: 'c2', hasNext: true }),
+              'Tenants retrieved.'
+            )
+      )
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    const rows = await client.fetchQuery(tenantsQueryOptions())
+
+    expect(rows.map((entry) => entry.tenant.slug)).toEqual(['acme', 'beta'])
+  })
+
+  it('caches nothing when a later page fails', async () => {
+    server.use(
+      http.get('/api/v1/tenants', ({ request }) =>
+        new URL(request.url).searchParams.get('cursor') === 'c2'
+          ? fail('Something went wrong.', 500)
+          : ok(
+              listPage([member('acme')], { nextCursor: 'c2', hasNext: true }),
+              'Tenants retrieved.'
+            )
+      )
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    await expect(client.fetchQuery(tenantsQueryOptions())).rejects.toThrow()
+    expect(client.getQueryData(tenantKeys.list)).toBeUndefined()
+  })
 })

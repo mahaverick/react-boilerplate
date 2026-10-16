@@ -5,7 +5,8 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query'
-import { MEMBERSHIP_ROLES, type MembershipRole } from '@/constants/roles'
+import { MEMBERSHIP_ROLES } from '@/constants/membership-roles'
+import type { MembershipRole } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
@@ -136,20 +137,34 @@ export function isEligibleTenant(entry: TenantWithRole): boolean {
 /** How many memberships one request asks for: the API's most. */
 export const MEMBERSHIPS_PAGE_LIMIT = 100
 
+/** The most pages `readMemberships` follows: 5,000 memberships, far past any account. */
+const MAX_MEMBERSHIP_PAGES = 50
+
 /**
- * Every membership from `cursor` on, by name: one `GET /tenants` page, then
- * the next until the API says there is none.
- * @param cursor - Where to read from; the first page without one.
- * @returns The rows of this page and every later one.
+ * Every membership, by name: one `GET /tenants` page, then the next until the
+ * API says there is none. A cursor the API repeats, or more than
+ * `MAX_MEMBERSHIP_PAGES` pages, is a fault and rejects, so the read never
+ * loops. A tenant that moved across a page boundary between two reads is
+ * listed once.
+ * @returns The rows of every page, the first of any repeated tenant kept.
  */
-async function readMemberships(cursor?: string): Promise<TenantWithRole[]> {
-  const { items, page } = unwrap(
-    await apiClient.get<ApiSuccess<ListPage<TenantWithRole>>>('/tenants', {
-      params: { limit: MEMBERSHIPS_PAGE_LIMIT, ...(cursor === undefined ? {} : { cursor }) },
-    })
-  )
-  if (!page.hasNext || page.nextCursor === null) return items
-  return [...items, ...(await readMemberships(page.nextCursor))]
+async function readMemberships(): Promise<TenantWithRole[]> {
+  const rows = new Map<string, TenantWithRole>()
+  const sent = new Set<string>()
+  let cursor: string | undefined
+  for (let pages = 0; pages < MAX_MEMBERSHIP_PAGES; pages += 1) {
+    const { items, page } = unwrap(
+      await apiClient.get<ApiSuccess<ListPage<TenantWithRole>>>('/tenants', {
+        params: { limit: MEMBERSHIPS_PAGE_LIMIT, ...(cursor === undefined ? {} : { cursor }) },
+      })
+    )
+    for (const item of items) if (!rows.has(item.tenant.id)) rows.set(item.tenant.id, item)
+    if (!page.hasNext || page.nextCursor === null) return [...rows.values()]
+    if (sent.has(page.nextCursor)) throw new Error('GET /tenants repeated a cursor.')
+    sent.add(page.nextCursor)
+    cursor = page.nextCursor
+  }
+  throw new Error(`GET /tenants went past ${MAX_MEMBERSHIP_PAGES} pages.`)
 }
 
 /**
@@ -174,10 +189,9 @@ export const myTenantsList = defineList({
 })
 
 /**
- * One page of the caller's tenants (`GET /tenants`), for the Tenants table
- * and the switcher's search.
- * @param request - From `listRequest(myTenantsList, …)`, or `{ search }`.
- * @returns Query options for `useListQuery` or `useQuery`.
+ * One page of the caller's tenants (`GET /tenants`), for the Tenants table.
+ * @param request - From `listRequest(myTenantsList, …)`.
+ * @returns Query options for `useListQuery`.
  */
 export function myTenantsListOptions(request: ListRequest) {
   return listQueryOptions<TenantWithRole>({ key: tenantKeys.pages, path: '/tenants', request })

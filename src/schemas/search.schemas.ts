@@ -9,7 +9,7 @@ import { z } from 'zod'
  * as text instead of dropping it. Anything else is no search.
  */
 export const searchText = z
-  .union([z.string(), z.number()])
+  .custom<string | number>((value) => typeof value === 'string' || typeof value === 'number')
   .transform(String)
   .optional()
   .catch(undefined)

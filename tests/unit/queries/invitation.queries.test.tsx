@@ -174,7 +174,14 @@ describe('invitation queries', () => {
     it('refetches a cached tenant list that nothing is observing', async () => {
       // The accept page does not observe the list, and an invalidation alone refetches only active queries.
       let listCalls = 0
-      const joined = [{ tenant: { id: TENANT_ID, slug: 'acme' }, role: 'editor' }]
+      const joined = [
+        {
+          tenant: { id: TENANT_ID, slug: 'acme' },
+          role: 'editor',
+          isPlatform: false,
+          joinedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ]
       server.use(
         http.get('/api/v1/tenants', () => {
           listCalls += 1

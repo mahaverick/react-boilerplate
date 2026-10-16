@@ -35,7 +35,17 @@ let flagReads: number
 function mockTenant(isBetaOn: boolean) {
   server.use(
     http.get('/api/v1/tenants', () =>
-      ok(listPage([{ tenant: TENANT, role: 'owner' }]), 'Tenants.')
+      ok(
+        listPage([
+          {
+            tenant: TENANT,
+            role: 'owner',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ]),
+        'Tenants.'
+      )
     ),
     http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'owner'), 'Tenant.')),
     http.get('/api/v1/tenants/acme/flags', () => {
@@ -197,8 +207,18 @@ function mockTwoTenants(options: { globexFlags?: 'ok' | 'fail' } = {}) {
     http.get('/api/v1/tenants', () =>
       ok(
         listPage([
-          { tenant: TENANT, role: 'owner' },
-          { tenant: GLOBEX, role: 'owner' },
+          {
+            tenant: TENANT,
+            role: 'owner',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+          {
+            tenant: GLOBEX,
+            role: 'owner',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
         ]),
         'Tenants.'
       )

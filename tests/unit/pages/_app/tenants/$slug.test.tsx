@@ -53,7 +53,12 @@ const SETTINGS = {
 function mockTenant(myRole: MembershipRole, access: TenantAccess = 'member') {
   server.use(
     http.get('/api/v1/tenants', () =>
-      ok(listPage([{ tenant: TENANT, role: myRole }]), 'Tenants retrieved.')
+      ok(
+        listPage([
+          { tenant: TENANT, role: myRole, isPlatform: false, joinedAt: '2026-01-01T00:00:00.000Z' },
+        ]),
+        'Tenants retrieved.'
+      )
     ),
     http.get('/api/v1/tenants/acme', () =>
       ok(tenantDetail(TENANT, myRole, access), 'Tenant retrieved.')
@@ -98,7 +103,14 @@ describe('tenant detail', () => {
       http.get('/api/v1/tenants', () => {
         listFetches += 1
         return ok(
-          listPage([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }]),
+          listPage([
+            {
+              tenant: { ...TENANT, lifecycleState: 'suspended' },
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
           'Tenants.'
         )
       }),
@@ -153,7 +165,14 @@ describe('tenant detail', () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
-          listPage([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }]),
+          listPage([
+            {
+              tenant: { ...TENANT, lifecycleState: 'suspended' },
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
           'Tenants.'
         )
       ),
@@ -177,7 +196,14 @@ describe('tenant detail', () => {
         // The list answers only after the tenant read has, so the page is in its list-pending window while the 404 lands.
         await detailSeen
         return ok(
-          listPage([{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }]),
+          listPage([
+            {
+              tenant: { ...TENANT, lifecycleState: 'suspended' },
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
           'Tenants.'
         )
       }),
@@ -218,7 +244,17 @@ describe('tenant detail', () => {
     let failNext = true
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok(listPage([{ tenant: TENANT, role: 'owner' }]), 'Tenants.')
+        ok(
+          listPage([
+            {
+              tenant: TENANT,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
       ),
       http.get('/api/v1/tenants/acme', () =>
         failNext

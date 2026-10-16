@@ -97,7 +97,12 @@ const ME = USER_ID
 function mockTenant(myRole: MembershipRole, members: ReturnType<typeof member>[]) {
   server.use(
     http.get('/api/v1/tenants', () =>
-      ok(listPage([{ tenant: TENANT, role: myRole }]), 'Tenants retrieved.')
+      ok(
+        listPage([
+          { tenant: TENANT, role: myRole, isPlatform: false, joinedAt: '2026-01-01T00:00:00.000Z' },
+        ]),
+        'Tenants retrieved.'
+      )
     ),
     http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, myRole), 'Tenant retrieved.')),
     http.get('/api/v1/tenants/acme/members', () => ok(members, 'Members retrieved.'))
@@ -109,7 +114,17 @@ function mockPlatformTenant(myRole: MembershipRole, members: ReturnType<typeof m
   const platform = { ...TENANT, name: 'Platform', slug: 'platform' }
   server.use(
     http.get('/api/v1/tenants', () =>
-      ok(listPage([{ tenant: platform, role: myRole, isPlatform: true }]), 'Tenants retrieved.')
+      ok(
+        listPage([
+          {
+            tenant: platform,
+            role: myRole,
+            isPlatform: true,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ]),
+        'Tenants retrieved.'
+      )
     ),
     http.get('/api/v1/tenants/platform', () =>
       ok(tenantDetail(platform, myRole), 'Tenant retrieved.')
@@ -1682,7 +1697,17 @@ describe('keyboard focus after a row action succeeds', () => {
     const everyone = [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')]
     server.use(
       http.get('/api/v1/tenants', () =>
-        ok(listPage([{ tenant: TENANT, role: 'owner' }]), 'Tenants retrieved.')
+        ok(
+          listPage([
+            {
+              tenant: TENANT,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants retrieved.'
+        )
       ),
       http.get('/api/v1/tenants/acme', () =>
         ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.')

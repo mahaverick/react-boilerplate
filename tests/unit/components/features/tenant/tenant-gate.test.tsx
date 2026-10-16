@@ -87,7 +87,14 @@ describe('TenantGate', () => {
       http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404)),
       http.get('/api/v1/tenants', () =>
         ok(
-          listPage([{ tenant: { ...ACME, lifecycleState: 'suspended' }, role: 'owner' }]),
+          listPage([
+            {
+              tenant: { ...ACME, lifecycleState: 'suspended' },
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
           'Tenants.'
         )
       )

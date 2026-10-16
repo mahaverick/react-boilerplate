@@ -161,7 +161,14 @@ function mockSignedInData() {
   server.use(
     http.get('/api/v1/tenants', () =>
       ok(
-        listPage([{ tenant: TENANT, role: 'owner', joinedAt: '2026-01-01T00:00:00.000Z' }]),
+        listPage([
+          {
+            tenant: TENANT,
+            role: 'owner',
+            isPlatform: false,
+            joinedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ]),
         'Tenants retrieved.'
       )
     ),

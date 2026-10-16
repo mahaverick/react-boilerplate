@@ -9,7 +9,7 @@
 import { z } from 'zod'
 import type { AnalyticsKey } from '@/observability/telemetry'
 import { searchText } from '@/schemas/search.schemas'
-import { LIST_DIRECTIONS, PAGE_SIZES } from '@/types/list.types'
+import { LIST_DIRECTIONS, PAGE_SIZES, type PageSize } from '@/types/list.types'
 
 /** How one filter travels: a comma list of known values, a yes/no, a record id, or a calendar day. */
 export type ListFilter =
@@ -139,7 +139,10 @@ function filterSchema(filter: ListFilter): z.ZodType {
     case 'list':
       return commaList(filter.values)
     case 'boolean':
-      return z.boolean().optional().catch(undefined)
+      return z
+        .custom<boolean>((value) => typeof value === 'boolean')
+        .optional()
+        .catch(undefined)
     case 'id':
       return z.uuid().optional().catch(undefined)
     case 'day':
@@ -173,7 +176,10 @@ export function listSearchSchema(
     [urlKey('cursor')]: z.string().min(1).max(MAX_CURSOR_LENGTH).optional().catch(undefined),
     [urlKey('direction')]: z.enum(LIST_DIRECTIONS).optional().catch(undefined),
     // The router parses `?limit=50` as the number 50.
-    [urlKey('limit')]: z.literal(PAGE_SIZES).optional().catch(undefined),
+    [urlKey('limit')]: z
+      .custom<PageSize>((value) => PAGE_SIZES.includes(value as PageSize))
+      .optional()
+      .catch(undefined),
     [urlKey('hidden')]: z.string().min(1).optional().catch(undefined),
   }
   for (const [name, filter] of Object.entries(filters)) shape[urlKey(name)] = filterSchema(filter)

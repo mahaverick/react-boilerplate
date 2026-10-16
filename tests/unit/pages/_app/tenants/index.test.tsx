@@ -128,7 +128,8 @@ describe('tenants list', () => {
       'aria-sort',
       'ascending'
     )
-    expect(within(table).getByRole('link', { name: /Acme Corp/ })).toBeInTheDocument()
+    const links = within(table).getAllByRole('link')
+    expect(links.map((link) => link.textContent)).toEqual(['Acme Corp', 'Beta'])
     expect(within(table).getByText('Viewer')).toBeInTheDocument()
     expect(screen.getByText('2 results')).toBeInTheDocument()
   })
@@ -162,7 +163,14 @@ describe('tenants list', () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
-          listPage([{ tenant: TENANT, role: 'admin', joinedAt: '2026-01-01T00:00:00.000Z' }]),
+          listPage([
+            {
+              tenant: TENANT,
+              role: 'admin',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
           'Tenants.'
         )
       )
@@ -256,7 +264,14 @@ describe('tenants list', () => {
         failNext
           ? fail('Something went wrong', 500)
           : ok(
-              listPage([{ tenant: TENANT, role: 'owner', joinedAt: '2026-01-01T00:00:00.000Z' }]),
+              listPage([
+                {
+                  tenant: TENANT,
+                  role: 'owner',
+                  isPlatform: false,
+                  joinedAt: '2026-01-01T00:00:00.000Z',
+                },
+              ]),
               'Tenants retrieved.'
             )
       )
@@ -291,6 +306,48 @@ describe('tenants list', () => {
     })
     // The schema trims, and the untouched description is absent rather than posted as '', which the API's `.min(1)` would refuse.
     expect(posted).toEqual({ name: 'Acme Corp', slug: 'acme' })
+  })
+
+  it('refreshes the table with the new tenant after a create', async () => {
+    let created = false
+    let tableReads = 0
+    server.use(
+      http.get('/api/v1/tenants', ({ request }) => {
+        const params = new URL(request.url).searchParams
+        // The guard's full read asks for 100 and no total; the table asks for the capped total.
+        if (params.get('total') === '1') tableReads += 1
+        return ok(
+          listPage(
+            created
+              ? [
+                  {
+                    tenant: TENANT,
+                    role: 'owner',
+                    isPlatform: false,
+                    joinedAt: '2026-01-01T00:00:00.000Z',
+                  },
+                ]
+              : []
+          ),
+          'Tenants retrieved.'
+        )
+      }),
+      http.post('/api/v1/tenants', () => {
+        created = true
+        return ok(TENANT, 'Tenant created.', 201)
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants')
+    await user.type(await screen.findByLabelText('Name'), 'Acme Corp')
+    await user.type(screen.getByLabelText('Slug'), 'acme')
+    const readsBefore = tableReads
+
+    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
+
+    const table = await screen.findByRole('table', { name: 'Tenants' })
+    expect(within(table).getByRole('link', { name: /Acme Corp/ })).toBeInTheDocument()
+    expect(tableReads).toBeGreaterThan(readsBefore)
   })
 
   it('shows a refused create once, in the form, with no toast', async () => {
