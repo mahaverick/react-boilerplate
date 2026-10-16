@@ -58,19 +58,6 @@ ours: s/^\s+info: .*$//
 ours: s/bg-muted text-sm text-foreground/bg-muted text-sm text-muted-foreground/
 ```
 
-### checkbox.tsx
-
-- **The check icon sits on one line.** The registry output prints
-  `<IconCheck` and its closing `/>` on two lines (the CLI strips the icon's
-  props); with the global `aria-hidden="true"` edit and the repo's
-  formatter the element is one line. The rules read both shapes as the same
-  element. Re-apply: no.
-
-```ui-drift
-ours: s/<IconCheck \/>/<IconCheck/
-theirs: s/^\s*\/>$//
-```
-
 ### combobox.tsx
 
 - **`aria-label="Clear"` and `aria-label="Remove"`** on the clear and

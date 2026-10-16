@@ -113,12 +113,12 @@ export function PageSkeleton({ variant, nested = false }: PageSkeletonProps) {
           </CardSkeleton>
         ))}
       {variant === 'auth' && (
-        <Card className="mx-auto w-full max-w-sm">
+        <Card className="mx-auto w-full max-w-sm md:max-w-(--boot-auth-width)">
           <CardContent className="grid gap-4">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-4 w-56" />
+            <Skeleton className="h-6 w-40 justify-self-center" />
+            <Skeleton className="h-4 w-56 justify-self-center" />
             <FormFieldsSkeleton fields={2} action={false} />
-            <Skeleton className="h-9 w-full" />
+            <Skeleton data-slot="auth-button-skeleton" className="h-9 w-full" />
           </CardContent>
         </Card>
       )}
@@ -159,4 +159,23 @@ export function SettingsPagePending() {
 /** An auth page's pending template: the sign-in card's shape. */
 export function AuthPending() {
   return <PageSkeleton variant="auth" />
+}
+
+/**
+ * An auth page's pending template where the page renders its own frame (the
+ * routes outside the `_auth` layout, and the layout itself): the signed-out
+ * page frame drawn with classes alone, so the entry does not import the
+ * layout, around the sign-in card's shape.
+ */
+export function AuthPagePending() {
+  return (
+    <div
+      data-slot="auth-frame-skeleton"
+      className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10"
+    >
+      <main className="flex w-full max-w-sm flex-col gap-6 md:max-w-3xl">
+        <AuthPending />
+      </main>
+    </div>
+  )
 }

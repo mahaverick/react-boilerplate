@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { AuthLayout } from '@/components/layouts/auth-layout'
+import { AuthPagePending } from '@/components/shared/pending-templates'
 import { ROUTES } from '@/constants/routes'
 import { useAuthStore } from '@/states/auth.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
@@ -17,6 +18,7 @@ export const Route = createFileRoute('/_auth')({
       throw redirect({ to: ROUTES.dashboard })
     }
   },
+  pendingComponent: AuthPagePending,
   component: () => (
     <AuthLayout>
       <Outlet />

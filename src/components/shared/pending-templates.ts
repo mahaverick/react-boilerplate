@@ -25,6 +25,8 @@ export const SettingsPending = template('SettingsPending')
 export const SettingsPagePending = template('SettingsPagePending')
 /** An auth page's pending template: the sign-in card's shape. */
 export const AuthPending = template('AuthPending')
+/** An auth page's pending template where the page draws its own frame: the frame around the sign-in card's shape. */
+export const AuthPagePending = template('AuthPagePending')
 
 /** Every template, for the startup preload. */
 const ALL = [
@@ -35,6 +37,7 @@ const ALL = [
   SettingsPending,
   SettingsPagePending,
   AuthPending,
+  AuthPagePending,
 ]
 
 /**

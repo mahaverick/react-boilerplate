@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
 import { BusyButton } from '@/components/shared/busy-button'
-import { AuthPending } from '@/components/shared/pending-templates'
+import { AuthPagePending } from '@/components/shared/pending-templates'
 import { buttonVariants } from '@/components/ui/button'
 import { FieldDescription, FieldGroup, FieldSeparator } from '@/components/ui/field'
 import {
@@ -41,7 +41,7 @@ export const Route = createFileRoute('/verify-email')({
   validateSearch: z.object({ token: z.string().optional().catch(undefined) }),
   head: () => ({ meta: [{ title: pageTitle('Verify email') }] }),
   component: VerifyEmailPage,
-  pendingComponent: AuthPending,
+  pendingComponent: AuthPagePending,
 })
 
 /** Confirms the emailed token with the account password, and offers a fresh link once a try fails. */

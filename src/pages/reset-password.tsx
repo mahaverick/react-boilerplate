@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
 import { BusyButton } from '@/components/shared/busy-button'
-import { AuthPending } from '@/components/shared/pending-templates'
+import { AuthPagePending } from '@/components/shared/pending-templates'
 import { buttonVariants } from '@/components/ui/button'
 import { FieldDescription, FieldGroup } from '@/components/ui/field'
 import {
@@ -38,7 +38,7 @@ export const Route = createFileRoute('/reset-password')({
   validateSearch: z.object({ token: z.string().optional().catch(undefined) }),
   head: () => ({ meta: [{ title: pageTitle('Reset password') }] }),
   component: ResetPasswordPage,
-  pendingComponent: AuthPending,
+  pendingComponent: AuthPagePending,
 })
 
 /** The new-password form for a mailed token; without a token it points to the forgot-password page. */

@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
-import { AuthPending } from '@/components/shared/pending-templates'
+import { AuthPagePending } from '@/components/shared/pending-templates'
 import { Spinner } from '@/components/ui/spinner'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
@@ -17,7 +17,7 @@ import { useAuthStore } from '@/states/auth.store'
 export const Route = createFileRoute('/auth/callback')({
   head: () => ({ meta: [{ title: pageTitle('Signing in') }] }),
   component: OAuthCallbackPage,
-  pendingComponent: AuthPending,
+  pendingComponent: AuthPagePending,
 })
 
 /** Sends the visitor to the dashboard once signed in, or to the login page with a Google failure code. */
