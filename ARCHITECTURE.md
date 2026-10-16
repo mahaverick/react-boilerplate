@@ -56,13 +56,15 @@ closes the drawer on a phone.
 
 `src/routeTree.gen.ts` is generated from `src/pages/` by the TanStack Router
 plugin in `vite.config.ts`, which also splits each route's component into
-its own chunk (`autoCodeSplitting`), and its pending template into another
-(`codeSplittingOptions`), so the page templates stay out of the entry chunk.
-The router loads a route's pending template with the route's chunk.
+its own chunk (`autoCodeSplitting`). A route's pending template is not split
+with it: a route names one of the lazy wrappers in
+`src/components/shared/pending-templates.ts`, whose chunk is fetched at
+startup (`templatesReady`, which `main.tsx` waits for, capped), so a template
+renders without suspending and the page templates still stay out of the entry
+chunk.
 
 A lazy route with its own `errorComponent` keeps that screen in the route
-module, with `codeSplitGroupings: [['component'], ['pendingComponent']]`, as
-the settings leaves do.
+module, with `codeSplitGroupings: [['component']]`, as the settings leaves do.
 A split error screen would need a fetch exactly when chunk loading fails, and
 the plugin's default split pulls the error listener out of the entry chunk.
 For the same reason such a route's page component must not import `Route`
@@ -78,8 +80,8 @@ instead of `Route.useParams()`. Either mistake fails `pnpm check:bundle`
    the first paint.
 2. `/runtime-config.js` sets `window.__APP_CONFIG__`
    ([run-time config](#the-container-and-run-time-config)).
-3. `src/main.tsx`, the module entry. `#root` holds a static splash until
-   React's first commit replaces it.
+3. `src/main.tsx`, the module entry. `#root` holds a static boot shell, styled
+   by inline CSS in `index.html`, until React's first commit replaces it.
 
 `src/main.tsx` runs in this order:
 
@@ -98,10 +100,13 @@ instead of `Route.useParams()`. Either mistake fails `pnpm check:bundle`
   it.
 - **`router.load()` runs before React mounts.** The root route's
   `beforeLoad` awaits `bootstrapSession()`, so the first match is resolved
-  against a settled session. React mounts in the load's `finally`, whether
-  it resolved or rejected: mounting earlier would blank the splash, because
-  `createRoot().render()` clears `#root` and the router renders nothing until
-  it has a match.
+  against a settled session, and `_app`'s loader waits for the flags, at most
+  10 s. React mounts once the load has settled, whether it resolved or
+  rejected (and once the pending templates' chunks have, or after 3 s):
+  mounting earlier would blank the boot shell, because `createRoot().render()`
+  clears `#root` and the router renders nothing until it has a match. The tenant
+  list and the tenant reads are not waited for; the page shows its template
+  while they load ([boot.md](docs/pages/boot.md)).
 - **`initAnalytics()` runs after that first load**, so the identity the
   session restore queued is applied before posthog-js sends anything.
 
@@ -178,9 +183,8 @@ Links preload on intent (`defaultPreload: 'intent'`). The pending component
 waits 300 ms before it shows and then stays at least 300 ms. The error and
 not-found components are imported statically in `src/router.tsx`: when a
 chunk cannot be fetched, a lazy error screen could not load either. The
-default pending template is a lazy component, fetched once at startup
-(`preload()`), since the router preloads only a route's own pending
-template. `RouteError` recognises a failed chunk load
+pending templates are lazy wrappers fetched once at startup
+(`templatesReady`), since the router preloads none of them. `RouteError` recognises a failed chunk load
 (`src/lib/chunk-load-error.ts`) and offers a reload, the only way to pick up
 a new deploy's file names; any other error offers a retry that re-runs the
 loaders.

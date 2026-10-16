@@ -36,11 +36,11 @@ vi.mock('@/components/ui/toast', async (importOriginal) => {
 })
 
 /**
- * A query client that retries waits react-query's default backoff (about a second) before
- * the second attempt, so a test that waits for a failed read's error state spends that second
- * on top of its own work, and under full-suite contention it can outlast `asyncUtilTimeout`.
- * Every client built in a unit test, the app's own `queryClient` included, retries with no
- * wait; `retry` itself stays whatever the client sets, so the number of attempts is the app's.
+ * By default react-query waits a backoff (about a second) before it retries a failed read, so
+ * a test that waits for that read's error state spends the second on top of its own work, and
+ * under full-suite contention it can outlast `asyncUtilTimeout`. Every client built in a unit
+ * test, the app's own `queryClient` included, retries with no wait; `retry` itself stays
+ * whatever the client sets, so the number of attempts is the app's.
  */
 vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>()

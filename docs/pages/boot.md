@@ -13,7 +13,7 @@ What a cold load of the app does, from `index.html` to the first page, and what 
 7. After mount, on a page without `$slug`, `TenantSearchGuard` reads `GET /api/v1/tenants`, shows the dashboard template in the page slot until it lands, and fixes `?tenant=` with a replace.
 8. After mount: `MaintenanceGate` (in `__root`) starts `GET /api/v1/status/maintenance`; on `_app` pages the bell starts `GET /api/v1/notifications?limit=20` and opens `GET /api/v1/notifications/stream`; analytics starts (`initAnalytics()`), and posthog-js fetches its config and extensions through `/api/v1/collect/…`.
 
-A signed-in reload of `/tenants` in Chrome showed exactly this order: `POST /auth/refresh` 200, `GET /profile` 200, `GET /tenants` 200, `GET /flags` 200, then the `/collect/…` scripts, the notifications stream, `GET /notifications?limit=20` and `GET /status/maintenance`. A signed-out load of any `_auth` page makes three requests of its own: `/runtime-config.js`, `POST /auth/refresh` 401 and `GET /status/maintenance`.
+A signed-in cold load of `/tenants` in the capture made these requests, in the order they were recorded: `POST /auth/refresh` 200, `GET /profile` 200, `GET /flags` 200 (the three before React mounts), then after mount `GET /status/maintenance`, the notifications stream, `GET /tenants` and `GET /notifications`. A signed-out load of any `_auth` page makes three requests of its own: `/runtime-config.js`, `POST /auth/refresh` 401 and `GET /status/maintenance`.
 
 ## Frame by frame
 

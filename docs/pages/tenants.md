@@ -15,7 +15,7 @@ The tenant list (`/tenants/`), a tenant's overview (`/tenants/$slug/`) and beta 
 | Header and tabs | The tenant's name as the `h1`, the caller's role `Badge`, `/{slug}`, then a `nav` "Tenant sections" of link tabs: Overview, and Beta while `example_beta_page` is on for this tenant. A `PlatformAccessBanner` sits above when staff reached the tenant through platform access.                                                                                                                                                                               |
 | Breadcrumbs     | Tenants › {slug} › {tab}. The tenant crumb is the slug, not the name, because static data resolves before any fetch.                                                                                                                                                                                                                                                                                                                                           |
 
-In the walk, a navigation from the list to a tenant whose detail was held for 2.5 s showed the breadcrumb Tenants › {slug} › Overview over an empty page with one spinner for about 2.3 s, then the whole page at once.
+Before the pending templates, in the walk, a navigation from the list to a tenant whose detail was held for 2.5 s showed the breadcrumb Tenants › {slug} › Overview over an empty page with one spinner for about 2.3 s, then the whole page at once.
 
 Findings: [F-tenants-1](findings.md#f-tenants-1), [F-tenants-2](findings.md#f-tenants-2), [F-tenants-5](findings.md#f-tenants-5)
 
@@ -38,10 +38,10 @@ Findings: [F-tenants-1](findings.md#f-tenants-1), [F-tenants-2](findings.md#f-te
 
 The error branch comes before the empty one, so a failed load never invites the reader to create a duplicate. While the list is held, the switcher says "Choose a tenant", the same words it uses when there are none.
 
-| Loading                               | Error                               | Empty                                                     |
-| ------------------------------------- | ----------------------------------- | --------------------------------------------------------- |
-| ![](img/tenants/tenants--loading.jpg) | ![](img/tenants/tenants--error.jpg) | ![](img/tenants/tenants--empty.jpg)                       |
-| skeleton · 2× `h-14`                  | alert · `LoadError`                 | "You do not belong to any tenants yet. Create one below." |
+| Loading                                                                                               | Error                               | Empty                                                     |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------- |
+| ![](img/tenants/tenants--loading.jpg)                                                                 | ![](img/tenants/tenants--error.jpg) | ![](img/tenants/tenants--empty.jpg)                       |
+| skeleton · the list template (heading, toolbar, eight table rows), "Loading tenants…" in the switcher | alert · `LoadError`                 | "You do not belong to any tenants yet. Create one below." |
 
 | Dark                               | Mobile                                   |
 | ---------------------------------- | ---------------------------------------- |
@@ -67,10 +67,10 @@ Findings: [F-dashboard-2](findings.md#f-dashboard-2), [F-tenants-4](findings.md#
 
 `GettingStartedCard` holds the checklist's place with a skeleton (a card with five step-height rows) while the onboarding request is in flight, and says "Getting started could not be loaded." with Try again in that place when it fails; a 404, which an API older than 1.4.0 answers, leaves no checklist and no alert. The Details card is up either way. A tenant whose onboarding is `not_tracked`, long `complete`, or dismissed (for a non-owner) renders nothing once loaded. Covered by `tenants/$slug.test.tsx`.
 
-| Loading                                       | Error                                                        | Empty                                            |
-| --------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------ |
-| ![](img/tenants/tenant-overview--loading.jpg) | ![](img/tenants/tenant-overview--error.jpg)                  | ![](img/tenants/tenant-overview--empty.jpg)      |
-| splash · the boot splash, no shell            | alert · `TenantLoadFailed` in place of header, tabs and page | onboarding `not_tracked`: the Details card alone |
+| Loading                                            | Error                                                            | Empty                                            |
+| -------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------ |
+| ![](img/tenants/tenant-overview--loading.jpg)      | ![](img/tenants/tenant-overview--error.jpg)                      | ![](img/tenants/tenant-overview--empty.jpg)      |
+| skeleton · the detail template under the app shell | alert · the tenant `LoadError` in place of header, tabs and page | onboarding `not_tracked`: the Details card alone |
 
 | Dark                                       | Mobile                                                            |
 | ------------------------------------------ | ----------------------------------------------------------------- |
@@ -101,12 +101,12 @@ Findings: [F-tenants-1](findings.md#f-tenants-1), [F-tenants-2](findings.md#f-te
 | Components          | `Card`, `QueryState`, `CardRowsSkeleton`, `Skeleton`, `LoadError` ("We could not load the beta features for this tenant.")                                                                                                                                                                                                                                                         |
 | Transitions         | the tabs; with the flag off, Go home → `/` → `/dashboard`                                                                                                                                                                                                                                                                                                                          |
 
-The capture's tenant is new, so the flag is off: the default shot is the not-found card inside the tenant layout, and its record has no `GET /tenants/:slug/beta` request. The beta card, its skeleton (a card with a title bar, a description bar and one line) and its `LoadError` are described from the code; the loading and error shots hold or fail the tenant read, which the layout awaits, so they show the boot splash and `TenantLoadFailed`.
+The capture's tenant is new, so the flag is off: the default shot is the not-found card inside the tenant layout, and its record has no `GET /tenants/:slug/beta` request. The beta card, its skeleton (a card with a title bar, a description bar and one line) and its `LoadError` are described from the code; the loading and error shots hold or fail the tenant read, which the layout starts and its `TenantGate` waits for, so they show the detail template under the app shell and the tenant `LoadError`.
 
-| Loading                                   | Error                                   |
-| ----------------------------------------- | --------------------------------------- |
-| ![](img/tenants/tenant-beta--loading.jpg) | ![](img/tenants/tenant-beta--error.jpg) |
-| splash · the boot splash, no shell        | alert · `TenantLoadFailed`              |
+| Loading                                            | Error                                   |
+| -------------------------------------------------- | --------------------------------------- |
+| ![](img/tenants/tenant-beta--loading.jpg)          | ![](img/tenants/tenant-beta--error.jpg) |
+| skeleton · the detail template under the app shell | alert · the tenant `LoadError`          |
 
 Findings: [F-tenants-1](findings.md#f-tenants-1), [F-tenants-2](findings.md#f-tenants-2), [F-tenants-6](findings.md#f-tenants-6)
 

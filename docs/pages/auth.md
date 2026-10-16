@@ -146,9 +146,9 @@ The page has these states (`AcceptInvitationPage` and `InvitationForToken`):
 7. **Signed in as another address** (`WrongAccount`): the same title and sentence, "This invitation was sent to {invited}. You're signed in as {current}.", a Sign out button that returns here signed out, and "Go to the home page". Not shot.
 8. **Signed in as the invited address** (`AcceptPanel`): the same title and sentence, Accept invitation ("Accepting…" while pending) and "Go to the home page". A 403 shows the refusal inline (`role="alert"`), with a hint to verify the email when the code is `INVITATION_EMAIL_UNVERIFIED`; a 404 replaces the panel with state 4; other failures toast. Success toasts "You joined {tenant}." and opens `/tenants/$slug`. Not shot.
 
-| Loading                                      | Error                                      | Empty                                      |
-| -------------------------------------------- | ------------------------------------------ | ------------------------------------------ |
-| ![](img/auth/invitation-accept--loading.jpg) | ![](img/auth/invitation-accept--error.jpg) | ![](img/auth/invitation-accept--empty.jpg) |
-| skeleton · `h-4 w-3/4` + `h-10`              | alert · `LoadError`                        | No `?token`: "This link is incomplete"     |
+| Loading                                                                    | Error                                      | Empty                                      |
+| -------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------ |
+| ![](img/auth/invitation-accept--loading.jpg)                               | ![](img/auth/invitation-accept--error.jpg) | ![](img/auth/invitation-accept--empty.jpg) |
+| skeleton · a sentence, two buttons and a hint, at the loaded card's height | alert · `LoadError`                        | No `?token`: "This link is incomplete"     |
 
 Findings: [F-auth-3](findings.md#f-auth-3), [F-auth-4](findings.md#f-auth-4)

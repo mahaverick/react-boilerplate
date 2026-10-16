@@ -6,9 +6,14 @@
 import type { FileRoutesByFullPath } from '@/routeTree.gen'
 import type { NavigationCapture, RouteCapture, Section } from './types'
 
+/**
+ * The tenant read. Its flags are not held with it: the boot waits up to 10 s
+ * for them before it mounts anything, so a held flags read shows the boot shell,
+ * not the page's loading state (`docs/pages/boot.md` has that frame).
+ */
 const TENANT: Section = {
   name: 'Tenant',
-  endpoints: ['GET /tenants/:slug', 'GET /tenants/:slug/flags'],
+  endpoints: ['GET /tenants/:slug'],
 }
 
 /** Each route's capture, keyed by its full path. */
