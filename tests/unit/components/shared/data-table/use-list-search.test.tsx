@@ -53,6 +53,9 @@ function membersOptions(request: ListRequest) {
 /** Every render's `query.isError`, reset by `renderProbe`. */
 const errorRenders: boolean[] = []
 
+/** What the query read as on each render that was restarting. */
+const restartRenders: { isLoading: boolean; isFetching: boolean; failureReason: unknown }[] = []
+
 /** Shows both lists' values and requests, with a button per write. */
 function Probe() {
   const list = useListSearch(members)
@@ -60,6 +63,13 @@ function Probe() {
   const query = useListQuery(list, membersOptions)
   const page = query.page
   errorRenders.push(query.query.isError)
+  if (query.isRestarting) {
+    restartRenders.push({
+      isLoading: query.query.isLoading,
+      isFetching: query.query.isFetching,
+      failureReason: query.query.failureReason,
+    })
+  }
   return (
     <div>
       <output aria-label="members request">{JSON.stringify(list.request)}</output>
@@ -125,8 +135,9 @@ function Probe() {
  * Mounts the probe at `path`.
  * @param path - The URL, search included.
  */
-function renderProbe(path: string) {
+function renderProbe(path: string, gcTime?: number) {
   errorRenders.length = 0
+  restartRenders.length = 0
   const rootRoute = createRootRoute({ component: () => <Outlet /> })
   const route = createRoute({
     getParentRoute: () => rootRoute,
@@ -138,7 +149,7 @@ function renderProbe(path: string) {
     routeTree: rootRoute.addChildren([route]),
     history: createMemoryHistory({ initialEntries: [path] }),
   })
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime } } })
   render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
@@ -342,6 +353,21 @@ describe('useListQuery', () => {
     expect(screen.getByRole('status', { name: 'total' })).toHaveTextContent('2')
   })
 
+  it('keeps the first page’s total on a later page even when idle entries are collected at once', async () => {
+    serveMembers()
+    const user = userEvent.setup()
+    const router = renderProbe('/members', 0)
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'total' })).toHaveTextContent('2')
+    )
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => expect(router.state.location.search).toEqual({ cursor: 'c2' }))
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'has next' })).toHaveTextContent('false')
+    )
+    expect(screen.getByRole('status', { name: 'total' })).toHaveTextContent('2')
+  })
+
   it('shows no total for a new view until its own lands, and drops the old one', async () => {
     const seen = serveMembers()
     const user = userEvent.setup()
@@ -383,6 +409,9 @@ describe('useListQuery', () => {
     )
     expect(screen.getByRole('status', { name: 'restarting' })).toHaveTextContent('false')
     expect(errorRenders).not.toContain(true)
+    expect(restartRenders.length).toBeGreaterThan(0)
+    expect(restartRenders.every((render) => render.failureReason === null)).toBe(true)
+    expect(restartRenders.every((render) => render.isLoading === render.isFetching)).toBe(true)
     await settle(50, 'a looping restart would send more requests within a tick of the first page')
     expect(seen.map((params) => params.get('cursor'))).toEqual(['bad', null])
     expect(seen[1]?.get('direction')).toBeNull()

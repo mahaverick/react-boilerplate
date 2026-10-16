@@ -127,6 +127,15 @@ export interface ListDefinition<
 }
 
 /**
+ * Sorts filter values the way the API does, so one selection has one URL and one cache key.
+ * @param values - The picked values.
+ * @returns A sorted copy.
+ */
+export function sortFilterValues(values: readonly string[]): string[] {
+  return values.toSorted((a, b) => a.localeCompare(b, 'en'))
+}
+
+/**
  * A comma list of `values`: unknown and repeated entries are dropped, and a
  * list left empty is no filter.
  * @param values - Every value the API accepts.
@@ -135,11 +144,11 @@ function commaList(values: readonly string[]) {
   return z
     .string()
     .transform((raw) =>
-      [...new Set(raw.split(',').map((part) => part.trim()))]
-        .filter((part) => values.includes(part))
-        // The API's own order, so one selection has one URL and one cache key.
-        .toSorted((a, b) => a.localeCompare(b, 'en'))
-        .join(',')
+      sortFilterValues(
+        [...new Set(raw.split(',').map((part) => part.trim()))].filter((part) =>
+          values.includes(part)
+        )
+      ).join(',')
     )
     .pipe(z.string().min(1))
     .optional()

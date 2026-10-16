@@ -6,6 +6,7 @@ import {
   filterUrlValue,
   listRequest,
   listValues,
+  sortFilterValues,
   type ListDefinition,
   type ListUrlSearch,
   type ListValues,
@@ -142,8 +143,7 @@ export function useListSearch<E extends z.ZodRawShape>(
       const filter = list.filters[name]
       if (filter === undefined) continue
       // The URL holds a comma list in the API's order, so compare in that order.
-      const ordered =
-        filter.kind === 'list' ? picked.toSorted((a, b) => a.localeCompare(b, 'en')) : picked
+      const ordered = filter.kind === 'list' ? sortFilterValues(picked) : picked
       const value = filterUrlValue(filter, ordered)
       if (value !== filterUrlValue(filter, values.filters[name] ?? [])) changed = true
       patch[urlKey(name)] = value
