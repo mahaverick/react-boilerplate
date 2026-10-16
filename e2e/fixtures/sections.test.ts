@@ -11,6 +11,8 @@ test('a held notifications read leaves the dashboard and the switcher usable', a
   await expect(page.getByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
   await expect(page.getByRole('combobox', { name: /^Switch tenant\. Current: Acme/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Notifications, count unavailable' })).toBeVisible()
+  // The read is pending, not failed: the failure dot only shows once the read has errored.
+  await expect(page.locator('[data-slot="bell-unavailable"]')).toHaveCount(0)
 })
 
 test('a failed tenant list shows on the switcher, and the page still renders', async ({ page }) => {
@@ -40,4 +42,7 @@ test('a failed settings read leaves the Overview card usable', async ({ page }) 
   )
   await expect(page.getByRole('heading', { level: 2, name: 'Overview' })).toBeVisible()
   await expect(page.getByRole('alert')).toHaveCount(1)
+  await expect(page.getByRole('alert')).toContainText('We could not load this tenant’s settings')
+  await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Name' })).toBeEnabled()
 })

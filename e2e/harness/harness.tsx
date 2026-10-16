@@ -291,7 +291,8 @@ const membersHandler =
 
 /**
  * `?hold=` and `?fail=` each take comma-separated API paths
- * (`/api/v1/notifications`). A held path never answers and a failed one
+ * (`/api/v1/notifications`), matched exactly as MSW path patterns (a `:param`
+ * segment matches any value; there is no prefix match). A held path never answers and a failed one
  * answers 500, so a fixture can show that one section's request changes only
  * that section. Only `/api/v1/` paths are taken. These handlers come first,
  * so they win over the defaults below.

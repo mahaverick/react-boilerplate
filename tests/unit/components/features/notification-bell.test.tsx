@@ -114,7 +114,7 @@ describe('NotificationBell', () => {
     renderShell()
     await openBell()
 
-    // The queryClient is `retry: 1`, so the error state arrives only after a second attempt (about 1 s of react-query backoff); `asyncUtilTimeout` in tests/setup.ts covers both.
+    // The queryClient is `retry: 1`, so the error state arrives only after a second attempt; tests/setup.ts removes the backoff between the two.
     expect(await screen.findByText('Notifications could not be loaded.')).toBeInTheDocument()
     expect(screen.queryByText('You have no notifications.')).not.toBeInTheDocument()
     // The label must not announce a count nothing established: "0 unread" would be the same false claim, read by a screen reader on every page.
