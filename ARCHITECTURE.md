@@ -461,11 +461,15 @@ than `z.number`, `z.literal` or `z.boolean` in a route's search schema, as
 `components/shared/data-table/**` (and TanStack Table) out of anything the
 entry imports: the switcher, the bell, `nav-secondary` and the guard never
 import from it. `pnpm check:bundle` enforces the budget. `ENTRY_BUDGET_BYTES`
-went from 584,000 to 587,200 B over the lists: the list contract's route
+went from 584,000 to 586,600 B over the lists: the list contract's route
 schemas and query options reach the entry through each list route's
 `validateSearch` and the tenant queries, plus the paged membership read, the
 members and activity routes' schemas, the owners read and the audit action
-names. None of it added a zod class.
+names. None of it added a zod class. The activity route took the entry to
+587,153 B; moving the inbox's writes out of it and making `_app`'s guard lazy
+brought it to 586,530 B, and the members read's `total` opt-out added 67 B. The
+budget is the final 586,597 B rounded up to the next 100 B. The list route
+search types are type-only and cost nothing.
 
 **The inbox** is a list in card layout. Its writes (mark read, mark all read,
 delete) are optimistic across every cached page of every view: a read row

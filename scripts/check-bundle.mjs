@@ -26,9 +26,12 @@ import { build } from 'vite'
  * refresh add 152 B: 586,424 B. The activity route's list schema (three
  * filters), its page query options and the audit action names (a module of
  * their own, so the sentences stay out of the entry) add 729 B: 587,153 B,
- * again with no new zod class.
+ * again with no new zod class. The inbox's writes then left the entry and
+ * `_app`'s guard became lazy, which took it to 586,530 B; the members read's
+ * `total` opt-out added 67 B: 586,597 B. The budget is that measurement rounded
+ * up to the next 100 B, so any new entry code raises it with its own reason.
  */
-const ENTRY_BUDGET_BYTES = 587_200
+const ENTRY_BUDGET_BYTES = 586_600
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module
