@@ -87,8 +87,10 @@ export interface NavigationCapture {
   as: string
   /** The page it starts on; `{name}` is replaced from `Seed.params`. */
   from: string
-  /** The accessible name of the link it clicks. */
+  /** The link it clicks: the one whose accessible name starts with this, then ends or continues after a space. */
   link: string
+  /** The pending template the route shot must show: `PageSkeleton`'s variant, and whether it is the nested one. */
+  template: { variant: 'list' | 'detail' | 'dashboard' | 'settings'; nested: boolean }
   /** The target's section requests, held for the sections shot. */
   endpoints: readonly string[]
 }
@@ -97,5 +99,6 @@ export interface NavigationCapture {
 export interface BootFrame {
   file: string
   ms: number
-  label?: 'first-paint' | 'shell' | 'first-content' | 'ready'
+  /** The moments the frame marks: `first-paint`, `shell`, `first-content` or `ready`, joined by `+` when one frame marks several. */
+  label?: string
 }

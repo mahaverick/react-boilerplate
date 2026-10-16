@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { DetailTabPending } from '@/components/shared/page-skeleton'
+import { DetailTabPending } from '@/components/shared/pending-templates'
 import { QueryState } from '@/components/shared/query-state'
 import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'

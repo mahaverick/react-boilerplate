@@ -229,10 +229,8 @@ describe('unknown URLs', () => {
 })
 
 describe('pending navigation', () => {
-  it('paints the default pending template without suspending once its chunk has loaded', async () => {
+  it('paints the default pending template without suspending', () => {
     const DefaultPending = ROUTER_DEFAULTS.defaultPendingComponent
-    // `src/router.tsx` starts this fetch when it loads; this waits for the same chunk.
-    await DefaultPending.preload?.()
     // No Suspense boundary: a template that had to suspend would throw here instead of rendering.
     render(<DefaultPending />)
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()

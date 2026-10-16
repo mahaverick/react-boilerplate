@@ -56,3 +56,6 @@ dist-ssr
 .superpowers/
 # May hold credentials (e.g. a database DSN) — commit an .mcp.json.example instead
 .mcp.json
+
+# The capture run records (report.json, boot.json, navigation.json)
+/capture-records/

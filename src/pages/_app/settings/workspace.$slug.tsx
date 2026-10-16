@@ -1,7 +1,8 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { startTenantRoute } from '@/components/features/tenant/start-tenant-route'
 import { TenantGate } from '@/components/features/tenant/tenant-gate'
-import { PageSkeleton, SettingsPagePending } from '@/components/shared/page-skeleton'
+import { PageSkeleton } from '@/components/shared/page-skeleton'
+import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { stripTenant } from '@/lib/current-tenant'
 
 /**

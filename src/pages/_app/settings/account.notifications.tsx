@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PreferencesCard } from '@/components/features/notifications/preferences-card'
 import { SettingsRouteError } from '@/components/features/route-error'
-import { SettingsPagePending } from '@/components/shared/page-skeleton'
+import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 
 /** Settings › Notifications: how each kind of notification reaches the user. */
@@ -15,6 +15,6 @@ export const Route = createFileRoute('/_app/settings/account/notifications')({
    * fetch could not load it. Splitting it would also pull the error listener
    * out of the entry chunk (pnpm check:bundle).
    */
-  codeSplitGroupings: [['component'], ['pendingComponent']],
+  codeSplitGroupings: [['component']],
   errorComponent: SettingsRouteError,
 })

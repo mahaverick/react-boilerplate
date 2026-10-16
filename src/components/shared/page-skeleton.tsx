@@ -55,7 +55,13 @@ function CardSkeleton({ children }: { children: ReactNode }) {
  */
 export function PageSkeleton({ variant, nested = false }: PageSkeletonProps) {
   return (
-    <div role="status" aria-label="Loading" className="grid gap-4">
+    <div
+      role="status"
+      aria-label="Loading"
+      data-variant={variant}
+      data-nested={nested}
+      className="grid gap-4"
+    >
       {!nested && <Heading subtitle={variant === 'detail' || variant === 'settings'} />}
       {variant === 'list' && (
         <>

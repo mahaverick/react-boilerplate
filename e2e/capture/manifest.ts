@@ -261,6 +261,7 @@ export const NAVIGATIONS: readonly NavigationCapture[] = [
     as: 'owner',
     from: '/settings/account/profile',
     link: 'Notifications',
+    template: { variant: 'settings', nested: true },
     endpoints: ['GET /notifications/preferences'],
   },
   {
@@ -269,6 +270,7 @@ export const NAVIGATIONS: readonly NavigationCapture[] = [
     as: 'owner',
     from: '/tenants',
     link: '{tenantName}',
+    template: { variant: 'detail', nested: false },
     endpoints: ['GET /tenants/:slug', 'GET /tenants/:slug/onboarding'],
   },
   {
@@ -277,6 +279,7 @@ export const NAVIGATIONS: readonly NavigationCapture[] = [
     as: 'owner',
     from: '/settings/account/profile',
     link: 'Security',
+    template: { variant: 'settings', nested: true },
     endpoints: ['GET /auth/providers'],
   },
 ]

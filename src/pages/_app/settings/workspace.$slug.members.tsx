@@ -2,7 +2,7 @@ import { createFileRoute, useParams } from '@tanstack/react-router'
 import { SettingsRouteError } from '@/components/features/route-error'
 import { ReadOnlyBanner } from '@/components/features/settings/read-only-banner'
 import { TenantMembersPanel } from '@/components/features/tenant/tenant-members-panel'
-import { SettingsPagePending } from '@/components/shared/page-skeleton'
+import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
 import { useMyRole } from '@/queries/tenant.queries'
@@ -18,7 +18,7 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug/members')({
    * fetch could not load it. Splitting it would also pull the error listener
    * out of the entry chunk (pnpm check:bundle).
    */
-  codeSplitGroupings: [['component'], ['pendingComponent']],
+  codeSplitGroupings: [['component']],
   errorComponent: SettingsRouteError,
 })
 

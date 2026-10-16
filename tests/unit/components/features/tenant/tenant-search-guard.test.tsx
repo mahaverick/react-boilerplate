@@ -109,6 +109,21 @@ afterEach(() => {
 })
 
 describe('TenantSearchGuard', () => {
+  it('shows the list template on /tenants while the list is in flight, the same one its route pends with', async () => {
+    server.use(
+      http.get('/api/v1/tenants', async () => {
+        await new Promise<void>(() => undefined)
+        return ok([], 'Tenants retrieved.')
+      })
+    )
+    renderAt('/tenants')
+
+    const status = await screen.findByRole('status', { name: 'Loading' })
+    expect(status).toHaveAttribute('data-variant', 'list')
+    expect(status).toHaveAttribute('data-nested', 'false')
+    expect(screen.getByRole('navigation', { name: 'Tenant' })).toBeInTheDocument()
+  })
+
   it('shows the dashboard template in the page slot, under the real sidebar, while the list is in flight', async () => {
     let release!: () => void
     const held = new Promise<void>((resolve) => {
@@ -122,7 +137,10 @@ describe('TenantSearchGuard', () => {
     )
     const { router } = renderAt('/dashboard')
 
-    expect(await screen.findByRole('status', { name: 'Loading' })).toBeInTheDocument()
+    expect(await screen.findByRole('status', { name: 'Loading' })).toHaveAttribute(
+      'data-variant',
+      'dashboard'
+    )
     expect(screen.getByRole('navigation', { name: 'Tenant' })).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { level: 1, name: /Welcome back/ })

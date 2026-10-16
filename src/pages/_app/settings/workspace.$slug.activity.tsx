@@ -1,7 +1,7 @@
 import { createFileRoute, useParams } from '@tanstack/react-router'
 import { SettingsRouteError } from '@/components/features/route-error'
 import { TenantActivityPanel } from '@/components/features/tenant/tenant-activity-panel'
-import { SettingsPagePending } from '@/components/shared/page-skeleton'
+import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 
 /** Settings › Workspace › Activity: the tenant's audit log, for owners and admins. */
@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug/activity')(
    * fetch could not load it. Splitting it would also pull the error listener
    * out of the entry chunk (pnpm check:bundle).
    */
-  codeSplitGroupings: [['component'], ['pendingComponent']],
+  codeSplitGroupings: [['component']],
   errorComponent: SettingsRouteError,
 })
 

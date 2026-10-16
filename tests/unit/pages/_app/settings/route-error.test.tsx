@@ -116,11 +116,8 @@ describe('a settings page that fails to render', () => {
       WorkspaceActivity,
     ]) {
       expect(route.options.errorComponent, route.id).toBe(SettingsRouteError)
-      // In the route's own module, not a lazy chunk: a chunk that failed to load could not fetch it, and a split one pulls the error listener out of the entry chunk (pnpm check:bundle). The pending template is split, to keep the templates out of it too.
-      expect(route.options.codeSplitGroupings, route.id).toEqual([
-        ['component'],
-        ['pendingComponent'],
-      ])
+      // In the route's own module, not a lazy chunk: a chunk that failed to load could not fetch it, and a split one pulls the error listener out of the entry chunk (pnpm check:bundle). The pending template is not split, so it renders without suspending.
+      expect(route.options.codeSplitGroupings, route.id).toEqual([['component']])
     }
   })
 })

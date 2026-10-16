@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { AnalyticsSection } from '@/components/features/profile/analytics-section'
 import { SettingsRouteError } from '@/components/features/route-error'
 import { BusyButton } from '@/components/shared/busy-button'
-import { SettingsPagePending } from '@/components/shared/page-skeleton'
+import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { Pii } from '@/components/shared/pii'
 import { QueryState } from '@/components/shared/query-state'
 import { FormFieldsSkeleton } from '@/components/shared/section-skeleton'
@@ -39,7 +39,7 @@ export const Route = createFileRoute('/_app/settings/account/profile')({
    * fetch could not load it. Splitting it would also pull the error listener
    * out of the entry chunk (pnpm check:bundle).
    */
-  codeSplitGroupings: [['component'], ['pendingComponent']],
+  codeSplitGroupings: [['component']],
   errorComponent: SettingsRouteError,
 })
 

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { DashboardPending } from '@/components/shared/page-skeleton'
+import { DashboardPending } from '@/components/shared/pending-templates'
 import { Pii } from '@/components/shared/pii'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { pageTitle } from '@/constants/app'

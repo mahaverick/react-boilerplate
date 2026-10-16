@@ -7,13 +7,13 @@
  * (shell, first-content), the first distinct frame and the last. The names
  * carry no timings, so a rerun rewrites the same files. Each scenario's
  * `{ frames: { file, ms, label? }[], totalMs, distinctFrames }` goes to
- * test-results/capture/boot.json. Needs the dev stack already up.
+ * capture-records/boot.json. Needs the dev stack already up.
  */
 import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { apiIsReady, createVerifiedUser, freshEmail, logIn } from '../live/helpers'
-import { DOCS_DIR } from './shoot'
+import { DOCS_DIR, RECORDS_DIR } from './shoot'
 import type { BootFrame } from './types'
 
 test.skip(process.env.E2E_CAPTURE !== '1', 'capture only — run pnpm capture:pages')
@@ -113,16 +113,18 @@ async function screencast(
     const found = distinct.findIndex((frame) => frame.at >= time)
     return found === -1 ? distinct.length - 1 : found
   }
-  const labels = new Map<number, BootFrame['label']>()
-  labels.set(0, 'first-paint')
+  const labels = new Map<number, string>()
+  /** Adds `name` to the frame's label; a frame that marks two moments carries both, joined by `+`. */
+  const mark = (index: number, name: string) => {
+    const existing = labels.get(index)
+    labels.set(index, existing ? `${existing}+${name}` : name)
+  }
+  mark(0, 'first-paint')
   for (const name of ['shell', 'first-content'] as const) {
     const time = marks[name]
-    if (time !== undefined && distinct.length > 0) {
-      const index = firstAtOrAfter(time)
-      if (!labels.has(index)) labels.set(index, name)
-    }
+    if (time !== undefined && distinct.length > 0) mark(firstAtOrAfter(time), name)
   }
-  labels.set(distinct.length - 1, 'ready')
+  mark(distinct.length - 1, 'ready')
   const picked = new Set<number>(labels.keys())
   const spread = Math.max(0, MAX_FRAMES - picked.size)
   for (let step = 1; step <= spread && distinct.length > MAX_FRAMES; step++) {
@@ -155,9 +157,9 @@ async function screencast(
   return { frames: files, totalMs: Math.round(span), distinctFrames: distinct.length }
 }
 
-/** Adds one scenario's frame list to test-results/capture/boot.json. */
+/** Adds one scenario's frame list to capture-records/boot.json. */
 async function recordBoot(name: string, entry: BootEntry): Promise<void> {
-  const dir = path.resolve(import.meta.dirname, '../../test-results/capture')
+  const dir = RECORDS_DIR
   const file = path.join(dir, 'boot.json')
   await mkdir(dir, { recursive: true })
   const existing = await readFile(file, 'utf8').then(

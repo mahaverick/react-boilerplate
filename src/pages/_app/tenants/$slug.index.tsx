@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { GettingStartedCard } from '@/components/features/tenant/getting-started-card'
 import { TenantDetails } from '@/components/features/tenant/tenant-overview-card'
-import { DetailTabPending } from '@/components/shared/page-skeleton'
+import { DetailTabPending } from '@/components/shared/pending-templates'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { pageTitle } from '@/constants/app'
 import { useMyRole, useTenant } from '@/queries/tenant.queries'

@@ -14,7 +14,7 @@ import { afterFontsAndFrames } from '../timing'
 import { NAVIGATIONS } from './manifest'
 import { controlRequests } from './route-control'
 import { seedCapture } from './seed'
-import { DOCS_DIR, fillUrl } from './shoot'
+import { DOCS_DIR, fillUrl, RECORDS_DIR } from './shoot'
 import type { NavigationCapture } from './types'
 
 test.skip(process.env.E2E_CAPTURE !== '1', 'capture only — run pnpm capture:pages')
@@ -37,10 +37,7 @@ async function open(page: Page, from: string) {
   await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 15_000 })
 }
 
-/**
- * Clicks the in-app link whose accessible name starts with `link`: a card link's name
- * also carries its slug and role, and the bell's carries its unread count.
- */
+/** Clicks the in-app link whose accessible name starts with `link`: a tenant card link's name goes on with its slug and role. */
 async function click(page: Page, link: string) {
   const name = new RegExp(`^${link.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}(\\s|$)`)
   await page.getByRole('link', { name }).first().click()
@@ -82,7 +79,6 @@ async function shootNavigation(
 ): Promise<NavigationRecord> {
   // The route template: the target's code held (installed after `from` settled, so only the target waits), and its requests too.
   const routePage = await context.newPage()
-  await open(routePage, from)
   const release: { now: () => void } = { now: () => undefined }
   const codeHeld = new Promise<void>((resolve) => {
     release.now = resolve
@@ -92,32 +88,45 @@ async function shootNavigation(
     await codeHeld
     await route.continue().catch(() => undefined)
   }
-  await routePage.route(ROUTE_CODE, holdCode)
-  const routeControl = await controlRequests(routePage, [
-    { action: 'hold', endpoints: nav.endpoints },
-  ])
-  await click(routePage, link)
-  const routeTemplate = await appears(routePage, '[role="status"][aria-label="Loading"]')
-  await shoot(routePage, `img/${nav.area}/${nav.shot}--nav-route.jpg`)
-  release.now()
-  await routePage.unroute(ROUTE_CODE, holdCode)
-  await routeControl.dispose()
-  await routePage.close()
+  const { variant, nested } = nav.template
+  let routeTemplate: boolean
+  let routeControl: Awaited<ReturnType<typeof controlRequests>> | undefined
+  try {
+    await open(routePage, from)
+    await routePage.route(ROUTE_CODE, holdCode)
+    routeControl = await controlRequests(routePage, [{ action: 'hold', endpoints: nav.endpoints }])
+    await click(routePage, link)
+    routeTemplate = await appears(
+      routePage,
+      `[role="status"][aria-label="Loading"][data-variant="${variant}"][data-nested="${nested}"]`
+    )
+    await shoot(routePage, `img/${nav.area}/${nav.shot}--nav-route.jpg`)
+  } finally {
+    release.now()
+    await routePage.unroute(ROUTE_CODE, holdCode).catch(() => undefined)
+    await routeControl?.dispose()
+    await routePage.close()
+  }
 
   // The section skeletons: the code loads, the target's requests are held.
   const sectionPage = await context.newPage()
-  await open(sectionPage, from)
-  const sectionControl = await controlRequests(sectionPage, [
-    { action: 'hold', endpoints: nav.endpoints },
-  ])
-  await click(sectionPage, link)
-  const sectionSkeleton = await appears(
-    sectionPage,
-    '[data-slot="query-state"][aria-busy="true"] [data-slot="skeleton"]'
-  )
-  await shoot(sectionPage, `img/${nav.area}/${nav.shot}--nav-sections.jpg`)
-  await sectionControl.dispose()
-  await sectionPage.close()
+  let sectionSkeleton: boolean
+  let sectionControl: Awaited<ReturnType<typeof controlRequests>> | undefined
+  try {
+    await open(sectionPage, from)
+    sectionControl = await controlRequests(sectionPage, [
+      { action: 'hold', endpoints: nav.endpoints },
+    ])
+    await click(sectionPage, link)
+    sectionSkeleton = await appears(
+      sectionPage,
+      '[data-slot="query-state"][aria-busy="true"] [data-slot="skeleton"]'
+    )
+    await shoot(sectionPage, `img/${nav.area}/${nav.shot}--nav-sections.jpg`)
+  } finally {
+    await sectionControl?.dispose()
+    await sectionPage.close()
+  }
   return { shot: nav.shot, routeTemplate, sectionSkeleton }
 }
 
@@ -136,7 +145,6 @@ test('capture in-app navigations', async ({ browser, baseURL }) => {
     )
     await context.close()
   }
-  const dir = path.resolve(import.meta.dirname, '../../test-results/capture')
-  await mkdir(dir, { recursive: true })
-  await writeFile(path.join(dir, 'navigation.json'), JSON.stringify(records, null, 2))
+  await mkdir(RECORDS_DIR, { recursive: true })
+  await writeFile(path.join(RECORDS_DIR, 'navigation.json'), JSON.stringify(records, null, 2))
 })

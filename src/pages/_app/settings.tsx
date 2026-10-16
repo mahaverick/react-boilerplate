@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router'
-import { SettingsPending } from '@/components/shared/page-skeleton'
+import { SettingsPending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 import { SETTINGS_DESCRIPTION, settingsActiveSection } from '@/constants/settings'
 

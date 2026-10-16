@@ -16,6 +16,9 @@ import type { RouteCapture, Seed, ShotRecord } from './types'
 /** Where the shots go: the repo's docs/pages/. */
 export const DOCS_DIR = path.resolve(import.meta.dirname, '../../docs/pages')
 
+/** Where a run writes its records (report.json, boot.json, navigation.json): outside test-results/, which Playwright empties at the start of every run. */
+export const RECORDS_DIR = path.resolve(import.meta.dirname, '../../capture-records')
+
 /** One session's three signed-in contexts. */
 export interface SessionContexts {
   default: BrowserContext

@@ -87,7 +87,7 @@ On every cold load under `vite dev`, the splash in `index.html` shows for about 
 
 ### F-boot-2
 
-React mounts only after `router.load()` settles (`src/main.tsx`), and `router.load()` awaits the session restore, `_app`'s tenant guard (`GET /tenants`, up to 3 s), the flags, and on tenant pages `GET /tenants/:slug`. While any of these is slow, the user sees only the boot splash: no shell, no skeleton, no sign of which page is coming. The capture held each tenant page's requests: the loading shots of `/tenants/$slug/`, `/tenants/$slug/beta` and the three `/settings/workspace/$slug/…` pages all recorded `loadingUi: "splash"` in `test-results/capture/report.json`. Fix: mount the shell before the awaited reads finish and show route-level skeletons in place of the splash.
+React mounts only after `router.load()` settles (`src/main.tsx`), and `router.load()` awaits the session restore, `_app`'s tenant guard (`GET /tenants`, up to 3 s), the flags, and on tenant pages `GET /tenants/:slug`. While any of these is slow, the user sees only the boot splash: no shell, no skeleton, no sign of which page is coming. The capture held each tenant page's requests: the loading shots of `/tenants/$slug/`, `/tenants/$slug/beta` and the three `/settings/workspace/$slug/…` pages all recorded `loadingUi: "splash"` in `capture-records/report.json`. Fix: mount the shell before the awaited reads finish and show route-level skeletons in place of the splash.
 
 ### F-auth-1
 

@@ -60,6 +60,10 @@ describe('the boot shell', () => {
     expect(used.filter((name) => !declared.has(name ?? ''))).toEqual([])
   })
 
+  it('sizes its boxes as border-box, as the stylesheet does, so the dev shell does not resize when it lands', () => {
+    expect(styleBlock('boot-shell')).toMatch(/\.boot-shell \*\s*\{\s*box-sizing:\s*border-box/)
+  })
+
   it('stays within the inline budget', () => {
     const shipped = [styleBlock('boot-tokens'), styleBlock('boot-shell'), rootMarkup()]
       .join('')
