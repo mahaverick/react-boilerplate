@@ -42,6 +42,15 @@ describe('retryList', () => {
 })
 
 describe('listQueryOptions', () => {
+  it('keys a page without a total apart from the same request with one', () => {
+    const request = { limit: 5 }
+    const withTotal = listQueryOptions({ key: ['rows'], path: '/test/rows', request })
+    const without = listQueryOptions({ key: ['rows'], path: '/test/rows', request, total: false })
+
+    expect(without.queryKey).not.toEqual(withTotal.queryKey)
+    expect(withTotal.queryKey).toEqual(['rows', 'list', request])
+  })
+
   it('leaves the total out of a first page when asked not to read it', async () => {
     const seen: URLSearchParams[] = []
     server.use(

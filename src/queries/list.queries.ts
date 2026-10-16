@@ -38,7 +38,7 @@ export interface ListQueryInput {
   retry?: (failureCount: number, error: Error) => boolean
   /** Overrides the client's default, for a list that must show what changed since it was last open. */
   staleTime?: number
-  /** False leaves `total=1` off the first page, for a list that never reads the total. Defaults to true. */
+  /** False leaves `total=1` off the first page, for a list that never reads the total, and keys the page apart from one that has it. Defaults to true. */
   total?: boolean
 }
 
@@ -59,7 +59,9 @@ export function listQueryOptions<T>({
   total = true,
 }: ListQueryInput) {
   return queryOptions({
-    queryKey: [...key, 'list', request] as const,
+    queryKey: total
+      ? ([...key, 'list', request] as const)
+      : ([...key, 'list', request, 'no-total'] as const),
     queryFn: async () =>
       unwrap(
         await apiClient.get<ApiSuccess<ListPage<T>>>(path, {

@@ -54,6 +54,12 @@ export const notificationKeys = {
   preferences: ['notifications', 'preferences'] as const,
 }
 
+/**
+ * The key every inbox write carries, so one write can tell whether another is
+ * still in flight (`isMutating`).
+ */
+const WRITE_KEY = ['notifications', 'write'] as const
+
 /** How many notifications the bell previews. */
 export const BELL_PREVIEW_LIMIT = 5
 
@@ -119,43 +125,63 @@ function wasUnread(snapshot: PageSnapshot, id: string): boolean {
 }
 
 /**
- * The unread views' count and rows after one unread row left them: the row is
- * dropped, and a total that is exact (present, not at the cap) goes down by one.
+ * The page with its total lowered by one when an unread row left the unread
+ * state: only an unread view's total, only an exact one (present, not at the
+ * cap), and for a searched view only when the page holds the row, since the
+ * search decides whether the row was counted. Call it on the page as cached,
+ * before the row is moved or removed.
  * @param page - A cached page.
  * @param request - Its request.
  * @param id - The notification that left the unread state.
- * @param countDown - Whether it was unread, so the count falls.
+ * @param wasUnreadRow - Whether the row was unread.
  */
-function leaveUnreadViews(
+function lowerUnreadTotal(
   page: ListPage<Notification>,
   request: ListRequest,
   id: string,
-  countDown: boolean
+  wasUnreadRow: boolean
 ): ListPage<Notification> {
-  if (request.unread !== true) return page
   const total = page.total
-  return {
-    ...page,
-    items: page.items.filter((row) => row.id !== id),
-    ...(countDown && total && !total.capped
-      ? { total: { ...total, count: Math.max(0, total.count - 1) } }
-      : {}),
-  }
+  const counted = request.search === undefined || page.items.some((row) => row.id === id)
+  if (!wasUnreadRow || request.unread !== true || !total || total.capped || !counted) return page
+  return { ...page, total: { ...total, count: Math.max(0, total.count - 1) } }
 }
 
 /**
- * Puts back the pages `rewritePages` returned.
+ * Whether another inbox write is still in flight besides the one calling.
+ * @param queryClient - The app's query client.
+ */
+function otherWriteInFlight(queryClient: QueryClient): boolean {
+  return queryClient.isMutating({ mutationKey: WRITE_KEY }) > 1
+}
+
+/**
+ * Puts back the pages `rewritePages` returned, unless another write is in
+ * flight: a snapshot taken before that write would undo its optimistic edit,
+ * so the rollback waits, and the last write to settle refetches the truth.
  * @param queryClient - The app's query client.
  * @param snapshot - What `rewritePages` returned.
  */
 function restorePages(queryClient: QueryClient, snapshot: PageSnapshot | undefined): void {
+  if (otherWriteInFlight(queryClient)) return
   for (const [key, page] of snapshot ?? []) queryClient.setQueryData(key, page)
+}
+
+/**
+ * Refetches every inbox page once the last write has settled; an earlier
+ * refetch would answer without a write still on its way and undo its edit.
+ * @param queryClient - The app's query client.
+ */
+function refreshPages(queryClient: QueryClient): Promise<void> | undefined {
+  if (otherWriteInFlight(queryClient)) return undefined
+  return queryClient.invalidateQueries({ queryKey: notificationKeys.list })
 }
 
 /** Marks one notification read. The row shows read at once and is restored if the request fails. */
 export function useMarkRead() {
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: WRITE_KEY,
     mutationFn: async (id: string) =>
       unwrap(await apiClient.patch<ApiSuccess<Notification>>(`/notifications/${id}/read`)),
     onMutate: async (id) => {
@@ -166,27 +192,25 @@ export function useMarkRead() {
         queryKey: notificationKeys.list,
       })
       const countDown = wasUnread(snapshot, id)
-      rewritePages(queryClient, (page, request) =>
-        leaveUnreadViews(
-          {
-            ...page,
-            items: page.items.map((notification) =>
-              notification.id === id && notification.readAt === null
-                ? { ...notification, readAt }
-                : notification
-            ),
-          },
-          request,
-          id,
-          countDown
-        )
-      )
+      rewritePages(queryClient, (page, request) => {
+        const lowered = lowerUnreadTotal(page, request, id, countDown)
+        return {
+          ...lowered,
+          // A read row leaves the unread views; every other view shows it read.
+          items:
+            request.unread === true
+              ? page.items.filter((row) => row.id !== id)
+              : page.items.map((row) =>
+                  row.id === id && row.readAt === null ? { ...row, readAt } : row
+                ),
+        }
+      })
       return { snapshot }
     },
     onError: (_error, _id, context) => {
       restorePages(queryClient, context?.snapshot)
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: notificationKeys.list }),
+    onSettled: () => refreshPages(queryClient),
   })
 }
 
@@ -194,6 +218,7 @@ export function useMarkRead() {
 export function useMarkAllRead() {
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: WRITE_KEY,
     mutationFn: async () =>
       unwrap(await apiClient.patch<ApiSuccess<{ count: number }>>('/notifications/read-all')),
     onMutate: async () => {
@@ -212,7 +237,7 @@ export function useMarkAllRead() {
     onError: (_error, _vars, context) => {
       restorePages(queryClient, context?.snapshot)
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: notificationKeys.list }),
+    onSettled: () => refreshPages(queryClient),
   })
 }
 
@@ -220,6 +245,7 @@ export function useMarkAllRead() {
 export function useDeleteNotification() {
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: WRITE_KEY,
     mutationFn: async (id: string) => apiClient.delete<ApiSuccess<null>>(`/notifications/${id}`),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: notificationKeys.list })
@@ -227,18 +253,16 @@ export function useDeleteNotification() {
         queryKey: notificationKeys.list,
       })
       const countDown = wasUnread(snapshot, id)
-      rewritePages(queryClient, (page, request) => {
-        const withoutRow = { ...page, items: page.items.filter((row) => row.id !== id) }
-        return request.unread === true
-          ? leaveUnreadViews(withoutRow, request, id, countDown)
-          : withoutRow
-      })
+      rewritePages(queryClient, (page, request) => ({
+        ...lowerUnreadTotal(page, request, id, countDown),
+        items: page.items.filter((row) => row.id !== id),
+      }))
       return { snapshot }
     },
     onError: (_error, _id, context) => {
       restorePages(queryClient, context?.snapshot)
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: notificationKeys.list }),
+    onSettled: () => refreshPages(queryClient),
   })
 }
 
