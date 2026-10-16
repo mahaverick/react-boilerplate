@@ -56,10 +56,13 @@ closes the drawer on a phone.
 
 `src/routeTree.gen.ts` is generated from `src/pages/` by the TanStack Router
 plugin in `vite.config.ts`, which also splits each route's component into
-its own chunk (`autoCodeSplitting`).
+its own chunk (`autoCodeSplitting`), and its pending template into another
+(`codeSplittingOptions`), so the page templates stay out of the entry chunk.
+The router loads a route's pending template with the route's chunk.
 
 A lazy route with its own `errorComponent` keeps that screen in the route
-module, with `codeSplitGroupings: [['component']]`, as the settings leaves do.
+module, with `codeSplitGroupings: [['component'], ['pendingComponent']]`, as
+the settings leaves do.
 A split error screen would need a fetch exactly when chunk loading fails, and
 the plugin's default split pulls the error listener out of the entry chunk.
 For the same reason such a route's page component must not import `Route`
@@ -172,10 +175,12 @@ The Google sign-in button on `/login` is a plain anchor to
   resolve the tenant there as on `/tenants/$slug`.
 
 Links preload on intent (`defaultPreload: 'intent'`). The pending component
-waits 300 ms before it shows and then stays at least 300 ms. The error,
-not-found and pending components are imported statically in
-`src/router.tsx`: when a chunk cannot be fetched, a lazy error screen could
-not load either. `RouteError` recognises a failed chunk load
+waits 300 ms before it shows and then stays at least 300 ms. The error and
+not-found components are imported statically in `src/router.tsx`: when a
+chunk cannot be fetched, a lazy error screen could not load either. The
+default pending template is a lazy component, fetched once at startup
+(`preload()`), since the router preloads only a route's own pending
+template. `RouteError` recognises a failed chunk load
 (`src/lib/chunk-load-error.ts`) and offers a reload, the only way to pick up
 a new deploy's file names; any other error offers a retry that re-runs the
 loaders.

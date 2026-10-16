@@ -1,8 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
-import { createRouter, type AnyRouter } from '@tanstack/react-router'
+import { createRouter, lazyRouteComponent, type AnyRouter } from '@tanstack/react-router'
 import { RouteError } from '@/components/features/route-error'
 import { RouteNotFound } from '@/components/features/route-not-found'
-import { ListPending } from '@/components/shared/page-skeleton'
 import { apiClient } from '@/http/client'
 import {
   ensureSession,
@@ -65,6 +64,19 @@ export async function bootstrapSession(): Promise<void> {
 }
 
 /**
+ * The router-wide pending template, a list page, in its own chunk so the
+ * templates stay out of the entry chunk (pnpm check:bundle). The router
+ * preloads a route's own pending template but never the default, so it is
+ * fetched once here, at startup: a template still loading on the first slow
+ * navigation would suspend instead of painting.
+ */
+const DefaultPending = lazyRouteComponent(
+  () => import('@/components/shared/page-skeleton'),
+  'ListPending'
+)
+void DefaultPending.preload?.()
+
+/**
  * The app router's route-state screens and timings. Exported so a test that
  * builds its own router over the real tree shows the same error, not-found
  * and pending screens the app does. Frozen, since every such test shares it.
@@ -74,7 +86,7 @@ export const ROUTER_DEFAULTS = Object.freeze({
   defaultErrorComponent: RouteError,
   defaultNotFoundComponent: RouteNotFound,
   /** A list-shaped skeleton, at the boot shell's sizes; routes shaped otherwise name their own. */
-  defaultPendingComponent: ListPending,
+  defaultPendingComponent: DefaultPending,
   /** Held back 300ms so a fast navigation never flashes it, then kept 300ms so it never blinks. */
   defaultPendingMs: 300,
   defaultPendingMinMs: 300,

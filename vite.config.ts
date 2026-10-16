@@ -14,6 +14,19 @@ export default defineConfig({
       generatedRouteTree: './src/routeTree.gen.ts',
       /** Each route's component is its own chunk, fetched on first visit to it. */
       autoCodeSplitting: true,
+      /**
+       * The plugin's default groupings plus the pending template, so the
+       * templates stay out of the entry chunk (pnpm check:bundle). The router
+       * loads a route's pending template with its chunk.
+       */
+      codeSplittingOptions: {
+        defaultBehavior: [
+          ['component'],
+          ['errorComponent'],
+          ['notFoundComponent'],
+          ['pendingComponent'],
+        ],
+      },
     }),
     /**
      * The React Compiler through Babel (`babel-plugin-react-compiler` and

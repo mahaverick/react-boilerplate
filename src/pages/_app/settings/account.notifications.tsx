@@ -15,6 +15,6 @@ export const Route = createFileRoute('/_app/settings/account/notifications')({
    * fetch could not load it. Splitting it would also pull the error listener
    * out of the entry chunk (pnpm check:bundle).
    */
-  codeSplitGroupings: [['component']],
+  codeSplitGroupings: [['component'], ['pendingComponent']],
   errorComponent: SettingsRouteError,
 })
