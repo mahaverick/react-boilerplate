@@ -171,6 +171,35 @@ describe('QueryState', () => {
     expect(screen.getByText('Sibling still here')).toBeInTheDocument()
   })
 
+  it('contains a throwing isEmpty to its own section', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    client = new QueryClient()
+    /** A section whose emptiness check throws. */
+    function Exploding() {
+      const query = useQuery({ queryKey: ['boom-empty'], queryFn: () => Promise.resolve(1) })
+      return (
+        <QueryState
+          query={query}
+          name="Members"
+          skeleton={<p>Skeleton</p>}
+          isEmpty={() => {
+            throw new Error('empty check failed')
+          }}
+        >
+          {() => <p>Content</p>}
+        </QueryState>
+      )
+    }
+    render(
+      <QueryClientProvider client={client}>
+        <Exploding />
+        <p>Sibling still here</p>
+      </QueryClientProvider>
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent('Members could not be shown.')
+    expect(screen.getByText('Sibling still here')).toBeInTheDocument()
+  })
+
   it('keeps a placeholder’s rows on screen, marked busy, while the next page loads', async () => {
     const second = deferred<string[]>()
     const { container } = renderSection(

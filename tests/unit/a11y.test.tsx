@@ -672,7 +672,7 @@ describe('signed-in pages', () => {
       )
       renderAppAt('/tenants/acme')
       await ready()
-      await expectNoViolationsWhileLoading()
+      await expectNoViolations()
     }
   )
 })

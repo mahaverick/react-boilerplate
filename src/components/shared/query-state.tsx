@@ -34,16 +34,30 @@ function Rethrow({ error }: { error: Error }): never {
 }
 
 /**
+ * What the section shows for `data`: `empty` when `isEmpty` holds, else
  * `children(data)`, with `undefined` and `false` read as null (nothing to
- * show). A throw becomes a `Rethrow`, which throws again inside the section's
- * boundary, so a section whose `children` throws still fails alone.
+ * show). A throw from `isEmpty` or `children` becomes a `Rethrow`, which
+ * throws again inside the section's boundary, so a section that throws
+ * still fails alone.
  */
-function contentOf<T>(children: (data: T) => ReactNode, data: T): ReactNode {
+function shownOf<T>(
+  data: T,
+  children: (data: T) => ReactNode,
+  isEmpty: ((data: T) => boolean) | undefined,
+  empty: ReactNode
+): { isEmptyValue: boolean; shown: ReactNode } {
   try {
+    if (isEmpty?.(data)) return { isEmptyValue: true, shown: empty ?? null }
     const content = children(data)
-    return content === undefined || content === false ? null : content
+    return {
+      isEmptyValue: false,
+      shown: content === undefined || content === false ? null : content,
+    }
   } catch (error) {
-    return <Rethrow error={error instanceof Error ? error : new Error(String(error))} />
+    return {
+      isEmptyValue: false,
+      shown: <Rethrow error={error instanceof Error ? error : new Error(String(error))} />,
+    }
   }
 }
 
@@ -86,13 +100,12 @@ export function QueryState<T>({
   if (denied || (isError && data === undefined)) body = failure
   else if (data === undefined) body = skeleton
   else {
-    const emptyValue = isEmpty?.(data) ?? false
-    const shown = emptyValue ? (empty ?? null) : contentOf(children, data)
+    const { isEmptyValue, shown } = shownOf(data, children, isEmpty, empty)
     if (shown === null && failure === null) return null
     body = (
       <>
         {failure}
-        {emptyValue || shown === null ? (
+        {isEmptyValue || shown === null ? (
           shown
         ) : (
           <SectionBoundary name={name}>{shown}</SectionBoundary>

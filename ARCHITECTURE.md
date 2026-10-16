@@ -167,15 +167,17 @@ The Google sign-in button on `/login` is a plain anchor to
   resolve the tenant there exactly as on `/tenants/$slug`.
 
 Links preload on intent (`defaultPreload: 'intent'`). The pending component
-waits 300 ms before it shows and then stays at least 300 ms. `QueryState` (`components/shared/query-state.tsx`) renders every
-query-backed section: skeleton, role refusal, retryable error, empty, content in a
-`SectionBoundary`. The error,
+waits 300 ms before it shows and then stays at least 300 ms. The error,
 not-found and pending components are imported statically in
 `src/router.tsx`: when a chunk cannot be fetched, a lazy error screen could
 not load either. `RouteError` recognises a failed chunk load
 (`src/lib/chunk-load-error.ts`) and offers a reload, the only way to pick up
 a new deploy's file names; any other error offers a retry that re-runs the
 loaders.
+
+`QueryState` (`components/shared/query-state.tsx`) renders every query-backed
+section: skeleton, role refusal, retryable error, empty, content in a
+`SectionBoundary`.
 
 **A flag-gated page** calls `requireClientFlag` in its `beforeLoad`, which
 throws `notFound()` unless the flag has the opening value
