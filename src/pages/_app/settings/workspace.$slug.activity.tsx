@@ -3,9 +3,11 @@ import { SettingsRouteError } from '@/components/features/route-error'
 import { TenantActivityPanel } from '@/components/features/tenant/tenant-activity-panel'
 import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
+import { tenantActivityList } from '@/queries/audit.queries'
 
 /** Settings › Workspace › Activity: the tenant's audit log, for owners and admins. */
 export const Route = createFileRoute('/_app/settings/workspace/$slug/activity')({
+  validateSearch: tenantActivityList.schema,
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Activity · ${params.slug}`) }] }),
   staticData: { crumb: 'Activity' },
   component: WorkspaceActivity,

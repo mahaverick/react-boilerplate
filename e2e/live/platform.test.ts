@@ -110,7 +110,7 @@ test('a staff admin changes a setting, and the owner sees it in Activity marked 
     await logIn(ownerPage, owner)
     await ownerPage.goto(`/settings/workspace/${slug}/activity`)
 
-    const row = ownerPage.getByRole('listitem').filter({ hasText: 'changed the settings' })
+    const row = ownerPage.getByRole('row').filter({ hasText: 'changed the settings' })
     await expect(row).toHaveCount(1)
     await expect(row).toContainText('timezone')
     await expect(row.getByText('Staff', { exact: true })).toBeVisible()

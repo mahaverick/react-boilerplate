@@ -258,9 +258,7 @@ export const handlers = [
   http.post('/api/v1/flags/exposures', () => new HttpResponse(null, { status: 204 })),
   http.post('/api/v1/tenants/:slug/flags/exposures', () => new HttpResponse(null, { status: 204 })),
   // Tenant audit log, empty. A test about activity overrides it.
-  http.get('/api/v1/tenants/:slug/audit-log', () =>
-    ok({ entries: [], nextCursor: null }, 'Audit log retrieved.')
-  ),
+  http.get('/api/v1/tenants/:slug/audit-log', () => ok(listPage([]), 'Audit log retrieved.')),
   // Read by the root route on every mount; no maintenance, which a test about maintenance overrides.
   http.get('/api/v1/status/maintenance', () =>
     ok({ mode: 'off', message: null, since: null }, 'Maintenance status retrieved.')

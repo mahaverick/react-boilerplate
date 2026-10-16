@@ -427,7 +427,7 @@ test.describe('staff surfaces', () => {
         theme,
         { name: 'Activity', level: 2 }
       )
-      const row = page.getByRole('listitem').filter({ hasText: 'Sam Staff' })
+      const row = page.getByRole('row').filter({ hasText: 'Sam Staff' })
       await expect(row.getByText('Staff', { exact: true })).toBeVisible()
       expect(report('staff badge', theme, result), report('staff badge', theme, result)).toBe('')
     })

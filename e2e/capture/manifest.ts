@@ -231,9 +231,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
       { name: 'Activity', endpoints: ['GET /tenants/:slug/audit-log'] },
     ],
     empty: {
-      stubs: [
-        { endpoint: 'GET /tenants/:slug/audit-log', data: { entries: [], nextCursor: null } },
-      ],
+      stubs: [{ endpoint: 'GET /tenants/:slug/audit-log', data: EMPTY_PAGE }],
     },
   },
   '/settings/workspace/$slug/general': {

@@ -95,12 +95,13 @@ test('the members page masks members, invitees, inviters, the remove dialog and 
 
 test('the activity log masks actors, and so does its actor filter', async ({ page }) => {
   await page.goto(harness('/settings/workspace/acme/activity'))
-  await expect(page.getByRole('list', { name: 'Activity' })).toBeVisible()
+  await expect(page.getByRole('table', { name: 'Activity' })).toBeVisible()
   await expectAllMasked(page, 2)
 
-  await page.getByRole('combobox', { name: 'Filter by who acted' }).click()
-  await expect(page.getByRole('option', { name: 'Anyone' })).toBeVisible()
-  await expectAllMasked(page, 4)
+  await page.getByRole('button', { name: 'Filter by actor' }).click()
+  await expect(page.getByRole('dialog', { name: 'Filter by actor' })).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: /Pii Probe/ }).first()).toBeVisible()
+  await expectAllMasked(page, 3)
 })
 
 test('the invitation page masks the inviter and both addresses', async ({ page }) => {

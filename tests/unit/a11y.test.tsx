@@ -186,7 +186,7 @@ function mockSignedInData() {
       ok({ slug: 'acme', enabledAt: '2026-10-05T09:00:00.000Z' }, 'Beta retrieved.')
     ),
     http.get('/api/v1/tenants/acme/audit-log', () =>
-      ok({ entries: AUDIT_ENTRIES, nextCursor: 'c2' }, 'Audit log retrieved.')
+      ok(listPage(AUDIT_ENTRIES, { nextCursor: 'c2', hasNext: true }), 'Audit log retrieved.')
     ),
     http.get('/api/v1/notifications', () =>
       ok({ notifications: NOTIFICATIONS }, 'Notifications retrieved.')

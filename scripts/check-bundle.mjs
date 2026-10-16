@@ -23,9 +23,12 @@ import { build } from 'vite'
  * owner-count rule and the page query options reach it through `tenant.queries`
  * and the members route's `validateSearch`, again with no new zod class: 586,272 B.
  * The owners read's own query function and the member writes' invitation
- * refresh add 152 B: 586,424 B.
+ * refresh add 152 B: 586,424 B. The activity route's list schema (three
+ * filters), its page query options and the audit action names (a module of
+ * their own, so the sentences stay out of the entry) add 729 B: 587,153 B,
+ * again with no new zod class.
  */
-const ENTRY_BUDGET_BYTES = 586_500
+const ENTRY_BUDGET_BYTES = 587_200
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

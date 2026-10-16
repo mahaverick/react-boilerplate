@@ -683,9 +683,9 @@ test.describe('analytics end to end, through express', () => {
     await page.getByRole('button', { name: /^Resend invitation to/ }).click()
     await expect(page.getByText(/^Invitation resent to/)).toBeVisible()
     await page.goto(`/settings/workspace/${slug}/activity`)
-    await expect(page.getByRole('list', { name: 'Activity' })).toBeVisible()
-    await page.getByRole('combobox', { name: 'Filter by who acted' }).click()
-    await page.getByRole('option', { name: 'Staff' }).click()
+    await expect(page.getByRole('table', { name: 'Activity' })).toBeVisible()
+    await page.getByRole('button', { name: 'Filter by access' }).click()
+    await page.getByRole('checkbox', { name: 'Staff' }).click()
 
     // The control: the walk really was captured, replay included, and decoded.
     await replayContains(fake, 'Pending invitations')

@@ -1,4 +1,3 @@
-import type { AuditAction } from '@/constants/audit-actions'
 import type { MembershipRole } from '@/constants/roles'
 
 /** The envelope of a successful API response; `data` carries the payload. */
@@ -169,18 +168,13 @@ export interface AuditEntry {
   id: string
   /** ISO 8601, millisecond precision. */
   occurredAt: string
-  action: AuditAction
+  /** A stored action name: one of `AUDIT_ACTIONS`, or a retired or newer one the app has no wording for. */
+  action: string
   access: AuditAccess
   actor: AuditActor | null
   target: AuditTarget | null
   /** Per-action; never a full email address or a token. */
   metadata: Record<string, unknown>
-}
-
-/** A keyset page of a tenant's audit log. `nextCursor` is opaque. */
-export interface AuditPage<T extends AuditEntry> {
-  entries: T[]
-  nextCursor: string | null
 }
 
 /** One sign-in method linked to the account, as `GET /auth/providers` lists it. */

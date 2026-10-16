@@ -370,8 +370,8 @@ const worker = setupWorker(
   http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
   http.get('/api/v1/tenants/acme/audit-log', () =>
     ok(
-      {
-        entries: [
+      listPage(
+        [
           {
             id: AUDIT_ID_2,
             occurredAt: '2026-09-25T10:00:00.000Z',
@@ -391,8 +391,8 @@ const worker = setupWorker(
             metadata: { name: 'Acme Corp', slug: 'acme' },
           },
         ],
-        nextCursor: 'c2',
-      },
+        { nextCursor: 'c2', hasNext: true }
+      ),
       'Audit log retrieved.'
     )
   ),
