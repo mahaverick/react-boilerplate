@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { GettingStartedCard } from '@/components/features/tenant/getting-started-card'
 import { TenantDetails } from '@/components/features/tenant/tenant-overview-card'
+import { DetailTabPending } from '@/components/shared/page-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { pageTitle } from '@/constants/app'
 import { useMyRole, useTenant } from '@/queries/tenant.queries'
@@ -10,6 +11,7 @@ export const Route = createFileRoute('/_app/tenants/$slug/')({
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Overview · ${params.slug}`) }] }),
   staticData: { crumb: 'Overview' },
   component: TenantOverviewTab,
+  pendingComponent: DetailTabPending,
 })
 
 /**

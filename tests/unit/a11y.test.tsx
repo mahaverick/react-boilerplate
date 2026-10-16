@@ -9,6 +9,7 @@ import axeCore from 'axe-core'
 import { http } from 'msw'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { ThemeToggle } from '@/components/features/theme-toggle'
+import { PageSkeleton, type PageVariant } from '@/components/shared/page-skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GOOGLE_OAUTH_PATH } from '@/constants/routes'
 import { resetSessionForTests } from '@/http/session'
@@ -323,6 +324,18 @@ async function expectNoViolations() {
   // `page-has-heading-one` and `landmark-one-main`, by hand.
   expect(document.querySelectorAll('main')).toHaveLength(1)
   expect(document.querySelectorAll('h1')).toHaveLength(1)
+}
+
+/**
+ * `expectNoViolations` for a page whose content is still loading: the same
+ * rules, without the one-`h1` check, since a page-shaped skeleton has no
+ * heading yet and the shell's `main` is already there.
+ */
+async function expectNoViolationsWhileLoading() {
+  const results = await axeCore.run(document, AXE_OPTIONS)
+  expect(results).toHaveNoViolations()
+  expect(unexpectedIncomplete(results)).toEqual([])
+  expect(document.querySelectorAll('main')).toHaveLength(1)
 }
 
 /**
@@ -659,7 +672,7 @@ describe('signed-in pages', () => {
       )
       renderAppAt('/tenants/acme')
       await ready()
-      await expectNoViolations()
+      await expectNoViolationsWhileLoading()
     }
   )
 })
@@ -1040,4 +1053,19 @@ describe('keyboard', () => {
       expect(document.activeElement).toBe(trigger)
     })
   })
+})
+
+describe('page skeletons', () => {
+  it.each<PageVariant>(['list', 'detail', 'dashboard', 'settings'])(
+    'the %s template has no axe violations inside a page',
+    async (variant) => {
+      render(
+        <main>
+          <h1>Page</h1>
+          <PageSkeleton variant={variant} />
+        </main>
+      )
+      await expectNoViolationsWhileLoading()
+    }
+  )
 })

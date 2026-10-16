@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { DashboardPending } from '@/components/shared/page-skeleton'
 import { Pii } from '@/components/shared/pii'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { pageTitle } from '@/constants/app'
@@ -9,6 +10,7 @@ export const Route = createFileRoute('/_app/dashboard')({
   head: () => ({ meta: [{ title: pageTitle('Dashboard') }] }),
   staticData: { crumb: 'Dashboard' },
   component: DashboardPage,
+  pendingComponent: DashboardPending,
 })
 
 /** Greets the signed-in user by first name, else by email. */

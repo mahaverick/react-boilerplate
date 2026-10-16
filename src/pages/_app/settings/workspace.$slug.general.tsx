@@ -3,6 +3,7 @@ import { SettingsRouteError } from '@/components/features/route-error'
 import { ReadOnlyBanner } from '@/components/features/settings/read-only-banner'
 import { TenantOverviewCard } from '@/components/features/tenant/tenant-overview-card'
 import { TenantSettingsCard } from '@/components/features/tenant/tenant-settings-card'
+import { SettingsPagePending } from '@/components/shared/page-skeleton'
 import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
 import { useMyRole } from '@/queries/tenant.queries'
@@ -12,6 +13,7 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug/general')({
   head: ({ params }) => ({ meta: [{ title: pageTitle(`General · ${params.slug}`) }] }),
   staticData: { crumb: 'General' },
   component: WorkspaceGeneral,
+  pendingComponent: SettingsPagePending,
   /**
    * Kept out of a lazy chunk, as the router's default error screen is: a failed
    * fetch could not load it. Splitting it would also pull the error listener

@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 import { createRouter, type AnyRouter } from '@tanstack/react-router'
 import { RouteError } from '@/components/features/route-error'
 import { RouteNotFound } from '@/components/features/route-not-found'
-import { RoutePending } from '@/components/features/route-pending'
+import { ListPending } from '@/components/shared/page-skeleton'
 import { apiClient } from '@/http/client'
 import {
   ensureSession,
@@ -73,7 +73,8 @@ export const ROUTER_DEFAULTS = Object.freeze({
   /** Imported statically: when a chunk cannot be fetched, a lazy error screen could not load either. */
   defaultErrorComponent: RouteError,
   defaultNotFoundComponent: RouteNotFound,
-  defaultPendingComponent: RoutePending,
+  /** A list-shaped skeleton, at the boot shell's sizes; routes shaped otherwise name their own. */
+  defaultPendingComponent: ListPending,
   /** Held back 300ms so a fast navigation never flashes it, then kept 300ms so it never blinks. */
   defaultPendingMs: 300,
   defaultPendingMinMs: 300,

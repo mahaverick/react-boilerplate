@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { AnalyticsSection } from '@/components/features/profile/analytics-section'
 import { SettingsRouteError } from '@/components/features/route-error'
 import { BusyButton } from '@/components/shared/busy-button'
+import { SettingsPagePending } from '@/components/shared/page-skeleton'
 import { Pii } from '@/components/shared/pii'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -31,6 +32,7 @@ export const Route = createFileRoute('/_app/settings/account/profile')({
   head: () => ({ meta: [{ title: pageTitle('Profile') }] }),
   staticData: { crumb: 'Profile' },
   component: ProfilePage,
+  pendingComponent: SettingsPagePending,
   /**
    * Kept out of a lazy chunk, as the router's default error screen is: a failed
    * fetch could not load it. Splitting it would also pull the error listener

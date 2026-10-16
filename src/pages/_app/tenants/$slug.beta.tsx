@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { LoadError } from '@/components/features/load-error'
+import { DetailTabPending } from '@/components/shared/page-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
@@ -25,6 +26,7 @@ export const Route = createFileRoute('/_app/tenants/$slug/beta')({
   head: ({ params }) => ({ meta: [{ title: pageTitle(`Beta · ${params.slug}`) }] }),
   staticData: { crumb: 'Beta' },
   component: TenantBetaTab,
+  pendingComponent: DetailTabPending,
 })
 
 /** Said when the beta route failed; a 404 there means the flag closed after the page opened. */
