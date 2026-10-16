@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { analyticsKey } from '@/observability/telemetry'
 import {
   booleanFilter,
@@ -83,10 +84,40 @@ describe('defineList schema', () => {
     expect(list.schema.parse({ search: 2026 })).toEqual({ search: '2026' })
   })
 
-  it('keeps the known values of a comma list, once each, in order', () => {
+  it('keeps the known values of a comma list, once each, sorted', () => {
     expect(list.schema.parse({ status: 'deleted,bogus,active,deleted' })).toEqual({
-      status: 'deleted,active',
+      status: 'active,deleted',
     })
+  })
+})
+
+describe('day filter', () => {
+  it('keeps years 0001 to 9998 and drops the rest', () => {
+    expect(list.schema.parse({ from: '0001-01-01' })).toEqual({ from: '0001-01-01' })
+    expect(list.schema.parse({ from: '9998-12-31' })).toEqual({ from: '9998-12-31' })
+    expect(list.schema.parse({ from: '0000-12-31' })).toEqual({})
+    expect(list.schema.parse({ from: '9999-01-01' })).toEqual({})
+  })
+})
+
+describe('route extras and hidden columns', () => {
+  const withExtra = defineList({
+    sorts: ['name'],
+    filters: {},
+    table: analyticsKey('test_extra'),
+    extra: { tab: z.enum(['a', 'b']).optional().catch(undefined), search: z.literal('mine') },
+  })
+
+  it('lets the list’s own fields win over an extra of the same name', () => {
+    expect(withExtra.schema.parse({ tab: 'b', search: 'acme' })).toEqual({
+      tab: 'b',
+      search: 'acme',
+    })
+  })
+
+  it('splits hidden into column ids', () => {
+    expect(listValues(list, { hidden: 'status,created' }).hidden).toEqual(['status', 'created'])
+    expect(listValues(list, {}).hidden).toEqual([])
   })
 })
 
@@ -120,6 +151,12 @@ describe('two lists on one route', () => {
       invitationsSort: 'email',
       invitationsRole: 'owner',
     })
+  })
+
+  it('drops a prefixed sort that is outside its own whitelist', () => {
+    expect(
+      first.schema.parse({ sort: 'email', invitationsSort: 'name', invitationsSearch: 'a' })
+    ).toEqual({ sort: 'email', invitationsSearch: 'a' })
   })
 
   it('reads each list’s values from its own keys', () => {
@@ -170,6 +207,13 @@ describe('search text', () => {
     expect(cleanSearch('a'.repeat(101))).toHaveLength(100)
     expect(cleanSearch(`${'a'.repeat(99)}   b`)).toBe('a'.repeat(99))
     expect(cleanSearch(' \0 \0')).toBe('')
+  })
+
+  it('never leaves half an emoji at the cut', () => {
+    const cut = cleanSearch(`${'a'.repeat(99)}😀`)
+    expect(cut).toBe('a'.repeat(99))
+    expect(() => encodeURIComponent(cut)).not.toThrow()
+    expect(cleanSearch(`${'a'.repeat(98)}😀`)).toBe(`${'a'.repeat(98)}😀`)
   })
 
   it('sends a request the API accepts for a blank, NUL-only or over-long search', () => {

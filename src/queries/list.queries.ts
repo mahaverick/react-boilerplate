@@ -9,19 +9,22 @@ import { statusFrom } from '@/lib/api-error'
 import type { ApiSuccess } from '@/types/api.types'
 import type { ListPage, ListRequest } from '@/types/list.types'
 
-/** Statuses a retry cannot change: a refused param or cursor, a refused role, a route that answers who is asking. */
-const FINAL_STATUSES = new Set([400, 403, 404])
+/** The 4xx statuses a retry can change: a request timeout and a rate limit. */
+const RETRYABLE_CLIENT_STATUSES = new Set([408, 429])
 
 /**
  * The default retry for a list read: once, unless the status says asking
- * again changes nothing.
+ * again changes nothing. Every 4xx is final (a refused param or cursor, a
+ * refused role, a missing route) except 408 and 429, which are tried once more.
  * @param failureCount - Failures so far.
  * @param error - The last failure.
  * @returns Whether to retry.
  */
 export function retryList(failureCount: number, error: unknown): boolean {
   const status = statusFrom(error)
-  return !(status !== undefined && FINAL_STATUSES.has(status)) && failureCount < 1
+  const final =
+    status !== undefined && status >= 400 && status < 500 && !RETRYABLE_CLIENT_STATUSES.has(status)
+  return !final && failureCount < 1
 }
 
 /** What a list's query needs: where its key sits, its path, and its request. */

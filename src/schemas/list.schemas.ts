@@ -27,7 +27,7 @@ export type ListFilter =
 
 /**
  * A filter that takes any number of `values`, written as a comma list
- * (`status=active,inactive`). Unknown and repeated values are dropped.
+ * (`status=active,inactive`). Unknown and repeated values are dropped, and the rest are sorted as the API sorts them.
  * @param values - Every value the API accepts.
  */
 export function listFilter(values: readonly string[]): ListFilter {
@@ -60,7 +60,15 @@ const MAX_CURSOR_LENGTH = 4096
  * @returns The term, possibly empty.
  */
 export function cleanSearch(text: string): string {
-  return text.replaceAll('\0', '').trim().slice(0, MAX_SEARCH_LENGTH).trimEnd()
+  return (
+    text
+      .replaceAll('\0', '')
+      .trim()
+      .slice(0, MAX_SEARCH_LENGTH)
+      // A cut can leave half of a surrogate pair, which encodeURIComponent refuses.
+      .replace(/[\uD800-\uDBFF]$/, '')
+      .trimEnd()
+  )
 }
 
 /** The shared fields every list's URL may carry, before any prefix. */
@@ -129,6 +137,8 @@ function commaList(values: readonly string[]) {
     .transform((raw) =>
       [...new Set(raw.split(',').map((part) => part.trim()))]
         .filter((part) => values.includes(part))
+        // The API's own order, so one selection has one URL and one cache key.
+        .toSorted((a, b) => a.localeCompare(b, 'en'))
         .join(',')
     )
     .pipe(z.string().min(1))
@@ -150,7 +160,12 @@ function filterSchema(filter: ListFilter): z.ZodType {
     case 'id':
       return z.uuid().optional().catch(undefined)
     case 'day':
-      return z.iso.date().optional().catch(undefined)
+      // Years 0001-9998, as the API takes them.
+      return z.iso
+        .date()
+        .refine((day) => day >= '0001-01-01' && day <= '9998-12-31')
+        .optional()
+        .catch(undefined)
   }
 }
 

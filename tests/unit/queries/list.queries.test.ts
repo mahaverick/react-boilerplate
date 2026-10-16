@@ -23,8 +23,16 @@ function httpError(status: number): AxiosError {
 }
 
 describe('retryList', () => {
-  it('never retries a refused param or cursor, a refused role, or a 404', () => {
-    for (const status of [400, 403, 404]) expect(retryList(0, httpError(status))).toBe(false)
+  it('never retries a 4xx other than a timeout or a rate limit', () => {
+    for (const status of [400, 401, 403, 404, 409, 422])
+      expect(retryList(0, httpError(status))).toBe(false)
+  })
+
+  it('retries a timeout or a rate limit once', () => {
+    for (const status of [408, 429]) {
+      expect(retryList(0, httpError(status))).toBe(true)
+      expect(retryList(1, httpError(status))).toBe(false)
+    }
   })
 
   it('retries anything else once', () => {
