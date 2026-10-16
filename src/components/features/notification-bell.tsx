@@ -38,6 +38,10 @@ const PREVIEW_COUNT = 5
  * empty, as plain text rather than an alert region or a do-nothing item.
  * Each preview is a real anchor (Base UI's Menu.Item has no `onSelect`), and
  * its unread dot is aria-hidden, since the label spells out the count.
+ *
+ * A failed read with nothing loaded marks the bell with a muted dot (hidden
+ * from assistive tech; the label already says the count is unavailable) and
+ * offers Try again in the menu.
  */
 export function NotificationBell() {
   const notifications = useNotifications()
@@ -69,6 +73,13 @@ export function NotificationBell() {
             {unread}
           </Badge>
         )}
+        {!isCountKnown && notifications.isError && (
+          <span
+            aria-hidden="true"
+            data-slot="bell-unavailable"
+            className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-muted-foreground"
+          />
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-72">
         <DropdownMenuGroup>
@@ -82,9 +93,14 @@ export function NotificationBell() {
               </DropdownMenuItem>
             ))
           ) : notifications.isError ? (
-            <p className="p-2 text-center text-sm text-muted-foreground">
-              Notifications could not be loaded.
-            </p>
+            <>
+              <p className="p-2 text-center text-sm text-muted-foreground">
+                Notifications could not be loaded.
+              </p>
+              <DropdownMenuItem closeOnClick={false} onClick={() => void notifications.refetch()}>
+                Try again
+              </DropdownMenuItem>
+            </>
           ) : notifications.isPending ? (
             <p className="p-2 text-center text-sm text-muted-foreground">Loading notifications…</p>
           ) : (

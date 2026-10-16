@@ -247,6 +247,33 @@ describe('tenant detail', () => {
     expect(screen.queryByRole('heading', { level: 1, name: 'Acme Corp' })).not.toBeInTheDocument()
   })
 
+  it('holds the checklist’s place with a skeleton while it loads, with Details already up', async () => {
+    mockTenant('owner')
+    server.use(http.get('/api/v1/tenants/acme/onboarding', () => new Promise<Response>(() => {})))
+    renderAppAt('/tenants/acme')
+    expect(await screen.findByRole('heading', { level: 2, name: 'Details' })).toBeVisible()
+    const section = document.querySelector('[data-slot="query-state"][aria-busy="true"]')
+    expect(section).not.toBeNull()
+  })
+
+  it('says the checklist failed, in its own place, and keeps Details', async () => {
+    mockTenant('owner')
+    server.use(http.get('/api/v1/tenants/acme/onboarding', () => fail('Something went wrong', 500)))
+    renderAppAt('/tenants/acme')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Getting started could not be loaded.'
+    )
+    expect(screen.getByRole('heading', { level: 2, name: 'Details' })).toBeVisible()
+  })
+
+  it('shows nothing for an API without the checklist (404)', async () => {
+    mockTenant('owner')
+    server.use(http.get('/api/v1/tenants/acme/onboarding', () => fail('Not found', 404)))
+    renderAppAt('/tenants/acme')
+    expect(await screen.findByRole('heading', { level: 2, name: 'Details' })).toBeVisible()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('renders the tenant header, the role badge and only the Overview tab', async () => {
     mockTenant('owner')
     renderAppAt('/tenants/acme')

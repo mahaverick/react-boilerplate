@@ -2,6 +2,8 @@ import { IconCircle, IconCircleCheck } from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
+import { QueryState } from '@/components/shared/query-state'
+import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,9 +25,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { canManageTenant, type MembershipRole } from '@/constants/roles'
 import { useFocusAfter, type FocusAfter } from '@/hooks/use-focus-after'
-import { messageFrom } from '@/lib/api-error'
+import { messageFrom, statusFrom } from '@/lib/api-error'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useVariant } from '@/observability/flags/flag-hooks'
@@ -414,8 +417,9 @@ function ChecklistCard({
  * "You're all set" for 24 hours after the last required step, then nothing.
  * Dismissed: the owner's undo, nothing for anyone else. Not tracked: nothing.
  *
- * Renders nothing while loading or when the first load fails: an API older
- * than 1.4.0 answers this route 404, and the overview below is the tab's content.
+ * While loading it holds the checklist's place with a skeleton; a failed load
+ * says so in that place, except a 404, which an API older than 1.4.0 answers,
+ * and which leaves no checklist.
  * `role` and `access` come from `useMyRole`, so staff through platform access
  * read the checklist and act on nothing. The 24-hour window is measured from
  * the mount time, read once, because render must stay pure.
@@ -432,19 +436,42 @@ export function GettingStartedCard({
   const onboarding = useTenantOnboarding(slug)
   const [mountedAt] = useState(() => Date.now())
   const focus = useFocusAfter<CardFocusKey>()
-  if (!onboarding.data) return null
+  // An API older than 1.4.0 answers this route 404: the tab simply has no checklist.
+  if (onboarding.isError && statusFrom(onboarding.error) === 404) return null
 
   const viewer = viewerFor(role, access)
-  switch (onboarding.data.state) {
-    case 'in_progress':
-      return (
-        <ChecklistCard slug={slug} onboarding={onboarding.data} viewer={viewer} focus={focus} />
-      )
-    case 'complete':
-      return isRecentlyComplete(onboarding.data, mountedAt) ? <AllSetCard focus={focus} /> : null
-    case 'dismissed':
-      return viewer.isOwner ? <ShowGettingStarted slug={slug} focus={focus} /> : null
-    case 'not_tracked':
-      return null
-  }
+  return (
+    <QueryState query={onboarding} name="Getting started" skeleton={<ChecklistSkeleton />}>
+      {(data) => {
+        switch (data.state) {
+          case 'in_progress':
+            return <ChecklistCard slug={slug} onboarding={data} viewer={viewer} focus={focus} />
+          case 'complete':
+            return isRecentlyComplete(data, mountedAt) ? <AllSetCard focus={focus} /> : null
+          case 'dismissed':
+            return viewer.isOwner ? <ShowGettingStarted slug={slug} focus={focus} /> : null
+          case 'not_tracked':
+            return null
+        }
+      }}
+    </QueryState>
+  )
+}
+
+/**
+ * The checklist's place while it loads: its card, title and description, and
+ * a row per step at the checklist's measured height (about 544 px in the walk).
+ */
+function ChecklistSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="gap-2">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-4 w-64" />
+      </CardHeader>
+      <CardContent>
+        <CardRowsSkeleton rows={5} rowHeight="4.5rem" />
+      </CardContent>
+    </Card>
+  )
 }

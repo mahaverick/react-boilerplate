@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -133,5 +133,30 @@ describe('NotificationBell', () => {
     expect(await screen.findByText('Loading notifications…')).toBeInTheDocument()
     expect(screen.queryByText('You have no notifications.')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Notifications, count unavailable' })).toBeVisible()
+  })
+
+  it('marks a failed read on the bell, and Try again reads again', async () => {
+    let calls = 0
+    server.use(
+      http.get('/api/v1/notifications', () => {
+        calls += 1
+        return calls <= 2
+          ? fail('Something went wrong', 500)
+          : ok({ notifications: [unreadRow] }, 'Notifications retrieved.')
+      })
+    )
+    renderShell()
+    const bell = await screen.findByRole('button', { name: 'Notifications, count unavailable' })
+    await waitFor(() => expect(bell.querySelector('[data-slot="bell-unavailable"]')).not.toBeNull())
+    const user = await openBell()
+    await user.click(await screen.findByRole('menuitem', { name: 'Try again' }))
+    expect(await screen.findByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible()
+  })
+
+  it('does not mark a read that is still in flight', async () => {
+    server.use(http.get('/api/v1/notifications', async () => delay('infinite')))
+    renderShell()
+    const bell = await screen.findByRole('button', { name: 'Notifications, count unavailable' })
+    expect(bell.querySelector('[data-slot="bell-unavailable"]')).toBeNull()
   })
 })

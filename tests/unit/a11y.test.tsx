@@ -686,6 +686,22 @@ describe('signed-in pages', () => {
       await screen.findByRole('status', { name: 'Loading' })
       await expectNoViolationsWhileLoading()
     })
+
+    it('the overview with its checklist loading has no axe violations', async () => {
+      server.use(http.get('/api/v1/tenants/acme/onboarding', () => new Promise<Response>(() => {})))
+      renderAppAt('/tenants/acme')
+      await screen.findByRole('heading', { name: 'Details' })
+      await expectNoViolationsWhileLoading()
+    })
+
+    it('the dashboard with the tenant list failed has no axe violations', async () => {
+      server.use(http.get('/api/v1/tenants', () => fail('Something went wrong', 500)))
+      renderAppAt('/dashboard')
+      await screen.findByRole('combobox', {
+        name: 'Switch tenant. Current: Tenants could not be loaded',
+      })
+      await expectNoViolations()
+    })
   })
 })
 
