@@ -40,6 +40,8 @@ describe('the browser event registry', () => {
       | 'onboarding_checklist_opened'
       | 'feature_cta_clicked'
       | 'table_filtered'
+      | 'table_sorted'
+      | 'table_paged'
       | 'table_exported'
       | 'maintenance_page_viewed'
     >()
@@ -49,6 +51,15 @@ describe('the browser event registry', () => {
   it('types each event’s properties', () => {
     expectTypeOf<BrowserEventProps['feature_cta_clicked']>().toEqualTypeOf<{ cta: AnalyticsKey }>()
     expectTypeOf<BrowserEventProps['table_filtered']>().toEqualTypeOf<{ table: AnalyticsKey }>()
+    expectTypeOf<BrowserEventProps['table_sorted']>().toEqualTypeOf<{
+      table: AnalyticsKey
+      sort: AnalyticsKey
+      direction: 'asc' | 'desc' | 'default'
+    }>()
+    expectTypeOf<BrowserEventProps['table_paged']>().toEqualTypeOf<{
+      table: AnalyticsKey
+      direction: 'next' | 'prev'
+    }>()
     expectTypeOf<BrowserEventProps['maintenance_page_viewed']>().toEqualTypeOf<{
       mode: 'full' | 'read_only'
     }>()
