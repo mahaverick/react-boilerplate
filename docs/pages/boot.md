@@ -4,7 +4,7 @@ What a cold load of the app does, from `index.html` to the first page, and what 
 
 ## What happens
 
-1. The browser parses `index.html`. Its `<head>` runs two blocking scripts: `/theme-init.js`, which sets the `dark` class on `<html>` from the stored theme or the system preference, and `/runtime-config.js`, the run-time settings. `#root` already holds the static splash: a `.boot-splash` element with `role="status"`, a spinner and the text "Loading…".
+1. The browser parses `index.html`. Its `<head>` runs three blocking scripts: `/theme-init.js`, which sets the `dark` class on `<html>` from the stored theme or the system preference, `/boot-variant.js`, which marks `<html data-boot="auth">` on an auth path, and `/runtime-config.js`, the run-time settings. `#root` already holds the static boot shell: `.boot-shell` with `role="status"`, a visually hidden "Loading…", and the app or auth variant that `/boot-variant.js` picked, styled by the inline `<style>` blocks in `<head>`.
 2. `src/main.tsx` loads as a module. Its imports bring in the router (`src/router.tsx`) and `src/styles/globals.css`, and it calls `router.load()` before React mounts anything.
 3. `__root`'s `beforeLoad` awaits `bootstrapSession()`: `POST /api/v1/auth/refresh` with the refresh cookie (a 401 when signed out), then, when the refresh succeeds, `GET /api/v1/profile`.
 4. The matched layout's guard runs. `_auth` sends a signed-in user to `/dashboard`. `_app` sends a signed-out user to `/login?redirect=<the URL>`; for a signed-in user on a page without `$slug`, its tenant guard (`src/lib/tenant-guard.ts`) awaits `GET /api/v1/tenants` for at most 3 s (`TENANT_LIST_WAIT_MS`) and fixes `?tenant=`.

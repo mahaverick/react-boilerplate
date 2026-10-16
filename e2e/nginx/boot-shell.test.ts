@@ -1,7 +1,7 @@
 /**
- * @file The static splash in index.html's #root, against the production image.
- * It is styled by the stylesheet linked in `<head>`, so it must paint with the
- * bundle blocked, and React must replace it once the bundle runs.
+ * @file The static boot shell in index.html's #root, against the production
+ * image. Its inline CSS must paint it with the bundle blocked, in the user's
+ * theme, with no CSP violation, and React must replace it once the bundle runs.
  */
 import { expect, test } from '@playwright/test'
 import { settle } from '../timing'
@@ -10,12 +10,12 @@ import { flushCspReports, requireServedApp, watchCspViolations } from './csp'
 test.beforeAll(requireServedApp)
 
 test(
-  'the served index.html carries the splash inside #root',
+  'the served index.html carries the shell inside #root',
   { tag: '@no-api' },
   async ({ request }) => {
     const html = await (await request.get('/')).text()
-    expect(html).toMatch(/<div id="root">\s*<div class="boot-splash" role="status">/)
-    expect(html).toContain('Loading…')
+    expect(html).toMatch(/<div id="root">\s*<div class="boot-shell" role="status">/)
+    expect(html).toContain('<span class="boot-sr">Loading…</span>')
   }
 )
 
@@ -28,33 +28,67 @@ test.describe('with the bundle blocked', () => {
     test.describe(`in a ${colorScheme} colour scheme`, () => {
       test.use({ colorScheme })
 
-      test('paints the styled splash with no violation', { tag: '@no-api' }, async ({ page }) => {
+      test('paints the styled shell with no violation', { tag: '@no-api' }, async ({ page }) => {
         const violations = await watchCspViolations(page)
-        await page.goto('/login')
-        const splash = page.locator('.boot-splash')
-        await expect(splash).toBeVisible()
-        await expect(splash).toHaveAttribute('role', 'status')
-        await expect(splash).toHaveText('Loading…')
-        // `flex` comes from the stylesheet; unstyled, a div is `block`.
-        await expect(splash).toHaveCSS('display', 'flex')
+        await page.goto('/dashboard')
+        const shell = page.locator('.boot-shell')
+        await expect(shell).toBeVisible()
+        await expect(shell).toHaveAttribute('role', 'status')
+        await expect(shell).toHaveText('Loading…')
+        // `flex` and `fixed` come from the inline style; unstyled, a div is `block` and `static`.
+        await expect(shell).toHaveCSS('display', 'flex')
+        await expect(shell).toHaveCSS('position', 'fixed')
+        await expect(page.locator('.boot-app')).toBeVisible()
         await flushCspReports(page)
         expect(violations).toEqual([])
       })
+
+      test('paints the auth variant on an auth page', { tag: '@no-api' }, async ({ page }) => {
+        await page.goto('/login')
+        await expect(page.locator('html')).toHaveAttribute('data-boot', 'auth')
+        await expect(page.locator('.boot-auth')).toBeVisible()
+        await expect(page.locator('.boot-app')).toBeHidden()
+      })
     })
   }
+
+  test(
+    'paints a different background in each scheme',
+    { tag: '@no-api' },
+    async ({ browser, baseURL }) => {
+      /** The shell's computed background in a fresh `colorScheme` context with the bundle blocked. */
+      const background = async (colorScheme: 'light' | 'dark') => {
+        const context = await browser.newContext({ baseURL, colorScheme })
+        try {
+          const page = await context.newPage()
+          await page.route('**/assets/*.js', (route) => route.abort())
+          await page.goto('/dashboard')
+          const shell = page.locator('.boot-shell')
+          await expect(shell).toBeVisible()
+          return await shell.evaluate((node) => getComputedStyle(node).backgroundColor)
+        } finally {
+          await context.close()
+        }
+      }
+      const light = await background('light')
+      const dark = await background('dark')
+      expect(light).not.toBe('')
+      expect(dark).not.toBe(light)
+    }
+  )
 })
 
-test('the app replaces the splash once it renders', { tag: '@no-api' }, async ({ page }) => {
+test('the app replaces the shell once it renders', { tag: '@no-api' }, async ({ page }) => {
   await page.goto('/login')
   await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
-  await expect(page.locator('.boot-splash')).toHaveCount(0)
+  await expect(page.locator('.boot-shell')).toHaveCount(0)
   // The title the router sets once the bundle has run, not the <title> index.html ships.
   await expect(page).toHaveTitle('Sign in · React Boilerplate')
 })
 
 // The refresh is held well past `defaultPendingMs` (300), so a boot that renders before the load resolves has time to blank #root and show the router's pending screen.
 test(
-  'the served app never blanks #root or shows a second spinner while the root beforeLoad is slow',
+  'the served app never blanks #root or shows the route pending screen while the root beforeLoad is slow',
   { tag: '@no-api' },
   async ({ page }) => {
     await page.route('**/api/v1/auth/refresh', async (route) => {
@@ -78,7 +112,7 @@ test(
       // Counts callbacks, so an observer that never ran fails loudly instead of passing on two flags that stayed false.
       win.__mutations = 0
 
-      /** Whether `node` is, or contains, the router's pending screen; keyed on aria-label, not role, because the splash also carries role="status". */
+      /** Whether `node` is, or contains, the router's pending screen; keyed on aria-label, not role, because the shell also carries role="status". */
       const isRoutePending = (node: Node) =>
         node instanceof HTMLElement &&
         (node.matches('[role="status"][aria-label="Loading"]') ||

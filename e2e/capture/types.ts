@@ -57,7 +57,7 @@ export interface Seed {
 }
 
 /** What the loading shot found on screen. */
-export type LoadingUi = 'skeleton' | 'spinner' | 'splash' | 'none'
+export type LoadingUi = 'skeleton' | 'spinner' | 'shell' | 'none'
 
 /** One screenshot and what was seen while taking it. */
 export interface ShotRecord {

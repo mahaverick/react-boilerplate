@@ -26,6 +26,7 @@ test(
       '/dashboard',
       await entryChunk(request),
       '/theme-init.js',
+      '/boot-variant.js',
       '/favicon.svg',
       '/assets/does-not-exist.js',
     ]
@@ -65,6 +66,18 @@ test(
   }
 )
 
+test(
+  'the boot variant script is served as JavaScript and never cached',
+  { tag: '@no-api' },
+  async ({ request }) => {
+    const response = await request.get('/boot-variant.js')
+    expect(response.status()).toBe(200)
+    expect(response.headers()['content-type']).toBe('application/javascript')
+    expect(response.headers()['cache-control']).toBe('no-store')
+    expect(await response.text()).toContain('var BOOT_AUTH_PATHS = [')
+  }
+)
+
 test('the favicon is served as SVG and never cached', { tag: '@no-api' }, async ({ request }) => {
   const response = await request.get('/favicon.svg')
   expect(response.status()).toBe(200)
@@ -83,6 +96,7 @@ test(
     // Pinned against the served HTML: `type="module"`, `async` or `defer` would let the page paint before the theme class is set, and `script-src 'self'` allows all three.
     const html = await (await request.get('/')).text()
     expect(html).toContain('<script src="/theme-init.js"></script>')
+    expect(html).toContain('<script src="/boot-variant.js"></script>')
   }
 )
 
