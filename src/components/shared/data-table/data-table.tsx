@@ -37,14 +37,18 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useIsMobile } from '@/hooks/use-mobile'
-import type { AnalyticsKey } from '@/observability/telemetry'
+import { analyticsKey, type AnalyticsKey } from '@/observability/telemetry'
 import type { ListPage } from '@/types/list.types'
+
+/** `table_sorted`'s `sort` when the sort menu's "Default order" is chosen: no column owns that key. */
+const DEFAULT_ORDER_NAME = analyticsKey('default')
 
 /** The most skeleton rows a loading list shows, whatever its page size. */
 const SKELETON_ROWS = 20
 
 /** What `DataTable` takes. */
 export interface DataTableProps<T extends RowData> {
+  /** The column definitions. Pass a stable array, module-level or memoized: the table model is rebuilt when it changes. */
   columns: DataTableColumns<T>
   /** From `useListQuery`. */
   query: ListQueryState<T>
@@ -188,7 +192,6 @@ export function DataTable<T extends RowData>({
   if (sortable.length > 0 && ownerOf(defaultSort) === undefined) {
     sortOptions.unshift({ key: defaultSort, label: 'Default order' })
   }
-  const firstSortName = sortable[0]?.columnDef.meta?.sortName
 
   const visibleColumns = table.getVisibleLeafColumns().length
   // The section template has no live region of its own; the list's loading state is this one.
@@ -235,7 +238,7 @@ export function DataTable<T extends RowData>({
             <DataTableSortMenu
               options={sortOptions}
               value={list.values.sort}
-              onSort={(key) => sortTo(key, ownerOf(key) ? undefined : firstSortName)}
+              onSort={(key) => sortTo(key, ownerOf(key) ? undefined : DEFAULT_ORDER_NAME)}
             />
           )}
           <DataTableCards table={table} label={label} card={card} rowTarget={rowTarget} />

@@ -48,6 +48,15 @@ describe('the browser event registry', () => {
     expect(REGISTRY_HAS_NO_FREE_STRINGS).toBe(true)
   })
 
+  it('accepts the fixed `default` as table_sorted’s sort, for the default order no column owns', () => {
+    const props: BrowserEventProps['table_sorted'] = {
+      table: analyticsKey('test_items'),
+      sort: analyticsKey('default'),
+      direction: 'default',
+    }
+    expect(props.sort).toBe('default')
+  })
+
   it('types each event’s properties', () => {
     expectTypeOf<BrowserEventProps['feature_cta_clicked']>().toEqualTypeOf<{ cta: AnalyticsKey }>()
     expectTypeOf<BrowserEventProps['table_filtered']>().toEqualTypeOf<{ table: AnalyticsKey }>()

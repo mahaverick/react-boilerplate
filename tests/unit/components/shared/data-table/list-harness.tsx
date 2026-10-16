@@ -72,7 +72,7 @@ function testListOptions(request: ListRequest) {
 const column = createColumnHelper<DataTableFeatures, TestItem>()
 
 /** Name (sortable), Status, Created (sortable both ways) and an Open action. */
-const testColumns = column.columns([
+export const testColumns = column.columns([
   column.accessor('name', {
     header: 'Name',
     meta: { sorts: ['name'], sortName: analyticsKey('name') },

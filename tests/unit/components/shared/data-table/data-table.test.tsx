@@ -10,6 +10,7 @@ import {
   REFUSED_CURSOR,
   renderTestList,
   serveTestItems,
+  testColumns,
   testItem,
   type TestItem,
 } from '@/tests/unit/components/shared/data-table/list-harness'
@@ -564,8 +565,47 @@ describe('DataTable sort menu', () => {
     ])
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sort by' })).toHaveFocus())
     await user.click(screen.getByRole('button', { name: 'Sort by' }))
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Created, newest first' }))
+    expect(
+      await screen.findByRole('menuitemradio', { name: 'Created, newest first' })
+    ).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemradio', { name: 'Name, A to Z' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
+    await user.click(screen.getByRole('menuitemradio', { name: 'Created, newest first' }))
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
     expect(track.mock.calls.filter(([event]) => event === 'table_sorted')).toHaveLength(1)
+  })
+
+  it('offers the default order first when no column owns it, and reports it as such', async () => {
+    atPhoneWidth()
+    const track = vi.spyOn(analytics, 'track')
+    serveTestItems(twoPages)
+    const user = userEvent.setup()
+    // Only Created sorts: the list's default sort, `name`, belongs to no column.
+    const router = renderTestList('/items', { columns: testColumns.slice(1) })
+    await screen.findByRole('list', { name: 'Items' })
+    await user.click(screen.getByRole('button', { name: 'Sort by' }))
+    const options = await screen.findAllByRole('menuitemradio')
+    expect(options.map((option) => option.textContent)).toEqual([
+      'Default order',
+      'Created, oldest first',
+      'Created, newest first',
+    ])
+    expect(options[0]).toHaveAttribute('aria-checked', 'true')
+    await user.click(options[2]!)
+    await waitFor(() => expect(router.state.location.search).toEqual({ sort: '-created' }))
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: 'Sort by' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Default order' }))
+    await waitFor(() => expect(router.state.location.search).toEqual({}))
+    expect(screen.getByText('Sorted in the default order')).toHaveAttribute('aria-live', 'polite')
+    expect(track.mock.calls.filter(([event]) => event === 'table_sorted')).toEqual([
+      ['table_sorted', { table: 'test_items', sort: 'created', direction: 'desc' }],
+      ['table_sorted', { table: 'test_items', sort: 'default', direction: 'default' }],
+    ])
   })
 })
