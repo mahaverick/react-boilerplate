@@ -6,6 +6,7 @@ import { nextSort, showingText } from '@/components/shared/data-table/data-table
 import * as analytics from '@/observability/telemetry'
 import { listPage } from '@/tests/fixtures/list-page'
 import {
+  atPhoneWidth,
   REFUSED_CURSOR,
   renderTestList,
   serveTestItems,
@@ -25,6 +26,40 @@ function twoPages(params: URLSearchParams) {
   return listPage(rows(1, 20), { nextCursor: 'c2', hasNext: true }, { count: 25, capped: false })
 }
 
+/** Three pages: 1–20, 21–40 (cursor c2) and 41–45 (c3); a sorted or resized view answers rows 1–3. */
+function threePages(params: URLSearchParams) {
+  if (params.get('cursor') === 'c3')
+    return listPage(rows(41, 45), { prevCursor: 'c2b', hasPrev: true })
+  if (params.get('cursor') === 'c2') {
+    return listPage(rows(21, 40), {
+      prevCursor: 'c1',
+      hasPrev: true,
+      nextCursor: 'c3',
+      hasNext: true,
+    })
+  }
+  if (params.get('sort') || params.get('limit')) return listPage(rows(1, 3))
+  return listPage(rows(1, 20), { nextCursor: 'c2', hasNext: true })
+}
+
+/** Every "Showing …" text that appears from now until the returned function is called. */
+function recordShowing(): () => string[] {
+  const seen = new Set<string>()
+  /** Notes the position text now on screen. */
+  const note = () => {
+    for (const element of document.querySelectorAll('p')) {
+      if (element.textContent?.startsWith('Showing ')) seen.add(element.textContent)
+    }
+  }
+  note()
+  const watch = new MutationObserver(note)
+  watch.observe(document.body, { childList: true, subtree: true, characterData: true })
+  return () => {
+    watch.disconnect()
+    return [...seen]
+  }
+}
+
 /** A promise the test settles by hand, to hold a response in flight. */
 function deferred<T>() {
   /** Replaced by the promise's own resolver below. */
@@ -37,7 +72,6 @@ function deferred<T>() {
 
 afterEach(() => {
   vi.restoreAllMocks()
-  window.innerWidth = 1024
 })
 
 describe('DataTable states', () => {
@@ -125,10 +159,23 @@ describe('DataTable states', () => {
     )
     // Watch every DOM change from before the first render: the refused cursor must never show as an error.
     const shownErrors: string[] = []
-    const watch = new MutationObserver(() => {
-      if (screen.queryByRole('alert')) shownErrors.push('alert')
-      for (const name of ['Try again', 'First page']) {
-        if (screen.queryByRole('button', { name })) shownErrors.push(name)
+    /** Notes an error control inside `root`. */
+    const scan = (root: ParentNode) => {
+      if (root.querySelector('[role="alert"]')) shownErrors.push('alert')
+      for (const button of root.querySelectorAll('button')) {
+        const name = button.textContent?.trim()
+        if (name === 'Try again' || name === 'First page') shownErrors.push(name)
+      }
+    }
+    const watch = new MutationObserver((records) => {
+      scan(document.body)
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node instanceof Element) {
+            scan(node)
+            if (node.matches('[role="alert"]')) shownErrors.push('alert')
+          }
+        }
       }
     })
     watch.observe(document.body, { childList: true, subtree: true, attributes: true })
@@ -153,6 +200,70 @@ describe('DataTable states', () => {
     expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled()
     pageTwo.resolve(listPage(rows(21, 25), { prevCursor: 'c1', hasPrev: true }))
     expect(await screen.findByText('Item 21')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['a sort', 'Created', 'Showing 1–3'],
+    ['a page size', 'Rows per page', 'Showing 1–3'],
+    ['Next', 'Next page', 'Showing 41–45'],
+  ])(
+    'never labels the old rows with the new view’s position on %s',
+    async (_name, control, after) => {
+      const gate = deferred<void>()
+      let holding = false
+      serveTestItems(async (params) => {
+        const next = threePages(params)
+        if (
+          holding &&
+          (params.get('sort') || params.get('limit') || params.get('cursor') === 'c3')
+        ) {
+          await gate.promise
+        }
+        return next
+      })
+      const user = userEvent.setup()
+      renderTestList()
+      await screen.findByText('Item 01')
+      await user.click(screen.getByRole('button', { name: 'Next page' }))
+      expect(await screen.findByText('Showing 21–40')).toBeInTheDocument()
+
+      holding = true
+      const stop = recordShowing()
+      if (control === 'Rows per page') {
+        await user.click(screen.getByRole('combobox', { name: control }))
+        await user.click(await screen.findByRole('option', { name: '50' }))
+      } else {
+        await user.click(screen.getByRole('button', { name: control }))
+      }
+      await waitFor(() =>
+        expect(screen.getByText('Item 21').closest('[aria-busy="true"]')).not.toBeNull()
+      )
+      expect(screen.queryByText(/^Showing /)).not.toBeInTheDocument()
+      gate.resolve()
+      expect(await screen.findByText(after)).toBeInTheDocument()
+      expect(stop().filter((text) => text !== 'Showing 21–40' && text !== after)).toEqual([])
+    }
+  )
+
+  it('turns Previous off while the previous page loads', async () => {
+    const gate = deferred<void>()
+    let holding = false
+    serveTestItems(async (params) => {
+      if (holding && params.get('direction') === 'prev') await gate.promise
+      return threePages(params)
+    })
+    const user = userEvent.setup()
+    renderTestList()
+    await screen.findByText('Item 01')
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    await screen.findByText('Item 21')
+    holding = true
+    await user.click(screen.getByRole('button', { name: 'Previous page' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled()
+    )
+    gate.resolve()
+    expect(await screen.findByText('Item 01')).toBeInTheDocument()
   })
 
   it('does not say the next view matches nothing while its page is still loading', async () => {
@@ -201,7 +312,10 @@ describe('DataTable sorting', () => {
 
     await user.click(screen.getByRole('button', { name: 'Created' }))
     await waitFor(() => expect(router.state.location.search).toEqual({ sort: 'created' }))
-    expect(screen.getByText('Sorted by Created, oldest first')).toBeInTheDocument()
+    expect(screen.getByText('Sorted by Created, oldest first')).toHaveAttribute(
+      'aria-live',
+      'polite'
+    )
     expect(await screen.findByRole('columnheader', { name: 'Created' })).toHaveAttribute(
       'aria-sort',
       'ascending'
@@ -224,11 +338,24 @@ describe('DataTable sorting', () => {
     ])
   })
 
+  it('does nothing when the current sort is chosen again', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    serveTestItems(twoPages)
+    const user = userEvent.setup()
+    const router = renderTestList()
+    await user.click(await screen.findByRole('button', { name: 'Name' }))
+    expect(router.state.location.search).toEqual({})
+    expect(track.mock.calls.filter(([event]) => event === 'table_sorted')).toEqual([])
+    expect(screen.queryByText(/^Sorted /)).not.toBeInTheDocument()
+  })
+
   it('hides the header arrows from assistive tech', async () => {
     serveTestItems(twoPages)
     renderTestList()
     const button = await screen.findByRole('button', { name: 'Created' })
-    for (const icon of button.querySelectorAll('svg')) {
+    const icons = button.querySelectorAll('svg')
+    expect(icons.length).toBeGreaterThan(0)
+    for (const icon of icons) {
       expect(icon).toHaveAttribute('aria-hidden', 'true')
     }
   })
@@ -337,7 +464,7 @@ describe('DataTable focus landmarks', () => {
 
 describe('DataTable cards', () => {
   it('stacks one card per row below 768 px, with no table mounted', async () => {
-    window.innerWidth = 390
+    atPhoneWidth()
     serveTestItems(twoPages)
     renderTestList()
     const cards = await screen.findByRole('list', { name: 'Items' })
@@ -364,5 +491,81 @@ describe('DataTable cards', () => {
     })
     expect(await screen.findByText('Custom Item 01')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Open Item 01' })).not.toBeInTheDocument()
+  })
+
+  it('registers each built card by id, focusable from code only, when given rowTarget', async () => {
+    serveTestItems(twoPages)
+    const registered: string[] = []
+    renderTestList('/items', {
+      layout: 'cards',
+      rowTarget: (id) => (element) => {
+        if (element) registered.push(id)
+      },
+    })
+    const first = (await screen.findAllByRole('listitem'))[0]!
+    expect(first).toHaveAttribute('tabindex', '-1')
+    expect(registered).toContain(testItem(1).id)
+  })
+
+  it('renders a list’s own card below 768 px too', async () => {
+    atPhoneWidth()
+    serveTestItems(twoPages)
+    renderTestList('/items', { card: (row) => <div role="listitem">Custom {row.name}</div> })
+    expect(await screen.findByText('Custom Item 01')).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('hands a custom card its row’s landmark ref', async () => {
+    serveTestItems(twoPages)
+    const registered: string[] = []
+    renderTestList('/items', {
+      layout: 'cards',
+      rowTarget: (id) => (element) => {
+        if (element) registered.push(id)
+      },
+      card: (row, { target }) => (
+        <div role="listitem" ref={target} tabIndex={-1}>
+          Custom {row.name}
+        </div>
+      ),
+    })
+    expect(await screen.findByText('Custom Item 01')).toHaveAttribute('tabindex', '-1')
+    expect(registered).toContain(testItem(1).id)
+  })
+})
+
+describe('DataTable sort menu', () => {
+  it('is offered in cards and not in the table', async () => {
+    serveTestItems(twoPages)
+    renderTestList()
+    await screen.findByRole('table', { name: 'Items' })
+    expect(screen.queryByRole('button', { name: 'Sort by' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['below 768 px', () => atPhoneWidth(), {}],
+    ['with layout="cards"', () => {}, { layout: 'cards' as const }],
+  ])('sorts from the menu %s, writing ?sort= and announcing it', async (_name, setup, props) => {
+    setup()
+    const track = vi.spyOn(analytics, 'track')
+    serveTestItems(twoPages)
+    const user = userEvent.setup()
+    const router = renderTestList('/items', props)
+    await screen.findByRole('list', { name: 'Items' })
+    await user.click(screen.getByRole('button', { name: 'Sort by' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Created, newest first' }))
+    await waitFor(() => expect(router.state.location.search).toEqual({ sort: '-created' }))
+    expect(screen.getByText('Sorted by Created, newest first')).toHaveAttribute(
+      'aria-live',
+      'polite'
+    )
+    expect(track.mock.calls.filter(([event]) => event === 'table_sorted')).toEqual([
+      ['table_sorted', { table: 'test_items', sort: 'created', direction: 'desc' }],
+    ])
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'Sort by' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Created, newest first' }))
+    expect(track.mock.calls.filter(([event]) => event === 'table_sorted')).toHaveLength(1)
   })
 })

@@ -68,6 +68,34 @@ export type DataTableColumns<T extends RowData> = Array<ColumnDef<DataTableFeatu
 export type DataTableColumn<T extends RowData> = Column<DataTableFeatures, T, unknown>
 
 /**
+ * A column definition's id as TanStack builds it: its `id`, else its
+ * `accessorKey` with dots as underscores, else a string `header`.
+ * @param column - The definition.
+ * @returns The id, or undefined for a definition TanStack would reject.
+ */
+export function columnDefId<T extends RowData>(
+  column: DataTableColumns<T>[number]
+): string | undefined {
+  if (column.id !== undefined) return column.id
+  if ('accessorKey' in column) return String(column.accessorKey).replaceAll('.', '_')
+  return typeof column.header === 'string' ? column.header : undefined
+}
+
+/**
+ * How a sort key reads aloud: "Created, newest first".
+ * @param label - The owning column's display name.
+ * @param key - The sort key; a leading `-` is descending.
+ * @param words - The column's `sortWords`; `text` by default.
+ */
+export function sortPhrase(
+  label: string,
+  key: string,
+  words: keyof typeof SORT_WORDS = 'text'
+): string {
+  return `${label}, ${key.startsWith('-') ? SORT_WORDS[words].desc : SORT_WORDS[words].asc}`
+}
+
+/**
  * A column's display name: its string header, else `meta.label`, else its id.
  * @param column - The column.
  */

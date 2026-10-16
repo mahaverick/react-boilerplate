@@ -6,11 +6,18 @@ import {
 } from '@/components/shared/data-table/data-table-model'
 import { Item, ItemContent, ItemFooter, ItemGroup } from '@/components/ui/item'
 
+/** What a list's own card is given besides its row. */
+export interface DataTableCardHelpers {
+  /** The row's focus-landmark ref (`rowTarget(row.id)`), to put on the card element with `tabIndex={-1}`; undefined without `rowTarget`. */
+  target: RefCallback<HTMLElement> | undefined
+}
+
 /**
  * The phone layout: one card per row, built from the visible columns. The
  * first column is the card's title, each other column a label and value, and
  * the action columns sit at the bottom. A list's own `card` replaces the
- * whole card and must render one `role="listitem"` element.
+ * whole card and must render one `role="listitem"` element; it receives
+ * `{ target }` to register that element as the row's focus landmark.
  */
 export function DataTableCards<T extends RowData>({
   table,
@@ -20,14 +27,17 @@ export function DataTableCards<T extends RowData>({
 }: {
   table: ReactTable<DataTableFeatures, T>
   label: string
-  card?: (row: T) => ReactNode
+  card?: (row: T, helpers: DataTableCardHelpers) => ReactNode
   /** Registers each built card as a focus landmark, as `DataTable` does each row. */
   rowTarget?: (id: string) => RefCallback<HTMLElement>
 }) {
   return (
     <ItemGroup aria-label={label} className="gap-3">
       {table.getRowModel().rows.map((row) => {
-        if (card) return <Fragment key={row.id}>{card(row.original)}</Fragment>
+        if (card)
+          return (
+            <Fragment key={row.id}>{card(row.original, { target: rowTarget?.(row.id) })}</Fragment>
+          )
         const [title, ...rest] = row.getVisibleCells()
         const actions = rest.filter((cell) => cell.column.columnDef.meta?.actions)
         const fields = rest.filter((cell) => !cell.column.columnDef.meta?.actions)

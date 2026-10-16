@@ -17,6 +17,7 @@ import {
 import { createColumnHelper } from '@tanstack/react-table'
 import { render } from '@testing-library/react'
 import { http } from 'msw'
+import { afterEach } from 'vitest'
 import { DataTable, type DataTableProps } from '@/components/shared/data-table/data-table'
 import type { DataTableFeatures } from '@/components/shared/data-table/data-table-model'
 import { useListQuery } from '@/components/shared/data-table/use-list-query'
@@ -27,6 +28,18 @@ import { booleanFilter, defineList, listFilter } from '@/schemas/list.schemas'
 import { fail, ok } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { ListPage, ListRequest } from '@/types/list.types'
+
+afterEach(() => {
+  window.innerWidth = DESKTOP_WIDTH
+})
+
+/** The viewport width every test starts at, above the 768 px breakpoint. */
+const DESKTOP_WIDTH = 1024
+
+/** Narrows the viewport to a phone (below 768 px) until the test ends; the harness restores it. */
+export function atPhoneWidth(): void {
+  window.innerWidth = 390
+}
 
 /** One row of the test list. */
 export interface TestItem {

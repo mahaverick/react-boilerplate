@@ -44,6 +44,14 @@ function recordPageIndex(key: string, index: number): void {
   }
 }
 
+/**
+ * Forgets every recorded page position. For tests only: the map is module
+ * state, so a position one test recorded would otherwise reach the next.
+ */
+export function resetListPositions(): void {
+  pageIndexes.clear()
+}
+
 /** `pageIndexes`' key for a cursor and its direction. */
 function pageKey(cursor: string, direction: ListDirection): string {
   return `${direction}:${cursor}`

@@ -6,17 +6,22 @@
  */
 import { IconChevronLeft } from '@tabler/icons-react'
 import { useTable, type RowData, type SortingState } from '@tanstack/react-table'
-import { useState, type ReactNode, type RefCallback } from 'react'
-import { DataTableCards } from '@/components/shared/data-table/data-table-cards'
+import { useMemo, useState, type ReactNode, type RefCallback } from 'react'
+import {
+  DataTableCards,
+  type DataTableCardHelpers,
+} from '@/components/shared/data-table/data-table-cards'
 import { DataTableColumnHeader } from '@/components/shared/data-table/data-table-column-header'
 import {
+  columnDefId,
   columnLabel,
   dataTableFeatures,
   nextSort,
-  SORT_WORDS,
+  sortPhrase,
   type DataTableColumns,
 } from '@/components/shared/data-table/data-table-model'
 import { DataTablePagination } from '@/components/shared/data-table/data-table-pagination'
+import { DataTableSortMenu } from '@/components/shared/data-table/data-table-sort-menu'
 import type { ListQueryState } from '@/components/shared/data-table/use-list-query'
 import { EmptyState } from '@/components/shared/empty-state'
 import { QueryState } from '@/components/shared/query-state'
@@ -32,20 +37,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useIsMobile } from '@/hooks/use-mobile'
+import type { AnalyticsKey } from '@/observability/telemetry'
 import type { ListPage } from '@/types/list.types'
 
 /** The most skeleton rows a loading list shows, whatever its page size. */
 const SKELETON_ROWS = 20
-
-/**
- * A column definition's id as the table builds it: its `id`, else its
- * `accessorKey`.
- * @param column - The definition.
- */
-function columnId<T extends RowData>(column: DataTableColumns<T>[number]): string | undefined {
-  if (column.id !== undefined) return column.id
-  return 'accessorKey' in column ? String(column.accessorKey) : undefined
-}
 
 /** What `DataTable` takes. */
 export interface DataTableProps<T extends RowData> {
@@ -65,8 +61,8 @@ export interface DataTableProps<T extends RowData> {
    * plain `div`, for a parent that is already the list's named region.
    */
   landmark?: boolean
-  /** A phone card for one row, in place of the one built from the columns. */
-  card?: (row: T) => ReactNode
+  /** A phone card for one row, in place of the one built from the columns; `helpers.target` registers it as the row's focus landmark when `rowTarget` is given. */
+  card?: (row: T, helpers: DataTableCardHelpers) => ReactNode
   /** `cards` stacks cards at every width. */
   layout?: 'table' | 'cards'
   /** The list's own toolbar controls: a date range, the primary action. */
@@ -106,59 +102,93 @@ export function DataTable<T extends RowData>({
   const [announcement, setAnnouncement] = useState('')
   const defaultSort = list.definition.sorts[0]
   const sortColumn = columns.find((column) => column.meta?.sorts?.includes(list.values.sort))
-  const sortId = sortColumn === undefined ? undefined : columnId(sortColumn)
-  const sorting: SortingState =
-    sortId === undefined ? [] : [{ id: sortId, desc: list.values.sort.startsWith('-') }]
+  const sortId = sortColumn === undefined ? undefined : columnDefId(sortColumn)
+  const sorting = useMemo<SortingState>(
+    () => (sortId === undefined ? [] : [{ id: sortId, desc: list.values.sort.startsWith('-') }]),
+    [sortId, list.values.sort]
+  )
 
   // The first column, and any column that opts out, stays visible whatever `?hidden=` says.
   const hideable = new Set(
     columns
       .slice(1)
       .filter((column) => column.enableHiding !== false)
-      .map((column) => columnId(column))
+      .map((column) => columnDefId(column))
+      .filter((id) => id !== undefined)
   )
-  const hidden = list.values.hidden.filter((id) => hideable.has(id))
-  const columnVisibility = Object.fromEntries(hidden.map((id) => [id, false]))
+  const hiddenKey = list.values.hidden.filter((id) => hideable.has(id)).join(',')
+  const columnVisibility = useMemo(
+    () => Object.fromEntries(hiddenKey === '' ? [] : hiddenKey.split(',').map((id) => [id, false])),
+    [hiddenKey]
+  )
+  // The first column is the row's name: it is never hideable.
+  const tableColumns = useMemo(
+    () =>
+      columns.map((column, index) => (index === 0 ? { ...column, enableHiding: false } : column)),
+    [columns]
+  )
+  const pagination = useMemo(
+    () => ({ pageIndex: list.pageIndex ?? 0, pageSize: list.values.limit }),
+    [list.pageIndex, list.values.limit]
+  )
 
   const table = useTable({
     features: dataTableFeatures,
-    // The first column is the row's name: it is never hideable.
-    columns: columns.map((column, index) =>
-      index === 0 ? { ...column, enableHiding: false } : column
-    ),
+    columns: tableColumns,
     data: query.items,
     getRowId,
     manualSorting: true,
     manualPagination: true,
     pageCount: -1,
-    state: {
-      sorting,
-      columnVisibility,
-      pagination: { pageIndex: list.pageIndex ?? 0, pageSize: list.values.limit },
-    },
+    state: { sorting, columnVisibility, pagination },
     onColumnVisibilityChange: (updater) => {
       const next = typeof updater === 'function' ? updater(columnVisibility) : updater
       list.setHidden(Object.keys(next).filter((id) => next[id] === false))
     },
   })
 
-  /** Sorts by the column's next key and says so in the live region. */
-  const sortBy = (columnId: string) => {
-    const column = table.getColumn(columnId)
-    const meta = column?.columnDef.meta
-    if (!column || !meta?.sorts || !meta.sortName) return
-    const key = nextSort(meta.sorts, list.values.sort, defaultSort)
-    list.setSort(key, meta.sortName)
-    const owner = table
-      .getAllLeafColumns()
-      .find((candidate) => candidate.columnDef.meta?.sorts?.includes(key))
-    const words = SORT_WORDS[owner?.columnDef.meta?.sortWords ?? 'text']
+  const sortable = table.getAllLeafColumns().filter((column) => column.columnDef.meta?.sorts)
+  /** The column whose header steps through `key`. */
+  const ownerOf = (key: string) =>
+    sortable.find((candidate) => candidate.columnDef.meta?.sorts?.includes(key))
+
+  /**
+   * Sorts by `key` and says so in the live region; the current sort is a no-op.
+   * `clickedName` is the column the user acted on, named in `table_sorted`
+   * (a header click that returns to the default order is still that column's); the
+   * key's own column, then, is named when nothing was clicked.
+   */
+  const sortTo = (key: string, clickedName?: AnalyticsKey) => {
+    if (key === list.values.sort) return
+    const owner = ownerOf(key)
+    const name = clickedName ?? owner?.columnDef.meta?.sortName
+    if (name === undefined) return
+    list.setSort(key, name)
     setAnnouncement(
       owner
-        ? `Sorted by ${columnLabel(owner)}, ${key.startsWith('-') ? words.desc : words.asc}`
+        ? `Sorted by ${sortPhrase(columnLabel(owner), key, owner.columnDef.meta?.sortWords)}`
         : 'Sorted in the default order'
     )
   }
+
+  /** A header click: the column's next key. */
+  const sortBy = (columnId: string) => {
+    const meta = table.getColumn(columnId)?.columnDef.meta
+    if (!meta?.sorts || !meta.sortName) return
+    sortTo(nextSort(meta.sorts, list.values.sort, defaultSort), meta.sortName)
+  }
+
+  /** The phone sort menu's choices: every sortable column's keys, plus the default order when no column owns it. */
+  const sortOptions = sortable.flatMap((column) =>
+    (column.columnDef.meta?.sorts ?? []).map((key) => ({
+      key,
+      label: sortPhrase(columnLabel(column), key, column.columnDef.meta?.sortWords),
+    }))
+  )
+  if (sortable.length > 0 && ownerOf(defaultSort) === undefined) {
+    sortOptions.unshift({ key: defaultSort, label: 'Default order' })
+  }
+  const firstSortName = sortable[0]?.columnDef.meta?.sortName
 
   const visibleColumns = table.getVisibleLeafColumns().length
   // The section template has no live region of its own; the list's loading state is this one.
@@ -199,7 +229,18 @@ export function DataTable<T extends RowData>({
   const rows = (data: ListPage<T>) => {
     if (data.items.length === 0) return skeleton
     if (layout === 'cards' || isMobile) {
-      return <DataTableCards table={table} label={label} card={card} rowTarget={rowTarget} />
+      return (
+        <>
+          {sortOptions.length > 0 && (
+            <DataTableSortMenu
+              options={sortOptions}
+              value={list.values.sort}
+              onSort={(key) => sortTo(key, ownerOf(key) ? undefined : firstSortName)}
+            />
+          )}
+          <DataTableCards table={table} label={label} card={card} rowTarget={rowTarget} />
+        </>
+      )
     }
     return (
       <Table aria-label={label}>
@@ -272,13 +313,15 @@ export function DataTable<T extends RowData>({
             <DataTablePagination
               label={label}
               page={data.page}
-              // 4a answers a cursor whose page came back empty with the edge page: a page with nothing before it is the first; a `prev` page with nothing after it is the last, whose position this tab cannot know.
+              // No position while the old rows are up; the edge-page answers read as 0 (first) or unknown (last, reached backwards).
               pageIndex={
-                !data.page.hasPrev
-                  ? 0
-                  : list.values.direction === 'prev' && !data.page.hasNext
-                    ? undefined
-                    : list.pageIndex
+                query.query.isPlaceholderData
+                  ? undefined
+                  : !data.page.hasPrev
+                    ? 0
+                    : list.values.direction === 'prev' && !data.page.hasNext
+                      ? undefined
+                      : list.pageIndex
               }
               limit={list.values.limit}
               rowCount={data.items.length}
