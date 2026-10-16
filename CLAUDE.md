@@ -237,7 +237,7 @@ is in [Error-tracking privacy](SECURITY.md#error-tracking-privacy).
 Each has an in-repo replacement:
 
 - TanStack Form with a Zod validator, which needs no adapter package;
-- `theme.store` with `public/theme-init.js`;
+- `theme.store` with the pre-paint files `public/theme-init.js` and `public/boot-variant.js`;
 - the `cn` package;
 - Base UI through shadcn, its toast included (`src/lib/toast.ts`).
 

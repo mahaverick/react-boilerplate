@@ -149,8 +149,8 @@ The policy is enforced, not report-only:
     base-uri 'none'; frame-ancestors 'none'; form-action 'self'
 
 - **`script-src 'self'` holds because no script is inline.** The pre-paint
-  theme script is the file `public/theme-init.js`, loaded by a blocking
-  `<script src>`, and `/runtime-config.js` is same-origin. Never add an
+  scripts are the files `public/theme-init.js` and `public/boot-variant.js`,
+  each loaded by a blocking `<script src>`, and `/runtime-config.js` is same-origin. Never add an
   inline script, `'unsafe-inline'` or `'unsafe-eval'` for scripts.
   `src/lib/zod-jitless.ts` turns off Zod's JIT, whose `new Function` probe
   this policy reports as a violation; it is the first import of
