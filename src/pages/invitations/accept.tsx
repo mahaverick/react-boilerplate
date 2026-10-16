@@ -6,6 +6,7 @@ import { LoadError } from '@/components/features/load-error'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
 import { BusyButton } from '@/components/shared/busy-button'
+import { AuthPending } from '@/components/shared/pending-templates'
 import { Pii } from '@/components/shared/pii'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { buttonVariants } from '@/components/ui/button'
@@ -37,6 +38,7 @@ export const Route = createFileRoute('/invitations/accept')({
   validateSearch: z.object({ token: z.string().optional().catch(undefined) }),
   head: () => ({ meta: [{ title: pageTitle('Accept invitation') }] }),
   component: AcceptInvitationPage,
+  pendingComponent: AuthPending,
 })
 
 /** The server's own 404 copy, reused when the link is malformed locally. */

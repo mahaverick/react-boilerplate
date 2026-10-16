@@ -39,6 +39,18 @@ describe('PageSkeleton', () => {
     expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(3)
   })
 
+  it('draws the auth card', () => {
+    const { container } = render(<PageSkeleton variant="auth" />)
+    const region = screen.getByRole('status', { name: 'Loading' })
+    expect(region).toHaveAttribute('data-variant', 'auth')
+    expect(container.querySelector('[data-slot="page-heading-skeleton"]')).toBeNull()
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(1)
+    // Two fields (label over input) and one full-width button bar.
+    expect(container.querySelectorAll('[data-slot="card"] .grid.gap-2')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-slot="card"] .h-9')).toHaveLength(3)
+    expect(container.querySelector('[data-slot="spinner"]')).toBeNull()
+  })
+
   it('leaves the heading and tab bar to the layout when nested', () => {
     const { container } = render(<PageSkeleton variant="detail" nested />)
     expect(container.querySelector('[data-slot="page-heading-skeleton"]')).toBeNull()

@@ -6,6 +6,7 @@ import { SocialSignIn } from '@/components/features/auth/social-sign-in'
 import { TermsNote } from '@/components/features/auth/terms-note'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { BusyButton } from '@/components/shared/busy-button'
+import { AuthPending } from '@/components/shared/pending-templates'
 import { Pii } from '@/components/shared/pii'
 import { FieldDescription, FieldGroup } from '@/components/ui/field'
 import {
@@ -36,6 +37,7 @@ export const Route = createFileRoute('/_auth/register')({
   validateSearch: z.object({ email: z.string().optional().catch(undefined) }),
   head: () => ({ meta: [{ title: pageTitle('Create an account') }] }),
   component: RegisterPage,
+  pendingComponent: AuthPending,
 })
 
 /**

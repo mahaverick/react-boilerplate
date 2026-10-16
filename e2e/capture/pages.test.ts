@@ -3,7 +3,7 @@
  * accounts, signs each in three times (default, dark, mobile contexts), then
  * shoots every page route in the manifest and writes
  * capture-records/report.json. `CAPTURE_ONLY=auth,tenants` limits the run
- * to those areas, and a route key such as `/tenants/$tenantId/timeline` in the
+ * to those areas, and a route key such as `/tenants/$tenantId/members` in the
  * same list limits it to that route, for an area too large for one rate-limit
  * window. Needs the dev stack already up; starts nothing.
  */

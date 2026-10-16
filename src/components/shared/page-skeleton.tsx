@@ -1,6 +1,6 @@
 /**
  * @file The route templates: what a route shows while it is pending (the
- * router waits `defaultPendingMs` before showing one). Four page shapes, each
+ * router waits `defaultPendingMs` before showing one). Five page shapes, each
  * at the sizes the boot shell in index.html draws, so a template replaces the
  * shell without a jump, and the named pending components the routes use.
  */
@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
 /** The page shapes a route can be pending as. */
-export type PageVariant = 'list' | 'detail' | 'dashboard' | 'settings'
+export type PageVariant = 'list' | 'detail' | 'dashboard' | 'settings' | 'auth'
 
 /** A page shape, and whether a layout above already draws its heading and tabs. */
 interface PageSkeletonProps {
@@ -50,8 +50,9 @@ function CardSkeleton({ children }: { children: ReactNode }) {
  * A page-shaped skeleton: `list` (heading, a search and two filter controls,
  * eight table rows), `detail` (heading, subtitle, tab bar, two cards),
  * `dashboard` (heading, four KPI cards, two chart blocks) or `settings`
- * (heading, subtitle, three cards of form rows). One `role="status"` region
- * named "Loading", and no spinner.
+ * (heading, subtitle, three cards of form rows) or `auth` (no heading; the
+ * sign-in card: title, subtitle, two fields, a button). One `role="status"`
+ * region named "Loading", and no spinner.
  */
 export function PageSkeleton({ variant, nested = false }: PageSkeletonProps) {
   return (
@@ -62,7 +63,9 @@ export function PageSkeleton({ variant, nested = false }: PageSkeletonProps) {
       data-nested={nested}
       className="grid gap-4"
     >
-      {!nested && <Heading subtitle={variant === 'detail' || variant === 'settings'} />}
+      {!nested && variant !== 'auth' && (
+        <Heading subtitle={variant === 'detail' || variant === 'settings'} />
+      )}
       {variant === 'list' && (
         <>
           <div data-slot="page-toolbar-skeleton" className="flex flex-wrap gap-2">
@@ -109,6 +112,16 @@ export function PageSkeleton({ variant, nested = false }: PageSkeletonProps) {
             <FormFieldsSkeleton fields={2} />
           </CardSkeleton>
         ))}
+      {variant === 'auth' && (
+        <Card className="mx-auto w-full max-w-sm">
+          <CardContent className="grid gap-4">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-4 w-56" />
+            <FormFieldsSkeleton fields={2} action={false} />
+            <Skeleton className="h-9 w-full" />
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
@@ -141,4 +154,9 @@ export function SettingsPending() {
 /** A settings page's pending template, under the settings layout's own heading. */
 export function SettingsPagePending() {
   return <PageSkeleton variant="settings" nested />
+}
+
+/** An auth page's pending template: the sign-in card's shape. */
+export function AuthPending() {
+  return <PageSkeleton variant="auth" />
 }
