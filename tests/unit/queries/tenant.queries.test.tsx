@@ -114,6 +114,8 @@ describe('tenant invitation queries', () => {
     expect(result.current.data).toEqual([MEMBER_ROW])
     expect(seen?.get('limit')).toBe('100')
     expect(seen?.has('sort')).toBe(false)
+    // The pickers never show a total, so the read does not ask the API to count.
+    expect(seen?.has('total')).toBe(false)
   })
 
   it('reads the owners under their own key, a hundred at a time', async () => {

@@ -322,12 +322,18 @@ export const membersList = defineList({
  * One page of a tenant's members.
  * @param slug - The tenant.
  * @param request - From `listRequest(membersList, …)`.
+ * @param options - `total: false` for a read that never shows the total (the pickers).
  */
-export function membersListOptions(slug: string, request: ListRequest) {
+export function membersListOptions(
+  slug: string,
+  request: ListRequest,
+  options: { total?: boolean } = {}
+) {
   return listQueryOptions<TenantMember>({
     key: tenantKeys.members(slug),
     path: `/tenants/${slug}/members`,
     request,
+    ...options,
   })
 }
 
@@ -390,7 +396,7 @@ export function invitationsListOptions(slug: string, request: ListRequest) {
 /** A tenant's first hundred members by name, for pickers such as the activity actor filter. */
 export function useMembers(slug: string) {
   return useQuery({
-    ...membersListOptions(slug, { limit: 100 }),
+    ...membersListOptions(slug, { limit: 100 }, { total: false }),
     select: (page: ListPage<TenantMember>) => page.items,
   })
 }
