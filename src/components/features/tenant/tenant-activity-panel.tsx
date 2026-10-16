@@ -46,10 +46,13 @@ function TenantActivity({ slug }: { slug: string }) {
   }, [forbidden, slug, queryClient])
 
   /**
-   * The member an actor id names, for its chip.
+   * The member an actor id names, for its chip: "Loading…" until the member
+   * list settles, then the name, else "A member" (outside the first hundred,
+   * or the list failed).
    * @param id - The actor's user id.
    */
   const nameOf = (id: string) => {
+    if (members.isPending) return 'Loading…'
     const member = members.data?.find((entry) => entry.user.id === id)
     return member ? memberName(member) : 'A member'
   }

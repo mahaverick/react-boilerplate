@@ -6,7 +6,7 @@
  */
 import { createColumnHelper } from '@tanstack/react-table'
 import type { ReactNode } from 'react'
-import { AUDIT_TARGET_LABELS } from '@/components/features/activity/activity-filters'
+import { auditTargetLabel } from '@/components/features/activity/activity-filters'
 import { DataTable } from '@/components/shared/data-table/data-table'
 import type {
   DataTableFeatures,
@@ -80,7 +80,7 @@ const columns = column.columns([
     cell: ({ getValue }) => {
       const target = getValue()
       return target ? (
-        AUDIT_TARGET_LABELS[target.type]
+        auditTargetLabel(target.type)
       ) : (
         <span className="text-muted-foreground">—</span>
       )
@@ -116,7 +116,7 @@ export function ActivityTable({
       errorMessage={ACTIVITY_ERROR}
       getRowId={(entry) => entry.id}
       empty={empty}
-      search={{ label: 'Search activity', placeholder: 'Search by action or person' }}
+      search={{ label: 'Search activity', placeholder: 'Search by email or action' }}
       filters={filters}
     />
   )

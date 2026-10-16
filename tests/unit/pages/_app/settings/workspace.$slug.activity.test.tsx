@@ -5,7 +5,7 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -348,6 +348,102 @@ describe('tenant activity page', () => {
     renderAppAt('/settings/workspace/acme/activity')
     expect(await screen.findByText('performed tenant errors viewed')).toBeInTheDocument()
     expect(screen.getByText(/created the tenant/)).toBeInTheDocument()
+  })
+
+  it('labels the platform-level target types, and words an unknown one rather than leaving it blank', async () => {
+    mockTenant('owner')
+    mockLog(() =>
+      page([
+        entry({
+          id: AUDIT_ID_4,
+          action: 'email.resent',
+          metadata: {},
+          target: { type: 'email_suppression', id: TENANT_ID },
+        }),
+        entry({
+          id: AUDIT_ID_3,
+          action: 'platform.maintenance_mode_changed',
+          metadata: {},
+          target: { type: 'platform', id: TENANT_ID },
+        }),
+        entry({
+          id: AUDIT_ID_2,
+          action: 'billing.plan_changed',
+          metadata: {},
+          target: { type: 'billing_plan', id: TENANT_ID },
+        }),
+      ])
+    )
+    renderAppAt('/settings/workspace/acme/activity')
+    await screen.findByText('performed email resent')
+    expect(rowFor(/performed email resent/).getByText('Email suppression')).toBeInTheDocument()
+    expect(
+      rowFor(/performed platform maintenance mode changed/).getByText('Platform')
+    ).toBeInTheDocument()
+    expect(rowFor(/performed billing plan changed/).getByText('Billing plan')).toBeInTheDocument()
+  })
+
+  it('promises only what the API searches in the search box', async () => {
+    mockTenant('owner')
+    mockLog(() => page([CREATED]))
+    renderAppAt('/settings/workspace/acme/activity')
+    expect(await screen.findByPlaceholderText('Search by email or action')).toBeInTheDocument()
+  })
+
+  it('drops a retired action from the URL: no chip, no action sent', async () => {
+    mockTenant('owner')
+    const seen = mockLog(() => page([CREATED]))
+    renderAppAt('/settings/workspace/acme/activity?action=tenant.errors_viewed')
+    await screen.findByText(/created the tenant/)
+    expect(seen.every((url) => !url.searchParams.has('action'))).toBe(true)
+    expect(screen.queryByRole('button', { name: /Remove filter: Action/ })).not.toBeInTheDocument()
+  })
+
+  it('refetches the log when the page is opened again, since it is never fresh', async () => {
+    mockTenant('owner')
+    const seen = mockLog(() => page([CREATED]))
+    const router = renderAppAt('/settings/workspace/acme/activity')
+    await screen.findByText(/created the tenant/)
+    const before = seen.length
+
+    await act(() => router.navigate({ to: '/tenants/$slug', params: { slug: 'acme' } }))
+    await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })
+    await act(() =>
+      router.navigate({ to: '/settings/workspace/$slug/activity', params: { slug: 'acme' } })
+    )
+    await screen.findByText(/created the tenant/)
+    await waitFor(() => {
+      expect(seen.length).toBeGreaterThan(before)
+    })
+  })
+
+  it('shows "Loading…" on a deep-linked actor chip until the member list lands', async () => {
+    mockTenant('owner')
+    server.use(
+      http.get('/api/v1/tenants/acme/members', async () => {
+        await delay(150)
+        return ok(listPage(MEMBERS), 'Members retrieved.')
+      })
+    )
+    mockLog(() => page([CREATED]))
+    renderAppAt(`/settings/workspace/acme/activity?actor=${USER_ID}`)
+    expect(
+      await screen.findByRole('button', { name: 'Remove filter: Actor: Loading…' })
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Remove filter: Actor: A B' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Actor: A member/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps "A member" on the chip when the member list failed', async () => {
+    mockTenant('owner')
+    server.use(http.get('/api/v1/tenants/acme/members', () => fail('Something went wrong', 500)))
+    mockLog(() => page([CREATED]))
+    renderAppAt(`/settings/workspace/acme/activity?actor=${USER_ID}`)
+    expect(
+      await screen.findByRole('button', { name: 'Remove filter: Actor: A member' })
+    ).toBeInTheDocument()
   })
 
   it('filters by who acted through ?actor=, one member at a time', async () => {

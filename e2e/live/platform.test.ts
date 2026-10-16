@@ -115,7 +115,8 @@ test('a staff admin changes a setting, and the owner sees it in Activity marked 
     await expect(row).toContainText('timezone')
     await expect(row.getByText('Staff', { exact: true })).toBeVisible()
 
-    const created = ownerPage.getByRole('listitem').filter({ hasText: 'created the tenant' })
+    const created = ownerPage.getByRole('row').filter({ hasText: 'created the tenant' })
+    await expect(created).toHaveCount(1)
     await expect(created.getByText('Staff', { exact: true })).toHaveCount(0)
   } finally {
     await ownerContext.close()

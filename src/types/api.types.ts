@@ -1,3 +1,4 @@
+import type { AuditAction } from '@/constants/audit-action-names'
 import type { MembershipRole } from '@/constants/roles'
 
 /** The envelope of a successful API response; `data` carries the payload. */
@@ -157,9 +158,24 @@ interface AuditActor {
   email: string
 }
 
+/** The kinds of record an audit entry points at that this app has a word for. */
+export type KnownAuditTargetType =
+  | 'tenant'
+  | 'membership'
+  | 'invitation'
+  | 'settings'
+  | 'user'
+  | 'email_message'
+  | 'email_suppression'
+  | 'platform'
+
+/** A target kind: a known one (autocompleted) or any other the API sends. */
+export type AuditTargetType = KnownAuditTargetType | (string & {})
+
 /** What an audit entry's action was done to. */
 interface AuditTarget {
-  type: 'tenant' | 'membership' | 'invitation' | 'settings' | 'user'
+  /** A kind of record the API names; the platform tenant's log adds email and platform kinds, and a newer API may add more. */
+  type: AuditTargetType
   id: string
 }
 
@@ -169,7 +185,7 @@ export interface AuditEntry {
   /** ISO 8601, millisecond precision. */
   occurredAt: string
   /** A stored action name: one of `AUDIT_ACTIONS`, or a retired or newer one the app has no wording for. */
-  action: string
+  action: AuditAction | (string & {})
   access: AuditAccess
   actor: AuditActor | null
   target: AuditTarget | null
