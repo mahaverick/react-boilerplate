@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.0](https://github.com/mahaverick/react-boilerplate/compare/v3.2.0...v3.3.0) (2026-10-16)
+
+
+### Features
+
+* **lists:** one shared DataTable for every list, on the 5.0.0 list API ([#114](https://github.com/mahaverick/react-boilerplate/issues/114)) ([4bedaad](https://github.com/mahaverick/react-boilerplate/commit/4bedaad943246530a52edb201e79d17156ca77d7))
+
 ## [3.2.0](https://github.com/mahaverick/react-boilerplate/compare/v3.1.0...v3.2.0) (2026-10-16)
 
 
