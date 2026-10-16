@@ -194,8 +194,8 @@ describe('DataTable search', () => {
     await screen.findByText('Item 01')
 
     await user.type(box, 'c')
-    await user.click(screen.getByRole('button', { name: 'Filter by status' }))
-    const popup = await screen.findByRole('dialog', { name: 'Filter by status' })
+    await user.click(screen.getByRole('button', { name: 'Filter by status, Items' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by status, Items' })
     await user.click(within(popup).getByRole('checkbox', { name: 'Active' }))
 
     await waitFor(() =>
@@ -250,15 +250,17 @@ describe('DataTable facets', () => {
     const router = renderTestList('/items?cursor=c2')
     await screen.findByText('Item 21')
 
-    await user.click(screen.getByRole('button', { name: 'Filter by status' }))
-    const popup = await screen.findByRole('dialog', { name: 'Filter by status' })
+    await user.click(screen.getByRole('button', { name: 'Filter by status, Items' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by status, Items' })
     await user.click(within(popup).getByRole('checkbox', { name: 'Active' }))
     await waitFor(() => expect(router.state.location.search).toEqual({ status: 'active' }))
     await user.click(within(popup).getByRole('checkbox', { name: 'Inactive' }))
     await waitFor(() => expect(router.state.location.search).toEqual({ status: 'active,inactive' }))
     await waitFor(() => expect(seen.at(-1)?.get('status')).toBe('active,inactive'))
     expect(seen.at(-1)?.get('cursor')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Filter by status, 2 selected' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Filter by status, Items, 2 selected' })
+    ).toBeInTheDocument()
     expect(count()).toBe(2)
   })
 
@@ -283,8 +285,8 @@ describe('DataTable facets', () => {
     const user = userEvent.setup()
     const router = renderTestList()
     await screen.findByText('Item 01')
-    await user.click(screen.getByRole('button', { name: 'Filter by verified' }))
-    const popup = await screen.findByRole('dialog', { name: 'Filter by verified' })
+    await user.click(screen.getByRole('button', { name: 'Filter by verified, Items' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by verified, Items' })
     await user.click(within(popup).getByRole('checkbox', { name: 'Unverified' }))
     await waitFor(() => expect(router.state.location.search).toEqual({ verified: false }))
     await user.click(within(popup).getByRole('checkbox', { name: 'Verified' }))
@@ -297,8 +299,8 @@ describe('DataTable facets', () => {
     const user = userEvent.setup()
     const router = renderTestList('/items?status=active&sort=-created')
     await screen.findByText('Item 01')
-    await user.click(screen.getByRole('button', { name: 'Filter by status, 1 selected' }))
-    const popup = await screen.findByRole('dialog', { name: 'Filter by status' })
+    await user.click(screen.getByRole('button', { name: 'Filter by status, Items, 1 selected' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by status, Items' })
     await user.click(within(popup).getByRole('button', { name: 'Clear filter' }))
     await waitFor(() => expect(router.state.location.search).toEqual({ sort: '-created' }))
     expect(count()).toBe(1)
@@ -311,7 +313,7 @@ describe('DataTable facets', () => {
     const user = userEvent.setup()
     const router = renderTestList('/items?search=acme&status=active&sort=-created')
     await screen.findByText('Item 01')
-    await user.click(screen.getByRole('button', { name: 'Reset' }))
+    await user.click(screen.getByRole('button', { name: 'Reset, Items' }))
     await waitFor(() => expect(router.state.location.search).toEqual({ sort: '-created' }))
     expect(screen.getByRole('searchbox', { name: 'Search items' })).toHaveValue('')
     expect(count()).toBe(1)
@@ -321,7 +323,7 @@ describe('DataTable facets', () => {
     serveTestItems(onePage)
     renderTestList()
     await screen.findByText('Item 01')
-    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reset, Items' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove filter/ })).not.toBeInTheDocument()
   })
 
@@ -339,8 +341,8 @@ describe('DataTable facets', () => {
       ],
     })
     await screen.findByText('Item 01')
-    await user.click(screen.getByRole('button', { name: 'Filter by status' }))
-    const popup = await screen.findByRole('dialog', { name: 'Filter by status' })
+    await user.click(screen.getByRole('button', { name: 'Filter by status, Items' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by status, Items' })
     expect(within(popup).getByText('Status could not be loaded.')).toBeInTheDocument()
     await user.click(within(popup).getByRole('button', { name: 'Try again' }))
     expect(retry).toHaveBeenCalledOnce()
@@ -361,8 +363,8 @@ describe('DataTable facets', () => {
       ],
     })
     await screen.findByText('Item 01')
-    await user.click(screen.getByRole('button', { name: 'Filter by status' }))
-    const popup = await screen.findByRole('dialog', { name: 'Filter by status' })
+    await user.click(screen.getByRole('button', { name: 'Filter by status, Items' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by status, Items' })
     expect(within(popup).getByText('Loading…')).toBeInTheDocument()
     await user.type(within(popup).getByRole('searchbox', { name: 'Search status' }), 'ab')
     expect(onSearch).toHaveBeenLastCalledWith('ab')
@@ -405,7 +407,7 @@ describe('DataTable column menu', () => {
     const router = renderTestList('/items?cursor=c2')
     await screen.findByText('Item 21')
 
-    await user.click(screen.getByRole('button', { name: 'Columns' }))
+    await user.click(screen.getByRole('button', { name: 'Columns, Items' }))
     const menu = await screen.findByRole('menu')
     expect(within(menu).queryByRole('menuitemcheckbox', { name: 'Name' })).not.toBeInTheDocument()
     await user.click(within(menu).getByRole('menuitemcheckbox', { name: 'Status' }))
@@ -425,7 +427,7 @@ describe('DataTable column menu', () => {
     renderTestList('/items?hidden=actions')
     await screen.findByText('Item 01')
     expect(screen.getByRole('button', { name: 'Open Item 01' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Columns' }))
+    await user.click(screen.getByRole('button', { name: 'Columns, Items' }))
     const menu = await screen.findByRole('menu')
     expect(
       within(menu)
@@ -442,7 +444,7 @@ describe('DataTable column menu', () => {
     const cards = await screen.findByRole('list', { name: 'Items' })
     expect(within(cards).getAllByText('Status')).not.toHaveLength(0)
 
-    await user.click(screen.getByRole('button', { name: 'Columns' }))
+    await user.click(screen.getByRole('button', { name: 'Columns, Items' }))
     await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Status' }))
 
     await waitFor(() => expect(router.state.location.search).toEqual({ hidden: 'status' }))
@@ -460,7 +462,7 @@ describe('DataTable column menu', () => {
       ),
     })
     await screen.findByText('Item 01')
-    expect(screen.queryByRole('button', { name: 'Columns' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Columns, Items' })).not.toBeInTheDocument()
   })
 
   it('puts the phone sort menu in the toolbar row beside Columns', async () => {
@@ -468,10 +470,10 @@ describe('DataTable column menu', () => {
     serveTestItems(onePage)
     renderTestList()
     await screen.findByRole('list', { name: 'Items' })
-    const columns = screen.getByRole('button', { name: 'Columns' })
-    const sort = screen.getByRole('button', { name: 'Sort by' })
+    const columns = screen.getByRole('button', { name: 'Columns, Items' })
+    const sort = screen.getByRole('button', { name: 'Sort by, Items' })
     expect(columns.parentElement).toBe(sort.parentElement)
-    expect(screen.getAllByRole('button', { name: 'Sort by' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Sort by, Items' })).toHaveLength(1)
   })
 })
 
@@ -564,8 +566,8 @@ describe('DataTable total', () => {
     renderTestList()
     expect(await screen.findByText('25 results')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Filter by status' }))
-    const popup = await screen.findByRole('dialog', { name: 'Filter by status' })
+    await user.click(screen.getByRole('button', { name: 'Filter by status, Items' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by status, Items' })
     await user.click(within(popup).getByRole('checkbox', { name: 'Inactive' }))
 
     await waitFor(() =>

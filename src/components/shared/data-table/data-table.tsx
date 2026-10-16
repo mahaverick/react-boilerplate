@@ -223,6 +223,7 @@ export function DataTable<T extends RowData>({
   const sortMenu =
     usesCards && sortOptions.length > 0 ? (
       <DataTableSortMenu
+        label={label}
         options={sortOptions}
         value={list.values.sort}
         onSort={(key) => sortTo(key, ownerOf(key) ? undefined : DEFAULT_ORDER_NAME)}
@@ -326,6 +327,7 @@ export function DataTable<T extends RowData>({
   return (
     <Frame aria-label={landmark ? label : undefined} className="grid min-w-0 gap-3">
       <DataTableToolbar
+        label={label}
         list={list}
         table={table}
         filters={filters}

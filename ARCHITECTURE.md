@@ -424,9 +424,14 @@ and the `empty` state; the rest is optional (`search`, `filters`, `toolbar`,
   default sort (reported as `table_sorted` with `sort: 'default'`). With a
   custom card the Columns menu is hidden in card layout.
 - _Names._ The table sits in `<section aria-label={label}>`, its paging
-  landmark is `{label} pagination`, and a facet's button is "Filter by
-  {label}", so a page with two lists passes axe's `landmark-unique`. A parent
-  that is already the list's named region passes `landmark={false}`.
+  landmark is `{label} pagination`, so a page with two lists passes axe's
+  `landmark-unique`. Each toolbar control is named with what it shows, then the
+  list (`controlName`): "Filter by role, Members", "Columns, Members", "Reset,
+  Members", "Rows per page, Members" and "Sort by, Members". The name starts
+  with the visible words (WCAG 2.5.3), and a buttons list never shows two of
+  one name. "Previous page" and "Next page" keep their names, since the
+  `{label} pagination` landmark names the list. A parent that is already the
+  list's named region passes `landmark={false}`.
 
 **Adding a list.**
 

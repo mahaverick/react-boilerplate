@@ -1,6 +1,5 @@
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
-import { useId } from 'react'
-import { showingText } from '@/components/shared/data-table/data-table-model'
+import { controlName, showingText } from '@/components/shared/data-table/data-table-model'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -38,14 +37,13 @@ export function DataTablePagination({
   onNext: () => void
   onLimit: (limit: PageSize) => void
 }) {
-  const labelId = useId()
   const showing = showingText(pageIndex, limit, rowCount)
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm text-muted-foreground">{showing}</p>
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <span id={labelId} className="text-sm">
+          <span aria-hidden="true" className="text-sm">
             Rows per page
           </span>
           <Select
@@ -55,7 +53,7 @@ export function DataTablePagination({
               if (size !== undefined) onLimit(size)
             }}
           >
-            <SelectTrigger aria-labelledby={labelId} className="w-20">
+            <SelectTrigger aria-label={controlName('Rows per page', label)} className="w-20">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

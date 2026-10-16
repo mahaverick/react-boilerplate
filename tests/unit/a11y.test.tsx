@@ -946,8 +946,10 @@ describe('open overlays', () => {
     renderAppAt('/settings/workspace/acme/members')
     await screen.findByRole('table', { name: 'Members' })
     const members = screen.getByRole('region', { name: 'Members' })
-    await userEvent.setup().click(within(members).getByRole('button', { name: 'Filter by role' }))
-    await screen.findByRole('dialog', { name: 'Filter by role' })
+    await userEvent
+      .setup()
+      .click(within(members).getByRole('button', { name: 'Filter by role, Members' }))
+    await screen.findByRole('dialog', { name: 'Filter by role, Members' })
     await expectNoViolations()
   })
 
@@ -955,7 +957,7 @@ describe('open overlays', () => {
     renderAppAt('/settings/workspace/acme/members')
     await screen.findByRole('table', { name: 'Members' })
     const members = screen.getByRole('region', { name: 'Members' })
-    await userEvent.setup().click(within(members).getByRole('button', { name: 'Columns' }))
+    await userEvent.setup().click(within(members).getByRole('button', { name: 'Columns, Members' }))
     await expectNoViolationsIn(await screen.findByRole('menu'))
   })
 

@@ -149,8 +149,8 @@ describe('tenants list', () => {
     const user = userEvent.setup()
     const router = renderAppAt('/tenants')
     await screen.findByRole('table', { name: 'Tenants' })
-    await user.click(screen.getByRole('button', { name: 'Filter by role' }))
-    const popup = await screen.findByRole('dialog', { name: 'Filter by role' })
+    await user.click(screen.getByRole('button', { name: 'Filter by role, Tenants' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by role, Tenants' })
     await user.click(within(popup).getByRole('checkbox', { name: 'Owner' }))
     await user.click(within(popup).getByRole('checkbox', { name: 'Viewer' }))
     await waitFor(() =>

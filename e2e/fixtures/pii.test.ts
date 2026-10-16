@@ -98,8 +98,8 @@ test('the activity log masks actors, and so does its actor filter', async ({ pag
   await expect(page.getByRole('table', { name: 'Activity' })).toBeVisible()
   await expectAllMasked(page, 2)
 
-  await page.getByRole('button', { name: 'Filter by actor' }).click()
-  await expect(page.getByRole('dialog', { name: 'Filter by actor' })).toBeVisible()
+  await page.getByRole('button', { name: 'Filter by actor, Activity' }).click()
+  await expect(page.getByRole('dialog', { name: 'Filter by actor, Activity' })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: /Pii Probe/ }).first()).toBeVisible()
   await expectAllMasked(page, 4)
 })

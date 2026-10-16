@@ -152,7 +152,7 @@ describe('DataTable states', () => {
     const user = userEvent.setup()
     const router = renderTestList('/items?status=inactive')
     expect(await screen.findByText('Nothing matches these filters.')).toBeInTheDocument()
-    await user.click(screen.getAllByRole('button', { name: 'Reset' })[0]!)
+    await user.click(screen.getAllByRole('button', { name: 'Reset, Items' })[0]!)
     await waitFor(() => expect(router.state.location.search).toEqual({}))
   })
 
@@ -252,7 +252,7 @@ describe('DataTable states', () => {
       holding = true
       const stop = recordShowing()
       if (control === 'Rows per page') {
-        await user.click(screen.getByRole('combobox', { name: control }))
+        await user.click(screen.getByRole('combobox', { name: 'Rows per page, Items' }))
         await user.click(await screen.findByRole('option', { name: '50' }))
       } else {
         await user.click(screen.getByRole('button', { name: control }))
@@ -448,12 +448,12 @@ describe('DataTable paging', () => {
     const router = renderTestList('/items?cursor=c2')
     await screen.findByText('Item 21')
 
-    await user.click(screen.getByRole('combobox', { name: 'Rows per page' }))
+    await user.click(screen.getByRole('combobox', { name: 'Rows per page, Items' }))
     await user.click(await screen.findByRole('option', { name: '50' }))
     await waitFor(() => expect(router.state.location.search).toEqual({ limit: 50 }))
     await waitFor(() => expect(seen.at(-1)?.get('limit')).toBe('50'))
 
-    await user.click(screen.getByRole('combobox', { name: 'Rows per page' }))
+    await user.click(screen.getByRole('combobox', { name: 'Rows per page, Items' }))
     await user.click(await screen.findByRole('option', { name: '20' }))
     await waitFor(() => expect(router.state.location.search).toEqual({}))
   })
@@ -561,7 +561,7 @@ describe('DataTable sort menu', () => {
     serveTestItems(twoPages)
     renderTestList()
     await screen.findByRole('table', { name: 'Items' })
-    expect(screen.queryByRole('button', { name: 'Sort by' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sort by, Items' })).not.toBeInTheDocument()
   })
 
   it.each([
@@ -574,7 +574,7 @@ describe('DataTable sort menu', () => {
     const user = userEvent.setup()
     const router = renderTestList('/items', props)
     await screen.findByRole('list', { name: 'Items' })
-    await user.click(screen.getByRole('button', { name: 'Sort by' }))
+    await user.click(screen.getByRole('button', { name: 'Sort by, Items' }))
     await user.click(await screen.findByRole('menuitemradio', { name: 'Created, newest first' }))
     await waitFor(() => expect(router.state.location.search).toEqual({ sort: '-created' }))
     expect(screen.getByText('Sorted by Created, newest first')).toHaveAttribute(
@@ -586,8 +586,10 @@ describe('DataTable sort menu', () => {
     ])
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Sort by' })).toHaveFocus())
-    await user.click(screen.getByRole('button', { name: 'Sort by' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Sort by, Items' })).toHaveFocus()
+    )
+    await user.click(screen.getByRole('button', { name: 'Sort by, Items' }))
     expect(
       await screen.findByRole('menuitemradio', { name: 'Created, newest first' })
     ).toHaveAttribute('aria-checked', 'true')
@@ -608,7 +610,7 @@ describe('DataTable sort menu', () => {
     // Only Created sorts: the list's default sort, `name`, belongs to no column.
     const router = renderTestList('/items', { columns: testColumns.slice(1) })
     await screen.findByRole('list', { name: 'Items' })
-    await user.click(screen.getByRole('button', { name: 'Sort by' }))
+    await user.click(screen.getByRole('button', { name: 'Sort by, Items' }))
     const options = await screen.findAllByRole('menuitemradio')
     expect(options.map((option) => option.textContent)).toEqual([
       'Default order',
@@ -620,7 +622,7 @@ describe('DataTable sort menu', () => {
     await waitFor(() => expect(router.state.location.search).toEqual({ sort: '-created' }))
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
 
-    await user.click(screen.getByRole('button', { name: 'Sort by' }))
+    await user.click(screen.getByRole('button', { name: 'Sort by, Items' }))
     await user.click(await screen.findByRole('menuitemradio', { name: 'Default order' }))
     await waitFor(() => expect(router.state.location.search).toEqual({}))
     expect(screen.getByText('Sorted in the default order')).toHaveAttribute('aria-live', 'polite')

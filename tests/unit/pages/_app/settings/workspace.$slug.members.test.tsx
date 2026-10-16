@@ -761,6 +761,31 @@ describe('inviting, and the pending invitations', () => {
     expect(second.getByText(/^by/)).toHaveTextContent('by A teammate')
   })
 
+  it('names each list’s toolbar and paging controls apart, keeping the words they show', async () => {
+    serveTwoInvitations()
+    renderAppAt('/settings/workspace/acme/members?role=owner&invitationsRole=editor')
+
+    await screen.findByRole('table', { name: 'Pending invitations' })
+    const controls = screen
+      .getAllByRole('button')
+      .concat(screen.getAllByRole('combobox'))
+      .map((control) => control.getAttribute('aria-label') ?? '')
+      .filter((name) => /^(Filter by role|Columns|Reset|Rows per page)/.test(name))
+    expect(controls).toEqual(
+      expect.arrayContaining([
+        'Filter by role, Members, 1 selected',
+        'Filter by role, Pending invitations, 1 selected',
+        'Columns, Members',
+        'Columns, Pending invitations',
+        'Reset, Members',
+        'Reset, Pending invitations',
+        'Rows per page, Members',
+        'Rows per page, Pending invitations',
+      ])
+    )
+    expect(new Set(controls).size).toBe(controls.length)
+  })
+
   it('stacks pending invitations as cards on a phone, with role, inviter and expiry', async () => {
     setViewportWidth(390)
     serveTwoInvitations()
@@ -1960,7 +1985,7 @@ describe('the members list', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     const members = await screen.findByRole('region', { name: 'Members' })
-    await user.click(await within(members).findByRole('button', { name: 'Columns' }))
+    await user.click(await within(members).findByRole('button', { name: 'Columns, Members' }))
     const menu = await screen.findByRole('menu')
     expect(within(menu).queryByRole('menuitemcheckbox', { name: 'Role' })).not.toBeInTheDocument()
     expect(within(menu).getByRole('menuitemcheckbox', { name: 'Email' })).toBeInTheDocument()

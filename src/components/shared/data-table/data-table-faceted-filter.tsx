@@ -1,6 +1,10 @@
 import { IconCirclePlus } from '@tabler/icons-react'
 import { useRef, useState } from 'react'
-import { toggleValue, type DataTableFilter } from '@/components/shared/data-table/data-table-model'
+import {
+  controlName,
+  toggleValue,
+  type DataTableFilter,
+} from '@/components/shared/data-table/data-table-model'
 import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,10 +20,13 @@ import { MAX_SEARCH_LENGTH } from '@/types/list.types'
  * how many values are picked.
  */
 export function DataTableFacetedFilter({
+  list,
   filter,
   selected,
   onChange,
 }: {
+  /** The list's label, so a page with two lists can tell their filters apart. */
+  list: string
   filter: DataTableFilter
   selected: readonly string[]
   onChange: (values: string[]) => void
@@ -28,8 +35,8 @@ export function DataTableFacetedFilter({
   const options = useRef<HTMLDivElement>(null)
   const count = selected.length
   const state = filter.optionsState
-  // "Filter by status": the visible label is in the name, and it differs from a sortable header's button of the same word.
-  const name = `Filter by ${filter.label.toLowerCase()}`
+  // "Filter by status, Members": it differs from a sortable header's button of the same word, and from the other list's filter.
+  const name = controlName(`Filter by ${filter.label.toLowerCase()}`, list)
   return (
     <Popover>
       <PopoverTrigger

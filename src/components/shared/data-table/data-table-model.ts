@@ -159,6 +159,17 @@ export function nextSort(sorts: readonly string[], current: string, defaultSort:
 }
 
 /**
+ * A toolbar or pagination control's accessible name: its visible words, then
+ * the list it belongs to, so two lists on one page never share a name and the
+ * name still starts with what the control shows (WCAG 2.5.3).
+ * @param visible - What the control says.
+ * @param list - The list's label.
+ */
+export function controlName(visible: string, list: string): string {
+  return `${visible}, ${list}`
+}
+
+/**
  * "Showing 21–40": the rows' positions in the view, from the page index this
  * tab recorded. Null when the index is unknown (a URL opened on a later page)
  * or the page is empty.

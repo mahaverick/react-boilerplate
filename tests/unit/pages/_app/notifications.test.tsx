@@ -97,8 +97,8 @@ describe('notifications page', () => {
     const user = userEvent.setup()
     renderNotifications()
     await screen.findByRole('list', { name: 'Notifications' })
-    await user.click(screen.getByRole('button', { name: 'Filter by status' }))
-    const popup = await screen.findByRole('dialog', { name: 'Filter by status' })
+    await user.click(screen.getByRole('button', { name: 'Filter by status, Notifications' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by status, Notifications' })
     await user.click(within(popup).getByRole('checkbox', { name: 'Unread' }))
     await waitFor(() =>
       expect(
@@ -151,7 +151,7 @@ describe('notifications page', () => {
   it('has no sort menu, since the inbox has one order', async () => {
     renderNotifications()
     await screen.findByRole('list', { name: 'Notifications' })
-    expect(screen.queryByRole('button', { name: 'Sort by' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sort by, Notifications' })).not.toBeInTheDocument()
   })
 
   describe('the unread count at the click', () => {

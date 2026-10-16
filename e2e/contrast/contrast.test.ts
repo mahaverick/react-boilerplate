@@ -413,8 +413,8 @@ test.describe('popups that are not menus', () => {
       })
 
       const members = page.getByRole('region', { name: 'Members' })
-      await members.getByRole('button', { name: 'Filter by role' }).click()
-      const facet = page.getByRole('dialog', { name: 'Filter by role' })
+      await members.getByRole('button', { name: 'Filter by role, Members' }).click()
+      const facet = page.getByRole('dialog', { name: 'Filter by role, Members' })
       await expect(facet.getByRole('checkbox').first()).toBeVisible()
       await afterAnimations(facet)
       await afterFontsAndFrames(page)
@@ -430,7 +430,7 @@ test.describe('popups that are not menus', () => {
       const chips = await runAxe(page)
       expect(report('filter chips', theme, chips), report('filter chips', theme, chips)).toBe('')
 
-      await members.getByRole('button', { name: 'Columns' }).click()
+      await members.getByRole('button', { name: 'Columns, Members' }).click()
       const menu = page.getByRole('menu')
       await expect(menu.getByRole('menuitemcheckbox').first()).toBeVisible()
       await afterAnimations(menu)

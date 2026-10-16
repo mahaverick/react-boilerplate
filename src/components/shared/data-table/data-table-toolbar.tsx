@@ -6,6 +6,7 @@ import { DataTableChip } from '@/components/shared/data-table/data-table-chip'
 import { DataTableFacetedFilter } from '@/components/shared/data-table/data-table-faceted-filter'
 import {
   columnLabel,
+  controlName,
   totalText,
   type DataTableFeatures,
   type DataTableFilter,
@@ -105,15 +106,19 @@ function DataTableSearch({
 
 /** The column menu: a checkbox per column the reader may hide (never the first). */
 function DataTableColumnMenu<T extends RowData>({
+  list,
   table,
 }: {
+  list: string
   table: ReactTable<DataTableFeatures, T>
 }) {
   const hideable = table.getAllLeafColumns().filter((column) => column.getCanHide())
   if (hideable.length === 0) return null
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+      <DropdownMenuTrigger
+        render={<Button variant="outline" size="sm" aria-label={controlName('Columns', list)} />}
+      >
         <IconLayoutColumns aria-hidden="true" />
         Columns
       </DropdownMenuTrigger>
@@ -142,6 +147,7 @@ function DataTableColumnMenu<T extends RowData>({
  * value and Reset.
  */
 export function DataTableToolbar<T extends RowData>({
+  label,
   list,
   table,
   filters,
@@ -152,6 +158,8 @@ export function DataTableToolbar<T extends RowData>({
   sortMenu,
   children,
 }: {
+  /** The list's label, which names the toolbar's controls apart from another list's. */
+  label: string
   list: ListSearchState
   table: ReactTable<DataTableFeatures, T>
   filters: readonly DataTableFilter[]
@@ -208,6 +216,7 @@ export function DataTableToolbar<T extends RowData>({
         )}
         {facets.map((filter) => (
           <DataTableFacetedFilter
+            list={label}
             key={filter.name}
             filter={filter}
             selected={list.values.filters[filter.name] ?? []}
@@ -221,13 +230,18 @@ export function DataTableToolbar<T extends RowData>({
             {total ? totalText(total) : ''}
           </p>
           {sortMenu}
-          {showColumns && <DataTableColumnMenu table={table} />}
+          {showColumns && <DataTableColumnMenu list={label} table={table} />}
         </div>
       </div>
       {list.isFiltered && (
         <div className="flex flex-wrap items-center gap-2">
           {chips}
-          <Button variant="ghost" size="sm" onClick={list.reset}>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={controlName('Reset', label)}
+            onClick={list.reset}
+          >
             Reset
           </Button>
         </div>

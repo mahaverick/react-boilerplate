@@ -684,7 +684,7 @@ test.describe('analytics end to end, through express', () => {
     await expect(page.getByText(/^Invitation resent to/)).toBeVisible()
     await page.goto(`/settings/workspace/${slug}/activity`)
     await expect(page.getByRole('table', { name: 'Activity' })).toBeVisible()
-    await page.getByRole('button', { name: 'Filter by access' }).click()
+    await page.getByRole('button', { name: 'Filter by access, Activity' }).click()
     await page.getByRole('checkbox', { name: 'Staff' }).click()
 
     // The control: the walk really was captured, replay included, and decoded.

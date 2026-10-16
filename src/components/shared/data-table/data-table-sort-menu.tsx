@@ -1,4 +1,5 @@
 import { IconArrowsSort } from '@tabler/icons-react'
+import { controlName } from '@/components/shared/data-table/data-table-model'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,10 +20,13 @@ export interface DataTableSortOption {
  * menu named "Sort by" with one radio choice per sort key.
  */
 export function DataTableSortMenu({
+  label,
   options,
   value,
   onSort,
 }: {
+  /** The list's label, so two lists on a page have two sort menus with different names. */
+  label: string
   options: readonly DataTableSortOption[]
   /** The list's effective sort key. */
   value: string
@@ -32,7 +36,12 @@ export function DataTableSortMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size="sm" className="justify-self-start" aria-label="Sort by" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="justify-self-start"
+            aria-label={controlName('Sort by', label)}
+          />
         }
       >
         <IconArrowsSort aria-hidden="true" />
