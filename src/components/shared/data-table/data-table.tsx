@@ -48,6 +48,24 @@ const DEFAULT_ORDER_NAME = analyticsKey('default')
 /** The most skeleton rows a loading list shows, whatever its page size. */
 const SKELETON_ROWS = 20
 
+/**
+ * Whether the reader may hide a column: not the first (the row's name), an
+ * actions column, a display column with no value, or one that opts out.
+ * @param column - The definition.
+ * @param index - Its position in the list's columns.
+ */
+function canHideColumn<T extends RowData>(
+  column: DataTableColumns<T>[number],
+  index: number
+): boolean {
+  return (
+    index > 0 &&
+    column.enableHiding !== false &&
+    !column.meta?.actions &&
+    ('accessorKey' in column || 'accessorFn' in column)
+  )
+}
+
 /** What `DataTable` takes. */
 export interface DataTableProps<T extends RowData> {
   /** The column definitions. Pass a stable array, module-level or memoized: the table model is rebuilt when it changes. */
@@ -120,11 +138,10 @@ export function DataTable<T extends RowData>({
     [sortId, list.values.sort]
   )
 
-  // The first column, and any column that opts out, stays visible whatever `?hidden=` says.
+  // The first column (the row's name), an actions column, a display column with no value and any column that opts out stay visible whatever `?hidden=` says.
   const hideable = new Set(
     columns
-      .slice(1)
-      .filter((column) => column.enableHiding !== false)
+      .filter(canHideColumn)
       .map((column) => columnDefId(column))
       .filter((id) => id !== undefined)
   )
@@ -133,10 +150,11 @@ export function DataTable<T extends RowData>({
     () => Object.fromEntries(hiddenKey === '' ? [] : hiddenKey.split(',').map((id) => [id, false])),
     [hiddenKey]
   )
-  // The first column is the row's name: it is never hideable.
   const tableColumns = useMemo(
     () =>
-      columns.map((column, index) => (index === 0 ? { ...column, enableHiding: false } : column)),
+      columns.map((column, index) =>
+        canHideColumn(column, index) ? column : { ...column, enableHiding: false }
+      ),
     [columns]
   )
   const pagination = useMemo(

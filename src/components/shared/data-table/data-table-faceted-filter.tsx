@@ -1,5 +1,5 @@
 import { IconCirclePlus } from '@tabler/icons-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { toggleValue, type DataTableFilter } from '@/components/shared/data-table/data-table-model'
 import { Pii } from '@/components/shared/pii'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +25,7 @@ export function DataTableFacetedFilter({
   onChange: (values: string[]) => void
 }) {
   const [term, setTerm] = useState('')
+  const options = useRef<HTMLDivElement>(null)
   const count = selected.length
   const state = filter.optionsState
   // "Filter by status": the visible label is in the name, and it differs from a sortable header's button of the same word.
@@ -76,6 +77,7 @@ export function DataTableFacetedFilter({
           <p className="p-1 text-sm text-muted-foreground">No matches.</p>
         ) : (
           <div
+            ref={options}
             role="group"
             aria-label={filter.label}
             className="grid max-h-72 gap-0.5 overflow-y-auto"
@@ -97,7 +99,15 @@ export function DataTableFacetedFilter({
           </div>
         )}
         {count > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => onChange([])}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              onChange([])
+              // The button leaves with the picks; focus stays inside the popover.
+              options.current?.querySelector<HTMLElement>('[role="checkbox"]')?.focus()
+            }}
+          >
             Clear filter
           </Button>
         )}

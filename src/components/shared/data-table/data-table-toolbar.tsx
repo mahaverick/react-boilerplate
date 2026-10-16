@@ -20,16 +20,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { cleanSearch } from '@/schemas/list.schemas'
 import { LIST_SEARCH_DEBOUNCE_MS, MAX_SEARCH_LENGTH, type ListTotal } from '@/types/list.types'
 
 /**
  * The search box: debounced into `?search=`. A term set from outside the box
  * (the palette, Back) fills it, and the debounce still pending for the text it
- * replaces is then moot: it fires only for text the box still holds. A term
- * this box wrote is already there, and the box may hold newer keystrokes,
- * which are kept.
+ * replaces is cancelled. A URL
+ * change is the box's own echo only when it equals the last term the box wrote
+ * or the cleaned draft; the box may hold newer keystrokes then, and keeps them.
+ * Nothing is written while an IME composition is active.
  */
 function DataTableSearch({
   list,
@@ -43,18 +43,27 @@ function DataTableSearch({
   const current = list.values.search
   const [draft, setDraft] = useState(current)
   const [followed, setFollowed] = useState(current)
-  const term = useDebouncedValue(draft, LIST_SEARCH_DEBOUNCE_MS)
-  const apply = useEffectEvent((value: string) => list.setSearch(value))
+  const [written, setWritten] = useState<string | undefined>(undefined)
+  const [composing, setComposing] = useState(false)
+  const apply = useEffectEvent((value: string) => {
+    setWritten(cleanSearch(value))
+    list.setSearch(value)
+  })
 
   if (current !== followed) {
     setFollowed(current)
-    if (current !== cleanSearch(draft) && current !== cleanSearch(term)) setDraft(current)
+    if (current !== written && current !== cleanSearch(draft)) {
+      setDraft(current)
+      setWritten(undefined)
+    }
   }
 
-  // Only a settled draft is written: after an outside change `term` is the old text until the debounce catches up, and it must not reach the URL.
+  // The debounce: a change to the draft (typed, or taken from outside) cancels the write pending for the old one.
   useEffect(() => {
-    if (term === draft) apply(term)
-  }, [term, draft])
+    if (composing) return
+    const timer = setTimeout(() => apply(draft), LIST_SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [draft, composing])
 
   return (
     <Input
@@ -65,6 +74,8 @@ function DataTableSearch({
       maxLength={MAX_SEARCH_LENGTH}
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
+      onCompositionStart={() => setComposing(true)}
+      onCompositionEnd={() => setComposing(false)}
     />
   )
 }
@@ -148,29 +159,40 @@ export function DataTableToolbar<T extends RowData>({
       )
     })
   )
+  const facets = filters.filter((filter) => !filter.chipOnly)
+  const hasColumnMenu =
+    showColumns && table.getAllLeafColumns().some((column) => column.getCanHide())
+  if (
+    !search &&
+    facets.length === 0 &&
+    !children &&
+    !sortMenu &&
+    !hasColumnMenu &&
+    !total &&
+    !list.isFiltered
+  ) {
+    return null
+  }
   return (
     <div className="grid gap-2">
       <div className="flex flex-wrap items-center gap-2">
         {search && (
           <DataTableSearch list={list} label={search.label} placeholder={search.placeholder} />
         )}
-        {filters
-          .filter((filter) => !filter.chipOnly)
-          .map((filter) => (
-            <DataTableFacetedFilter
-              key={filter.name}
-              filter={filter}
-              selected={list.values.filters[filter.name] ?? []}
-              onChange={(values) => list.setFilter(filter.name, values)}
-            />
-          ))}
+        {facets.map((filter) => (
+          <DataTableFacetedFilter
+            key={filter.name}
+            filter={filter}
+            selected={list.values.filters[filter.name] ?? []}
+            onChange={(values) => list.setFilter(filter.name, values)}
+          />
+        ))}
         {children}
-        <div className="ml-auto flex items-center gap-2">
-          {total && (
-            <p role="status" className="text-sm text-muted-foreground">
-              {totalText(total)}
-            </p>
-          )}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {/* Always mounted, so a screen reader announces the text when it changes. */}
+          <p role="status" className="text-sm text-muted-foreground">
+            {total ? totalText(total) : ''}
+          </p>
           {sortMenu}
           {showColumns && <DataTableColumnMenu table={table} />}
         </div>
