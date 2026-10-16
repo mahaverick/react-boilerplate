@@ -104,6 +104,16 @@ describe('the Beta page', () => {
     await waitFor(() => expect(document.title).toBe('Beta · acme · React Boilerplate'))
   })
 
+  it('shows the section skeleton, busy, while the beta read is out', async () => {
+    mockTenant(true)
+    server.use(http.get('/api/v1/tenants/acme/beta', () => new Promise<Response>(() => {})))
+    renderAppAt('/tenants/acme/beta')
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="query-state"][aria-busy="true"]')).not.toBeNull()
+    )
+    expect(screen.queryByText(/Beta features are on/)).not.toBeInTheDocument()
+  })
+
   it('does not exist while the flag is off, and never asks the API', async () => {
     mockTenant(false)
     renderAppAt('/tenants/acme/beta')

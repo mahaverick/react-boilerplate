@@ -12,15 +12,15 @@ export default defineConfig({
       target: 'react',
       routesDirectory: './src/pages',
       generatedRouteTree: './src/routeTree.gen.ts',
-      /** Each route's component is its own chunk, fetched on first visit to it. */
-      autoCodeSplitting: true,
       /**
-       * The pending template is not split: a route names a wrapper from
+       * Each route's component is its own chunk, fetched on first visit to it. The
+       * pending template is not split (the plugin's default groupings are component,
+       * errorComponent and notFoundComponent): a route names a wrapper from
        * `pending-templates.ts`, preloaded at startup so it renders without
        * suspending. A lazy template still loading when the router needs it would
-       * suspend to an ancestor and replace the whole layout with that ancestor's
-       * fallback.
+       * suspend to an ancestor and replace the whole layout with its fallback.
        */
+      autoCodeSplitting: true,
     }),
     /**
      * The React Compiler through Babel (`babel-plugin-react-compiler` and

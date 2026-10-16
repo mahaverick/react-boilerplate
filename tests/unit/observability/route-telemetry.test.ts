@@ -152,6 +152,7 @@ describe('installRouteAnalytics', () => {
     await router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } })
     await vi.waitFor(() =>
       expect(sdk.calls).toEqual([
+        ...LEAVE_TENANT,
         MEMBER,
         'group("tenant", "tenant-globex")',
         'capture("tenant_switched", {})',
@@ -220,7 +221,35 @@ describe('installRouteAnalytics', () => {
     // A later page view is queued behind both resolves above, so once it lands they have run.
     await router.navigate({ to: '/profile' })
     await vi.waitFor(() => expect(pageviews()).toBe(1))
-    expect(sdk.calls).toEqual([...LEAVE_TENANT, view('/profile')])
+    // Each tenant resolve leaves the group and re-enters it; the profile's leave and view come last.
+    expect(sdk.calls.slice(-3)).toEqual([...LEAVE_TENANT, view('/profile')])
+    expect(sdk.calls.filter((call) => call.startsWith('capture("$pageview"'))).toHaveLength(1)
+  })
+
+  it('leaves the previous tenant’s group as soon as a tenant page resolves, before its read lands', async () => {
+    const router = await start('/tenants/acme')
+    await vi.waitFor(() => expect(pageviews()).toBe(1))
+    sdk.calls = []
+    reads.set('globex', new Promise(() => {}))
+    await router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } })
+    expect(sdk.calls).toEqual(LEAVE_TENANT)
+    expect(sdk.properties).not.toHaveProperty('tenant_access')
+  })
+
+  it('cuts an earlier tenant page’s wait short when a newer tenant page resolves, so the newer events carry only their own group', async () => {
+    reads.set('acme', new Promise(() => {}))
+    const router = await start('/tenants/acme')
+    sdk.calls = []
+    await router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } })
+    // Acme's view is captured at once with no group, then globex is grouped and viewed: no 10 s wait in between.
+    await vi.waitFor(() =>
+      expect(attributionCalls()).toEqual([
+        view('/tenants/acme'),
+        MEMBER,
+        'group("tenant", "tenant-globex")',
+        view('/tenants/globex'),
+      ])
+    )
   })
 
   it('waits for the tenant before the page view, so the view carries its group', async () => {

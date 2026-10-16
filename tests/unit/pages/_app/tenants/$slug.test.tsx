@@ -162,15 +162,23 @@ describe('tenant detail', () => {
   })
 
   it('shows no not-found text while the tenant list is still loading, then the suspended panel', async () => {
+    let detailAnswered!: () => void
+    const detailSeen = new Promise<void>((resolve) => {
+      detailAnswered = resolve
+    })
     server.use(
       http.get('/api/v1/tenants', async () => {
-        await settle(150, 'delays the list so the loader resolves first')
+        // The list answers only after the tenant read has, so the page is in its list-pending window while the 404 lands.
+        await detailSeen
         return ok(
           [{ tenant: { ...TENANT, lifecycleState: 'suspended' }, role: 'owner' }],
           'Tenants.'
         )
       }),
-      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
+      http.get('/api/v1/tenants/acme', () => {
+        detailAnswered()
+        return fail('Tenant not found', 404)
+      })
     )
     renderAppAt('/tenants/acme')
 

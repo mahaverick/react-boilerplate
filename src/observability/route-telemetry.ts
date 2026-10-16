@@ -52,38 +52,51 @@ function hasTenantRead(data: unknown): data is TenantRouteMatchData {
 }
 
 /**
- * `promise`'s value, or null when it rejects or `ms` passes first; the timer
- * is cleared either way.
+ * `promise`'s value, or null when it rejects, `ms` passes first or `cut` settles;
+ * the timer is cleared either way.
  */
-function within(promise: Promise<unknown>, ms: number): Promise<unknown> {
+function within(promise: Promise<unknown>, ms: number, cut: Promise<void>): Promise<unknown> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => resolve(null), ms)
-    promise.then(
-      (value) => {
-        clearTimeout(timer)
-        resolve(value)
-      },
-      () => {
-        clearTimeout(timer)
-        resolve(null)
-      }
-    )
+    /** Settles with `value` and stops the timer. */
+    const settle = (value: unknown) => {
+      clearTimeout(timer)
+      resolve(value)
+    }
+    promise.then(settle, () => settle(null))
+    void cut.then(() => settle(null))
   })
 }
 
 /**
- * The tenant whose page the router has just resolved: a tenant layout match's
- * tenant read, awaited for at most `TENANT_GROUP_WAIT_MS`. The match is read
- * synchronously, before the first await, so a later navigation cannot change
- * which page this answers for. A 404 (`null`), a failure, a read past the wait
- * or any other page has none.
+ * The tenant layout match of the page the router has just resolved, when its
+ * loader started a tenant read.
  * @param router - The app's router, at a resolve.
- * @returns The tenant id and how the user reached it, or null.
+ * @returns The match's tenant read, or null for any other page.
  */
-async function resolvedTenant(router: AnyRouter): Promise<RouteTenant | null> {
+function tenantRead(router: AnyRouter): Promise<unknown> | null {
   const match = router.state.matches.find((entry) => TENANT_ROUTE_IDS.includes(entry.routeId))
   if (match?.status !== 'success' || !hasTenantRead(match.loaderData)) return null
-  const data = await within(match.loaderData.tenant, TENANT_GROUP_WAIT_MS)
+  return match.loaderData.tenant
+}
+
+/**
+ * The tenant whose page the router has just resolved: a tenant layout match's
+ * tenant read, awaited for at most `TENANT_GROUP_WAIT_MS`, or until a newer
+ * tenant page resolves (`cut`). A 404 (`null`), a failure, a read past the wait,
+ * a cut wait or any other page has none.
+ * @param read - The page's tenant read, taken synchronously at its resolve so a
+ * later navigation cannot change which page this answers for; null for a page
+ * without one.
+ * @param cut - Settles when a newer tenant page resolves.
+ * @returns The tenant id and how the user reached it, or null.
+ */
+async function resolvedTenant(
+  read: Promise<unknown> | null,
+  cut: Promise<void>
+): Promise<RouteTenant | null> {
+  if (!read) return null
+  const data = await within(read, TENANT_GROUP_WAIT_MS, cut)
   return isRouteTenant(data) ? { id: data.id, access: data.access } : null
 }
 
@@ -104,21 +117,33 @@ function resolvedPage(router: AnyRouter) {
  * Subscribes analytics to the router's resolves. Each resolve sets or clears
  * the tenant group, then, when the path changed, captures a page view, in
  * resolve order: a tenant page's view waits for its tenant read, and every
- * later resolve waits behind it. Install it before the router's first load, so
- * the first page is counted too.
+ * later resolve waits behind it. A newer tenant page cuts an earlier page's
+ * wait short, so that earlier view is captured at once with no group and the
+ * newer page's events never carry an older tenant's. Install it before the
+ * router's first load, so the first page is counted too.
  *
- * A delayed view carries the URL read at its resolve, but the `$feature/*`
- * values and document title current when it is captured. Events the shell
- * fires while a tenant read is out (the sidebar, the bell, the switcher) carry
- * the group in force then, the previous tenant's on a switch; the tenant's own
- * content mounts only after the same read, behind the queued group.
+ * A tenant page's resolve takes analytics out of any group at once, until its
+ * read lands, so events the shell fires meanwhile (the sidebar, the bell, the
+ * switcher) carry no group rather than the previous tenant's. A delayed view
+ * carries the URL read at its resolve, but the `$feature/*` values and
+ * document title current when it is captured.
  * @param router - The app's router.
  * @returns The unsubscribe.
  */
 export function installRouteAnalytics(router: AnyRouter): () => void {
   let queue: Promise<void> = Promise.resolve()
+  let cutEarlier: (() => void) | null = null
   return router.subscribe('onResolved', ({ pathChanged }) => {
-    const tenant = resolvedTenant(router)
+    const read = tenantRead(router)
+    let cut: Promise<void> = Promise.resolve()
+    if (read) {
+      cutEarlier?.()
+      cut = new Promise<void>((resolve) => {
+        cutEarlier = resolve
+      })
+      clearTenantGroup()
+    }
+    const tenant = resolvedTenant(read, cut)
     const page = resolvedPage(router)
     queue = queue
       .then(async () => {

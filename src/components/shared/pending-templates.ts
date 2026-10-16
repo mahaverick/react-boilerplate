@@ -34,12 +34,18 @@ const ALL = [
   SettingsPagePending,
 ]
 
-/** Fetches every template's chunk, retrying once what failed. Never rejects: a template that still fails shows its error when it renders. */
+/**
+ * Fetches every template's chunk, then once more for each that failed. The wrapper's
+ * `preload` never rejects: a failed import is latched and `preload` stays a function
+ * (a success sets it to `undefined`), so a function left over is the failure signal,
+ * and calling it again imports again. Never rejects itself: a template that still
+ * fails shows its error when it renders. Whether the browser fetches the module again
+ * after a failure depends on how it caches failed module fetches.
+ */
 async function preloadAll(): Promise<void> {
-  const failed = (
-    await Promise.allSettled(ALL.map(async (template) => template.preload?.()))
-  ).flatMap((result, index) => (result.status === 'rejected' ? [ALL[index]] : []))
-  await Promise.allSettled(failed.map(async (template) => template?.preload?.()))
+  await Promise.allSettled(ALL.map(async (template) => template.preload?.()))
+  const failed = ALL.filter((template) => typeof template.preload === 'function')
+  await Promise.allSettled(failed.map(async (template) => template.preload?.()))
 }
 
 /**

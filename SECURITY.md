@@ -155,13 +155,16 @@ The policy is enforced, not report-only:
   `src/lib/zod-jitless.ts` turns off Zod's JIT, whose `new Function` probe
   this policy reports as a violation; it is the first import of
   `src/main.tsx`.
-- **`style-src 'unsafe-inline'`** is there because Base UI's `Select` popup
-  (and `ScrollArea`, which the app does not use yet) renders a `<style>`
-  element that hides its scrollbar. React applies `style` props through the
-  CSSOM, which the policy does not govern, so the toast's and the sidebar's
-  inline CSS variables do not need it. Base UI's `CSPProvider` with
-  `disableStyleElements` would drop the `<style>` and let this go, once that
-  rule lives in `globals.css` instead.
+- **`style-src 'unsafe-inline'`** is there for two reasons. Base UI's `Select`
+  popup (and `ScrollArea`, which the app does not use yet) renders a `<style>`
+  element that hides its scrollbar. And `index.html` carries the boot shell's
+  inline `<style id="boot-tokens">` and `<style id="boot-shell">` blocks, so the
+  first paint needs no stylesheet request; a static `index.html` cannot carry a
+  nonce, and only a hash source per block could stand in for the keyword.
+  React applies `style` props through the CSSOM, which the policy does not
+  govern, so the toast's and the sidebar's inline CSS variables do not need it.
+  Base UI's `CSPProvider` with `disableStyleElements` would drop the first
+  reason, not the second, so the keyword stays while the shell is inline.
 - **`connect-src 'self'`** holds because the API, analytics and error
   tracking are all same-origin: posthog-js sends to `/api/v1/collect` and
   loads its recorder from there, so the browser never talks to PostHog.
@@ -428,7 +431,7 @@ catches and what it misses.
   still writes its query string on an upstream error.
 - **HSTS is the edge's job.** See [CSP and headers](#csp-and-headers).
 - **Inline styles are allowed** (`style-src 'unsafe-inline'`), for Base UI's
-  `Select` popup. An injected `<style>` cannot run script, but it can restyle
+  `Select` popup and the boot shell's inline `<style>` blocks. An injected `<style>` cannot run script, but it can restyle
   the page.
 - **The in-memory token is reachable by an injected script.** Memory-only
   storage stops persistence, not same-origin code; the CSP and React's

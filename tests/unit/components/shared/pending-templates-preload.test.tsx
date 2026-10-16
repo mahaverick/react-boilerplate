@@ -50,28 +50,33 @@ describe('the startup preload', () => {
     expect(screen.getAllByRole('status', { name: 'Loading' })).toHaveLength(2)
   })
 
-  it('retries a template that failed to load once before settling, and settles when it fails twice', async () => {
-    const calls: Record<string, number> = {}
+  it('imports a template whose first import failed a second time, then renders it without suspending', async () => {
+    const actualRouter =
+      await vi.importActual<typeof import('@tanstack/react-router')>('@tanstack/react-router')
+    const actualSkeleton = await vi.importActual<
+      typeof import('@/components/shared/page-skeleton')
+    >('@/components/shared/page-skeleton')
+    const imports: Record<string, number> = {}
     vi.resetModules()
     vi.doMock('@tanstack/react-router', () => ({
-      /** A wrapper whose preload fails the first time, and always for ListPending. */
-      lazyRouteComponent: (_load: unknown, name: string) => {
-        /** A stand-in route component. */
-        const wrapper = () => null
-        /** Counts the call, then fails or loads. */
-        wrapper.preload = () => {
-          calls[name] = (calls[name] ?? 0) + 1
-          return name === 'ListPending' || calls[name] === 1
+      ...actualRouter,
+      /** The real wrapper, over an importer that fails the first time each template asks. */
+      lazyRouteComponent: (_importer: unknown, name: string) =>
+        actualRouter.lazyRouteComponent(() => {
+          imports[name] = (imports[name] ?? 0) + 1
+          return imports[name] === 1
             ? Promise.reject(new Error('chunk failed'))
-            : Promise.resolve()
-        }
-        return wrapper
-      },
+            : Promise.resolve(actualSkeleton)
+        }, name as 'ListPending'),
     }))
     const templates = await import('@/components/shared/pending-templates')
-    await expect(templates.templatesReady).resolves.toBeUndefined()
-    expect(calls['DetailPending']).toBe(2)
-    expect(calls['ListPending']).toBe(2)
+    await templates.templatesReady
+
+    expect(imports['DetailPending']).toBe(2)
+    expect(imports['ListPending']).toBe(2)
+    // No Suspense boundary: a template that had not loaded would throw here.
+    render(<templates.DetailPending />)
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
     vi.doUnmock('@tanstack/react-router')
   })
 

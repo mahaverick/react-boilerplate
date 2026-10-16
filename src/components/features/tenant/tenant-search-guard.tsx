@@ -8,7 +8,7 @@ import {
   useRouterState,
   useSearch,
 } from '@tanstack/react-router'
-import { createElement, useEffect, type ComponentType, type ReactNode } from 'react'
+import { createElement, useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { correctTenant } from '@/lib/tenant-guard'
 import { tenantsQueryOptions } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
@@ -64,6 +64,12 @@ export function TenantSearchGuard({ children }: { children: ReactNode }) {
   // Mid-navigation the location is the next page's while the params and search are still this one's.
   const settled = useRouterState({ select: (state) => state.status === 'idle' })
   const list = useQuery({ ...tenantsQueryOptions(), enabled: !onSlugPage })
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const failed = list.data === undefined && (list.failureCount > 0 || list.errorUpdateCount > 0)
+  /** The path whose page this guard already released on a failed list read; a later correction there must not swap it for the template and back. */
+  const [releasedPath, setReleasedPath] = useState<string | null>(null)
+  // Derived during render, as React allows for state that follows props.
+  if (failed && !onSlugPage && releasedPath !== pathname) setReleasedPath(pathname)
 
   const decision =
     !settled || onSlugPage || list.data === undefined
@@ -94,9 +100,9 @@ export function TenantSearchGuard({ children }: { children: ReactNode }) {
 
   if (onSlugPage) return children
   // Once a read has failed, its retry and any refetch (a page's own read mounting retries it) keep the page up.
-  if (list.data === undefined && (list.failureCount > 0 || list.errorUpdateCount > 0)) {
-    return children
+  if (failed) return children
+  if (list.data === undefined || (target !== null && releasedPath !== pathname)) {
+    return <MatchedPending />
   }
-  if (list.data === undefined || target !== null) return <MatchedPending />
   return children
 }

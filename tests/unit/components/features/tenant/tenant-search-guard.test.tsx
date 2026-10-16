@@ -188,6 +188,44 @@ describe('TenantSearchGuard', () => {
     expect(router.state.location.href).toBe('/dashboard?tenant=acme')
   })
 
+  it('keeps a released page on screen when the list’s retry lands and the URL needs a correction', async () => {
+    let attempts = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        attempts += 1
+        return attempts === 1
+          ? fail('Something went wrong.', 500)
+          : ok([listed(GLOBEX)], 'Tenants.')
+      })
+    )
+    const { router } = renderAt('/dashboard?tenant=acme')
+    expect(await screen.findByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
+
+    let templateShown = false
+    // Reads the added nodes: the template can be inserted and removed before a callback queries the DOM.
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach((node) => {
+          if (
+            node instanceof HTMLElement &&
+            (node.matches('[role="status"][aria-label="Loading"]') ||
+              node.querySelector('[role="status"][aria-label="Loading"]'))
+          ) {
+            templateShown = true
+          }
+        })
+      }
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+    try {
+      await expectHref(router, '/dashboard?tenant=globex')
+    } finally {
+      observer.disconnect()
+    }
+    expect(templateShown).toBe(false)
+    expect(screen.getByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
+  })
+
   it('moves between tenant pages and pages without $slug with no correction of its own', async () => {
     serveTenants([ACME, GLOBEX])
     const { router, history } = renderAt('/dashboard?tenant=acme')
