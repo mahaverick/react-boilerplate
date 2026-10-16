@@ -675,6 +675,18 @@ describe('signed-in pages', () => {
       await expectNoViolations()
     }
   )
+
+  describe('loading states', () => {
+    it.each([
+      ['the dashboard template while the tenant list loads', '/dashboard', '/api/v1/tenants'],
+      ['the detail template while the tenant loads', '/tenants/acme', '/api/v1/tenants/acme'],
+    ])('%s has no axe violations', async (_name, path, held) => {
+      server.use(http.get(held, () => new Promise<Response>(() => {})))
+      renderAppAt(path)
+      await screen.findByRole('status', { name: 'Loading' })
+      await expectNoViolationsWhileLoading()
+    })
+  })
 })
 
 /** Makes the status endpoint answer `mode` with the owner's message. */

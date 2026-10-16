@@ -1,11 +1,12 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router'
-import { loadTenantRoute } from '@/components/features/tenant/load-tenant-route'
-import { TenantGate, TenantLoadFailed } from '@/components/features/tenant/tenant-gate'
+import { startTenantRoute } from '@/components/features/tenant/start-tenant-route'
+import { TenantGate } from '@/components/features/tenant/tenant-gate'
+import { PageSkeleton, SettingsPagePending } from '@/components/shared/page-skeleton'
 import { stripTenant } from '@/lib/current-tenant'
 
 /**
  * The workspace settings' layout: the tenant from `$slug`, loaded and gated
- * exactly as `/tenants/$slug` is, so flags (`flagScopeFor(params)`), the tenant
+ * as `/tenants/$slug` is, so flags (`flagScopeFor(params)`), the tenant
  * switcher and analytics grouping resolve this tenant unchanged.
  */
 export const Route = createFileRoute('/_app/settings/workspace/$slug')({
@@ -15,11 +16,11 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug')({
   loader: {
     staleReloadMode: 'blocking',
     handler: ({ context, params, preload }) =>
-      loadTenantRoute({ queryClient: context.queryClient, slug: params.slug, preload }),
+      startTenantRoute({ queryClient: context.queryClient, slug: params.slug, preload }),
   },
   staticData: { crumb: (params) => params.slug ?? 'Tenant', crumbLink: false },
   component: WorkspaceSettingsLayout,
-  errorComponent: TenantLoadFailed,
+  pendingComponent: SettingsPagePending,
 })
 
 /**
@@ -29,7 +30,7 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug')({
 function WorkspaceSettingsLayout() {
   const { slug } = Route.useParams()
   return (
-    <TenantGate slug={slug} heading="h2">
+    <TenantGate slug={slug} heading="h2" skeleton={<PageSkeleton variant="settings" nested />}>
       {(tenant) => (
         <div className="grid gap-4">
           <p className="text-sm text-muted-foreground">

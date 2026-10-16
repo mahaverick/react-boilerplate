@@ -154,17 +154,22 @@ The Google sign-in button on `/login` is a plain anchor to
 `useQuery` uses, so the page renders from the cache. Three loaders do this:
 
 - `/_app` reads the flags of the page the shell is entered on. It does not
-  run again for a navigation that stays in the shell.
-- `/_app/tenants/$slug` reads the tenant's detail and, for a navigation that
-  commits, the tenant's flags in parallel; a hover preload reads the detail
-  only. `preloadStaleTime: 0` with a blocking stale reload makes the commit
-  run the loader again after a preload, before the page renders. A 404 on
-  the detail resolves to `null`, and the layout reads the tenant list to
-  choose between the suspended panel and the not-found panel; any other
-  failure reaches the route's own error component.
-- `/_app/settings/workspace/$slug` runs the same `loadTenantRoute` and renders
+  run again for a navigation that stays in the shell. `ensureFlags` waits at
+  most `FLAGS_BOOT_WAIT_MS` (10 s), then resolves to the fallbacks; the read
+  keeps going and its values land in the cache.
+- `/_app/tenants/$slug` (`startTenantRoute`) starts the tenant's detail read
+  without waiting on it and, for a navigation that commits, awaits the
+  tenant's flags (same cap); a hover preload starts the detail only. It
+  returns `{ tenant }`, the detail read, which route analytics awaits.
+  `preloadStaleTime: 0` with a blocking stale reload makes the commit run the
+  loader again after a preload, before the page renders. `TenantGate` shows
+  the page's template until the detail lands. A 404 on the detail resolves to
+  `null`, and the gate reads the tenant list to choose between the suspended
+  panel and the not-found panel; any other failure is the gate's load-error
+  panel, whose retry refetches the detail.
+- `/_app/settings/workspace/$slug` runs the same `startTenantRoute` and renders
   the same `TenantGate`, so flags, the tenant switcher and analytics grouping
-  resolve the tenant there exactly as on `/tenants/$slug`.
+  resolve the tenant there as on `/tenants/$slug`.
 
 Links preload on intent (`defaultPreload: 'intent'`). The pending component
 waits 300 ms before it shows and then stays at least 300 ms. The error,
@@ -213,9 +218,10 @@ search param.
 | `/tenants/$slug/*` and `/settings/workspace/$slug/*` | the path          | never; removed if present |
 | every other `/_app` page                             | the search param  | always, once resolved     |
 
-`src/lib/current-tenant.ts` holds the schema and middlewares, and
-`src/lib/tenant-guard.ts` the guard, which `_app` loads on demand so the tenant
-queries stay out of the entry chunk. `_app` owns the param:
+`src/lib/current-tenant.ts` holds the schema and middlewares,
+`src/lib/tenant-guard.ts` the pure resolution (`correctTenant`), and
+`TenantSearchGuard` (`components/features/tenant/tenant-search-guard.tsx`),
+around the layout's page slot, the guard. `_app` owns the param:
 
 - **`validateSearch`** (`tenantSearchSchema`) accepts `tenant` only as a slug
   express's pattern allows (`src/schemas/slug.schemas.ts`); anything else is caught as `undefined`.
@@ -231,28 +237,22 @@ queries stay out of the entry chunk. `_app` owns the param:
   A navigation that names `tenant` itself wins, `undefined` included. The two
   `$slug` layouts declare `stripTenant`, so a link to them never carries
   `?tenant`.
-- **The guard** (`tenantSearchCorrection`, after the auth check in `_app`'s
-  `beforeLoad`). On a `$slug` page it redirects without `?tenant`. On any other
-  page it resolves the tenant from the tenant list (`ensureQueryData`, the
-  switcher's cached query): the URL's `?tenant` if it is eligible, else the
-  remembered tenant if it is, else the first eligible tenant in list order,
-  else none. "Eligible" is a tenant in the caller's `GET /tenants` list that is
-  neither the platform tenant nor suspended. When the result differs from the
-  URL it redirects to the same page with the other params kept and `tenant`
-  set, or removed when there is none. Redirects replace the entry. The resolved
-  tenant is remembered for the user. The guard waits at most
-  `TENANT_LIST_WAIT_MS` (3 s) for the list. A list that fails or takes longer
-  leaves the URL as it is, so the page is never bounced and never held for
-  long; the read stays in flight for the shell, and the first time the list
-  query holds data the guard runs again (`router.invalidate()`, through
-  `armTenantGuardRerun`), so the fill or correction still lands, replacing the
-  entry. That watch belongs to the router `installCurrentTenant` was given:
-  uninstalling or replacing the router stops it, so it never re-runs another
-  router's guards, such as the next user's after a sign-out. If the guard's
-  chunk itself cannot be fetched, `_app` notes the failure
-  (`noteError(…, 'chunk_load', true)`) and renders the page; `retainTenant`
-  still carries the tenant. A hover preload is never redirected and remembers
-  nothing, and the guard stands down while maintenance is `full`.
+- **The guard** (`TenantSearchGuard`, after mount, around the `_app`
+  layout's page slot). On a `$slug` page it never reads the list: it renders
+  the page and drops any `?tenant` with a replace. On any other page it reads
+  the tenant list (the switcher's query) and shows the `dashboard` template in
+  the page slot, under the already-rendered sidebar and header, until the list
+  lands. It then resolves the tenant: the URL's `?tenant` if it is eligible,
+  else the remembered tenant if it is, else the first eligible tenant in list
+  order, else none. "Eligible" is a tenant in the caller's `GET /tenants` list
+  that is neither the platform tenant nor suspended. When the result differs
+  from the URL it navigates to the same page with the other params kept and
+  `tenant` set, or removed when there is none, replacing the entry. The
+  resolved tenant is remembered for the user. A list that fails renders the
+  page with the URL as it is; the switcher shows the failure and a retry. The
+  guard decides only while the router is idle, when the location and the
+  rendered matches belong to the same page. A hover preload renders nothing,
+  so it is never corrected and remembers nothing.
 
 Components read the tenant with `useCurrentTenantSlug()`: the route's `$slug`,
 else `?tenant`, else null. A `?tenant` that a loaded tenant list lacks or lists
@@ -517,9 +517,11 @@ runs for a hover preload. A fourth, `installCurrentTenant`, records the tenant
 
 - **Page views and the tenant group.** `installRouteAnalytics`
   (`src/observability/route-telemetry.ts`) runs on `onResolved`: it sets the
-  tenant group from the tenant route's loader data, or clears it, and only
-  then captures `$pageview` when the path changed. It is installed before
-  the first load, so the landing page is counted.
+  tenant group from the tenant read in the tenant route's loader data,
+  awaited for at most `TENANT_GROUP_WAIT_MS` (10 s), or clears it, and only
+  then captures `$pageview` when the path changed. Resolves are handled in
+  order, so a later page's view waits behind an earlier tenant read. It is
+  installed before the first load, so the landing page is counted.
 - **Flag scopes.** A tenant page reads `/tenants/:slug/flags` and every other
   page `/flags` (`flagScopeFor` in `flag-scope.ts`). The `_app` loader warms
   the scope the shell is entered on, and the tenant route's loader warms a
@@ -540,7 +542,7 @@ Error tracking is split so that every page pays almost nothing for it:
   the window listeners, React's root `onUncaughtError` and `onCaughtError`
   (`rootErrorOptions`, passed to `createRoot`), and `noteError` for an error
   the app catches that those hooks never see (this app's callers are
-  `RouteError` and the tenant route's error component). It drops repeats,
+  `RouteError` and `ToastHost`). It drops repeats,
   buffers a few errors, and loads the reporter on the first error or when
   the browser is idle. It imports only `identity-epoch.ts`.
   `pnpm check:bundle` caps it at 1 KB gzipped and keeps `@posthog/core` and

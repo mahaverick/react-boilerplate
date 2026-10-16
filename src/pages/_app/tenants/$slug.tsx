@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
-import { loadTenantRoute } from '@/components/features/tenant/load-tenant-route'
-import { TenantGate, TenantLoadFailed } from '@/components/features/tenant/tenant-gate'
+import { startTenantRoute } from '@/components/features/tenant/start-tenant-route'
+import { TenantGate } from '@/components/features/tenant/tenant-gate'
+import { DetailPending, PageSkeleton } from '@/components/shared/page-skeleton'
 import { Badge } from '@/components/ui/badge'
 import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
@@ -15,18 +16,19 @@ import { useMyRole } from '@/queries/tenant.queries'
  * The tenant shell: header, tab bar, `<Outlet />`. A layout route whose tabs
  * are real child routes, so each is linkable and survives a reload.
  *
- * The loader (`loadTenantRoute`) warms the detail query for every tab, and the
- * tenant's flags in parallel, so a switch from another tenant, which the `_app`
- * loader does not run for, paints this tenant's flag-driven UI (the Beta tab)
- * on first load. A hover preload reads only the detail. `preloadStaleTime: 0` and a blocking stale reload make that
- * commit run the loader again after a preload, before the page renders; both
- * reads are cache-aware, so the detail is not fetched twice. `ensureFlags`
- * never rejects, so a failed flags read never blocks the page. `tenantQueryOptions`
- * resolves a 404 to `null`, so a tenant with no detail reaches the layout,
- * which reads the tenant list to choose between the suspended panel (a member
- * of a suspended tenant) and the not-found panel; any other failure reaches
- * `errorComponent`. The crumb is the slug, not the name, because static data
- * resolves before any fetch.
+ * The loader (`startTenantRoute`) starts the detail read for every tab and
+ * waits only for the tenant's flags, at most `FLAGS_BOOT_WAIT_MS`, so a
+ * switch from another tenant, which the `_app` loader does not run for, paints
+ * this tenant's flag-driven UI (the Beta tab) on first load. A hover preload
+ * starts only the detail read. `preloadStaleTime: 0` and a blocking stale
+ * reload make a commit after a hover preload run the loader again, so its
+ * flags are read before the page renders; both reads are cache-aware, so
+ * neither is fetched twice. The gate shows the `detail` template until the
+ * tenant lands, then the not-found, suspended or load-error panel, or the
+ * page: `tenantQueryOptions` resolves a 404 to `null`, and the tenant list
+ * tells a suspended tenant from a missing one. Analytics groups the page from
+ * the loader's tenant read (`installRouteAnalytics`). The crumb is the slug,
+ * not the name, because static data resolves before any fetch.
  */
 export const Route = createFileRoute('/_app/tenants/$slug')({
   // Its tenant is the path, so a link here never carries `?tenant`.
@@ -35,12 +37,12 @@ export const Route = createFileRoute('/_app/tenants/$slug')({
   loader: {
     staleReloadMode: 'blocking',
     handler: ({ context, params, preload }) =>
-      loadTenantRoute({ queryClient: context.queryClient, slug: params.slug, preload }),
+      startTenantRoute({ queryClient: context.queryClient, slug: params.slug, preload }),
   },
   head: ({ params }) => ({ meta: [{ title: pageTitle(params.slug) }] }),
   staticData: { crumb: (params) => params.slug ?? 'Tenant' },
   component: TenantLayout,
-  errorComponent: TenantLoadFailed,
+  pendingComponent: DetailPending,
 })
 
 /** One tenant tab. `flag` hides it while that tenant-scoped flag is off for this tenant. */
@@ -95,7 +97,7 @@ function TenantLayout() {
   const { slug } = Route.useParams()
   const { role } = useMyRole(slug)
   return (
-    <TenantGate slug={slug}>
+    <TenantGate slug={slug} skeleton={<PageSkeleton variant="detail" />}>
       {(tenant) => (
         <div className="grid gap-4">
           <header className="grid gap-1">

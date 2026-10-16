@@ -12,7 +12,7 @@ import {
   type AnalyticsTenantAccess,
 } from '@/observability/telemetry'
 
-/** The layout routes that load a tenant; either one's loader data names the page's tenant. */
+/** The layout routes whose loader data carries the page's tenant read. */
 export const TENANT_ROUTE_IDS: readonly string[] = [
   '/_app/tenants/$slug',
   '/_app/settings/workspace/$slug',
@@ -32,32 +32,81 @@ function isRouteTenant(data: unknown): data is RouteTenant {
 }
 
 /**
- * The tenant whose page the router has resolved: a tenant layout route's
- * loader data, when one matched and loaded one. A 404 (`null`), a failed
- * load or any other page has none.
- * @param router - The app's router, after a resolve.
+ * The longest a page view waits for its tenant read; after it the view is
+ * captured with no tenant group rather than not at all.
+ */
+export const TENANT_GROUP_WAIT_MS = 10_000
+
+/** A tenant layout route's loader data: its tenant read, which the page does not wait on. */
+interface TenantRouteMatchData {
+  tenant: Promise<unknown>
+}
+
+/** Whether a match's loader data carries a tenant read. */
+function hasTenantRead(data: unknown): data is TenantRouteMatchData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as { tenant?: unknown }).tenant instanceof Promise
+  )
+}
+
+/**
+ * `promise`'s value, or null when it rejects or `ms` passes first; the timer
+ * is cleared either way.
+ */
+function within(promise: Promise<unknown>, ms: number): Promise<unknown> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(null)
+      }
+    )
+  })
+}
+
+/**
+ * The tenant whose page the router has just resolved: a tenant layout match's
+ * tenant read, awaited for at most `TENANT_GROUP_WAIT_MS`. The match is read
+ * synchronously, before the first await, so a later navigation cannot change
+ * which page this answers for. A 404 (`null`), a failure, a read past the wait
+ * or any other page has none.
+ * @param router - The app's router, at a resolve.
  * @returns The tenant id and how the user reached it, or null.
  */
-function resolvedTenant(router: AnyRouter): RouteTenant | null {
+async function resolvedTenant(router: AnyRouter): Promise<RouteTenant | null> {
   const match = router.state.matches.find((entry) => TENANT_ROUTE_IDS.includes(entry.routeId))
-  if (match?.status !== 'success') return null
-  const data: unknown = match.loaderData
+  if (match?.status !== 'success' || !hasTenantRead(match.loaderData)) return null
+  const data = await within(match.loaderData.tenant, TENANT_GROUP_WAIT_MS)
   return isRouteTenant(data) ? { id: data.id, access: data.access } : null
 }
 
 /**
- * Subscribes analytics to the router's resolves. Every resolve sets or
- * clears the tenant group, a reload of the same page included; only a changed
- * path captures a page view. Install it before the router's first load, so the
- * first page is counted too.
+ * Subscribes analytics to the router's resolves. Each resolve sets or clears
+ * the tenant group, then, when the path changed, captures a page view, in
+ * resolve order: a tenant page's view waits for its tenant read, and every
+ * later resolve waits behind it. Install it before the router's first load, so
+ * the first page is counted too.
  * @param router - The app's router.
  * @returns The unsubscribe.
  */
 export function installRouteAnalytics(router: AnyRouter): () => void {
+  let queue: Promise<void> = Promise.resolve()
   return router.subscribe('onResolved', ({ pathChanged }) => {
     const tenant = resolvedTenant(router)
-    if (tenant) setTenantGroup(tenant.id, tenant.access)
-    else clearTenantGroup()
-    if (pathChanged) capturePageview()
+    queue = queue
+      .then(async () => {
+        const resolved = await tenant
+        if (resolved) setTenantGroup(resolved.id, resolved.access)
+        else clearTenantGroup()
+        if (pathChanged) capturePageview()
+      })
+      .catch(() => undefined)
   })
 }

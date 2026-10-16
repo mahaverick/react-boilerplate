@@ -15,6 +15,13 @@ export const FLAGS_STALE_MS = 5 * 60_000
 /** How often an open page refetches its scope's values. */
 export const FLAGS_REFETCH_MS = 10 * 60_000
 
+/**
+ * The longest a loader waits for a scope's values. After it the page renders
+ * on the fallbacks; the read keeps going and its values reach every flag
+ * hook when it lands.
+ */
+export const FLAGS_BOOT_WAIT_MS = 10_000
+
 /** Query keys, all under `['flags']` so one call removes every scope. */
 export const flagKeys = {
   all: ['flags'] as const,
@@ -92,8 +99,10 @@ export function flagsQueryOptions(scope: FlagScope) {
 }
 
 /**
- * Loads a scope's values for a route loader. Never rejects: a failed read
- * resolves to the fallbacks, so flags never block a page from rendering.
+ * Loads a scope's values for a route loader. Never rejects, and never waits
+ * longer than `FLAGS_BOOT_WAIT_MS`: a failed read, or one still out when the
+ * wait ends, resolves to the fallbacks, so flags never hold a page. A read
+ * that outlasts the wait is not cancelled; its values land in the cache.
  * @param queryClient - The app's query client.
  * @param scope - The scope.
  * @returns The values, or every fallback.
@@ -102,10 +111,15 @@ export async function ensureFlags(
   queryClient: QueryClient,
   scope: FlagScope
 ): Promise<ClientFlagValues> {
+  const read = queryClient.ensureQueryData(flagsQueryOptions(scope)).catch(() => fallbackFlags())
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const waited = new Promise<ClientFlagValues>((resolve) => {
+    timer = setTimeout(() => resolve(fallbackFlags()), FLAGS_BOOT_WAIT_MS)
+  })
   try {
-    return await queryClient.ensureQueryData(flagsQueryOptions(scope))
-  } catch {
-    return fallbackFlags()
+    return await Promise.race([read, waited])
+  } finally {
+    clearTimeout(timer)
   }
 }
 

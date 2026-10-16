@@ -92,6 +92,16 @@ describe('workspace settings', () => {
     })
   })
 
+  it('shows the settings template under the settings heading while the tenant loads', async () => {
+    mockTenant('owner')
+    server.use(http.get('/api/v1/tenants/acme', () => new Promise<Response>(() => {})))
+    renderAppAt('/settings/workspace/acme/general')
+    const template = await screen.findByRole('status', { name: 'Loading' })
+    expect(template.querySelector('[data-slot="page-heading-skeleton"]')).toBeNull()
+    expect(template.querySelectorAll('[data-slot="card"]')).toHaveLength(3)
+    expect(screen.getByRole('heading', { level: 1, name: 'General' })).toBeVisible()
+  })
+
   it('opens General at the workspace root', async () => {
     mockTenant('owner')
     const router = renderAppAt('/settings/workspace/acme')

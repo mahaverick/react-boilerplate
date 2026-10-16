@@ -36,7 +36,11 @@ const ACME = {
  */
 function renderGate(slug: string) {
   const rootRoute = createRootRoute({
-    component: () => <TenantGate slug={slug}>{(tenant) => <p>Loaded {tenant.name}</p>}</TenantGate>,
+    component: () => (
+      <TenantGate slug={slug} skeleton={<p>Loading tenant</p>}>
+        {(tenant) => <p>Loaded {tenant.name}</p>}
+      </TenantGate>
+    ),
   })
   const router = createRouter({
     routeTree: rootRoute,

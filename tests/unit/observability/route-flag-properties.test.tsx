@@ -85,7 +85,10 @@ function buildApp(initialPath: string) {
   const tenantRoute = createRoute({
     getParentRoute: () => appRoute,
     path: 'tenants/$slug',
-    loader: ({ params }) => ({ id: `tenant-${params.slug}`, access: 'member' }),
+    // The app's tenant loaders hand over the tenant read, which route analytics awaits.
+    loader: ({ params }) => ({
+      tenant: Promise.resolve({ id: `tenant-${params.slug}`, access: 'member' }),
+    }),
     component: function TenantPage() {
       return <h1>{tenantRoute.useParams().slug}</h1>
     },
@@ -197,6 +200,7 @@ describe('$feature/* across a change of flag scope', () => {
 
     await act(() => router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } }))
     await screen.findByRole('heading', { name: 'globex' })
+    await vi.waitFor(() => expect(indexesOf('capture("$pageview"')).toHaveLength(1))
 
     const [pageview] = indexesOf('capture("$pageview"')
     expect(pageview).toBeDefined()
@@ -216,7 +220,7 @@ describe('$feature/* across a change of flag scope', () => {
     await act(() => router.navigate({ to: '/profile' }))
     await screen.findByRole('heading', { name: 'Profile' })
 
-    expect(captures.map((capture) => capture.event)).toEqual(['$pageview'])
+    await vi.waitFor(() => expect(captures.map((capture) => capture.event)).toEqual(['$pageview']))
     expect(captures[0]?.features).toEqual({})
     await vi.waitFor(() => expect(featuresHeld()).toEqual(NO_TENANT))
   })

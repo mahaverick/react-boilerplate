@@ -6,7 +6,11 @@ import {
   Outlet,
 } from '@tanstack/react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { installRouteAnalytics, TENANT_ROUTE_IDS } from '@/observability/route-telemetry'
+import {
+  installRouteAnalytics,
+  TENANT_GROUP_WAIT_MS,
+  TENANT_ROUTE_IDS,
+} from '@/observability/route-telemetry'
 import { initAnalytics, resetAnalyticsForTests } from '@/observability/telemetry/telemetry'
 import { analyticsConfigFor, resetFakePosthog, sdk } from '@/tests/mocks/posthog'
 
@@ -23,6 +27,14 @@ const TENANTS: Record<string, unknown> = {
   gone: null,
 }
 
+/** Each slug's tenant read: resolved at once, unless a test holds it. */
+const reads = new Map<string, Promise<unknown>>()
+
+/** The tenant read a tenant route's loader hands over for `slug`. */
+function tenantFor(slug: string): Promise<unknown> {
+  return reads.get(slug) ?? Promise.resolve(TENANTS[slug] ?? null)
+}
+
 /** A small tree shaped like the app's: both tenant layouts under the pathless `_app` layout. */
 function makeRouter(initialPath: string) {
   const rootRoute = createRootRoute({ component: Outlet })
@@ -32,8 +44,8 @@ function makeRouter(initialPath: string) {
     getParentRoute: () => appRoute,
     path: 'tenants/$slug',
     loader: ({ params }) => {
-      if (params.slug === 'broken') throw new Error('load failed')
-      return TENANTS[params.slug] ?? null
+      if (params.slug === 'broken') return { tenant: Promise.resolve(null) }
+      return { tenant: tenantFor(params.slug) }
     },
   })
   const membersRoute = createRoute({ getParentRoute: () => tenantRoute, path: 'members' })
@@ -41,7 +53,10 @@ function makeRouter(initialPath: string) {
   const workspaceRoute = createRoute({
     getParentRoute: () => settingsRoute,
     path: 'workspace/$slug',
-    loader: ({ params }) => TENANTS[params.slug] ?? null,
+    loader: ({ params }) => {
+      if (params.slug === 'broken') return { tenant: Promise.resolve(null) }
+      return { tenant: tenantFor(params.slug) }
+    },
   })
   const workspaceMembersRoute = createRoute({
     getParentRoute: () => workspaceRoute,
@@ -65,6 +80,11 @@ function attributionCalls(): string[] {
   return sdk.calls.filter((call) => !call.includes('"app"'))
 }
 
+/** How many page views have been captured since `sdk.calls` was last cleared. */
+function pageviews(): number {
+  return sdk.calls.filter((call) => call === 'capture("$pageview", {})').length
+}
+
 const MEMBER = 'register({"tenant_access":"member"})'
 const PLATFORM = 'register({"tenant_access":"platform"})'
 const LEAVE_TENANT = ['resetGroups()', 'unregister("tenant_access")']
@@ -76,6 +96,7 @@ describe('installRouteAnalytics', () => {
   beforeEach(() => {
     resetAnalyticsForTests()
     resetFakePosthog()
+    reads.clear()
   })
 
   afterEach(() => {
@@ -97,40 +118,48 @@ describe('installRouteAnalytics', () => {
 
   it('groups the first page’s tenant before its pageview, queued until the SDK loads', async () => {
     await start('/tenants/acme/members')
-    expect(attributionCalls()).toEqual([
-      MEMBER,
-      'group("tenant", "tenant-acme")',
-      'capture("$pageview", {})',
-    ])
+    await vi.waitFor(() =>
+      expect(attributionCalls()).toEqual([
+        MEMBER,
+        'group("tenant", "tenant-acme")',
+        'capture("$pageview", {})',
+      ])
+    )
   })
 
   it('groups a workspace settings page under its tenant before its pageview', async () => {
     await start('/settings/workspace/acme/members')
-    expect(attributionCalls()).toEqual([
-      MEMBER,
-      'group("tenant", "tenant-acme")',
-      'capture("$pageview", {})',
-    ])
+    await vi.waitFor(() =>
+      expect(attributionCalls()).toEqual([
+        MEMBER,
+        'group("tenant", "tenant-acme")',
+        'capture("$pageview", {})',
+      ])
+    )
   })
 
   it('switching tenants: the new tenant is grouped, then the switch and the pageview are captured', async () => {
     const router = await start('/tenants/acme')
+    await vi.waitFor(() => expect(pageviews()).toBe(1))
     sdk.calls = []
     await router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } })
-    expect(sdk.calls).toEqual([
-      MEMBER,
-      'group("tenant", "tenant-globex")',
-      'capture("tenant_switched", {})',
-      'capture("$pageview", {})',
-    ])
+    await vi.waitFor(() =>
+      expect(sdk.calls).toEqual([
+        MEMBER,
+        'group("tenant", "tenant-globex")',
+        'capture("tenant_switched", {})',
+        'capture("$pageview", {})',
+      ])
+    )
     expect(sdk.properties.$groups).toEqual({ tenant: 'tenant-globex' })
   })
 
   it('a non-tenant page leaves the group before its pageview', async () => {
     const router = await start('/tenants/acme')
+    await vi.waitFor(() => expect(pageviews()).toBe(1))
     sdk.calls = []
     await router.navigate({ to: '/profile' })
-    expect(sdk.calls).toEqual([...LEAVE_TENANT, 'capture("$pageview", {})'])
+    await vi.waitFor(() => expect(sdk.calls).toEqual([...LEAVE_TENANT, 'capture("$pageview", {})']))
     expect(sdk.properties.$groups).toEqual({})
   })
 
@@ -138,23 +167,29 @@ describe('installRouteAnalytics', () => {
     const router = await start('/tenants/acme')
     await router.navigate({ to: '/profile' })
     await router.navigate({ to: '/tenants/$slug', params: { slug: 'acme' } })
+    await vi.waitFor(() => expect(pageviews()).toBe(3))
     expect(sdk.calls.filter((call) => call.includes('tenant_switched'))).toEqual([])
     await router.navigate({ to: '/profile' })
     await router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } })
+    await vi.waitFor(() => expect(pageviews()).toBe(5))
     expect(sdk.calls.filter((call) => call.includes('tenant_switched'))).toHaveLength(1)
   })
 
   it('marks a tenant reached through platform access, and a member tenant after it', async () => {
     const router = await start('/tenants/initech')
-    expect(attributionCalls()).toEqual([
-      PLATFORM,
-      'group("tenant", "tenant-initech")',
-      'capture("$pageview", {})',
-    ])
+    await vi.waitFor(() =>
+      expect(attributionCalls()).toEqual([
+        PLATFORM,
+        'group("tenant", "tenant-initech")',
+        'capture("$pageview", {})',
+      ])
+    )
     sdk.calls = []
     await router.navigate({ to: '/tenants/$slug', params: { slug: 'acme' } })
+    await vi.waitFor(() => expect(pageviews()).toBe(1))
     expect(sdk.properties.tenant_access).toBe('member')
     await router.navigate({ to: '/profile' })
+    await vi.waitFor(() => expect(pageviews()).toBe(2))
     expect(sdk.properties).not.toHaveProperty('tenant_access')
   })
 
@@ -163,17 +198,70 @@ describe('installRouteAnalytics', () => {
     ['failed to load', 'broken'],
   ])('a tenant page whose tenant %s is in no group', async (_case, slug) => {
     const router = await start('/tenants/acme')
+    await vi.waitFor(() => expect(pageviews()).toBe(1))
     sdk.calls = []
     await router.navigate({ to: '/tenants/$slug', params: { slug } })
-    expect(sdk.calls).toEqual([...LEAVE_TENANT, 'capture("$pageview", {})'])
+    await vi.waitFor(() => expect(sdk.calls).toEqual([...LEAVE_TENANT, 'capture("$pageview", {})']))
   })
 
   it('a resolve that keeps the path re-applies the group without a pageview', async () => {
     const router = await start('/tenants/acme')
+    await vi.waitFor(() => expect(pageviews()).toBe(1))
     sdk.calls = []
     await router.invalidate()
     await router.navigate({ to: '/tenants/$slug', params: { slug: 'acme' }, search: {} })
-    expect(sdk.calls).toEqual([])
+    // A later page view is queued behind both resolves above, so once it lands they have run.
+    await router.navigate({ to: '/profile' })
+    await vi.waitFor(() => expect(pageviews()).toBe(1))
+    expect(sdk.calls).toEqual([...LEAVE_TENANT, 'capture("$pageview", {})'])
+  })
+
+  it('waits for the tenant before the page view, so the view carries its group', async () => {
+    let land!: (tenant: unknown) => void
+    reads.set('acme', new Promise((resolve) => (land = resolve)))
+    await start('/tenants/acme')
+    land(TENANTS.acme)
+    // The view comes after the group, which only the landed read can set: the view waited for it.
+    await vi.waitFor(() =>
+      expect(attributionCalls()).toEqual([
+        MEMBER,
+        'group("tenant", "tenant-acme")',
+        'capture("$pageview", {})',
+      ])
+    )
+  })
+
+  it('keeps resolve order when the user moves on before the tenant lands', async () => {
+    let land!: (tenant: unknown) => void
+    reads.set('acme', new Promise((resolve) => (land = resolve)))
+    const router = await start('/tenants/acme')
+    await router.navigate({ to: '/profile' })
+    land(TENANTS.acme)
+    await vi.waitFor(() =>
+      expect(attributionCalls()).toEqual([
+        MEMBER,
+        'group("tenant", "tenant-acme")',
+        'capture("$pageview", {})',
+        ...LEAVE_TENANT,
+        'capture("$pageview", {})',
+      ])
+    )
+  })
+
+  it('captures the page view without a tenant once TENANT_GROUP_WAIT_MS passes', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      reads.set('acme', new Promise(() => {}))
+      await start('/tenants/acme')
+      await vi.advanceTimersByTimeAsync(TENANT_GROUP_WAIT_MS - 1)
+      expect(attributionCalls()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      // Nothing was grouped before, so leaving the group sends nothing: the view alone, with no tenant.
+      expect(attributionCalls()).toEqual(['capture("$pageview", {})'])
+      expect(sdk.properties).not.toHaveProperty('tenant_access')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('a page load that starts on a non-tenant page drops a tenant left in storage first', async () => {

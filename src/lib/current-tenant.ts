@@ -3,8 +3,7 @@
  * path segment; every other page in the signed-in shell carries it as
  * `?tenant=<slug>`. `_app` owns the param: this module holds its schema and
  * the search middleware that keeps it on every navigation; the guard that fills
- * or corrects it is `tenant-guard.ts`, which `_app` loads on demand so the
- * tenant queries stay out of the entry chunk.
+ * or corrects it is `TenantSearchGuard`, in the `_app` layout.
  */
 import {
   stripSearchParams,
@@ -74,65 +73,22 @@ function tenantOf(router: AnyRouter, location: ParsedLocation): string | null {
   return typeof tenant === 'string' && isSlugShaped(tenant) ? tenant : null
 }
 
-/** The router `installCurrentTenant` was given, which `armTenantGuardRerun` invalidates. */
-let installedRouter: AnyRouter | null = null
-
-/** Stops the watch `armTenantGuardRerun` holds, if one is armed. */
-let stopWatch: (() => void) | null = null
-
-/** Stops and forgets the armed watch, if any. */
-function disarmTenantGuardRerun(): void {
-  stopWatch?.()
-  stopWatch = null
-}
-
-/**
- * Arms one watch that runs the current page's guards again, so `_app` can fill
- * or correct `?tenant` with a tenant list that arrived after the page rendered
- * without one; a correction is a redirect, so it replaces the entry. `watch`
- * starts the watch, calls its `rerun` argument when the list lands, and
- * returns its stop. Arming replaces any watch already armed. The watch belongs
- * to the router installed now: uninstalling that router stops it, and a
- * `rerun` after the installed router has changed does nothing, so a watch
- * never invalidates another router (the next user's, after a sign-out).
- * @param watch - Starts the watch and returns its stop.
- */
-export function armTenantGuardRerun(watch: (rerun: () => void) => () => void): void {
-  disarmTenantGuardRerun()
-  const router = installedRouter
-  if (!router) return
-  const stop = watch(() => {
-    if (stopWatch === stop) disarmTenantGuardRerun()
-    else stop()
-    if (installedRouter === router) void router.invalidate()
-  })
-  stopWatch = stop
-}
-
 /**
  * Records the tenant of each location the router starts loading, for
  * `retainTenant`. On `onBeforeLoad`, before the router publishes the new
  * location, so a link that renders for it (the sidebar's, say) builds its
  * href from this page's tenant, not the previous one's. A page outside the
  * shell names none, so nothing carries across a sign-out.
- * It also keeps `router` for `armTenantGuardRerun`.
  * @param router - The app's router.
- * @returns The unsubscribe, which also forgets the recorded tenant and the
- *   router, and stops any armed re-run watch.
+ * @returns The unsubscribe, which also forgets the recorded tenant.
  */
 export function installCurrentTenant(router: AnyRouter): () => void {
   currentTenant = null
-  disarmTenantGuardRerun()
-  installedRouter = router
   const unsubscribe = router.subscribe('onBeforeLoad', ({ toLocation }) => {
     currentTenant = tenantOf(router, toLocation)
   })
   return () => {
     unsubscribe()
     currentTenant = null
-    if (installedRouter === router) {
-      installedRouter = null
-      disarmTenantGuardRerun()
-    }
   }
 }

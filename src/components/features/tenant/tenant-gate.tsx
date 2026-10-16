@@ -1,32 +1,15 @@
 import { IconBuildingOff, IconLock } from '@tabler/icons-react'
-import { Link, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
-import { useEffect, type ReactNode } from 'react'
-import { LoadError } from '@/components/features/load-error'
+import { Link } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import { PlatformAccessBanner } from '@/components/features/platform-access-banner'
 import { EmptyState } from '@/components/shared/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
-import { noteError } from '@/observability/errors'
+import { QueryState } from '@/components/shared/query-state'
 import { useTenant, useTenants } from '@/queries/tenant.queries'
 import { useRememberTenant } from '@/states/current-tenant.store'
 
 /** Said of the request, not of the tenant: unlike `TenantNotFound`, the tenant may be fine. */
 export const TENANT_LOAD_ERROR =
   'We could not load this tenant. The request failed, which is not the same as the tenant being gone.'
-
-/**
- * The route's error boundary. Retry is `router.invalidate()`, which re-runs
- * the loader; `ensureQueryData` finds no data and fetches again. The error
- * goes to error tracking on mount, which drops it when it is the API's.
- */
-export function TenantLoadFailed({ error }: ErrorComponentProps) {
-  const router = useRouter()
-
-  useEffect(() => {
-    noteError(error, 'router', true)
-  }, [error])
-
-  return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void router.invalidate()} />
-}
 
 /**
  * What a 404 looks like. `GET /tenants/:slug` answers the same 404 for "no such
@@ -89,60 +72,76 @@ type GateHeading = 'h1' | 'h2'
 export type LoadedTenant = NonNullable<ReturnType<typeof useTenant>['data']>
 
 /**
- * What every tenant layout renders around its page: a skeleton while the
- * tenant loads; the suspended, load-error or not-found panel when there is no
- * tenant (the list decides between suspended and missing); otherwise the
- * platform-access banner when staff reached it by platform access, then the
- * page. A loaded tenant the user reached as a member, other than the platform
- * tenant, becomes the user's remembered tenant for Settings.
+ * What every tenant layout renders around its page: `skeleton` while the
+ * tenant loads; the load-error panel when the read fails; for a 404 (`null`)
+ * the suspended or not-found panel, which the tenant list decides; otherwise
+ * the platform-access banner when staff reached it by platform access, then
+ * the page. A loaded tenant the user reached as a member, other than the
+ * platform tenant, becomes the user's remembered tenant for Settings.
  * `heading` is the panels' title element, `h2` under a layout with its own `h1`.
  */
 export function TenantGate({
   slug,
   heading = 'h1',
+  skeleton,
   children,
 }: {
   slug: string
   heading?: GateHeading
+  skeleton: ReactNode
   children: (tenant: LoadedTenant) => ReactNode
 }) {
   const tenant = useTenant(slug)
-  const tenants = useTenants()
-  const listed = tenants.data?.find((entry) => entry.tenant.slug === slug)
   // Only a tenant the user works in becomes the remembered one: staff visits and the platform tenant would otherwise replace it.
   useRememberTenant(
     slug,
     !!tenant.data && tenant.data.access !== 'platform' && !tenant.data.isPlatform
   )
 
-  // With no tenant, the list decides between suspended and not found, so wait for it.
-  if (tenant.isPending || (!tenant.data && (tenants.isPending || tenants.isFetching))) {
-    return (
-      <div className="grid gap-4">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-40 w-full" />
-      </div>
-    )
-  }
-
-  if (!tenant.data) {
-    if (listed?.tenant.lifecycleState === 'suspended') {
-      return <TenantSuspended name={listed.tenant.name} heading={heading} />
-    }
-    // A failed list cannot tell suspended from missing, so it claims neither.
-    if (tenants.isError) {
-      return <LoadError message={TENANT_LOAD_ERROR} onRetry={() => void tenants.refetch()} />
-    }
-    return <TenantNotFound slug={slug} heading={heading} />
-  }
-
   return (
-    <>
-      {tenant.data.access === 'platform' && (
-        <PlatformAccessBanner tenantName={tenant.data.name} role={tenant.data.role} />
-      )}
-      {children(tenant.data)}
-    </>
+    <QueryState query={tenant} name="Tenant" errorMessage={TENANT_LOAD_ERROR} skeleton={skeleton}>
+      {(detail) =>
+        detail === null ? (
+          <MissingTenant slug={slug} heading={heading} skeleton={skeleton} />
+        ) : (
+          <>
+            {detail.access === 'platform' && (
+              <PlatformAccessBanner tenantName={detail.name} role={detail.role} />
+            )}
+            {children(detail)}
+          </>
+        )
+      }
+    </QueryState>
+  )
+}
+
+/**
+ * A tenant the API answered 404 for: suspended when the caller's list says
+ * so, else not found. The 404 invalidates the list, so it waits for that
+ * refetch; a failed list cannot tell the two apart, so it claims neither.
+ */
+function MissingTenant({
+  slug,
+  heading,
+  skeleton,
+}: {
+  slug: string
+  heading: GateHeading
+  skeleton: ReactNode
+}) {
+  const tenants = useTenants()
+  if (tenants.isFetching && !tenants.isError) return skeleton
+  return (
+    <QueryState query={tenants} name="Tenants" errorMessage={TENANT_LOAD_ERROR} skeleton={skeleton}>
+      {(list) => {
+        const listed = list.find((entry) => entry.tenant.slug === slug)
+        return listed?.tenant.lifecycleState === 'suspended' ? (
+          <TenantSuspended name={listed.tenant.name} heading={heading} />
+        ) : (
+          <TenantNotFound slug={slug} heading={heading} />
+        )
+      }}
+    </QueryState>
   )
 }

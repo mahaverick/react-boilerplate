@@ -1,17 +1,20 @@
 import { QueryClient } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { apiClient } from '@/http/client'
 import {
   clearFlags,
   ensureFlags,
   fetchFlags,
   flagKeyFor,
   flagKeys,
+  FLAGS_BOOT_WAIT_MS,
   FLAGS_REFETCH_MS,
   FLAGS_STALE_MS,
   flagScopeId,
   flagsQueryOptions,
 } from '@/observability/flags/flag-query'
+import type { ClientFlagValues } from '@/observability/flags/flag-types'
 import { fallbackFlags } from '@/observability/flags/flag-values'
 import { server } from '@/tests/mocks/server'
 
@@ -125,5 +128,56 @@ describe('clearFlags', () => {
     clearFlags(queryClient, { keep: { kind: 'tenant', slug: 'globex' } })
     const left = queryClient.getQueryCache().findAll({ queryKey: flagKeys.all })
     expect(left.map((query) => query.queryKey)).toEqual([['flags', 'tenant', 'globex']])
+  })
+})
+
+describe('ensureFlags under a slow read', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('waits ten seconds', () => {
+    expect(FLAGS_BOOT_WAIT_MS).toBe(10_000)
+  })
+
+  it('resolves to the fallbacks once FLAGS_BOOT_WAIT_MS passes with no answer, and the late answer lands in the cache', async () => {
+    let answer!: (flags: Record<string, unknown>) => void
+    const response = new Promise<{ data: { data: { flags: Record<string, unknown> } } }>(
+      (resolve) => {
+        answer = (flags) => resolve({ data: { data: { flags } } })
+      }
+    )
+    const get = vi.spyOn(apiClient, 'get').mockReturnValue(response)
+    const cancel = vi.spyOn(queryClient, 'cancelQueries')
+    let result: ClientFlagValues | undefined
+    void ensureFlags(queryClient, NONE).then((values) => {
+      result = values
+    })
+
+    await vi.advanceTimersByTimeAsync(FLAGS_BOOT_WAIT_MS - 1)
+    expect(result).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(result).toEqual(fallbackFlags())
+    expect(cancel).not.toHaveBeenCalled()
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(queryClient.getQueryData(flagKeys.none())).toBeUndefined()
+
+    answer({ ...fallbackFlags(), test_bool: true })
+    await vi.waitFor(() =>
+      expect(queryClient.getQueryData(flagKeys.none())).toMatchObject({ test_bool: true })
+    )
+  })
+
+  it('answers with the server values and clears its timer when the read is in time', async () => {
+    vi.spyOn(queryClient, 'ensureQueryData').mockResolvedValue({
+      ...fallbackFlags(),
+      test_bool: true,
+    })
+    await expect(ensureFlags(queryClient, NONE)).resolves.toMatchObject({ test_bool: true })
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

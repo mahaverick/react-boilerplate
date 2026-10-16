@@ -5,6 +5,7 @@ import { MaintenanceBanner } from '@/components/features/maintenance/maintenance
 import { NotificationBell } from '@/components/features/notification-bell'
 import { MAIN_CONTENT_ID, SkipLink } from '@/components/features/skip-link'
 import { TenantSwitcher } from '@/components/features/tenant-switcher'
+import { TenantSearchGuard } from '@/components/features/tenant/tenant-search-guard'
 import { ThemeToggle } from '@/components/features/theme-toggle'
 import { UserMenu } from '@/components/features/user-menu'
 import { NavMain, type NavMainItem } from '@/components/layouts/nav-main'
@@ -144,7 +145,8 @@ function withAncestors(crumbs: Crumb[]): Crumb[] {
  * owns the open state, so anything in the app can read or set it.
  * `MaintenanceBanner` sits under the header, inside the content column, so the
  * fixed sidebar never covers it; the maintenance gate draws it only for pages
- * outside this shell.
+ * outside this shell. The page slot sits under `TenantSearchGuard`, which
+ * settles `?tenant` before a page without `$slug` renders.
  */
 export function AppLayout() {
   const user = useAuthStore((s) => s.user)
@@ -222,7 +224,9 @@ export function AppLayout() {
         </header>
         <MaintenanceBanner />
         <div className="flex-1 overflow-auto p-4 md:p-6">
-          <Outlet />
+          <TenantSearchGuard>
+            <Outlet />
+          </TenantSearchGuard>
         </div>
       </SidebarInset>
     </SidebarProvider>
