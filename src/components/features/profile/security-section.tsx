@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Item, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
+import { Skeleton } from '@/components/ui/skeleton'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { messageFrom, statusFrom } from '@/lib/api-error'
@@ -75,8 +76,14 @@ export function SecuritySection() {
         className="gap-6"
         skeleton={
           <div className="grid gap-6">
-            <CardRowsSkeleton rows={1} rowHeight="1.25rem" />
-            <FormFieldsSkeleton fields={3} />
+            <div className="grid gap-2">
+              <Skeleton className="h-5 w-32" />
+              <CardRowsSkeleton rows={2} rowHeight="1.25rem" />
+            </div>
+            <div className="grid gap-2">
+              <Skeleton className="h-5 w-32" />
+              <FormFieldsSkeleton fields={3} />
+            </div>
           </div>
         }
       >

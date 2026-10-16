@@ -66,7 +66,7 @@ function ProfilePage() {
         <QueryState
           query={profile}
           name="Profile"
-          className="gap-0"
+          className="gap-3"
           skeleton={<FormFieldsSkeleton fields={4} />}
         >
           {(user) => <ProfileDetails key={user.id} user={user} />}

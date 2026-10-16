@@ -80,10 +80,10 @@ The capture has no loading or error shot for this page: the session's user is al
 
 The password form waits on the providers request, because only that answer says whether the account has a password; so a failed providers request hides the form as well (the error shot). The loading skeleton holds the sign-in methods line and the password form's three fields and button, so Other sessions does not move when the form lands.
 
-| Loading                                                             | Error                                                         |
-| ------------------------------------------------------------------- | ------------------------------------------------------------- |
-| ![](img/settings/account-security--loading.jpg)                     | ![](img/settings/account-security--error.jpg)                 |
-| skeleton · one `1.25rem` bar + 3 label-and-input pairs + button bar | alert · `LoadError` "We could not load your sign-in methods." |
+| Loading                                                                    | Error                                                         |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| ![](img/settings/account-security--loading.jpg)                            | ![](img/settings/account-security--error.jpg)                 |
+| skeleton · 2 headings, 2 method rows, 3 label-and-input pairs + button bar | alert · `LoadError` "We could not load your sign-in methods." |
 
 Findings: [F-settings-3](findings.md#f-settings-3), [F-settings-12](findings.md#f-settings-12)
 

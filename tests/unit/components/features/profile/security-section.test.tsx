@@ -84,7 +84,8 @@ describe('security section', () => {
     renderSecurity()
     const busy = await screen.findByRole('region', { name: 'Security' })
     expect(busy.querySelector('[data-slot="query-state"][aria-busy="true"]')).not.toBeNull()
-    expect(busy.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThanOrEqual(8)
+    // Two headings, two method rows, three label-and-input pairs and the button bar.
+    expect(busy.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(11)
     expect(screen.getByRole('button', { name: 'Sign out other sessions' })).toBeVisible()
   })
 
