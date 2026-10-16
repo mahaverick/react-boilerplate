@@ -61,12 +61,15 @@ export const BELL_PREVIEW_LIMIT = 5
  * One page of the inbox (`GET /notifications`), under `notificationKeys.list`,
  * which the stream invalidates.
  * @param request - From `listRequest(notificationsList, …)`, or the bell's.
+ * @param options - `total: false` for a read that never uses the total (the bell's preview).
+ * @param options.total - Whether the first page asks for the capped total.
  */
-export function notificationsListOptions(request: ListRequest) {
+export function notificationsListOptions(request: ListRequest, options: { total?: boolean } = {}) {
   return listQueryOptions<Notification>({
     key: notificationKeys.list,
     path: '/notifications',
     request,
+    ...options,
   })
 }
 
@@ -85,23 +88,59 @@ export function useUnreadCount() {
 /** Every cached inbox page, before a write rewrote them, so `onError` can put them back. */
 type PageSnapshot = Array<[QueryKey, ListPage<Notification> | undefined]>
 
+/** One cached inbox page's rewrite; `request` is the one that page was read with. */
+type PageEdit = (page: ListPage<Notification>, request: ListRequest) => ListPage<Notification>
+
 /**
- * Rewrites every cached inbox page through `update` and returns them as they
+ * Rewrites every cached inbox page through `edit` and returns them as they
  * were: the row may be on any page, in any filtered view.
  * @param queryClient - The app's query client.
- * @param update - The new rows for a page's rows.
+ * @param edit - The new page for a cached page and its request.
  */
-function rewritePages(
-  queryClient: QueryClient,
-  update: (rows: Notification[]) => Notification[]
-): PageSnapshot {
+function rewritePages(queryClient: QueryClient, edit: PageEdit): PageSnapshot {
   const snapshot = queryClient.getQueriesData<ListPage<Notification>>({
     queryKey: notificationKeys.list,
   })
-  queryClient.setQueriesData<ListPage<Notification>>({ queryKey: notificationKeys.list }, (page) =>
-    page === undefined ? page : { ...page, items: update(page.items) }
-  )
+  for (const [key, page] of snapshot) {
+    if (page !== undefined) queryClient.setQueryData(key, edit(page, key[3] as ListRequest))
+  }
   return snapshot
+}
+
+/**
+ * Whether a cached row is unread, in any cached page.
+ * @param snapshot - The pages before the write.
+ * @param id - The notification.
+ */
+function wasUnread(snapshot: PageSnapshot, id: string): boolean {
+  return snapshot.some(([, page]) =>
+    page?.items.some((row) => row.id === id && row.readAt === null)
+  )
+}
+
+/**
+ * The unread views' count and rows after one unread row left them: the row is
+ * dropped, and a total that is exact (present, not at the cap) goes down by one.
+ * @param page - A cached page.
+ * @param request - Its request.
+ * @param id - The notification that left the unread state.
+ * @param countDown - Whether it was unread, so the count falls.
+ */
+function leaveUnreadViews(
+  page: ListPage<Notification>,
+  request: ListRequest,
+  id: string,
+  countDown: boolean
+): ListPage<Notification> {
+  if (request.unread !== true) return page
+  const total = page.total
+  return {
+    ...page,
+    items: page.items.filter((row) => row.id !== id),
+    ...(countDown && total && !total.capped
+      ? { total: { ...total, count: Math.max(0, total.count - 1) } }
+      : {}),
+  }
 }
 
 /**
@@ -123,11 +162,23 @@ export function useMarkRead() {
       // Cancelled so an earlier in-flight refetch cannot land after this and overwrite the row.
       await queryClient.cancelQueries({ queryKey: notificationKeys.list })
       const readAt = new Date().toISOString()
-      const snapshot = rewritePages(queryClient, (rows) =>
-        rows.map((notification) =>
-          notification.id === id && notification.readAt === null
-            ? { ...notification, readAt }
-            : notification
+      const snapshot = queryClient.getQueriesData<ListPage<Notification>>({
+        queryKey: notificationKeys.list,
+      })
+      const countDown = wasUnread(snapshot, id)
+      rewritePages(queryClient, (page, request) =>
+        leaveUnreadViews(
+          {
+            ...page,
+            items: page.items.map((notification) =>
+              notification.id === id && notification.readAt === null
+                ? { ...notification, readAt }
+                : notification
+            ),
+          },
+          request,
+          id,
+          countDown
         )
       )
       return { snapshot }
@@ -139,12 +190,28 @@ export function useMarkRead() {
   })
 }
 
-/** Marks every notification read; the list refetches once the request settles. */
+/** Marks every notification read. The rows show read and the unread views empty at once, restored if the request fails; the list refetches once it settles. */
 export function useMarkAllRead() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async () =>
       unwrap(await apiClient.patch<ApiSuccess<{ count: number }>>('/notifications/read-all')),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: notificationKeys.list })
+      const readAt = new Date().toISOString()
+      const snapshot = rewritePages(queryClient, (page, request) =>
+        request.unread === true
+          ? { ...page, items: [], ...(page.total ? { total: { count: 0, capped: false } } : {}) }
+          : {
+              ...page,
+              items: page.items.map((row) => (row.readAt === null ? { ...row, readAt } : row)),
+            }
+      )
+      return { snapshot }
+    },
+    onError: (_error, _vars, context) => {
+      restorePages(queryClient, context?.snapshot)
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: notificationKeys.list }),
   })
 }
@@ -156,9 +223,16 @@ export function useDeleteNotification() {
     mutationFn: async (id: string) => apiClient.delete<ApiSuccess<null>>(`/notifications/${id}`),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: notificationKeys.list })
-      const snapshot = rewritePages(queryClient, (rows) =>
-        rows.filter((notification) => notification.id !== id)
-      )
+      const snapshot = queryClient.getQueriesData<ListPage<Notification>>({
+        queryKey: notificationKeys.list,
+      })
+      const countDown = wasUnread(snapshot, id)
+      rewritePages(queryClient, (page, request) => {
+        const withoutRow = { ...page, items: page.items.filter((row) => row.id !== id) }
+        return request.unread === true
+          ? leaveUnreadViews(withoutRow, request, id, countDown)
+          : withoutRow
+      })
       return { snapshot }
     },
     onError: (_error, _id, context) => {

@@ -43,16 +43,20 @@ import {
  * Each preview is a real anchor (Base UI's Menu.Item has no `onSelect`), and
  * its unread dot is aria-hidden, since the label spells out the count.
  *
- * A failed unread read marks the bell with a muted dot (hidden from
+ * A failed unread read (or an answer with no total) marks the bell with a muted dot (hidden from
  * assistive tech; the label already says the count is unavailable). A failed
  * preview read offers Try again in the menu, which reads a failed count again
- * too.
+ * too; a failed count alone gets its own Try again under the rows.
  */
 export function NotificationBell() {
-  const preview = useQuery(notificationsListOptions({ limit: BELL_PREVIEW_LIMIT }))
+  const preview = useQuery(
+    notificationsListOptions({ limit: BELL_PREVIEW_LIMIT }, { total: false })
+  )
   const recent = preview.data?.items ?? []
   const unreadQuery = useUnreadCount()
   const unread = unreadQuery.data
+  // A count answer without a total is as unknown as a failed one: neither is "0 unread".
+  const countFailed = unread === undefined && (unreadQuery.isError || unreadQuery.isSuccess)
   const countText = unread && `${unread.count.toLocaleString('en-US')}${unread.capped ? '+' : ''}`
 
   return (
@@ -81,7 +85,7 @@ export function NotificationBell() {
             {countText}
           </Badge>
         )}
-        {!unread && unreadQuery.isError && (
+        {countFailed && (
           <span
             aria-hidden="true"
             data-slot="bell-unavailable"
@@ -109,7 +113,7 @@ export function NotificationBell() {
                 closeOnClick={false}
                 onClick={() => {
                   void preview.refetch()
-                  if (unreadQuery.isError) void unreadQuery.refetch()
+                  if (countFailed) void unreadQuery.refetch()
                 }}
               >
                 Try again
@@ -119,6 +123,11 @@ export function NotificationBell() {
             <p className="p-2 text-center text-sm text-muted-foreground">Loading notifications…</p>
           ) : (
             <EmptyState size="compact" title="You have no notifications." className="p-2" />
+          )}
+          {countFailed && !preview.isError && (
+            <DropdownMenuItem closeOnClick={false} onClick={() => void unreadQuery.refetch()}>
+              Try again
+            </DropdownMenuItem>
           )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

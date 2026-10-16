@@ -42,6 +42,24 @@ describe('retryList', () => {
 })
 
 describe('listQueryOptions', () => {
+  it('leaves the total out of a first page when asked not to read it', async () => {
+    const seen: URLSearchParams[] = []
+    server.use(
+      http.get('/api/v1/test/rows', ({ request }) => {
+        seen.push(new URL(request.url).searchParams)
+        return ok(listPage([{ id: 'a' }]), 'Rows retrieved.')
+      })
+    )
+    const client = new QueryClient()
+
+    await client.fetchQuery(
+      listQueryOptions({ key: ['rows'], path: '/test/rows', request: { limit: 5 }, total: false })
+    )
+
+    expect(seen[0]?.get('limit')).toBe('5')
+    expect(seen[0]?.has('total')).toBe(false)
+  })
+
   it('asks for the total with the first page only, and keys pages by their request', async () => {
     const seen: URLSearchParams[] = []
     server.use(

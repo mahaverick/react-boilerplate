@@ -190,7 +190,7 @@ describe('notification list mutations', () => {
     expect(preferences?.isInvalidated).toBe(false)
   })
 
-  it('marks the row read on every cached page, filtered views included', async () => {
+  it('marks the row read on the full pages and drops it from the unread views', async () => {
     const all = notificationsListOptions({}).queryKey
     const unreadOnly = notificationsListOptions({ unread: true }).queryKey
     client.setQueryData(all, listPage([UNREAD]))
@@ -204,10 +204,89 @@ describe('notification list mutations', () => {
     })
 
     await waitFor(() => {
-      expect(client.getQueryData<ListPage<Notification>>(all)?.items[0]?.readAt).not.toBeNull()
+      expect(client.getQueryData<ListPage<Notification>>(all)?.items[0]?.readAt).toEqual(
+        expect.any(String)
+      )
+      expect(client.getQueryData<ListPage<Notification>>(unreadOnly)?.items).toEqual([])
+    })
+  })
+
+  describe('the unread count, before the request answers', () => {
+    const countKey = notificationsListOptions({ unread: true, limit: 1 }).queryKey
+
+    /** Seeds the count and one full page, and holds every read and write so only the optimistic edit shows. */
+    function seed(total: ListPage<Notification>['total'], request: 'patch' | 'delete' | 'all') {
+      client.setQueryData(countKey, listPage([UNREAD], {}, total))
+      client.setQueryData(notificationsListOptions({}).queryKey, listPage([UNREAD]))
+      server.use(
+        http.get('/api/v1/notifications', () => delay('infinite')),
+        http.patch('/api/v1/notifications/:id/read', () => delay('infinite')),
+        http.patch('/api/v1/notifications/read-all', () => delay('infinite')),
+        http.delete('/api/v1/notifications/:id', () => delay('infinite'))
+      )
+      return request
+    }
+
+    /** The cached unread total. */
+    const total = () => client.getQueryData<ListPage<Notification>>(countKey)?.total
+
+    it('drops by one when an unread row is marked read', async () => {
+      seed({ count: 2, capped: false }, 'patch')
+      const { result } = renderHook(() => useAll(), { wrapper })
+      act(() => {
+        result.current.markRead.mutate(NOTIFICATION_ID)
+      })
+      await waitFor(() => expect(total()).toEqual({ count: 1, capped: false }))
+    })
+
+    it('drops by one when an unread row is deleted, and the row leaves every page', async () => {
+      seed({ count: 2, capped: false }, 'delete')
+      const { result } = renderHook(() => useAll(), { wrapper })
+      act(() => {
+        result.current.remove.mutate(NOTIFICATION_ID)
+      })
+      await waitFor(() => expect(total()).toEqual({ count: 1, capped: false }))
       expect(
-        client.getQueryData<ListPage<Notification>>(unreadOnly)?.items[0]?.readAt
-      ).not.toBeNull()
+        client.getQueryData<ListPage<Notification>>(notificationsListOptions({}).queryKey)?.items
+      ).toEqual([])
+    })
+
+    it('stays at the cap, where one fewer is still more than the cap', async () => {
+      seed({ count: 1000, capped: true }, 'patch')
+      const { result } = renderHook(() => useAll(), { wrapper })
+      act(() => {
+        result.current.markRead.mutate(NOTIFICATION_ID)
+      })
+      await waitFor(() =>
+        expect(client.getQueryData<ListPage<Notification>>(countKey)?.items).toEqual([])
+      )
+      expect(total()).toEqual({ count: 1000, capped: true })
+    })
+
+    it('goes to zero when everything is marked read', async () => {
+      seed({ count: 1000, capped: true }, 'all')
+      const { result } = renderHook(() => useAll(), { wrapper })
+      act(() => {
+        result.current.markAllRead.mutate()
+      })
+      await waitFor(() => expect(total()).toEqual({ count: 0, capped: false }))
+    })
+
+    it('comes back when the request fails', async () => {
+      seed({ count: 2, capped: false }, 'patch')
+      let refused = false
+      server.use(
+        http.patch('/api/v1/notifications/:id/read', () => {
+          refused = true
+          return fail('Not found', 404)
+        })
+      )
+      const { result } = renderHook(() => useAll(), { wrapper })
+      act(() => {
+        result.current.markRead.mutate(NOTIFICATION_ID)
+      })
+      await waitFor(() => expect(refused).toBe(true))
+      await waitFor(() => expect(total()).toEqual({ count: 2, capped: false }))
     })
   })
 

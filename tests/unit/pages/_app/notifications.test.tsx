@@ -148,6 +148,56 @@ describe('notifications page', () => {
     await waitFor(() => expect(screen.queryByText('Unread')).not.toBeInTheDocument())
   })
 
+  it('has no sort menu, since the inbox has one order', async () => {
+    renderNotifications()
+    await screen.findByRole('list', { name: 'Notifications' })
+    expect(screen.queryByRole('button', { name: 'Sort by' })).not.toBeInTheDocument()
+  })
+
+  describe('the unread count at the click', () => {
+    /** Serves a count of two, then holds every refetch so only the optimistic edit shows. */
+    async function openWithTwoUnread() {
+      server.use(
+        http.get('/api/v1/notifications', ({ request }) => {
+          const unreadOnly = new URL(request.url).searchParams.get('unread') === 'true'
+          return ok(
+            listPage([unreadRow], {}, unreadOnly ? { count: 2, capped: false } : undefined),
+            'Notifications retrieved.'
+          )
+        })
+      )
+      renderNotifications()
+      await screen.findByRole('button', { name: 'Notifications, 2 unread' })
+      const secondary = screen.getByRole('navigation', { name: 'Secondary' })
+      await within(secondary).findByRole('link', { name: 'Notifications, 2 unread' })
+      server.use(http.get('/api/v1/notifications', () => delay('infinite')))
+      return secondary
+    }
+
+    it('drops the bell and the badge before the request answers', async () => {
+      const secondary = await openWithTwoUnread()
+      server.use(http.patch('/api/v1/notifications/:id/read', () => delay('infinite')))
+      await userEvent
+        .setup()
+        .click(screen.getByRole('button', { name: `Mark "${unreadRow.title}" as read` }))
+
+      expect(await screen.findByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible()
+      expect(within(secondary).getByRole('link', { name: 'Notifications, 1 unread' })).toBeVisible()
+    })
+
+    it('puts them back when the request fails', async () => {
+      const secondary = await openWithTwoUnread()
+      server.use(http.patch('/api/v1/notifications/:id/read', () => fail('Not found', 404)))
+      await userEvent
+        .setup()
+        .click(screen.getByRole('button', { name: `Mark "${unreadRow.title}" as read` }))
+
+      await waitFor(() => expect(screen.getByText('Unread')).toBeInTheDocument())
+      expect(screen.getByRole('button', { name: 'Notifications, 2 unread' })).toBeVisible()
+      expect(within(secondary).getByRole('link', { name: 'Notifications, 2 unread' })).toBeVisible()
+    })
+  })
+
   it('lists the inbox under a level-one heading', async () => {
     renderNotifications()
 

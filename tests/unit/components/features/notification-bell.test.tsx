@@ -102,7 +102,12 @@ describe('NotificationBell', () => {
     renderShell()
     await screen.findByRole('button', { name: /^Notifications,/ })
     await waitFor(() => expect(seen.length).toBeGreaterThanOrEqual(2))
-    expect(seen.some((p) => p.get('limit') === '5' && p.get('unread') === null)).toBe(true)
+    // The preview never reads its total, so it does not pay for the count.
+    expect(
+      seen.some(
+        (p) => p.get('limit') === '5' && p.get('unread') === null && p.get('total') === null
+      )
+    ).toBe(true)
     expect(
       seen.some(
         (p) => p.get('unread') === 'true' && p.get('limit') === '1' && p.get('total') === '1'
@@ -185,10 +190,48 @@ describe('NotificationBell', () => {
     renderShell()
     const bell = await screen.findByRole('button', { name: 'Notifications, count unavailable' })
     await waitFor(() => expect(bell.querySelector('[data-slot="bell-unavailable"]')).not.toBeNull())
-    failing = false
     const user = await openBell()
+    // Both reads have failed their retries once the menu says so; only then do they succeed.
+    await screen.findByText('Notifications could not be loaded.')
+    failing = false
     await user.click(await screen.findByRole('menuitem', { name: 'Try again' }))
     expect(await screen.findByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible()
+  })
+
+  it('offers Try again for the count alone when only the count read failed', async () => {
+    let failing = true
+    server.use(
+      http.get('/api/v1/notifications', ({ request }) => {
+        const unreadOnly = new URL(request.url).searchParams.get('unread') === 'true'
+        if (unreadOnly && failing) return fail('Something went wrong', 500)
+        return ok(
+          listPage([unreadRow], {}, unreadOnly ? { count: 1, capped: false } : undefined),
+          'Notifications retrieved.'
+        )
+      })
+    )
+    renderShell()
+    const bell = await screen.findByRole('button', { name: 'Notifications, count unavailable' })
+    await waitFor(() => expect(bell.querySelector('[data-slot="bell-unavailable"]')).not.toBeNull())
+    const user = await openBell()
+    expect(await screen.findByRole('menuitem', { name: /Verify your email/ })).toBeInTheDocument()
+    failing = false
+    await user.click(await screen.findByRole('menuitem', { name: 'Try again' }))
+    expect(await screen.findByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible()
+  })
+
+  it('reads "count unavailable", not "0 unread", for a count answer with no total, and offers Try again', async () => {
+    server.use(
+      http.get('/api/v1/notifications', () => ok(listPage([unreadRow]), 'Notifications retrieved.'))
+    )
+    renderShell()
+    const bell = await screen.findByRole('button', { name: 'Notifications, count unavailable' })
+    await waitFor(() => expect(bell.querySelector('[data-slot="bell-unavailable"]')).not.toBeNull())
+    await openBell()
+    expect(await screen.findByRole('menuitem', { name: 'Try again' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Notifications, 0 unread' })
+    ).not.toBeInTheDocument()
   })
 
   it('does not mark a read that is still in flight', async () => {

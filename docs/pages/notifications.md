@@ -21,12 +21,12 @@ Both read the paged list, `GET /notifications` (`notificationsListOptions`, `src
 | Components          | `Card`, `DataTable` with `layout="cards"` (with `QueryState`), `Badge` ("Unread"), `Button` (icon buttons named "Mark "{title}" as read" and "Delete "{title}""), `EmptyState`, `Pii`; `Item` (the cards), `ItemContent`, `ItemTitle`, `ItemDescription`, `ItemActions`               |
 | Transitions         | Notification settings → `/settings/account/notifications`; the sidebar's Notifications item and the bell's View all notifications land here                                                                                                                                           |
 
-`DataTable` reports a failed load before an empty inbox, because both give no rows. In the walk, the three skeleton bars gave way to one row and Mark all read appeared above the list at the same moment, moving the row down 36 px.
+`DataTable` reports a failed load before an empty inbox, because both give no rows. Mark all read appears above the list once the unread total lands, which moves the list down.
 
 | Loading                                           | Error                                           | Empty                                           |
 | ------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------- |
 | ![](img/notifications/notifications--loading.jpg) | ![](img/notifications/notifications--error.jpg) | ![](img/notifications/notifications--empty.jpg) |
-| skeleton · 3× `h-16`                              | alert · `LoadError`                             | "You have no notifications."                    |
+| table-shaped skeleton (`DataTable`)               | alert · `QueryState`, with Try again            | "You have no notifications."                    |
 
 The bell loses its badge in the loading and error shots too, since it reads the same request.
 

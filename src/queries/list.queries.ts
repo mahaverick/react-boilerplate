@@ -38,14 +38,16 @@ export interface ListQueryInput {
   retry?: (failureCount: number, error: Error) => boolean
   /** Overrides the client's default, for a list that must show what changed since it was last open. */
   staleTime?: number
+  /** False leaves `total=1` off the first page, for a list that never reads the total. Defaults to true. */
+  total?: boolean
 }
 
 /**
  * One page of a list. The first page (no cursor) asks for the capped total
- * too; later pages do not, and `useListQuery` keeps the first page's total.
+ * too, unless `total` is false; later pages do not, and `useListQuery` keeps the first page's total.
  * The key holds the request without `total`, so the page a route loader
  * prefetched is the page the table reads.
- * @param input - The key prefix, path, request, and optional retry rule and freshness.
+ * @param input - The key prefix, path, request, and optional retry rule, freshness and total opt-out.
  * @returns Query options for `useQuery`, `prefetchQuery` or `useListQuery`.
  */
 export function listQueryOptions<T>({
@@ -54,13 +56,14 @@ export function listQueryOptions<T>({
   request,
   retry = retryList,
   staleTime,
+  total = true,
 }: ListQueryInput) {
   return queryOptions({
     queryKey: [...key, 'list', request] as const,
     queryFn: async () =>
       unwrap(
         await apiClient.get<ApiSuccess<ListPage<T>>>(path, {
-          params: request.cursor === undefined ? { ...request, total: 1 } : request,
+          params: request.cursor === undefined && total ? { ...request, total: 1 } : request,
         })
       ),
     /** The previous view's rows stay up, marked busy, while the next view loads. */
