@@ -4,7 +4,7 @@
  * listed here. Endpoints are relative to /api/v1 (see endpoint.ts).
  */
 import type { FileRoutesByFullPath } from '@/routeTree.gen'
-import type { RouteCapture, Section } from './types'
+import type { NavigationCapture, RouteCapture, Section } from './types'
 
 const TENANT: Section = {
   name: 'Tenant',
@@ -252,3 +252,31 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
   },
   '/settings/workspace/$slug/': { kind: 'redirect', to: '/settings/workspace/$slug/general' },
 }
+
+/** The in-app navigations the capture shoots mid-flight: the route template, then the section skeletons. */
+export const NAVIGATIONS: readonly NavigationCapture[] = [
+  {
+    area: 'settings',
+    shot: 'account-notifications',
+    as: 'owner',
+    from: '/settings/account/profile',
+    link: 'Notifications',
+    endpoints: ['GET /notifications/preferences'],
+  },
+  {
+    area: 'tenants',
+    shot: 'tenant-overview',
+    as: 'owner',
+    from: '/tenants',
+    link: '{tenantName}',
+    endpoints: ['GET /tenants/:slug', 'GET /tenants/:slug/onboarding'],
+  },
+  {
+    area: 'settings',
+    shot: 'account-security',
+    as: 'owner',
+    from: '/settings/account/profile',
+    link: 'Security',
+    endpoints: ['GET /auth/providers'],
+  },
+]

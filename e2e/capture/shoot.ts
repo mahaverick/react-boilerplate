@@ -39,7 +39,7 @@ type Settle = (page: Page, control: Control) => Promise<Partial<ShotRecord>>
  * Fills `{name}` placeholders from the seed.
  * @throws When the seed lacks a placeholder's value.
  */
-function fillUrl(url: string, seed: Seed): string {
+export function fillUrl(url: string, seed: Seed): string {
   return url.replaceAll(/\{(\w+)\}/g, (_, name: string) => {
     const value = seed.params[name]
     if (value === undefined) throw new Error(`seed has no param "${name}" for ${url}`)

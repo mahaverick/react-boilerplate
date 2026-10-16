@@ -77,3 +77,25 @@ export interface ShotRecord {
   /** Milliseconds from navigation to the shot. */
   ms: number
 }
+
+/** One in-app navigation the capture shoots while the target is still loading. */
+export interface NavigationCapture {
+  area: Area
+  /** The file-name stem: `<shot>--nav-route.jpg` and `<shot>--nav-sections.jpg`. */
+  shot: string
+  /** Which seeded session navigates: a key of `Seed.sessions`. */
+  as: string
+  /** The page it starts on; `{name}` is replaced from `Seed.params`. */
+  from: string
+  /** The accessible name of the link it clicks. */
+  link: string
+  /** The target's section requests, held for the sections shot. */
+  endpoints: readonly string[]
+}
+
+/** A boot frame, and the moment it marks if any. */
+export interface BootFrame {
+  file: string
+  ms: number
+  label?: 'first-paint' | 'shell' | 'first-content' | 'ready'
+}
