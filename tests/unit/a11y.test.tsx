@@ -694,6 +694,13 @@ describe('signed-in pages', () => {
       await expectNoViolationsWhileLoading()
     })
 
+    it('the security section with its sign-in methods loading has no axe violations', async () => {
+      server.use(http.get('/api/v1/auth/providers', () => new Promise<Response>(() => {})))
+      renderAppAt('/settings/account/security')
+      await screen.findByRole('region', { name: 'Security' })
+      await expectNoViolationsWhileLoading()
+    })
+
     it('the dashboard with the tenant list failed has no axe violations', async () => {
       server.use(http.get('/api/v1/tenants', () => fail('Something went wrong', 500)))
       renderAppAt('/dashboard')

@@ -79,6 +79,15 @@ describe('security section', () => {
     })
   })
 
+  it('holds the sign-in methods and the password form’s place while the methods load', async () => {
+    server.use(http.get('/api/v1/auth/providers', () => new Promise<Response>(() => {})))
+    renderSecurity()
+    const busy = await screen.findByRole('region', { name: 'Security' })
+    expect(busy.querySelector('[data-slot="query-state"][aria-busy="true"]')).not.toBeNull()
+    expect(busy.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThanOrEqual(8)
+    expect(screen.getByRole('button', { name: 'Sign out other sessions' })).toBeVisible()
+  })
+
   it('lists a password and Google, and never the raw email row', async () => {
     mockProviders(['email', 'google'], true)
     renderSecurity()

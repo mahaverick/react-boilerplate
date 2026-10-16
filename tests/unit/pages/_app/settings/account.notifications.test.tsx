@@ -52,6 +52,16 @@ describe('notification settings page', () => {
     ).toBeInTheDocument()
   })
 
+  it('holds four preference rows while the preferences load', async () => {
+    server.use(http.get('/api/v1/notifications/preferences', () => new Promise<Response>(() => {})))
+    renderPreferences()
+    await screen.findByRole('heading', { level: 2, name: 'Preferences' })
+    const card = screen
+      .getByRole('heading', { level: 2, name: 'Preferences' })
+      .closest('[data-slot="card"]')
+    expect(card?.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(4)
+  })
+
   it('shows a retry, not an empty matrix, when the preferences fail to load', async () => {
     server.use(
       http.get('/api/v1/notifications/preferences', () => fail('Something went wrong', 500))

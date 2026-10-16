@@ -58,10 +58,10 @@ Findings: [F-settings-1](findings.md#f-settings-1), [F-settings-2](findings.md#f
 | Layout              | `AppLayout` › settings shell                                                                                                                                                                                       |
 | Data                | `useProfile` (`GET /profile`, `['profile']`) with the session's user as `initialData`, so the page makes no request of its own. `PATCH /profile` on Save changes (changed names only) and on the analytics switch. |
 | Sections            | Details card: first and last name, Save changes, then Email and Member since; Privacy: the Share usage analytics switch (`AnalyticsSection`)                                                                       |
-| Components          | `Card`, `Form` fields, `Input`, `BusyButton`, `Switch`, `Pii`, `Skeleton` (2× `h-9`, never shown, since `initialData` is always set)                                                                               |
+| Components          | `Card`, `Form` fields, `Input`, `BusyButton`, `Switch`, `Pii`, `QueryState`, `FormFieldsSkeleton` (4 fields; shown only when the session holds no user)                                                            |
 | Transitions         | none beyond the nav; Save changes toasts "Profile updated."                                                                                                                                                        |
 
-The capture has no loading or error shot for this page: it makes no request to hold.
+The capture has no loading or error shot for this page: the session's user is always there to paint. Without it, the read decides: four label-and-input pairs and a button bar until it answers, then `LoadError` "Profile could not be loaded." with Try again on a failure.
 
 ### `/settings/account/security` — Security
 
@@ -75,15 +75,15 @@ The capture has no loading or error shot for this page: it makes no request to h
 | Layout              | `AppLayout` › settings shell                                                                                                                                                                                                                           |
 | Data                | started: `GET /auth/providers` (`['auth', 'providers']`). `POST /auth/change-password` and `POST /auth/sessions/revoke-others` on their buttons.                                                                                                       |
 | Sections            | One untitled `Card`: Sign-in methods ← providers ("Email & password"); Change password (current, new, confirm), shown only when the account has a password, else "This account signs in with Google only…"; Other sessions (no request until clicked). |
-| Components          | `Card`, `Form` fields, `Input`, `BusyButton`, `Skeleton`, `LoadError`, `ItemGroup`, `Item` (sign-in methods)                                                                                                                                           |
+| Components          | `Card`, `Form` fields, `Input`, `BusyButton`, `QueryState`, `CardRowsSkeleton`, `FormFieldsSkeleton`, `ItemGroup`, `Item` (sign-in methods)                                                                                                            |
 | Transitions         | Change password toasts "Password changed. Other sessions were signed out."                                                                                                                                                                             |
 
-The password form waits on the providers request, because only that answer says whether the account has a password; so a failed providers request hides the form as well (the error shot). In the walk the form replaced its two skeleton bars and pushed Other sessions from y 284 to y 578.
+The password form waits on the providers request, because only that answer says whether the account has a password; so a failed providers request hides the form as well (the error shot). The loading skeleton holds the sign-in methods line and the password form's three fields and button, so Other sessions does not move when the form lands.
 
-| Loading                                         | Error                                                         |
-| ----------------------------------------------- | ------------------------------------------------------------- |
-| ![](img/settings/account-security--loading.jpg) | ![](img/settings/account-security--error.jpg)                 |
-| skeleton · `h-5 w-40` + `h-9`                   | alert · `LoadError` "We could not load your sign-in methods." |
+| Loading                                                             | Error                                                         |
+| ------------------------------------------------------------------- | ------------------------------------------------------------- |
+| ![](img/settings/account-security--loading.jpg)                     | ![](img/settings/account-security--error.jpg)                 |
+| skeleton · one `1.25rem` bar + 3 label-and-input pairs + button bar | alert · `LoadError` "We could not load your sign-in methods." |
 
 Findings: [F-settings-3](findings.md#f-settings-3), [F-settings-12](findings.md#f-settings-12)
 
@@ -99,13 +99,13 @@ Findings: [F-settings-3](findings.md#f-settings-3), [F-settings-12](findings.md#
 | Layout              | `AppLayout` › settings shell                                                                                                                                              |
 | Data                | started: `GET /notifications/preferences` (`['notifications', 'preferences']`); `PUT /notifications/preferences` on each switch (optimistic)                              |
 | Sections            | Preferences card: one bordered row per kind (Verify email, Password reset requested, Password changed, Tenant invitation) with "Email: On" as text and an In-app `Switch` |
-| Components          | `Card`, `Switch`, `Skeleton`, `LoadError`, `EmptyState` (compact), `ItemGroup`, `Item`, `ItemContent`, `ItemTitle`, `ItemActions`                                         |
+| Components          | `Card`, `Switch`, `QueryState`, `CardRowsSkeleton`, `EmptyState` (compact), `ItemGroup`, `Item`, `ItemContent`, `ItemTitle`, `ItemActions`                                |
 | Transitions         | none                                                                                                                                                                      |
 
 | Loading                                              | Error                                              | Empty                                              |
 | ---------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------- |
 | ![](img/settings/account-notifications--loading.jpg) | ![](img/settings/account-notifications--error.jpg) | ![](img/settings/account-notifications--empty.jpg) |
-| skeleton · one `h-14`                                | alert · `LoadError`                                | "This account has no notification types yet."      |
+| skeleton · 4 rows of `2.875rem`                      | alert · `LoadError`                                | "This account has no notification types yet."      |
 
 Findings: [F-settings-4](findings.md#f-settings-4), [F-settings-8](findings.md#f-settings-8), [F-settings-10](findings.md#f-settings-10), [F-notifications-5](findings.md#f-notifications-5)
 

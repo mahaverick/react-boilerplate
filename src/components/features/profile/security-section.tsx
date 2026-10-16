@@ -1,8 +1,9 @@
 import { useForm } from '@tanstack/react-form'
 import { useId } from 'react'
-import { LoadError } from '@/components/features/load-error'
 import { BusyButton } from '@/components/shared/busy-button'
 import { Note } from '@/components/shared/note'
+import { QueryState } from '@/components/shared/query-state'
+import { CardRowsSkeleton, FormFieldsSkeleton } from '@/components/shared/section-skeleton'
 import {
   Form,
   FormControl,
@@ -14,7 +15,6 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Item, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
-import { Skeleton } from '@/components/ui/skeleton'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { messageFrom, statusFrom } from '@/lib/api-error'
@@ -68,23 +68,25 @@ export function SecuritySection() {
       <h2 id={headingId} className="sr-only">
         Security
       </h2>
-      {providers.isPending ? (
-        <div className="grid gap-2">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="h-9 w-full" />
-        </div>
-      ) : providers.isError ? (
-        <LoadError message={PROVIDERS_ERROR} onRetry={() => void providers.refetch()} />
-      ) : (
-        <>
-          <SignInMethods {...providers.data} />
-          {providers.data.hasPassword ? (
-            <ChangePasswordForm />
-          ) : (
-            <Note tone="passive">{GOOGLE_ONLY}</Note>
-          )}
-        </>
-      )}
+      <QueryState
+        query={providers}
+        name="Sign-in methods"
+        errorMessage={PROVIDERS_ERROR}
+        className="gap-6"
+        skeleton={
+          <div className="grid gap-6">
+            <CardRowsSkeleton rows={1} rowHeight="1.25rem" />
+            <FormFieldsSkeleton fields={3} />
+          </div>
+        }
+      >
+        {(data) => (
+          <>
+            <SignInMethods {...data} />
+            {data.hasPassword ? <ChangePasswordForm /> : <Note tone="passive">{GOOGLE_ONLY}</Note>}
+          </>
+        )}
+      </QueryState>
       <OtherSessions />
     </section>
   )

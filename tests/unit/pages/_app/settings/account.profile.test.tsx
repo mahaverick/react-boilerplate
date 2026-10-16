@@ -46,6 +46,15 @@ describe('profile settings page', () => {
     })
   })
 
+  it('says the profile failed to load, with a retry, instead of an endless skeleton', async () => {
+    // The stored user would paint the form at once; without one the read decides.
+    useAuthStore.setState({ user: null })
+    server.use(http.get('/api/v1/profile', () => fail('Something went wrong', 500)))
+    renderProfile()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Profile could not be loaded.')
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible()
+  })
+
   it('shows email and member-since as read-only facts', async () => {
     renderProfile()
 

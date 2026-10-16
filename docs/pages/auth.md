@@ -132,14 +132,14 @@ The walk confirmed both exits: signed in, `/auth/callback` landed on `/dashboard
 | Layout              | `AuthLayout` + `AuthCard` (`InvitationCard`), rendered by the page                                                                                                                                                    |
 | Data                | started: `POST /invitations/preview` (`['invitations', 'preview', token]`; no auth; a failure other than 404 is retried once); `POST /invitations/accept` on accept; `POST /auth/logout` from the wrong-account state |
 | Sections            | Chosen by `?token` and who is signed in, below.                                                                                                                                                                       |
-| Components          | `AuthCard`, `Skeleton`, `LoadError`, `Alert` (destructive, the refusal), `Button`, `BusyButton` (accept, sign out), `Pii`                                                                                             |
+| Components          | `AuthCard`, `Skeleton` (a sentence, two buttons and a hint, sized like the loaded card), `LoadError`, `Alert` (destructive, the refusal), `Button`, `BusyButton` (accept, sign out), `Pii`                            |
 | Transitions         | Log in → `/login` and back here; Create account → `/register`; Sign out → here, signed out; Accept invitation → `/tenants/$slug`; Go to the home page → `/`                                                           |
 
 The page has these states (`AcceptInvitationPage` and `InvitationForToken`):
 
 1. **No `?token`:** "This link is incomplete" and "Go to the home page" (shot: empty).
 2. **Malformed token** (fails `invitationTokenSchema`): "This invitation can't be used" with the server's 404 copy, no request made. Seen in the walk with `?token=not-a-real-token`.
-3. **Preview pending:** "Checking your invitation" over two skeleton bars (shot: loading).
+3. **Preview pending:** "Checking your invitation" over four skeleton bars: a sentence, two buttons and a hint (shot: loading).
 4. **Preview failed with 404** (revoked, expired or used): "This invitation can't be used" with the server's message.
 5. **Preview failed otherwise:** "We could not load this invitation", a `LoadError` with Try again, and "Go to the home page" (shot: error).
 6. **Signed out** (`SignedOut`): "Join {tenant}", "{inviter} invited you to join {tenant} as {role}.", Log in, Create account, and a hint to create the account with the invited address (shot: default).
