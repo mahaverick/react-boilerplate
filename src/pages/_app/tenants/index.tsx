@@ -168,7 +168,7 @@ function TenantsPage() {
 
   // Each arrival on `#create` (the palette's Create a tenant) shows the form, a repeat arrival included.
   const arrival = useLocation({
-    select: (location) => (location.hash === CREATE_FORM_ID ? location.state.__TSR_key : undefined),
+    select: (location) => (location.hash === CREATE_FORM_ID ? location.state.key : undefined),
   })
   useEffect(() => {
     if (arrival !== undefined) showCreateForm()
