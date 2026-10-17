@@ -136,13 +136,16 @@ theirs: s/^"use client"$//
   `focus-visible:ring-3 focus-visible:ring-ring/50`). A panel is focusable
   and the registry drops its indicator. Re-apply: yes.
 
-```ui-drift
-theirs: s/className=\{cn\("flex-1 text-sm outline-none", className\)\}$//
-ours: s/^\s+className=\{cn\($//
-ours: s/^\s+"flex-1 rounded-md text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring\/50",$//
-ours: s/^\s+className$//
-ours: s/^\s+\)\}$//
+```ui-drift-hunk
+reason: the tab panel keeps a focus ring
+-      className={cn("flex-1 text-sm outline-none", className)}
++      className={cn(
++        "flex-1 rounded-md text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
++        className
++      )}
 ```
+
+The trigger's narrowed `transition` is the `*` section's edit.
 
 ### toast.tsx
 
