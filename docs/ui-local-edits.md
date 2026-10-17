@@ -20,11 +20,16 @@ The rules are fenced blocks under a `### <file>` heading (`*` for every file):
   check prints the block to paste; fill in the reason.
 
 `pnpm ui:drift:refresh` rewrites the snapshot from the registry through the
-pinned CLI (it needs the network). The registry moves without a CLI release,
-so a refresh is a change of its own: review the snapshot's diff, then run
-`pnpm ui:drift`.
+installed `shadcn` devDependency (it needs the network). The snapshot's
+`manifest.json` records that version and `components.json`'s style and icon
+library, and the check fails when either moves without a refresh; Renovate
+leaves `shadcn` bumps for a human for that reason. The registry also moves
+without a CLI release, so a refresh is a change of its own, and a PR that
+touches `scripts/ui-registry/` is reviewed as one (CODEOWNERS): review the
+snapshot's diff, then run `pnpm ui:drift`. Never edit a snapshot file by hand
+to make a vendored edit pass.
 
-Re-pulling a component (`pnpm dlx shadcn@4.21.4 add <name> --overwrite`)
+Re-pulling a component (`pnpm exec shadcn add <name> --overwrite`)
 drops these edits: re-apply every one marked "re-apply: yes".
 
 ### *
@@ -35,7 +40,9 @@ Edits on every file.
   not hide its icons from assistive tech. `tests/unit/ui-icons-aria-hidden.test.ts`
   fails when one is missing. `spinner.tsx` is the one exception: its icon
   is announced through its own `role="status"` and `aria-label`, so it stays
-  as the registry has it. Re-apply: yes, except in `spinner.tsx`.
+  as the registry has it. The rule removes the attribute only from a
+  `<Icon…>` element on the same line; `checkbox.tsx`'s, on a line of its
+  own, is a hunk there. Re-apply: yes, except in `spinner.tsx`.
 - **A `"use client"` line** in files added before this record. The registry
   (`rsc: false`) omits it from most components; where it ships one
   (`sidebar` among them), that file's section records it. The directive
@@ -43,16 +50,19 @@ Edits on every file.
   noise on our side. Re-apply: no.
 - **Narrowed `transition`.** The registry writes `transition-all`; we list the
   properties that animate (as `button.tsx` does) so layout properties are not
-  transitioned. The rule reads any `transition-[...]` as `transition-all`.
-  Re-apply: yes, with the properties that animate.
+  transitioned. The rule reads only the lists in use as `transition-all`:
+  `color,background-color,border-color,box-shadow` (`badge`, `tabs`), the
+  same with `transform` (`button`), and
+  `background-color,border-color,box-shadow` (`switch`). A new list is a new
+  entry here. Re-apply: yes, with the properties that animate.
 - **Quote style in `[class*=...]` selectors.** The registry prints
   `[class*='size-']`; our files carry `[class*="size-"]`. The two are the
   same class. Re-apply: no.
 
 ```ui-drift
-ours: s/ aria-hidden="true"//
+ours: s/(<Icon[A-Z]\w*[^<]*?) aria-hidden="true"/$1/g
 ours: s/^"use client"$//
-ours: s/transition-\[[^\]]*\]/transition-all/
+ours: s/transition-\[(?:color,background-color,border-color,box-shadow(?:,transform)?|background-color,border-color,box-shadow)\]/transition-all/
 ours: s/\[class\*="size-"\]/[class*='size-']/g
 ```
 
@@ -64,6 +74,7 @@ ours: s/\[class\*="size-"\]/[class*='size-']/g
 
 ```ui-drift-hunk
 reason: warning and info variants
+           "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
 +        warning:
 +          "border-warning-strong/40 bg-warning-strong/10 text-foreground *:[svg]:text-warning-strong",
 +        info: "border-info/40 bg-info/10 text-foreground *:[svg]:text-info",
@@ -77,6 +88,18 @@ reason: warning and info variants
 
 ```ui-drift
 ours: s/bg-muted text-sm text-foreground/bg-muted text-sm text-muted-foreground/
+```
+
+### checkbox.tsx
+
+- **`aria-hidden="true"` on the check icon**, the `*` section's edit, on a
+  line of its own where the `*` rule (one line, `<Icon…` first) cannot see it.
+  Re-apply: yes.
+
+```ui-drift-hunk
+reason: aria-hidden on the Tabler check icon
+         <IconCheck
++          aria-hidden="true"
 ```
 
 ### combobox.tsx
@@ -122,11 +145,15 @@ skip
 - **`after:w-0.5`** on the rail, where the registry writes `after:w-[2px]`: the
   lint rule for canonical Tailwind classes rejects the arbitrary value.
   Re-apply: yes.
+- **The rail's `transition-[right,left,transform]`**, where the registry
+  writes `transition-all`: the rail moves with the sidebar, and nothing else
+  on it animates. Re-apply: yes.
 - **No `"use client"` line.** The registry adds one; the app does not need it.
   Re-apply: no.
 
 ```ui-drift
 ours: s/after:w-0\.5/after:w-[2px]/
+ours: s/transition-\[right,left,transform\]/transition-all/
 theirs: s/^"use client"$//
 ```
 

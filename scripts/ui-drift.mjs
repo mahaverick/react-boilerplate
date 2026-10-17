@@ -4,21 +4,21 @@
  * with its registry snapshot in scripts/ui-registry/ and prints, per file,
  * `ok` or each change the record (docs/ui-local-edits.md) does not explain.
  * It reads only the repo, so CI runs it. `pnpm ui:drift:refresh` rewrites
- * the snapshot from the registry through the pinned CLI, which needs the
- * network.
+ * the snapshot from the registry through the installed `shadcn` devDependency,
+ * which needs the network.
  */
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-/** The CLI the registry is read through, pinned so a CLI release cannot move the baseline. */
-export const SHADCN = 'shadcn@4.21.4'
-
 const UI_DIR = 'src/components/ui'
 const SNAPSHOT_DIR = 'scripts/ui-registry'
 const MANIFEST = `${SNAPSHOT_DIR}/manifest.json`
 const RECORD = 'docs/ui-local-edits.md'
+
+/** The reason `formatDrift` prints, which the record must replace with a real one. */
+export const PLACEHOLDER_REASON = '<why we differ>'
 
 const REWRITE = /^(ours|theirs):\s*s\/((?:\\\/|[^/])*)\/((?:\\\/|[^/])*)\/(g?)\s*$/
 
@@ -27,8 +27,11 @@ const REWRITE = /^(ours|theirs):\s*s\/((?:\\\/|[^/])*)\/((?:\\\/|[^/])*)\/(g?)\s
  * file), the lines of its ```ui-drift blocks and each ```ui-drift-hunk block.
  * `skip` marks a file that is ours; `ours: s/<re>/<to>/` rewrites our lines
  * and `theirs: s/<re>/<to>/` the registry's before they are compared. A hunk
- * block starts with `reason: <text>`, then lists the registry's lines as
- * `-<line>` and ours as `+<line>`.
+ * block starts with `reason: <text>`, may give `at: <registry line>` and one
+ * ` <line>` context line (the nearest non-blank registry line before it),
+ * then lists the registry's lines as `-<line>` and ours as `+<line>`. A hunk
+ * that only adds lines needs the context line or `at:`, or it would match
+ * the same lines added anywhere.
  * @param markdown - docs/ui-local-edits.md.
  * @returns File name to rules.
  */
@@ -45,6 +48,13 @@ export function parseRules(markdown) {
     if (!file) throw new Error(`${RECORD}: a ui-drift block before any ### heading`)
     rules.set(file, [...(rules.get(file) ?? []), rule])
   }
+  /**
+   * Fails a hunk line the format does not allow.
+   * @param line - The line.
+   */
+  const unreadable = (line) => {
+    throw new Error(`${RECORD}: cannot read hunk line "${line}" under ${file}`)
+  }
   for (const line of markdown.split('\n')) {
     if (!block) {
       const heading = /^###\s+`?([*\w.-]+)`?\s*$/.exec(line)
@@ -58,6 +68,10 @@ export function parseRules(markdown) {
       if (hunk) {
         if (!hunk.reason) throw new Error(`${RECORD}: a hunk under ${file} has no reason`)
         if (file === '*') throw new Error(`${RECORD}: a hunk belongs to one file, not to *`)
+        if (hunk.theirs.length === 0 && hunk.context === undefined && hunk.at === undefined)
+          throw new Error(
+            `${RECORD}: a hunk under ${file} only adds lines; give it its context line or at:`
+          )
         add(hunk)
       }
       block = null
@@ -65,11 +79,19 @@ export function parseRules(markdown) {
       continue
     }
     if (hunk) {
+      const changed = hunk.theirs.length + hunk.ours.length > 0
       const reason = /^reason:\s*(\S.*)$/.exec(line)
-      if (!hunk.reason && reason) hunk.reason = (reason[1] ?? '').trim()
-      else if (hunk.reason && (line.startsWith('-') || line.startsWith('+')))
+      const at = /^at:\s*(\d+)\s*$/.exec(line)
+      if (!hunk.reason) {
+        const text = (reason?.[1] ?? '').trim()
+        if (!reason || /^<[^>]*>$/.test(text)) unreadable(line)
+        hunk.reason = text
+      } else if (at && !changed && hunk.at === undefined) hunk.at = Number(at[1])
+      else if (line.startsWith(' ') && !changed && hunk.context === undefined)
+        hunk.context = line.slice(1)
+      else if (line.startsWith('-') || line.startsWith('+'))
         (line.startsWith('-') ? hunk.theirs : hunk.ours).push(line.slice(1))
-      else throw new Error(`${RECORD}: cannot read hunk line "${line}" under ${file}`)
+      else unreadable(line)
       continue
     }
     if (line.trim() === '') continue
@@ -89,22 +111,21 @@ export function parseRules(markdown) {
 }
 
 /**
- * The file `shadcn add <target> --view <path>` prints, or null when the
- * output has no `├ …/<target>.tsx (…) N lines` section or the section does not
- * hold N lines: output in a format this script does not read must not become
- * a snapshot.
+ * The file `shadcn add <name> --view <file>` prints, or null when the output
+ * has no `├ <file> (…) N lines` section or the section does not hold N lines:
+ * output in a format this script does not read must not become a snapshot.
  * @param output - The CLI's stdout.
- * @param target - Component name, e.g. `field`.
+ * @param file - The exact path, e.g. `src/components/ui/field.tsx`.
  * @returns The file's text.
  */
-export function viewContent(output, target) {
+export function viewContent(output, file) {
   let expected = null
   let lines = null
   for (const line of output.split('\n')) {
     const section = /^├ (\S+) \([^)]*\) (\d+) lines$/.exec(line)
     if (section) {
       if (lines) break
-      if ((section[1] ?? '').endsWith(`/${target}.tsx`)) expected = Number(section[2])
+      if (section[1] === file) expected = Number(section[2])
       continue
     }
     if (expected === null) continue
@@ -123,10 +144,11 @@ export function viewContent(output, target) {
 /**
  * The changes from the registry's lines to ours, as hunks of consecutive
  * changed lines (a longest-common-subsequence diff, so the same two files
- * always give the same hunks).
+ * always give the same hunks). Each hunk carries its context: the nearest
+ * non-blank registry line before it.
  * @param theirs - The registry file's lines.
  * @param ours - The vendored file's lines.
- * @returns Each hunk: its first registry line (1-based), the registry's lines and ours.
+ * @returns Each hunk: its first registry line (1-based), context, the registry's lines and ours.
  */
 export function diffLines(theirs, ours) {
   const width = ours.length + 1
@@ -149,7 +171,8 @@ export function diffLines(theirs, ours) {
       continue
     }
     if (!open) {
-      open = { at: i + 1, theirs: [], ours: [] }
+      const context = theirs.slice(0, i).findLast((line) => line.trim() !== '')
+      open = { at: i + 1, ...(context === undefined ? {} : { context }), theirs: [], ours: [] }
       hunks.push(open)
     }
     const dropTheirs =
@@ -216,7 +239,8 @@ const sameLines = (left, right) =>
 
 /**
  * One vendored file against its registry snapshot: each hunk the line rules
- * leave must equal one recorded hunk, and each recorded hunk must explain one.
+ * leave must equal one recorded hunk (its lines, and its context and `at:`
+ * where the record gives them), and each recorded hunk must explain one.
  * @param ours - The vendored file's text.
  * @param theirs - The snapshot's text.
  * @param rules - The global and per-file rules for this file.
@@ -231,25 +255,32 @@ export function checkFile(ours, theirs, rules) {
     if (left.ours.length === 0 && left.theirs.length === 0) continue
     const match = recorded.findIndex(
       (rule, index) =>
-        !used.has(index) && sameLines(rule.theirs, left.theirs) && sameLines(rule.ours, left.ours)
+        !used.has(index) &&
+        sameLines(rule.theirs, left.theirs) &&
+        sameLines(rule.ours, left.ours) &&
+        (rule.context === undefined || rule.context === hunk.context) &&
+        (rule.at === undefined || rule.at === hunk.at)
     )
-    if (match === -1) drift.push({ at: hunk.at, ...left })
+    const anchor = hunk.context === undefined ? {} : { context: hunk.context }
+    if (match === -1) drift.push({ at: hunk.at, ...anchor, ...left })
     else used.add(match)
   }
   return { drift, stale: recorded.filter((_, index) => !used.has(index)) }
 }
 
 /**
- * The report for one unexplained hunk, ending in the block that records it.
+ * The report for one unexplained hunk, ending in the block that records it,
+ * anchored by its context line (or `at:` when nothing precedes it).
  * @param file - The vendored file's name, e.g. `tabs.tsx`.
  * @param hunk - From `checkFile`.
  * @returns The lines to print.
  */
 export function formatDrift(file, hunk) {
   return [
-    `${file}: unrecorded drift at registry line ${hunk.at}. If intended, record it under ### ${file}:`,
+    `${file}: unrecorded drift at registry line ${String(hunk.at)}. If intended, record it under ### ${file}, with a real reason:`,
     '```ui-drift-hunk',
-    'reason: <why we differ>',
+    `reason: ${PLACEHOLDER_REASON}`,
+    hunk.context === undefined ? `at: ${String(hunk.at)}` : ` ${hunk.context}`,
     ...hunk.theirs.map((line) => `-${line}`),
     ...hunk.ours.map((line) => `+${line}`),
     '```',
@@ -257,16 +288,58 @@ export function formatDrift(file, hunk) {
 }
 
 /**
- * The record and the vendored files.
- * @returns Rules per file and the vendored file names, sorted.
+ * Reads a JSON file under the root, or null when it is absent.
+ * @param root - The repo root.
+ * @param file - The path under it.
+ * @returns The parsed value.
  */
-function vendored() {
-  const record = parseRules(fs.readFileSync(RECORD, 'utf8'))
-  const files = fs
-    .readdirSync(UI_DIR)
-    .filter((entry) => entry.endsWith('.tsx'))
-    .sort()
-  return { record, files }
+const readJson = (root, file) => {
+  const full = path.join(root, file)
+  return fs.existsSync(full) ? JSON.parse(fs.readFileSync(full, 'utf8')) : null
+}
+
+/**
+ * What the snapshot must have been taken with: the `shadcn` devDependency in
+ * package.json, and `components.json`'s style and icon library.
+ * @param root - The repo root.
+ * @returns The manifest the snapshot directory must hold.
+ */
+export function expectedManifest(root) {
+  const pkg = readJson(root, 'package.json')
+  const components = readJson(root, 'components.json')
+  return {
+    shadcn: pkg?.devDependencies?.shadcn ?? null,
+    style: components?.style ?? null,
+    iconLibrary: components?.iconLibrary ?? null,
+  }
+}
+
+/**
+ * The record, the compared `.tsx` files and the entries the check cannot
+ * compare (anything in the ui directory that is not a top-level `.tsx` file).
+ * @param root - The repo root.
+ * @returns Rules per file, file names and foreign entries, sorted.
+ */
+function vendored(root) {
+  const record = parseRules(fs.readFileSync(path.join(root, RECORD), 'utf8'))
+  const entries = fs.readdirSync(path.join(root, UI_DIR), { withFileTypes: true })
+  /**
+   * Whether an entry is a file the check compares.
+   * @param entry - A directory entry.
+   * @returns True for a top-level `.tsx` file.
+   */
+  const isTsx = (entry) => entry.isFile() && entry.name.endsWith('.tsx')
+  return {
+    record,
+    files: entries
+      .filter(isTsx)
+      .map((entry) => entry.name)
+      .sort(),
+    foreign: entries
+      .filter((entry) => !isTsx(entry))
+      .map((entry) => entry.name)
+      .sort(),
+  }
 }
 
 /**
@@ -277,86 +350,137 @@ function vendored() {
  */
 const skipped = (record, file) => (record.get(file) ?? []).some((rule) => rule.side === 'skip')
 
-/** Rewrites scripts/ui-registry/ from the registry through the pinned CLI. */
-function refresh() {
-  const { record, files } = vendored()
-  fs.mkdirSync(SNAPSHOT_DIR, { recursive: true })
-  const wanted = new Set()
-  for (const entry of files) {
-    if (skipped(record, entry)) continue
-    const name = path.basename(entry, '.tsx')
-    const output = execFileSync(
-      'pnpm',
-      ['dlx', SHADCN, 'add', name, '--view', `${UI_DIR}/${entry}`],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+/**
+ * The installed CLI, run from the repo root: lockfile-verified, never a download.
+ * @param root - The repo root.
+ * @returns The two calls refresh makes.
+ */
+const installedCli = (root) => ({
+  version: () =>
+    execFileSync('pnpm', ['exec', 'shadcn', '--version'], { cwd: root, encoding: 'utf8' }).trim(),
+  view: (name, file) =>
+    execFileSync('pnpm', ['exec', 'shadcn', 'add', name, '--view', file], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }),
+})
+
+/**
+ * Retakes scripts/ui-registry/ from the registry. Every file is written to a
+ * fresh directory first, and the directory replaces the old one only when
+ * all of them, and the manifest, are written.
+ * @param root - The repo root.
+ * @param [cli] - The CLI calls; the installed `shadcn` by default.
+ * @returns The snapshot files written.
+ */
+export function refresh(root, cli = installedCli(root)) {
+  const { record, files } = vendored(root)
+  const manifest = expectedManifest(root)
+  const installed = cli.version()
+  if (installed !== manifest.shadcn)
+    throw new Error(
+      `the installed shadcn is ${installed}, package.json pins ${String(manifest.shadcn)}; run pnpm install`
     )
-    const content = viewContent(output, name)
-    if (content === null) throw new Error(`${entry}: unreadable CLI output:\n${output}`)
-    fs.writeFileSync(`${SNAPSHOT_DIR}/${entry}`, content)
-    wanted.add(entry)
-    console.log(`${entry}: snapshot written`)
-  }
-  for (const entry of fs.readdirSync(SNAPSHOT_DIR))
-    if (entry.endsWith('.tsx') && !wanted.has(entry)) {
-      fs.rmSync(`${SNAPSHOT_DIR}/${entry}`)
-      console.log(`${entry}: snapshot removed`)
+  const target = path.join(root, SNAPSHOT_DIR)
+  const next = fs.mkdtempSync(`${target}.next-`)
+  // mkdtemp creates the directory 0700; the snapshot is ordinary repo content.
+  fs.chmodSync(next, 0o755)
+  try {
+    const written = []
+    for (const entry of files) {
+      if (skipped(record, entry)) continue
+      const file = `${UI_DIR}/${entry}`
+      const output = cli.view(path.basename(entry, '.tsx'), file)
+      const content = viewContent(output, file)
+      if (content === null) throw new Error(`${entry}: unreadable CLI output:\n${output}`)
+      fs.writeFileSync(path.join(next, entry), content)
+      written.push(entry)
     }
-  fs.writeFileSync(MANIFEST, `${JSON.stringify({ cli: SHADCN }, null, 2)}\n`)
+    fs.writeFileSync(path.join(next, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+    const previous = `${target}.previous`
+    fs.rmSync(previous, { recursive: true, force: true })
+    if (fs.existsSync(target)) fs.renameSync(target, previous)
+    fs.renameSync(next, target)
+    fs.rmSync(previous, { recursive: true, force: true })
+    return written
+  } finally {
+    fs.rmSync(next, { recursive: true, force: true })
+  }
 }
 
-/** Checks every vendored file against its snapshot and exits 1 on any problem. */
-function check() {
-  const { record, files } = vendored()
+/**
+ * Checks every vendored file against its snapshot.
+ * @param root - The repo root.
+ * @returns One line per file that passed or is skipped, and one entry per problem.
+ */
+export function check(root) {
+  const { record, files, foreign } = vendored(root)
   const global = record.get('*') ?? []
-  let problems = 0
-  /**
-   * Prints one problem and counts it.
-   * @param lines - What to print.
-   */
-  const fail = (...lines) => {
-    problems += 1
-    for (const line of lines) console.log(line)
-  }
-  const manifest = fs.existsSync(MANIFEST) ? JSON.parse(fs.readFileSync(MANIFEST, 'utf8')) : {}
-  if (manifest.cli !== SHADCN)
-    fail(
-      `${MANIFEST}: taken with ${manifest.cli ?? 'nothing'}, not ${SHADCN}; run pnpm ui:drift:refresh`
-    )
-  const checked = new Set()
+  const passed = []
+  const problems = []
+  const manifest = readJson(root, MANIFEST) ?? {}
+  const expected = expectedManifest(root)
+  for (const [key, value] of Object.entries(expected))
+    if (manifest[key] !== value)
+      problems.push(
+        `${MANIFEST}: ${key} is ${String(manifest[key] ?? 'missing')}, the repo has ${String(value)}; run pnpm ui:drift:refresh`
+      )
+  for (const entry of foreign)
+    problems.push(`${UI_DIR}/${entry}: not a top-level .tsx file, so ui:drift cannot compare it`)
+  const compared = new Set()
   for (const entry of files) {
     if (skipped(record, entry)) {
-      console.log(`${entry}: ours (skipped)`)
+      passed.push(`${entry}: ours (skipped)`)
+      if ((record.get(entry) ?? []).some((rule) => rule.side === 'hunk'))
+        problems.push(`${RECORD}: ### ${entry} is skipped but records hunks`)
       continue
     }
-    checked.add(entry)
-    const snapshot = `${SNAPSHOT_DIR}/${entry}`
+    compared.add(entry)
+    const snapshot = path.join(root, SNAPSHOT_DIR, entry)
     if (!fs.existsSync(snapshot)) {
-      fail(`${entry}: no registry snapshot; run pnpm ui:drift:refresh`)
+      problems.push(`${entry}: no registry snapshot; run pnpm ui:drift:refresh`)
       continue
     }
     const { drift, stale } = checkFile(
-      fs.readFileSync(`${UI_DIR}/${entry}`, 'utf8'),
+      fs.readFileSync(path.join(root, UI_DIR, entry), 'utf8'),
       fs.readFileSync(snapshot, 'utf8'),
       [...global, ...(record.get(entry) ?? [])]
     )
-    for (const hunk of drift) fail(...formatDrift(entry, hunk))
+    for (const hunk of drift) problems.push(formatDrift(entry, hunk).join('\n'))
     for (const hunk of stale)
-      fail(
+      problems.push(
         `${entry}: recorded hunk "${hunk.reason}" matches no change; update it or remove it in ${RECORD}`
       )
-    if (drift.length === 0 && stale.length === 0) console.log(`${entry}: ok`)
+    if (drift.length === 0 && stale.length === 0) passed.push(`${entry}: ok`)
   }
-  const snapshots = fs.existsSync(SNAPSHOT_DIR) ? fs.readdirSync(SNAPSHOT_DIR).sort() : []
+  const snapshotDir = path.join(root, SNAPSHOT_DIR)
+  const snapshots = fs.existsSync(snapshotDir) ? fs.readdirSync(snapshotDir).sort() : []
   for (const entry of snapshots)
-    if (entry.endsWith('.tsx') && !checked.has(entry))
-      fail(`${SNAPSHOT_DIR}/${entry}: no vendored file to compare; run pnpm ui:drift:refresh`)
-  for (const [entry, rules] of record)
-    if (rules.some((rule) => rule.side === 'hunk') && !checked.has(entry))
-      fail(`${RECORD}: ### ${entry} records hunks, but no compared file has that name`)
-  process.exitCode = problems > 0 ? 1 : 0
+    if (entry !== 'manifest.json' && !compared.has(entry))
+      problems.push(
+        `${SNAPSHOT_DIR}/${entry}: no vendored file to compare; run pnpm ui:drift:refresh`
+      )
+  for (const heading of record.keys())
+    if (heading !== '*' && !files.includes(heading))
+      problems.push(`${RECORD}: ### ${heading} names no file in ${UI_DIR}`)
+  return { passed, problems }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  if (process.argv.includes('--refresh')) refresh()
-  else check()
+/**
+ * The command line: `--refresh` retakes the snapshot, otherwise the check
+ * runs and the exit code is 1 on any problem.
+ */
+function main() {
+  const root = process.cwd()
+  if (process.argv.includes('--refresh')) {
+    for (const entry of refresh(root)) console.log(`${entry}: snapshot written`)
+    return
+  }
+  const { passed, problems } = check(root)
+  for (const line of passed) console.log(line)
+  for (const problem of problems) console.log(problem)
+  process.exitCode = problems.length > 0 ? 1 : 0
 }
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) main()

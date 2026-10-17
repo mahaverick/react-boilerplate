@@ -1,3 +1,5 @@
 {
-  "cli": "shadcn@4.21.4"
+  "shadcn": "4.21.4",
+  "style": "base-vega",
+  "iconLibrary": "tabler"
 }

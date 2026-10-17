@@ -269,7 +269,10 @@ the component is added again.
   compares each file with its registry snapshot in `scripts/ui-registry/` and
   accepts only the edits in `docs/ui-local-edits.md`. On drift it prints the
   `ui-drift-hunk` block to record; add it with its reason. Never edit the
-  snapshot by hand: `pnpm ui:drift:refresh` retakes it through the pinned CLI.
+  snapshot by hand: `pnpm ui:drift:refresh` retakes it through the installed
+  `shadcn` devDependency. A `shadcn` bump, or a `components.json` style or icon
+  library change, fails the check until the snapshot is retaken, which is why
+  Renovate leaves `shadcn` for a human.
 - **A re-add drops these local edits; put them back.** `docs/ui-local-edits.md`
   is the full record. `alert.tsx`: the `warning` and `info` variants. `avatar.tsx`: the fallback
   and group count use `text-foreground` (contrast). `tabs.tsx`: the panel keeps
@@ -330,7 +333,8 @@ the component is added again.
   `devEngines.runtime.version`, so a Node major moves those by hand alongside the
   pins.
 - Renovate's schedule and automerge policy are in `renovate.json`. Majors and the
-  Node and TypeScript pins always wait for a human.
+  Node and TypeScript pins always wait for a human, and so does `shadcn`
+  (`pnpm ui:drift:refresh`).
 
 ## Conventions the linter enforces
 
