@@ -1,7 +1,12 @@
 import type { PaletteCommand, PaletteGroup } from './palette-types'
 
+/** Lower-cases and strips accents, so "Zoe" finds "Zoë". */
+function fold(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+}
+
 /**
- * Whether `command` matches `term`: the trimmed, lower-cased term is part of
+ * Whether `command` matches `term`: the trimmed term, ignoring case and accents, is part of
  * its label, its detail (unless the detail is personal) or one of its
  * keywords. A blank term matches every command.
  * @param command - The command.
@@ -9,14 +14,14 @@ import type { PaletteCommand, PaletteGroup } from './palette-types'
  * @returns True when the command should be listed.
  */
 export function matchCommand(command: PaletteCommand, term: string): boolean {
-  const needle = term.trim().toLowerCase()
+  const needle = fold(term.trim())
   if (needle === '') return true
   const haystack = [
     command.label,
     ...(command.pii ? [] : [command.detail ?? '']),
     ...(command.keywords ?? []),
   ]
-  return haystack.some((text) => text.toLowerCase().includes(needle))
+  return haystack.some((text) => fold(text).includes(needle))
 }
 
 /**

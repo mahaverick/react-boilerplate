@@ -102,17 +102,100 @@ describe('recent items', () => {
     ])
   })
 
-  it('keeps working when storage throws on every read and write', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-      throw new Error('blocked')
-    })
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('blocked')
-    })
-    expect(() =>
-      recordRecent(ALICE.id, { kind: 'tenant', id: 't1', label: 'Acme Corp' })
-    ).not.toThrow()
+  it('stamps a new entry after every stored one, even a future-dated one', () => {
+    const future = Date.now() + 10 * 60_000
+    localStorage.setItem(
+      `${RECENT_KEY_PREFIX}${ALICE.id}`,
+      JSON.stringify(
+        Array.from({ length: RECENT_LIMIT }, (_, index) => ({
+          kind: 'tenant',
+          id: `old${index}`,
+          label: `Old ${index}`,
+          at: future + index,
+        }))
+      )
+    )
+    recordRecent(ALICE.id, { kind: 'tenant', id: 'fresh', label: 'Fresh' })
     const { result } = renderHook(() => useRecentItems())
+    expect(result.current[0]?.id).toBe('fresh')
+    expect(result.current).toHaveLength(RECENT_LIMIT)
+  })
+
+  describe('blocked storage', () => {
+    it('reads as no recents when getItem throws', () => {
+      recordRecent(ALICE.id, { kind: 'tenant', id: 't1', label: 'Acme Corp' })
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('blocked')
+      })
+      const { result } = renderHook(() => useRecentItems())
+      expect(result.current).toEqual([])
+      expect(() =>
+        recordRecent(ALICE.id, { kind: 'tenant', id: 't2', label: 'Globex' })
+      ).not.toThrow()
+    })
+
+    it('records nothing but does not throw when setItem throws', () => {
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('blocked')
+      })
+      expect(() =>
+        recordRecent(ALICE.id, { kind: 'tenant', id: 't1', label: 'Acme Corp' })
+      ).not.toThrow()
+      expect(stored(ALICE.id)).toBeNull()
+    })
+
+    it('survives removeItem throwing during a sign-out', () => {
+      uninstall = installRecentItems()
+      recordRecent(ALICE.id, { kind: 'tenant', id: 't1', label: 'Acme Corp' })
+      vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+        throw new Error('blocked')
+      })
+      expect(() => useAuthStore.setState({ user: null, isAuthenticated: false })).not.toThrow()
+    })
+
+    it('survives key throwing while installing', () => {
+      recordRecent(BOB.id, { kind: 'tenant', id: 't1', label: 'Globex' })
+      vi.spyOn(Storage.prototype, 'key').mockImplementation(() => {
+        throw new Error('blocked')
+      })
+      expect(() => {
+        uninstall = installRecentItems()
+      }).not.toThrow()
+    })
+
+    it('survives the length accessor throwing while installing', () => {
+      vi.spyOn(Storage.prototype, 'length', 'get').mockImplementation(() => {
+        throw new Error('blocked')
+      })
+      expect(() => {
+        uninstall = installRecentItems()
+      }).not.toThrow()
+    })
+
+    it('survives the localStorage accessor itself throwing', () => {
+      vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+        throw new Error('blocked')
+      })
+      expect(() =>
+        recordRecent(ALICE.id, { kind: 'tenant', id: 't1', label: 'Acme Corp' })
+      ).not.toThrow()
+      expect(() => forgetRecent(ALICE.id, 'tenant', 't1')).not.toThrow()
+      const { result } = renderHook(() => useRecentItems())
+      expect(result.current).toEqual([])
+      expect(() => {
+        uninstall = installRecentItems()
+      }).not.toThrow()
+    })
+  })
+
+  it('shows the new user’s recents, never the old one’s, when the user changes under a mounted reader', () => {
+    recordRecent(ALICE.id, { kind: 'tenant', id: 'a1', label: 'Alice tenant' })
+    recordRecent(BOB.id, { kind: 'tenant', id: 'b1', label: 'Bob tenant' })
+    const { result } = renderHook(() => useRecentItems())
+    expect(result.current.map((entry) => entry.id)).toEqual(['a1'])
+    act(() => useAuthStore.setState({ user: BOB }))
+    expect(result.current.map((entry) => entry.id)).toEqual(['b1'])
+    act(() => useAuthStore.setState({ user: null, isAuthenticated: false }))
     expect(result.current).toEqual([])
   })
 

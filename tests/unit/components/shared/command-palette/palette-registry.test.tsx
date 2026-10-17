@@ -1,4 +1,5 @@
 import { renderHook } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { describe, expect, it } from 'vitest'
 import {
   usePaletteCommands,
@@ -18,16 +19,21 @@ function command(id: string, label: string, calls: string[]): PaletteCommand {
   }
 }
 
+/** The commands a source registered, whichever mount registered them. */
+function registered(sourceId: string): PaletteCommand[] {
+  return Object.entries(usePaletteRegistry.getState().sources)
+    .filter(([key]) => key.startsWith(`${sourceId}#`))
+    .flatMap(([, commands]) => [...commands])
+}
+
 describe('usePaletteCommands', () => {
   it('registers a source’s commands and removes them on unmount', () => {
     const { unmount } = renderHook(() =>
       usePaletteCommands('menu', [command('suspend', 'Suspend', [])])
     )
-    expect(usePaletteRegistry.getState().sources.menu?.map((entry) => entry.id)).toEqual([
-      'suspend',
-    ])
+    expect(registered('menu').map((entry) => entry.id)).toEqual(['suspend'])
     unmount()
-    expect(usePaletteRegistry.getState().sources.menu).toBeUndefined()
+    expect(registered('menu')).toEqual([])
   })
 
   it('does not register again for a re-render with the same commands, and runs the latest handler', () => {
@@ -39,10 +45,10 @@ describe('usePaletteCommands', () => {
       },
       { initialProps: { tag: 'first' } }
     )
-    const registered = usePaletteRegistry.getState().sources.menu
+    const before = usePaletteRegistry.getState().sources
     rerender({ tag: 'second' })
-    expect(usePaletteRegistry.getState().sources.menu).toBe(registered)
-    registered?.[0]?.run()
+    expect(usePaletteRegistry.getState().sources).toBe(before)
+    registered('menu')[0]?.run()
     expect(calls).toEqual(['second'])
     unmount()
   })
@@ -54,7 +60,7 @@ describe('usePaletteCommands', () => {
       { initialProps: { disabled: false } }
     )
     rerender({ disabled: true })
-    expect(usePaletteRegistry.getState().sources.menu?.[0]?.disabled).toBe(true)
+    expect(registered('menu')[0]?.disabled).toBe(true)
     unmount()
   })
 
@@ -64,7 +70,54 @@ describe('usePaletteCommands', () => {
       { initialProps: { source: 'a' } }
     )
     rerender({ source: 'b' })
-    expect(Object.keys(usePaletteRegistry.getState().sources)).toEqual(['b'])
+    expect(registered('a')).toEqual([])
+    expect(registered('b').map((entry) => entry.id)).toEqual(['copy'])
     unmount()
+  })
+
+  it('registers again when only pii, action, timing or keywords change', () => {
+    const { rerender, unmount } = renderHook(
+      ({ pii }: { pii: boolean }) =>
+        usePaletteCommands('menu', [{ ...command('person', 'Cleo', []), pii }]),
+      { initialProps: { pii: false } }
+    )
+    expect(registered('menu')[0]?.pii).toBe(false)
+    rerender({ pii: true })
+    expect(registered('menu')[0]?.pii).toBe(true)
+    unmount()
+    const next = renderHook(
+      ({ timing, keywords }: { timing: 'immediate' | 'afterClose'; keywords: string[] }) =>
+        usePaletteCommands('menu', [{ ...command('a', 'A', []), timing, keywords }]),
+      { initialProps: { timing: 'immediate' as const, keywords: ['x'] } }
+    )
+    next.rerender({ timing: 'afterClose' as never, keywords: ['x'] })
+    expect(registered('menu')[0]?.timing).toBe('afterClose')
+    next.rerender({ timing: 'afterClose' as never, keywords: ['y'] })
+    expect(registered('menu')[0]?.keywords).toEqual(['y'])
+    next.unmount()
+  })
+
+  it('keeps two mounts of one source id apart', () => {
+    const first = renderHook(() => usePaletteCommands('menu', [command('a', 'A', [])]))
+    const second = renderHook(() => usePaletteCommands('menu', [command('b', 'B', [])]))
+    expect(
+      registered('menu')
+        .map((entry) => entry.id)
+        .sort()
+    ).toEqual(['a', 'b'])
+    first.unmount()
+    expect(registered('menu').map((entry) => entry.id)).toEqual(['b'])
+    second.unmount()
+    expect(registered('menu')).toEqual([])
+  })
+
+  it('stays registered under StrictMode and leaves nothing behind', () => {
+    const { unmount } = renderHook(
+      () => usePaletteCommands('menu', [command('suspend', 'Suspend', [])]),
+      { wrapper: StrictMode }
+    )
+    expect(registered('menu').map((entry) => entry.id)).toEqual(['suspend'])
+    unmount()
+    expect(registered('menu')).toEqual([])
   })
 })

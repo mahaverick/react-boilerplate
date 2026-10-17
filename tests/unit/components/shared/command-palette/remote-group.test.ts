@@ -44,7 +44,14 @@ describe('remoteGroup', () => {
 
   it.each([
     ['the term is still settling', { current: 'acm', term: 'ac', state: {} }],
-    ['the request is in flight', { current: 'ac', term: 'ac', state: { isFetching: true } }],
+    [
+      'the request is in flight',
+      { current: 'ac', term: 'ac', state: { isFetching: true, data: undefined } },
+    ],
+    [
+      'the rows are the previous term’s placeholder',
+      { current: 'ac', term: 'ac', state: { isFetching: true, isPlaceholderData: true } },
+    ],
   ])('hides the rows and says it is searching while %s', (_label, { current, term, state }) => {
     const group = remoteGroup({
       id: 'tenants',
@@ -56,6 +63,19 @@ describe('remoteGroup', () => {
     })
     expect(group.group.commands).toEqual([])
     expect(group.searching).toBe(true)
+  })
+
+  it('keeps the rows through a background refetch of the same term', () => {
+    const group = remoteGroup({
+      id: 'tenants',
+      enabled: true,
+      current: 'ac',
+      term: 'ac',
+      query: query({ isFetching: true }),
+      toCommands,
+    })
+    expect(group.group.commands.map((command) => command.id)).toEqual(['a'])
+    expect(group.searching).toBe(false)
   })
 
   it('reports a failure only for the typed term, and never a role refusal', () => {

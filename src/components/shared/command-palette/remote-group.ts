@@ -5,6 +5,8 @@ import type { PaletteCommand, PaletteGroupId, RemoteGroup } from './palette-type
 export interface RemoteQuery<T> {
   data: T | undefined
   isFetching: boolean
+  /** True when `data` belongs to an earlier key (`placeholderData`). */
+  isPlaceholderData?: boolean
   isError: boolean
   error: unknown
   refetch: () => unknown
@@ -12,7 +14,7 @@ export interface RemoteQuery<T> {
 
 /**
  * One API search as a palette group. Its rows show only for the term they
- * were fetched for, once nothing is fetching, so Enter never acts on an
+ * were fetched for, unless a background refetch of that same term is the only thing fetching, so Enter never acts on an
  * older term's list. A failure is reported only once `term` is what is
  * typed, and a role refusal (`isRoleDenied`) never.
  * @param input - The group, whether this search runs at all for the caller,
@@ -38,11 +40,12 @@ export function remoteGroup<T>({
   toCommands: (data: T) => readonly PaletteCommand[]
 }): RemoteGroup {
   const active = enabled && current !== ''
-  const fresh = term === current && !query.isFetching
+  const settled = !query.isFetching || (query.data !== undefined && !query.isPlaceholderData)
+  const fresh = term === current && settled
   const commands = active && fresh && query.data !== undefined ? toCommands(query.data) : []
   return {
     group: { id, label, commands },
-    searching: active && (term !== current || query.isFetching),
+    searching: active && (term !== current || !settled),
     failed: active && fresh && query.isError && !isRoleDenied(query.error),
     retry: () => void query.refetch(),
   }

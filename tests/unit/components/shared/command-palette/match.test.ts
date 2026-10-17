@@ -23,6 +23,12 @@ describe('matchCommand', () => {
     expect(matchCommand(command({ label: 'Dark' }), 'light')).toBe(false)
   })
 
+  it('folds diacritics on both sides', () => {
+    expect(matchCommand(command({ label: 'Zoë' }), 'zoe')).toBe(true)
+    expect(matchCommand(command({ label: 'Zoe' }), 'ZOË')).toBe(true)
+    expect(matchCommand(command({ keywords: ['café'] }), 'cafe')).toBe(true)
+  })
+
   it('matches everything for a blank term', () => {
     expect(matchCommand(command({}), '   ')).toBe(true)
   })

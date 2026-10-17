@@ -11,7 +11,9 @@ describe('copyId', () => {
   it('copies the id and says so without naming it', async () => {
     userEvent.setup()
     const success = vi.spyOn(toast, 'success')
+    const write = vi.spyOn(navigator.clipboard, 'writeText')
     copyId('id-1', 'Tenant ID copied.')
+    expect(write).toHaveBeenCalledWith('id-1')
     await vi.waitFor(() => expect(success).toHaveBeenCalledWith('Tenant ID copied.'))
     await expect(navigator.clipboard.readText()).resolves.toBe('id-1')
   })

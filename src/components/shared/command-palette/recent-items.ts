@@ -146,15 +146,14 @@ export function recordRecent(
     id: item.id,
     label: item.label.slice(0, MAX_TEXT),
     ...(item.detail === undefined ? {} : { detail: item.detail.slice(0, MAX_TEXT) }),
-    at: Date.now(),
+    at: 0,
   }
-  write(
-    userId,
-    normalize([
-      entry,
-      ...parse(readRaw(userId)).filter((old) => !(old.kind === item.kind && old.id === item.id)),
-    ])
+  const others = parse(readRaw(userId)).filter(
+    (old) => !(old.kind === item.kind && old.id === item.id)
   )
+  // Never earlier than a stored entry, so a clock that stepped back cannot rank it last.
+  entry.at = Math.max(Date.now(), ...others.map((old) => old.at + 1))
+  write(userId, normalize([entry, ...others]))
 }
 
 /**
