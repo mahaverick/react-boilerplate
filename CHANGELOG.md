@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.2](https://github.com/mahaverick/react-boilerplate/compare/v3.4.1...v3.4.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **telemetry:** mask the prefixed list search keys in posthog URLs ([#121](https://github.com/mahaverick/react-boilerplate/issues/121)) ([8e85994](https://github.com/mahaverick/react-boilerplate/commit/8e85994e2b39764f98ccdf52f8734724b56a4a46))
+
 ## [3.4.1](https://github.com/mahaverick/react-boilerplate/compare/v3.4.0...v3.4.1) (2026-10-17)
 
 
