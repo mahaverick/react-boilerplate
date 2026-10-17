@@ -59,6 +59,7 @@ test('sets the theme from the keyboard alone', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
+  await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/)
   await page.keyboard.press('ControlOrMeta+k')
   await page.keyboard.type('dark')
   await expect(page.getByRole('option', { name: /^Dark/ })).toBeVisible({
@@ -135,6 +136,7 @@ test('Create a tenant leaves focus in the Name field of /tenants', async ({ page
   await expect(page.getByRole('textbox', { name: /^Name/ })).toBeFocused()
 })
 
+/** The palette chunk's dev-server URL, which the routes below hold or abort. */
 const CHUNK_URL = /\/src\/components\/features\/command-palette\.tsx(\?|$)/
 
 /** What the toast says when the palette's chunk cannot be fetched. */
@@ -172,6 +174,13 @@ test('a failed palette chunk load offers a reload, on every open, and the reload
   await expect(reload).toBeVisible()
   await expect(page.getByText('Loading search…')).toHaveCount(0)
   await expect(dialog).toHaveCount(0)
+
+  // The first toast is closed (its close button is found by slot: Base UI hides it from the accessibility tree), so the next press's toast is its own.
+  await page
+    .getByRole('dialog', { name: LOAD_FAILED, exact: true })
+    .locator('[data-slot="toast-close"]')
+    .click()
+  await expect(page.getByText(LOAD_FAILED)).toHaveCount(0)
 
   // The browser keeps a failed import() for the page, so the next press makes no request and fails the same way.
   await page.keyboard.press('ControlOrMeta+k')
