@@ -33,6 +33,7 @@ import {
   STAFF_USER_ID,
   TENANT_ID,
   TENANT_ID_2,
+  TENANT_ID_9,
   USER_ID,
   USER_ID_2,
 } from '@/tests/fixtures/ids'
@@ -981,15 +982,17 @@ describe('open overlays', () => {
   /**
    * The ⌘K palette as the shell mounts it: a named `dialog`, so its portaled
    * list is exempt from `region` and it is graded at document scope. Recent
-   * (a second tenant), This page (Copy tenant ID) and Switch tenant all show.
+   * (a second tenant) and This page (Copy tenant ID) show on open; a term that
+   * matches a third tenant, not a recent one, then shows Switch tenant.
    */
   it('has no violations with the command palette open, showing Recent, This page and Switch tenant', async () => {
     const BETA = { ...TENANT, id: TENANT_ID_2, name: 'Beta Inc', slug: 'beta' }
+    const DELTA = { ...TENANT, id: TENANT_ID_9, name: 'Delta Co', slug: 'delta' }
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
           listPage(
-            [TENANT, BETA].map((tenant) => ({
+            [TENANT, BETA, DELTA].map((tenant) => ({
               tenant,
               role: 'owner',
               isPlatform: false,
@@ -1011,7 +1014,7 @@ describe('open overlays', () => {
     expect(await within(palette).findByRole('group', { name: 'This page' })).toBeInTheDocument()
     await expectNoViolations()
 
-    await user.keyboard('beta')
+    await user.keyboard('delta')
     expect(await within(palette).findByRole('group', { name: 'Switch tenant' })).toBeInTheDocument()
     await expectNoViolations()
   })

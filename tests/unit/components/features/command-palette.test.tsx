@@ -198,7 +198,8 @@ describe('CommandPalette', () => {
     ['Account', '/dashboard', '', 'Create a tenant', 'create_tenant'],
     ['Account', '/dashboard', '', 'Sign out', 'sign_out'],
   ])('sends only the fixed key for %s › %s (%s)', async (group, from, term, label, action) => {
-    recordRecent(testUser.id, { kind: 'tenant', id: BETA.id, label: 'Beta' })
+    if (group === 'Recent')
+      recordRecent(testUser.id, { kind: 'tenant', id: BETA.id, label: 'Beta' })
     server.use(http.post('/api/v1/auth/logout', () => new Promise<Response>(() => {})))
     const track = vi.spyOn(analytics, 'track')
     const user = userEvent.setup()
@@ -339,5 +340,17 @@ describe('CommandPalette', () => {
         .getAllByRole('option')
         .map((option) => option.textContent)
     ).toEqual(['Beta Inc, beta'])
+  })
+
+  it('lists a recent tenant that matches the term once, under Recent and not under Switch tenant', async () => {
+    recordRecent(testUser.id, { kind: 'tenant', id: BETA.id, label: 'Beta' })
+    const user = userEvent.setup()
+    renderShell('/notifications?tenant=acme')
+    const palette = await openPalette(user)
+    await user.keyboard('beta')
+    const recent = await within(palette).findByRole('group', { name: 'Recent' })
+    expect(within(recent).getAllByRole('option')).toHaveLength(1)
+    expect(within(palette).queryByRole('group', { name: 'Switch tenant' })).not.toBeInTheDocument()
+    expect(within(palette).getAllByRole('option', { name: /^Beta Inc/ })).toHaveLength(1)
   })
 })

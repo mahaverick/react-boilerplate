@@ -19,6 +19,7 @@ import type {
   PaletteGroup,
   RecentEntry,
 } from '@/components/shared/command-palette/palette-types'
+import { useRecentItems } from '@/components/shared/command-palette/recent-items'
 import { NAV_ITEMS } from '@/constants/navigation'
 import { ROUTES } from '@/constants/routes'
 import { SETTINGS_SECTIONS } from '@/constants/settings'
@@ -77,6 +78,7 @@ export function CommandPalette() {
   const currentSlug = useCurrentTenantSlug()
   const switchTenant = useSwitchTenant()
   const flags = useFlagValues()
+  const recents = useRecentItems()
 
   const own = (tenants.data ?? []).filter((entry) => !entry.isPlatform)
   const currentTenant = own.find((entry) => entry.tenant.slug === currentSlug)
@@ -155,10 +157,22 @@ export function CommandPalette() {
       },
     ]
   })
+  /** A recent tenant the caller still belongs to, other than the current one. */
+  const recentToCommand = (entry: RecentEntry): PaletteCommand | null => {
+    if (entry.kind !== 'tenant') return null
+    const listed = own.find((row) => row.tenant.id === entry.id)
+    if (listed === undefined || listed.tenant.slug === currentSlug) return null
+    return tenantCommand(listed, ACTIONS.recent)
+  }
+  // A tenant listed under Recent is not repeated under Switch tenant.
+  const recentIds = new Set(
+    recents.flatMap((entry) => (recentToCommand(entry) === null ? [] : [entry.id]))
+  )
   const switchable =
     query.trim() === ''
       ? []
       : own
+          .filter((entry) => !recentIds.has(entry.tenant.id))
           .map((entry) => tenantCommand(entry, ACTIONS.switch))
           .filter((command) => matchCommand(command, query))
           .slice(0, SWITCH_RESULTS)
@@ -204,14 +218,6 @@ export function CommandPalette() {
       ],
     },
   ]
-
-  /** A recent tenant the caller still belongs to, other than the current one. */
-  const recentToCommand = (entry: RecentEntry): PaletteCommand | null => {
-    if (entry.kind !== 'tenant') return null
-    const listed = own.find((row) => row.tenant.id === entry.id)
-    if (listed === undefined || listed.tenant.slug === currentSlug) return null
-    return tenantCommand(listed, ACTIONS.recent)
-  }
 
   return (
     <CommandPaletteShell
