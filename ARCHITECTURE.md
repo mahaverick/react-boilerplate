@@ -72,7 +72,8 @@ of the Search… button, or at the first open, whichever comes first. Once it
 has resolved, even by hover alone, the first open mounts the palette directly.
 Only an open that beats the fetch shows a "Loading search…" overlay whose input
 is bound to the store's `query`, so keys typed right after the shortcut are
-kept, and Escape closes it. When the palette replaces the overlay, focus first
+kept. The overlay is a modal dialog: Tab stays on its field, and Escape or a
+click on the backdrop closes it. When the palette replaces the overlay, focus first
 goes back to the opener, so the palette's own close returns it there. A failed fetch closes the palette and shows a toast with a Reload
 action: Chromium keeps a failed `import()` for the page's lifetime, so there is
 no in-page retry. `pnpm check:bundle` fails if a chunk that holds the palette's

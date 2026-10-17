@@ -93,7 +93,8 @@ export function CommandPaletteHost() {
 /**
  * What shows while the palette's code is on its way: a light overlay, a polite
  * status line and a search field that holds what is typed in the store, so
- * keys pressed right after the shortcut are not lost. Focus returns to where
+ * keys pressed right after the shortcut are not lost. It is a modal dialog:
+ * focus stays on its field, a click on the backdrop or Escape closes it. Focus returns to where
  * it was when this goes, whether by Escape or because the palette takes over.
  */
 function LoadingSearch({ onClose }: { onClose: () => void }) {
@@ -116,20 +117,36 @@ function LoadingSearch({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     /** Closes on Escape, as the palette will once it is there. */
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onClose()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/10 pt-[20vh]">
-      <div className="flex w-80 flex-col gap-2 rounded-md bg-popover p-3 text-popover-foreground shadow-md">
+    <div
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/10 pt-[20vh]"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search"
+        className="flex w-80 flex-col gap-2 rounded-md bg-popover p-3 text-popover-foreground shadow-md"
+      >
         <input
           ref={input}
           type="text"
           aria-label="Search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            // The field is the dialog's only control, so Tab stays on it.
+            if (event.key === 'Tab') event.preventDefault()
+          }}
           autoComplete="off"
           className="h-9 rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />

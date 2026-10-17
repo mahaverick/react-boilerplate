@@ -194,6 +194,47 @@ describe('CommandPaletteHost', () => {
       expect(trigger).toHaveFocus()
     })
 
+    it('is a named modal dialog that keeps Tab on its field', async () => {
+      const gate = new Promise<void>(() => {})
+      const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
+      const user = userEvent.setup()
+      render(<CommandPaletteHost />)
+      act(() => useCommandPaletteStore.getState().setOpen(true))
+      const dialog = screen.getByRole('dialog', { name: 'Search' })
+      expect(dialog).toHaveAttribute('aria-modal', 'true')
+      const input = screen.getByRole('textbox', { name: 'Search' })
+      expect(dialog).toContainElement(input)
+      await user.tab()
+      expect(input).toHaveFocus()
+      await user.tab({ shift: true })
+      expect(input).toHaveFocus()
+    })
+
+    it('closes on a click on the backdrop, not on the dialog', async () => {
+      const gate = new Promise<void>(() => {})
+      const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
+      const user = userEvent.setup()
+      render(<CommandPaletteHost />)
+      act(() => useCommandPaletteStore.getState().setOpen(true))
+      const dialog = screen.getByRole('dialog', { name: 'Search' })
+      await user.click(dialog)
+      expect(useCommandPaletteStore.getState().open).toBe(true)
+      await user.click(dialog.parentElement!)
+      expect(useCommandPaletteStore.getState().open).toBe(false)
+    })
+
+    it('claims the Escape it handles', async () => {
+      const gate = new Promise<void>(() => {})
+      const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
+      render(<CommandPaletteHost />)
+      act(() => useCommandPaletteStore.getState().setOpen(true))
+      const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+      act(() => {
+        window.dispatchEvent(event)
+      })
+      expect(event.defaultPrevented).toBe(true)
+    })
+
     it('closes on Escape', async () => {
       const gate = new Promise<void>(() => {})
       const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
