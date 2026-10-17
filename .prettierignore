@@ -20,6 +20,9 @@ src/components/ui/*
 # hand-written (the registry one is built on react-hook-form). Without this
 # negation our own code would sit in the directory unformatted and unchecked.
 !src/components/ui/form.tsx
+# The registry snapshot `pnpm ui:drift` compares against: shadcn's files
+# byte for byte, so its formatting is upstream's.
+scripts/ui-registry/
 
 # StyleSeed's compiled output. resolve-context.mjs records a sha256 for the
 # bundle and both palette files in .styleseed/manifests/, and the scanner

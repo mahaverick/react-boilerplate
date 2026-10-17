@@ -46,6 +46,8 @@ export default tseslint.config(
       'public/mockServiceWorker.js',
       'test-results',
       'playwright-report',
+      // The registry snapshot `pnpm ui:drift` reads: upstream's bytes, never imported.
+      'scripts/ui-registry',
     ],
   },
   js.configs.recommended,

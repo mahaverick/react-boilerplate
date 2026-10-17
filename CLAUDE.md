@@ -52,7 +52,7 @@ as a route under `src/pages/_app/settings/`.
 - **0 errors and 0 warnings.** Check with `pnpm exec eslint . --max-warnings 0`,
   as CI and the pre-push hook do. `pnpm lint`'s eslint half exits 0 on warnings.
 - `pnpm lint` also runs `prettier --check`, and CI runs `pnpm lint:docs`,
-  `pnpm knip`, `pnpm typecheck`, `pnpm test:coverage` (thresholds in
+  `pnpm ui:drift`, `pnpm knip`, `pnpm typecheck`, `pnpm test:coverage` (thresholds in
   `vitest.config.ts`), `pnpm check:bundle` and the `e2e` and `docker` jobs. The scripts
   are in [README.md](README.md).
 
@@ -265,6 +265,14 @@ the component is added again.
   `react-refresh` rules, plus the `!(form)` globs of the `cn` restriction,
   comment-style and JSDoc blocks), and the `!` negation in `.prettierignore`. A
   second hand-written file there goes into all five in the same change.
+- **An edit to a vendored file is recorded, or CI fails.** `pnpm ui:drift`
+  compares each file with its registry snapshot in `scripts/ui-registry/` and
+  accepts only the edits in `docs/ui-local-edits.md`. On drift it prints the
+  `ui-drift-hunk` block to record; add it with its reason. Never edit the
+  snapshot by hand: `pnpm ui:drift:refresh` retakes it through the installed
+  `shadcn` devDependency. A `shadcn` bump, or a `components.json` style or icon
+  library change, fails the check until the snapshot is retaken, which is why
+  Renovate leaves `shadcn` for a human.
 - **A re-add drops these local edits; put them back.** `docs/ui-local-edits.md`
   is the full record. `alert.tsx`: the `warning` and `info` variants. `avatar.tsx`: the fallback
   and group count use `text-foreground` (contrast). `tabs.tsx`: the panel keeps
@@ -325,7 +333,8 @@ the component is added again.
   `devEngines.runtime.version`, so a Node major moves those by hand alongside the
   pins.
 - Renovate's schedule and automerge policy are in `renovate.json`. Majors and the
-  Node and TypeScript pins always wait for a human.
+  Node and TypeScript pins always wait for a human, and so does `shadcn`
+  (`pnpm ui:drift:refresh`).
 
 ## Conventions the linter enforces
 

@@ -7,6 +7,10 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/inter';
+/* The registry snapshot `pnpm ui:drift` compares against. Tailwind scans
+   every file git does not ignore, so without this its classes would reach the
+   bundle. */
+@source not '../../scripts/ui-registry';
 
 @custom-variant dark (&:where(.dark, .dark *));
 

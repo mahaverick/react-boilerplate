@@ -23,6 +23,8 @@ playwright-report
 .tanstack
 # Docs, specs and CI config: none of them change the bundle.
 .superpowers
+# The registry snapshot ui:drift reads; never imported.
+scripts/ui-registry
 .github
 .husky
 Dockerfile

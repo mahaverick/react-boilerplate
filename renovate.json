@@ -77,6 +77,11 @@
       "matchPackageNames": ["posthog-js"],
       "matchUpdateTypes": ["minor", "major"],
       "automerge": false
+    },
+    {
+      "description": "shadcn renders the registry snapshot `pnpm ui:drift` compares against (scripts/ui-registry/manifest.json records its version), so a bump fails CI until someone runs `pnpm ui:drift:refresh` and reviews the snapshot's diff. After the automerge rule, which it overrides.",
+      "matchPackageNames": ["shadcn"],
+      "automerge": false
     }
   ]
 }
