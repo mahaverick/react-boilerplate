@@ -68,6 +68,16 @@ ours: s/bg-muted text-sm text-foreground/bg-muted text-sm text-muted-foreground/
 ours: s/^\s+aria-label="(Clear|Remove)"$//
 ```
 
+### command.tsx
+
+Hand-written, not vendored: the registry's `command` is built on cmdk, which
+pulls in Radix. Ours composes Base UI's Autocomplete and keeps the registry's
+export names and styling; there is no registry file to compare.
+
+```ui-drift
+skip
+```
+
 ### dropdown-menu.tsx
 
 - **`min-w-24`** for the sub-menu content, where the registry writes

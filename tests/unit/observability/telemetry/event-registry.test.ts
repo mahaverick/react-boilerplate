@@ -43,6 +43,8 @@ describe('the browser event registry', () => {
       | 'table_sorted'
       | 'table_paged'
       | 'table_exported'
+      | 'command_palette_opened'
+      | 'command_palette_action_run'
       | 'maintenance_page_viewed'
     >()
     expect(REGISTRY_HAS_NO_FREE_STRINGS).toBe(true)
@@ -69,6 +71,9 @@ describe('the browser event registry', () => {
       table: AnalyticsKey
       direction: 'next' | 'prev'
     }>()
+    expectTypeOf<BrowserEventProps['command_palette_action_run']>().toEqualTypeOf<{
+      action: AnalyticsKey
+    }>()
     expectTypeOf<BrowserEventProps['maintenance_page_viewed']>().toEqualTypeOf<{
       mode: 'full' | 'read_only'
     }>()
@@ -79,6 +84,10 @@ describe('the browser event registry', () => {
       track('onboarding_checklist_opened', { required_done: 1, required_total: 2 })
       track('feature_cta_clicked', { cta: analyticsKey('onboarding_open_members') })
       track('table_filtered', { table: analyticsKey('activity') })
+      track('command_palette_opened')
+      track('command_palette_action_run', { action: analyticsKey('open_page') })
+      // @ts-expect-error the typed search term where the item's kind belongs
+      track('command_palette_action_run', { action: 'pii-probe' })
       track('maintenance_page_viewed', { mode: 'full' })
       // @ts-expect-error off is not a maintenance period
       track('maintenance_page_viewed', { mode: 'off' })
