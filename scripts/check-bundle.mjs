@@ -30,8 +30,14 @@ import { build } from 'vite'
  * `_app`'s guard became lazy, which took it to 586,530 B; the members read's
  * `total` opt-out added 67 B: 586,597 B. The budget is that measurement rounded
  * up to the next 100 B, so any new entry code raises it with its own reason.
+ * The command palette loads on its first open and adds no module to the
+ * entry; its chunk shares the open store with `_app`'s, so `_app`'s lazy
+ * route import reads that chunk's exports through its namespace (17 B). The
+ * auth store also clears the stored palette recents on sign-out, without
+ * importing the palette or its schema, so a sign-out on a page that never
+ * loaded it still removes them: 586,760 B.
  */
-const ENTRY_BUDGET_BYTES = 586_600
+const ENTRY_BUDGET_BYTES = 586_800
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

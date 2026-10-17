@@ -9,6 +9,7 @@ import axeCore from 'axe-core'
 import { http } from 'msw'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { ThemeToggle } from '@/components/features/theme-toggle'
+import { recordRecent } from '@/components/shared/command-palette/recent-items'
 import { PageSkeleton, type PageVariant } from '@/components/shared/page-skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GOOGLE_OAUTH_PATH } from '@/constants/routes'
@@ -16,6 +17,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { useCommandPaletteStore } from '@/states/command-palette.store'
 import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { useSidebarStore } from '@/states/sidebar.store'
@@ -30,6 +32,7 @@ import {
   NOTIFICATION_ID_2,
   STAFF_USER_ID,
   TENANT_ID,
+  TENANT_ID_2,
   USER_ID,
   USER_ID_2,
 } from '@/tests/fixtures/ids'
@@ -402,6 +405,8 @@ beforeEach(() => {
   queryClient.clear()
   useSidebarStore.setState({ isCollapsed: false })
   useMaintenanceModeStore.setState({ mode: 'off', message: null, since: null })
+  // A palette left open would cover the next test's page with its modal.
+  useCommandPaletteStore.setState({ open: false, query: '' })
 })
 
 afterEach(() => {
@@ -970,6 +975,44 @@ describe('open overlays', () => {
 
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'Members' })).toBeInTheDocument()
+    await expectNoViolations()
+  })
+
+  /**
+   * The ⌘K palette as the shell mounts it: a named `dialog`, so its portaled
+   * list is exempt from `region` and it is graded at document scope. Recent
+   * (a second tenant), This page (Copy tenant ID) and Switch tenant all show.
+   */
+  it('has no violations with the command palette open, showing Recent, This page and Switch tenant', async () => {
+    const BETA = { ...TENANT, id: TENANT_ID_2, name: 'Beta Inc', slug: 'beta' }
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        ok(
+          listPage(
+            [TENANT, BETA].map((tenant) => ({
+              tenant,
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            }))
+          ),
+          'Tenants retrieved.'
+        )
+      )
+    )
+    recordRecent(testUser.id, { kind: 'tenant', id: TENANT_ID_2, label: 'Beta Inc' })
+    const user = userEvent.setup()
+    renderAppAt('/notifications?tenant=acme')
+    await screen.findByRole('heading', { name: 'Notifications', level: 1 })
+
+    await user.click(screen.getByRole('button', { name: /Search…/ }))
+    const palette = await screen.findByRole('dialog', { name: 'Command palette' })
+    expect(within(palette).getByRole('group', { name: 'Recent' })).toBeInTheDocument()
+    expect(await within(palette).findByRole('group', { name: 'This page' })).toBeInTheDocument()
+    await expectNoViolations()
+
+    await user.keyboard('beta')
+    expect(await within(palette).findByRole('group', { name: 'Switch tenant' })).toBeInTheDocument()
     await expectNoViolations()
   })
 

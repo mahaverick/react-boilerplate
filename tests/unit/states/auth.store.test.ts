@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { RECENT_KEY_PREFIX } from '@/components/shared/command-palette/recent-items'
 import { useAuthStore } from '@/states/auth.store'
 import { USER_ID } from '@/tests/fixtures/ids'
 import type { User } from '@/types/api.types'
@@ -47,5 +48,33 @@ describe('auth store', () => {
     expect(s.user).toBeNull()
     expect(s.isAuthenticated).toBe(false)
     expect(s.isBootstrapped).toBe(true)
+  })
+
+  it('logout removes every stored palette recents list, with no palette loaded', () => {
+    localStorage.setItem(`${RECENT_KEY_PREFIX}${USER_ID}`, '[]')
+    localStorage.setItem(`${RECENT_KEY_PREFIX}other`, '[]')
+    localStorage.setItem('unrelated', 'kept')
+    useAuthStore.getState().login('tok', user)
+    useAuthStore.getState().logout()
+    expect(localStorage.getItem(`${RECENT_KEY_PREFIX}${USER_ID}`)).toBeNull()
+    expect(localStorage.getItem(`${RECENT_KEY_PREFIX}other`)).toBeNull()
+    expect(localStorage.getItem('unrelated')).toBe('kept')
+    localStorage.clear()
+  })
+
+  it('keeps the sign-out clear on the palette’s own key prefix', () => {
+    localStorage.setItem(`${RECENT_KEY_PREFIX}x`, '[]')
+    useAuthStore.getState().logout()
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('logout still ends the session when storage is blocked', () => {
+    const blocked = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    useAuthStore.getState().login('tok', user)
+    expect(() => useAuthStore.getState().logout()).not.toThrow()
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    blocked.mockRestore()
   })
 })
