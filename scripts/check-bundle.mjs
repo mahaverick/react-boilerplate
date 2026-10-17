@@ -59,6 +59,14 @@ const POSTHOG_MODULE = /[\\/]posthog-js[\\/]/
  */
 const POSTHOG_CORE_MODULE = /[\\/]@posthog[\\/]core[\\/]/
 
+/** The palette's lazy code: the app's commands, the shell and the vendored command list. */
+const PALETTE_LAZY_MODULE =
+  /[\\/]src[\\/]components[\\/](features[\\/]command-palette\.tsx|shared[\\/]command-palette[\\/]command-palette-shell\.tsx|ui[\\/]command\.tsx)$/
+
+/** The signed-in shell's side of the palette, which loads the lazy code on demand. */
+const PALETTE_HOST_MODULE =
+  /[\\/]src[\\/]components[\\/]shared[\\/]command-palette[\\/]command-palette-host\.tsx$/
+
 /** The entry-chunk error listener, which every page pays for. */
 const ERROR_LISTENER_MODULE = /[\\/]src[\\/]observability[\\/]errors[\\/]listen\.ts$/
 
@@ -146,6 +154,35 @@ for (const chunk of chunks) {
   const leaked = chunk.moduleIds.filter((id) => DEVTOOLS_MODULE.test(id))
   if (leaked.length > 0) {
     failures.push(`${chunk.fileName} contains devtools modules: ${leaked.join(', ')}`)
+  }
+}
+
+// The palette's code stays behind the host's import().
+const lazyChunks = chunks.filter((chunk) =>
+  chunk.moduleIds.some((id) => PALETTE_LAZY_MODULE.test(id))
+)
+const hostChunks = chunks.filter((chunk) =>
+  chunk.moduleIds.some((id) => PALETTE_HOST_MODULE.test(id))
+)
+if (lazyChunks.length === 0 || hostChunks.length === 0) {
+  failures.push('no chunk holds the palette or its host: the lazy-load check below proved nothing')
+}
+const eager = new Set()
+/**
+ * Adds `fileName` and every chunk it statically imports to `eager`.
+ * @param fileName - A chunk's file name.
+ */
+const reach = (fileName) => {
+  if (eager.has(fileName)) return
+  eager.add(fileName)
+  for (const imported of byFile.get(fileName)?.imports ?? []) reach(imported)
+}
+for (const chunk of [...entries, ...hostChunks]) reach(chunk.fileName)
+for (const chunk of lazyChunks) {
+  if (eager.has(chunk.fileName)) {
+    failures.push(
+      `${chunk.fileName} holds the palette's code but is statically imported by the entry or the shell; it must load on demand`
+    )
   }
 }
 
