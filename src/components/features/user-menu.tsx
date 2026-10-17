@@ -20,7 +20,7 @@ import {
 import { isStaff } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG, ROUTES } from '@/constants/routes'
 import { fullName } from '@/lib/format'
-import { useLogout } from '@/queries/auth.queries'
+import { useLogout, useLogoutPending } from '@/queries/auth.queries'
 import type { User } from '@/types/api.types'
 
 /**
@@ -73,6 +73,7 @@ function UserLines({ user, name }: { user: User | null; name: string }) {
  */
 export function UserMenu({ user }: { user: User | null }) {
   const logout = useLogout()
+  const signingOut = useLogoutPending()
   const { isMobile, setOpenMobile } = useSidebar()
   /** Closes the drawer after a tap on a phone, as the sidebar's own links do. */
   const close = () => {
@@ -140,7 +141,7 @@ export function UserMenu({ user }: { user: User | null }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
-              disabled={logout.isPending}
+              disabled={signingOut}
               onClick={() => logout.mutate()}
             >
               <IconLogout aria-hidden="true" />

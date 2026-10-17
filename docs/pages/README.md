@@ -13,6 +13,7 @@ The shots come from `vite dev`, so the TanStack Router and Query devtools button
 | [tenants.md](tenants.md)             | The tenant list, a tenant's overview and its beta page                        |
 | [settings.md](settings.md)           | Account and workspace settings                                                |
 | [notifications.md](notifications.md) | The notifications page and the bell                                           |
+| [palette.md](palette.md)             | The ⌘K command palette, a shell feature with no route                         |
 | [findings.md](findings.md)           | Every problem found, with its evidence and the work that fixes it             |
 
 ## Route map

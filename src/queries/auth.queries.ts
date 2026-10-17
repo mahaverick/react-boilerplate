@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useIsMutating, useMutation, useQuery } from '@tanstack/react-query'
 import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { broadcastLogout } from '@/http/session'
@@ -119,6 +119,17 @@ export function useRevokeOtherSessions() {
 
 const LOGOUT_FAILED_MESSAGE = "Couldn't sign out. Check your connection and try again."
 
+/** Names the sign-out mutation, so every sign-out control sees one in flight. */
+const LOGOUT_KEY = ['auth', 'logout'] as const
+
+/**
+ * Whether a sign-out is in flight anywhere, from any control that started it.
+ * @returns True while a `useLogout` mutation is pending.
+ */
+export function useLogoutPending(): boolean {
+  return useIsMutating({ mutationKey: LOGOUT_KEY }) > 0
+}
+
 /**
  * Signs out server-side first; the local session ends only once the server's
  * has, or the server answers 401 (its session is already over).
@@ -133,6 +144,7 @@ export function useLogout({ returnTo = ROUTES.login }: { returnTo?: string } = {
     window.location.assign(returnTo)
   }
   return useMutation({
+    mutationKey: LOGOUT_KEY,
     // skipAuthRetry: onError below alone decides what a failed logout means.
     mutationFn: async () =>
       apiClient.post<ApiSuccess<unknown>>('/auth/logout', undefined, { skipAuthRetry: true }),

@@ -1,7 +1,7 @@
 import { Combobox as ComboboxPrimitive } from '@base-ui/react'
 import { IconBuilding, IconPlus, IconSelector } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,8 +22,8 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { ROUTES } from '@/constants/routes'
-import { settingsActiveSection } from '@/constants/settings'
 import { useCurrentTenantSlug } from '@/hooks/use-current-tenant-slug'
+import { useSwitchTenant } from '@/hooks/use-switch-tenant'
 import { cn } from '@/lib/utils'
 import { tenantQueryOptions, useTenants } from '@/queries/tenant.queries'
 
@@ -89,13 +89,11 @@ function ownTenantsMessage({
  * a tenant", until the list is in; a failed list offers Try again in the popup.
  */
 export function TenantSwitcher() {
-  const navigate = useNavigate()
+  const switchTenant = useSwitchTenant()
   const { isMobile } = useSidebar()
   const tenants = useTenants()
   const { slug } = useParams({ strict: false })
   const currentSlug = useCurrentTenantSlug()
-  const pathname = useLocation({ select: (location) => location.pathname })
-  const section = settingsActiveSection(pathname)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const current = useQuery({ ...tenantQueryOptions(slug ?? ''), enabled: slug !== undefined })
@@ -148,14 +146,7 @@ export function TenantSwitcher() {
               if (!option || option.suspended) return
               setOpen(false)
               setQuery('')
-              if (section?.group === 'workspace') {
-                void navigate({ to: section.to, params: { slug: option.slug } })
-              } else if (slug !== undefined) {
-                void navigate({ to: '/tenants/$slug', params: { slug: option.slug } })
-              } else {
-                // A push, not a replace, so Back returns to the previous tenant on this page.
-                void navigate({ to: '.', search: (prev) => ({ ...prev, tenant: option.slug }) })
-              }
+              switchTenant(option.slug)
             }}
           >
             {/* The primitive, not ui/combobox's trigger, which appends a chevron beside our selector icon. */}

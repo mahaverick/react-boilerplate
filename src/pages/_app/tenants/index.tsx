@@ -1,7 +1,7 @@
 import { IconBuilding } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
-import { createFileRoute } from '@tanstack/react-router'
-import { useRef, type Ref } from 'react'
+import { createFileRoute, useLocation } from '@tanstack/react-router'
+import { useEffect, useRef, type Ref } from 'react'
 import { z } from 'zod'
 import { MyTenantsTable } from '@/components/features/tenant/my-tenants-table'
 import { BusyButton } from '@/components/shared/busy-button'
@@ -36,6 +36,9 @@ export const Route = createFileRoute('/_app/tenants/')({
   head: () => ({ meta: [{ title: pageTitle('Tenants') }] }),
   component: TenantsPage,
 })
+
+/** The create form's element id: `/tenants#create` opens the page on it. */
+const CREATE_FORM_ID = 'create'
 
 /** What the list says when it could not be loaded: a claim about the request, not the account. */
 const TENANTS_ERROR =
@@ -72,7 +75,7 @@ function CreateTenantCard({ cardRef }: { cardRef: Ref<HTMLDivElement> }) {
   })
 
   return (
-    <Card ref={cardRef}>
+    <Card ref={cardRef} id={CREATE_FORM_ID}>
       <CardHeader>
         <CardTitle>
           <h2>Create a tenant</h2>
@@ -162,6 +165,14 @@ function TenantsPage() {
     createCard.current?.scrollIntoView({ block: 'center' })
     createCard.current?.querySelector('input')?.focus()
   }
+
+  // Each arrival on `#create` (the palette's Create a tenant) shows the form, a repeat arrival included.
+  const arrival = useLocation({
+    select: (location) => (location.hash === CREATE_FORM_ID ? location.state.key : undefined),
+  })
+  useEffect(() => {
+    if (arrival !== undefined) showCreateForm()
+  }, [arrival])
 
   return (
     <div className="grid gap-6">

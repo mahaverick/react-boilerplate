@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { clearAllRecents } from '@/components/shared/command-palette/recent-keys'
 import type { User } from '@/types/api.types'
 
 /** The session's state and the actions that change it. */
@@ -20,6 +21,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
   isAuthenticated: false,
   isBootstrapped: false,
   login: (accessToken, user) => set({ accessToken, user, isAuthenticated: true }),
-  logout: () => set({ accessToken: null, user: null, isAuthenticated: false }),
+  logout: () => {
+    clearAllRecents()
+    set({ accessToken: null, user: null, isAuthenticated: false })
+  },
   setBootstrapped: () => set({ isBootstrapped: true }),
 }))

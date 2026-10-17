@@ -1,4 +1,4 @@
-import { IconBuilding, IconLayoutDashboard } from '@tabler/icons-react'
+import { IconSearch } from '@tabler/icons-react'
 import { Link, Outlet, useLocation, useMatches, type LinkProps } from '@tanstack/react-router'
 import { Fragment, useEffect } from 'react'
 import { MaintenanceBanner } from '@/components/features/maintenance/maintenance-gate'
@@ -8,9 +8,11 @@ import { TenantSwitcher } from '@/components/features/tenant-switcher'
 import { TenantSearchGuard } from '@/components/features/tenant/tenant-search-guard'
 import { ThemeToggle } from '@/components/features/theme-toggle'
 import { UserMenu } from '@/components/features/user-menu'
-import { NavMain, type NavMainItem } from '@/components/layouts/nav-main'
+import { NavMain } from '@/components/layouts/nav-main'
 import { NavSecondary } from '@/components/layouts/nav-secondary'
 import { NavSettings } from '@/components/layouts/nav-settings'
+import { CommandPaletteHost } from '@/components/shared/command-palette/command-palette-host'
+import { prefetchPalette } from '@/components/shared/command-palette/palette-loader'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -19,6 +21,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
+import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
 import { Separator } from '@/components/ui/separator'
 import {
   Sidebar,
@@ -30,31 +34,18 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
+import { NAV_ITEMS } from '@/constants/navigation'
 import { ROUTES } from '@/constants/routes'
 import { isSettingsPath } from '@/constants/settings'
 import { useNotificationStream } from '@/hooks/use-notifications'
+import { useRecordRecentTenant } from '@/hooks/use-record-recent-tenant'
+import { isApplePlatform, paletteShortcutHint } from '@/lib/shortcut'
 import { useFeaturePropertiesSync, useFlagValues } from '@/observability/flags/flag-hooks'
-import type { BooleanClientFlagKey } from '@/observability/flags/flag-types'
 import { filterByFlag } from '@/observability/flags/flag-values'
 import { useAuthStore } from '@/states/auth.store'
+import { useCommandPaletteStore } from '@/states/command-palette.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-
-/**
- * One sidebar entry. `flag` hides it while that flag is off; the sidebar has
- * no tenant, so only a user-scoped flag belongs here (a tenant-scoped one
- * gates a tenant tab instead). An entry with `items` renders as a
- * collapsible group.
- */
-interface NavItem extends NavMainItem {
-  flag?: BooleanClientFlagKey
-}
-
-/** The sidebar's primary navigation. `to` is typed against the route tree, so a missing route is a type error. */
-const NAV_ITEMS: readonly NavItem[] = [
-  { to: ROUTES.dashboard, label: 'Dashboard', Icon: IconLayoutDashboard },
-  { to: ROUTES.tenants, label: 'Tenants', Icon: IconBuilding },
-]
 
 /** One breadcrumb link: the page's label and the path it opens. */
 interface Crumb {
@@ -157,9 +148,11 @@ export function AppLayout() {
   const crumbs = useBreadcrumbs()
   const pathname = useLocation({ select: (location) => location.pathname })
   const navItems = filterByFlag(NAV_ITEMS, useFlagValues())
+  const openPalette = useCommandPaletteStore((s) => s.setOpen)
 
   useNotificationStream()
   useFeaturePropertiesSync()
+  useRecordRecentTenant()
 
   useEffect(() => {
     if (theme !== 'system') return
@@ -218,6 +211,23 @@ export function AppLayout() {
             </BreadcrumbList>
           </Breadcrumb>
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 justify-between font-normal text-muted-foreground sm:w-56"
+              aria-keyshortcuts={isApplePlatform() ? 'Meta+K' : 'Control+K'}
+              onClick={() => openPalette(true)}
+              onPointerEnter={prefetchPalette}
+              onFocus={prefetchPalette}
+            >
+              <span className="flex items-center gap-2">
+                <IconSearch aria-hidden="true" className="size-4" />
+                <span className="max-sm:sr-only">Search…</span>
+              </span>
+              <Kbd aria-hidden="true" className="max-sm:hidden">
+                {paletteShortcutHint()}
+              </Kbd>
+            </Button>
             <NotificationBell />
             <ThemeToggle />
           </div>
@@ -229,6 +239,7 @@ export function AppLayout() {
           </TenantSearchGuard>
         </div>
       </SidebarInset>
+      <CommandPaletteHost />
     </SidebarProvider>
   )
 }

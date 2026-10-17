@@ -48,6 +48,10 @@ export interface BrowserEventProps {
   table_paged: { table: AnalyticsKey; direction: 'next' | 'prev' }
   /** A list was exported. */
   table_exported: { table: AnalyticsKey }
+  /** The command palette was opened, by shortcut, button or store. */
+  command_palette_opened: Record<never, never>
+  /** An item was chosen in the palette: its kind, never its label or the typed term. */
+  command_palette_action_run: { action: AnalyticsKey }
   /** The maintenance page (`full`) or the read-only banner was shown, once per maintenance period. */
   maintenance_page_viewed: { mode: 'full' | 'read_only' }
 }

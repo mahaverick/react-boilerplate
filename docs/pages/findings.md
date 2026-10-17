@@ -177,6 +177,8 @@ With `example_beta_page` off, `/tenants/$slug/beta`'s `beforeLoad` throws `notFo
 
 ### F-tenants-7
 
+Status: fixed. The palette lists the caller's tenants under Switch tenant and Recent, and Create a tenant ([palette.md](palette.md)). `tests/unit/components/features/command-palette.test.tsx` ("switches tenant on %s as the switcher does", "creates a tenant on /tenants#create, with the first field focused once the palette has closed") and `e2e/fixtures/palette.test.ts` ("switches tenant from the keyboard alone") cover it.
+
 Switching tenant is reachable only from the switcher at the top of the sidebar; on a phone, from inside the sidebar sheet. In the walk the switcher searched both tenants well, but there is no keyboard way in and no command palette in react at all. Creating a tenant is a link at the bottom of the switcher that goes to the tenant list page. Fix: the palette lists the user's tenants ("Switch to…") and "Create a tenant".
 
 ### F-notifications-1
@@ -278,5 +280,7 @@ The security page is one `Card` with no title holding three sections, "Sign-in m
 At 390 px the members list is cards ([shot](img/settings/workspace-members--mobile.jpg)): the name line falls back to the address and the line below repeats it, and `break-all` splits it mid-word ("example.co / m"). The breadcrumb above wraps to two lines (46 px in the walk). Fix: show the address once and let it truncate; shorten the breadcrumb as in [F-tenants-5](#f-tenants-5).
 
 ### F-settings-14
+
+Status: fixed. The palette lists every settings page, the three themes and Sign out. `tests/unit/components/features/command-palette.test.tsx` ("goes to every page, and leaves out the workspace sections with no current tenant", "sets the theme, marking the current one") covers it.
 
 Settings pages are reached from the sidebar's Settings item (then the settings nav), the account menu (Profile, Notifications), or the landing page's rows; the theme is in its own header menu; Sign out is in the account menu. In the walk each took two or three clicks through a different menu, and nothing has a keyboard shortcut. Fix: the react palette lists every settings page, the three themes and Sign out.

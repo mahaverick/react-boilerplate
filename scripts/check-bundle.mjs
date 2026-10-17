@@ -30,8 +30,15 @@ import { build } from 'vite'
  * `_app`'s guard became lazy, which took it to 586,530 B; the members read's
  * `total` opt-out added 67 B: 586,597 B. The budget is that measurement rounded
  * up to the next 100 B, so any new entry code raises it with its own reason.
+ * The command palette loads on its first open and adds no module to the
+ * entry; its chunk shares the open store with `_app`'s, so `_app`'s lazy
+ * route import reads that chunk's exports through its namespace (17 B). The
+ * auth store also clears the stored palette recents on sign-out, through the
+ * zod-free `recent-keys` module and without importing the palette or its
+ * schema, so a sign-out on a page that never loaded it still removes them:
+ * 586,795 B.
  */
-const ENTRY_BUDGET_BYTES = 586_600
+const ENTRY_BUDGET_BYTES = 586_800
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module
@@ -52,6 +59,14 @@ const POSTHOG_MODULE = /[\\/]posthog-js[\\/]/
  * reporter imports it, so it must stay out of the first-visit chunks.
  */
 const POSTHOG_CORE_MODULE = /[\\/]@posthog[\\/]core[\\/]/
+
+/** The palette's lazy code: the app's commands, the shell and the vendored command list. */
+const PALETTE_LAZY_MODULE =
+  /[\\/]src[\\/]components[\\/](features[\\/]command-palette\.tsx|shared[\\/]command-palette[\\/]command-palette-shell\.tsx|ui[\\/]command\.tsx)$/
+
+/** The signed-in shell's side of the palette, which loads the lazy code on demand. */
+const PALETTE_HOST_MODULE =
+  /[\\/]src[\\/]components[\\/]shared[\\/]command-palette[\\/]command-palette-host\.tsx$/
 
 /** The entry-chunk error listener, which every page pays for. */
 const ERROR_LISTENER_MODULE = /[\\/]src[\\/]observability[\\/]errors[\\/]listen\.ts$/
@@ -140,6 +155,35 @@ for (const chunk of chunks) {
   const leaked = chunk.moduleIds.filter((id) => DEVTOOLS_MODULE.test(id))
   if (leaked.length > 0) {
     failures.push(`${chunk.fileName} contains devtools modules: ${leaked.join(', ')}`)
+  }
+}
+
+// The palette's code stays behind the host's import().
+const lazyChunks = chunks.filter((chunk) =>
+  chunk.moduleIds.some((id) => PALETTE_LAZY_MODULE.test(id))
+)
+const hostChunks = chunks.filter((chunk) =>
+  chunk.moduleIds.some((id) => PALETTE_HOST_MODULE.test(id))
+)
+if (lazyChunks.length === 0 || hostChunks.length === 0) {
+  failures.push('no chunk holds the palette or its host: the lazy-load check below proved nothing')
+}
+const eager = new Set()
+/**
+ * Adds `fileName` and every chunk it statically imports to `eager`.
+ * @param fileName - A chunk's file name.
+ */
+const reach = (fileName) => {
+  if (eager.has(fileName)) return
+  eager.add(fileName)
+  for (const imported of byFile.get(fileName)?.imports ?? []) reach(imported)
+}
+for (const chunk of [...entries, ...hostChunks]) reach(chunk.fileName)
+for (const chunk of lazyChunks) {
+  if (eager.has(chunk.fileName)) {
+    failures.push(
+      `${chunk.fileName} holds the palette's code but is statically imported by the entry or the shell; it must load on demand`
+    )
   }
 }
 
