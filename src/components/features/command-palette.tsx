@@ -27,7 +27,7 @@ import { useSwitchTenant } from '@/hooks/use-switch-tenant'
 import { useFlagValues } from '@/observability/flags/flag-hooks'
 import { filterByFlag } from '@/observability/flags/flag-values'
 import { analyticsKey } from '@/observability/telemetry'
-import { useLogout } from '@/queries/auth.queries'
+import { useLogout, useLogoutPending } from '@/queries/auth.queries'
 import { useTenants, type TenantWithRole } from '@/queries/tenant.queries'
 import { useCommandPaletteStore } from '@/states/command-palette.store'
 import { useThemeStore, type Theme } from '@/states/theme.store'
@@ -72,6 +72,7 @@ export function CommandPalette() {
   const theme = useThemeStore((state) => state.theme)
   const setTheme = useThemeStore((state) => state.setTheme)
   const logout = useLogout()
+  const signingOut = useLogoutPending()
   const tenants = useTenants()
   const currentSlug = useCurrentTenantSlug()
   const switchTenant = useSwitchTenant()
@@ -187,7 +188,7 @@ export function CommandPalette() {
           icon: IconPlus,
           keywords: ['new tenant', 'add tenant'],
           action: ACTIONS.create,
-          timing: 'immediate',
+          timing: 'afterClose',
           run: () => void navigate({ to: ROUTES.tenants, hash: 'create' }),
         },
         {
@@ -195,7 +196,7 @@ export function CommandPalette() {
           label: 'Sign out',
           icon: IconLogout,
           keywords: ['log out', 'logout'],
-          disabled: logout.isPending,
+          disabled: signingOut,
           action: ACTIONS.signOut,
           timing: 'immediate',
           run: () => logout.mutate(),

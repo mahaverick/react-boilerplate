@@ -39,7 +39,7 @@ import { ROUTES } from '@/constants/routes'
 import { isSettingsPath } from '@/constants/settings'
 import { useNotificationStream } from '@/hooks/use-notifications'
 import { useRecordRecentTenant } from '@/hooks/use-record-recent-tenant'
-import { paletteShortcutHint } from '@/lib/shortcut'
+import { isApplePlatform, paletteShortcutHint } from '@/lib/shortcut'
 import { useFeaturePropertiesSync, useFlagValues } from '@/observability/flags/flag-hooks'
 import { filterByFlag } from '@/observability/flags/flag-values'
 import { useAuthStore } from '@/states/auth.store'
@@ -215,6 +215,7 @@ export function AppLayout() {
               variant="outline"
               size="sm"
               className="shrink-0 justify-between font-normal text-muted-foreground sm:w-56"
+              aria-keyshortcuts={isApplePlatform() ? 'Meta+K' : 'Control+K'}
               onClick={() => openPalette(true)}
               onPointerEnter={prefetchPalette}
               onFocus={prefetchPalette}
@@ -223,7 +224,9 @@ export function AppLayout() {
                 <IconSearch aria-hidden="true" className="size-4" />
                 <span className="max-sm:sr-only">Search…</span>
               </span>
-              <Kbd className="max-sm:hidden">{paletteShortcutHint()}</Kbd>
+              <Kbd aria-hidden="true" className="max-sm:hidden">
+                {paletteShortcutHint()}
+              </Kbd>
             </Button>
             <NotificationBell />
             <ThemeToggle />

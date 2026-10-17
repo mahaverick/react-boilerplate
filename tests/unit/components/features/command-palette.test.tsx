@@ -13,6 +13,7 @@ import { prefetchPalette } from '@/components/shared/command-palette/palette-loa
 import { recordRecent } from '@/components/shared/command-palette/recent-items'
 import { resetSessionForTests } from '@/http/session'
 import * as shortcut from '@/lib/shortcut'
+import * as analytics from '@/observability/telemetry'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -156,6 +157,63 @@ describe('CommandPalette', () => {
     ).toHaveAttribute('aria-disabled', 'true')
   })
 
+  it('names the header button Search… and exposes the shortcut as a key binding', async () => {
+    vi.spyOn(shortcut, 'isApplePlatform').mockReturnValue(true)
+    renderShell('/dashboard')
+    const button = await screen.findByRole('button', { name: 'Search…' })
+    expect(button).toHaveAttribute('aria-keyshortcuts', 'Meta+K')
+    expect(within(button).getByText(/K$/)).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('disables Sign out in the palette while the user menu’s sign-out is pending', async () => {
+    server.use(http.post('/api/v1/auth/logout', () => new Promise<Response>(() => {})))
+    const user = userEvent.setup()
+    renderShell('/dashboard')
+    await user.click(await screen.findByRole('button', { name: /^Account menu for/ }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
+    const palette = await openPalette(user)
+    await waitFor(() =>
+      expect(within(palette).getByRole('option', { name: 'Sign out' })).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
+    )
+  })
+
+  it.each([
+    ['Go to', '/dashboard', '', 'Dashboard', 'open_page'],
+    ['Go to', '/dashboard', '', 'Tenants', 'open_page'],
+    ['Go to', '/dashboard', '', 'Notifications', 'open_page'],
+    ['Go to', '/dashboard', '', 'Settings', 'open_page'],
+    ['Go to', '/dashboard', '', 'Profile', 'open_page'],
+    ['Go to', '/dashboard', '', 'Security', 'open_page'],
+    ['Go to', '/dashboard', '', 'Notification settings', 'open_page'],
+    ['Go to', '/notifications?tenant=acme', '', 'General', 'open_page'],
+    ['Go to', '/notifications?tenant=acme', '', 'Members', 'open_page'],
+    ['Go to', '/notifications?tenant=acme', '', 'Activity', 'open_page'],
+    ['Recent', '/notifications?tenant=acme', '', 'Beta Inc', 'open_recent'],
+    ['This page', '/tenants/acme', '', 'Copy tenant ID', 'copy_id'],
+    ['Switch tenant', '/dashboard', 'beta', 'Beta Inc', 'switch_tenant'],
+    ['Theme', '/dashboard', '', 'Dark', 'set_theme'],
+    ['Account', '/dashboard', '', 'Create a tenant', 'create_tenant'],
+    ['Account', '/dashboard', '', 'Sign out', 'sign_out'],
+  ])('sends only the fixed key for %s › %s (%s)', async (group, from, term, label, action) => {
+    recordRecent(testUser.id, { kind: 'tenant', id: BETA.id, label: 'Beta' })
+    server.use(http.post('/api/v1/auth/logout', () => new Promise<Response>(() => {})))
+    const track = vi.spyOn(analytics, 'track')
+    const user = userEvent.setup()
+    renderShell(from)
+    const palette = await openPalette(user)
+    if (term) await user.keyboard(term)
+    const list = await within(palette).findByRole('group', { name: group })
+    await user.click(await within(list).findByRole('option', { name: new RegExp(`^${label}\\b`) }))
+    await waitFor(() =>
+      expect(track.mock.calls.filter(([event]) => event === 'command_palette_action_run')).toEqual([
+        ['command_palette_action_run', { action }],
+      ])
+    )
+  })
+
   it('goes to every page, and leaves out the workspace sections with no current tenant', async () => {
     serveTenants(GAMMA, PLATFORM)
     const user = userEvent.setup()
@@ -224,17 +282,20 @@ describe('CommandPalette', () => {
     expect(within(group).queryByRole('option', { name: /^Platform/ })).toBeNull()
   })
 
-  it('creates a tenant on /tenants#create, with the first field focused', async () => {
+  it('creates a tenant on /tenants#create, with the first field focused once the palette has closed', async () => {
     const scrollIntoView = vi.fn()
-    Element.prototype.scrollIntoView = scrollIntoView
-    const user = userEvent.setup()
-    const router = renderShell('/dashboard')
-    await openPalette(user)
-    await user.keyboard('create')
-    await user.click(await screen.findByRole('option', { name: 'Create a tenant' }))
-    await waitFor(() => expect(router.state.location.pathname).toBe('/tenants'))
-    expect(router.state.location.hash).toBe('create')
     try {
+      Element.prototype.scrollIntoView = scrollIntoView
+      const user = userEvent.setup()
+      const router = renderShell('/dashboard')
+      await openPalette(user)
+      await user.keyboard('create')
+      await user.click(await screen.findByRole('option', { name: 'Create a tenant' }))
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull()
+      )
+      await waitFor(() => expect(router.state.location.pathname).toBe('/tenants'))
+      expect(router.state.location.hash).toBe('create')
       await waitFor(() => expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus())
       expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
     } finally {

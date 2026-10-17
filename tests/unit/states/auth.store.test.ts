@@ -16,6 +16,7 @@ const user: User = {
 
 describe('auth store', () => {
   beforeEach(() => {
+    localStorage.clear()
     useAuthStore.setState({
       accessToken: null,
       user: null,
@@ -72,9 +73,12 @@ describe('auth store', () => {
     const blocked = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
       throw new Error('blocked')
     })
-    useAuthStore.getState().login('tok', user)
-    expect(() => useAuthStore.getState().logout()).not.toThrow()
-    expect(useAuthStore.getState().isAuthenticated).toBe(false)
-    blocked.mockRestore()
+    try {
+      useAuthStore.getState().login('tok', user)
+      expect(() => useAuthStore.getState().logout()).not.toThrow()
+      expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    } finally {
+      blocked.mockRestore()
+    }
   })
 })
