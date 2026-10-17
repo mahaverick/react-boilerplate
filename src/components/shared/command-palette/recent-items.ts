@@ -11,9 +11,7 @@ import { useMemo, useSyncExternalStore } from 'react'
 import { z } from 'zod'
 import { useAuthStore } from '@/states/auth.store'
 import type { RecentEntry, RecentKind } from './palette-types'
-
-/** The `localStorage` key prefix; the user id follows it. */
-export const RECENT_KEY_PREFIX = 'palette.recent.v1:'
+import { RECENT_KEY_PREFIX } from './recent-keys'
 
 /** The most entries kept of each kind. */
 export const RECENT_LIMIT = 5

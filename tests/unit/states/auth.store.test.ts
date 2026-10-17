@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { RECENT_KEY_PREFIX } from '@/components/shared/command-palette/recent-items'
+import { RECENT_KEY_PREFIX } from '@/components/shared/command-palette/recent-keys'
 import { useAuthStore } from '@/states/auth.store'
 import { USER_ID } from '@/tests/fixtures/ids'
 import type { User } from '@/types/api.types'
@@ -61,12 +61,6 @@ describe('auth store', () => {
     expect(localStorage.getItem(`${RECENT_KEY_PREFIX}other`)).toBeNull()
     expect(localStorage.getItem('unrelated')).toBe('kept')
     localStorage.clear()
-  })
-
-  it('keeps the sign-out clear on the palette’s own key prefix', () => {
-    localStorage.setItem(`${RECENT_KEY_PREFIX}x`, '[]')
-    useAuthStore.getState().logout()
-    expect(localStorage.length).toBe(0)
   })
 
   it('logout still ends the session when storage is blocked', () => {

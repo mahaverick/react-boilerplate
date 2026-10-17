@@ -3,11 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   forgetRecent,
   installRecentItems,
-  RECENT_KEY_PREFIX,
   RECENT_LIMIT,
   recordRecent,
   useRecentItems,
 } from '@/components/shared/command-palette/recent-items'
+import { RECENT_KEY_PREFIX } from '@/components/shared/command-palette/recent-keys'
 import { useAuthStore } from '@/states/auth.store'
 import { testUser } from '@/tests/mocks/handlers'
 
