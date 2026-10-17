@@ -54,6 +54,39 @@ settings page (`isSettingsPath`) the sidebar swaps `NavMain` and `NavSecondary`
 for `NavSettings` ([The Settings area](#the-settings-area)). Every sidebar link
 closes the drawer on a phone.
 
+The header's Search… button and ⌘K (Ctrl+K) open the command palette
+(`src/components/shared/command-palette/`, shared with apex; react's commands
+are `src/components/features/command-palette.tsx`). The palette lists Recent
+(tenants worked in lately and still listed), This page (commands a mounted
+component registers with `usePaletteCommands`; here, Copy tenant ID), Go to
+(the nav, Notifications, Settings and its sections, the workspace ones only
+with a current tenant), Switch tenant (the caller's tenants, matched here,
+through the switcher's own routing, `useSwitchTenant`), Theme, and Account
+(Create a tenant, which opens `/tenants#create`, and Sign out). A choice sends
+`command_palette_action_run` with a fixed `action` key and nothing else.
+
+`CommandPaletteHost`, mounted once in `AppLayout`, holds the shortcut and loads
+the palette's code (`palette-loader.ts`, one `import()`), so the entry chunk
+carries none of it. The fetch starts when the shell is idle, on hover or focus
+of the Search… button, or at the first open, whichever comes first. An open
+that beats it shows a "Loading search…" overlay whose input is bound to the
+store's `query`, so keys typed right after the shortcut are kept, and Escape
+closes it. A failed fetch closes the palette and shows a toast with a Reload
+action: Chromium keeps a failed `import()` for the page's lifetime, so there is
+no in-page retry. `pnpm check:bundle` fails if a chunk that holds the palette's
+code is reachable from the entry or the host by static imports, and its entry
+budget is 586,800 B.
+
+Recents live in `localStorage` per user (`palette.recent.v1:<userId>`, five
+tenants, newest first). `logout()` in `auth.store.ts` removes every
+`palette.recent.v1:` key without importing the palette, so a sign-out on a page
+that never loaded it still clears them. `logout()` also runs when the session
+ends any other way: a 401 verdict on the cold-load restore or a refresh (an
+expired session or a dead cookie), and another tab's logout, so recents are
+cleared on every session end, expiry included. `installRecentItems`, installed
+by the host, additionally deletes a user's list when the signed-in user changes
+away from them, and every other user's list while someone is signed in.
+
 `src/routeTree.gen.ts` is generated from `src/pages/` by the TanStack Router
 plugin in `vite.config.ts`, which also splits each route's component into
 its own chunk (`autoCodeSplitting`). A route's pending template is not split
@@ -482,15 +515,17 @@ view's total.
 
 ## State
 
-| What                                                  | Where                                  | Persisted                                                      |
-| ----------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------- |
-| Access token, user, bootstrapped flag                 | `src/states/auth.store.ts`             | No: memory only                                                |
-| Maintenance mode, message, start time                 | `src/states/maintenance-mode.store.ts` | No: each load starts at `off` and learns it from the API       |
-| Sidebar collapsed                                     | `src/states/sidebar.store.ts`          | No                                                             |
-| Last tenant opened, per user (the `?tenant` fallback) | `src/states/current-tenant.store.ts`   | `localStorage` key `last-tenant:<userId>`, when storage allows |
-| Theme (`light`, `dark`, `system`)                     | `src/states/theme.store.ts`            | `localStorage` key `theme`, read pre-paint by `theme-init.js`  |
-| Everything the API returns                            | The TanStack Query cache               | No                                                             |
-| Form state                                            | TanStack Form, per form                | No                                                             |
+| What                                                  | Where                                                   | Persisted                                                                                                                                                                                                    |
+| ----------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Access token, user, bootstrapped flag                 | `src/states/auth.store.ts`                              | No: memory only                                                                                                                                                                                              |
+| Maintenance mode, message, start time                 | `src/states/maintenance-mode.store.ts`                  | No: each load starts at `off` and learns it from the API                                                                                                                                                     |
+| Sidebar collapsed                                     | `src/states/sidebar.store.ts`                           | No                                                                                                                                                                                                           |
+| Command palette open, and the typed query             | `src/states/command-palette.store.ts`                   | No                                                                                                                                                                                                           |
+| Recent tenants in the palette, per user               | `src/components/shared/command-palette/recent-items.ts` | `localStorage` key `palette.recent.v1:<userId>`, when storage allows: kind, id, the name the pages show, a time; at most 5 tenants; cleared when the session ends, expiry and a dead session cookie included |
+| Last tenant opened, per user (the `?tenant` fallback) | `src/states/current-tenant.store.ts`                    | `localStorage` key `last-tenant:<userId>`, when storage allows                                                                                                                                               |
+| Theme (`light`, `dark`, `system`)                     | `src/states/theme.store.ts`                             | `localStorage` key `theme`, read pre-paint by `theme-init.js`                                                                                                                                                |
+| Everything the API returns                            | The TanStack Query cache                                | No                                                                                                                                                                                                           |
+| Form state                                            | TanStack Form, per form                                 | No                                                                                                                                                                                                           |
 
 Code outside React reads and writes the stores through `getState()`, as the
 interceptors and route guards do, or subscribes to them: the session module
