@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.1](https://github.com/mahaverick/react-boilerplate/compare/v3.4.0...v3.4.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **csp:** import zod-jitless first in every module that imports zod ([#119](https://github.com/mahaverick/react-boilerplate/issues/119)) ([55d2470](https://github.com/mahaverick/react-boilerplate/commit/55d24705457dd91265885026e45d8946d47ac158))
+
 ## [3.4.0](https://github.com/mahaverick/react-boilerplate/compare/v3.3.0...v3.4.0) (2026-10-17)
 
 
