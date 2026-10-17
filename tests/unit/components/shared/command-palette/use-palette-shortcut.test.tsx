@@ -60,6 +60,27 @@ describe('usePaletteShortcut', () => {
     expect(useCommandPaletteStore.getState().open).toBe(true)
   })
 
+  it('ignores the physical K on Colemak, where it types an E', () => {
+    platform('MacIntel')
+    renderHook(() => usePaletteShortcut())
+    fireEvent.keyDown(window, { code: 'KeyK', key: 'e', metaKey: true })
+    expect(useCommandPaletteStore.getState().open).toBe(false)
+  })
+
+  it('ignores the Dvorak key that sits where a QWERTY K does not', () => {
+    platform('Win32')
+    renderHook(() => usePaletteShortcut())
+    fireEvent.keyDown(window, { code: 'KeyK', key: 't', ctrlKey: true })
+    expect(useCommandPaletteStore.getState().open).toBe(false)
+  })
+
+  it('follows the character on Dvorak, where the K is elsewhere', () => {
+    platform('Win32')
+    renderHook(() => usePaletteShortcut())
+    fireEvent.keyDown(window, { code: 'KeyV', key: 'k', ctrlKey: true })
+    expect(useCommandPaletteStore.getState().open).toBe(true)
+  })
+
   it('ignores Shift, Alt and other keys', () => {
     platform('Win32')
     renderHook(() => usePaletteShortcut())
