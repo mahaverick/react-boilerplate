@@ -1,2 +1,4 @@
 * @mahaverick
 /.github/ @mahaverick
+# The registry snapshot ui:drift compares against: a change here is a refresh.
+/scripts/ui-registry/ @mahaverick
