@@ -456,6 +456,37 @@ test.describe('popups that are not menus', () => {
   }
 })
 
+/**
+ * The ⌘K palette: its dialog surface, the highlighted-option pair, the muted
+ * detail text and a disabled row, none of which any page above renders.
+ */
+test.describe('command palette', () => {
+  for (const theme of THEMES) {
+    test(`the open command palette meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
+      await page.goto('/e2e/harness/?path=/dashboard&tenants=many')
+      await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
+        timeout: COLD_TRANSFORM_BUDGET_MS,
+      })
+
+      await page.keyboard.press('ControlOrMeta+k')
+      const palette = page.getByRole('dialog', { name: 'Command palette' })
+      await expect(palette).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
+      await page.keyboard.type('a')
+      // Populated, with one option highlighted and the disabled row showing: an empty palette grades clean and proves nothing.
+      await expect(palette.getByRole('option', { name: /^Gamma Ltd/ })).toBeVisible()
+      await expect(palette.locator('[data-highlighted]')).toHaveCount(1)
+
+      await afterAnimations(palette)
+      await afterFontsAndFrames(page)
+      await page.addScriptTag({ path: AXE_PATH })
+
+      const result = await runAxe(page, '[role="dialog"]')
+      expect(report('palette', theme, result), report('palette', theme, result)).toBe('')
+    })
+  }
+})
+
 // Each staff surface is asserted present: a page without it grades clean and proves nothing.
 test.describe('staff surfaces', () => {
   for (const theme of THEMES) {

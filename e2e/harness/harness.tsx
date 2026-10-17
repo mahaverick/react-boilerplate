@@ -25,6 +25,8 @@ import {
   NOTIFICATION_ID_2,
   STAFF_USER_ID,
   TENANT_ID,
+  TENANT_ID_2,
+  TENANT_ID_9,
   USER_ID,
   USER_ID_2,
 } from '../../tests/fixtures/ids'
@@ -236,6 +238,19 @@ const state = new URLSearchParams(location.search).get('state') ?? 'loaded'
 const asStaff = new URLSearchParams(location.search).get('access') === 'platform'
 if (asStaff) testUser.platformRole = 'viewer'
 const suspended = state === 'suspended'
+/** `?tenants=many` lists Beta Inc and the suspended Gamma Ltd beside Acme, for the palette's Switch tenant. */
+const manyTenants = new URLSearchParams(location.search).get('tenants') === 'many'
+const MORE_TENANTS = manyTenants
+  ? [
+      { ...TENANT, id: TENANT_ID_2, name: 'Beta Inc', slug: 'beta' },
+      { ...TENANT, id: TENANT_ID_9, name: 'Gamma Ltd', slug: 'gamma', lifecycleState: 'suspended' },
+    ].map((tenant) => ({
+      tenant,
+      role: 'owner',
+      isPlatform: false,
+      joinedAt: '2026-01-01T00:00:00.000Z',
+    }))
+  : []
 
 const SOLE_OWNER = [MEMBERS[0]]
 
@@ -332,6 +347,7 @@ const worker = setupWorker(
                 isPlatform: false,
                 joinedAt: '2026-01-01T00:00:00.000Z',
               },
+              ...MORE_TENANTS,
             ]
       ),
       'Tenants retrieved.'
