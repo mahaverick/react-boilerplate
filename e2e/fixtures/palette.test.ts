@@ -109,6 +109,25 @@ test('an overflowing palette list stays keyboard-scrollable and axe-clean', asyn
   expect(results.passes).toContain('scrollable-region-focusable')
 })
 
+test('the first group sits right under the input, with no blank band', async ({ page }) => {
+  await page.goto('/e2e/harness/?path=/dashboard')
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
+    timeout: COLD_TRANSFORM_BUDGET_MS,
+  })
+
+  await page.keyboard.press('ControlOrMeta+k')
+  const palette = page.getByRole('dialog', { name: 'Command palette', exact: true })
+  await expect(palette.getByRole('option').first()).toBeVisible({
+    timeout: COLD_TRANSFORM_BUDGET_MS,
+  })
+  const input = await palette.getByRole('combobox').boundingBox()
+  const firstLabel = await palette.getByRole('listbox').getByRole('group').first().boundingBox()
+  expect(input).not.toBeNull()
+  expect(firstLabel).not.toBeNull()
+  // The dialog's grid gap once put 48 px between the input and the list, around an empty status line.
+  expect(firstLabel!.y - (input!.y + input!.height)).toBeLessThan(16)
+})
+
 test('shows the shortcut hint on the header button', async ({ page }) => {
   await page.goto('/e2e/harness/?path=/dashboard')
   await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({

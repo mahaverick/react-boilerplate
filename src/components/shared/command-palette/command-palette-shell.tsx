@@ -168,6 +168,7 @@ export function CommandPaletteShell({
         run?.()
       }}
       description={description}
+      className="gap-0"
     >
       <Command
         open
