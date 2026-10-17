@@ -1,6 +1,6 @@
 # Command palette
 
-The ⌘K (Ctrl+K) command palette in the signed-in shell; it has no route of its own. Back to the [route map](README.md#route-map).
+The command palette (⌘K on Apple platforms, Ctrl+K elsewhere) in the signed-in shell; it has no route of its own. Back to the [route map](README.md#route-map).
 
 |               |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -16,3 +16,21 @@ The ⌘K (Ctrl+K) command palette in the signed-in shell; it has no route of its
 | Accessibility | A dialog named "Command palette", described "Go to a page, switch tenant or run an action."; the input "Search pages, tenants and actions", described by the arrow-keys line; disabled rows `aria-disabled`; icons hidden.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Storage       | `palette.recent.v1:<userId>` in `localStorage` (Recent): at most 5 tenants, newest first, each with its kind, id, the name the pages show and a time. Recents are cleared on every session end, expiry included: `logout()` removes every `palette.recent.v1:` key, and it runs on sign-out, on a dead or expired session cookie at the cold-load restore or a refresh, and on another tab's logout, whether or not the palette ever loaded.                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Bundle        | The entry chunk holds none of the palette's code. `pnpm check:bundle` fails when a chunk with the palette's code is statically reachable from the entry or the host, and holds the entry to 586,800 B.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+## After
+
+Opened on the dashboard, with no term:
+
+![The palette on the dashboard, with no term](img/palette/palette--default.jpg)
+
+With the term `a`:
+
+![The palette with the term a](img/palette/palette--search.jpg)
+
+At 390 px, opened from the header's search icon:
+
+![The palette at 390 px, opened from the header's search icon](img/palette/palette--mobile.jpg)
+
+On a tenant's page (`/tenants/acme`), with no term and This page showing:
+
+![The palette on a tenant's page, with This page showing](img/palette/palette--page.jpg)
