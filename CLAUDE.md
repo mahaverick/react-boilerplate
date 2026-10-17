@@ -192,8 +192,11 @@ The reasons are in [CSP and headers](SECURITY.md#csp-and-headers) and
 - **No inline script, ever.** The CSP is `script-src 'self'`. A new origin for
   scripts, styles, images, fonts or `fetch` means changing the policy in
   `nginx.conf` in the same commit.
-- **`src/lib/zod-jitless.ts` is the first import** in `main.tsx`, `tests/setup.ts`
-  and `e2e/harness/harness.tsx`. Never fix Zod's JIT probe by adding
+- **`src/lib/zod-jitless.ts` is the first import** in `main.tsx`, `tests/setup.ts`,
+  `e2e/harness/harness.tsx` and every `src/` file that imports Zod as a value
+  (anything but `import type`). The entry's first import alone is not enough: a
+  chunk the entry imports evaluates before the entry's body.
+  `tests/unit/lib/zod-jitless.test.ts` and `pnpm check:bundle` enforce it. Never fix Zod's JIT probe by adding
   `'unsafe-eval'`.
 - **No `location` declares `add_header`.** One that did would drop every security
   header.

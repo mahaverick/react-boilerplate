@@ -1,3 +1,4 @@
+import '@/lib/zod-jitless'
 import { IconBuilding } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute, useLocation } from '@tanstack/react-router'

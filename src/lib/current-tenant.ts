@@ -5,6 +5,7 @@
  * the search middleware that keeps it on every navigation; the guard that fills
  * or corrects it is `TenantSearchGuard`, in the `_app` layout.
  */
+import '@/lib/zod-jitless'
 import {
   stripSearchParams,
   type AnyRouter,

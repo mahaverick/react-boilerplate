@@ -8,6 +8,7 @@
  * signed-in user deletes the last user's list, and a signed-in user's lists
  * are the only ones kept (`installRecentItems`).
  */
+import '@/lib/zod-jitless'
 import { useMemo, useSyncExternalStore } from 'react'
 import { z } from 'zod'
 import { useAuthStore } from '@/states/auth.store'

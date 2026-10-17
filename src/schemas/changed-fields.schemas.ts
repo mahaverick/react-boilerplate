@@ -3,6 +3,7 @@
  * so a save checks and sends only those: a stored value that today's rules
  * refuse neither blocks saving another field nor goes back to the API.
  */
+import '@/lib/zod-jitless'
 import { z } from 'zod'
 
 /**
