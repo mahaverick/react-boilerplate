@@ -34,7 +34,10 @@ export const MASK_TEXT_SELECTOR = '.ph-mask, .ph-sensitive'
 /**
  * Query keys posthog-js masks in URLs on its own, in addition to the
  * allowlist sanitizer: a second layer for the keys that carry credentials,
- * addresses or redirect targets in this app, plus the handoff's two.
+ * addresses or redirect targets in this app, plus the handoff's two. Search
+ * text goes under `search` and, for a second list on one route, under its
+ * prefixed key: `invitationsSearch` in both apps, `historySearch` and
+ * `unregisteredSearch` in apex. The file is shared, so it lists all three.
  */
 export const CUSTOM_PERSONAL_DATA_PROPERTIES: readonly string[] = [
   'token',
@@ -43,6 +46,9 @@ export const CUSTOM_PERSONAL_DATA_PROPERTIES: readonly string[] = [
   'invitation',
   'q',
   'search',
+  'invitationsSearch',
+  'historySearch',
+  'unregisteredSearch',
   'ph_did',
   'ph_sid',
 ]
