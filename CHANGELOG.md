@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.0](https://github.com/mahaverick/react-boilerplate/compare/v3.3.0...v3.4.0) (2026-10-17)
+
+
+### Features
+
+* **palette:** a ⌘K command palette on a core shared with apex ([#116](https://github.com/mahaverick/react-boilerplate/issues/116)) ([aa0ccd4](https://github.com/mahaverick/react-boilerplate/commit/aa0ccd41368aec2e24eac17df32d1a448b69582f))
+
 ## [3.3.0](https://github.com/mahaverick/react-boilerplate/compare/v3.2.0...v3.3.0) (2026-10-16)
 
 
