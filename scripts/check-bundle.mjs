@@ -33,9 +33,10 @@ import { build } from 'vite'
  * The command palette loads on its first open and adds no module to the
  * entry; its chunk shares the open store with `_app`'s, so `_app`'s lazy
  * route import reads that chunk's exports through its namespace (17 B). The
- * auth store also clears the stored palette recents on sign-out, without
- * importing the palette or its schema, so a sign-out on a page that never
- * loaded it still removes them: 586,760 B.
+ * auth store also clears the stored palette recents on sign-out, through the
+ * zod-free `recent-keys` module and without importing the palette or its
+ * schema, so a sign-out on a page that never loaded it still removes them:
+ * 586,795 B.
  */
 const ENTRY_BUDGET_BYTES = 586_800
 
