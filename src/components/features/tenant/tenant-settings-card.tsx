@@ -1,3 +1,4 @@
+import '@/lib/zod-jitless'
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'

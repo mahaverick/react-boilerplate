@@ -4,6 +4,7 @@
  * column's width: over-long input reaching the database is a Postgres 22001
  * (a 500), not a 400.
  */
+import '@/lib/zod-jitless'
 import { z } from 'zod'
 import { MEMBERSHIP_ROLES } from '@/constants/roles'
 import { emailSchema } from '@/schemas/auth.schemas'

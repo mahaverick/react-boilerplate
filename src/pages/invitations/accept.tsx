@@ -1,3 +1,4 @@
+import '@/lib/zod-jitless'
 import { IconAlertCircle } from '@tabler/icons-react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState, type ReactNode } from 'react'

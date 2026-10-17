@@ -3,8 +3,9 @@
  * one JS chunk, first-visit JS (the entry chunk and its static imports) under
  * budget and free of posthog-js and `@posthog/core` (each of which must exist
  * in some other chunk, or the check proves nothing), the error listener in the
- * entry chunk under its own budget, and no devtools module in any chunk. Run
- * with `pnpm check:bundle`.
+ * entry chunk under its own budget, Zod's config reached before any app code
+ * that reaches Zod, and no devtools module in any chunk. Run with
+ * `pnpm check:bundle`.
  */
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
@@ -36,9 +37,11 @@ import { build } from 'vite'
  * auth store also clears the stored palette recents on sign-out, through the
  * zod-free `recent-keys` module and without importing the palette or its
  * schema, so a sign-out on a page that never loaded it still removes them:
- * 586,795 B.
+ * 586,795 B. Every module that imports Zod as a value then imported
+ * `@/lib/zod-jitless` first, which moved the config out of the entry chunk
+ * into a shared one each such chunk imports (16 B): 586,811 B.
  */
-const ENTRY_BUDGET_BYTES = 586_800
+const ENTRY_BUDGET_BYTES = 586_900
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module
@@ -74,8 +77,19 @@ const ERROR_LISTENER_MODULE = /[\\/]src[\\/]observability[\\/]errors[\\/]listen\
 /** The most the error listener's rendered code may weigh in the entry chunk, gzipped. */
 const ERROR_LISTENER_BUDGET_GZIP_BYTES = 1024
 
+/** Zod's config, which turns off the JIT probe that `script-src 'self'` reports. */
+const JITLESS_MODULE = /[\\/]src[\\/]lib[\\/]zod-jitless\.ts$/
+
+/** A Zod module, by its node_modules path. */
+const ZOD_MODULE = /[\\/]node_modules[\\/]zod[\\/]/
+
+const root = path.resolve(import.meta.dirname, '..')
+
+/** The prefix of an app module's id: this repo's `src/`, not a package's. */
+const APP_PREFIX = `${path.join(root, 'src')}/`
+
 const output = await build({
-  root: path.resolve(import.meta.dirname, '..'),
+  root,
   logLevel: 'warn',
   build: { write: false },
 })
@@ -85,6 +99,19 @@ const chunks = results.flatMap((result) =>
 )
 const byFile = new Map(chunks.map((chunk) => [chunk.fileName, chunk]))
 const failures = []
+
+/**
+ * Lists `fileName` and every chunk it statically imports, recursively.
+ * @param fileName - A chunk's file name.
+ * @returns The chunk and its static imports.
+ */
+const closureOf = (fileName) => {
+  const closure = new Set([fileName])
+  for (const name of closure) {
+    for (const imported of byFile.get(name)?.imports ?? []) closure.add(imported)
+  }
+  return closure
+}
 
 if (chunks.length < 2) {
   failures.push(`expected more than one JS chunk, found ${chunks.length}`)
@@ -149,6 +176,37 @@ if (!chunks.some((chunk) => chunk.moduleIds.some((id) => POSTHOG_MODULE.test(id)
 
 if (!chunks.some((chunk) => chunk.moduleIds.some((id) => POSTHOG_CORE_MODULE.test(id)))) {
   failures.push('no chunk contains @posthog/core: the lazy-load check above proved nothing')
+}
+
+/**
+ * Zod's config must evaluate before any app module can build a schema. A chunk
+ * that holds app code and reaches Zod must therefore reach the config too, or
+ * hold it ahead of its other app modules: an entry chunk's own body runs after
+ * every chunk it imports, so a config inlined there ran after a schema built in
+ * one of those chunks, and Zod's `new Function('')` probe broke the CSP.
+ */
+const jitlessChunk = chunks.find((chunk) => chunk.moduleIds.some((id) => JITLESS_MODULE.test(id)))
+if (jitlessChunk === undefined) {
+  failures.push('no chunk contains src/lib/zod-jitless.ts')
+} else {
+  for (const chunk of chunks) {
+    const closure = closureOf(chunk.fileName)
+    const reachesZod = [...closure].some((fileName) =>
+      byFile.get(fileName)?.moduleIds.some((id) => ZOD_MODULE.test(id))
+    )
+    const appIds = chunk.moduleIds.filter((id) => id.startsWith(APP_PREFIX))
+    if (!reachesZod || appIds.length === 0) continue
+    if (chunk === jitlessChunk) {
+      const first = appIds[0]
+      if (!JITLESS_MODULE.test(first)) {
+        failures.push(`${chunk.fileName} evaluates ${first} before src/lib/zod-jitless.ts`)
+      }
+    } else if (!closure.has(jitlessChunk.fileName)) {
+      failures.push(
+        `${chunk.fileName} reaches Zod but not ${jitlessChunk.fileName}, which holds src/lib/zod-jitless.ts`
+      )
+    }
+  }
 }
 
 for (const chunk of chunks) {

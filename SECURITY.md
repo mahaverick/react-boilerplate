@@ -154,7 +154,7 @@ The policy is enforced, not report-only:
   inline script, `'unsafe-inline'` or `'unsafe-eval'` for scripts.
   `src/lib/zod-jitless.ts` turns off Zod's JIT, whose `new Function` probe
   this policy reports as a violation; it is the first import of
-  `src/main.tsx`.
+  `src/main.tsx` and of every source file that imports Zod as a value.
 - **`style-src 'unsafe-inline'`** is there for two reasons. Base UI's `Select`
   popup (and `ScrollArea`, which the app does not use yet) renders a `<style>`
   element that hides its scrollbar. And `index.html` carries the boot shell's

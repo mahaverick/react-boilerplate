@@ -2,6 +2,7 @@
  * @file URL search params the list pages bind to. The router JSON-parses
  * search values before validating them, so free text needs taking back.
  */
+import '@/lib/zod-jitless'
 import { z } from 'zod'
 
 /**

@@ -1,3 +1,4 @@
+import '@/lib/zod-jitless'
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'

@@ -6,6 +6,7 @@
  * the API's names (camelCase, one word each), so a list's URL reads like its
  * request. Defaults are omitted from both, so a default view's URL is clean.
  */
+import '@/lib/zod-jitless'
 import { z } from 'zod'
 import type { AnalyticsKey } from '@/observability/telemetry'
 import { searchText } from '@/schemas/search.schemas'
