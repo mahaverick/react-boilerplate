@@ -1,8 +1,9 @@
 /**
  * @file The palette's recent tenants and users: per user, in `localStorage`
  * under `palette.recent.v1:<userId>`, at most five of each kind, newest
- * first. An entry holds the item's kind, id, the label its page shows and when
- * it was opened, and nothing else. Every read and write survives blocked
+ * first. An entry holds the item's kind, id, the label its page shows, the muted
+ * text beside it (`detail`, such as a slug) and when it was opened, and nothing
+ * else. Every read and write survives blocked
  * storage, and a read drops any entry that fails the schema. A change of the
  * signed-in user deletes the last user's list, and a signed-in user's lists
  * are the only ones kept (`installRecentItems`).

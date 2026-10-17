@@ -458,7 +458,8 @@ test.describe('popups that are not menus', () => {
 
 /**
  * The ⌘K palette: its dialog surface, the highlighted-option pair, the muted
- * detail text and a disabled row, none of which any page above renders.
+ * detail text and a disabled row (which axe skips and WCAG exempts), none of
+ * which any page above renders.
  */
 test.describe('command palette', () => {
   for (const theme of THEMES) {
@@ -473,7 +474,7 @@ test.describe('command palette', () => {
       const palette = page.getByRole('dialog', { name: 'Command palette' })
       await expect(palette).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
       await page.keyboard.type('a')
-      // Populated, with one option highlighted and the disabled row showing: an empty palette grades clean and proves nothing.
+      // Populated, with one option highlighted and a disabled row listed (axe skips it): an empty palette grades clean and proves nothing.
       await expect(palette.getByRole('option', { name: /^Gamma Ltd/ })).toBeVisible()
       await expect(palette.locator('[data-highlighted]')).toHaveCount(1)
 
