@@ -32,6 +32,8 @@ export interface Cli {
   view: (name: string, file: string) => string
 }
 export const PLACEHOLDER_REASON: string
+/** A record the check cannot read. */
+export class RecordError extends Error {}
 export function parseRules(markdown: string): Map<string, Rule[]>
 export function viewContent(output: string, file: string): string | null
 export function diffLines(theirs: string[], ours: string[]): Hunk[]

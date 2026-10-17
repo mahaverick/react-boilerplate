@@ -554,6 +554,39 @@ describe('check', () => {
     expect(problems[0]).toMatch(/^tabs\.tsx: unrecorded drift at registry line 9\./)
   })
 
+  it('fails on a directory an interrupted refresh left', () => {
+    const root = fixture()
+    fs.mkdirSync(path.join(root, 'scripts/ui-registry.next-abc123'))
+    fs.mkdirSync(path.join(root, 'scripts/ui-registry.previous'))
+    expect(check(root).problems).toEqual([
+      'scripts/ui-registry.next-abc123: left by an interrupted refresh; delete it',
+      'scripts/ui-registry.previous: left by an interrupted refresh; delete it',
+    ])
+  })
+
+  it('fails when the shadcn devDependency is a range, not an exact version', () => {
+    const root = fixture()
+    write(root, 'package.json', JSON.stringify({ devDependencies: { shadcn: '^4.21.4' } }))
+    expect(check(root).problems[0]).toMatch(
+      /^package\.json: devDependencies\.shadcn is \^4\.21\.4; pin it exactly/
+    )
+  })
+
+  it('reports an unreadable record as one line and exits 1', () => {
+    const root = fixture()
+    write(
+      root,
+      'docs/ui-local-edits.md',
+      PANEL_RECORD.replace('reason: the panel keeps a focus ring', `reason: ${PLACEHOLDER_REASON}`)
+    )
+    const result = spawnSync(process.execPath, [SCRIPT], { cwd: root, encoding: 'utf8' })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toBe('')
+    expect(result.stderr).toBe(
+      `ui:drift: docs/ui-local-edits.md: cannot read hunk line "reason: ${PLACEHOLDER_REASON}" under tabs.tsx\n`
+    )
+  })
+
   it('exits 0 when the tree passes and 1 when it does not', () => {
     const root = fixture()
     /**

@@ -20,6 +20,11 @@ const RECORD = 'docs/ui-local-edits.md'
 /** The reason `formatDrift` prints, which the record must replace with a real one. */
 export const PLACEHOLDER_REASON = '<why we differ>'
 
+/** A record (docs/ui-local-edits.md) the check cannot read: reported as one line, not a stack. */
+export class RecordError extends Error {
+  name = 'RecordError'
+}
+
 const REWRITE = /^(ours|theirs):\s*s\/((?:\\\/|[^/])*)\/((?:\\\/|[^/])*)\/(g?)\s*$/
 
 /**
@@ -45,7 +50,7 @@ export function parseRules(markdown) {
    * @param rule - The rule.
    */
   const add = (rule) => {
-    if (!file) throw new Error(`${RECORD}: a ui-drift block before any ### heading`)
+    if (!file) throw new RecordError(`${RECORD}: a ui-drift block before any ### heading`)
     rules.set(file, [...(rules.get(file) ?? []), rule])
   }
   /**
@@ -53,7 +58,7 @@ export function parseRules(markdown) {
    * @param line - The line.
    */
   const unreadable = (line) => {
-    throw new Error(`${RECORD}: cannot read hunk line "${line}" under ${file}`)
+    throw new RecordError(`${RECORD}: cannot read hunk line "${line}" under ${file}`)
   }
   for (const line of markdown.split('\n')) {
     if (!block) {
@@ -66,10 +71,10 @@ export function parseRules(markdown) {
     }
     if (/^```\s*$/.test(line)) {
       if (hunk) {
-        if (!hunk.reason) throw new Error(`${RECORD}: a hunk under ${file} has no reason`)
-        if (file === '*') throw new Error(`${RECORD}: a hunk belongs to one file, not to *`)
+        if (!hunk.reason) throw new RecordError(`${RECORD}: a hunk under ${file} has no reason`)
+        if (file === '*') throw new RecordError(`${RECORD}: a hunk belongs to one file, not to *`)
         if (hunk.theirs.length === 0 && hunk.context === undefined && hunk.at === undefined)
-          throw new Error(
+          throw new RecordError(
             `${RECORD}: a hunk under ${file} only adds lines; give it its context line or at:`
           )
         add(hunk)
@@ -100,7 +105,7 @@ export function parseRules(markdown) {
       continue
     }
     const rule = REWRITE.exec(line.trim())
-    if (!rule) throw new Error(`${RECORD}: cannot read rule "${line.trim()}" under ${file}`)
+    if (!rule) throw new RecordError(`${RECORD}: cannot read rule "${line.trim()}" under ${file}`)
     add({
       side: rule[1],
       pattern: new RegExp((rule[2] ?? '').replaceAll('\\/', '/'), rule[4]),
@@ -421,6 +426,10 @@ export function check(root) {
   const problems = []
   const manifest = readJson(root, MANIFEST) ?? {}
   const expected = expectedManifest(root)
+  if (!/^\d+\.\d+\.\d+$/.test(String(expected.shadcn)))
+    problems.push(
+      `package.json: devDependencies.shadcn is ${String(expected.shadcn)}; pin it exactly (e.g. 4.21.4), since the snapshot is taken with that version`
+    )
   for (const [key, value] of Object.entries(expected))
     if (manifest[key] !== value)
       problems.push(
@@ -454,6 +463,11 @@ export function check(root) {
       )
     if (drift.length === 0 && stale.length === 0) passed.push(`${entry}: ok`)
   }
+  const scripts = path.join(root, path.dirname(SNAPSHOT_DIR))
+  const leftover = new RegExp(`^${path.basename(SNAPSHOT_DIR)}\\.(?:next-.*|previous)$`)
+  for (const entry of fs.existsSync(scripts) ? fs.readdirSync(scripts).sort() : [])
+    if (leftover.test(entry))
+      problems.push(`scripts/${entry}: left by an interrupted refresh; delete it`)
   const snapshotDir = path.join(root, SNAPSHOT_DIR)
   const snapshots = fs.existsSync(snapshotDir) ? fs.readdirSync(snapshotDir).sort() : []
   for (const entry of snapshots)
@@ -483,4 +497,12 @@ function main() {
   process.exitCode = problems.length > 0 ? 1 : 0
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) main()
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  try {
+    main()
+  } catch (error) {
+    if (!(error instanceof RecordError)) throw error
+    console.error(`ui:drift: ${error.message}`)
+    process.exitCode = 1
+  }
+}

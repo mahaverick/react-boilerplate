@@ -20,14 +20,17 @@ The rules are fenced blocks under a `### <file>` heading (`*` for every file):
   check prints the block to paste; fill in the reason.
 
 `pnpm ui:drift:refresh` rewrites the snapshot from the registry through the
-installed `shadcn` devDependency (it needs the network). The snapshot's
+installed `shadcn` devDependency (it needs the network), which `package.json`
+pins exactly. The snapshot's
 `manifest.json` records that version and `components.json`'s style and icon
 library, and the check fails when either moves without a refresh; Renovate
 leaves `shadcn` bumps for a human for that reason. The registry also moves
 without a CLI release, so a refresh is a change of its own, and a PR that
 touches `scripts/ui-registry/` is reviewed as one (CODEOWNERS): review the
 snapshot's diff, then run `pnpm ui:drift`. Never edit a snapshot file by hand
-to make a vendored edit pass.
+to make a vendored edit pass. A refresh writes to a `scripts/ui-registry.next-*`
+directory first; one left by an interrupted run fails the check until it is
+deleted. A record the check cannot read stops it with one `ui:drift:` line.
 
 Re-pulling a component (`pnpm exec shadcn add <name> --overwrite`)
 drops these edits: re-apply every one marked "re-apply: yes".
