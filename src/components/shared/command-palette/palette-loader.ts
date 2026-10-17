@@ -4,6 +4,9 @@ type PaletteModule = typeof import('@/components/features/command-palette')
 /** The fetch in flight or done; cleared on failure rather than kept. */
 let pending: Promise<PaletteModule> | null = null
 
+/** The module once the fetch has resolved. */
+let loaded: PaletteModule | null = null
+
 /**
  * Fetches the app palette's code, once. A rejected fetch is not kept here, but
  * the browser keeps a failed `import()` for the page's lifetime (Chromium makes
@@ -12,11 +15,26 @@ let pending: Promise<PaletteModule> | null = null
  * @returns The palette's module.
  */
 export function loadPalette(): Promise<PaletteModule> {
-  pending ??= import('@/components/features/command-palette').catch((error: unknown) => {
-    pending = null
-    throw error
-  })
+  pending ??= import('@/components/features/command-palette').then(
+    (module) => {
+      loaded = module
+      return module
+    },
+    (error: unknown) => {
+      pending = null
+      throw error
+    }
+  )
   return pending
+}
+
+/**
+ * The palette's module if its fetch has already resolved, else null. It lets
+ * the host mount the palette on the first open without a loading overlay.
+ * @returns The module, or null while it is on its way or has not been asked for.
+ */
+export function peekPalette(): PaletteModule | null {
+  return loaded
 }
 
 /**

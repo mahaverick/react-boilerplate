@@ -1,7 +1,6 @@
 import { createRequire } from 'node:module'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../hermetic'
-import { settle } from '../timing'
 
 /**
  * The palette in a real browser: keyboard-only tenant switching and theme,
@@ -50,6 +49,7 @@ test('lists a suspended tenant as disabled', async ({ page }) => {
   await page.keyboard.press('ControlOrMeta+k')
   await page.keyboard.type('gamma')
   const gamma = page.getByRole('option', { name: /^Gamma Ltd/ })
+  await expect(gamma).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
   await expect(gamma).toHaveAttribute('aria-disabled', 'true')
   await expect(gamma).toContainText('Suspended')
 })
@@ -190,22 +190,36 @@ test('a failed palette chunk load offers a reload, on every open, and the reload
   await expect(dialog).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
 })
 
-test('keys typed while the palette loads are kept', async ({ page }) => {
-  let requested = 0
+/**
+ * Holds the palette's chunk on a promise the test releases, and counts the requests made.
+ * Routed on the context, like `holdPaletteChunk`.
+ */
+async function slowPaletteChunk(page: Page) {
+  const chunk = { requests: 0, release: undefined as (() => void) | undefined }
+  const released = new Promise<void>((resolve) => {
+    chunk.release = resolve
+  })
   await page.context().route(CHUNK_URL, async (route) => {
-    requested += 1
-    await settle(1000, 'holds the chunk so the open finds it still loading')
+    chunk.requests += 1
+    await released
     await route.continue()
   })
+  return chunk
+}
+
+test('keys typed while the palette loads are kept', async ({ page }) => {
+  const chunk = await slowPaletteChunk(page)
   await page.goto('/e2e/harness/?path=/dashboard&tenants=many')
   await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
   // The idle prefetch has asked and the chunk is on hold, so the open finds it still loading.
-  await expect.poll(() => requested, { timeout: COLD_TRANSFORM_BUDGET_MS }).toBeGreaterThan(0)
+  await expect.poll(() => chunk.requests, { timeout: COLD_TRANSFORM_BUDGET_MS }).toBeGreaterThan(0)
 
   await page.keyboard.press('ControlOrMeta+k')
+  await expect(page.getByText('Loading search…')).toBeVisible()
   await page.keyboard.type('acm')
+  chunk.release?.()
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true })
   await expect(palette).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
   const input = palette.getByRole('combobox')
@@ -214,4 +228,38 @@ test('keys typed while the palette loads are kept', async ({ page }) => {
   // The caret sits after the kept text.
   await page.keyboard.type('e')
   await expect(input).toHaveValue('acme')
+})
+
+test('Escape after a first open from the Search… button gives the button focus back', async ({
+  page,
+}) => {
+  await page.goto('/e2e/harness/?path=/dashboard')
+  const trigger = page.getByRole('button', { name: 'Search…' })
+  await expect(trigger).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
+  await trigger.click()
+  const palette = page.getByRole('dialog', { name: 'Command palette', exact: true })
+  await expect(palette).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
+  await page.keyboard.press('Escape')
+  await expect(palette).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+})
+
+test('Escape after an open that waited for the chunk gives the button focus back', async ({
+  page,
+}) => {
+  const chunk = await slowPaletteChunk(page)
+  await page.goto('/e2e/harness/?path=/dashboard')
+  const trigger = page.getByRole('button', { name: 'Search…' })
+  await expect(trigger).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
+  await expect.poll(() => chunk.requests, { timeout: COLD_TRANSFORM_BUDGET_MS }).toBeGreaterThan(0)
+
+  await trigger.click()
+  await expect(page.getByText('Loading search…')).toBeVisible()
+  chunk.release?.()
+  const palette = page.getByRole('dialog', { name: 'Command palette', exact: true })
+  await expect(palette).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
+  await expect(page.getByText('Loading search…')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(palette).toHaveCount(0)
+  await expect(trigger).toBeFocused()
 })

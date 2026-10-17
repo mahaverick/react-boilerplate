@@ -172,6 +172,28 @@ describe('CommandPaletteHost', () => {
       expect(trigger).toHaveFocus()
     })
 
+    it('puts focus back on the opener when the palette takes over, so the palette can return it there', async () => {
+      let release: (() => void) | undefined
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
+      render(
+        <>
+          <button>Open search</button>
+          <CommandPaletteHost />
+        </>
+      )
+      const trigger = screen.getByRole('button', { name: 'Open search' })
+      trigger.focus()
+      act(() => useCommandPaletteStore.getState().setOpen(true))
+      expect(screen.getByRole('textbox', { name: 'Search' })).toHaveFocus()
+
+      release?.()
+      await screen.findByText('The app palette')
+      expect(trigger).toHaveFocus()
+    })
+
     it('closes on Escape', async () => {
       const gate = new Promise<void>(() => {})
       const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
@@ -197,6 +219,35 @@ describe('CommandPaletteHost', () => {
 
       idle.forEach((callback) => callback())
       await waitFor(() => expect(imports.count).toBe(1))
+    })
+
+    it('opens straight onto the palette, never the loading message, once the prefetch has resolved', async () => {
+      const idle: (() => void)[] = []
+      vi.stubGlobal('requestIdleCallback', (callback: () => void) => idle.push(callback))
+      vi.stubGlobal('cancelIdleCallback', () => {})
+      const { CommandPaletteHost, useCommandPaletteStore, imports } = await loadHost('loads')
+      render(<CommandPaletteHost />)
+      act(() => idle.forEach((callback) => callback()))
+      await waitFor(() => expect(imports.count).toBe(1))
+      await screen.findByText('The app palette')
+
+      act(() => useCommandPaletteStore.getState().setOpen(true))
+      expect(screen.queryByText('Loading search…')).not.toBeInTheDocument()
+      expect(screen.getByText('The app palette')).toBeInTheDocument()
+    })
+
+    it('opens straight onto the palette after a trigger’s prefetch resolved, with no idle callback run', async () => {
+      const { CommandPaletteHost, useCommandPaletteStore, prefetchPalette, peekPalette, imports } =
+        await loadHost('loads')
+      render(<CommandPaletteHost />)
+      expect(peekPalette()).toBeNull()
+      prefetchPalette()
+      await waitFor(() => expect(imports.count).toBe(1))
+      await waitFor(() => expect(peekPalette()).not.toBeNull())
+
+      act(() => useCommandPaletteStore.getState().setOpen(true))
+      expect(screen.queryByText('Loading search…')).not.toBeInTheDocument()
+      expect(screen.getByText('The app palette')).toBeInTheDocument()
     })
 
     it('falls back to a timer where there is no idle callback', async () => {

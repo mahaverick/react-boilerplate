@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type ComponentType } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react'
 import { toast } from '@/lib/toast'
 import { useCommandPaletteStore } from '@/states/command-palette.store'
-import { loadPalette, prefetchPalette } from './palette-loader'
+import { loadPalette, peekPalette } from './palette-loader'
 import { installRecentItems } from './recent-items'
 import { usePaletteShortcut } from './use-palette-shortcut'
 
@@ -19,8 +19,9 @@ const IDLE_FALLBACK_MS = 2000
  * identity rule (`installRecentItems`), and the palette itself, whose code is
  * fetched on the first open and kept mounted after it, so a close can finish
  * and run an `afterClose` command. The code is also fetched once the shell is
- * idle, so the first open rarely waits; when it does, a polite "Loading
- * search…" says so and keeps what is typed meanwhile, and Escape closes it. A
+ * idle, so the first open rarely waits; only an open that beats the fetch
+ * shows a polite "Loading search…", which keeps what is typed meanwhile and
+ * closes on Escape. A
  * failed fetch closes the palette and offers a reload: the browser keeps a
  * failed `import()` for the page's lifetime, so only a reload fetches again.
  */
@@ -28,20 +29,40 @@ export function CommandPaletteHost() {
   usePaletteShortcut()
   const open = useCommandPaletteStore((state) => state.open)
   const setOpen = useCommandPaletteStore((state) => state.setOpen)
-  const [Palette, setPalette] = useState<ComponentType | null>(null)
+  const [loadedPalette, setPalette] = useState<ComponentType | null>(
+    () => peekPalette()?.CommandPalette ?? null
+  )
+  // A fetch started elsewhere (the header trigger's hover) may have resolved without this host hearing of it.
+  const Palette = loadedPalette ?? peekPalette()?.CommandPalette ?? null
 
   useEffect(() => {
     installRecentItems()
   }, [])
 
   useEffect(() => {
+    let mounted = true
+    /** Fetches the palette's code and keeps it, unless the host is gone; a failure is left for an open to report. */
+    function prefetch() {
+      loadPalette().then(
+        (module) => {
+          if (mounted) setPalette(() => module.CommandPalette)
+        },
+        () => {}
+      )
+    }
     if (typeof requestIdleCallback === 'function') {
       const cancel = cancelIdleCallback
-      const handle = requestIdleCallback(() => prefetchPalette())
-      return () => cancel(handle)
+      const handle = requestIdleCallback(prefetch)
+      return () => {
+        mounted = false
+        cancel(handle)
+      }
     }
-    const timer = setTimeout(prefetchPalette, IDLE_FALLBACK_MS)
-    return () => clearTimeout(timer)
+    const timer = setTimeout(prefetch, IDLE_FALLBACK_MS)
+    return () => {
+      mounted = false
+      clearTimeout(timer)
+    }
   }, [])
 
   useEffect(() => {
@@ -73,19 +94,22 @@ export function CommandPaletteHost() {
  * What shows while the palette's code is on its way: a light overlay, a polite
  * status line and a search field that holds what is typed in the store, so
  * keys pressed right after the shortcut are not lost. Focus returns to where
- * it was when this goes without the palette taking over (Escape).
+ * it was when this goes, whether by Escape or because the palette takes over.
  */
 function LoadingSearch({ onClose }: { onClose: () => void }) {
   const query = useCommandPaletteStore((state) => state.query)
   const setQuery = useCommandPaletteStore((state) => state.setQuery)
   const input = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const before = document.activeElement
-    input.current?.focus()
+    const field = input.current
+    field?.focus()
     return () => {
-      // The input is gone by now, so focus has fallen to the body unless something else took it.
-      if (document.activeElement === document.body && before instanceof HTMLElement) before.focus()
+      // Before the field leaves the page and the palette replacing this mounts, so that palette finds the opener focused.
+      const active = document.activeElement
+      if ((active === field || active === document.body) && before instanceof HTMLElement)
+        before.focus()
     }
   }, [])
 
