@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.3](https://github.com/mahaverick/react-boilerplate/compare/v3.4.2...v3.4.3) (2026-10-17)
+
+
+### Bug Fixes
+
+* **palette:** drop the blank band under the search input, with after-shots ([#124](https://github.com/mahaverick/react-boilerplate/issues/124)) ([83aa34a](https://github.com/mahaverick/react-boilerplate/commit/83aa34a9c0f49a57f4692fca8a4c6f8b10e4718e))
+
 ## [3.4.2](https://github.com/mahaverick/react-boilerplate/compare/v3.4.1...v3.4.2) (2026-10-17)
 
 
