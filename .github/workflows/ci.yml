@@ -44,6 +44,9 @@ jobs:
       - run: pnpm exec eslint . --max-warnings 0
       - run: pnpm lint
       - run: pnpm lint:docs
+      # Each vendored src/components/ui file against its committed registry
+      # snapshot plus the edits docs/ui-local-edits.md records. Offline.
+      - run: pnpm ui:drift
       # Unused files, exports, types and dependencies; knip.jsonc says why
       # each ignored finding is not dead code.
       - run: pnpm knip

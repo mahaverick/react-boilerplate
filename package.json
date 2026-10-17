@@ -40,7 +40,8 @@
     "test:contrast": "playwright test --project=contrast",
     "capture:pages": "E2E_CAPTURE=1 E2E_LIVE=1 playwright test --project=capture",
     "check:bundle": "node scripts/check-bundle.mjs",
-    "ui:drift": "node scripts/ui-drift.mjs"
+    "ui:drift": "node scripts/ui-drift.mjs",
+    "ui:drift:refresh": "node scripts/ui-drift.mjs --refresh"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",

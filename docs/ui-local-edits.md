@@ -1,9 +1,28 @@
 # Local edits to the vendored shadcn components
 
 The files in `src/components/ui/` come from the shadcn registry (style
-`base-vega`). These are the places they differ, and why. `pnpm ui:drift`
-compares each file with the registry and ignores exactly the edits listed
-here, through each section's `ui-drift` rules.
+`base-vega`). These are the places they differ, and why. `pnpm ui:drift`, a
+step of CI's `lint` job, compares each file with its registry snapshot in
+`scripts/ui-registry/` and accepts exactly the edits listed here, through
+each section's rules.
+
+The rules are fenced blocks under a `### <file>` heading (`*` for every file):
+
+- A `ui-drift` block holds `skip` (the file is ours, nothing to compare) or
+  line rewrites: `ours: s/<re>/<to>/` rewrites our changed lines and
+  `theirs: s/<re>/<to>/` the registry's. A changed line a rewrite turns blank,
+  or into a line the other side has in the same hunk, is explained, and so is
+  a blank line. Use them for an edit that recurs on many lines or files.
+- A `ui-drift-hunk` block records one hunk exactly: a `reason:` line, then the
+  registry's lines as `-<line>` and ours as `+<line>`, indentation included.
+  What the line rewrites leave of a hunk must equal one recorded hunk, and a
+  recorded hunk that matches nothing fails the check. On unrecorded drift the
+  check prints the block to paste; fill in the reason.
+
+`pnpm ui:drift:refresh` rewrites the snapshot from the registry through the
+pinned CLI (it needs the network). The registry moves without a CLI release,
+so a refresh is a change of its own: review the snapshot's diff, then run
+`pnpm ui:drift`.
 
 Re-pulling a component (`pnpm dlx shadcn@4.21.4 add <name> --overwrite`)
 drops these edits: re-apply every one marked "re-apply: yes".
@@ -43,9 +62,11 @@ ours: s/\[class\*="size-"\]/[class*='size-']/g
   tinted with `--warning-strong` and `--info` (`src/styles/globals.css`).
   Re-apply: yes.
 
-```ui-drift
-ours: s/^\s+warning:.*$//
-ours: s/^\s+info: .*$//
+```ui-drift-hunk
+reason: warning and info variants
++        warning:
++          "border-warning-strong/40 bg-warning-strong/10 text-foreground *:[svg]:text-warning-strong",
++        info: "border-info/40 bg-info/10 text-foreground *:[svg]:text-info",
 ```
 
 ### avatar.tsx
