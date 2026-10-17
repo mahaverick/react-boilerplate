@@ -66,8 +66,14 @@ export function usePaletteCommands(sourceId: string, commands: readonly PaletteC
   )
 }
 
-/** Every registered command, source by source. */
+/**
+ * Every registered command, source by source. Each id is prefixed with its
+ * source's slot, so two sources that register the same id never collide.
+ * @returns The commands, in registration order.
+ */
 export function usePageCommands(): PaletteCommand[] {
   const sources = usePaletteRegistry((state) => state.sources)
-  return Object.values(sources).flat()
+  return Object.entries(sources).flatMap(([slot, commands]) =>
+    commands.map((command) => ({ ...command, id: `${slot}:${command.id}` }))
+  )
 }

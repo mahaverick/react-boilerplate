@@ -2,6 +2,7 @@ import { renderHook } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { describe, expect, it } from 'vitest'
 import {
+  usePageCommands,
   usePaletteCommands,
   usePaletteRegistry,
 } from '@/components/shared/command-palette/palette-registry'
@@ -27,6 +28,21 @@ function registered(sourceId: string): PaletteCommand[] {
 }
 
 describe('usePaletteCommands', () => {
+  it('lists two sources that register the same id under distinct ids, each running its own', () => {
+    const calls: string[] = []
+    const { result, unmount } = renderHook(() => {
+      usePaletteCommands('tabs', [command('copy-id', 'Copy tab ID', calls)])
+      usePaletteCommands('menu', [command('copy-id', 'Copy row ID', calls)])
+      return usePageCommands()
+    })
+    const ids = result.current.map((entry) => entry.id)
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
+    result.current.forEach((entry) => entry.run())
+    expect(calls).toEqual(['copy-id:Copy tab ID', 'copy-id:Copy row ID'])
+    unmount()
+  })
+
   it('registers a source’s commands and removes them on unmount', () => {
     const { unmount } = renderHook(() =>
       usePaletteCommands('menu', [command('suspend', 'Suspend', [])])
