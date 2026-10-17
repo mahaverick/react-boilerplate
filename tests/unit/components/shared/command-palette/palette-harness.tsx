@@ -128,6 +128,19 @@ function TestPalette({ canSearch }: { canSearch: boolean }) {
             commands: [page('Overview', '/overview'), page('Tenants', '/tenants')],
           },
           {
+            id: 'tenants',
+            label: 'Switch tenant',
+            commands: [
+              {
+                id: ACME.id,
+                label: 'Switch to Acme',
+                action: analyticsKey('switch_tenant'),
+                timing: 'immediate',
+                run: () => go('/tenants'),
+              },
+            ],
+          },
+          {
             id: 'account',
             commands: [
               {

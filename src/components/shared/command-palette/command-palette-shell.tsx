@@ -85,7 +85,10 @@ export function CommandPaletteShell({
     track('command_palette_opened')
   }, [open])
 
-  const recentCommands = recents.flatMap((entry) => recentToCommand(entry) ?? [])
+  const recentCommands = recents.flatMap((entry) => {
+    const command = recentToCommand(entry)
+    return command ? [{ ...command, id: `${entry.kind}:${entry.id}` }] : []
+  })
   const failed = remote.filter((search) => search.failed)
   const searching = remote.some((search) => search.searching)
   const statusGroup: PaletteGroup[] =
@@ -107,22 +110,34 @@ export function CommandPaletteShell({
           },
         ]
       : []
+  /** Tags a group with where it came from, so an app's group and a search may share an id. */
+  const from = (source: string, list: readonly PaletteGroup[]) =>
+    list.map((group) => ({ source, group }))
   const listed = [
-    ...filterGroups(
-      [
-        { id: 'recent', commands: recentCommands },
-        { id: 'page', commands: pageCommands },
-        ...groups,
-      ],
-      query
+    ...from(
+      'static',
+      filterGroups(
+        [
+          { id: 'recent', commands: recentCommands },
+          { id: 'page', commands: pageCommands },
+          ...groups,
+        ],
+        query
+      )
     ),
-    ...remote.map((search) => search.group).filter((group) => group.commands.length > 0),
-    ...statusGroup,
-  ].sort((a, b) => PALETTE_GROUP_IDS.indexOf(a.id) - PALETTE_GROUP_IDS.indexOf(b.id))
-  const shown: ShownGroup[] = listed.map((group) => ({
-    key: group.id,
+    ...from(
+      'remote',
+      remote.map((search) => search.group).filter((group) => group.commands.length > 0)
+    ),
+    ...from('status', statusGroup),
+  ].sort((a, b) => PALETTE_GROUP_IDS.indexOf(a.group.id) - PALETTE_GROUP_IDS.indexOf(b.group.id))
+  const shown: ShownGroup[] = listed.map(({ source, group }) => ({
+    key: `${source}:${group.id}`,
     heading: group.label ?? PALETTE_GROUP_LABELS[group.id],
-    items: group.commands.map((command) => ({ key: `${group.id}:${command.id}`, command })),
+    items: group.commands.map((command) => ({
+      key: `${source}:${group.id}:${command.id}`,
+      command,
+    })),
   }))
 
   /** Records the choice, then runs it at its timing. */

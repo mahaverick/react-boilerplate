@@ -24,11 +24,18 @@ const REFUSAL_STATUS =
     )
   ) ?? 403
 
+/** Presses the shortcut and returns the palette once its input has focus, so the next keys reach it. */
+async function pressShortcut(user: ReturnType<typeof userEvent.setup>) {
+  await user.keyboard('{Control>}k{/Control}')
+  const palette = await screen.findByRole('dialog', { name: 'Command palette' })
+  await waitFor(() => expect(within(palette).getByRole('combobox')).toHaveFocus())
+  return palette
+}
+
 /** Opens the palette with the shortcut once the first page has rendered. */
 async function openWithShortcut(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByRole('heading', { name: '/overview' })
-  await user.keyboard('{Control>}k{/Control}')
-  return screen.findByRole('dialog', { name: 'Command palette' })
+  return pressShortcut(user)
 }
 
 describe('CommandPaletteShell', () => {
@@ -99,6 +106,25 @@ describe('CommandPaletteShell', () => {
       expect(useCommandPaletteStore.getState().open).toBe(true)
     })
 
+    it('focuses the input on open and gives focus back to what had it on close', async () => {
+      const user = userEvent.setup()
+      renderPalette()
+      await screen.findByRole('heading', { name: '/overview' })
+      const trigger = document.createElement('button')
+      document.body.append(trigger)
+      try {
+        trigger.focus()
+        const palette = await pressShortcut(user)
+        expect(within(palette).getByRole('combobox')).toHaveFocus()
+
+        await user.keyboard('{Escape}')
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+        await waitFor(() => expect(trigger).toHaveFocus())
+      } finally {
+        trigger.remove()
+      }
+    })
+
     it('opens empty after the shortcut closed it mid-search', async () => {
       const user = userEvent.setup()
       renderPalette()
@@ -108,9 +134,9 @@ describe('CommandPaletteShell', () => {
 
       await user.keyboard('{Control>}k{/Control}')
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-      await user.keyboard('{Control>}k{/Control}')
+      await pressShortcut(user)
 
-      expect(await screen.findByRole('combobox')).toHaveValue('')
+      expect(screen.getByRole('combobox')).toHaveValue('')
     })
   })
 
@@ -142,6 +168,7 @@ describe('CommandPaletteShell', () => {
       } finally {
         release?.()
       }
+      await waitFor(() => expect(screen.queryByText('Searching…')).not.toBeInTheDocument())
     })
 
     it('never acts on a previous term’s users', async () => {
@@ -163,13 +190,21 @@ describe('CommandPaletteShell', () => {
       await user.keyboard('cleo')
       await screen.findByRole('option', { name: /cleo@example\.com/ })
 
-      await user.keyboard('x')
-      await waitFor(() =>
-        expect(screen.queryByRole('option', { name: /cleo@example\.com/ })).not.toBeInTheDocument()
-      )
-      await user.keyboard('{Enter}')
-      expect(router.state.location.pathname).toBe('/overview')
-      release?.()
+      try {
+        await user.keyboard('x')
+        await waitFor(() =>
+          expect(
+            screen.queryByRole('option', { name: /cleo@example\.com/ })
+          ).not.toBeInTheDocument()
+        )
+        // The new term's request is in flight: the window a stale list could take the Enter.
+        await waitFor(() => expect(release).toBeDefined())
+        await user.keyboard('{Enter}')
+        expect(router.state.location.pathname).toBe('/overview')
+      } finally {
+        release?.()
+      }
+      await waitFor(() => expect(screen.queryByText('Searching…')).not.toBeInTheDocument())
     })
 
     it('ignores Enter typed before the new term is searched', async () => {
@@ -293,12 +328,16 @@ describe('CommandPaletteShell', () => {
     })
 
     it('does not show the previous term’s failure while the next term waits', async () => {
+      let release: (() => void) | undefined
       server.use(
-        http.get('/api/v1/palette-test/tenants', ({ request }) =>
-          new URL(request.url).searchParams.get('search') === 'o'
-            ? fail('Boom', 500)
-            : ok(listPage([]))
-        )
+        http.get('/api/v1/palette-test/tenants', async ({ request }) => {
+          if (new URL(request.url).searchParams.get('search') === 'o') return fail('Boom', 500)
+          // Held, so "Searching…" stays up until the test has looked at it.
+          await new Promise<void>((resolve) => {
+            release = resolve
+          })
+          return ok(listPage([]))
+        })
       )
       const user = userEvent.setup()
       renderPalette()
@@ -306,9 +345,15 @@ describe('CommandPaletteShell', () => {
       await user.keyboard('o')
       await screen.findByRole('option', { name: 'Search failed. Try again' })
 
-      await user.keyboard('v')
-      expect(screen.queryByRole('option', { name: 'Search failed. Try again' })).toBeNull()
-      expect(screen.getByText('Searching…')).toBeInTheDocument()
+      try {
+        await user.keyboard('v')
+        await waitFor(() => expect(release).toBeDefined())
+        expect(screen.queryByRole('option', { name: 'Search failed. Try again' })).toBeNull()
+        expect(screen.getByText('Searching…')).toBeInTheDocument()
+      } finally {
+        release?.()
+      }
+      await waitFor(() => expect(screen.queryByText('Searching…')).not.toBeInTheDocument())
     })
   })
 
@@ -361,7 +406,8 @@ describe('CommandPaletteShell', () => {
       await openWithShortcut(user)
       await user.keyboard('acme')
       await user.click(await screen.findByRole('option', { name: /Acme Corp/ }))
-      await user.keyboard('{Control>}k{/Control}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await pressShortcut(user)
       await user.keyboard('cleo')
       await user.click(await screen.findByRole('option', { name: /cleo@example\.com/ }))
 
@@ -372,6 +418,22 @@ describe('CommandPaletteShell', () => {
       const sent = JSON.stringify(track.mock.calls)
       for (const leak of [ACME.id, CLEO.id, CLEO.email, 'acme', 'cleo'])
         expect(sent).not.toContain(leak)
+    })
+
+    it('puts a found user’s email and name inside Pii, and a found tenant’s outside', async () => {
+      server.use(
+        http.get('/api/v1/palette-test/tenants', () => ok(listPage([ACME]))),
+        http.get('/api/v1/palette-test/users', () => ok(listPage([CLEO])))
+      )
+      const user = userEvent.setup()
+      renderPalette()
+      await openWithShortcut(user)
+      await user.keyboard('acme')
+      const userRow = await screen.findByRole('option', { name: /cleo@example\.com/ })
+      expect(within(userRow).getByText(CLEO.email)).toHaveClass('ph-sensitive')
+      expect(within(userRow).getByText(CLEO.name)).toHaveClass('ph-sensitive')
+      const tenantRow = screen.getByRole('option', { name: /Acme Corp/ })
+      expect(within(tenantRow).getByText(ACME.name)).not.toHaveClass('ph-sensitive')
     })
 
     it('runs an afterClose command only once the palette has closed, and its dialog has focus', async () => {
@@ -394,9 +456,10 @@ describe('CommandPaletteShell', () => {
       await user.keyboard('copy')
       await user.click(await screen.findByRole('option', { name: 'Copy test ID' }))
 
+      // Nothing is awaited since the click: a deferred copy would not have run yet.
       expect(write).toHaveBeenCalledWith('test-id-1')
-      await expect(navigator.clipboard.readText()).resolves.toBe('test-id-1')
       expect(useCommandPaletteStore.getState().open).toBe(false)
+      await expect(navigator.clipboard.readText()).resolves.toBe('test-id-1')
     })
 
     it('keeps the palette open for a stay command', async () => {
@@ -430,16 +493,14 @@ describe('CommandPaletteShell', () => {
       const user = userEvent.setup()
       const router = renderPalette({ path: `/tenants/${ACME.id}` })
       await screen.findByRole('heading', { name: '/tenants/$tenantId' })
-      await user.keyboard('{Control>}k{/Control}')
-      const palette = await screen.findByRole('dialog', { name: 'Command palette' })
+      const palette = await pressShortcut(user)
       const group = within(palette).getByRole('group', { name: 'This page' })
       expect(within(group).getByRole('option', { name: 'Suspend' })).toBeInTheDocument()
       await user.keyboard('{Escape}')
 
       await router.navigate({ href: '/overview' })
       await screen.findByRole('heading', { name: '/overview' })
-      await user.keyboard('{Control>}k{/Control}')
-      await screen.findByRole('dialog', { name: 'Command palette' })
+      await pressShortcut(user)
       expect(screen.queryByRole('option', { name: 'Suspend' })).not.toBeInTheDocument()
     })
   })
@@ -451,8 +512,7 @@ describe('CommandPaletteShell', () => {
       const user = userEvent.setup()
       renderPalette({ path: `/tenants/${ACME.id}` })
       await screen.findByRole('heading', { name: '/tenants/$tenantId' })
-      await user.keyboard('{Control>}k{/Control}')
-      const palette = await screen.findByRole('dialog', { name: 'Command palette' })
+      const palette = await pressShortcut(user)
       expect(palette).toHaveAccessibleDescription('Search the test app’s pages, tenants and users.')
       expect(within(palette).getByRole('group', { name: 'Recent' })).toBeInTheDocument()
       expect(within(palette).getByRole('group', { name: 'This page' })).toBeInTheDocument()
@@ -469,6 +529,35 @@ describe('CommandPaletteShell', () => {
       expect(screen.getByRole('combobox')).toHaveAccessibleDescription(
         'Use the arrow keys to move and Enter to choose the highlighted item.'
       )
+    })
+  })
+
+  describe('row and group keys', () => {
+    it('lists a tenant and a user recent that share an id, with no duplicate-key warning', async () => {
+      const error = vi.spyOn(console, 'error')
+      recordRecent(testUser.id, { kind: 'user', id: ACME.id, label: CLEO.email })
+      recordRecent(testUser.id, { kind: 'tenant', id: ACME.id, label: ACME.name, detail: 'acme' })
+      const user = userEvent.setup()
+      renderPalette()
+      const palette = await openWithShortcut(user)
+      const rows = within(within(palette).getByRole('group', { name: 'Recent' })).getAllByRole(
+        'option'
+      )
+      expect(rows).toHaveLength(2)
+      expect(error.mock.calls.flat().join(' ')).not.toContain('same key')
+    })
+
+    it('lists a static and a searched group that share an id, with no duplicate-key warning', async () => {
+      const error = vi.spyOn(console, 'error')
+      server.use(http.get('/api/v1/palette-test/tenants', () => ok(listPage([ACME]))))
+      const user = userEvent.setup()
+      renderPalette()
+      await openWithShortcut(user)
+      await user.keyboard('acme')
+      expect(await screen.findByRole('option', { name: /Acme Corp/ })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Switch to Acme' })).toBeInTheDocument()
+      expect(screen.getAllByRole('group', { name: /Tenants|Switch tenant/ })).toHaveLength(2)
+      expect(error.mock.calls.flat().join(' ')).not.toContain('same key')
     })
   })
 
