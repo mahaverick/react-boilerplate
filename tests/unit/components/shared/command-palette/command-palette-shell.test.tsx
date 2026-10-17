@@ -51,6 +51,19 @@ describe('CommandPaletteShell', () => {
     vi.restoreAllMocks()
   })
 
+  describe('the typed term', () => {
+    it('opens showing the store’s term, with the caret after it', async () => {
+      useCommandPaletteStore.setState({ open: true, query: 'acm' })
+      const user = userEvent.setup()
+      renderPalette()
+      const input = await screen.findByRole('combobox')
+      await waitFor(() => expect(input).toHaveFocus())
+      expect(input).toHaveValue('acm')
+      await user.keyboard('e')
+      expect(input).toHaveValue('acme')
+    })
+  })
+
   describe('the shortcut', () => {
     it('opens on Ctrl+K off Apple platforms', async () => {
       vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Win32')

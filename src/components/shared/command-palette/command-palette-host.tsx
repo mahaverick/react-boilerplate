@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType } from 'react'
+import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { toast } from '@/lib/toast'
 import { useCommandPaletteStore } from '@/states/command-palette.store'
 import { loadPalette, prefetchPalette } from './palette-loader'
@@ -6,7 +6,10 @@ import { installRecentItems } from './recent-items'
 import { usePaletteShortcut } from './use-palette-shortcut'
 
 /** What the toast says when the palette's code could not be fetched. */
-export const PALETTE_LOAD_FAILED = 'The command palette could not be loaded. Try again.'
+export const PALETTE_LOAD_FAILED = 'Search could not be loaded. Reloading the page will fix it.'
+
+/** The toast's key, so a burst of failed opens shows one toast. */
+const PALETTE_LOAD_FAILED_ID = 'palette-load-failed'
 
 /** How long the fallback waits, where there is no idle callback, before it fetches the palette's code. */
 const IDLE_FALLBACK_MS = 2000
@@ -17,8 +20,9 @@ const IDLE_FALLBACK_MS = 2000
  * fetched on the first open and kept mounted after it, so a close can finish
  * and run an `afterClose` command. The code is also fetched once the shell is
  * idle, so the first open rarely waits; when it does, a polite "Loading
- * search…" says so, and Escape closes it. A failed fetch closes the palette
- * and says so; the next open fetches again.
+ * search…" says so and keeps what is typed meanwhile, and Escape closes it. A
+ * failed fetch closes the palette and offers a reload: the browser keeps a
+ * failed `import()` for the page's lifetime, so only a reload fetches again.
  */
 export function CommandPaletteHost() {
   usePaletteShortcut()
@@ -50,7 +54,10 @@ export function CommandPaletteHost() {
       () => {
         if (!current) return
         setOpen(false)
-        toast.error(PALETTE_LOAD_FAILED)
+        toast.error(PALETTE_LOAD_FAILED, {
+          id: PALETTE_LOAD_FAILED_ID,
+          action: { label: 'Reload', onClick: () => window.location.reload() },
+        })
       }
     )
     return () => {
@@ -62,8 +69,26 @@ export function CommandPaletteHost() {
   return open ? <LoadingSearch onClose={() => setOpen(false)} /> : null
 }
 
-/** What shows while the palette's code is on its way: a light overlay and a polite status line. */
+/**
+ * What shows while the palette's code is on its way: a light overlay, a polite
+ * status line and a search field that holds what is typed in the store, so
+ * keys pressed right after the shortcut are not lost. Focus returns to where
+ * it was when this goes without the palette taking over (Escape).
+ */
 function LoadingSearch({ onClose }: { onClose: () => void }) {
+  const query = useCommandPaletteStore((state) => state.query)
+  const setQuery = useCommandPaletteStore((state) => state.setQuery)
+  const input = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const before = document.activeElement
+    input.current?.focus()
+    return () => {
+      // The input is gone by now, so focus has fallen to the body unless something else took it.
+      if (document.activeElement === document.body && before instanceof HTMLElement) before.focus()
+    }
+  }, [])
+
   useEffect(() => {
     /** Closes on Escape, as the palette will once it is there. */
     function onKeyDown(event: KeyboardEvent) {
@@ -74,13 +99,20 @@ function LoadingSearch({ onClose }: { onClose: () => void }) {
   }, [onClose])
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/10 pt-[20vh]">
-      <p
-        role="status"
-        aria-live="polite"
-        className="rounded-md bg-popover px-4 py-2 text-sm text-popover-foreground shadow-md"
-      >
-        Loading search…
-      </p>
+      <div className="flex w-80 flex-col gap-2 rounded-md bg-popover p-3 text-popover-foreground shadow-md">
+        <input
+          ref={input}
+          type="text"
+          aria-label="Search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          autoComplete="off"
+          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+          Loading search…
+        </p>
+      </div>
     </div>
   )
 }

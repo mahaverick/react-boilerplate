@@ -1,12 +1,14 @@
 /** The app palette's module, as `import()` resolves it. */
 type PaletteModule = typeof import('@/components/features/command-palette')
 
-/** The fetch in flight or done; cleared on failure so the next call asks again. */
+/** The fetch in flight or done; cleared on failure rather than kept. */
 let pending: Promise<PaletteModule> | null = null
 
 /**
- * Fetches the app palette's code, once. A rejected fetch is not kept, so a
- * later call asks again (a deploy may have removed the old chunk).
+ * Fetches the app palette's code, once. A rejected fetch is not kept here, but
+ * the browser keeps a failed `import()` for the page's lifetime (Chromium makes
+ * no new request for the same URL), so a later call usually fails the same way;
+ * the host offers a reload.
  * @returns The palette's module.
  */
 export function loadPalette(): Promise<PaletteModule> {

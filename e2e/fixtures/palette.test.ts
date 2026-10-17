@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../hermetic'
+import { settle } from '../timing'
 
 /**
  * The palette in a real browser: keyboard-only tenant switching and theme,
@@ -17,17 +18,6 @@ const COLD_TRANSFORM_BUDGET_MS = 20_000
 type AxeRun = {
   violations: { id: string; nodes: { target: string[] }[] }[]
   passes: { id: string }[]
-}
-
-/**
- * Presses the shortcut and waits for the palette itself, not the "Loading
- * search…" stand-in: keys typed before the chunk mounts would go nowhere.
- */
-async function openPalette(page: Page) {
-  await page.keyboard.press('ControlOrMeta+k')
-  const palette = page.getByRole('dialog', { name: 'Command palette', exact: true })
-  await expect(palette).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
-  return palette
 }
 
 test('switches tenant from the keyboard alone', async ({ page }) => {
@@ -57,7 +47,7 @@ test('lists a suspended tenant as disabled', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
-  await openPalette(page)
+  await page.keyboard.press('ControlOrMeta+k')
   await page.keyboard.type('gamma')
   const gamma = page.getByRole('option', { name: /^Gamma Ltd/ })
   await expect(gamma).toHaveAttribute('aria-disabled', 'true')
@@ -69,7 +59,7 @@ test('sets the theme from the keyboard alone', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
-  await openPalette(page)
+  await page.keyboard.press('ControlOrMeta+k')
   await page.keyboard.type('dark')
   await expect(page.getByRole('option', { name: /^Dark/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
@@ -133,7 +123,7 @@ test('Create a tenant leaves focus in the Name field of /tenants', async ({ page
   await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
-  await openPalette(page)
+  await page.keyboard.press('ControlOrMeta+k')
   await page.keyboard.type('create a tenant')
   await expect(page.getByRole('option', { name: /^Create a tenant/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
@@ -145,48 +135,83 @@ test('Create a tenant leaves focus in the Name field of /tenants', async ({ page
   await expect(page.getByRole('textbox', { name: /^Name/ })).toBeFocused()
 })
 
+const CHUNK_URL = /\/src\/components\/features\/command-palette\.tsx(\?|$)/
+
+/** What the toast says when the palette's chunk cannot be fetched. */
+const LOAD_FAILED = 'Search could not be loaded. Reloading the page will fix it.'
+
 /**
- * Aborts the palette's chunk until `release()` is called, and counts the aborted requests.
+ * Aborts the palette's chunk until `held` is cleared, and counts the requests made.
  * Routed on the context: the harness's service worker answers page-level fetches before `page.route` sees them.
  */
 async function holdPaletteChunk(page: Page) {
-  const chunk = { held: true, aborted: 0 }
-  await page
-    .context()
-    .route(/\/src\/components\/features\/command-palette\.tsx(\?|$)/, async (route) => {
-      if (!chunk.held) return route.continue()
-      chunk.aborted += 1
-      return route.abort()
-    })
+  const chunk = { held: true, requests: 0 }
+  await page.context().route(CHUNK_URL, async (route) => {
+    chunk.requests += 1
+    return chunk.held ? route.abort() : route.continue()
+  })
   return chunk
 }
 
-test('a failed palette chunk load closes the palette and says so', async ({ page }) => {
+test('a failed palette chunk load offers a reload, on every open, and the reload fixes it', async ({
+  page,
+}) => {
   const chunk = await holdPaletteChunk(page)
   await page.goto('/e2e/harness/?path=/dashboard')
   await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
-  // The idle prefetch asks first and is refused; the open that follows is refused too.
-  await expect.poll(() => chunk.aborted, { timeout: COLD_TRANSFORM_BUDGET_MS }).toBeGreaterThan(0)
+  // The idle prefetch asks first and is refused.
+  await expect.poll(() => chunk.requests, { timeout: COLD_TRANSFORM_BUDGET_MS }).toBeGreaterThan(0)
+  const asked = chunk.requests
 
+  const dialog = page.getByRole('dialog', { name: 'Command palette', exact: true })
+  const reload = page.getByRole('button', { name: 'Reload' })
   await page.keyboard.press('ControlOrMeta+k')
-  await expect(page.getByText('The command palette could not be loaded. Try again.')).toBeVisible()
+  await expect(page.getByText(LOAD_FAILED)).toBeVisible()
+  await expect(reload).toBeVisible()
   await expect(page.getByText('Loading search…')).toHaveCount(0)
-  await expect(page.getByRole('dialog', { name: 'Command palette', exact: true })).toHaveCount(0)
+  await expect(dialog).toHaveCount(0)
+
+  // The browser keeps a failed import() for the page, so the next press makes no request and fails the same way.
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(page.getByText(LOAD_FAILED)).toBeVisible()
+  await expect(reload).toBeVisible()
+  expect(chunk.requests).toBe(asked)
+
+  // The reload leaves the harness (the router has rewritten the address), so the page is opened again once the route lets the chunk through.
+  chunk.held = false
+  await Promise.all([page.waitForEvent('load'), reload.click()])
+  await page.goto('/e2e/harness/?path=/dashboard')
+  await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
+    timeout: COLD_TRANSFORM_BUDGET_MS,
+  })
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(dialog).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
 })
 
-// Chromium caches a failed import() per document, so the second press makes no request and fails again.
-test.fixme('a failed palette chunk load retries on the next shortcut press', async ({ page }) => {
-  const chunk = await holdPaletteChunk(page)
-  await page.goto('/e2e/harness/?path=/dashboard')
+test('keys typed while the palette loads are kept', async ({ page }) => {
+  let requested = 0
+  await page.context().route(CHUNK_URL, async (route) => {
+    requested += 1
+    await settle(1000, 'holds the chunk so the open finds it still loading')
+    await route.continue()
+  })
+  await page.goto('/e2e/harness/?path=/dashboard&tenants=many')
   await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
-  await expect.poll(() => chunk.aborted, { timeout: COLD_TRANSFORM_BUDGET_MS }).toBeGreaterThan(0)
-  await page.keyboard.press('ControlOrMeta+k')
-  await expect(page.getByText('The command palette could not be loaded. Try again.')).toBeVisible()
+  // The idle prefetch has asked and the chunk is on hold, so the open finds it still loading.
+  await expect.poll(() => requested, { timeout: COLD_TRANSFORM_BUDGET_MS }).toBeGreaterThan(0)
 
-  chunk.held = false
-  await openPalette(page)
+  await page.keyboard.press('ControlOrMeta+k')
+  await page.keyboard.type('acm')
+  const palette = page.getByRole('dialog', { name: 'Command palette', exact: true })
+  await expect(palette).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
+  const input = palette.getByRole('combobox')
+  await expect(input).toHaveValue('acm')
+  await expect(palette.getByRole('option', { name: /^Acme Corp/ })).toBeVisible()
+  // The caret sits after the kept text.
+  await page.keyboard.type('e')
+  await expect(input).toHaveValue('acme')
 })

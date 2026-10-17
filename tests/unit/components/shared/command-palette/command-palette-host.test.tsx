@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** How the app palette's module behaves when the host imports it. */
@@ -56,14 +57,32 @@ describe('CommandPaletteHost', () => {
     expect(screen.getByText('The app palette')).toBeInTheDocument()
   })
 
-  it('closes and says so when the palette cannot be loaded', async () => {
+  it('closes and offers a reload when the palette cannot be loaded', async () => {
     const { CommandPaletteHost, PALETTE_LOAD_FAILED, useCommandPaletteStore, toast } =
       await loadHost('fails')
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...window.location, reload })
     const error = vi.spyOn(toast, 'error')
     render(<CommandPaletteHost />)
     act(() => useCommandPaletteStore.getState().setOpen(true))
     await waitFor(() => expect(useCommandPaletteStore.getState().open).toBe(false))
-    expect(error).toHaveBeenCalledWith(PALETTE_LOAD_FAILED)
+    expect(PALETTE_LOAD_FAILED).toMatch(/reload/i)
+    const [title, options] = error.mock.calls[0] ?? []
+    expect(title).toBe(PALETTE_LOAD_FAILED)
+    expect(options?.action?.label).toBe('Reload')
+    options?.action?.onClick()
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('offers the reload on every open after a failure', async () => {
+    const { CommandPaletteHost, useCommandPaletteStore, toast } = await loadHost('fails')
+    const error = vi.spyOn(toast, 'error')
+    render(<CommandPaletteHost />)
+    act(() => useCommandPaletteStore.getState().setOpen(true))
+    await waitFor(() => expect(error).toHaveBeenCalledTimes(1))
+    act(() => useCommandPaletteStore.getState().setOpen(true))
+    await waitFor(() => expect(error).toHaveBeenCalledTimes(2))
+    expect(useCommandPaletteStore.getState().open).toBe(false)
   })
 
   it('fetches again on the next open after a failed load', async () => {
@@ -104,6 +123,53 @@ describe('CommandPaletteHost', () => {
       release?.()
       expect(await screen.findByText('The app palette')).toBeInTheDocument()
       expect(screen.queryByText('Loading search…')).not.toBeInTheDocument()
+    })
+
+    it('keeps what is typed while it waits, so the palette opens with it', async () => {
+      let release: (() => void) | undefined
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
+      const user = userEvent.setup()
+      render(<CommandPaletteHost />)
+      act(() => useCommandPaletteStore.getState().setOpen(true))
+
+      const input = screen.getByRole('textbox', { name: 'Search' })
+      expect(input).toHaveFocus()
+      await user.keyboard('acm')
+      expect(input).toHaveValue('acm')
+      expect(useCommandPaletteStore.getState().query).toBe('acm')
+
+      release?.()
+      expect(await screen.findByText('The app palette')).toBeInTheDocument()
+      expect(useCommandPaletteStore.getState().query).toBe('acm')
+    })
+
+    it('shows the typed text when it opens with one already in the store', async () => {
+      const gate = new Promise<void>(() => {})
+      const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
+      useCommandPaletteStore.setState({ open: true, query: 'beta' })
+      render(<CommandPaletteHost />)
+      expect(screen.getByRole('textbox', { name: 'Search' })).toHaveValue('beta')
+    })
+
+    it('gives focus back to the trigger when Escape closes it', async () => {
+      const gate = new Promise<void>(() => {})
+      const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
+      const user = userEvent.setup()
+      render(
+        <>
+          <button>Open search</button>
+          <CommandPaletteHost />
+        </>
+      )
+      const trigger = screen.getByRole('button', { name: 'Open search' })
+      trigger.focus()
+      act(() => useCommandPaletteStore.getState().setOpen(true))
+      expect(screen.getByRole('textbox', { name: 'Search' })).toHaveFocus()
+      await user.keyboard('{Escape}')
+      expect(trigger).toHaveFocus()
     })
 
     it('closes on Escape', async () => {
