@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,6 +39,8 @@ describe('CommandPaletteHost', () => {
   })
 
   afterEach(() => {
+    // Unmount first: the host's effect cleanup calls cancelIdleCallback, which the stubs below provide.
+    cleanup()
     vi.doUnmock('@/components/features/command-palette')
     vi.doUnmock('@/components/shared/command-palette/recent-items')
     vi.unstubAllGlobals()
