@@ -39,9 +39,13 @@ import { build } from 'vite'
  * schema, so a sign-out on a page that never loaded it still removes them:
  * 586,795 B. Every module that imports Zod as a value then imported
  * `@/lib/zod-jitless` first, which moved the config out of the entry chunk
- * into a shared one each such chunk imports (16 B): 586,811 B.
+ * into a shared one each such chunk imports (16 B): 586,811 B. The
+ * invitation confirm page, a new lazy token-page route, adds its route
+ * options, its route-tree entry and its chunk's preload list to the entry
+ * (648 B over the 586,796 B measured before it), with no module of its own
+ * reaching first visit: 587,444 B.
  */
-const ENTRY_BUDGET_BYTES = 586_900
+const ENTRY_BUDGET_BYTES = 587_500
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module
