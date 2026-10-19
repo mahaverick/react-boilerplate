@@ -45,7 +45,7 @@ export function codeFrom(error: unknown): string | undefined {
 
 /**
  * How long a refused request says to wait, in whole seconds and at least 1,
- * from the `Retry-After` response header (delta-seconds or an HTTP date).
+ * from the `Retry-After` response header (a non-negative whole number of seconds, or an HTTP date).
  * `null` when there is no response or header, or the header cannot be read.
  */
 export function retryAfterSecondsFrom(error: unknown): number | null {
@@ -54,8 +54,8 @@ export function retryAfterSecondsFrom(error: unknown): number | null {
   if (typeof header !== 'string' && typeof header !== 'number') return null
   const value = String(header).trim()
   if (/^\d+$/.test(value)) return Math.max(1, Number(value))
-  // Date.parse reads a bare number such as "-5" as a year, which is no wait at all.
-  if (/^[-+]?\d+$/.test(value)) return null
+  // Date.parse reads "1.5" or "-5" as a year; an HTTP-date always names a month or a day.
+  if (!/[A-Za-z]/.test(value)) return null
   const date = Date.parse(value)
   if (Number.isNaN(date)) return null
   return Math.max(1, Math.ceil((date - Date.now()) / 1_000))
