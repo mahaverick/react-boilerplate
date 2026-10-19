@@ -43,7 +43,7 @@ describe('SigningInStatus', () => {
     render(<SigningInStatus label="Signing you in…" email={TARGET} />)
 
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent(`Signing you in…You're signing in as ${TARGET}.`)
+    expect(status).toHaveTextContent(`Signing you in…This link is for ${TARGET}.`)
     const address = screen.getByText(TARGET)
     expect(status).toContainElement(address)
     expect(address).toHaveClass(PII_CLASS_NAME)

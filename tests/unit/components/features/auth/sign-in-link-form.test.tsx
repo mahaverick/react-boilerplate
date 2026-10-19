@@ -177,6 +177,12 @@ describe('SignInLinkForm', () => {
     expect(waiting).toHaveAttribute('aria-disabled', 'true')
     // The clock is not announced every second: it sits outside the status line.
     expect(waiting.closest('[role="status"], [aria-live]')).toBeNull()
+    // aria-disabled keeps it focusable, so the guard against a send is Base UI's, not the browser's.
+    await user.click(waiting)
+    waiting.focus()
+    await user.keyboard('{Enter}')
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(bodies).toHaveLength(1)
 
     await act(() => vi.advanceTimersByTimeAsync(1_000))
     expect(screen.getByRole('button', { name: 'Resend in 0:59' })).toBeInTheDocument()
@@ -189,8 +195,10 @@ describe('SignInLinkForm', () => {
     await act(() => vi.advanceTimersByTimeAsync(0))
     await vi.waitFor(() => expect(bodies).toHaveLength(2))
     expect(bodies[1]).toMatchObject({ email: 'ada@example.test' })
-    vi.useRealTimers()
-    expect(await screen.findByRole('button', { name: 'Resend in 1:00' })).toBeInTheDocument()
+    // One clock throughout: the deadline is stamped and read on the fake Date.
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Resend in 1:00' })).toBeInTheDocument()
+    )
     expect(track).toHaveBeenCalledTimes(2)
   })
 
@@ -220,8 +228,9 @@ describe('SignInLinkForm', () => {
     refuse = true
     await user.click(screen.getByRole('button', { name: 'Resend link' }))
 
-    vi.useRealTimers()
-    expect(await screen.findByRole('button', { name: 'Resend in 2:00' })).toBeInTheDocument()
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Resend in 2:00' })).toBeInTheDocument()
+    )
     expect(error).toHaveBeenCalledWith('Too many requests. Try again in 2 minutes.')
     // Still waiting on the inbox: the address and the link's rules stay on screen.
     expect(screen.getByText(/We sent a sign-in link to/)).toBeInTheDocument()
@@ -245,8 +254,7 @@ describe('SignInLinkForm', () => {
     refuse = true
     await user.click(screen.getByRole('button', { name: 'Resend link' }))
 
-    vi.useRealTimers()
-    await waitFor(() => expect(error).toHaveBeenCalledWith('Something went wrong.'))
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith('Something went wrong.'))
     expect(screen.getByRole('button', { name: 'Resend link' })).not.toHaveAttribute(
       'aria-disabled',
       'true'

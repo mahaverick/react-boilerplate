@@ -8,9 +8,9 @@ import { Spinner } from '@/components/ui/spinner'
 /**
  * The verifying frame of a link page: one `role="status"` row with a spinner
  * and `label`, such as "Signing you in…" or "Joining Acme…". With `email`, a
- * second line names the account being signed in, so a person who opened
+ * second line names the account the link signs in, so a person who opened
  * someone else's link sees whose account it is before it lands. Pass the
- * link's own address or the verified user's; the address is masked.
+ * link's own address or the invitation's; the address is masked.
  */
 export function SigningInStatus({ label, email }: { label: string; email?: string | null }) {
   return (
@@ -22,7 +22,7 @@ export function SigningInStatus({ label, email }: { label: string; email?: strin
       </span>
       {email && (
         <span className="text-muted-foreground">
-          You&apos;re signing in as <Pii>{email}</Pii>.
+          This link is for <Pii>{email}</Pii>.
         </span>
       )}
     </div>
@@ -71,6 +71,7 @@ export function SwitchAccountPanel({
         <BusyButton
           busy={continuing}
           busyLabel="Signing out…"
+          focusableWhenDisabled
           onClick={onContinue}
           className="w-full"
         >
@@ -104,7 +105,13 @@ export function VerifyFailedPanel({
         <IconAlertCircle aria-hidden="true" />
         <AlertDescription className="min-w-0 wrap-anywhere">{message}</AlertDescription>
       </Alert>
-      <BusyButton busy={retrying} busyLabel="Trying again…" onClick={onRetry} className="w-full">
+      <BusyButton
+        busy={retrying}
+        busyLabel="Trying again…"
+        focusableWhenDisabled
+        onClick={onRetry}
+        className="w-full"
+      >
         Try again
       </BusyButton>
     </div>
