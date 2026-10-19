@@ -1,4 +1,5 @@
 import '@/lib/zod-jitless'
+import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useLocation, useNavigate } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { z } from 'zod'
@@ -37,6 +38,7 @@ import { useLogout } from '@/queries/auth.queries'
 import {
   inviterName,
   isConfirmationSent,
+  refreshJoinedTenant,
   useAcceptInvitation,
   useInvitationPreview,
   useVerifyInvitation,
@@ -254,6 +256,7 @@ function InvitationForToken({ token }: { token: string }) {
   const verify = useVerifyInvitation()
   const accept = useAcceptInvitation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [startedAs] = useState(() => useAuthStore.getState().user)
   const [joining, setJoining] = useState<Joining | null>(null)
   const [failure, setFailure] = useState<JoinFailure | null>(null)
@@ -302,6 +305,24 @@ function InvitationForToken({ token }: { token: string }) {
         onError: (error) => failWith(call, error),
       })
     }
+  }
+
+  /**
+   * Another tab opened the confirmation link and this tab restored the shared
+   * session. The message carries no data, so the page lands on the invitation's
+   * tenant only when the restored account is the address the `202` named, and
+   * otherwise opens the dashboard with no join toast. The confirming tab
+   * already tracked the sign-in, and nothing is posted here.
+   */
+  const confirmedElsewhere = async (waitingOn: InvitationPreview, mailed: string) => {
+    const account = useAuthStore.getState().user?.email
+    if (!account || account.toLowerCase() !== mailed.toLowerCase()) {
+      void navigate({ to: ROUTES.dashboard, replace: true })
+      return
+    }
+    // A failed refresh still lands: the tenant route loads its own data.
+    await refreshJoinedTenant(queryClient, waitingOn.tenant.slug).catch(() => undefined)
+    land(waitingOn.tenant, account, false)
   }
 
   /**
@@ -359,13 +380,15 @@ function InvitationForToken({ token }: { token: string }) {
       )
     }
     if (inbox && joining.invitation) {
+      const waitingOn = joining.invitation
       return (
         <InvitationInbox
           email={inbox.email}
-          tenantName={joining.invitation.tenant.name}
+          tenantName={waitingOn.tenant.name}
           resendAt={inbox.resendAt}
           resending={verify.isPending}
           onResend={resend}
+          onSignedIn={() => void confirmedElsewhere(waitingOn, inbox.email)}
         />
       )
     }

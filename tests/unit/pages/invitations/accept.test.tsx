@@ -20,6 +20,7 @@ import { useAuthStore } from '@/states/auth.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
+import { settle } from '@/tests/fixtures/timing'
 import {
   fail,
   ok,
@@ -641,6 +642,95 @@ describe('accept page, signed out, an existing account or a staff invitation', (
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })).toBeVisible()
     expect(verifies).toHaveLength(3)
+  })
+})
+
+describe('accept page, Check your inbox, when another tab confirms', () => {
+  beforeEach(arriveSignedOut)
+
+  /** Posts `signed_in` as the tab that opened the confirmation link does. */
+  function confirmInAnotherTab() {
+    const otherTab = new BroadcastChannel('auth')
+    otherTab.postMessage({ type: 'signed_in' })
+    otherTab.close()
+  }
+
+  /** The shared session the other tab's confirm left behind, for `email`. */
+  function shareSessionFor(email: string) {
+    const restored = { refreshes: 0 }
+    server.use(
+      http.post('/api/v1/auth/refresh', () => {
+        restored.refreshes += 1
+        return ok({ accessToken: 'shared-token' }, 'Token refreshed.')
+      }),
+      http.get('/api/v1/profile', () => ok({ ...testUser, email }, 'Profile retrieved.'))
+    )
+    return restored
+  }
+
+  it('lands the waiting tab when another tab confirms the invitation', async () => {
+    mockTenantRoute()
+    const verifies = serveVerify(confirmationSent())
+    const accepts = serveAccept(accepted())
+    let tenantListReads = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        tenantListReads += 1
+        return ok(
+          listPage([
+            {
+              tenant: TENANT,
+              role: 'editor',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants retrieved.'
+        )
+      })
+    )
+    const router = renderAt(ACCEPT_PATH)
+    expect(await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })).toBeVisible()
+    const readsBefore = tenantListReads
+    // The address the 202 named, cased apart, as another tab's profile could come back.
+    const restored = shareSessionFor('Invitee@Acme.test')
+
+    confirmInAnotherTab()
+
+    await expectLandedInTenant(router)
+    expect(await screen.findAllByText('You joined Acme Corp as Invitee@Acme.test.')).toHaveLength(1)
+    expect(restored.refreshes).toBe(1)
+    expect(tenantListReads).toBeGreaterThan(readsBefore)
+    expect(useAuthStore.getState().accessToken).toBe('shared-token')
+    expect(verifies).toHaveLength(1)
+    expect(accepts).toHaveLength(0)
+  })
+
+  it('ignores signed_in while signed in, and does not toast a different restored account', async () => {
+    const verifies = serveVerify(confirmationSent())
+    const accepts = serveAccept(accepted())
+    const router = renderAt(ACCEPT_PATH)
+    expect(await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })).toBeVisible()
+
+    // Signed in by now: the message is not this tab's to act on.
+    const restored = shareSessionFor(MAILED)
+    signIn()
+    confirmInAnotherTab()
+    await act(() => settle(50, 'an ignored message has no event to wait on'))
+    expect(restored.refreshes).toBe(0)
+    expect(router.state.location.pathname).toBe('/invitations/accept')
+
+    // Signed out again, a restore that brings back someone else lands on the dashboard, with no join toast.
+    useAuthStore.setState({ accessToken: null, user: null, isAuthenticated: false })
+    shareSessionFor('someone@else.test')
+    confirmInAnotherTab()
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/dashboard')
+    })
+    expect(screen.queryByText(/You joined/)).not.toBeInTheDocument()
+    expect(verifies).toHaveLength(1)
+    expect(accepts).toHaveLength(0)
   })
 })
 

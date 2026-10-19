@@ -26,7 +26,7 @@ export const invitationKeys = {
  * `null`, and the tenant lists refetch with `refetchType: 'all'`, since the
  * accept page does not observe them.
  */
-async function refreshJoinedTenant(queryClient: QueryClient, slug: string): Promise<void> {
+export async function refreshJoinedTenant(queryClient: QueryClient, slug: string): Promise<void> {
   queryClient.removeQueries({ queryKey: tenantKeys.detail(slug) })
   await queryClient.invalidateQueries({
     queryKey: tenantKeys.list,

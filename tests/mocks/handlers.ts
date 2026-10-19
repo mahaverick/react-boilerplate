@@ -265,6 +265,19 @@ export const handlers = [
       'Invitation accepted.'
     )
   ),
+  // The mailed confirmation link: the invitee is signed in and joined, as express's confirm answers.
+  http.post('/api/v1/invitations/confirm', () =>
+    ok(
+      {
+        user: testUser,
+        accessToken: 'confirm-token',
+        isNewUser: false,
+        tenant: testInvitationPreview.tenant,
+        role: testInvitationPreview.role,
+      },
+      'Invitation accepted.'
+    )
+  ),
   // Every tenant overview mounts the Getting started card; in progress, nothing done, which a test about another state overrides.
   http.get('/api/v1/tenants/:slug/onboarding', () => ok(testOnboarding(), 'Onboarding retrieved.')),
   http.post('/api/v1/tenants/:slug/onboarding/steps/:key/complete', () =>

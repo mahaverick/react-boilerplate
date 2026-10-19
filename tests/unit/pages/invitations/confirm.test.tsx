@@ -6,7 +6,7 @@ import {
   type AnyRouter,
   type RouterHistory,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 import { StrictMode } from 'react'
@@ -20,6 +20,7 @@ import { useAuthStore } from '@/states/auth.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -203,7 +204,7 @@ describe('confirm page: the link itself', () => {
     expect(await screen.findByRole('heading', { level: 1, name: INCOMPLETE_TITLE })).toBeVisible()
     expect(
       screen.getByText(
-        'The link is missing part of its address. Open the most recent email from us and use its link.'
+        'Part of this link is missing. Open the most recent email from us and select its link.'
       )
     ).toBeVisible()
     expect(screen.getByRole('link', { name: 'Go to the home page' })).toHaveAttribute('href', '/')
@@ -256,7 +257,8 @@ describe('confirm page, signed out', () => {
 
     await screen.findByRole('heading', { level: 1, name: 'Joining your team' })
     await waitFor(() => expect(confirms).toHaveLength(1))
-    // StrictMode's second effect run happens at mount; the barrier is the frame staying put.
+    // A second post would have no event of its own; give its handler time to record it.
+    await act(() => settle(50, 'a second StrictMode post has no event to wait on'))
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Joining your team')
     expect(confirms).toHaveLength(1)
   })
@@ -272,13 +274,63 @@ describe('confirm page, signed out', () => {
   it('names the server’s address after success, not the link’s', async () => {
     mockTenantRoute()
     serveConfirm(joined())
-    renderAt(`/invitations/confirm?token=${TOKEN}&email=${encodeURIComponent('mallory@evil.test')}`)
+    let logouts = 0
+    server.use(
+      http.post('/api/v1/auth/logout', () => {
+        logouts += 1
+        return ok(null, 'Signed out.')
+      })
+    )
+    // The confirm signs in someone the link does not name; a page reading the live store would flash the switch prompt.
+    const seenSwitch = { value: false }
+    const observer = new MutationObserver(() => {
+      if (screen.queryByRole('heading', { name: 'Join your team' })) seenSwitch.value = true
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+    const router = renderAt(
+      `/invitations/confirm?token=${TOKEN}&email=${encodeURIComponent('mallory@evil.test')}`
+    )
 
     expect(await screen.findByText(JOINED)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/tenants/acme')
+    })
+    observer.disconnect()
+    expect(seenSwitch.value).toBe(false)
+    expect(logouts).toBe(0)
     await waitFor(() => {
       expect(screen.queryByText(/mallory@evil\.test/)).not.toBeInTheDocument()
     })
   })
+
+  it.each([
+    ['a 200', joined(), true],
+    ['a 404', () => fail(INVALID, 404, 'invitation_invalid'), false],
+    ['a failure', () => fail('Something broke.', 500), false],
+  ])(
+    'tells waiting tabs after a 200, and not after a 404 or a failure (%s)',
+    async (_case, answer, tells) => {
+      mockTenantRoute()
+      serveConfirm(answer)
+      const heard: unknown[] = []
+      const waitingTab = new BroadcastChannel('auth')
+      waitingTab.addEventListener('message', (event: MessageEvent<unknown>) => {
+        heard.push(event.data)
+      })
+      renderAt(CONFIRM_PATH)
+
+      if (tells) {
+        await vi.waitFor(() => expect(heard).toContainEqual({ type: 'signed_in' }))
+        expect(await screen.findByText(JOINED)).toBeInTheDocument()
+      } else {
+        await screen.findByRole('heading', { level: 1, name: /can't be used|couldn’t add you/ })
+        // A message that is not sent has no event to wait on.
+        await act(() => settle(50, 'an unsent broadcast has no event to wait on'))
+        expect(heard).not.toContainEqual({ type: 'signed_in' })
+      }
+      waitingTab.close()
+    }
+  )
 
   it('drops the token from the URL after the outcome', async () => {
     serveConfirm(() => fail(INVALID, 404, 'invitation_invalid'))
@@ -406,7 +458,8 @@ describe('confirm page, signed in', () => {
     )
     const assign = stubAssign()
     const user = userEvent.setup()
-    renderAt(CONFIRM_PATH)
+    const mailed = `${CONFIRM_PATH}&utm_source=email&utm_medium=email&utm_campaign=invitation_confirm&utm_content=primary_button`
+    renderAt(mailed)
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Join your team' })).toBeVisible()
     expect(screen.getByText(/This invitation is for/)).toHaveTextContent(
@@ -417,7 +470,8 @@ describe('confirm page, signed in', () => {
     await user.click(screen.getByRole('button', { name: `Continue as ${LINK_EMAIL}` }))
 
     await waitFor(() => expect(assign).toHaveBeenCalledOnce())
-    expect(assign).toHaveBeenCalledWith(CONFIRM_PATH)
+    // The reload keeps the link's campaign keys, so its page view is still attributed.
+    expect(assign).toHaveBeenCalledWith(mailed)
     expect(logouts).toBe(1)
     expect(confirms).toHaveLength(0)
   })

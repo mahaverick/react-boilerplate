@@ -17,6 +17,7 @@ import { AuthPagePending } from '@/components/shared/pending-templates'
 import { buttonVariants } from '@/components/ui/button'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
+import { broadcastAuthMessage } from '@/http/session'
 import { statusFrom } from '@/lib/api-error'
 import { retryableFailureMessage } from '@/lib/retry'
 import { cn } from '@/lib/utils'
@@ -102,6 +103,8 @@ function ConfirmForToken({ token, email }: { token: string; email: string }) {
       { token, email },
       {
         onSuccess: ({ tenant, user }) => {
+          // After the hook stored the session, so a waiting tab restores this one.
+          broadcastAuthMessage('signed_in')
           setFailure(null)
           landJoined(tenant, user.email, false, ({ slug }) => {
             void navigate({ to: '/tenants/$slug', params: { slug }, replace: true })

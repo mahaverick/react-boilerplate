@@ -4,7 +4,7 @@
  * names an app's own landing, so each page passes its own.
  */
 import { Link } from '@tanstack/react-router'
-import { useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, useState, type ReactNode } from 'react'
 import { CHECK_INBOX_TITLE, SignInLinkForm } from '@/components/features/auth/sign-in-link-form'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
@@ -13,8 +13,10 @@ import { Pii } from '@/components/shared/pii'
 import { buttonVariants } from '@/components/ui/button'
 import { ROUTES } from '@/constants/routes'
 import { useCountdown } from '@/hooks/use-countdown'
+import { ensureSession, subscribeAuthMessage } from '@/http/session'
 import { formatClock } from '@/lib/countdown'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/states/auth.store'
 
 /** The title of a confirmation link the server refused, whatever the reason. */
 export const CONFIRM_DEAD_TITLE = "This link can't be used"
@@ -54,6 +56,10 @@ export function HomeLink() {
  * each `202`; the server never says its own cooldown. Focus lands on Resend
  * as the state appears, as on the sign-in form's inbox step, and the button
  * carries the status line in case the region is not announced.
+ *
+ * While it waits it listens for another tab's `signed_in`, sent after that tab
+ * opened the confirmation link. A tab that is still signed out restores the
+ * shared session and calls `onSignedIn`; a tab already signed in ignores it.
  */
 export function InvitationInbox({
   email,
@@ -61,6 +67,7 @@ export function InvitationInbox({
   resendAt,
   resending,
   onResend,
+  onSignedIn,
 }: {
   email: string
   tenantName: string
@@ -68,10 +75,36 @@ export function InvitationInbox({
   resendAt: number | null
   resending: boolean
   onResend: () => void
+  /** Called once another tab signed this browser in and ensureSession() resolved. */
+  onSignedIn: () => void
 }) {
   const left = useCountdown(resendAt)
   const sentLineId = useId()
   const focused = useRef(false)
+  const signedIn = useEffectEvent(() => onSignedIn())
+
+  useEffect(() => {
+    let restoring = false
+    // A restore that settles after unmount must not navigate.
+    let active = true
+    const unsubscribe = subscribeAuthMessage('signed_in', () => {
+      // A tab already signed in has its own session; restoring would only race it.
+      if (restoring || useAuthStore.getState().isAuthenticated) return
+      restoring = true
+      ensureSession().then(
+        () => {
+          if (active) signedIn()
+        },
+        () => {
+          restoring = false
+        }
+      )
+    })
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
 
   /** Takes focus once, as the state mounts, unless the person has already moved it. */
   const takeFocus = (element: HTMLElement | null) => {
@@ -116,7 +149,7 @@ export function ConfirmLinkIncomplete() {
   return (
     <InvitationCard
       title="This link is incomplete"
-      description="The link is missing part of its address. Open the most recent email from us and use its link."
+      description="Part of this link is missing. Open the most recent email from us and select its link."
     >
       <HomeLink />
     </InvitationCard>
