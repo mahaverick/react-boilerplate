@@ -184,12 +184,11 @@ export const handlers = [
   http.post('/api/v1/auth/register', () =>
     ok(null, 'If that address can be registered, a verification email has been sent.', 202)
   ),
-  // Fetched by the profile page's Security section; a password account, which a test about Google or a failed load overrides.
+  // Fetched by the profile page's Security section; an email-link account, which a test about Google or a failed load overrides.
   http.get('/api/v1/auth/providers', () =>
     ok(
       {
         providers: [{ provider: 'email', linkedAt: '2026-01-01T00:00:00.000Z' }],
-        hasPassword: true,
       },
       'Auth providers retrieved.'
     )

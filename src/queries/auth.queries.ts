@@ -6,7 +6,6 @@ import { statusFrom } from '@/lib/api-error'
 import { toast } from '@/lib/toast'
 import { track } from '@/observability/telemetry'
 import type {
-  ChangePasswordInput,
   ForgotPasswordInput,
   LoginInput,
   RegisterInput,
@@ -132,25 +131,11 @@ export function useResendVerification() {
   })
 }
 
-/** The sign-in methods linked to the caller's account, and whether it has a password. */
+/** The sign-in methods linked to the caller's account. */
 export function useAuthProviders() {
   return useQuery({
     queryKey: authKeys.providers,
     queryFn: async () => unwrap(await apiClient.get<ApiSuccess<AuthProviders>>('/auth/providers')),
-  })
-}
-
-/**
- * Changes the caller's password; `confirmPassword` stays client-side. The API
- * keeps this session and revokes every other one.
- */
-export function useChangePassword() {
-  return useMutation({
-    mutationFn: async (input: ChangePasswordInput) =>
-      apiClient.post<ApiSuccess<null>>('/auth/change-password', {
-        currentPassword: input.currentPassword,
-        newPassword: input.newPassword,
-      }),
   })
 }
 

@@ -176,9 +176,6 @@ const ONBOARDING = {
   dismissedAt: null,
 }
 
-/** The one current password the change-password handler below accepts. */
-const HARNESS_PASSWORD = 'current-password'
-
 const testUser = {
   id: USER_ID,
   email: 'a@b.com',
@@ -449,7 +446,6 @@ const worker = setupWorker(
           { provider: 'email', linkedAt: '2026-01-01T00:00:00.000Z' },
           { provider: 'google', linkedAt: '2026-01-02T00:00:00.000Z' },
         ],
-        hasPassword: true,
       },
       'Auth providers retrieved.'
     )
@@ -457,19 +453,6 @@ const worker = setupWorker(
   http.post('/api/v1/auth/sessions/revoke-others', () =>
     ok({ revoked: 2 }, 'Other sessions signed out.')
   ),
-  http.post('/api/v1/auth/change-password', async ({ request }) => {
-    const body = (await request.json()) as { currentPassword?: unknown }
-    if (body.currentPassword === HARNESS_PASSWORD) return ok(null, 'Password has been changed.')
-    return Response.json(
-      {
-        success: false,
-        message: 'Current password is incorrect.',
-        statusCode: 400,
-        requestId: 'harness',
-      },
-      { status: 400 }
-    )
-  }),
   // A refresh with no handler would bypass MSW and 401, which signs the harness user out.
   http.post('/api/v1/auth/refresh', () =>
     ok({ accessToken: 'harness-token', user: testUser }, 'Session refreshed.')

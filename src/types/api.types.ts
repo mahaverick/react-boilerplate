@@ -204,12 +204,11 @@ interface AuthProviderLink {
 }
 
 /**
- * `GET /auth/providers`. `hasPassword` is the only password signal: a Google
- * sign-up also has an `'email'` row, and cannot sign in with a password.
+ * `GET /auth/providers`. A Google sign-up also has an `'email'` row. Any other
+ * field the API still sends is ignored.
  */
 export interface AuthProviders {
   providers: AuthProviderLink[]
-  hasPassword: boolean
 }
 
 /** Where a tenant is in onboarding, as a member sees it; `stuck` reads `in_progress` and `awaiting_owner` reads `not_tracked`. */

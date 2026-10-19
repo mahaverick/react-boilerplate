@@ -540,7 +540,7 @@ describe('signed-in pages', () => {
     [
       'security',
       '/settings/account/security',
-      () => screen.findByRole('button', { name: 'Change password' }),
+      () => screen.findByRole('button', { name: 'Sign out other sessions' }),
     ],
     [
       'notification settings',

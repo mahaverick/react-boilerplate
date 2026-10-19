@@ -1,33 +1,17 @@
-import { useForm } from '@tanstack/react-form'
 import { useId } from 'react'
 import { BusyButton } from '@/components/shared/busy-button'
-import { Note } from '@/components/shared/note'
+import { Pii } from '@/components/shared/pii'
 import { QueryState } from '@/components/shared/query-state'
-import { CardRowsSkeleton, FormFieldsSkeleton } from '@/components/shared/section-skeleton'
-import {
-  Form,
-  FormControl,
-  FormError,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
+import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { Item, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fieldValue } from '@/hooks/use-form-field'
-import { useServerErrors } from '@/hooks/use-server-errors'
-import { messageFrom, statusFrom } from '@/lib/api-error'
+import { messageFrom } from '@/lib/api-error'
 import { toast } from '@/lib/toast'
-import { useAuthProviders, useChangePassword, useRevokeOtherSessions } from '@/queries/auth.queries'
-import { changePasswordSchema, type ChangePasswordInput } from '@/schemas/auth.schemas'
+import { useAuthProviders, useRevokeOtherSessions } from '@/queries/auth.queries'
+import { useAuthStore } from '@/states/auth.store'
 import type { AuthProviders } from '@/types/api.types'
 
-const PASSWORD_CHANGED = 'Password changed. Other sessions were signed out.'
 const PROVIDERS_ERROR = 'We could not load your sign-in methods.'
-const GOOGLE_ONLY =
-  'This account signs in with Google only. To add a password, use Forgot password on the sign-in page.'
 
 /** What the other-sessions control says it does. */
 const OTHER_SESSIONS_HINT =
@@ -46,18 +30,8 @@ function revokedMessage(revoked: number): string {
 const PROVIDER_LABELS: Record<string, string> = { google: 'Google' }
 
 /**
- * The API's change-password 400s about one field. They carry no `errors` map
- * and no `code`, so the message is the key (express auth.service.ts).
- */
-const FIELD_FOR_MESSAGE = new Map<string, keyof ChangePasswordInput>([
-  ['Current password is incorrect.', 'currentPassword'],
-  ['New password must be different from the current password.', 'newPassword'],
-])
-
-/**
- * Sign-in methods, the change-password form and signing out other sessions,
- * for whichever account page hosts it. Signing out other sessions is offered
- * on every account, a Google-only one included. The heading is `sr-only`: it
+ * Sign-in methods and signing out other sessions, for whichever account page
+ * hosts it. Signing out other sessions is offered on every account. The heading is `sr-only`: it
  * names the region for assistive tech, and the page's h1 already says Security.
  */
 export function SecuritySection() {
@@ -80,19 +54,10 @@ export function SecuritySection() {
               <Skeleton className="h-5 w-32" />
               <CardRowsSkeleton rows={2} rowHeight="1.25rem" />
             </div>
-            <div className="grid gap-2">
-              <Skeleton className="h-5 w-32" />
-              <FormFieldsSkeleton fields={3} />
-            </div>
           </div>
         }
       >
-        {(data) => (
-          <>
-            <SignInMethods {...data} />
-            {data.hasPassword ? <ChangePasswordForm /> : <Note tone="passive">{GOOGLE_ONLY}</Note>}
-          </>
-        )}
+        {(data) => <SignInMethods {...data} />}
       </QueryState>
       <OtherSessions />
     </section>
@@ -101,23 +66,30 @@ export function SecuritySection() {
 
 /**
  * The account's sign-in methods. Read-only: the API has no endpoint to unlink
- * a method. A Google sign-up has an 'email' row too, so `hasPassword` alone
- * decides whether "Email & password" is listed.
+ * a method. "Email link" is always first, because every account has an email
+ * address; the 'email' provider row is not listed again.
  */
-function SignInMethods({ providers, hasPassword }: AuthProviders) {
+function SignInMethods({ providers }: AuthProviders) {
+  const email = useAuthStore((s) => s.user?.email)
   const linked = providers.filter((link) => link.provider !== 'email')
 
   return (
     <div className="grid gap-2">
       <h3 className="text-sm font-medium">Sign-in methods</h3>
       <ItemGroup className="gap-1 has-data-[size=xs]:gap-1">
-        {hasPassword && (
-          <Item size="xs" role="listitem" className="p-0">
-            <ItemContent>
-              <ItemTitle className="line-clamp-none font-normal">Email &amp; password</ItemTitle>
-            </ItemContent>
-          </Item>
-        )}
+        <Item size="xs" role="listitem" className="p-0">
+          <ItemContent>
+            <ItemTitle className="line-clamp-none font-normal">
+              Email link
+              {email ? (
+                <>
+                  {' '}
+                  (<Pii>{email}</Pii>)
+                </>
+              ) : null}
+            </ItemTitle>
+          </ItemContent>
+        </Item>
         {linked.map((link) => (
           <Item key={link.provider} size="xs" role="listitem" className="p-0">
             <ItemContent>
@@ -133,9 +105,8 @@ function SignInMethods({ providers, hasPassword }: AuthProviders) {
 }
 
 /**
- * "Sign out other sessions": one button, confirmed by a toast with the count,
- * as the change-password form confirms its own change. A failure shows the
- * server's message.
+ * "Sign out other sessions": one button, confirmed by a toast with the count.
+ * A failure shows the server's message.
  */
 function OtherSessions() {
   const revokeOthers = useRevokeOtherSessions()
@@ -163,109 +134,6 @@ function OtherSessions() {
           Sign out other sessions
         </BusyButton>
       </div>
-    </div>
-  )
-}
-
-/**
- * The change-password form. The API's two single-field 400s are shown under
- * their field; any other failure goes through `serverErrors.capture`.
- */
-function ChangePasswordForm() {
-  const changePassword = useChangePassword()
-  const serverErrors = useServerErrors()
-
-  const defaultValues: ChangePasswordInput = {
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  }
-
-  const form = useForm({
-    defaultValues,
-    validators: { onSubmit: changePasswordSchema },
-    onSubmit: async ({ value }) => {
-      serverErrors.reset()
-      try {
-        await changePassword.mutateAsync(changePasswordSchema.parse(value))
-        toast.success(PASSWORD_CHANGED)
-        form.reset()
-      } catch (error) {
-        const field =
-          statusFrom(error) === 400 ? FIELD_FOR_MESSAGE.get(messageFrom(error)) : undefined
-        if (field) {
-          serverErrors.setFieldError(field, [messageFrom(error)])
-          return
-        }
-        serverErrors.capture(error)
-      }
-    },
-  })
-
-  return (
-    <div className="grid gap-2">
-      <h3 className="text-sm font-medium">Change password</h3>
-      <Form form={form} serverErrors={serverErrors}>
-        <FormField form={form} name="currentPassword">
-          {(field) => (
-            <FormItem>
-              <FormLabel>Current password</FormLabel>
-              <FormControl>
-                <Input
-                  type="password"
-                  autoComplete="current-password"
-                  value={fieldValue(field.state.value)}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        </FormField>
-
-        <FormField form={form} name="newPassword">
-          {(field) => (
-            <FormItem>
-              <FormLabel>New password</FormLabel>
-              <FormControl>
-                <Input
-                  type="password"
-                  autoComplete="new-password"
-                  value={fieldValue(field.state.value)}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        </FormField>
-
-        <FormField form={form} name="confirmPassword">
-          {(field) => (
-            <FormItem>
-              <FormLabel>Confirm new password</FormLabel>
-              <FormControl>
-                <Input
-                  type="password"
-                  autoComplete="new-password"
-                  value={fieldValue(field.state.value)}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        </FormField>
-
-        <FormError />
-
-        <BusyButton busy={changePassword.isPending} busyLabel="Changing…" type="submit">
-          Change password
-        </BusyButton>
-      </Form>
     </div>
   )
 }
