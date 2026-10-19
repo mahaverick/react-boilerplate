@@ -104,7 +104,9 @@ browser storage is readable by whoever runs the page, so:
   that just logged in.
 - **A sign-in in one tab reaches only a tab that waits for it.** The page
   that spends a sign-in or invitation-confirm link posts `signed_in`, with no
-  data. Only a tab showing "Check your inbox" listens, and only while it is
+  data. Only a tab with a link out listens: the sign-in form's "Check your
+  inbox" step, and the accept page while its confirmation link is out (its
+  Try again panel after a failed Resend included). It acts only while it is
   signed out; it restores the shared session through `ensureSession()`, the
   same refresh as a reload, so the message itself grants nothing. A tab that
   is already signed in ignores it.
@@ -119,11 +121,12 @@ browser storage is readable by whoever runs the page, so:
 - **The page names the address it signs in.** A link carries its address,
   and the sign-in page sends it back with the token; express refuses a
   mismatch without spending the link. While verifying, the page shows the
-  link's address, then the address the server signed in. The invitation
-  pages name only the address from the server's preview or answer, never one
-  from the URL. This is the mitigation for login CSRF, which any emailed
-  link allows: an attacker's own link would sign a victim into the attacker's
-  account, so the victim sees whose account it is.
+  link's address, then the address the server signed in. The confirm page
+  does the same with its link's address. The accept page names only the
+  address from the server's preview or answer, never one from the URL. This
+  is the mitigation for login CSRF, which any emailed link allows: an
+  attacker's own link would sign a victim into the attacker's account, so
+  the victim sees whose account it is.
 - **Choosing to sign out** (`useLogout` in `src/queries/auth.queries.ts`)
   asks the API first. The local session ends when the API confirms, or
   answers 401 because its session is already over; a network error, 5xx or

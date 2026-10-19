@@ -615,8 +615,10 @@ browser; the header only lets the API's span join a trace the browser chose.
   `/login?redirect=…`.
 - The `auth` BroadcastChannel carries three messages between tabs, none with
   data. `logout` signs every tab out. `signed_in` is posted by the page that
-  spent a sign-in or invitation-confirm link; a tab still waiting on "Check
-  your inbox" restores the shared session with `ensureSession()` and moves on,
+  spent a sign-in or invitation-confirm link; a tab with a link out (the
+  sign-in form's "Check your inbox", or the accept page while its
+  confirmation link is out) restores the shared session with
+  `ensureSession()` and moves on,
   and a tab that is already signed in ignores it. `step_up_confirmed` is
   posted by apex's confirm page; this app never sends it.
 - `installAnalyticsIdentity()` subscribes to the auth store: a change of
