@@ -115,12 +115,32 @@ describe('CreateTenantForm', () => {
     await user.click(screen.getByRole('button', { name: 'Create tenant' }))
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(TENANT))
-    // The fields keep what was typed until the caller is done with the tenant.
+    // The fields keep what was typed, and the button stays busy, until the caller is done with the tenant.
     expect(screen.getByLabelText('Name')).toHaveValue('Acme Corp')
+    expect(screen.getByRole('button', { name: 'Creating…' })).toBeDisabled()
 
     finish?.()
     await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue(''))
     expect(screen.getByLabelText('Slug')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Create tenant' })).toBeEnabled()
+  })
+
+  it('never shows the busy label for a submit that fails validation', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    const button = screen.getByRole('button', { name: 'Create tenant' })
+    // Records every label the button shows, so a one-render flash is caught too.
+    const labels: string[] = []
+    const observer = new MutationObserver(() => labels.push(button.textContent))
+    observer.observe(button, { childList: true, subtree: true, characterData: true })
+
+    await user.type(screen.getByLabelText('Slug'), 'acme')
+    await user.click(button)
+    expect(await screen.findByText('Name is required.')).toBeInTheDocument()
+    observer.disconnect()
+
+    expect(labels.filter((label) => label.includes('Creating'))).toEqual([])
+    expect(button).toHaveTextContent('Create tenant')
   })
 
   it('puts the server’s slug_taken under the slug field', async () => {

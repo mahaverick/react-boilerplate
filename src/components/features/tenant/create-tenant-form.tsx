@@ -1,5 +1,6 @@
 import '@/lib/zod-jitless'
-import { useForm, useStore } from '@tanstack/react-form'
+import { useForm } from '@tanstack/react-form'
+import { useState } from 'react'
 import { z } from 'zod'
 import { BusyButton } from '@/components/shared/busy-button'
 import {
@@ -43,6 +44,8 @@ interface CreateTenantFormProps {
 export function CreateTenantForm({ submitLabel, busyLabel, onCreated }: CreateTenantFormProps) {
   const createTenant = useCreateTenant()
   const serverErrors = useServerErrors()
+  // Busy until `onCreated` resolves too, so a second click cannot post again while the caller lands.
+  const [landing, setLanding] = useState(false)
 
   /** The schema's input type: TanStack needs the validator's input assignable to the form values. */
   const defaultValues: z.input<typeof newTenantSchema> = { name: '', slug: '', description: '' }
@@ -63,13 +66,15 @@ export function CreateTenantForm({ submitLabel, busyLabel, onCreated }: CreateTe
         serverErrors.capture(error)
         return
       }
-      await onCreated(tenant)
+      setLanding(true)
+      try {
+        await onCreated(tenant)
+      } finally {
+        setLanding(false)
+      }
       form.reset()
     },
   })
-
-  // Busy until `onCreated` resolves too, so a second click cannot post again while the caller lands.
-  const submitting = useStore(form.store, (state) => state.isSubmitting)
 
   return (
     <Form form={form} serverErrors={serverErrors}>
@@ -101,9 +106,8 @@ export function CreateTenantForm({ submitLabel, busyLabel, onCreated }: CreateTe
               />
             </FormControl>
             <FormDescription>
-              Lowercase letters, numbers and hyphens. This becomes the tenant&apos;s address:
-              /tenants/your-slug. Capitals are rejected rather than converted, so the slug you type
-              is the one you get.
+              Use lowercase letters, numbers and hyphens. The slug becomes the address:
+              /tenants/your-slug. The form refuses capitals instead of converting them.
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -129,7 +133,7 @@ export function CreateTenantForm({ submitLabel, busyLabel, onCreated }: CreateTe
 
       <FormError />
 
-      <BusyButton busy={createTenant.isPending || submitting} busyLabel={busyLabel} type="submit">
+      <BusyButton busy={createTenant.isPending || landing} busyLabel={busyLabel} type="submit">
         {submitLabel}
       </BusyButton>
     </Form>

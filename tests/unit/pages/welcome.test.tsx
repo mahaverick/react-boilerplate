@@ -20,7 +20,7 @@ import { useAuthStore } from '@/states/auth.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
-import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, tenantDetail, testFlags, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import { SLUG_TAKEN } from '@/types/api.types'
 
@@ -152,11 +152,58 @@ describe('/welcome', () => {
   })
 
   it('sends a user who has a tenant to the dashboard', async () => {
-    server.use(http.get('/api/v1/tenants', () => tenantsPage([NEW_CO])))
+    let releaseFlags: (() => void) | undefined
+    server.use(
+      http.get('/api/v1/tenants', () => tenantsPage([NEW_CO])),
+      // The shell's flags read holds the dashboard, so the frame before it can be seen.
+      http.get('/api/v1/flags', async () => {
+        await new Promise<void>((resolve) => (releaseFlags = resolve))
+        return ok(testFlags(), 'Flags retrieved.')
+      })
+    )
     const router = renderAppAt('/welcome')
 
+    // Until the dashboard lands, the page shows its skeleton, never a blank frame or the form.
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="auth-button-skeleton"]')).not.toBeNull()
+    )
+    expect(screen.getByRole('main')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create workspace' })).not.toBeInTheDocument()
+
+    await waitFor(() => expect(releaseFlags).toBeDefined())
+    releaseFlags?.()
     await waitFor(() => expect(router.state.location.pathname).toBe(ROUTES.dashboard))
     expect((router.history as RouterHistory).length).toBe(1)
+  })
+
+  it('goes to the dashboard, which stays put and offers the workspace prompt', async () => {
+    const user = userEvent.setup()
+    const router = renderAppAt('/welcome')
+
+    await user.click(await screen.findByRole('link', { name: 'Go to the dashboard' }))
+
+    // The prompt renders once the dashboard has read the empty list, so a redirect back would have fired by then.
+    const prompt = await screen.findByRole('link', { name: 'Create your workspace' })
+    expect(prompt).toHaveAttribute('href', ROUTES.welcome)
+    expect(router.state.location.pathname).toBe(ROUTES.dashboard)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Welcome back')
+  })
+
+  it('never shows Creating… for a submit that fails validation', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/welcome')
+    const button = await screen.findByRole('button', { name: 'Create workspace' })
+    // Records every label the button shows, so a one-render flash is caught too.
+    const labels: string[] = []
+    const observer = new MutationObserver(() => labels.push(button.textContent))
+    observer.observe(button, { childList: true, subtree: true, characterData: true })
+
+    await user.type(screen.getByLabelText('Slug'), 'acme')
+    await user.click(button)
+    expect(await screen.findByText('Name is required.')).toBeInTheDocument()
+    observer.disconnect()
+
+    expect(labels.filter((label) => label.includes('Creating'))).toEqual([])
   })
 
   it('shows the form when the tenant list fails to load', async () => {
@@ -243,7 +290,8 @@ describe('/welcome', () => {
     await screen.findByRole('button', { name: 'Create workspace' })
     const signedInAs = within(main).getByText(testUser.email)
     expect(signedInAs).toHaveClass('ph-sensitive')
-    expect(within(main).getByRole('link', { name: 'Skip for now' })).toHaveAttribute(
+    expect(signedInAs.parentElement).toHaveTextContent(`You're signed in as ${testUser.email}.`)
+    expect(within(main).getByRole('link', { name: 'Go to the dashboard' })).toHaveAttribute(
       'href',
       ROUTES.dashboard
     )

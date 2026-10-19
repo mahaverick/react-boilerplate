@@ -120,6 +120,21 @@ No shot: the page redirects as soon as it mounts.
 
 The walk confirmed both exits: signed in, `/auth/callback` landed on `/dashboard`; signed out, on `/login?error=google_auth_failed`.
 
+### `/welcome` — Create your workspace
+
+No shot yet: the capture needs a seeded session with no tenant.
+
+|                     |                                                                                                                                                                                                                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose             | The first-tenant step: a signed-in user with no workspace creates one.                                                                                                                                                                                                                          |
+| File                | `src/pages/welcome.tsx`                                                                                                                                                                                                                                                                         |
+| Guard and redirects | own `beforeLoad` (top level, outside `_auth` and `_app`): signed out → `/login?redirect=/welcome`; none while maintenance is `full`. A user whose `GET /tenants` lists a tenant goes to `/dashboard` (replace), with the auth skeleton until it lands; a pending or failed read shows the form. |
+| Layout              | `AuthLayout` + `AuthCard` titled "Create your workspace", described "Name your workspace. You can invite your team next."                                                                                                                                                                       |
+| Data                | started: `GET /tenants` (`['tenants']`); on submit `POST /tenants`, which refetches the list; on sign-out `POST /auth/logout`                                                                                                                                                                   |
+| Sections            | `CreateTenantForm` (Name, Slug with its live rule, Description; "Create workspace", "Creating…" while the create and the landing run; `slug_taken` under Slug). Under a separator: "You're signed in as {email}.", a "Go to the dashboard" link and a Sign out button.                          |
+| Components          | `AuthCard`, `CreateTenantForm`, `BusyButton`, `FieldSeparator`, `Pii`                                                                                                                                                                                                                           |
+| Transitions         | create → toast "{name} created." and `/tenants/$slug` (replace); "Go to the dashboard" → `/dashboard`, which shows the workspace prompt; Sign out → `/login`                                                                                                                                    |
+
 ### `/invitations/accept` — Accept an invitation
 
 ![Join Capture Co](img/auth/invitation-accept--default.jpg)

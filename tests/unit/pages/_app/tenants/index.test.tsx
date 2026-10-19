@@ -249,6 +249,23 @@ describe('tenants list', () => {
     expect(await screen.findByRole('link', { name: /Acme Corp/ })).toBeInTheDocument()
   })
 
+  it('never shows Creating… for a submit that fails validation', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/tenants')
+    const button = await screen.findByRole('button', { name: 'Create tenant' })
+    // Records every label the button shows, so a one-render flash is caught too.
+    const labels: string[] = []
+    const observer = new MutationObserver(() => labels.push(button.textContent))
+    observer.observe(button, { childList: true, subtree: true, characterData: true })
+
+    await user.type(screen.getByLabelText('Slug'), 'acme')
+    await user.click(button)
+    expect(await screen.findByText('Name is required.')).toBeInTheDocument()
+    observer.disconnect()
+
+    expect(labels.filter((label) => label.includes('Creating'))).toEqual([])
+  })
+
   it('refreshes the table with the new tenant after a create, and says so', async () => {
     const success = vi.spyOn(toast, 'success')
     let created = false

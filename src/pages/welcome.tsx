@@ -54,7 +54,7 @@ function WelcomePage() {
   useEffect(() => {
     if (hasTenant) void navigate({ to: ROUTES.dashboard, replace: true })
   }, [hasTenant, navigate])
-  if (hasTenant) return null
+  if (hasTenant) return <AuthPagePending />
 
   /** Announces the new tenant and opens it, replacing this step in history. */
   const onCreated = async (tenant: Tenant) => {
@@ -77,7 +77,7 @@ function WelcomePage() {
         <div className="grid gap-3 text-center text-sm">
           {email && (
             <p className="text-muted-foreground">
-              Signed in as <Pii>{email}</Pii>
+              You&apos;re signed in as <Pii>{email}</Pii>.
             </p>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -85,7 +85,7 @@ function WelcomePage() {
               to={ROUTES.dashboard}
               className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
             >
-              Skip for now
+              Go to the dashboard
             </Link>
             <BusyButton
               variant="ghost"
