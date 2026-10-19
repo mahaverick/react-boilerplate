@@ -411,6 +411,7 @@ test.describe('popups that are not menus', () => {
 
       await facet.getByRole('checkbox', { name: 'Owner' }).click()
       await page.keyboard.press('Escape')
+      await expect(facet).toBeHidden()
       await expect(
         members.getByRole('button', { name: 'Remove filter: Role: Owner' })
       ).toBeVisible()

@@ -161,7 +161,8 @@ function NotificationRow({
  * and a read-state filter. The list's loading, error and empty states are
  * `DataTable`'s, so a failed load is never the empty inbox. "Mark all read"
  * always shows and is disabled with nothing unread, so the toolbar keeps its
- * place; focus moves to the heading once the button disables.
+ * place. While the request runs it is `aria-disabled`, not `disabled`, so focus stays
+ * on it if the request fails; on success focus moves to the heading.
  */
 function NotificationsPage() {
   const list = useListSearch(notificationsList)
@@ -205,10 +206,12 @@ function NotificationsPage() {
             <Button
               variant="outline"
               size="sm"
-              disabled={unread === undefined || unread.count === 0 || markAllRead.isPending}
-              onClick={() =>
+              disabled={unread === undefined || unread.count === 0}
+              aria-disabled={markAllRead.isPending || undefined}
+              onClick={() => {
+                if (markAllRead.isPending) return
                 markAllRead.mutate(undefined, { onSuccess: () => focus.focusAfter('heading') })
-              }
+              }}
             >
               Mark all read
             </Button>

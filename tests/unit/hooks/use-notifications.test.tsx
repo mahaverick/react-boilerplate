@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { act, StrictMode, type ReactNode } from 'react'
+import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_PREFIX } from '@/constants/routes'
 import { useNotificationStream } from '@/hooks/use-notifications'
@@ -33,8 +33,8 @@ const STREAM_URL = `${API_PREFIX}/notifications/stream`
 const streamPayload: Omit<Notification, 'userId' | 'metadata'> = {
   id: NOTIFICATION_ID,
   type: 'tenant_invitation',
-  title: 'Verify your email',
-  body: 'Follow the link we sent you.',
+  title: 'You are invited to Acme',
+  body: 'A B invited you to join Acme Corp.',
   readAt: null,
   createdAt: '2026-09-21T10:00:00.000Z',
 }
@@ -44,8 +44,8 @@ const listRow: Notification = {
   id: NOTIFICATION_ID,
   userId: testUser.id,
   type: 'tenant_invitation',
-  title: 'Verify your email',
-  body: 'Follow the link we sent you.',
+  title: 'You are invited to Acme',
+  body: 'A B invited you to join Acme Corp.',
   metadata: null,
   readAt: null,
   createdAt: '2026-09-21T10:00:00.000Z',
@@ -85,7 +85,8 @@ describe('useNotificationStream', () => {
 
   /**
    * A page load opens the stream once per token. StrictMode's second effect run aborts the
-   * first connect, so at most one connection stays live, and none is left open beside it.
+   * first connect, so one connection stays live. The plain-mount half settles one microtask
+   * turn only, so a reconnect on a backoff timer is out of scope.
    */
   it('opens one stream per token per mount, StrictMode included', async () => {
     const { unmount } = renderHook(() => useNotificationStream(), { wrapper })
@@ -95,14 +96,11 @@ describe('useNotificationStream', () => {
     unmount()
 
     MockFetchStream.instances = []
-    const strict = renderHook(() => useNotificationStream(), {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <StrictMode>{wrapper({ children })}</StrictMode>
-      ),
-    })
-    await waitFor(() => expect(MockFetchStream.instances.length).toBeGreaterThan(0))
+    const strict = renderHook(() => useNotificationStream(), { wrapper, reactStrictMode: true })
+    // Two connects prove StrictMode's mount-unmount-mount ran; the first must be aborted.
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
     await act(async () => {})
-    expect(MockFetchStream.instances.filter((stream) => !stream.aborted)).toHaveLength(1)
+    expect(MockFetchStream.instances.map((stream) => stream.aborted)).toEqual([true, false])
     strict.unmount()
   })
 

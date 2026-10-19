@@ -18,8 +18,8 @@ const unreadRow: Notification = {
   id: NOTIFICATION_ID,
   userId: testUser.id,
   type: 'tenant_invitation',
-  title: 'Verify your email',
-  body: 'Follow the link we sent you.',
+  title: 'You are invited to Acme',
+  body: 'A B invited you to join Acme Corp.',
   metadata: null,
   readAt: null,
   createdAt: '2026-09-21T10:00:00.000Z',
@@ -87,7 +87,9 @@ describe('NotificationBell', () => {
     renderShell()
     await openBell()
 
-    expect(await screen.findByRole('menuitem', { name: /Verify your email/ })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('menuitem', { name: /You are invited to Acme/ })
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Notifications, 1 unread' })).toBeInTheDocument()
   })
 
@@ -214,7 +216,9 @@ describe('NotificationBell', () => {
     const bell = await screen.findByRole('button', { name: 'Notifications, count unavailable' })
     await waitFor(() => expect(bell.querySelector('[data-slot="bell-unavailable"]')).not.toBeNull())
     const user = await openBell()
-    expect(await screen.findByRole('menuitem', { name: /Verify your email/ })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('menuitem', { name: /You are invited to Acme/ })
+    ).toBeInTheDocument()
     failing = false
     await user.click(await screen.findByRole('menuitem', { name: 'Try again' }))
     expect(await screen.findByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible()

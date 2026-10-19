@@ -105,9 +105,9 @@ const NOTIFICATIONS = [
   {
     id: NOTIFICATION_ID_2,
     userId: USER_ID,
-    type: 'tenant_invitation',
-    title: 'You joined Acme',
-    body: 'You accepted the invitation to Acme Corp.',
+    type: 'maintenance_mode_changed',
+    title: 'Maintenance mode changed',
+    body: 'Maintenance mode is now on.',
     data: null,
     readAt: '2026-01-02T10:00:00.000Z',
     createdAt: '2026-01-02T08:00:00.000Z',

@@ -18,8 +18,8 @@ const unreadRow: Notification = {
   id: NOTIFICATION_ID,
   userId: testUser.id,
   type: 'tenant_invitation',
-  title: 'Verify your email',
-  body: 'Follow the link we sent you.',
+  title: 'You are invited to Acme',
+  body: 'A B invited you to join Acme Corp.',
   metadata: null,
   readAt: null,
   createdAt: '2026-09-21T10:00:00.000Z',
@@ -83,7 +83,7 @@ describe('notifications page', () => {
   it('shows the inbox as cards at every width, with a search box and paging', async () => {
     renderNotifications()
     const cards = await screen.findByRole('list', { name: 'Notifications' })
-    expect(within(cards).getByRole('listitem')).toHaveTextContent('Verify your email')
+    expect(within(cards).getByRole('listitem')).toHaveTextContent('You are invited to Acme')
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: 'Search notifications' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Notifications pagination' })).toBeInTheDocument()
@@ -410,12 +410,24 @@ describe('notifications page', () => {
 
       await user.click(button)
 
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Mark all read' })).toBeDisabled()
-      )
+      await waitFor(() => expect(button).toBeDisabled())
       await waitFor(() =>
         expect(screen.getByRole('heading', { level: 1, name: 'Notifications' })).toHaveFocus()
       )
+    })
+
+    it('keeps focus on Mark all read when the request fails', async () => {
+      serveUnread(1)
+      server.use(http.patch('/api/v1/notifications/read-all', () => fail('Server error', 500)))
+      const user = userEvent.setup()
+      renderNotifications()
+      const button = await screen.findByRole('button', { name: 'Mark all read' })
+      await waitFor(() => expect(button).toBeEnabled())
+
+      await user.click(button)
+
+      await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'))
+      expect(button).toHaveFocus()
     })
   })
 
