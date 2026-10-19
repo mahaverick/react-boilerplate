@@ -1,7 +1,8 @@
 # React Boilerplate
 
 A React 19 + TypeScript single-page app, built to talk to the
-`express-boilerplate` API. Session handling, routing guards, forms, tenant
+`express-boilerplate` API (6.0.0 or later). People sign in by emailed link or
+Google; there are no passwords. Session handling, routing guards, forms, tenant
 management, a Settings area for the account and the current tenant, and a live
 notification stream are wired up, so a new project starts here rather than at
 `create-vite`.
@@ -55,7 +56,10 @@ which the dev server serves as `/runtime-config.js` (see
 
 The dev server proxies `/api` to `http://localhost:4040` (`vite.config.ts`).
 Nothing that touches the backend works without the API: sign-in, the session
-bootstrap on page load and the notification stream all fail at once. The proxy
+bootstrap on page load and the notification stream all fail at once. Sign-in
+links arrive by email, so a local sign-in also needs the API's mail catcher
+(express's Mailpit, :8025 by default): open the newest message there and select
+its link. The proxy
 is not a convenience. The SPA and the API are served from one origin, which is
 the only topology this app supports (see [Deploying](#deploying)). In
 development that origin is the Vite proxy, and in the container it is nginx.
@@ -227,12 +231,19 @@ The `live` and `nginx` projects read these variables (defaults in
   checkout will do, `../express-boilerplate` included. The SSE reconnect test
   restarts `pnpm dev` there, so for it alone this must be a separate git
   worktree, never the main checkout.
-- `E2E_MAILPIT_ORIGIN` (default `http://localhost:8025`): the mailpit the helpers
-  read verification emails from.
+- `E2E_MAILPIT_ORIGIN` (default `http://localhost:8025`): the Mailpit the helpers
+  read sign-in and invitation-confirm links from. Every `live` sign-in goes
+  through it.
 - `E2E_RELEASE` (default `dev`): the release `nginx/errors.test.ts` expects on each
   error report.
 - `E2E_ALLOWED_ORIGIN` (default `http://localhost:5173`): the origin
   `nginx/cors.test.ts` sends, which must be in the express's CORS allowlist.
+
+Each `live` run signs in fresh addresses by emailed link. Express mails an
+address one link a minute and allows ten link requests per IP per fifteen
+minutes, so a full run against a local express needs `RATE_LIMIT_SCALE` set
+there, as the nightly run does. The helpers are described in
+[CLAUDE.md](CLAUDE.md#end-to-end-tests).
 
 The SSE reconnect test restarts an express, so it runs only by hand, behind a
 guard that refuses to touch the main checkout. The steps and the guard's rules
