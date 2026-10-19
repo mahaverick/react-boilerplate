@@ -6,7 +6,7 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axeCore from 'axe-core'
-import { http } from 'msw'
+import { delay, http } from 'msw'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { ThemeToggle } from '@/components/features/theme-toggle'
 import { recordRecent } from '@/components/shared/command-palette/recent-items'
@@ -887,6 +887,54 @@ describe('invitation accept states', () => {
     renderAppAt(acceptPath)
     await user.click(await screen.findByRole('button', { name: 'Accept invitation' }))
     await screen.findByRole('alert')
+    await expectNoViolations()
+  })
+})
+
+/** The sign-in link page's states, each its own render. */
+describe('auth link states', () => {
+  const linkPath = `/auth/link?token=${'t'.repeat(43)}&email=ada%40example.test`
+
+  it('auth link verifying has no axe violations', async () => {
+    signOut()
+    server.use(
+      http.post('/api/v1/auth/link/verify', async () => {
+        await delay('infinite')
+        return ok(null)
+      })
+    )
+    renderAppAt(linkPath)
+    await screen.findByRole('heading', { level: 1, name: 'Signing you in' })
+    await expectNoViolations()
+  })
+
+  it('auth link dead has no axe violations', async () => {
+    signOut()
+    server.use(
+      http.post('/api/v1/auth/link/verify', () =>
+        fail('This link has expired or was already used.', 400, 'LINK_INVALID')
+      )
+    )
+    renderAppAt(linkPath)
+    await screen.findByRole('button', { name: 'Email me a new link' })
+    await expectNoViolations()
+  })
+
+  it('auth link switch account has no axe violations', async () => {
+    signIn()
+    mockSignedInData()
+    renderAppAt(linkPath)
+    await screen.findByRole('heading', { level: 1, name: 'Switch account?' })
+    await expectNoViolations()
+  })
+
+  it('auth link failed has no axe violations', async () => {
+    signOut()
+    server.use(
+      http.post('/api/v1/auth/link/verify', () => fail('Too many requests. Try again later.', 429))
+    )
+    renderAppAt(linkPath)
+    await screen.findByRole('button', { name: 'Try again' })
     await expectNoViolations()
   })
 })

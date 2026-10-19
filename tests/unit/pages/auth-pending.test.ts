@@ -3,6 +3,7 @@ import { AuthPagePending, AuthPending } from '@/components/shared/pending-templa
 import { Route as authRoute } from '@/pages/_auth'
 import { Route as login } from '@/pages/_auth/login'
 import { Route as callback } from '@/pages/auth/callback'
+import { Route as authLink } from '@/pages/auth/link'
 import { Route as accept } from '@/pages/invitations/accept'
 import { Route as welcome } from '@/pages/welcome'
 
@@ -18,6 +19,7 @@ describe('the auth routes name their own pending template', () => {
     ['_auth', authRoute],
     ['invitations/accept', accept],
     ['auth/callback', callback],
+    ['auth/link', authLink],
     ['welcome', welcome],
   ])('%s, which draws its own frame, uses the framed template', (_name, route) => {
     expect(route.options.pendingComponent).toBe(AuthPagePending)

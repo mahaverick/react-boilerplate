@@ -295,7 +295,10 @@ too.
   bodies or JSON-LD, and each recorded request URL is sanitised.
 - **Captured URLs keep only allowlisted query keys.**
   `ANALYTICS_URL_QUERY_ALLOWLIST` (`src/observability/telemetry/config.ts`)
-  is the whole list: `tab`; the sanitizer
+  is the whole list: `tab` and the campaign keys express puts on every link it
+  mails (`utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, fixed
+  constants with no address or id), so a mailed link's landing page view keeps
+  its campaign while its `token` and `email` go; the sanitizer
   (`src/observability/telemetry/url-sanitizer.ts`) runs as `before_send` and
   rewrites every absolute http(s) string in an event's properties, `$set` and
   `$set_once`, to eight levels deep, plus the hrefs in `$elements` and

@@ -92,6 +92,15 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     kind: 'redirect',
     to: '/welcome for a new account (new=1), else the safe redirect or /dashboard when signed in, else /login?error=google_auth_failed (in an effect)',
   },
+  '/auth/link': {
+    kind: 'page',
+    area: 'auth',
+    shot: 'sign-in-link',
+    url: '/auth/link',
+    as: 'anonymous',
+    sections: [],
+    note: 'With no token the page shows the dead link; the verifying, switch-account and failed states need a mailed link.',
+  },
   '/invitations/accept': {
     kind: 'page',
     area: 'auth',

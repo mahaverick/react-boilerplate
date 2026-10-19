@@ -16,10 +16,9 @@ const SCRIPT = readFileSync(path.join(ROOT, 'public/boot-variant.js'), 'utf8')
 
 /**
  * Listed auth paths that only one of the two apps has: apex's `/no-access` and
- * `/auth/confirm`, and react's `/welcome`. `/auth/link` waits here until its
- * route exists.
+ * `/auth/confirm`, and react's `/welcome`.
  */
-const SIBLING_ONLY = new Set(['/no-access', '/auth/confirm', '/welcome', '/auth/link'])
+const SIBLING_ONLY = new Set(['/no-access', '/auth/confirm', '/welcome'])
 
 /**
  * Retired password paths that redirect to `/login` before they render, so

@@ -24,6 +24,7 @@ import { Route as AppProfileRouteImport } from './pages/_app/profile'
 import { Route as AppSettingsRouteImport } from './pages/_app/settings'
 import { Route as AuthLoginRouteImport } from './pages/_auth/login'
 import { Route as AuthCallbackRouteImport } from './pages/auth/callback'
+import { Route as AuthLinkRouteImport } from './pages/auth/link'
 import { Route as InvitationsAcceptRouteImport } from './pages/invitations/accept'
 import { Route as AppSettingsIndexRouteImport } from './pages/_app/settings/index'
 import { Route as AppTenantsIndexRouteImport } from './pages/_app/tenants/index'
@@ -114,6 +115,11 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthLinkRoute = AuthLinkRouteImport.update({
+  id: '/auth/link',
+  path: '/auth/link',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRouteWithChildren
   '/login': typeof AuthLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/auth/link': typeof AuthLinkRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/settings/': typeof AppSettingsIndexRoute
@@ -261,6 +268,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AppProfileRoute
   '/login': typeof AuthLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/auth/link': typeof AuthLinkRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/settings': typeof AppSettingsIndexRoute
   '/tenants': typeof AppTenantsIndexRoute
@@ -295,6 +303,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_auth/login': typeof AuthLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/auth/link': typeof AuthLinkRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/_app/settings/': typeof AppSettingsIndexRoute
@@ -330,6 +339,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/login'
     | '/auth/callback'
+    | '/auth/link'
     | '/invitations/accept'
     | '/tenants/$slug'
     | '/settings/'
@@ -362,6 +372,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/login'
     | '/auth/callback'
+    | '/auth/link'
     | '/invitations/accept'
     | '/settings'
     | '/tenants'
@@ -395,6 +406,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_auth/login'
     | '/auth/callback'
+    | '/auth/link'
     | '/invitations/accept'
     | '/_app/tenants/$slug'
     | '/_app/settings/'
@@ -426,6 +438,7 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   WelcomeRoute: typeof WelcomeRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  AuthLinkRoute: typeof AuthLinkRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
 }
 
@@ -534,6 +547,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/callback'
       fullPath: '/auth/callback'
       preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/link': {
+      id: '/auth/link'
+      path: '/auth/link'
+      fullPath: '/auth/link'
+      preLoaderRoute: typeof AuthLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invitations/accept': {
@@ -769,6 +789,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   WelcomeRoute: WelcomeRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  AuthLinkRoute: AuthLinkRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
 }
 export const routeTree = rootRouteImport

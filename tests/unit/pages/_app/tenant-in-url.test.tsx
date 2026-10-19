@@ -243,6 +243,31 @@ describe('?tenant on pages without $slug', () => {
     expect(await findSwitcher('Globex')).toBeInTheDocument()
   })
 
+  it('validates the ?tenant of a sign-in link redirect after the link signs in', async () => {
+    useAuthStore.setState({
+      accessToken: null,
+      user: null,
+      isAuthenticated: false,
+      isBootstrapped: false,
+    })
+    server.use(
+      http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)),
+      http.post('/api/v1/auth/link/verify', () =>
+        ok(
+          { user: testUser, accessToken: 'link-token', isNewUser: false, redirect: null },
+          'Signed in.'
+        )
+      )
+    )
+    serveTenants([GLOBEX])
+    const { router } = renderAt(
+      `/auth/link?token=${'t'.repeat(43)}&redirect=${encodeURIComponent('/settings/account/profile?tenant=acme')}`
+    )
+
+    await expectHref(router, '/settings/account/profile?tenant=globex')
+    expect(await findSwitcher('Globex')).toBeInTheDocument()
+  })
+
   it('leaves out ?tenant, without a redirect loop, for a user with no eligible tenant', async () => {
     serveTenants([PLATFORM, UMBRELLA])
     const { router, loads } = renderAt('/dashboard')

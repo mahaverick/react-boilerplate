@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   ANALYTICS_CROSS_SUBDOMAIN_COOKIE,
   ANALYTICS_PERSISTENCE_NAME,
+  ANALYTICS_URL_QUERY_ALLOWLIST,
 } from '@/observability/telemetry/config'
 import { maskReplayAttribute } from '@/observability/telemetry/mask-attribute'
 import {
@@ -125,6 +126,21 @@ describe('buildPosthogOptions', () => {
       properties: { $current_url: 'https://app.example.com/x?token=probe-token&tab=a' },
     })
     expect(sent?.properties.$current_url).toBe('https://app.example.com/x?tab=a')
+  })
+
+  it('keeps the campaign keys of a mailed sign-in link and drops its token, email and redirect', () => {
+    const beforeSend = buildPosthogOptions(input({ urlAllowlist: ANALYTICS_URL_QUERY_ALLOWLIST }))
+      .before_send as (event: CaptureResult | null) => CaptureResult | null
+    const campaign =
+      'utm_source=email&utm_medium=email&utm_campaign=sign_in_link&utm_content=primary_button'
+    const sent = beforeSend({
+      uuid: 'u',
+      event: '$pageview',
+      properties: {
+        $current_url: `https://app.example.com/auth/link?token=probe-token&email=a%40b.test&redirect=%2Fx&${campaign}`,
+      },
+    })
+    expect(sent?.properties.$current_url).toBe(`https://app.example.com/auth/link?${campaign}`)
   })
 
   it('turns off the automatic pageview and keeps the pageleave', () => {

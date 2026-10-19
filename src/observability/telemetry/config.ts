@@ -13,12 +13,19 @@ import {
 export const ANALYTICS_APP = 'react'
 
 /**
- * The query keys a captured URL may keep. Every other key, and the hash, is
- * dropped before an event leaves the browser: `?token=` (invitation accept,
- * password reset, email verification), `register?email=` and a `?redirect=`
- * wrapping either would otherwise reach PostHog.
+ * The query keys a captured URL may keep: `tab`, and the campaign keys express
+ * puts on every link it mails, whose values are fixed constants with no
+ * personal data. Every other key, and the hash, is dropped before an event
+ * leaves the browser: the `?token=` and `?email=` of a sign-in or invitation
+ * link, and a `?redirect=` wrapping either, would otherwise reach PostHog.
  */
-export const ANALYTICS_URL_QUERY_ALLOWLIST: readonly string[] = ['tab']
+export const ANALYTICS_URL_QUERY_ALLOWLIST: readonly string[] = [
+  'tab',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_content',
+]
 
 /** Whether `ANALYTICS_CONSENT_MODE` is honoured; an app that says no always runs `opt_out`. */
 const SUPPORTS_CONSENT_MODES = true
