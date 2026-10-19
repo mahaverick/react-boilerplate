@@ -170,19 +170,23 @@ describe('/auth/callback', () => {
     })
   })
 
-  it.each(['//evil.test', '/\\evil.test', 'https://evil.test', 'javascript:alert(1)'])(
-    'lands an unsafe callback redirect on the dashboard (%s)',
-    async (unsafe) => {
-      arriveSignedIn()
-      serveOneTenant()
-      const router = renderAt(`/auth/callback?redirect=${encodeURIComponent(unsafe)}`)
+  it.each([
+    '//evil.test',
+    '/\\evil.test',
+    'https://evil.test',
+    'javascript:alert(1)',
+    '/auth/link?token=evil',
+    '/invitations/%61ccept?token=evil',
+  ])('lands an unsafe callback redirect on the dashboard (%s)', async (unsafe) => {
+    arriveSignedIn()
+    serveOneTenant()
+    const router = renderAt(`/auth/callback?redirect=${encodeURIComponent(unsafe)}`)
 
-      await waitFor(() => {
-        expect(router.state.location.pathname).toBe('/dashboard')
-      })
-      expect(router.state.location.href).not.toContain('evil')
-    }
-  )
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/dashboard')
+    })
+    expect(router.state.location.href).not.toContain('evil')
+  })
 
   it('replaces the callback in history, so Back never returns to it', async () => {
     arriveSignedIn()

@@ -9,7 +9,7 @@ import { AuthPagePending } from '@/components/shared/pending-templates'
 import { Spinner } from '@/components/ui/spinner'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
-import { safeRedirect } from '@/lib/safe-redirect'
+import { safeLanding } from '@/lib/landing'
 import { track } from '@/observability/telemetry'
 import { tenantsQueryOptions } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
@@ -65,7 +65,7 @@ function OAuthCallbackPage() {
       void navigate({ to: ROUTES.welcome, replace: true })
       return
     }
-    const target = safeRedirect(redirect)
+    const target = safeLanding(redirect)
     if (target) {
       void navigate({ href: target, replace: true })
       return

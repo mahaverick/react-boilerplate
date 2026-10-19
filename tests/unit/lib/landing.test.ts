@@ -14,8 +14,20 @@ describe('safeLanding', () => {
     '/invitations/accept/',
     '/invitations/confirm?token=ttt&email=a%40b.test',
     '/Invitations/Confirm/',
+    // The router decodes the path before it matches, so an escaped letter is still the token page.
+    '/auth/%6Cink?token=ttt',
+    '/invitations/%61ccept?token=ttt',
+    '/invitations/confirm%2F?token=ttt',
   ])('refuses the token page %s', (value) => {
     expect(safeLanding(value)).toBeNull()
+  })
+
+  it('refuses a path whose escapes do not decode', () => {
+    expect(safeLanding('/notifications/%E0%A4%A')).toBeNull()
+  })
+
+  it('keeps an escaped path that is not a token page', () => {
+    expect(safeLanding('/tenants/a%20b')).toBe('/tenants/a%20b')
   })
 
   it.each(['//evil.test', 'https://evil.test', undefined, null, ''])(
