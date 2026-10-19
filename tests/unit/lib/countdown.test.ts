@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatClock, formatMinutesLeft } from '@/lib/countdown'
+import { formatClock, formatTimeLeft } from '@/lib/countdown'
 
 describe('formatClock', () => {
   it.each([
@@ -13,13 +13,17 @@ describe('formatClock', () => {
   })
 })
 
-describe('formatMinutesLeft', () => {
+describe('formatTimeLeft', () => {
   it.each([
-    [1, '1 min'],
+    [1, '1 second'],
+    [42, '42 seconds'],
+    [59, '59 seconds'],
+    [60, '1 min'],
+    [61, '2 min'],
     [240, '4 min'],
     [241, '5 min'],
-    [0, '1 min'],
+    [0, '1 second'],
   ])('writes %s seconds as %s', (seconds, expected) => {
-    expect(formatMinutesLeft(seconds)).toBe(expected)
+    expect(formatTimeLeft(seconds)).toBe(expected)
   })
 })

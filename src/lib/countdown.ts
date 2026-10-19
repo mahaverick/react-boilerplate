@@ -4,7 +4,12 @@ export function formatClock(seconds: number): string {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
 }
 
-/** Seconds as the whole minutes still to wait, rounded up and never below one: 241 reads "5 min". */
-export function formatMinutesLeft(seconds: number): string {
-  return `${Math.max(1, Math.ceil(seconds / 60))} min`
+/**
+ * Seconds as the time still to wait: whole seconds under a minute ("42 seconds",
+ * "1 second"), then whole minutes rounded up ("5 min" for 241 s). Never below one second.
+ */
+export function formatTimeLeft(seconds: number): string {
+  const whole = Math.max(1, Math.ceil(seconds))
+  if (whole < 60) return `${whole} ${whole === 1 ? 'second' : 'seconds'}`
+  return `${Math.ceil(whole / 60)} min`
 }

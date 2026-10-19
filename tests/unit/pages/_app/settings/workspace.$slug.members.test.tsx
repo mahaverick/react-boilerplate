@@ -857,7 +857,7 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
-      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+      await screen.findByRole('button', { name: 'Resend, invitation to invitee@b.com' })
     )
 
     expect(await screen.findByText('Invitation resent to invitee@b.com.')).toBeInTheDocument()
@@ -885,7 +885,7 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
-      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+      await screen.findByRole('button', { name: 'Resend, invitation to invitee@b.com' })
     )
 
     expect(
@@ -910,7 +910,7 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     for (const email of ['owner@b.com', 'admin@b.com']) {
-      const resend = await screen.findByRole('button', { name: `Resend invitation to ${email}` })
+      const resend = await screen.findByRole('button', { name: `Resend, invitation to ${email}` })
       const revoke = screen.getByRole('button', { name: `Revoke invitation to ${email}` })
       for (const control of [resend, revoke]) {
         expect(control).toBeDisabled()
@@ -923,7 +923,10 @@ describe('inviting, and the pending invitations', () => {
     expect(
       screen.getAllByText('Only an owner can resend or revoke an invitation for this role.')
     ).toHaveLength(2)
-    for (const name of ['Resend invitation to editor@b.com', 'Revoke invitation to editor@b.com']) {
+    for (const name of [
+      'Resend, invitation to editor@b.com',
+      'Revoke invitation to editor@b.com',
+    ]) {
       const control = screen.getByRole('button', { name })
       expect(control).toBeEnabled()
       expect(control).not.toHaveAttribute('aria-describedby')
@@ -949,7 +952,7 @@ describe('inviting, and the pending invitations', () => {
 
     for (const role of ['owner', 'admin', 'manager', 'editor', 'viewer']) {
       const email = `${role}@b.com`
-      const resend = await screen.findByRole('button', { name: `Resend invitation to ${email}` })
+      const resend = await screen.findByRole('button', { name: `Resend, invitation to ${email}` })
       const revoke = screen.getByRole('button', { name: `Revoke invitation to ${email}` })
       for (const control of [resend, revoke]) {
         expect(control).toBeEnabled()
@@ -976,7 +979,7 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
-      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+      await screen.findByRole('button', { name: 'Resend, invitation to invitee@b.com' })
     )
 
     expect(await screen.findByText('That invitation is no longer pending.')).toBeInTheDocument()
@@ -1562,7 +1565,7 @@ describe('a customer tenant reached through platform access', () => {
         await screen.findByRole('heading', { name: 'Pending invitations' })
       ).toBeInTheDocument()
       expect(await screen.findByText('invitee@b.com')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /^Resend invitation/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^Resend, invitation/ })).toBeNull()
       expect(screen.queryByRole('button', { name: /^Revoke invitation/ })).toBeNull()
       expect(screen.queryByRole('columnheader', { name: 'Actions' })).toBeNull()
       expect(
@@ -1693,7 +1696,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
-      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+      await screen.findByRole('button', { name: 'Resend, invitation to invitee@b.com' })
     )
 
     expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()

@@ -598,7 +598,7 @@ test.describe('toasts', () => {
           timeout: COLD_TRANSFORM_BUDGET_MS,
         })
         await page
-          .getByRole('button', { name: /^Resend invitation to/ })
+          .getByRole('button', { name: /^Resend, invitation to/ })
           .first()
           .click()
       },

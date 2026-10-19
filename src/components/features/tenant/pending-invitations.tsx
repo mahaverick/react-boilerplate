@@ -25,7 +25,7 @@ import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants
 import { useCountdown } from '@/hooks/use-countdown'
 import { useFocusAfter } from '@/hooks/use-focus-after'
 import { codeFrom, retryAfterSecondsFrom } from '@/lib/api-error'
-import { formatMinutesLeft } from '@/lib/countdown'
+import { formatTimeLeft } from '@/lib/countdown'
 import { formatDate } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
@@ -114,7 +114,9 @@ function ResendInvitationButton({
 }) {
   const resend = useResendInvitation(slug)
   const [localUntil, setLocalUntil] = useState<number | null>(null)
-  const left = useCountdown(resendDeadline(invitation.resendAvailableAt, localUntil))
+  const left = useCountdown(
+    reasonId ? null : resendDeadline(invitation.resendAvailableAt, localUntil)
+  )
 
   if (reasonId) {
     return (
@@ -122,7 +124,7 @@ function ResendInvitationButton({
         variant="outline"
         size="sm"
         disabled
-        aria-label={`Resend invitation to ${invitation.email}`}
+        aria-label={`Resend, invitation to ${invitation.email}`}
         aria-describedby={reasonId}
       >
         Resend
@@ -139,8 +141,8 @@ function ResendInvitationButton({
       focusableWhenDisabled
       aria-label={
         waiting
-          ? `Resend invitation to ${invitation.email}, available in ${formatMinutesLeft(left)}`
-          : `Resend invitation to ${invitation.email}`
+          ? `Resend in ${formatTimeLeft(left)}, invitation to ${invitation.email}`
+          : `Resend, invitation to ${invitation.email}`
       }
       onClick={() => {
         if (waiting) return
@@ -156,7 +158,7 @@ function ResendInvitationButton({
         )
       }}
     >
-      {waiting ? `Resend in ${formatMinutesLeft(left)}` : 'Resend'}
+      {waiting ? `Resend in ${formatTimeLeft(left)}` : 'Resend'}
     </Button>
   )
 }

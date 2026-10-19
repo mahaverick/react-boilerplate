@@ -89,7 +89,7 @@ test('the members page masks members, invitees, inviters, the remove dialog and 
   await expectAllMasked(page, 7)
   await page.getByRole('button', { name: 'Cancel' }).click()
 
-  await page.getByRole('button', { name: /^Resend invitation to/ }).click()
+  await page.getByRole('button', { name: /^Resend, invitation to/ }).click()
   await expect(page.getByText(/^Invitation resent to/)).toBeVisible()
   await expectAllMasked(page, 6)
 })
