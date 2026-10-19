@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
@@ -90,6 +90,15 @@ async function send(
   await user.click(screen.getByRole('button', { name: submit }))
 }
 
+/** A session restore that settles only when the test calls `restore`. */
+function heldRestore() {
+  let resolveRestore: ((token: string) => void) | null = null
+  const restored = new Promise<string>((resolve) => {
+    resolveRestore = resolve
+  })
+  return { restored, restore: (token: string) => resolveRestore?.(token) }
+}
+
 /** Waits for the check-inbox state's status line. */
 function sentLine() {
   return screen.findByText(/We sent a sign-in link to/)
@@ -115,7 +124,7 @@ afterEach(() => {
 describe('SignInLinkForm', () => {
   it('pins the titles and the cooldown the pages share', () => {
     expect(CHECK_INBOX_TITLE).toBe('Check your inbox')
-    expect(LINK_DEAD_TITLE).toBe('This link has expired or was already used')
+    expect(LINK_DEAD_TITLE).toBe('This link expired or was already used')
     expect(RESEND_COOLDOWN_SECONDS).toBe(60)
   })
 
@@ -137,7 +146,9 @@ describe('SignInLinkForm', () => {
     expect(screen.getByText('The link works once and expires in 15 minutes.')).toBeVisible()
     expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
     // The submit button is gone, so the resend button that took its place holds focus.
-    expect(screen.getByRole('button', { name: /^Resend in/ })).toHaveFocus()
+    const resend = screen.getByRole('button', { name: /^Resend in/ })
+    expect(resend).toHaveFocus()
+    expect(resend).toHaveAccessibleDescription('We sent a sign-in link to ada@example.test.')
   })
 
   it('tracks sign_in_link_requested once per send', async () => {
@@ -181,8 +192,8 @@ describe('SignInLinkForm', () => {
     await user.click(waiting)
     waiting.focus()
     await user.keyboard('{Enter}')
+    await user.keyboard(' ')
     await act(() => vi.advanceTimersByTimeAsync(0))
-    expect(bodies).toHaveLength(1)
 
     await act(() => vi.advanceTimersByTimeAsync(1_000))
     expect(screen.getByRole('button', { name: 'Resend in 0:59' })).toBeInTheDocument()
@@ -195,11 +206,12 @@ describe('SignInLinkForm', () => {
     await act(() => vi.advanceTimersByTimeAsync(0))
     await vi.waitFor(() => expect(bodies).toHaveLength(2))
     expect(bodies[1]).toMatchObject({ email: 'ada@example.test' })
-    // One clock throughout: the deadline is stamped and read on the fake Date.
-    await vi.waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Resend in 1:00' })).toBeInTheDocument()
-    )
-    expect(track).toHaveBeenCalledTimes(2)
+    // The second track is the 202 settling; then the deadline is read without moving the fake clock.
+    await vi.waitFor(() => expect(track).toHaveBeenCalledTimes(2))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(screen.getByRole('button', { name: 'Resend in 1:00' })).toBeInTheDocument()
+    // The barrier for the waiting presses above: only the two real sends reached the server.
+    expect(bodies).toHaveLength(2)
   })
 
   it('extends the countdown to Retry-After on a 429', async () => {
@@ -228,10 +240,12 @@ describe('SignInLinkForm', () => {
     refuse = true
     await user.click(screen.getByRole('button', { name: 'Resend link' }))
 
+    // The toast follows the deadline update in the same handler.
     await vi.waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Resend in 2:00' })).toBeInTheDocument()
+      expect(error).toHaveBeenCalledWith('Too many requests. Try again in 2 minutes.')
     )
-    expect(error).toHaveBeenCalledWith('Too many requests. Try again in 2 minutes.')
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(screen.getByRole('button', { name: 'Resend in 2:00' })).toBeInTheDocument()
     // Still waiting on the inbox: the address and the link's rules stay on screen.
     expect(screen.getByText(/We sent a sign-in link to/)).toBeInTheDocument()
   })
@@ -359,6 +373,53 @@ describe('SignInLinkForm', () => {
     await vi.waitFor(() => expect(ensureSession).toHaveBeenCalledTimes(1))
     expect(onSignedIn).not.toHaveBeenCalled()
     expect(screen.getByText(/We sent a sign-in link to/)).toBeInTheDocument()
+    otherTab.close()
+  })
+
+  it('does not move on when the restore settles after the form left the inbox', async () => {
+    serveRequests()
+    const { restored, restore } = heldRestore()
+    vi.mocked(ensureSession).mockReturnValue(restored)
+    const onSignedIn = vi.fn()
+    const user = userEvent.setup()
+    renderForm({ onSignedIn })
+    await send(user)
+    await sentLine()
+
+    const otherTab = new BroadcastChannel('auth')
+    otherTab.postMessage({ type: 'signed_in' })
+    await vi.waitFor(() => expect(ensureSession).toHaveBeenCalledTimes(1))
+    await user.click(screen.getByRole('button', { name: 'Use a different email' }))
+    // Settling the restore is the barrier: its then-callbacks run inside this act.
+    await act(async () => {
+      restore('access-token')
+      await restored
+    })
+
+    expect(onSignedIn).not.toHaveBeenCalled()
+    otherTab.close()
+  })
+
+  it('does not move on when the restore settles after unmount', async () => {
+    serveRequests()
+    const { restored, restore } = heldRestore()
+    vi.mocked(ensureSession).mockReturnValue(restored)
+    const onSignedIn = vi.fn()
+    const user = userEvent.setup()
+    renderForm({ onSignedIn })
+    await send(user)
+    await sentLine()
+
+    const otherTab = new BroadcastChannel('auth')
+    otherTab.postMessage({ type: 'signed_in' })
+    await vi.waitFor(() => expect(ensureSession).toHaveBeenCalledTimes(1))
+    cleanup()
+    await act(async () => {
+      restore('access-token')
+      await restored
+    })
+
+    expect(onSignedIn).not.toHaveBeenCalled()
     otherTab.close()
   })
 

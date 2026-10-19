@@ -1,5 +1,5 @@
 import { useForm } from '@tanstack/react-form'
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { BusyButton } from '@/components/shared/busy-button'
 import { Pii } from '@/components/shared/pii'
 import { Button } from '@/components/ui/button'
@@ -32,7 +32,7 @@ export const RESEND_COOLDOWN_SECONDS = 60
 export const CHECK_INBOX_TITLE = 'Check your inbox'
 
 /** The card title for a sign-in link the server refused: it says nothing about which way it died. */
-export const LINK_DEAD_TITLE = 'This link has expired or was already used'
+export const LINK_DEAD_TITLE = 'This link expired or was already used'
 
 /** What a page hands the form. */
 interface SignInLinkFormProps {
@@ -79,19 +79,25 @@ export function SignInLinkForm({
   useEffect(() => {
     if (!sentTo) return
     let restoring = false
-    return subscribeAuthMessage('signed_in', () => {
+    // A restore that settles after unmount, or after the form left the inbox, must not navigate.
+    let active = true
+    const unsubscribe = subscribeAuthMessage('signed_in', () => {
       // A tab already signed in has its own session; restoring would only race it.
       if (restoring || useAuthStore.getState().isAuthenticated) return
       restoring = true
       ensureSession().then(
         () => {
-          signedIn()
+          if (active) signedIn()
         },
         () => {
           restoring = false
         }
       )
     })
+    return () => {
+      active = false
+      unsubscribe()
+    }
   }, [sentTo])
 
   /** Hands focus to the control a step left behind, unless the person has moved on. */
@@ -228,14 +234,17 @@ function InboxStep({
   onChangeEmail: () => void
 }) {
   const left = useCountdown(resendAt)
+  const sentLineId = useId()
   return (
     <div className="grid gap-4 text-center text-sm">
-      <p role="status">
+      <p id={sentLineId} role="status">
         We sent a sign-in link to <Pii>{sentTo}</Pii>.
       </p>
       <p className="text-muted-foreground">The link works once and expires in 15 minutes.</p>
       <BusyButton
         ref={resendRef}
+        // Focus lands here as the status line mounts, so the button carries the line in case the region is not announced.
+        aria-describedby={sentLineId}
         busy={busy}
         busyLabel="Sending…"
         variant="outline"
