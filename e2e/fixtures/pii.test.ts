@@ -111,8 +111,43 @@ test('the activity log masks actors, and so does its actor filter', async ({ pag
   await expectAllMasked(page, 3)
 })
 
-test('the invitation page masks the inviter and both addresses', async ({ page }) => {
+test('the invitation page, signed in as someone else, masks the inviter and both addresses', async ({
+  page,
+}) => {
   await page.goto(harness('/invitations/accept', `&token=${TOKEN}`))
   await expect(page.getByRole('heading', { level: 1, name: 'Join Acme Corp' })).toBeVisible()
+  await expectAllMasked(page, 3)
+})
+
+test('the sign-in page masks the address a link went to', async ({ page }) => {
+  await page.goto(harness('/login', '&session=none'))
+  await page
+    .getByRole('textbox', { name: 'Email', exact: true })
+    .fill('pii-probe+inbox@example.test')
+  await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Check your inbox' })).toBeVisible()
+  await expectAllMasked(page, 1)
+})
+
+test('a sign-in link for another account masks both addresses', async ({ page }) => {
+  const email = encodeURIComponent('pii-probe+link@example.test')
+  await page.goto(harness('/auth/link', `&token=${TOKEN}&email=${email}`))
+  await expect(page.getByRole('heading', { level: 1, name: 'Switch account?' })).toBeVisible()
+  // The sentence names both, and each button names one.
+  await expectAllMasked(page, 4)
+})
+
+test('the invitation’s Check your inbox masks the address it mailed', async ({ page }) => {
+  await page.goto(harness('/invitations/accept', `&session=none&invite=inbox&token=${TOKEN}`))
+  await expect(page.getByRole('heading', { level: 1, name: 'Check your inbox' })).toBeVisible()
+  await expect(page.getByText('pii-probe+invitee@example.test')).toBeVisible()
+  await expectAllMasked(page, 1)
+})
+
+test('a confirmation link for another account masks both addresses', async ({ page }) => {
+  const email = encodeURIComponent('pii-probe+confirm@example.test')
+  await page.goto(harness('/invitations/confirm', `&token=${TOKEN}&email=${email}`))
+  await expect(page.getByRole('heading', { level: 1, name: 'Join your team' })).toBeVisible()
+  // The sentence names both, and Continue names the link's.
   await expectAllMasked(page, 3)
 })

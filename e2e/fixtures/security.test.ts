@@ -1,34 +1,19 @@
 import { expect, test } from '../hermetic'
 
 /**
- * The Security page, Settings › Account › Security, through the harness, which accepts the one
- * current password `current-password` and answers any other with a 400.
+ * The Security page, Settings › Account › Security, through the harness, whose
+ * account signs in by email link and Google and has two other sessions.
  */
 
-test('changes the password from the security page', async ({ page }) => {
+test('lists the sign-in methods, email link first', async ({ page }) => {
   await page.goto('/e2e/harness/?path=/settings/account/security')
 
-  const current = page.getByLabel('Current password')
-  await current.fill('current-password')
-  await page.getByLabel('New password', { exact: true }).fill('a-brand-new-password')
-  await page.getByLabel('Confirm new password').fill('a-brand-new-password')
-  await page.getByRole('button', { name: 'Change password' }).click()
-
-  await expect(page.getByText('Password changed. Other sessions were signed out.')).toBeVisible()
-  await expect(current).toHaveValue('')
-})
-
-test('puts a wrong current password on its own field', async ({ page }) => {
-  await page.goto('/e2e/harness/?path=/settings/account/security')
-
-  const current = page.getByLabel('Current password')
-  await current.fill('not-the-password')
-  await page.getByLabel('New password', { exact: true }).fill('a-brand-new-password')
-  await page.getByLabel('Confirm new password').fill('a-brand-new-password')
-  await page.getByRole('button', { name: 'Change password' }).click()
-
-  await expect(current).toHaveAttribute('aria-invalid', 'true')
-  await expect(page.getByText('Current password is incorrect.')).toHaveCount(1)
+  const methods = page
+    .getByRole('list')
+    .filter({ has: page.getByRole('listitem').filter({ hasText: /^Email link/ }) })
+    .getByRole('listitem')
+  await expect(methods).toHaveText(['Email link (a@b.com)', 'Google'])
+  await expect(page.getByRole('button', { name: 'Change password' })).toHaveCount(0)
 })
 
 test('signs out other sessions from the security page', async ({ page }) => {

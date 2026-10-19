@@ -11,7 +11,7 @@ import {
   apiLogin,
   apiRequest,
   createTenant,
-  createVerifiedUser,
+  createUser,
   freshEmail,
   freshSlug,
   grantPlatformRole,
@@ -31,17 +31,21 @@ test.beforeAll(async () => {
 /** An owner with one fresh tenant, set up entirely through the API. */
 async function ownerWithTenant(): Promise<{ owner: string; name: string; slug: string }> {
   const owner = freshEmail()
-  await createVerifiedUser(owner)
+  await createUser(owner)
   const slug = freshSlug()
   const name = `E2E ${slug}`
   await createTenant(await apiLogin(owner), { name, slug })
   return { owner, name, slug }
 }
 
-/** A verified account holding `role` in the platform tenant, signed in on `page`. */
+/**
+ * An account holding `role` in the platform tenant, signed in on `page`. The
+ * grant comes after the account's first sign-in, which creates it; the page's
+ * session restore then reads the role from the profile.
+ */
 async function staffSignedIn(page: Page, role: 'viewer' | 'admin'): Promise<string> {
   const staff = freshEmail()
-  await createVerifiedUser(staff)
+  await createUser(staff)
   await grantPlatformRole(staff, role)
   await logIn(page, staff)
   return staff
@@ -51,7 +55,7 @@ test('a staff viewer opens a tenant by URL, is told so, and cannot change it', a
   const { name, slug } = await ownerWithTenant()
   const staff = await staffSignedIn(page, 'viewer')
 
-  // Proves platformRole reached the SPA from the login response, before any reload.
+  // Proves platformRole reached the SPA from the session restore, before any reload.
   await page.getByRole('button', { name: /^Account menu for/ }).click()
   await expect(page.getByRole('menuitem', { name: 'Platform' })).toBeVisible()
   await page.keyboard.press('Escape')

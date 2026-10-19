@@ -25,6 +25,14 @@ const AXE_PATH = require.resolve('axe-core/axe.min.js')
  */
 const COLD_TRANSFORM_BUDGET_MS = 20_000
 
+/** A token the link and invitation pages take: 43 base64url characters, low-entropy so no scanner reads it as a secret. */
+const TOKEN = 't'.repeat(43)
+
+/** The harness URL for a signed-out visit to `path`, with `query` appended. */
+function signedOut(path: string, query: string): string {
+  return `/e2e/harness/?session=none&path=${path}&${query}`
+}
+
 /**
  * Every surface reachable without a backend. Each entry's `heading` is
  * something only that surface renders, asserted before axe runs: a route that
@@ -128,6 +136,67 @@ const SURFACES = [
     name: 'security (methods loading)',
     url: '/e2e/harness/?path=/settings/account/security&hold=/api/v1/auth/providers',
     heading: { loading: 'section', heading: { name: 'Security', level: 1 } },
+  },
+  {
+    name: 'link verifying',
+    url: signedOut('/auth/link', `token=${TOKEN}&email=a@b.com&hold=/api/v1/auth/link/verify`),
+    heading: 'Signing you in',
+  },
+  {
+    name: 'link dead',
+    url: signedOut('/auth/link', `token=${TOKEN}&email=a@b.com&link=dead`),
+    heading: 'This link expired or was already used',
+  },
+  {
+    name: 'link failed',
+    url: signedOut('/auth/link', `token=${TOKEN}&email=a@b.com&link=readonly`),
+    heading: "We couldn't sign you in",
+  },
+  {
+    name: 'welcome',
+    url: '/e2e/harness/?path=/welcome&tenants=none',
+    heading: 'Create your workspace',
+  },
+  {
+    name: 'invitation joining',
+    url: signedOut(
+      '/invitations/accept',
+      `token=${TOKEN}&invite=ok&hold=/api/v1/invitations/verify`
+    ),
+    heading: 'Joining Acme Corp',
+  },
+  {
+    name: 'invitation dead',
+    url: signedOut('/invitations/accept', `token=${TOKEN}&invite=dead`),
+    heading: 'This invitation can’t be used',
+  },
+  {
+    name: 'invitation switch',
+    url: `/e2e/harness/?path=/invitations/accept&token=${TOKEN}`,
+    heading: 'Join Acme Corp',
+  },
+  {
+    name: 'invitation check inbox',
+    url: signedOut('/invitations/accept', `token=${TOKEN}&invite=inbox`),
+    heading: 'Check your inbox',
+  },
+  {
+    name: 'invitation confirm joining',
+    url: signedOut(
+      '/invitations/confirm',
+      `token=${TOKEN}&email=invitee@b.com&hold=/api/v1/invitations/confirm`
+    ),
+    heading: 'Joining your team',
+  },
+  {
+    name: 'invitation confirm dead',
+    url: signedOut('/invitations/confirm', `token=${TOKEN}&email=invitee@b.com&confirm=dead`),
+    heading: "This link can't be used",
+  },
+  {
+    name: 'invitation confirm switch',
+    url: `/e2e/harness/?path=/invitations/confirm&token=${TOKEN}&email=invitee@b.com`,
+    heading: 'Join your team',
   },
 ] as const
 
@@ -275,6 +344,44 @@ for (const theme of THEMES) {
     })
   }
 }
+
+/**
+ * The states a click reaches, which no URL opens: each is reached on its page,
+ * then graded as the page entries are, once its heading has rendered.
+ */
+test.describe('states a click reaches', () => {
+  const STATES = [
+    {
+      name: 'check inbox',
+      url: signedOut('/login', ''),
+      heading: 'Check your inbox',
+      reach: async (page: Page) => {
+        await page
+          .getByRole('textbox', { name: 'Email', exact: true })
+          .fill('ada@example.test', { timeout: COLD_TRANSFORM_BUDGET_MS })
+        await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+      },
+    },
+  ] as const
+
+  for (const theme of THEMES) {
+    for (const state of STATES) {
+      test(`${state.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+        await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
+        await page.goto(state.url)
+        await state.reach(page)
+        await expect(page.getByRole('heading', { level: 1, name: state.heading })).toBeVisible({
+          timeout: COLD_TRANSFORM_BUDGET_MS,
+        })
+        await afterFontsAndFrames(page)
+        await page.addScriptTag({ path: AXE_PATH })
+
+        const result = await runAxe(page)
+        expect(report(state.name, theme, result), report(state.name, theme, result)).toBe('')
+      })
+    }
+  }
+})
 
 /**
  * The menus and the tenant switcher, opened and graded at their popup. Each

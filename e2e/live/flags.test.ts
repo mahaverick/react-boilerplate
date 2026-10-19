@@ -16,7 +16,7 @@ import {
   apiLogin,
   apiRequest,
   createTenant,
-  createVerifiedUser,
+  createUser,
   freshEmail,
   freshSlug,
   logIn,
@@ -64,7 +64,7 @@ test('flag changes reach the tab, the page, the API and the exposure report', as
   await setFlag('example_cta_experiment', 'bold')
 
   const owner = freshEmail()
-  await createVerifiedUser(owner)
+  await createUser(owner)
   const slug = freshSlug()
   const token = await apiLogin(owner)
   await createTenant(token, { name: `E2E ${slug}`, slug })

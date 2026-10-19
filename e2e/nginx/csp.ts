@@ -1,9 +1,9 @@
 /**
  * @file The Content-Security-Policy and security headers `nginx.conf` sends,
- * as the nginx e2e tests expect them, and helpers that collect CSP violations
- * from a page.
+ * as the nginx e2e tests expect them, helpers that collect CSP violations
+ * from a page, and one that picks out a route's lazy chunk.
  */
-import type { Page } from '@playwright/test'
+import type { Page, Route } from '@playwright/test'
 import { afterPageTask } from '../timing'
 
 /** The policy `nginx.conf` sends when the response carries none of its own, character for character. */
@@ -69,4 +69,26 @@ export async function requireServedApp(): Promise<void> {
  */
 export async function flushCspReports(page: Page): Promise<void> {
   await afterPageTask(page)
+}
+
+/**
+ * Answers the sign-in link page's route chunk (`/auth/link`) with `answer`,
+ * and every other script as the server does. The chunk is found by its text,
+ * not its name: the build also emits the router's own `link-<hash>.js`, which
+ * every page needs.
+ * @param page - The page whose script requests are routed.
+ * @param answer - What to do with the route chunk's request.
+ */
+export async function routeSignInLinkChunk(
+  page: Page,
+  answer: (route: Route) => Promise<void>
+): Promise<void> {
+  await page.route(/\/assets\/link-[\w-]+\.js$/, async (route) => {
+    const response = await route.fetch()
+    if ((await response.text()).includes('Signing you in')) {
+      await answer(route)
+      return
+    }
+    await route.fulfill({ response })
+  })
 }
