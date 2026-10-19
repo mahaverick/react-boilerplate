@@ -1,7 +1,7 @@
-import { useIsMutating, useMutation, useQuery } from '@tanstack/react-query'
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
-import { broadcastLogout } from '@/http/session'
+import { broadcastLogout, switchIdentity } from '@/http/session'
 import { statusFrom } from '@/lib/api-error'
 import { toast } from '@/lib/toast'
 import { track } from '@/observability/telemetry'
@@ -56,10 +56,12 @@ export function useRequestSignInLink() {
 /**
  * Signs in with the token from an emailed link, creating the account on the
  * first click. Public like the request, so a stale bearer token is never sent.
- * The store is signed in before `sign_in_completed` is tracked, so the event
+ * A different signed-in user is switched out first (`switchIdentity`). The
+ * store is signed in before `sign_in_completed` is tracked, so the event
  * carries the new identity.
  */
 export function useVerifySignInLink() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (token: string) =>
       unwrap(
@@ -70,6 +72,7 @@ export function useVerifySignInLink() {
         )
       ),
     onSuccess: ({ accessToken, user }) => {
+      switchIdentity(queryClient, user.id)
       useAuthStore.getState().login(accessToken, user)
       track('sign_in_completed', { method: 'link' })
     },

@@ -161,6 +161,25 @@ export function installAuthBroadcastListener(): () => void {
   return uninstallListener
 }
 
+/**
+ * Ends a different user's session in this tab before `login()` replaces it,
+ * the way a sign-out does: the previous user's cached queries, recents and
+ * shared analytics identity are dropped, and every other tab is told, since
+ * the refresh cookie now belongs to the next user. Nothing happens when nobody
+ * or the same user is signed in. Call it before `login(...)` with the id of
+ * the user about to sign in.
+ * @param queryClient - The app's query client, emptied on a switch.
+ * @param nextUserId - The id of the user about to sign in.
+ */
+export function switchIdentity(queryClient: QueryClient, nextUserId: string): void {
+  const current = useAuthStore.getState().user
+  if (!current || current.id === nextUserId) return
+  yieldSharedIdentity()
+  queryClient.clear()
+  useAuthStore.getState().logout()
+  broadcastLogout()
+}
+
 let uninstallAnalyticsIdentity: (() => void) | null = null
 
 /**

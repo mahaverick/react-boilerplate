@@ -3,8 +3,9 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { http } from 'msw'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { RECENT_KEY_PREFIX } from '@/components/shared/command-palette/recent-keys'
 import { resetSessionForTests } from '@/http/session'
-import { track } from '@/observability/telemetry'
+import { track, yieldSharedIdentity } from '@/observability/telemetry'
 import {
   invitationKeys,
   inviterName,
@@ -28,6 +29,7 @@ import { server } from '@/tests/mocks/server'
 vi.mock('@/observability/telemetry', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/observability/telemetry')>()),
   track: vi.fn(),
+  yieldSharedIdentity: vi.fn(),
 }))
 
 describe('invitation queries', () => {
@@ -43,6 +45,8 @@ describe('invitation queries', () => {
     client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } })
     resetSessionForTests()
     vi.mocked(track).mockReset()
+    vi.mocked(yieldSharedIdentity).mockReset()
+    localStorage.clear()
     useAuthStore.setState({
       accessToken: 'access-token',
       user: testUser,
@@ -272,6 +276,7 @@ describe('invitation queries', () => {
       expect(inviterName(null)).toBe('A teammate')
     })
   })
+
   describe('useAcceptInvitation alreadyMember', () => {
     it('reads alreadyMember from accept', async () => {
       server.use(
@@ -324,6 +329,10 @@ describe('invitation queries', () => {
       })
       client.setQueryData(tenantKeys.detail('acme'), null)
       client.setQueryData(tenantKeys.list, [])
+      let signedInAtTrack: boolean | undefined
+      vi.mocked(track).mockImplementation(() => {
+        signedInAtTrack = useAuthStore.getState().isAuthenticated
+      })
 
       const { result } = renderHook(() => useVerifyInvitation(), { wrapper })
       result.current.mutate(TEST_INVITATION_TOKEN)
@@ -334,10 +343,56 @@ describe('invitation queries', () => {
       expect(useAuthStore.getState().user).toEqual(testUser)
       expect(useAuthStore.getState().accessToken).toBe('invitation-token')
       expect(track).toHaveBeenCalledWith('sign_in_completed', { method: 'link' })
+      expect(signedInAtTrack).toBe(true)
       expect(client.getQueryState(tenantKeys.detail('acme'))).toBeUndefined()
       expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
       // The user arrived in the response, so the profile is not read again.
       expect(profileCalls).toBe(0)
+    })
+
+    it('does not retry a 401 or refresh the session', async () => {
+      let calls = 0
+      let refreshes = 0
+      server.use(
+        http.post('/api/v1/invitations/verify', () => {
+          calls += 1
+          return fail('Unauthorized', 401)
+        }),
+        http.post('/api/v1/auth/refresh', () => {
+          refreshes += 1
+          return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        })
+      )
+
+      const { result } = renderHook(() => useVerifyInvitation(), { wrapper })
+      result.current.mutate(TEST_INVITATION_TOKEN)
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      expect(calls).toBe(1)
+      expect(refreshes).toBe(0)
+    })
+
+    it('drops a different user data, recents and shared identity, and tells other tabs', async () => {
+      const other = { ...testUser, id: 'other-user-id', email: 'other@b.test' }
+      useAuthStore.getState().login('other-token', other)
+      client.setQueryData(['tenants', 'secret'], { owner: other.id })
+      localStorage.setItem(`${RECENT_KEY_PREFIX}${other.id}`, '["x"]')
+      const tab = new BroadcastChannel('auth')
+      const received: unknown[] = []
+      tab.addEventListener('message', (event: MessageEvent<unknown>) => {
+        received.push(event.data)
+      })
+
+      const { result } = renderHook(() => useVerifyInvitation(), { wrapper })
+      result.current.mutate(TEST_INVITATION_TOKEN)
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      await vi.waitFor(() => expect(received).toContainEqual({ type: 'logout' }))
+      tab.close()
+      expect(client.getQueryData(['tenants', 'secret'])).toBeUndefined()
+      expect(localStorage.getItem(`${RECENT_KEY_PREFIX}${other.id}`)).toBeNull()
+      expect(yieldSharedIdentity).toHaveBeenCalledOnce()
+      expect(useAuthStore.getState().user).toEqual(testUser)
     })
 
     it('leaves the store signed out on a 404', async () => {

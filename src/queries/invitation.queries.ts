@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { MembershipRole } from '@/constants/roles'
 import { apiClient, unwrap } from '@/http/client'
+import { switchIdentity } from '@/http/session'
 import { statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
 import { track } from '@/observability/telemetry'
@@ -98,7 +99,8 @@ export function useAcceptInvitation() {
  * Accepts an invitation in one click, signed out: the API signs the invitee in
  * (creating the account when the address has none) and joins them. Public like
  * the preview, so a stale bearer token is never sent. The response carries the
- * user, so the profile needs no refresh. A 404 is the dead invitation.
+ * user, so the profile needs no refresh. A different signed-in user is
+ * switched out first (`switchIdentity`). A 404 is the dead invitation.
  */
 export function useVerifyInvitation() {
   const queryClient = useQueryClient()
@@ -112,6 +114,7 @@ export function useVerifyInvitation() {
         )
       ),
     onSuccess: async ({ accessToken, user, tenant }) => {
+      switchIdentity(queryClient, user.id)
       useAuthStore.getState().login(accessToken, user)
       track('sign_in_completed', { method: 'link' })
       await refreshJoinedTenant(queryClient, tenant.slug)

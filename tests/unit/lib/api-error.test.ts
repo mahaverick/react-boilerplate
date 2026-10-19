@@ -161,7 +161,10 @@ describe('retryAfterSecondsFrom', () => {
     expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': '-5' }))).toBeNull()
   })
 
-  it.each(['1.5', '1e3', '+5', '1.5.2'])('answers null for the non-integer %s', (value) => {
-    expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': value }))).toBeNull()
-  })
+  it.each(['1.5', '1e3', '+5', '1.5.2', 'abc 12', '12 Mar', 'Mar 12 2030'])(
+    'answers null for the non-integer %s',
+    (value) => {
+      expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': value }))).toBeNull()
+    }
+  )
 })
