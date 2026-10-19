@@ -38,6 +38,8 @@ export const testInvitation: TenantInvitation = {
   invitedBy: { id: USER_ID, firstName: 'A', lastName: 'B' },
   expiresAt: '2026-10-01T00:00:00.000Z',
   createdAt: '2026-09-24T00:00:00.000Z',
+  lastSentAt: null,
+  resendAvailableAt: null,
 }
 
 /** Sent to `testUser`'s own address, so a signed-in test user is the invitee. */

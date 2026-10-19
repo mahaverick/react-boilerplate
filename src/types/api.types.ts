@@ -101,6 +101,10 @@ export interface TenantInvitation {
   invitedBy: InvitationInviter | null
   expiresAt: string
   createdAt: string
+  /** When the invitation was last mailed, ISO; `null` if never. */
+  lastSentAt: string | null
+  /** When a resend is allowed again, ISO; `null` when it is allowed now. */
+  resendAvailableAt: string | null
 }
 
 /** `POST /invitations/preview` with `{ token }`: what an invite link opens onto. */
