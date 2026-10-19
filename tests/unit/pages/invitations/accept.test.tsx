@@ -47,8 +47,9 @@ const ACCEPT_PATH = `/invitations/accept?token=${TEST_INVITATION_TOKEN}`
 const INVALID = 'This invitation is invalid or has expired.'
 const DEAD_TITLE = 'This invitation can’t be used'
 const ASK_THE_TEAM = 'Ask the team for a new invite.'
-const JOINED = 'You joined Acme Corp.'
-const ALREADY_JOINED = "You've already joined Acme Corp."
+/** The toast names the account now signed in: the test user, unless a test says otherwise. */
+const JOINED = `You joined Acme Corp as ${testUser.email}.`
+const ALREADY_JOINED = `You've already joined Acme Corp as ${testUser.email}.`
 const OTHER_EMAIL = 'someone@else.com'
 
 /** Mounts the real route tree at `path`, under StrictMode as dev runs it, and returns the router. */
@@ -331,13 +332,45 @@ describe('accept page, signed out', () => {
       await screen.findByRole('heading', { level: 1, name: 'Joining Acme Corp' })
     ).toBeVisible()
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('Joining Acme Corp…')
-    expect(status).toHaveTextContent(`This link is for ${testUser.email}.`)
+    expect(status).toHaveTextContent(`Joining Acme Corp as ${testUser.email}…`)
     expect(within(status).getByText(testUser.email)).toHaveClass('ph-sensitive', 'ph-mask')
     expect(screen.getByText(/invited you to join/)).toHaveTextContent(
       'Ada Lovelace invited you to join Acme Corp as Editor.'
     )
     expect(screen.getByText('Ada Lovelace')).toHaveClass('ph-sensitive', 'ph-mask')
+  })
+
+  it('names the server’s invited address while joining, not an email in the URL', async () => {
+    serveVerify(held())
+    renderAt(`${ACCEPT_PATH}&email=${encodeURIComponent('mallory@evil.test')}`)
+
+    const status = await screen.findByRole('status')
+    expect(status).toHaveTextContent(`Joining Acme Corp as ${testUser.email}…`)
+    expect(screen.queryByText(/mallory@evil\.test/)).not.toBeInTheDocument()
+  })
+
+  it('names the account the verify signed in, from its answer, not an email in the URL', async () => {
+    mockTenantRoute()
+    const ada = { ...testUser, email: 'ada@acme.test' }
+    serveVerify(() =>
+      ok(
+        {
+          user: ada,
+          accessToken: 'invitation-token',
+          isNewUser: false,
+          tenant: { name: 'Acme Corp', slug: 'acme' },
+          role: 'editor',
+        },
+        'Invitation accepted.'
+      )
+    )
+    const router = renderAt(`${ACCEPT_PATH}&email=${encodeURIComponent('mallory@evil.test')}`)
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/tenants/acme')
+    })
+    expect(await screen.findByText('You joined Acme Corp as ada@acme.test.')).toBeInTheDocument()
+    expect(screen.queryByText(/mallory@evil\.test/)).not.toBeInTheDocument()
   })
 
   it('names the inviter on a dead invitation once the preview loaded', async () => {
@@ -475,7 +508,7 @@ describe('accept page, signed in', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Joining Acme Corp' })
     ).toBeVisible()
-    expect(screen.getByRole('status')).toHaveTextContent(`This link is for ${testUser.email}.`)
+    expect(screen.getByRole('status')).toHaveTextContent(`Joining Acme Corp as ${testUser.email}…`)
   })
 
   it('matches the invited address regardless of case', async () => {

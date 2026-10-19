@@ -15,6 +15,7 @@ import { AuthPagePending } from '@/components/shared/pending-templates'
 import { Pii } from '@/components/shared/pii'
 import { buttonVariants } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
 import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
@@ -190,6 +191,27 @@ function SwitchInvitation({
 }
 
 /**
+ * The status row while a join runs: "Joining {workspace} as {address}…". The
+ * address is the preview's, the server's record of who was invited, never a
+ * URL parameter, so a link planted to sign a visitor into someone else's
+ * account names that account before it lands. Spinner and live region as
+ * `SigningInStatus`, whose label is plain text and cannot carry the masked address.
+ */
+function JoiningStatus({ invitation }: { invitation: InvitationPreview }) {
+  return (
+    <div role="status" className="grid justify-items-center gap-2 py-4 text-center text-sm">
+      <span className="flex flex-wrap items-center justify-center gap-x-2">
+        {/* The row is the live region; the spinner's own status role would announce "Loading" over the label. */}
+        <Spinner aria-hidden="true" />
+        <span>
+          Joining {invitation.tenant.name} as <Pii>{invitation.email}</Pii>…
+        </span>
+      </span>
+    </div>
+  )
+}
+
+/**
  * The frame while a join runs. With the preview it names the workspace, the
  * inviter and the invited address, so a person who opened someone else's
  * link sees whose it is; after a 404 preview it names nothing.
@@ -205,7 +227,7 @@ function JoiningFrame({ invitation }: { invitation: InvitationPreview | null }) 
   const name = invitation.tenant.name
   return (
     <InvitationCard title={`Joining ${name}`} description={invitationSentence(invitation)}>
-      <SigningInStatus label={`Joining ${name}…`} email={invitation.email} />
+      <JoiningStatus invitation={invitation} />
     </InvitationCard>
   )
 }
@@ -256,11 +278,21 @@ function InvitationForToken({ token }: { token: string }) {
   const gone = !invitation && preview.isError && statusFrom(preview.error) === 404
   const nextCall = joinCallFor(invitation, gone, startedAs)
 
-  /** Toasts the join, then opens its tenant in place of this page. */
-  const land = (tenant: { name: string; slug: string }, alreadyMember: boolean) => {
+  /**
+   * Toasts the join, naming the account now signed in, from the server's
+   * answer, never the URL; then opens its tenant in place of this page. The
+   * toast root is masked for analytics, so the address is too.
+   */
+  const land = (
+    tenant: { name: string; slug: string },
+    account: string,
+    alreadyMember: boolean
+  ) => {
     setFailure(null)
     toast.success(
-      alreadyMember ? `You've already joined ${tenant.name}.` : `You joined ${tenant.name}.`
+      alreadyMember
+        ? `You've already joined ${tenant.name} as ${account}.`
+        : `You joined ${tenant.name} as ${account}.`
     )
     void navigate({ to: '/tenants/$slug', params: { slug: tenant.slug }, replace: true })
   }
@@ -274,10 +306,15 @@ function InvitationForToken({ token }: { token: string }) {
       setFailure(dead ? { kind: 'dead' } : { kind: 'failed', error })
     }
     if (call === 'verify') {
-      verify.mutate(token, { onSuccess: ({ tenant }) => land(tenant, false), onError })
-    } else {
+      verify.mutate(token, {
+        onSuccess: ({ tenant, user }) => land(tenant, user.email, false),
+        onError,
+      })
+    } else if (startedAs) {
+      // The bearer is startedAs's session, whose address the server confirmed when it signed them in.
+      const account = startedAs.email
       accept.mutate(token, {
-        onSuccess: ({ tenant, alreadyMember }) => land(tenant, alreadyMember),
+        onSuccess: ({ tenant, alreadyMember }) => land(tenant, account, alreadyMember),
         onError,
       })
     }
