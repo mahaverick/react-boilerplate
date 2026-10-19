@@ -5,7 +5,7 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -98,6 +98,9 @@ describe('login page', () => {
     expect(screen.getByRole('link', { name: 'Continue with Google' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Create an account' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Forgot password?' })).not.toBeInTheDocument()
+    expect(
+      screen.getByText('By signing in, you agree to our Terms of Service and Privacy Policy.')
+    ).toBeInTheDocument()
   })
 
   it('switches to Check your inbox after sending', async () => {
@@ -112,6 +115,28 @@ describe('login page', () => {
       screen.queryByText("Enter your email and we'll send you a link to sign in.")
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Continue with Google' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the resend countdown running through the switch to Check your inbox', async () => {
+    // Only the clock the countdown reads is faked, so the router's and React's own timers still run.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'], shouldAdvanceTime: true })
+    try {
+      serveLinkRequests()
+      // The note and the Google button both leave the tree at the switch; the form must not remount with them.
+      renderLoginAt('/login?notice=sign-in-link')
+      await requestLink()
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(CHECK_INBOX_TITLE)
+      expect(
+        screen.getByRole('button', { name: /^Resend in 1:00$|^Resend in 0:59$/ })
+      ).toBeVisible()
+
+      await act(() => vi.advanceTimersByTimeAsync(5_000))
+
+      const resend = screen.getByRole('button', { name: /^Resend in 0:5\d$/ })
+      expect(resend).toHaveAttribute('aria-disabled', 'true')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('sends the safe redirect with the request', async () => {
@@ -138,7 +163,10 @@ describe('login page', () => {
 
   it.each([
     `/auth/link?token=${'t'.repeat(43)}&email=a%40b.test`,
+    `/auth/link/?token=${'t'.repeat(43)}`,
+    `/Auth/Link?token=${'t'.repeat(43)}`,
     `/invitations/accept?token=${'t'.repeat(43)}`,
+    `/invitations/accept//?token=${'t'.repeat(43)}`,
   ])('does not carry a token page as the redirect (%s)', async (tokenPage) => {
     const bodies = serveLinkRequests()
     renderLoginAt(`/login?redirect=${encodeURIComponent(tokenPage)}`)
@@ -172,14 +200,18 @@ describe('login page', () => {
   it('shows the sign-in-link note for notice=sign-in-link', async () => {
     renderLoginAt('/login?notice=sign-in-link')
 
-    expect(await screen.findByText('Sign-in now uses email links.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Sign in with an email link or Google. Passwords no longer work.')
+    ).toBeInTheDocument()
   })
 
   it('shows no note without the notice, and ignores an unknown one', async () => {
     const router = renderLoginAt('/login?notice=other')
 
     await screen.findByRole('button', { name: 'Email me a sign-in link' })
-    expect(screen.queryByText('Sign-in now uses email links.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Sign in with an email link or Google. Passwords no longer work.')
+    ).not.toBeInTheDocument()
     expect(router.state.location.search).not.toHaveProperty('notice', 'other')
   })
 
@@ -239,10 +271,16 @@ describe('OAuth failure messages', () => {
       'email_not_verified',
       "Google hasn't verified this email address. Verify it with Google, or sign in with an email link.",
     ],
-    ['google_email_missing', "Your Google account didn't share an email address."],
-    ['processing_failed', 'Something went wrong signing in with Google. Try again.'],
-    ['google_auth_failed', 'Google sign-in failed. Please try again.'],
-    ['MAINTENANCE_MODE', 'Sign-in is paused for maintenance. Please try again later.'],
+    [
+      'google_email_missing',
+      "Your Google account didn't share an email address. Sign in with an email link instead.",
+    ],
+    [
+      'processing_failed',
+      "Google sign-in didn't finish. Try again, or sign in with an email link.",
+    ],
+    ['google_auth_failed', 'Google sign-in failed. Try again, or sign in with an email link.'],
+    ['MAINTENANCE_MODE', 'Sign-in is paused for maintenance. Try again when maintenance ends.'],
   ])('explains ?error=%s', async (code, message) => {
     renderLoginAt(`/login?error=${code}`)
 
@@ -252,14 +290,16 @@ describe('OAuth failure messages', () => {
   it('falls back to a generic message for a code it does not know', async () => {
     renderLoginAt('/login?error=something_new')
 
-    expect(await screen.findByText('Sign-in failed. Please try again.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Sign-in failed. Try again, or sign in with an email link.')
+    ).toBeInTheDocument()
   })
 
   it('toasts the Google error once', async () => {
     const toastError = vi.spyOn(toast, 'error')
     serveLinkRequests()
     renderLoginAt('/login?error=google_auth_failed')
-    await screen.findByText('Google sign-in failed. Please try again.')
+    await screen.findByText('Google sign-in failed. Try again, or sign in with an email link.')
     // A re-render (the switch to Check your inbox) must not raise it again.
     await requestLink()
 

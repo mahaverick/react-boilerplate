@@ -586,7 +586,7 @@ test.describe('toasts', () => {
     {
       name: 'error toast',
       url: '/login?error=google_auth_failed',
-      title: 'Google sign-in failed. Please try again.',
+      title: 'Google sign-in failed. Try again, or sign in with an email link.',
       raise: async () => {},
     },
     {

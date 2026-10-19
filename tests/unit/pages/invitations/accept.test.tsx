@@ -198,7 +198,7 @@ describe('accept page: the link itself', () => {
 describe('accept page, signed out', () => {
   beforeEach(arriveSignedOut)
 
-  it('says who invited them, to what, and offers Log in', async () => {
+  it('says who invited them, to what, and offers Sign in', async () => {
     renderAt(ACCEPT_PATH)
 
     expect(await screen.findByRole('heading', { name: 'Join Acme Corp' })).toBeInTheDocument()
@@ -206,17 +206,17 @@ describe('accept page, signed out', () => {
       'Ada Lovelace invited you to join Acme Corp as Editor.'
     )
     expect(screen.getByText('Ada Lovelace')).toHaveClass('ph-sensitive', 'ph-mask')
-    expect(screen.getByRole('link', { name: 'Log in' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Sign in' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Create account' })).not.toBeInTheDocument()
     // Nothing to accept until someone is signed in.
     expect(screen.queryByRole('button', { name: 'Accept invitation' })).not.toBeInTheDocument()
   })
 
-  it('sends "Log in" to /login with this page as the redirect', async () => {
+  it('sends "Sign in" to /login with this page as the redirect', async () => {
     const user = userEvent.setup()
     const router = renderAt(ACCEPT_PATH)
 
-    await user.click(await screen.findByRole('link', { name: 'Log in' }))
+    await user.click(await screen.findByRole('link', { name: 'Sign in' }))
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/login')

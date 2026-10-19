@@ -34,13 +34,14 @@ export const Route = createFileRoute('/_auth/login')({
 
 /** Keyed by the `?error=` codes the API's Google callback redirects with. */
 const OAUTH_ERRORS: Record<string, string> = {
-  google_auth_failed: 'Google sign-in failed. Please try again.',
+  google_auth_failed: 'Google sign-in failed. Try again, or sign in with an email link.',
   email_not_verified:
     "Google hasn't verified this email address. Verify it with Google, or sign in with an email link.",
-  google_email_missing: "Your Google account didn't share an email address.",
-  processing_failed: 'Something went wrong signing in with Google. Try again.',
+  google_email_missing:
+    "Your Google account didn't share an email address. Sign in with an email link instead.",
+  processing_failed: "Google sign-in didn't finish. Try again, or sign in with an email link.",
   // The API refuses a non-staff sign-in while maintenance mode is full.
-  MAINTENANCE_MODE: 'Sign-in is paused for maintenance. Please try again later.',
+  MAINTENANCE_MODE: 'Sign-in is paused for maintenance. Try again when maintenance ends.',
 }
 
 /** Pages whose URL holds a live token: carried as a redirect, the token would be mailed again inside the new link. */
@@ -54,7 +55,9 @@ const TOKEN_PAGES: ReadonlySet<string> = new Set([ROUTES.authLink, ROUTES.invita
 function landingFrom(redirect: string | undefined): string | undefined {
   const target = safeRedirect(redirect)
   if (!target) return undefined
-  return TOKEN_PAGES.has(new URL(target, window.location.origin).pathname) ? undefined : target
+  // The router matches paths case-insensitively and with a trailing slash, so the check must too.
+  const page = new URL(target, window.location.origin).pathname.replace(/\/+$/, '').toLowerCase()
+  return TOKEN_PAGES.has(page) ? undefined : target
 }
 
 /**
@@ -78,7 +81,7 @@ function LoginPage() {
   useEffect(() => {
     if (!error || toastedError.current === error) return
     toastedError.current = error
-    toast.error(OAUTH_ERRORS[error] ?? 'Sign-in failed. Please try again.')
+    toast.error(OAUTH_ERRORS[error] ?? 'Sign-in failed. Try again, or sign in with an email link.')
   }, [error])
 
   /** Leaves sign-in for the landing path, replacing this page in history. */
@@ -94,7 +97,9 @@ function LoginPage() {
       description={sentTo ? undefined : "Enter your email and we'll send you a link to sign in."}
       footer={<TermsNote />}
     >
-      {notice && sentTo === null && <Note tone="passive">Sign-in now uses email links.</Note>}
+      {notice && sentTo === null && (
+        <Note tone="passive">Sign in with an email link or Google. Passwords no longer work.</Note>
+      )}
       <FieldGroup className="gap-6">
         <SignInLinkForm
           sentTo={sentTo}

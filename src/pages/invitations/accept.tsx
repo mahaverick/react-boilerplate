@@ -32,7 +32,7 @@ import { INVITATION_EMAIL_UNVERIFIED, type InvitationPreview } from '@/types/api
  * The invitation landing page. Top level, under neither `_auth` nor `_app`:
  * the link is opened signed out and signed in alike, and each guard would
  * bounce one of them. The API mails links to this fixed path. It renders
- * `AuthLayout` itself, like reset-password.tsx. `.catch` treats a non-string
+ * `AuthLayout` itself, like welcome.tsx. `.catch` treats a non-string
  * `?token=` as none, since the router JSON-parses search values.
  */
 export const Route = createFileRoute('/invitations/accept')({
@@ -112,7 +112,7 @@ function SignedOut({ token, invitation }: { token: string; invitation: Invitatio
         search={{ redirect: acceptHref(token) }}
         className={cn(buttonVariants(), 'w-full')}
       >
-        Log in
+        Sign in
       </Link>
     </InvitationCard>
   )
@@ -120,7 +120,7 @@ function SignedOut({ token, invitation }: { token: string; invitation: Invitatio
 
 /**
  * Signed in as a different address. Signing out returns here signed out, the
- * state that offers "Log in". The home link is a way out that is not signing
+ * state that offers "Sign in". The home link is a way out that is not signing
  * out, and the state's only link, which axe's `bypass` rule needs to apply at
  * all.
  */

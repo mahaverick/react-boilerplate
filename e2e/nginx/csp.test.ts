@@ -44,7 +44,9 @@ test(
     const response = await page.goto('/login?error=google_auth_failed')
     expect(response?.headers()['content-security-policy']).toBe(CONTENT_SECURITY_POLICY)
     await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
-    await expect(page.getByText('Google sign-in failed. Please try again.')).toBeVisible()
+    await expect(
+      page.getByText('Google sign-in failed. Try again, or sign in with an email link.')
+    ).toBeVisible()
     // The heading means the refresh has settled and the route's lazy chunk has run; a late violation can still come from the webfont or a lazy chunk, so wait for the fonts and one page task.
     await expect.poll(() => onDemand.length).toBeGreaterThan(0)
     await afterFontsAndFrames(page)

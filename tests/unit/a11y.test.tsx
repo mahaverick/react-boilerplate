@@ -467,12 +467,12 @@ describe('signed-out pages', () => {
     [
       'login with the note',
       '/login?notice=sign-in-link',
-      () => screen.findByText('Sign-in now uses email links.'),
+      () => screen.findByText('Sign in with an email link or Google. Passwords no longer work.'),
     ],
     [
       'invitation accept',
       `/invitations/accept?token=${TEST_INVITATION_TOKEN}`,
-      () => screen.findByRole('link', { name: 'Log in' }),
+      () => screen.findByRole('link', { name: 'Sign in' }),
     ],
     [
       'invitation accept without a token',
@@ -507,7 +507,7 @@ describe('signed-out pages', () => {
     renderAppAt('/login?error=google_auth_failed')
     const region = await screen.findByRole('region', { name: 'Status messages' })
     const item = await within(region).findByRole('dialog', {
-      name: 'Google sign-in failed. Please try again.',
+      name: 'Google sign-in failed. Try again, or sign in with an email link.',
     })
     await expectNoViolations()
 

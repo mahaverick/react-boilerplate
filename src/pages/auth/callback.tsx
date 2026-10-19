@@ -1,4 +1,5 @@
 import '@/lib/zod-jitless'
+import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { z } from 'zod'
@@ -10,6 +11,7 @@ import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { safeRedirect } from '@/lib/safe-redirect'
 import { track } from '@/observability/telemetry'
+import { tenantsQueryOptions } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 
 /**
@@ -38,13 +40,16 @@ export const Route = createFileRoute('/auth/callback')({
 })
 
 /**
- * Lands a signed-in visitor (a new account on /welcome, anyone else on the
- * safe redirect or the dashboard), or sends a signed-out one to sign-in with
- * the Google failure code. Every landing replaces this page in history. The
- * ref keeps StrictMode's second effect run from tracking the sign-in twice.
+ * Lands a signed-in visitor: a new account on /welcome, anyone else on the
+ * safe redirect, or else the dashboard, unless they belong to no tenant, who
+ * go to /welcome too. A failed tenant read lands on the dashboard, whose own
+ * prompt covers that case. A signed-out visitor goes to sign-in with the
+ * Google failure code. Every landing replaces this page in history. The ref
+ * keeps StrictMode's second effect run from tracking the sign-in twice.
  */
 function OAuthCallbackPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { redirect, new: isNewUser } = Route.useSearch()
   const handled = useRef(false)
 
@@ -61,10 +66,16 @@ function OAuthCallbackPage() {
       return
     }
     const target = safeRedirect(redirect)
-    void (target
-      ? navigate({ href: target, replace: true })
-      : navigate({ to: ROUTES.dashboard, replace: true }))
-  }, [isNewUser, navigate, redirect])
+    if (target) {
+      void navigate({ href: target, replace: true })
+      return
+    }
+    void queryClient.fetchQuery(tenantsQueryOptions()).then(
+      (tenants) =>
+        navigate({ to: tenants.length === 0 ? ROUTES.welcome : ROUTES.dashboard, replace: true }),
+      () => navigate({ to: ROUTES.dashboard, replace: true })
+    )
+  }, [isNewUser, navigate, queryClient, redirect])
 
   return (
     <AuthLayout>

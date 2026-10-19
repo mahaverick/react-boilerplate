@@ -16,7 +16,9 @@ import { Route as callback } from '@/pages/auth/callback'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { fail, ok, testUser } from '@/tests/mocks/handlers'
+import { TENANT_ID } from '@/tests/fixtures/ids'
+import { listPage } from '@/tests/fixtures/list-page'
+import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 vi.mock('@/observability/telemetry', async (importOriginal) => ({
@@ -47,6 +49,34 @@ function arriveSignedIn() {
   server.use(
     http.post('/api/v1/auth/refresh', () => ok({ accessToken: 'fresh-token' }, 'Token refreshed.')),
     http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.'))
+  )
+}
+
+const ACME = {
+  id: TENANT_ID,
+  name: 'Acme Corp',
+  slug: 'acme',
+  description: null,
+  logo: null,
+  website: null,
+  lifecycleState: 'active',
+  deletedAt: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+/** The visitor owns one tenant, so a landing with no redirect is the dashboard. */
+function serveOneTenant() {
+  server.use(
+    http.get('/api/v1/tenants', () =>
+      ok(
+        listPage([
+          { tenant: ACME, role: 'owner', isPlatform: false, joinedAt: '2026-01-01T00:00:00.000Z' },
+        ]),
+        'Tenants retrieved.'
+      )
+    ),
+    http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.'))
   )
 }
 
@@ -102,8 +132,37 @@ describe('/auth/callback', () => {
     expect(router.state.location.searchStr).toContain('tab=unread')
   })
 
-  it('lands a returning user with no redirect on the dashboard', async () => {
+  it('lands a returning user with a tenant and no redirect on the dashboard', async () => {
     arriveSignedIn()
+    serveOneTenant()
+    const router = renderAt('/auth/callback')
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/dashboard')
+    })
+  })
+
+  it('lands a returning user with no tenant and no redirect on /welcome', async () => {
+    arriveSignedIn()
+    let reads = 0
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        reads += 1
+        return ok(listPage([]), 'Tenants retrieved.')
+      })
+    )
+    const router = renderAt('/auth/callback')
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/welcome')
+    })
+    expect(reads).toBeGreaterThan(0)
+    expect((router.history as RouterHistory).length).toBe(1)
+  })
+
+  it('lands on the dashboard when the tenant list cannot be read', async () => {
+    arriveSignedIn()
+    server.use(http.get('/api/v1/tenants', () => fail('Internal error', 500)))
     const router = renderAt('/auth/callback')
 
     await waitFor(() => {
@@ -115,6 +174,7 @@ describe('/auth/callback', () => {
     'lands an unsafe callback redirect on the dashboard (%s)',
     async (unsafe) => {
       arriveSignedIn()
+      serveOneTenant()
       const router = renderAt(`/auth/callback?redirect=${encodeURIComponent(unsafe)}`)
 
       await waitFor(() => {
@@ -126,6 +186,7 @@ describe('/auth/callback', () => {
 
   it('replaces the callback in history, so Back never returns to it', async () => {
     arriveSignedIn()
+    serveOneTenant()
     const router = renderAt('/auth/callback')
 
     await waitFor(() => {

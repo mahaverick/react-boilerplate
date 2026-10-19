@@ -8,7 +8,7 @@ import { FieldDescription } from '@/components/ui/field'
 export function TermsNote() {
   return (
     <FieldDescription className="px-6 text-center">
-      By clicking continue, you agree to our Terms of Service and Privacy Policy.
+      By signing in, you agree to our Terms of Service and Privacy Policy.
     </FieldDescription>
   )
 }
