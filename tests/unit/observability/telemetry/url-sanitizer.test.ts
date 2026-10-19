@@ -34,6 +34,12 @@ describe('sanitizeUrl', () => {
     expect(sanitizeUrl(input, ALLOW)).toBe(expected)
   })
 
+  it('drops token, email and redirect from a sign-in link URL', () => {
+    expect(
+      sanitizeUrl('https://app.test/auth/link?token=ttt&email=a%40b.test&redirect=%2Fx', ['tab'])
+    ).toBe('https://app.test/auth/link')
+  })
+
   it('cuts an unparseable URL at its query', () => {
     expect(sanitizeUrl('http://[bad?token=probe-token', ALLOW)).toBe('http://[bad')
   })
@@ -74,6 +80,16 @@ describe('sanitizeEventUrls', () => {
       'https://app.example.com/a',
     ])
     expect(JSON.stringify(event)).toContain('probe-token')
+  })
+
+  it('drops them from a $pageview through sanitizeEventUrls', () => {
+    const url = 'https://app.test/auth/link?token=ttt&email=a%40b.test&redirect=%2Fx'
+    const sanitized = sanitizeEventUrls(
+      { uuid: 'u', event: '$pageview', properties: { $current_url: url, $referrer: url } },
+      ['tab']
+    )
+    expect(sanitized.properties.$current_url).toBe('https://app.test/auth/link')
+    expect(sanitized.properties.$referrer).toBe('https://app.test/auth/link')
   })
 
   it('adds no $set or $set_once the event did not have', () => {

@@ -163,6 +163,16 @@ describe('buildPosthogOptions', () => {
     )
   })
 
+  it('masks token and email in a captured request name', () => {
+    const mask = buildPosthogOptions(input()).session_recording?.maskCapturedNetworkRequestFn as (
+      request: CapturedNetworkRequest
+    ) => CapturedNetworkRequest
+    const request = {
+      name: 'https://app.example.com/auth/link?token=probe-token&email=a%40b.test',
+    }
+    expect(mask(request as CapturedNetworkRequest).name).toBe('https://app.example.com/auth/link')
+  })
+
   it('names the same classes <Pii> renders as the replay mask selector', () => {
     for (const className of PII_CLASS_NAME.split(' ')) {
       expect(MASK_TEXT_SELECTOR).toContain(`.${className}`)

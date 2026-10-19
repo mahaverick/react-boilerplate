@@ -3,6 +3,7 @@ import {
   changePasswordSchema,
   loginSchema,
   registerSchema,
+  signInLinkRequestSchema,
   verifyEmailSchema,
 } from '@/schemas/auth.schemas'
 
@@ -130,5 +131,17 @@ describe('register names: the API safeText rule', () => {
     for (const firstName of ['שָׁלוֹם\u{200F}', 'Ad\u{200B}min']) {
       expect(registerSchema.safeParse({ ...base, firstName }).success).toBe(false)
     }
+  })
+})
+
+describe('signInLinkRequestSchema', () => {
+  it('lowercases and trims the sign-in email', () => {
+    expect(signInLinkRequestSchema.parse({ email: '  Ada@Example.COM ' })).toEqual({
+      email: 'ada@example.com',
+    })
+  })
+
+  it('refuses a malformed email', () => {
+    expect(signInLinkRequestSchema.safeParse({ email: 'nope' }).success).toBe(false)
   })
 })

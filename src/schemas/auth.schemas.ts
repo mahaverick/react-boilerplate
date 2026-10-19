@@ -26,6 +26,9 @@ export const emailSchema = z
   .email('Enter a valid email address.')
   .max(MAX_EMAIL_LENGTH, `Email must be at most ${MAX_EMAIL_LENGTH} characters.`)
 
+/** The sign-in-link form's values: the address the link is mailed to. */
+export const signInLinkRequestSchema = z.object({ email: emailSchema })
+
 /** The policy for a password being set: registration, reset and change-password. Login and verify-email apply none. */
 const newPasswordSchema = z
   .string()

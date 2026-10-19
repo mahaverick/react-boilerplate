@@ -43,6 +43,24 @@ export function codeFrom(error: unknown): string | undefined {
   return undefined
 }
 
+/**
+ * How long a refused request says to wait, in whole seconds and at least 1,
+ * from the `Retry-After` response header (delta-seconds or an HTTP date).
+ * `null` when there is no response or header, or the header cannot be read.
+ */
+export function retryAfterSecondsFrom(error: unknown): number | null {
+  if (!(error instanceof AxiosError)) return null
+  const header: unknown = error.response?.headers?.['retry-after']
+  if (typeof header !== 'string' && typeof header !== 'number') return null
+  const value = String(header).trim()
+  if (/^\d+$/.test(value)) return Math.max(1, Number(value))
+  // Date.parse reads a bare number such as "-5" as a year, which is no wait at all.
+  if (/^[-+]?\d+$/.test(value)) return null
+  const date = Date.parse(value)
+  if (Number.isNaN(date)) return null
+  return Math.max(1, Math.ceil((date - Date.now()) / 1_000))
+}
+
 /** The one key in `errors` that is not a field name. */
 const FORM_ERRORS_KEY = 'formErrors'
 

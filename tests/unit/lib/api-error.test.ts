@@ -6,6 +6,7 @@ import {
   formErrorsFrom,
   messageFrom,
   READ_ONLY_MODE_MESSAGE,
+  retryAfterSecondsFrom,
   statusFrom,
 } from '@/lib/api-error'
 import type { ApiErrorBody } from '@/types/api.types'
@@ -110,5 +111,53 @@ describe('api-error', () => {
       requestId: 'req-5',
     })
     expect(messageFrom(refusal)).toBe('Upgrading the database. Back by 11:00.')
+  })
+})
+
+describe('retryAfterSecondsFrom', () => {
+  /** An Axios error whose response carries the given headers. */
+  function errorWithHeaders(headers: Record<string, string>): AxiosError {
+    const config = { headers: new AxiosHeaders() }
+    return new AxiosError('Too many requests', '429', config, null, {
+      data: null,
+      status: 429,
+      statusText: 'Too Many Requests',
+      headers,
+      config,
+    })
+  }
+
+  /** An HTTP-date `seconds` from now. */
+  function httpDate(seconds: number): string {
+    return new Date(Date.now() + seconds * 1_000).toUTCString()
+  }
+
+  it.each([
+    ['42', 42],
+    ['0', 1],
+  ])('reads Retry-After %s', (value, expected) => {
+    expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': value }))).toBe(expected)
+  })
+
+  it('reads Retry-After as an HTTP date', () => {
+    const seconds = retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': httpDate(90) }))
+    // The date has whole-second resolution, so the answer is 90 less the truncated part.
+    expect(seconds).toBeGreaterThanOrEqual(89)
+    expect(seconds).toBeLessThanOrEqual(90)
+  })
+
+  it('answers at least 1 for a date in the past', () => {
+    expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': httpDate(-30) }))).toBe(1)
+  })
+
+  it('answers null without a response or header', () => {
+    expect(retryAfterSecondsFrom(new AxiosError('Network Error'))).toBeNull()
+    expect(retryAfterSecondsFrom(errorWithHeaders({}))).toBeNull()
+    expect(retryAfterSecondsFrom(new Error('boom'))).toBeNull()
+  })
+
+  it('answers null for a header it cannot parse', () => {
+    expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': 'soon' }))).toBeNull()
+    expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': '-5' }))).toBeNull()
   })
 })

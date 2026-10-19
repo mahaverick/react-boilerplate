@@ -23,6 +23,7 @@ import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
+import { safeRedirect } from '@/lib/safe-redirect'
 import { toast } from '@/lib/toast'
 import { useLogin } from '@/queries/auth.queries'
 import { loginSchema } from '@/schemas/auth.schemas'
@@ -51,36 +52,6 @@ const OAUTH_ERRORS: Record<string, string> = {
   processing_failed: 'Something went wrong signing in with Google. Try again.',
   // The API refuses a non-staff sign-in while maintenance mode is full.
   MAINTENANCE_MODE: 'Sign-in is paused for maintenance. Please try again later.',
-}
-
-/**
- * Where to go after a successful sign-in, or `null` to use the dashboard.
- *
- * `?redirect=` is written by `_app`'s guard and `redirectToLogin`, but it
- * arrives from the URL bar and is attacker-controlled: an absolute URL there
- * would make this page an open redirect. So the value must start with `/`
- * (which keeps out a bare relative value and a `javascript:` scheme), and is
- * then resolved by the URL parser rather than matched by a pattern, since
- * both cases below pass a `^/(?![/\\])`-style test. `/\t/evil.example` loses
- * its control character and resolves off this origin, which the origin check
- * refuses. `/..//evil.example` resolves same-origin to the pathname
- * `//evil.example`, protocol-relative once assigned, which the re-check for a
- * leading `//` refuses. A value the parser cannot resolve is refused.
- *
- * The whole same-origin `pathname + search + hash` is returned, so a query
- * survives.
- */
-export function safeRedirect(value: string | undefined): string | null {
-  if (!value || !value.startsWith('/')) return null
-  try {
-    const resolved = new URL(value, window.location.origin)
-    if (resolved.origin !== window.location.origin) return null
-    const path = `${resolved.pathname}${resolved.search}${resolved.hash}`
-    // Same origin is not enough: "/..//evil.example" resolves to the pathname "//evil.example".
-    return path.startsWith('/') && !path.startsWith('//') ? path : null
-  } catch {
-    return null
-  }
 }
 
 /**
