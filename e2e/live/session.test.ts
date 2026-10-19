@@ -11,6 +11,7 @@ import {
   API_ORIGIN,
   apiIsReady,
   freshEmail,
+  REFRESH_COOKIE_NAME,
   requestSignInLink,
   signIn,
   waitForApi,
@@ -61,8 +62,11 @@ async function signInCookie(
   expect(response.status()).toBe(200)
   return response
     .headersArray()
-    .find((h) => h.name.toLowerCase() === 'set-cookie' && h.value.startsWith('refreshToken='))
-    ?.value
+    .find(
+      (h) =>
+        h.name.toLowerCase() === 'set-cookie' &&
+        REFRESH_COOKIE_NAME.test(h.value.split('=', 1)[0] ?? '')
+    )?.value
 }
 
 test('the refresh cookie is scoped and flagged as the SPA assumes', async ({ request }) => {

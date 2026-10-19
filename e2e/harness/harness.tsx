@@ -228,18 +228,32 @@ function ok<T>(data: T, message = 'OK', statusCode = 200) {
 }
 
 /** An express error envelope as a `Response`; `headers` carries a `Maintenance-Mode` answer. */
-function fail(message: string, statusCode: number, code?: string, headers?: HeadersInit) {
+function fail(
+  message: string,
+  statusCode: number,
+  code?: string,
+  headers?: HeadersInit,
+  extra: Record<string, unknown> = {}
+) {
   return Response.json(
-    { success: false, message, statusCode, code, requestId: 'harness-request-id' },
+    { success: false, message, statusCode, code, ...extra, requestId: 'harness-request-id' },
     { status: statusCode, headers }
   )
 }
 
-/** express's 503 while maintenance is read-only, with the header that moves the app's mode. */
+/** express's `INVITATION_INVALID_MESSAGE`, its one answer for every dead invitation. */
+const INVITATION_INVALID =
+  'This invitation link has expired or was already used. Ask the person who invited you for a new one.'
+
+/** express's 503 while maintenance is read-only: its `mode` and `since`, `Retry-After`, and the header that moves the app's mode. */
 function readOnly() {
-  return fail('The service is read-only for maintenance.', 503, 'READ_ONLY_MODE', {
-    'Maintenance-Mode': 'read_only',
-  })
+  return fail(
+    'The service is read-only for maintenance.',
+    503,
+    'READ_ONLY_MODE',
+    { 'Maintenance-Mode': 'read_only', 'Retry-After': '30' },
+    { mode: 'read_only', since: null }
+  )
 }
 
 const params = new URLSearchParams(location.search)
@@ -450,7 +464,7 @@ const worker = setupWorker(
   ),
   http.post('/api/v1/invitations/preview', () =>
     inviteMode === 'dead' || inviteMode === 'joined'
-      ? fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+      ? fail(INVITATION_INVALID, 404, 'invitation_invalid')
       : ok(
           inviteMode === 'ok'
             ? { ...INVITATION_PREVIEW, email: testUser.email }
@@ -460,7 +474,7 @@ const worker = setupWorker(
   ),
   http.post('/api/v1/invitations/verify', () => {
     if (inviteMode === 'dead' || inviteMode === 'joined') {
-      return fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+      return fail(INVITATION_INVALID, 404, 'invitation_invalid')
     }
     if (inviteMode === 'inbox') {
       return ok(
@@ -483,7 +497,7 @@ const worker = setupWorker(
   }),
   http.post('/api/v1/invitations/accept', () =>
     inviteMode === 'dead'
-      ? fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+      ? fail(INVITATION_INVALID, 404, 'invitation_invalid')
       : ok(
           {
             tenant: INVITATION_PREVIEW.tenant,

@@ -7,6 +7,17 @@ import { expect } from '@playwright/test'
 
 const MAILPIT_ORIGIN = process.env.E2E_MAILPIT_ORIGIN ?? 'http://localhost:8025'
 
+/**
+ * How far Mailpit's clock (the container's) may run behind the caller's.
+ * Docker Desktop's VM lags after the host sleeps, and an exact comparison
+ * would skip a fresh mail. 30 s is safe because two mails to one address with
+ * the same link path are at least the 60 s mail cooldown apart, so the
+ * allowance never reaches back to the previous link. Callers keep that gap:
+ * express enforces it per address for sign-in links and per invitation for
+ * confirm links, and the live helpers wait it out before asking again.
+ */
+const CLOCK_SKEW_MS = 30_000
+
 /** One row of Mailpit's search: the message id and when Mailpit received it. */
 interface MailpitSummary {
   ID: string
@@ -37,8 +48,8 @@ async function linksIn(id: string): Promise<URL[]> {
 
 /**
  * Polls Mailpit (15 s) for the newest message to `email` that Mailpit received
- * at or after `since` and whose text holds a link to `path`, and returns that
- * link, query included. Take `since` before the request that sends the mail.
+ * at or after `since` (less `CLOCK_SKEW_MS`) and whose text holds a link to
+ * `path`, and returns that link, query included. Take `since` before the request that sends the mail.
  * A Mailpit that is down fails at once, with its own error.
  * @param email - The recipient.
  * @param path - The link's exact path, e.g. `/auth/link` or `/invitations/confirm`.
@@ -52,7 +63,7 @@ export async function mailedLink(email: string, path: string, since: number): Pr
   const poll = async () => {
     try {
       for (const { ID, Created } of await messagesTo(email)) {
-        if (Date.parse(Created) < since) continue
+        if (Date.parse(Created) < since - CLOCK_SKEW_MS) continue
         found.link = (await linksIn(ID)).find((url) => url.pathname === path) ?? null
         if (found.link) return true
       }

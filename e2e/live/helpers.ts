@@ -78,17 +78,25 @@ const MAIL_COOLDOWN_MS = 61_000
 const lastLinkRequest = new Map<string, number>()
 
 /**
- * Waits out the mail cooldown for `email` when these helpers asked for a link
- * to it less than a minute ago, then records this request's time.
- * @returns The time to pass to `mailedLink` as `since`.
+ * Waits out the mail cooldown for `email` when these helpers had a link sent
+ * to it less than a minute ago. Call `linkRequested` once the request is
+ * answered.
+ * @returns The time to pass to `mailedLink` as `since`, read before the request.
  */
 async function linkRequestSlot(email: string): Promise<number> {
   const last = lastLinkRequest.get(email)
   const wait = last === undefined ? 0 : last + MAIL_COOLDOWN_MS - Date.now()
   if (wait > 0) await settle(wait, 'express mails one sign-in link per address per minute')
-  const since = Date.now()
-  lastLinkRequest.set(email, since)
-  return since
+  return Date.now()
+}
+
+/**
+ * Records that a link request for `email` was answered. Read after the 202:
+ * express starts the cooldown after it replies, so a time read before the
+ * request would end the wait early by the request's own latency.
+ */
+function linkRequested(email: string): void {
+  lastLinkRequest.set(email, Date.now())
 }
 
 /** What a 429 from `/auth/link/request` means here: express allows ten per fifteen minutes per IP. */
@@ -110,8 +118,15 @@ export async function requestSignInLink(email: string): Promise<number> {
   if (requested.status !== 202) {
     throw new Error(`link request failed: ${requested.status} ${JSON.stringify(requested.body)}`)
   }
+  linkRequested(email)
   return since
 }
+
+/**
+ * express's refresh cookie names: plain, or with the `__Host-` or `__Secure-`
+ * prefix it takes when `COOKIE_SECURE` is on.
+ */
+export const REFRESH_COOKIE_NAME = /^(__Host-|__Secure-)?refreshToken$/
 
 /**
  * The refresh cookie in a response's `Set-Cookie` headers, or `null`.
@@ -122,7 +137,7 @@ function refreshCookieFrom(headers: Headers): LiveSession['refreshCookie'] | nul
     const [pair = '', ...attributes] = cookie.split(';').map((part) => part.trim())
     const split = pair.indexOf('=')
     const name = pair.slice(0, split)
-    if (split < 1 || name !== 'refreshToken') continue
+    if (split < 1 || !REFRESH_COOKIE_NAME.test(name)) continue
     const path = attributes.find((attribute) => /^path=/i.test(attribute))?.slice(5) ?? '/'
     return { name, value: pair.slice(split + 1), path }
   }
@@ -539,6 +554,7 @@ async function signInThroughPage(page: Page, email: string): Promise<void> {
   )
   await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
   if ((await requested).status() === 429) throw new Error(RATE_LIMITED)
+  linkRequested(email)
   await expect(page.getByRole('heading', { name: 'Check your inbox', level: 1 })).toBeVisible()
   const link = await mailedLink(email, '/auth/link', since)
   await page.goto(`${link.pathname}${link.search}`)
@@ -564,9 +580,18 @@ export async function logIn(page: Page, email: string): Promise<void> {
   await page.goto('/login')
   const { hostname } = new URL(page.url())
   const { name, value, path } = kept.session.refreshCookie
-  await page
-    .context()
-    .addCookies([{ name, value, domain: hostname, path, httpOnly: true, sameSite: 'Strict' }])
+  await page.context().addCookies([
+    {
+      name,
+      value,
+      domain: hostname,
+      path,
+      httpOnly: true,
+      sameSite: 'Strict',
+      // A prefixed cookie is dropped without `Secure`.
+      secure: name.startsWith('__'),
+    },
+  ])
   await page.goto('/dashboard')
   await expect(page).not.toHaveURL(/\/(login|auth\/link)(\?|$)/, { timeout: 15_000 })
 }

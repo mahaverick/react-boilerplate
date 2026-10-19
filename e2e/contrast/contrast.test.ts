@@ -179,6 +179,8 @@ const SURFACES = [
     name: 'invitation check inbox',
     url: signedOut('/invitations/accept', `token=${TOKEN}&invite=inbox`),
     heading: 'Check your inbox',
+    // The sign-in form's inbox has the same heading; this line is the invitation's own.
+    text: 'Open it to join Acme Corp.',
   },
   {
     name: 'invitation confirm joining',
@@ -331,6 +333,7 @@ for (const theme of THEMES) {
   for (const surface of SURFACES) {
     test(`${surface.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
       const result = await contrastOf(page, surface.url, theme, surface.heading)
+      if ('text' in surface) await expect(page.getByText(surface.text)).toBeVisible()
 
       // `incomplete` is not a pass: axe files a node there when it cannot resolve the background (a gradient, an image, an overlap), so it is surfaced for a human rather than asserted.
       if (result.incomplete.length > 0) {
@@ -355,6 +358,8 @@ test.describe('states a click reaches', () => {
       name: 'check inbox',
       url: signedOut('/login', ''),
       heading: 'Check your inbox',
+      // The invitation's inbox has the same heading; this line is the sign-in form's own.
+      text: 'We sent a sign-in link to ada@example.test.',
       reach: async (page: Page) => {
         await page
           .getByRole('textbox', { name: 'Email', exact: true })
@@ -373,6 +378,7 @@ test.describe('states a click reaches', () => {
         await expect(page.getByRole('heading', { level: 1, name: state.heading })).toBeVisible({
           timeout: COLD_TRANSFORM_BUDGET_MS,
         })
+        await expect(page.getByText(state.text)).toBeVisible()
         await afterFontsAndFrames(page)
         await page.addScriptTag({ path: AXE_PATH })
 
