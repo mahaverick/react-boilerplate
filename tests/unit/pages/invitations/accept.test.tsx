@@ -308,6 +308,8 @@ describe('accept page, signed out', () => {
 
     await expectLandedInTenant(router)
     expect(await screen.findAllByText(JOINED)).toHaveLength(1)
+    // The toast names the account, so its root must mask it for analytics.
+    expect(screen.getByText(JOINED).closest('.ph-sensitive.ph-mask')).not.toBeNull()
     expect(useAuthStore.getState().user).toEqual(testUser)
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
     expect(verifies).toEqual([{ body: { token: TEST_INVITATION_TOKEN }, authorization: null }])
@@ -412,7 +414,12 @@ describe('accept page, signed out', () => {
     expect(screen.queryByText(/for a new invite/)).not.toBeInTheDocument()
     expect(requests).toHaveLength(1)
     expect(requests[0]?.body).toEqual({ email: 'ada@example.test', app: 'web' })
-    expect(await screen.findByRole('button', { name: /^Resend in/ })).toBeInTheDocument()
+    // A form remounted by the switch to "Check your inbox" would lose its deadline and offer "Resend link".
+    const resend = await screen.findByRole('button', { name: /^Resend in 1:00$|^Resend in 0:5\d$/ })
+    await waitFor(() => {
+      expect(resend).toHaveAccessibleName(/^Resend in 0:5\d$/)
+    })
+    expect(screen.getByRole('button', { name: /^Resend in/ })).toBe(resend)
   })
 
   it.each([
@@ -570,10 +577,12 @@ describe('accept page, signed in', () => {
     expect(verifies).toHaveLength(0)
   })
 
-  it('cancels a switch to the dashboard, still signed in', async () => {
+  it('cancels a switch to the dashboard, still signed in, and spends nothing', async () => {
     signIn()
     previewForSomeoneElse()
     const accepts = serveAccept(accepted())
+    const verifies = serveVerify(verified())
+    const logouts = serve('/api/v1/auth/logout', () => ok(null, 'Signed out.'))
     const user = userEvent.setup()
     const router = renderAt(ACCEPT_PATH)
 
@@ -584,6 +593,28 @@ describe('accept page, signed in', () => {
     })
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
     expect(accepts).toHaveLength(0)
+    expect(verifies).toHaveLength(0)
+    expect(logouts).toHaveLength(0)
+  })
+
+  it('carries the link’s campaign keys, and nothing else, through the reload after Continue', async () => {
+    signIn()
+    previewForSomeoneElse()
+    server.use(http.post('/api/v1/auth/logout', () => ok(null, 'Signed out.')))
+    const user = userEvent.setup()
+    const campaign = 'utm_source=email&utm_medium=email&utm_campaign=tenant_invitation'
+    renderAt(
+      `${ACCEPT_PATH}&${campaign}&utm_content=${encodeURIComponent('a@b.test')}&email=${encodeURIComponent(OTHER_EMAIL)}`
+    )
+
+    const continueButton = await screen.findByRole('button', { name: `Continue as ${OTHER_EMAIL}` })
+    const assign = stubAssign()
+    await user.click(continueButton)
+
+    // An address-shaped utm value fails the sanitizer's own check, so it goes, as does ?email=.
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith(`${ACCEPT_PATH}&${campaign}`)
+    })
   })
 
   it.each([
@@ -599,6 +630,14 @@ describe('accept page, signed in', () => {
       'Ask Ada Lovelace for a new invite.'
     )
     expect(screen.queryByText(/@/)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to the dashboard' })).toHaveAttribute(
+      'href',
+      '/dashboard'
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Email me a sign-in link' })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Or sign in:')).not.toBeInTheDocument()
     // A refusal judges the invitation, not the session.
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
@@ -705,6 +744,10 @@ describe('a used link', () => {
     expect(await screen.findByRole('heading', { level: 1, name: DEAD_TITLE })).toBeVisible()
     expect(screen.getByText(ASK_THE_TEAM)).toBeVisible()
     expect(screen.queryByText(/@/)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to the dashboard' })).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Email me a sign-in link' })
+    ).not.toBeInTheDocument()
     expect(accepts).toHaveLength(1)
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })

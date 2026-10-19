@@ -19,8 +19,9 @@ import { AuthPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { broadcastAuthMessage } from '@/http/session'
-import { messageFrom, retryAfterSecondsFrom, statusFrom } from '@/lib/api-error'
+import { statusFrom } from '@/lib/api-error'
 import { safeLanding } from '@/lib/landing'
+import { retryableFailureMessage } from '@/lib/retry'
 import { useLogout, useVerifySignInLink } from '@/queries/auth.queries'
 import { tenantsQueryOptions } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
@@ -48,17 +49,6 @@ export const Route = createFileRoute('/auth/link')({
 interface VerifiedLink {
   isNewUser: boolean
   redirect: string | null
-}
-
-/**
- * What a retryable verify failure says: a rate limit names its wait, from
- * `Retry-After`, and anything else says what the server or the network did.
- */
-function failureMessage(error: unknown): string {
-  const wait = statusFrom(error) === 429 ? retryAfterSecondsFrom(error) : null
-  if (wait === null) return messageFrom(error)
-  const after = wait < 120 ? `${wait} seconds` : `${Math.ceil(wait / 60)} minutes`
-  return `Too many sign-in attempts. Try again in ${after}.`
 }
 
 /** Every state's frame: one `<main>` (AuthLayout) and one `<h1>`. */
@@ -232,7 +222,7 @@ function SignInLinkPage() {
     return (
       <LinkCard title="We couldn't sign you in">
         <VerifyFailedPanel
-          message={failureMessage(failure.error)}
+          message={retryableFailureMessage(failure.error, 'sign-in attempts')}
           retrying={verify.isPending}
           onRetry={() => post(token)}
         />

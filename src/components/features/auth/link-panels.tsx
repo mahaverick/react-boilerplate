@@ -1,4 +1,5 @@
 import { IconAlertCircle } from '@tabler/icons-react'
+import type { ReactNode } from 'react'
 import { BusyButton } from '@/components/shared/busy-button'
 import { Pii } from '@/components/shared/pii'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -7,12 +8,13 @@ import { Spinner } from '@/components/ui/spinner'
 
 /**
  * The verifying frame of a link page: one `role="status"` row with a spinner
- * and `label`, such as "Signing you in…" or "Joining Acme…". With `email`, a
+ * and `label`, such as "Signing you in…". The label may carry a masked
+ * address inline, as "Joining Acme as <Pii>ada@…</Pii>…" does. With `email`, a
  * second line names the account the link signs in, so a person who opened
  * someone else's link sees whose account it is before it lands. Pass the
  * link's own address or the invitation's; the address is masked.
  */
-export function SigningInStatus({ label, email }: { label: string; email?: string | null }) {
+export function SigningInStatus({ label, email }: { label: ReactNode; email?: string | null }) {
   return (
     <div role="status" className="grid justify-items-center gap-2 py-4 text-center text-sm">
       <span className="flex items-center gap-2">

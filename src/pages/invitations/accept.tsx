@@ -1,5 +1,5 @@
 import '@/lib/zod-jitless'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useLocation, useNavigate } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { z } from 'zod'
 import {
@@ -15,14 +15,16 @@ import { AuthPagePending } from '@/components/shared/pending-templates'
 import { Pii } from '@/components/shared/pii'
 import { buttonVariants } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Spinner } from '@/components/ui/spinner'
 import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
-import { messageFrom, retryAfterSecondsFrom, statusFrom } from '@/lib/api-error'
+import { statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
+import { retryableFailureMessage } from '@/lib/retry'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { ANALYTICS_URL_QUERY_ALLOWLIST } from '@/observability/telemetry/config'
+import { sanitizeUrl } from '@/observability/telemetry/url-sanitizer'
 import { useLogout } from '@/queries/auth.queries'
 import {
   inviterName,
@@ -66,9 +68,20 @@ interface Joining {
 /** How a join ended without landing: the invitation is dead, or the request failed and may pass. */
 type JoinFailure = { kind: 'dead' } | { kind: 'failed'; error: unknown }
 
-/** Where this page lives, token included, for the round trips that leave it. */
-function acceptHref(token: string): string {
-  return `${ROUTES.invitationAccept}?token=${encodeURIComponent(token)}`
+/** The campaign keys express puts on a mailed link; a reload of this page carries them. */
+const CAMPAIGN_KEYS = ANALYTICS_URL_QUERY_ALLOWLIST.filter((key) => key.startsWith('utm_'))
+
+/**
+ * Where this page lives, token included, for the round trips that leave it.
+ * The link's campaign keys come along, each only with a value the analytics
+ * sanitizer would keep, so the reload's page view is still attributed and
+ * nothing else from the old URL travels.
+ * @param token - The invitation token.
+ * @param searchStr - The current raw query string, `?…` or empty.
+ */
+function acceptHref(token: string, searchStr = ''): string {
+  const campaign = sanitizeUrl(`/${searchStr}`, CAMPAIGN_KEYS).split('?')[1]
+  return `${ROUTES.invitationAccept}?token=${encodeURIComponent(token)}${campaign ? `&${campaign}` : ''}`
 }
 
 /** "{inviter} invited you to join {tenant} as {role}.", the inviter's name masked for analytics. */
@@ -79,17 +92,6 @@ function invitationSentence(invitation: InvitationPreview): ReactNode {
       {ROLE_LABELS[invitation.role]}.
     </>
   )
-}
-
-/**
- * What a retryable failure says: a rate limit names its wait, from
- * `Retry-After`, and anything else says what the server or the network did.
- */
-function failureMessage(error: unknown): string {
-  const wait = statusFrom(error) === 429 ? retryAfterSecondsFrom(error) : null
-  if (wait === null) return messageFrom(error)
-  const after = wait < 120 ? `${wait} seconds` : `${Math.ceil(wait / 60)} minutes`
-  return `Too many attempts. Try again in ${after}.`
 }
 
 /** Every state's frame: one `<main>` (AuthLayout) and one `<h1>`. */
@@ -123,14 +125,17 @@ function HomeLink() {
 /**
  * An invitation that cannot join anyone: malformed, revoked, expired or
  * already used. It names the inviter only when a live preview gave one, and
- * never an address. The sign-in form offers no address and no redirect, so
- * this page never passes on anything it did not get from a preview. The form
- * keeps its place in the tree when it switches to "Check your inbox", so its
- * resend clock survives.
+ * never an address. Someone signed in when it appeared goes on to the
+ * dashboard. Anyone else gets a sign-in form with no address and no redirect,
+ * so this page never passes on anything it did not get from a preview. The
+ * form keeps its place in the tree when it switches to "Check your inbox", so
+ * its resend clock survives.
  */
 function DeadInvitation({ inviter }: { inviter: InvitationPreview['invitedBy'] | undefined }) {
   const navigate = useNavigate()
   const [sentTo, setSentTo] = useState<string | null>(null)
+  // Read once: a sign-in from another tab while the form waits on the inbox must not swap the form out.
+  const [signedIn] = useState(() => useAuthStore.getState().isAuthenticated)
   const name = fullName(inviter)
   const ask = name ? (
     <>
@@ -139,6 +144,15 @@ function DeadInvitation({ inviter }: { inviter: InvitationPreview['invitedBy'] |
   ) : (
     'Ask the team for a new invite.'
   )
+  if (signedIn) {
+    return (
+      <InvitationCard title={DEAD_TITLE} description={ask}>
+        <Link to={ROUTES.dashboard} replace className={cn(buttonVariants(), 'w-full')}>
+          Go to the dashboard
+        </Link>
+      </InvitationCard>
+    )
+  }
   return (
     <InvitationCard
       title={sentTo ? CHECK_INBOX_TITLE : DEAD_TITLE}
@@ -172,7 +186,8 @@ function SwitchInvitation({
   currentEmail: string
 }) {
   const navigate = useNavigate()
-  const logout = useLogout({ returnTo: acceptHref(token) })
+  const searchStr = useLocation({ select: (location) => location.searchStr })
+  const logout = useLogout({ returnTo: acceptHref(token, searchStr) })
   return (
     <InvitationCard
       title={`Join ${invitation.tenant.name}`}
@@ -191,30 +206,11 @@ function SwitchInvitation({
 }
 
 /**
- * The status row while a join runs: "Joining {workspace} as {address}…". The
- * address is the preview's, the server's record of who was invited, never a
- * URL parameter, so a link planted to sign a visitor into someone else's
- * account names that account before it lands. Spinner and live region as
- * `SigningInStatus`, whose label is plain text and cannot carry the masked address.
- */
-function JoiningStatus({ invitation }: { invitation: InvitationPreview }) {
-  return (
-    <div role="status" className="grid justify-items-center gap-2 py-4 text-center text-sm">
-      <span className="flex flex-wrap items-center justify-center gap-x-2">
-        {/* The row is the live region; the spinner's own status role would announce "Loading" over the label. */}
-        <Spinner aria-hidden="true" />
-        <span>
-          Joining {invitation.tenant.name} as <Pii>{invitation.email}</Pii>…
-        </span>
-      </span>
-    </div>
-  )
-}
-
-/**
- * The frame while a join runs. With the preview it names the workspace, the
- * inviter and the invited address, so a person who opened someone else's
- * link sees whose it is; after a 404 preview it names nothing.
+ * The frame while a join runs. With the preview it reads "Joining {workspace}
+ * as {address}…" and names the inviter. The address is the preview's, the
+ * server's record of who was invited, never a URL parameter, so a link planted
+ * to sign a visitor into someone else's account names that account before it
+ * lands. After a 404 preview it names nothing.
  */
 function JoiningFrame({ invitation }: { invitation: InvitationPreview | null }) {
   if (!invitation) {
@@ -227,7 +223,13 @@ function JoiningFrame({ invitation }: { invitation: InvitationPreview | null }) 
   const name = invitation.tenant.name
   return (
     <InvitationCard title={`Joining ${name}`} description={invitationSentence(invitation)}>
-      <JoiningStatus invitation={invitation} />
+      <SigningInStatus
+        label={
+          <>
+            Joining {name} as <Pii>{invitation.email}</Pii>…
+          </>
+        }
+      />
     </InvitationCard>
   )
 }
@@ -340,7 +342,7 @@ function InvitationForToken({ token }: { token: string }) {
       return (
         <InvitationCard title={title}>
           <VerifyFailedPanel
-            message={failureMessage(failure.error)}
+            message={retryableFailureMessage(failure.error, 'attempts')}
             retrying={joining.call === 'verify' ? verify.isPending : accept.isPending}
             onRetry={() => post(joining.call)}
           />

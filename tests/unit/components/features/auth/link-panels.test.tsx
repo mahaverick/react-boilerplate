@@ -6,6 +6,7 @@ import {
   SwitchAccountPanel,
   VerifyFailedPanel,
 } from '@/components/features/auth/link-panels'
+import { Pii } from '@/components/shared/pii'
 import { PII_CLASS_NAME } from '@/observability/telemetry'
 
 const CURRENT = 'grace@example.test'
@@ -47,6 +48,24 @@ describe('SigningInStatus', () => {
     const address = screen.getByText(TARGET)
     expect(status).toContainElement(address)
     expect(address).toHaveClass(PII_CLASS_NAME)
+  })
+
+  it('takes a label that names the address inline, masked, in the one live region', () => {
+    render(
+      <SigningInStatus
+        label={
+          <>
+            Joining Acme as <Pii>{TARGET}</Pii>…
+          </>
+        }
+      />
+    )
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(`Joining Acme as ${TARGET}…`)
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.getByText(TARGET)).toHaveClass(PII_CLASS_NAME)
+    expect(status).not.toHaveTextContent('This link is for')
   })
 })
 

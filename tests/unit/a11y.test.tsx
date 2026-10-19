@@ -867,6 +867,22 @@ describe('invitation accept states', () => {
     await expectNoViolations()
   })
 
+  it('invitation dead signed in has no axe violations', async () => {
+    signIn()
+    mockSignedInData()
+    server.use(
+      http.post('/api/v1/invitations/preview', () =>
+        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+      ),
+      http.post('/api/v1/invitations/accept', () =>
+        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+      )
+    )
+    renderAppAt(acceptPath)
+    await screen.findByRole('link', { name: 'Go to the dashboard' })
+    await expectNoViolations()
+  })
+
   it('has no violations when the preview request failed', async () => {
     signIn()
     mockSignedInData()
