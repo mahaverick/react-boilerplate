@@ -16,6 +16,16 @@ interface LinkSignIn {
   redirect: string | null
 }
 
+/**
+ * What a sign-in link verify posts: the token, and the address the link names
+ * when it names one. The server refuses an address that is not the token's
+ * own, so a page can show it while verifying without trusting the URL.
+ */
+interface SignInLinkVerifyInput {
+  token: string
+  email?: string | undefined
+}
+
 /** The key of the caller's linked sign-in methods (`useAuthProviders`), under an `auth` prefix of its own. */
 export const authKeys = { providers: ['auth', 'providers'] as const }
 
@@ -41,6 +51,8 @@ export function useRequestSignInLink() {
 /**
  * Signs in with the token from an emailed link, creating the account on the
  * first click. Public like the request, so a stale bearer token is never sent.
+ * The link's address goes with the token, so the server refuses a link whose
+ * address was swapped for someone else's.
  * A different signed-in user is switched out first (`switchIdentity`). The
  * store is signed in before `sign_in_completed` is tracked, so the event
  * carries the new identity.
@@ -48,11 +60,11 @@ export function useRequestSignInLink() {
 export function useVerifySignInLink() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (token: string) =>
+    mutationFn: async ({ token, email }: SignInLinkVerifyInput) =>
       unwrap(
         await apiClient.post<ApiSuccess<LinkSignIn>>(
           '/auth/link/verify',
-          { token },
+          email === undefined ? { token } : { token, email },
           { skipAuthRetry: true, headers: { Authorization: false } }
         )
       ),

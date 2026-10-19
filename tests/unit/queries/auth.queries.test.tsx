@@ -134,7 +134,7 @@ describe('sign-in link queries', () => {
       })
 
       const { result } = renderHook(() => useVerifySignInLink(), { wrapper })
-      result.current.mutate(LINK_TOKEN)
+      result.current.mutate({ token: LINK_TOKEN })
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(body).toEqual({ token: LINK_TOKEN })
@@ -166,11 +166,30 @@ describe('sign-in link queries', () => {
       )
 
       const { result } = renderHook(() => useVerifySignInLink(), { wrapper })
-      result.current.mutate(LINK_TOKEN)
+      result.current.mutate({ token: LINK_TOKEN })
 
       await waitFor(() => expect(result.current.isError).toBe(true))
       expect(calls).toBe(1)
       expect(refreshes).toBe(0)
+    })
+
+    it("sends the link's address with the token, so the server can refuse a mismatch", async () => {
+      let body: unknown
+      server.use(
+        http.post('/api/v1/auth/link/verify', async ({ request }) => {
+          body = await request.json()
+          return ok(
+            { user: testUser, accessToken: 'link-token', isNewUser: false, redirect: null },
+            'Signed in.'
+          )
+        })
+      )
+
+      const { result } = renderHook(() => useVerifySignInLink(), { wrapper })
+      result.current.mutate({ token: LINK_TOKEN, email: testUser.email })
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(body).toEqual({ token: LINK_TOKEN, email: testUser.email })
     })
 
     it('leaves the store signed out on a 400 LINK_INVALID', async () => {
@@ -181,7 +200,7 @@ describe('sign-in link queries', () => {
       )
 
       const { result } = renderHook(() => useVerifySignInLink(), { wrapper })
-      result.current.mutate(LINK_TOKEN)
+      result.current.mutate({ token: LINK_TOKEN })
 
       await waitFor(() => expect(result.current.isError).toBe(true))
       expect(useAuthStore.getState().isAuthenticated).toBe(false)
@@ -209,7 +228,7 @@ describe('sign-in link queries', () => {
       const { tab, received } = signInOtherUser()
 
       const { result } = renderHook(() => useVerifySignInLink(), { wrapper })
-      result.current.mutate(LINK_TOKEN)
+      result.current.mutate({ token: LINK_TOKEN })
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       await vi.waitFor(() => expect(received).toContainEqual({ type: 'logout' }))
@@ -230,7 +249,7 @@ describe('sign-in link queries', () => {
       })
 
       const { result } = renderHook(() => useVerifySignInLink(), { wrapper })
-      result.current.mutate(LINK_TOKEN)
+      result.current.mutate({ token: LINK_TOKEN })
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       await settle(0, 'absence has no event: let any queued channel delivery run')

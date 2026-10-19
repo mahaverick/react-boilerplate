@@ -277,7 +277,7 @@ describe('/auth/link, signed out', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/dashboard')
     })
-    expect(bodies).toEqual([{ token: TOKEN }])
+    expect(bodies).toEqual([{ token: TOKEN, email: LINK_EMAIL }])
   })
 
   it('broadcasts signed_in after verifying', async () => {
@@ -333,6 +333,52 @@ describe('/auth/link, signed out', () => {
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/dashboard')
+    })
+  })
+
+  it('shows the dead link and starts no session when the address does not match the token', async () => {
+    let refreshes = 0
+    const sent: unknown[] = []
+    server.use(
+      // The server checks the address against the token's own: an attacker's token with a victim's address is refused.
+      http.post('/api/v1/auth/link/verify', async ({ request }) => {
+        const body = (await request.json()) as { token: string; email?: string }
+        sent.push(body)
+        return body.email === 'attacker@example.test'
+          ? signedIn()()
+          : fail('This link has expired or was already used.', 400, 'LINK_INVALID')
+      }),
+      http.post('/api/v1/auth/refresh', () => {
+        refreshes += 1
+        return fail('Unauthorized', 401)
+      })
+    )
+    renderAt(`/auth/link?token=${TOKEN}&email=${encodeURIComponent('victim@example.test')}`)
+
+    expect(await screen.findByRole('heading', { level: 1, name: LINK_DEAD_TITLE })).toBeVisible()
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    expect(useAuthStore.getState().accessToken).toBeNull()
+    expect(screen.queryByText(/This link is for/)).not.toBeInTheDocument()
+    expect(sent).toEqual([{ token: TOKEN, email: 'victim@example.test' }])
+    // Only the root's bootstrap tried to restore a session; the verify failure added none.
+    expect(refreshes).toBe(1)
+  })
+
+  it('names the server-confirmed address once signed in, not the one in the link', async () => {
+    serveVerify(signedIn())
+    server.use(
+      http.get('/api/v1/tenants', async () => {
+        await delay('infinite')
+        return ok(listPage([]))
+      })
+    )
+    renderAt(`/auth/link?token=${TOKEN}&email=${encodeURIComponent('ADA@example.test')}`)
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().user).toEqual(ADA)
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent(`This link is for ${LINK_EMAIL}.`)
     })
   })
 

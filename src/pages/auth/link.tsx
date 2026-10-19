@@ -104,7 +104,9 @@ function DeadLink({ email }: { email: string | undefined }) {
  * and reloads this URL signed out, so the token is never posted with another
  * person's session. Signed out, it posts the token from a ref-guarded effect,
  * so StrictMode's second run never spends the link twice; Try again posts
- * again on purpose.
+ * again on purpose. The link's `email` goes with the token: the server refuses
+ * an address that is not the token's own, so the verifying frame can name it,
+ * and once signed in the frame names the address the server confirmed.
  *
  * A 400 is the dead link, whatever its cause. Anything else (a rate limit,
  * maintenance, a network or server error) leaves the link usable, so it gets
@@ -148,13 +150,16 @@ function SignInLinkPage() {
 
   /** Posts the token; the outcome alone decides what the page shows next. */
   const post = (linkToken: string) => {
-    verify.mutate(linkToken, {
-      onSuccess: (link) => {
-        setFailure(null)
-        land(link)
-      },
-      onError: (error) => setFailure({ error }),
-    })
+    verify.mutate(
+      { token: linkToken, email },
+      {
+        onSuccess: (link) => {
+          setFailure(null)
+          land(link)
+        },
+        onError: (error) => setFailure({ error }),
+      }
+    )
   }
 
   const start = useEffectEvent(() => {
