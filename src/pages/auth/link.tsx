@@ -1,6 +1,6 @@
 import '@/lib/zod-jitless'
 import { useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useLocation, useNavigate } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { z } from 'zod'
 import {
@@ -19,12 +19,13 @@ import { AuthPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { broadcastAuthMessage } from '@/http/session'
-import { statusFrom } from '@/lib/api-error'
+import { codeFrom, statusFrom } from '@/lib/api-error'
 import { safeLanding } from '@/lib/landing'
 import { retryableFailureMessage } from '@/lib/retry'
 import { useLogout, useVerifySignInLink } from '@/queries/auth.queries'
 import { tenantsQueryOptions } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
+import { READ_ONLY_MODE } from '@/types/api.types'
 
 /**
  * Where a mailed sign-in link opens: `/auth/link?token=…&email=…[&redirect=…]`.
@@ -71,10 +72,18 @@ function LinkCard({
 }
 
 /**
+ * What a read-only refusal of the verify says. Express refuses a link verify
+ * in read-only maintenance only when the click would create the account.
+ */
+const CREATION_PAUSED_MESSAGE =
+  'We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends.'
+
+/**
  * A link that cannot sign anyone in: it carried no token, or the server
  * refused it. The page says nothing about which, and offers a new link to the
- * address the old one named, landing where the old one would have. The form keeps its place in the tree when it
- * switches to "Check your inbox", so its resend clock survives.
+ * address the old one named, landing where the old one would have. The form
+ * keeps its place in the tree when it switches to "Check your inbox", so its
+ * resend clock survives.
  */
 function DeadLink({
   email,
@@ -133,7 +142,10 @@ function SignInLinkPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const verify = useVerifySignInLink()
-  const logout = useLogout({ returnTo: window.location.href })
+  const href = useLocation({ select: (location) => location.href })
+  // Fixed at mount: Continue reloads the link as it opened, token included.
+  const [returnTo] = useState(href)
+  const logout = useLogout({ returnTo })
   const [startedAs] = useState(() => useAuthStore.getState().user)
   /** The last verify's failure, kept while Try again runs so the panel and its focus stay. */
   const [failure, setFailure] = useState<{ error: unknown } | null>(null)
@@ -222,7 +234,11 @@ function SignInLinkPage() {
     return (
       <LinkCard title="We couldn’t sign you in">
         <VerifyFailedPanel
-          message={retryableFailureMessage(failure.error, 'sign-in attempts')}
+          message={
+            codeFrom(failure.error) === READ_ONLY_MODE
+              ? CREATION_PAUSED_MESSAGE
+              : retryableFailureMessage(failure.error, 'sign-in attempts')
+          }
           retrying={verify.isPending}
           onRetry={() => post(token)}
         />

@@ -269,6 +269,9 @@ describe('/auth/link, signed out', () => {
     ['/invitations/accept', '/invitations/accept?token=probe'],
     ['/invitations/confirm', `/invitations/confirm?token=${'y'.repeat(43)}&email=a%40b.test`],
     ['/auth/link, cased and slashed', `/Auth/Link/?token=${'y'.repeat(43)}`],
+    // Landed on, an escaped token page is this route with a new search: the page would wait on "Signing you in" for good.
+    ['/auth/link, a letter escaped', `/auth/%6Cink?token=${'y'.repeat(43)}`],
+    ['/invitations/accept, a letter escaped', '/invitations/%61ccept?token=probe'],
   ])('treats a redirect back to a token page (%s) as no redirect', async (_name, tokenPage) => {
     const verify = serveVerify(signedIn({ redirect: tokenPage }))
     serveOneTenant()
@@ -504,8 +507,9 @@ describe('/auth/link, signed out', () => {
     [
       '503',
       () => fail('The service is read-only for maintenance.', 503, 'READ_ONLY_MODE'),
-      'Changes are paused during maintenance.',
+      'We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends.',
     ],
+
     [
       'network',
       () => HttpResponse.error(),

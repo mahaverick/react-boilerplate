@@ -51,8 +51,9 @@ const IMF_FIXDATE = /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2}
 
 /**
  * How long a refused request says to wait, in whole seconds and at least 1,
- * from the `Retry-After` response header (a non-negative whole number of seconds, or an IMF-fixdate HTTP date).
- * `null` when there is no response or header, or the header cannot be read.
+ * from the `Retry-After` response header (a non-negative whole number of
+ * seconds, or an IMF-fixdate HTTP date). `null` when there is no response or
+ * header, or the header cannot be read.
  */
 export function retryAfterSecondsFrom(error: unknown): number | null {
   if (!(error instanceof AxiosError)) return null
