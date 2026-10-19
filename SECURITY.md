@@ -145,14 +145,18 @@ browser storage is readable by whoever runs the page, so:
   refuses `/\t/evil.example` and `/..//evil.example`. Every landing passes
   through it: `/login`'s `?redirect=`, the link's `redirect` hint, the verify
   response's `redirect` and the Google callback's `?redirect=`. `/login` drops
-  an unsafe hint rather than sending it, and never carries a token page
-  through as a redirect, whose token would be mailed again inside the new
-  link (`safeLanding` in `src/lib/landing.ts`). Each landing replaces the
-  token page in history, so Back never returns to it.
+  an unsafe hint rather than sending it. No landing and no carried redirect
+  is ever a token page (`safeLanding` in `src/lib/landing.ts`): carried, its
+  token would be mailed again inside the new link; landed on, the page on
+  screen would never act on it. `safeLanding` decodes the path before the
+  check, as the router does before it matches, so `/auth/%6Cink` counts as
+  `/auth/link`, and a path that does not decode is refused. Each landing
+  replaces the token page in history, so Back never returns to it.
 - **A token is posted once per page load.** `/auth/link` and the invitation
   pages post their token from a mutation that a ref-guarded effect fires, so
   StrictMode's second run and a re-render never spend the link twice. A
-  query would post it again on refocus or reconnect. Every verify is sent
+  query would post it again on refocus or reconnect. The invitation preview
+  is a query because it spends nothing. Every verify is sent
   with no bearer and `skipAuthRetry`.
 - **No password anywhere.** Sign-in is by emailed link or Google. No page,
   form, schema or query takes a password, and `/register`,
