@@ -148,6 +148,18 @@ test.describe('invitation', () => {
     await expectNoOverflow(page)
   })
 
+  test('signed in as the invitee, a used link says you have already joined', async ({ page }) => {
+    const accepts = postsTo(page, '/api/v1/invitations/accept')
+    await page.goto(harness('/invitations/accept', `invite=joined&token=${TOKEN}`))
+
+    await expect(
+      page.getByText(`You've already joined Acme Corp as ${HARNESS_EMAIL}.`)
+    ).toBeVisible()
+    await expect(page).toHaveURL(/\/tenants\/acme$/)
+    expect(accepts).toEqual([{ token: TOKEN }])
+    await expectNoOverflow(page)
+  })
+
   test('an existing account gets Check your inbox, and Resend posts the same token again', async ({
     page,
   }) => {
