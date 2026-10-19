@@ -105,9 +105,9 @@ const NOTIFICATIONS = [
   {
     id: NOTIFICATION_ID_2,
     userId: USER_ID,
-    type: 'maintenance_mode_changed',
-    title: 'Maintenance mode changed',
-    body: 'Maintenance mode is now on.',
+    type: 'tenant_invitation',
+    title: 'You joined Acme',
+    body: 'You accepted the invitation to Acme Corp.',
     data: null,
     readAt: '2026-01-02T10:00:00.000Z',
     createdAt: '2026-01-02T08:00:00.000Z',
@@ -214,9 +214,7 @@ if (new URLSearchParams(location.search).get('pii') === 'probe') {
     invitation.email = 'pii-probe+invitee@example.test'
     if (invitation.invitedBy) Object.assign(invitation.invitedBy, PROBE_NAME)
   }
-  for (const notification of NOTIFICATIONS) {
-    if (notification.type === 'tenant_invitation') notification.body = 'Pii Probe sent you a link.'
-  }
+  NOTIFICATIONS[0]!.body = 'Pii Probe sent you a link.'
   Object.assign(AUDIT_ACTOR, { name: 'Pii Probe', email: PROBE_EMAIL })
 }
 
