@@ -344,7 +344,7 @@ describe('capture', () => {
       result.current.capture(new Error('Network Error'))
     })
 
-    expect(result.current.formErrors).toEqual(['Something went wrong. Please try again.'])
+    expect(result.current.formErrors).toEqual(['Something went wrong. Try again.'])
   })
 
   it('leaves the envelope message out when the response carries field detail', () => {

@@ -41,8 +41,14 @@ describe('api-error', () => {
   })
 
   it('falls back for anything that is not an API error', () => {
-    expect(messageFrom(new Error('boom'))).toBe('Something went wrong. Please try again.')
-    expect(messageFrom(undefined)).toBe('Something went wrong. Please try again.')
+    expect(messageFrom(new Error('boom'))).toBe('Something went wrong. Try again.')
+    expect(messageFrom(undefined)).toBe('Something went wrong. Try again.')
+  })
+
+  it('says the server was not reached when no response arrived, with a next step', () => {
+    expect(messageFrom(new AxiosError('Network Error', 'ERR_NETWORK'))).toBe(
+      "We couldn't reach the server. Check your connection, then try again."
+    )
   })
 
   it('keeps the reserved formErrors key out of the field errors', () => {

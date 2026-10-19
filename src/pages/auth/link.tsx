@@ -19,8 +19,8 @@ import { AuthPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { broadcastAuthMessage } from '@/http/session'
-import { messageFrom, statusFrom } from '@/lib/api-error'
-import { safeRedirect } from '@/lib/safe-redirect'
+import { messageFrom, retryAfterSecondsFrom, statusFrom } from '@/lib/api-error'
+import { safeLanding } from '@/lib/landing'
 import { useLogout, useVerifySignInLink } from '@/queries/auth.queries'
 import { tenantsQueryOptions } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
@@ -50,6 +50,17 @@ interface VerifiedLink {
   redirect: string | null
 }
 
+/**
+ * What a retryable verify failure says: a rate limit names its wait, from
+ * `Retry-After`, and anything else says what the server or the network did.
+ */
+function failureMessage(error: unknown): string {
+  const wait = statusFrom(error) === 429 ? retryAfterSecondsFrom(error) : null
+  if (wait === null) return messageFrom(error)
+  const after = wait < 120 ? `${wait} seconds` : `${Math.ceil(wait / 60)} minutes`
+  return `Too many sign-in attempts. Try again in ${after}.`
+}
+
 /** Every state's frame: one `<main>` (AuthLayout) and one `<h1>`. */
 function LinkCard({
   title,
@@ -72,12 +83,19 @@ function LinkCard({
 /**
  * A link that cannot sign anyone in: it carried no token, or the server
  * refused it. The page says nothing about which, and offers a new link to the
- * address the old one named. The form keeps its place in the tree when it
+ * address the old one named, landing where the old one would have. The form keeps its place in the tree when it
  * switches to "Check your inbox", so its resend clock survives.
  */
-function DeadLink({ email }: { email: string | undefined }) {
+function DeadLink({
+  email,
+  redirect,
+}: {
+  email: string | undefined
+  redirect: string | undefined
+}) {
   const navigate = useNavigate()
   const [sentTo, setSentTo] = useState<string | null>(null)
+  const landing = safeLanding(redirect) ?? undefined
   return (
     <LinkCard
       title={sentTo ? CHECK_INBOX_TITLE : LINK_DEAD_TITLE}
@@ -86,9 +104,14 @@ function DeadLink({ email }: { email: string | undefined }) {
       <SignInLinkForm
         sentTo={sentTo}
         onSentToChange={setSentTo}
+        redirect={landing}
         defaultEmail={email}
         submitLabel="Email me a new link"
-        onSignedIn={() => void navigate({ to: ROUTES.dashboard, replace: true })}
+        onSignedIn={() =>
+          void (landing
+            ? navigate({ href: landing, replace: true })
+            : navigate({ to: ROUTES.dashboard, replace: true }))
+        }
       />
     </LinkCard>
   )
@@ -136,7 +159,7 @@ function SignInLinkPage() {
       void navigate({ to: ROUTES.welcome, replace: true })
       return
     }
-    const target = safeRedirect(link.redirect) ?? safeRedirect(redirect)
+    const target = safeLanding(link.redirect) ?? safeLanding(redirect)
     if (target) {
       void navigate({ href: target, replace: true })
       return
@@ -166,7 +189,7 @@ function SignInLinkPage() {
     if (startedAs) {
       if (!token) void navigate({ to: ROUTES.dashboard, replace: true })
       else if (samePerson) {
-        const target = safeRedirect(redirect)
+        const target = safeLanding(redirect)
         void (target
           ? navigate({ href: target, replace: true })
           : navigate({ to: ROUTES.dashboard, replace: true }))
@@ -183,7 +206,7 @@ function SignInLinkPage() {
   }, [])
 
   if (!token) {
-    return startedAs ? <Verifying /> : <DeadLink email={email} />
+    return startedAs ? <Verifying /> : <DeadLink email={email} redirect={redirect} />
   }
 
   if (startedAs) {
@@ -203,11 +226,11 @@ function SignInLinkPage() {
   }
 
   if (failure) {
-    if (statusFrom(failure.error) === 400) return <DeadLink email={email} />
+    if (statusFrom(failure.error) === 400) return <DeadLink email={email} redirect={redirect} />
     return (
       <LinkCard title="We couldn't sign you in">
         <VerifyFailedPanel
-          message={messageFrom(failure.error)}
+          message={failureMessage(failure.error)}
           retrying={verify.isPending}
           onRetry={() => post(token)}
         />

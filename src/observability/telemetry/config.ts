@@ -14,10 +14,12 @@ export const ANALYTICS_APP = 'react'
 
 /**
  * The query keys a captured URL may keep: `tab`, and the campaign keys express
- * puts on every link it mails, whose values are fixed constants with no
- * personal data. Every other key, and the hash, is dropped before an event
- * leaves the browser: the `?token=` and `?email=` of a sign-in or invitation
- * link, and a `?redirect=` wrapping either, would otherwise reach PostHog.
+ * puts on every link it mails. The sanitizer keeps a campaign value only in
+ * the shape of express's constants (lowercase letters, digits, `_` and `-`, at
+ * most 64), so a hand-edited link's address or token is dropped. Every other
+ * key, and the hash, is dropped before an event leaves the browser: the
+ * `?token=` and `?email=` of a sign-in or invitation link, and a `?redirect=`
+ * wrapping either, would otherwise reach PostHog.
  */
 export const ANALYTICS_URL_QUERY_ALLOWLIST: readonly string[] = [
   'tab',

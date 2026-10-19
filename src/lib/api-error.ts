@@ -10,15 +10,18 @@ export const READ_ONLY_MODE_MESSAGE = 'Changes are paused during maintenance.'
 
 /**
  * The envelope's `message`, `READ_ONLY_MODE_MESSAGE` for a `READ_ONLY_MODE`
- * refusal, or a generic retry prompt when the failure carried none.
+ * refusal, a connection prompt when no response arrived, or a generic retry
+ * prompt when the failure carried no message.
  */
 export function messageFrom(error: unknown): string {
   if (error instanceof AxiosError) {
-    const body = error.response?.data as ApiErrorBody | undefined
+    if (!error.response)
+      return "We couldn't reach the server. Check your connection, then try again."
+    const body = error.response.data as ApiErrorBody | undefined
     if (body?.code === READ_ONLY_MODE) return READ_ONLY_MODE_MESSAGE
     if (body?.message) return body.message
   }
-  return 'Something went wrong. Please try again.'
+  return 'Something went wrong. Try again.'
 }
 
 /**

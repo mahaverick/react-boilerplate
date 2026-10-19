@@ -11,7 +11,7 @@ import { AuthPending } from '@/components/shared/pending-templates'
 import { FieldGroup } from '@/components/ui/field'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
-import { safeRedirect } from '@/lib/safe-redirect'
+import { safeLanding } from '@/lib/landing'
 import { toast } from '@/lib/toast'
 
 /**
@@ -44,22 +44,6 @@ const OAUTH_ERRORS: Record<string, string> = {
   MAINTENANCE_MODE: 'Sign-in is paused for maintenance. Try again when maintenance ends.',
 }
 
-/** Pages whose URL holds a live token: carried as a redirect, the token would be mailed again inside the new link. */
-const TOKEN_PAGES: ReadonlySet<string> = new Set([ROUTES.authLink, ROUTES.invitationAccept])
-
-/**
- * The landing path to carry through sign-in: `safeRedirect`'s answer, unless
- * it is a token page. A tab reaches `/login?redirect=` from a token page when
- * it is signed out there, and the token must not travel on.
- */
-function landingFrom(redirect: string | undefined): string | undefined {
-  const target = safeRedirect(redirect)
-  if (!target) return undefined
-  // The router matches paths case-insensitively and with a trailing slash, so the check must too.
-  const page = new URL(target, window.location.origin).pathname.replace(/\/+$/, '').toLowerCase()
-  return TOKEN_PAGES.has(page) ? undefined : target
-}
-
 /**
  * Sign-in by emailed link, with Google as the alternative. The card titles
  * itself from `sentTo`, which this page owns, while `SignInLinkForm` keeps its
@@ -75,7 +59,8 @@ function LoginPage() {
   const { error, redirect, notice } = Route.useSearch()
   const navigate = useNavigate()
   const [sentTo, setSentTo] = useState<string | null>(null)
-  const landing = landingFrom(redirect)
+  // A token page is dropped: carried through, its token would be mailed again inside the new link.
+  const landing = safeLanding(redirect) ?? undefined
 
   const toastedError = useRef<string | null>(null)
   useEffect(() => {

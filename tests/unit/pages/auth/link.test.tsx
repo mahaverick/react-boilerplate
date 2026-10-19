@@ -141,6 +141,7 @@ beforeEach(() => {
 
 afterEach(() => {
   Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
+  window.history.replaceState(null, '', '/')
 })
 
 describe('/auth/link, signed out', () => {
@@ -260,6 +261,70 @@ describe('/auth/link, signed out', () => {
         expect(router.state.location.pathname).toBe('/dashboard')
       })
       expect(router.state.location.href).not.toContain('evil')
+    }
+  )
+
+  it.each([
+    ['/auth/link', `/auth/link?token=${'y'.repeat(43)}`],
+    ['/invitations/accept', '/invitations/accept?token=probe'],
+    ['/auth/link, cased and slashed', `/Auth/Link/?token=${'y'.repeat(43)}`],
+  ])('treats a redirect back to a token page (%s) as no redirect', async (_name, tokenPage) => {
+    const verify = serveVerify(signedIn({ redirect: tokenPage }))
+    serveOneTenant()
+    const router = renderAt(`${LINK_PATH}&redirect=${encodeURIComponent(tokenPage)}`)
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/dashboard')
+    })
+    expect(verify.calls()).toBe(1)
+  })
+
+  it("carries the old link's redirect into the new link, and lands there", async () => {
+    serveVerify(() => fail('This link has expired or was already used.', 400, 'LINK_INVALID'))
+    const requests: unknown[] = []
+    server.use(
+      http.post('/api/v1/auth/link/request', async ({ request }) => {
+        requests.push(await request.json())
+        return ok(null, 'Check your inbox for a sign-in link.', 202)
+      })
+    )
+    const user = userEvent.setup()
+    const router = renderAt(
+      `${LINK_PATH}&redirect=${encodeURIComponent('/notifications?tab=unread')}`
+    )
+    await user.click(await screen.findByRole('button', { name: 'Email me a new link' }))
+    await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })
+    expect(requests).toEqual([
+      { email: LINK_EMAIL, app: 'web', redirect: '/notifications?tab=unread' },
+    ])
+
+    arriveSignedIn()
+    const otherTab = new BroadcastChannel('auth')
+    otherTab.postMessage({ type: 'signed_in' })
+    otherTab.close()
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/notifications')
+    })
+  })
+
+  it.each([`/auth/link?token=${'y'.repeat(43)}`, '/invitations/accept?token=probe', '//evil.test'])(
+    "does not carry %s into the new link's redirect",
+    async (unsafe) => {
+      serveVerify(() => fail('This link has expired or was already used.', 400, 'LINK_INVALID'))
+      const requests: unknown[] = []
+      server.use(
+        http.post('/api/v1/auth/link/request', async ({ request }) => {
+          requests.push(await request.json())
+          return ok(null, 'Check your inbox for a sign-in link.', 202)
+        })
+      )
+      const user = userEvent.setup()
+      renderAt(`${LINK_PATH}&redirect=${encodeURIComponent(unsafe)}`)
+      await user.click(await screen.findByRole('button', { name: 'Email me a new link' }))
+      await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })
+
+      expect(requests).toEqual([{ email: LINK_EMAIL, app: 'web' }])
     }
   )
 
@@ -401,10 +466,26 @@ describe('/auth/link, signed out', () => {
   })
 
   it.each([
-    ['429', () => fail('Too many requests. Try again later.', 429)],
-    ['503', () => fail('The service is read-only for maintenance.', 503, 'READ_ONLY_MODE')],
-    ['network', () => HttpResponse.error()],
-  ])('offers Try again, not the dead link, on %s', async (_name, failure) => {
+    [
+      '429',
+      () => {
+        const response = fail('Too many attempts. Please try again later.', 429)
+        response.headers.set('Retry-After', '42')
+        return response
+      },
+      'Too many sign-in attempts. Try again in 42 seconds.',
+    ],
+    [
+      '503',
+      () => fail('The service is read-only for maintenance.', 503, 'READ_ONLY_MODE'),
+      'Changes are paused during maintenance.',
+    ],
+    [
+      'network',
+      () => HttpResponse.error(),
+      "We couldn't reach the server. Check your connection, then try again.",
+    ],
+  ])('offers Try again, not the dead link, on %s', async (_name, failure, message) => {
     const verify = serveVerify(failure, signedIn())
     serveOneTenant()
     const user = userEvent.setup()
@@ -416,6 +497,7 @@ describe('/auth/link, signed out', () => {
     expect(screen.queryByText(LINK_DEAD_TITLE)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Email me a new link' })).not.toBeInTheDocument()
     expect(verify.calls()).toBe(1)
+    expect(screen.getByRole('alert')).toHaveTextContent(message)
 
     await user.click(screen.getByRole('button', { name: 'Try again' }))
 
@@ -452,6 +534,22 @@ describe('/auth/link, signed in', () => {
     expect((router.history as RouterHistory).length).toBe(1)
   })
 
+  it.each([`/auth/link?token=${'y'.repeat(43)}`, '/invitations/accept?token=probe'])(
+    'sends the same signed-in person past a token-page redirect (%s) to the dashboard',
+    async (tokenPage) => {
+      const verify = serveVerify(signedIn())
+      serveOneTenant()
+      const router = renderAt(
+        `/auth/link?token=${TOKEN}&email=${encodeURIComponent(testUser.email)}&redirect=${encodeURIComponent(tokenPage)}`
+      )
+
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe('/dashboard')
+      })
+      expect(verify.calls()).toBe(0)
+    }
+  )
+
   it('asks before switching for a different signed-in person and spends nothing', async () => {
     const verify = serveVerify(signedIn())
     let logouts = 0
@@ -461,6 +559,8 @@ describe('/auth/link, signed in', () => {
         return ok(null, 'Signed out.')
       })
     )
+    // The memory history leaves jsdom's address alone, so put the link there as a browser would.
+    window.history.replaceState(null, '', LINK_PATH)
     const assign = stubAssign()
     const user = userEvent.setup()
     renderAt(LINK_PATH)
@@ -474,8 +574,13 @@ describe('/auth/link, signed in', () => {
     await user.click(screen.getByRole('button', { name: `Continue as ${LINK_EMAIL}` }))
 
     await waitFor(() => {
-      expect(assign).toHaveBeenCalledWith(realLocation.href)
+      expect(assign).toHaveBeenCalledOnce()
     })
+    // The signed-out reload must reopen this link, token and address included, so it verifies there.
+    const reload = new URL(String(assign.mock.calls[0]?.[0]), realLocation.origin)
+    expect(reload.pathname).toBe('/auth/link')
+    expect(reload.searchParams.get('token')).toBe(TOKEN)
+    expect(reload.searchParams.get('email')).toBe(LINK_EMAIL)
     expect(logouts).toBe(1)
     expect(verify.calls()).toBe(0)
   })

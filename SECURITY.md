@@ -296,9 +296,12 @@ too.
 - **Captured URLs keep only allowlisted query keys.**
   `ANALYTICS_URL_QUERY_ALLOWLIST` (`src/observability/telemetry/config.ts`)
   is the whole list: `tab` and the campaign keys express puts on every link it
-  mails (`utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, fixed
-  constants with no address or id), so a mailed link's landing page view keeps
-  its campaign while its `token` and `email` go; the sanitizer
+  mails (`utm_source`, `utm_medium`, `utm_campaign`, `utm_content`), so a
+  mailed link's landing page view keeps its campaign while its `token` and
+  `email` go. The sanitizer keeps a `utm_*` value only when it matches
+  `^[a-z0-9_-]{1,64}$`, the shape of every value express sends, and otherwise
+  drops the key with its value; an `@`, a `.`, uppercase, or a value longer
+  than 64 characters never reaches PostHog. The sanitizer
   (`src/observability/telemetry/url-sanitizer.ts`) runs as `before_send` and
   rewrites every absolute http(s) string in an event's properties, `$set` and
   `$set_once`, to eight levels deep, plus the hrefs in `$elements` and
@@ -307,7 +310,9 @@ too.
   personal-data masking also covers `token`, `email`, `redirect`,
   `invitation`, `q`, `search`, `ph_did` and `ph_sid`. Add a key to the
   allowlist only when its values can never be a token, an address, a search
-  term or a redirect.
+  term or a redirect. The `utm_*` keys are the one exception: their values
+  arrive from the URL, so the sanitizer's value check above is what keeps an
+  address or a token out (the UTM rule of 2026-10-19).
 - **Events never cross people** (`guardEvent` in
   `src/observability/telemetry/telemetry.ts`). posthog-js adopts the
   identity cookie before every event, and where `config.ts` shares that
