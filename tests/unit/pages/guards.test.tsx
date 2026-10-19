@@ -12,7 +12,13 @@ import { resetSessionForTests } from '@/http/session'
 import { bootstrapSession, queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { fail, ok, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
+import {
+  fail,
+  ok,
+  TEST_INVITATION_TOKEN,
+  testInvitationPreview,
+  testUser,
+} from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 describe('session bootstrap', () => {
@@ -239,6 +245,12 @@ describe('mailed-link paths and the auth guard', () => {
   }
 
   it('lets a signed-in visitor open an invitation link instead of bouncing them', async () => {
+    // Addressed to someone else, so the page holds on its switch prompt instead of joining.
+    server.use(
+      http.post('/api/v1/invitations/preview', () =>
+        ok({ ...testInvitationPreview, email: 'someone@else.com' }, 'Invitation retrieved.')
+      )
+    )
     const router = renderAt(`/invitations/accept?token=${TEST_INVITATION_TOKEN}`)
 
     expect(await screen.findByRole('heading', { name: /^Join / })).toBeInTheDocument()

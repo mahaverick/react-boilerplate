@@ -147,9 +147,6 @@ export const MEMBER_NOT_FOUND = 'member_not_found'
 /** The message of that 404, the only sign of it from an API older than 2.1.0. */
 export const MEMBER_NOT_FOUND_MESSAGE = 'Member not found'
 
-/** `code` on the 403 for an accept by the invited account while its email is unverified. */
-export const INVITATION_EMAIL_UNVERIFIED = 'invitation_email_unverified'
-
 /** How an audit entry's actor reached the tenant. `system` is a script, with no actor. */
 type AuditAccess = 'member' | 'platform' | 'system'
 

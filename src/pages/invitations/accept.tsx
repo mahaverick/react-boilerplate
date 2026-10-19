@@ -1,21 +1,25 @@
 import '@/lib/zod-jitless'
-import { IconAlertCircle } from '@tabler/icons-react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { z } from 'zod'
+import {
+  SigningInStatus,
+  SwitchAccountPanel,
+  VerifyFailedPanel,
+} from '@/components/features/auth/link-panels'
+import { CHECK_INBOX_TITLE, SignInLinkForm } from '@/components/features/auth/sign-in-link-form'
 import { LoadError } from '@/components/features/load-error'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
-import { BusyButton } from '@/components/shared/busy-button'
 import { AuthPagePending } from '@/components/shared/pending-templates'
 import { Pii } from '@/components/shared/pii'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { buttonVariants } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
-import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
+import { messageFrom, retryAfterSecondsFrom, statusFrom } from '@/lib/api-error'
+import { fullName } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useLogout } from '@/queries/auth.queries'
@@ -23,10 +27,11 @@ import {
   inviterName,
   useAcceptInvitation,
   useInvitationPreview,
+  useVerifyInvitation,
 } from '@/queries/invitation.queries'
 import { invitationTokenSchema } from '@/schemas/invitation.schemas'
 import { useAuthStore } from '@/states/auth.store'
-import { INVITATION_EMAIL_UNVERIFIED, type InvitationPreview } from '@/types/api.types'
+import type { InvitationPreview, User } from '@/types/api.types'
 
 /**
  * The invitation landing page. Top level, under neither `_auth` nor `_app`:
@@ -42,11 +47,23 @@ export const Route = createFileRoute('/invitations/accept')({
   pendingComponent: AuthPagePending,
 })
 
-/** The server's own 404 copy, reused when the link is malformed locally. */
-const INVALID_MESSAGE = 'This invitation is invalid or has expired.'
-
 const PREVIEW_ERROR =
   'We could not load this invitation. The request failed, which is not the same as the invitation being invalid.'
+
+/** The title of every invitation that cannot join anyone, whatever the reason. */
+const DEAD_TITLE = 'This invitation can’t be used'
+
+/** Which call joins: `verify` signs a signed-out invitee in, `accept` joins the signed-in one. */
+type JoinCall = 'verify' | 'accept'
+
+/** The call the page made, and the invitation it showed while making it: null when the preview had already 404ed. */
+interface Joining {
+  call: JoinCall
+  invitation: InvitationPreview | null
+}
+
+/** How a join ended without landing: the invitation is dead, or the request failed and may pass. */
+type JoinFailure = { kind: 'dead' } | { kind: 'failed'; error: unknown }
 
 /** Where this page lives, token included, for the round trips that leave it. */
 function acceptHref(token: string): string {
@@ -61,6 +78,17 @@ function invitationSentence(invitation: InvitationPreview): ReactNode {
       {ROLE_LABELS[invitation.role]}.
     </>
   )
+}
+
+/**
+ * What a retryable failure says: a rate limit names its wait, from
+ * `Retry-After`, and anything else says what the server or the network did.
+ */
+function failureMessage(error: unknown): string {
+  const wait = statusFrom(error) === 429 ? retryAfterSecondsFrom(error) : null
+  if (wait === null) return messageFrom(error)
+  const after = wait < 120 ? `${wait} seconds` : `${Math.ceil(wait / 60)} minutes`
+  return `Too many attempts. Try again in ${after}.`
 }
 
 /** Every state's frame: one `<main>` (AuthLayout) and one `<h1>`. */
@@ -82,7 +110,7 @@ function InvitationCard({
   )
 }
 
-/** The way out of every state that is not signing in, signing out or accepting. */
+/** The way out of the states that are not joining. */
 function HomeLink() {
   return (
     <Link to={ROUTES.home} className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
@@ -91,40 +119,49 @@ function HomeLink() {
   )
 }
 
-/** The panel for a link that cannot be used: malformed, revoked, expired or already used. */
-function InvalidInvitation({ message }: { message: string }) {
-  return (
-    <InvitationCard title="This invitation can’t be used" description={message}>
-      <HomeLink />
-    </InvitationCard>
+/**
+ * An invitation that cannot join anyone: malformed, revoked, expired or
+ * already used. It names the inviter only when a live preview gave one, and
+ * never an address. The sign-in form offers no address and no redirect, so
+ * this page never passes on anything it did not get from a preview. The form
+ * keeps its place in the tree when it switches to "Check your inbox", so its
+ * resend clock survives.
+ */
+function DeadInvitation({ inviter }: { inviter: InvitationPreview['invitedBy'] | undefined }) {
+  const navigate = useNavigate()
+  const [sentTo, setSentTo] = useState<string | null>(null)
+  const name = fullName(inviter)
+  const ask = name ? (
+    <>
+      Ask <Pii>{name}</Pii> for a new invite.
+    </>
+  ) : (
+    'Ask the team for a new invite.'
   )
-}
-
-/** Signed out: sign in, returning here. */
-function SignedOut({ token, invitation }: { token: string; invitation: InvitationPreview }) {
   return (
     <InvitationCard
-      title={`Join ${invitation.tenant.name}`}
-      description={invitationSentence(invitation)}
+      title={sentTo ? CHECK_INBOX_TITLE : DEAD_TITLE}
+      description={sentTo ? undefined : ask}
     >
-      <Link
-        to={ROUTES.login}
-        search={{ redirect: acceptHref(token) }}
-        className={cn(buttonVariants(), 'w-full')}
-      >
-        Sign in
-      </Link>
+      <div className="grid gap-3">
+        {sentTo ? null : <p className="text-sm">Or sign in:</p>}
+        <SignInLinkForm
+          sentTo={sentTo}
+          onSentToChange={setSentTo}
+          onSignedIn={() => void navigate({ to: ROUTES.dashboard, replace: true })}
+        />
+        <HomeLink />
+      </div>
     </InvitationCard>
   )
 }
 
 /**
- * Signed in as a different address. Signing out returns here signed out, the
- * state that offers "Sign in". The home link is a way out that is not signing
- * out, and the state's only link, which axe's `bypass` rule needs to apply at
- * all.
+ * Signed in as an address the invitation is not for. Nothing is spent until
+ * Continue, which signs out and reloads this page signed out, where it
+ * verifies; Cancel keeps the session and opens the dashboard.
  */
-function WrongAccount({
+function SwitchInvitation({
   token,
   invitation,
   currentEmail,
@@ -133,131 +170,159 @@ function WrongAccount({
   invitation: InvitationPreview
   currentEmail: string
 }) {
-  const logout = useLogout({ returnTo: acceptHref(token) })
-
-  return (
-    <InvitationCard
-      title={`Join ${invitation.tenant.name}`}
-      description={invitationSentence(invitation)}
-    >
-      <div className="grid gap-3">
-        <p className="text-sm">
-          This invitation was sent to <Pii>{invitation.email}</Pii>. You’re signed in as{' '}
-          <Pii>{currentEmail}</Pii>.
-        </p>
-        <BusyButton
-          busy={logout.isPending}
-          busyLabel="Signing out…"
-          className="w-full"
-          onClick={() => logout.mutate()}
-        >
-          Sign out
-        </BusyButton>
-        <HomeLink />
-      </div>
-    </InvitationCard>
-  )
-}
-
-/**
- * The accept button for the invited account. The API's 403 is kept as a
- * refusal (with the verify hint when the email is unverified), and its 404
- * (revoked, expired or used since the preview) replaces the panel. A repeat
- * accept by the same member also succeeds. The success toast names no role,
- * because the response carries the member's current role, which for an
- * existing member is not the one offered. The home link is a way out that is
- * not accepting, and the state's only link, which axe's `bypass` rule needs to
- * apply at all.
- */
-function AcceptPanel({ token, invitation }: { token: string; invitation: InvitationPreview }) {
-  const accept = useAcceptInvitation()
   const navigate = useNavigate()
-  const [refusal, setRefusal] = useState<{ message: string; unverified: boolean } | null>(null)
-  const [gone, setGone] = useState<string | null>(null)
-
-  /** Accepts the invitation, then opens the tenant; a 404 or 403 becomes a panel state, other failures a toast. */
-  async function onAccept() {
-    setRefusal(null)
-    try {
-      const { tenant } = await accept.mutateAsync(token)
-      toast.success(`You joined ${tenant.name}.`)
-      await navigate({ to: '/tenants/$slug', params: { slug: tenant.slug } })
-    } catch (error) {
-      const status = statusFrom(error)
-      if (status === 404) {
-        setGone(messageFrom(error))
-        return
-      }
-      if (status === 403) {
-        setRefusal({
-          message: messageFrom(error),
-          unverified: codeFrom(error) === INVITATION_EMAIL_UNVERIFIED,
-        })
-        return
-      }
-      toast.error(messageFrom(error))
-    }
-  }
-
-  if (gone) return <InvalidInvitation message={gone} />
-
+  const logout = useLogout({ returnTo: acceptHref(token) })
   return (
     <InvitationCard
       title={`Join ${invitation.tenant.name}`}
       description={invitationSentence(invitation)}
     >
-      <div className="grid gap-3">
-        {refusal && (
-          <Alert variant="destructive">
-            <IconAlertCircle aria-hidden="true" />
-            <AlertTitle>{refusal.message}</AlertTitle>
-            {refusal.unverified && (
-              <AlertDescription>
-                Use the link in your verification email, then open this invitation link again.
-              </AlertDescription>
-            )}
-          </Alert>
-        )}
-        <BusyButton
-          busy={accept.isPending}
-          busyLabel="Accepting…"
-          className="w-full"
-          onClick={() => void onAccept()}
-        >
-          Accept invitation
-        </BusyButton>
-        <HomeLink />
-      </div>
+      <SwitchAccountPanel
+        kind="invitation"
+        currentEmail={currentEmail}
+        targetEmail={invitation.email}
+        continuing={logout.isPending}
+        onContinue={() => logout.mutate()}
+        onStay={() => void navigate({ to: ROUTES.dashboard, replace: true })}
+      />
     </InvitationCard>
   )
 }
 
 /**
- * The page for a well-formed token: the preview, then the state for who is
- * signed in. Only a 404 marks the invitation unusable; any other preview
- * failure is a failed request, with a retry.
+ * The frame while a join runs. With the preview it names the workspace, the
+ * inviter and the invited address, so a person who opened someone else's
+ * link sees whose it is; after a 404 preview it names nothing.
  */
-function InvitationForToken({ token }: { token: string }) {
-  const preview = useInvitationPreview(token)
-  const user = useAuthStore((state) => state.user)
-
-  if (preview.isPending) {
+function JoiningFrame({ invitation }: { invitation: InvitationPreview | null }) {
+  if (!invitation) {
     return (
       <InvitationCard title="Checking your invitation">
-        <div className="grid gap-3">
-          <Skeleton className="h-4 w-3/4 justify-self-center" />
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
+        <SigningInStatus label="Checking your invitation…" />
       </InvitationCard>
     )
   }
+  const name = invitation.tenant.name
+  return (
+    <InvitationCard title={`Joining ${name}`} description={invitationSentence(invitation)}>
+      <SigningInStatus label={`Joining ${name}…`} email={invitation.email} />
+    </InvitationCard>
+  )
+}
+
+/**
+ * The call the page makes for a settled preview and whoever was signed in at
+ * mount, or null when it makes none: still loading, a failed request, a dead
+ * link signed out, or a different signed-in address.
+ */
+function joinCallFor(
+  invitation: InvitationPreview | undefined,
+  gone: boolean,
+  startedAs: User | null
+): JoinCall | null {
+  if (invitation) {
+    if (!startedAs) return 'verify'
+    // Case-insensitive: neither side is trusted to stay lowercased. A mismatch never reaches the server.
+    return startedAs.email.toLowerCase() === invitation.email.toLowerCase() ? 'accept' : null
+  }
+  return gone && startedAs ? 'accept' : null
+}
+
+/**
+ * The page for a well-formed token. The preview is asked as a stranger, then
+ * the page joins on load with no button: signed out, it verifies, which signs
+ * the invitee in; signed in as the invitee, it accepts. A used link joins
+ * nobody signed out; signed in, it still accepts, because the API answers
+ * `alreadyMember` only to the invitee who used it and 404 to anyone else.
+ * Signed in as another address, it asks before switching.
+ *
+ * Who was signed in is read once, at mount: the verify's own sign-in changes
+ * the store before the page navigates, and the signed-in rows must not take
+ * over then and accept again. The call fires from a ref-guarded effect, so
+ * StrictMode's second run never spends the link twice; Try again posts again
+ * on purpose. Once a call has started, only its outcome drives the page.
+ */
+function InvitationForToken({ token }: { token: string }) {
+  const preview = useInvitationPreview(token)
+  const verify = useVerifyInvitation()
+  const accept = useAcceptInvitation()
+  const navigate = useNavigate()
+  const [startedAs] = useState(() => useAuthStore.getState().user)
+  const [joining, setJoining] = useState<Joining | null>(null)
+  const [failure, setFailure] = useState<JoinFailure | null>(null)
+  const started = useRef(false)
+
+  const invitation = preview.data
+  const gone = !invitation && preview.isError && statusFrom(preview.error) === 404
+  const nextCall = joinCallFor(invitation, gone, startedAs)
+
+  /** Toasts the join, then opens its tenant in place of this page. */
+  const land = (tenant: { name: string; slug: string }, alreadyMember: boolean) => {
+    setFailure(null)
+    toast.success(
+      alreadyMember ? `You've already joined ${tenant.name}.` : `You joined ${tenant.name}.`
+    )
+    void navigate({ to: '/tenants/$slug', params: { slug: tenant.slug }, replace: true })
+  }
+
+  /** Posts the token; a 404 (and, for accept, a 403) is the dead invitation, anything else may pass. */
+  const post = (call: JoinCall) => {
+    /** Keeps the failure in page state, so the panel and its focus stay while Try again runs. */
+    const onError = (error: unknown) => {
+      const status = statusFrom(error)
+      const dead = status === 404 || (call === 'accept' && status === 403)
+      setFailure(dead ? { kind: 'dead' } : { kind: 'failed', error })
+    }
+    if (call === 'verify') {
+      verify.mutate(token, { onSuccess: ({ tenant }) => land(tenant, false), onError })
+    } else {
+      accept.mutate(token, {
+        onSuccess: ({ tenant, alreadyMember }) => land(tenant, alreadyMember),
+        onError,
+      })
+    }
+  }
+
+  const start = useEffectEvent(() => {
+    if (started.current || !nextCall) return
+    started.current = true
+    setJoining({ call: nextCall, invitation: invitation ?? null })
+    post(nextCall)
+  })
+
+  useEffect(() => {
+    start()
+  }, [nextCall])
+
+  if (joining) {
+    if (failure?.kind === 'dead') return <DeadInvitation inviter={joining.invitation?.invitedBy} />
+    if (failure) {
+      const title = joining.invitation
+        ? `We couldn’t add you to ${joining.invitation.tenant.name}`
+        : 'We couldn’t open this invitation'
+      return (
+        <InvitationCard title={title}>
+          <VerifyFailedPanel
+            message={failureMessage(failure.error)}
+            retrying={joining.call === 'verify' ? verify.isPending : accept.isPending}
+            onRetry={() => post(joining.call)}
+          />
+        </InvitationCard>
+      )
+    }
+    return <JoiningFrame invitation={joining.invitation} />
+  }
+
+  // The frame the effect is about to fill, so the first paint already shows the join.
+  if (nextCall) return <JoiningFrame invitation={invitation ?? null} />
+
+  if (invitation && startedAs) {
+    return <SwitchInvitation token={token} invitation={invitation} currentEmail={startedAs.email} />
+  }
+
+  if (gone) return <DeadInvitation inviter={undefined} />
 
   if (preview.isError) {
-    if (statusFrom(preview.error) === 404) {
-      return <InvalidInvitation message={messageFrom(preview.error)} />
-    }
     return (
       <InvitationCard title="We could not load this invitation">
         <div className="grid gap-3">
@@ -268,13 +333,16 @@ function InvitationForToken({ token }: { token: string }) {
     )
   }
 
-  const invitation = preview.data
-  if (!user) return <SignedOut token={token} invitation={invitation} />
-  // Case-insensitive: neither side is trusted to stay lowercased. A mismatch never reaches the server.
-  if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
-    return <WrongAccount token={token} invitation={invitation} currentEmail={user.email} />
-  }
-  return <AcceptPanel token={token} invitation={invitation} />
+  return (
+    <InvitationCard title="Checking your invitation">
+      <div className="grid gap-3">
+        <Skeleton className="h-4 w-3/4 justify-self-center" />
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    </InvitationCard>
+  )
 }
 
 /** Chooses the state for the `?token=` value: missing, malformed, or a token to look up. */
@@ -292,7 +360,7 @@ function AcceptInvitationPage() {
     )
   }
   if (!invitationTokenSchema.safeParse(token).success) {
-    return <InvalidInvitation message={INVALID_MESSAGE} />
+    return <DeadInvitation inviter={undefined} />
   }
   return <InvitationForToken token={token} />
 }

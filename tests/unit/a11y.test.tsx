@@ -470,11 +470,6 @@ describe('signed-out pages', () => {
       () => screen.findByText('Sign in with an email link or Google. Passwords no longer work.'),
     ],
     [
-      'invitation accept',
-      `/invitations/accept?token=${TEST_INVITATION_TOKEN}`,
-      () => screen.findByRole('link', { name: 'Sign in' }),
-    ],
-    [
       'invitation accept without a token',
       '/invitations/accept',
       () => screen.findByRole('heading', { name: 'This link is incomplete' }),
@@ -579,11 +574,6 @@ describe('signed-in pages', () => {
       'workspace activity',
       '/settings/workspace/acme/activity',
       () => screen.findByText('changed the settings (timezone)'),
-    ],
-    [
-      'invitation accept',
-      `/invitations/accept?token=${TEST_INVITATION_TOKEN}`,
-      () => screen.findByRole('button', { name: 'Accept invitation' }),
     ],
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
@@ -826,16 +816,26 @@ describe('maintenance mode', () => {
   })
 })
 
-/** The accept page's other states, each its own render: the default sweep only sees the invited account on a valid link. */
+/** The accept page's states, each its own render. "Already joined" is a toast and a navigation, with no steady state to grade. */
 describe('invitation accept states', () => {
   const acceptPath = `/invitations/accept?token=${TEST_INVITATION_TOKEN}`
 
-  beforeEach(() => {
-    signIn()
-    mockSignedInData()
+  it('invitation joining has no axe violations', async () => {
+    signOut()
+    server.use(
+      http.post('/api/v1/invitations/verify', async () => {
+        await delay('infinite')
+        return ok(null)
+      })
+    )
+    renderAppAt(acceptPath)
+    await screen.findByRole('heading', { level: 1, name: 'Joining Acme Corp' })
+    await expectNoViolations()
   })
 
-  it('has no violations signed in as the wrong account', async () => {
+  it('invitation switch has no axe violations', async () => {
+    signIn()
+    mockSignedInData()
     server.use(
       http.post('/api/v1/invitations/preview', () =>
         ok(
@@ -850,42 +850,29 @@ describe('invitation accept states', () => {
       )
     )
     renderAppAt(acceptPath)
-    await screen.findByRole('button', { name: 'Sign out' })
+    await screen.findByRole('button', { name: 'Continue as someone@else.com' })
     await expectNoViolations()
   })
 
-  it('has no violations for an invalid invitation', async () => {
+  it('invitation dead has no axe violations', async () => {
+    signOut()
     server.use(
       http.post('/api/v1/invitations/preview', () =>
         fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
       )
     )
     renderAppAt(acceptPath)
-    await screen.findByRole('heading', { name: 'This invitation can’t be used' })
+    await screen.findByRole('heading', { level: 1, name: 'This invitation can’t be used' })
+    await screen.findByRole('button', { name: 'Email me a sign-in link' })
     await expectNoViolations()
   })
 
   it('has no violations when the preview request failed', async () => {
+    signIn()
+    mockSignedInData()
     server.use(http.post('/api/v1/invitations/preview', () => fail('Something went wrong.', 500)))
     renderAppAt(acceptPath)
     // The preview query retries a non-404 once, so the alert appears after that retry.
-    await screen.findByRole('alert')
-    await expectNoViolations()
-  })
-
-  it('has no violations with the unverified-email refusal showing', async () => {
-    server.use(
-      http.post('/api/v1/invitations/accept', () =>
-        fail(
-          'Verify your email address before accepting this invitation.',
-          403,
-          'invitation_email_unverified'
-        )
-      )
-    )
-    const user = userEvent.setup()
-    renderAppAt(acceptPath)
-    await user.click(await screen.findByRole('button', { name: 'Accept invitation' }))
     await screen.findByRole('alert')
     await expectNoViolations()
   })
