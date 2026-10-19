@@ -188,13 +188,13 @@ Routes are files under `src/pages/`; `__root.tsx`, `_auth.tsx` and
 `$slug.members.tsx` follow TanStack Router's naming, not the kebab-case rule
 the rest of `src/` follows.
 
-| Route group                                                                 | Guard                                                                                                                                                                            |
-| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/_app` (dashboard, notifications, tenants, every tenant tab, settings)     | Not signed in: redirect to `/login?redirect=<href>`. Then the tenant guard ([The current tenant in the URL](#the-current-tenant-in-the-url)). Its loader warms the page's flags. |
-| `/_auth` (login, register, forgot-password)                                 | Signed in: redirect to the dashboard.                                                                                                                                            |
-| `/`                                                                         | Redirects in `beforeLoad`: signed in to the dashboard, anyone else to `/login`.                                                                                                  |
-| `/auth/callback`, `/reset-password`, `/verify-email`, `/invitations/accept` | None. The OAuth callback sits outside `_auth`, whose guard would bounce the visitor it has just signed in.                                                                       |
-| `/$`                                                                        | None. The splat route renders `RouteNotFound` inside its own `<main>`.                                                                                                           |
+| Route group                                                                                         | Guard                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/_app` (dashboard, notifications, tenants, every tenant tab, settings)                             | Not signed in: redirect to `/login?redirect=<href>`. Then the tenant guard ([The current tenant in the URL](#the-current-tenant-in-the-url)). Its loader warms the page's flags. |
+| `/_auth` (login, register, forgot-password)                                                         | Signed in: redirect to the dashboard.                                                                                                                                            |
+| `/`                                                                                                 | Redirects in `beforeLoad`: signed in to the dashboard, anyone else to `/login`.                                                                                                  |
+| `/auth/callback`, `/reset-password`, `/verify-email`, `/invitations/accept`, `/invitations/confirm` | None. The OAuth callback sits outside `_auth`, whose guard would bounce the visitor it has just signed in.                                                                       |
+| `/$`                                                                                                | None. The splat route renders `RouteNotFound` inside its own `<main>`.                                                                                                           |
 
 Both layout guards stand down while maintenance is `full`
 ([Maintenance mode](#maintenance-mode)). The guards read the auth store

@@ -5,6 +5,7 @@ import { Route as login } from '@/pages/_auth/login'
 import { Route as callback } from '@/pages/auth/callback'
 import { Route as authLink } from '@/pages/auth/link'
 import { Route as accept } from '@/pages/invitations/accept'
+import { Route as confirm } from '@/pages/invitations/confirm'
 import { Route as welcome } from '@/pages/welcome'
 
 describe('the auth routes name their own pending template', () => {
@@ -18,6 +19,7 @@ describe('the auth routes name their own pending template', () => {
   it.each([
     ['_auth', authRoute],
     ['invitations/accept', accept],
+    ['invitations/confirm', confirm],
     ['auth/callback', callback],
     ['auth/link', authLink],
     ['welcome', welcome],

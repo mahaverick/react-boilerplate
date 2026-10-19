@@ -39,6 +39,12 @@ function listedPaths(): string[] {
   return [...(literal ?? '').matchAll(/'([^']+)'/g)].flatMap((match) => match[1] ?? [])
 }
 
+/** The modules a route imports to draw the auth layout: the layout, or the invitation pages' card that wraps it. */
+const AUTH_LAYOUT_IMPORTS = [
+  "from '@/components/layouts/auth-layout'",
+  "from '@/components/features/invitations/invitation-parts'",
+]
+
 /** Every route file under src/pages that imports the auth layout, as the paths it serves. */
 function authLayoutPaths(): string[] {
   const files = readdirSync(PAGES, { recursive: true, encoding: 'utf8' }).filter((file) =>
@@ -46,7 +52,7 @@ function authLayoutPaths(): string[] {
   )
   return files.flatMap((file) => {
     const source = readFileSync(path.join(PAGES, file), 'utf8')
-    if (!source.includes("from '@/components/layouts/auth-layout'")) return []
+    if (!AUTH_LAYOUT_IMPORTS.some((specifier) => source.includes(specifier))) return []
     if (file === '_auth.tsx') {
       return readdirSync(path.join(PAGES, '_auth')).map(
         (child) => `/${child.replace(/\.tsx$/, '')}`
@@ -89,9 +95,12 @@ describe('boot-variant.js', () => {
     expect(variantFor(`${pathname}/`)).toBe('auth')
   })
 
-  it.each(['/auth/link', '/welcome', '/auth/confirm'])('marks %s as an auth page', (pathname) => {
-    expect(variantFor(pathname)).toBe('auth')
-  })
+  it.each(['/auth/link', '/welcome', '/auth/confirm', '/invitations/confirm'])(
+    'marks %s as an auth page',
+    (pathname) => {
+      expect(variantFor(pathname)).toBe('auth')
+    }
+  )
 
   it('marks a trailing-slash /auth/link/ too', () => {
     expect(variantFor('/auth/link/')).toBe('auth')

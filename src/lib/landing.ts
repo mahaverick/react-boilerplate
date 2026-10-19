@@ -2,7 +2,11 @@ import { ROUTES } from '@/constants/routes'
 import { safeRedirect } from '@/lib/safe-redirect'
 
 /** Pages whose URL holds a live token. */
-const TOKEN_PAGES: ReadonlySet<string> = new Set([ROUTES.authLink, ROUTES.invitationAccept])
+const TOKEN_PAGES: ReadonlySet<string> = new Set([
+  ROUTES.authLink,
+  ROUTES.invitationAccept,
+  ROUTES.invitationConfirm,
+])
 
 /**
  * Where a sign-in may land: `safeRedirect`'s answer, unless it is a token

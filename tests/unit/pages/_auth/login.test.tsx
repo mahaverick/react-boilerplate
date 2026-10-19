@@ -167,6 +167,7 @@ describe('login page', () => {
     `/Auth/Link?token=${'t'.repeat(43)}`,
     `/invitations/accept?token=${'t'.repeat(43)}`,
     `/invitations/accept//?token=${'t'.repeat(43)}`,
+    `/invitations/confirm?token=${'t'.repeat(43)}&email=a%40b.test`,
   ])('does not carry a token page as the redirect (%s)', async (tokenPage) => {
     const bodies = serveLinkRequests()
     renderLoginAt(`/login?redirect=${encodeURIComponent(tokenPage)}`)

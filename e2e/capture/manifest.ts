@@ -110,6 +110,15 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     sections: [{ name: 'Invitation preview', endpoints: ['POST /invitations/preview'] }],
     empty: { url: '/invitations/accept' },
   },
+  '/invitations/confirm': {
+    kind: 'page',
+    area: 'auth',
+    shot: 'invitation-confirm',
+    url: '/invitations/confirm',
+    as: 'anonymous',
+    sections: [],
+    note: 'With no token the page shows the incomplete link; the joining, switch-account, dead and failed states need a mailed confirmation link.',
+  },
   '/tenants/$slug': {
     kind: 'layout',
     note: 'TenantGate + header + tab nav; the loader starts the tenant and awaits its flags.',

@@ -7,10 +7,18 @@ import {
   SwitchAccountPanel,
   VerifyFailedPanel,
 } from '@/components/features/auth/link-panels'
-import { CHECK_INBOX_TITLE, SignInLinkForm } from '@/components/features/auth/sign-in-link-form'
+import {
+  CHECK_INBOX_TITLE,
+  RESEND_COOLDOWN_SECONDS,
+  SignInLinkForm,
+} from '@/components/features/auth/sign-in-link-form'
+import {
+  HomeLink,
+  InvitationCard,
+  InvitationInbox,
+} from '@/components/features/invitations/invitation-parts'
+import { landJoined, type JoinedTenant } from '@/components/features/invitations/land-joined'
 import { LoadError } from '@/components/features/load-error'
-import { AuthCard } from '@/components/layouts/auth-card'
-import { AuthLayout } from '@/components/layouts/auth-layout'
 import { AuthPagePending } from '@/components/shared/pending-templates'
 import { Pii } from '@/components/shared/pii'
 import { buttonVariants } from '@/components/ui/button'
@@ -18,7 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
 import { ROLE_LABELS } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
-import { statusFrom } from '@/lib/api-error'
+import { retryAfterSecondsFrom, statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
 import { retryableFailureMessage } from '@/lib/retry'
 import { toast } from '@/lib/toast'
@@ -28,13 +36,14 @@ import { sanitizeUrl } from '@/observability/telemetry/url-sanitizer'
 import { useLogout } from '@/queries/auth.queries'
 import {
   inviterName,
+  isConfirmationSent,
   useAcceptInvitation,
   useInvitationPreview,
   useVerifyInvitation,
 } from '@/queries/invitation.queries'
 import { invitationTokenSchema } from '@/schemas/invitation.schemas'
 import { useAuthStore } from '@/states/auth.store'
-import type { InvitationPreview, User } from '@/types/api.types'
+import type { InvitationPreview, InvitationVerifyResult, User } from '@/types/api.types'
 
 /**
  * The invitation landing page. Top level, under neither `_auth` nor `_app`:
@@ -91,34 +100,6 @@ function invitationSentence(invitation: InvitationPreview): ReactNode {
       <Pii>{inviterName(invitation.invitedBy)}</Pii> invited you to join {invitation.tenant.name} as{' '}
       {ROLE_LABELS[invitation.role]}.
     </>
-  )
-}
-
-/** Every state's frame: one `<main>` (AuthLayout) and one `<h1>`. */
-function InvitationCard({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description?: ReactNode
-  children?: ReactNode
-}) {
-  return (
-    <AuthLayout>
-      <AuthCard title={title} description={description}>
-        {children}
-      </AuthCard>
-    </AuthLayout>
-  )
-}
-
-/** The way out of the states that are not joining. */
-function HomeLink() {
-  return (
-    <Link to={ROUTES.home} className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
-      Go to the home page
-    </Link>
   )
 }
 
@@ -255,7 +236,9 @@ function joinCallFor(
 /**
  * The page for a well-formed token. The preview is asked as a stranger, then
  * the page joins on load with no button: signed out, it verifies, which signs
- * the invitee in; signed in as the invitee, it accepts. A used link joins
+ * a new address in, or answers `202` for an existing account or a staff
+ * invitation, which shows "Check your inbox" and sets no session; signed in as
+ * the invitee, it accepts. A used link joins
  * nobody signed out; signed in, it still accepts, because the API answers
  * `alreadyMember` only to the invitee who used it and 404 to anyone else.
  * Signed in as another address, it asks before switching.
@@ -274,52 +257,78 @@ function InvitationForToken({ token }: { token: string }) {
   const [startedAs] = useState(() => useAuthStore.getState().user)
   const [joining, setJoining] = useState<Joining | null>(null)
   const [failure, setFailure] = useState<JoinFailure | null>(null)
+  /** The address a `202` says it mailed, and when Resend opens again; null until a verify answers `202`. */
+  const [inbox, setInbox] = useState<{ email: string; resendAt: number } | null>(null)
   const started = useRef(false)
 
   const invitation = preview.data
   const gone = !invitation && preview.isError && statusFrom(preview.error) === 404
   const nextCall = joinCallFor(invitation, gone, startedAs)
 
-  /**
-   * Toasts the join, naming the account now signed in, from the server's
-   * answer, never the URL; then opens its tenant in place of this page. The
-   * toast root is masked for analytics, so the address is too.
-   */
-  const land = (
-    tenant: { name: string; slug: string },
-    account: string,
-    alreadyMember: boolean
-  ) => {
+  /** Toasts the join and opens its tenant in place of this page. */
+  const land = (tenant: JoinedTenant, account: string, alreadyMember: boolean) => {
     setFailure(null)
-    toast.success(
-      alreadyMember
-        ? `You've already joined ${tenant.name} as ${account}.`
-        : `You joined ${tenant.name} as ${account}.`
-    )
-    void navigate({ to: '/tenants/$slug', params: { slug: tenant.slug }, replace: true })
+    landJoined(tenant, account, alreadyMember, ({ slug }) => {
+      void navigate({ to: '/tenants/$slug', params: { slug }, replace: true })
+    })
+  }
+
+  /** Keeps a failure in page state, so the panel and its focus stay while Try again runs. */
+  const failWith = (call: JoinCall, error: unknown) => {
+    const status = statusFrom(error)
+    const dead = status === 404 || (call === 'accept' && status === 403)
+    setFailure(dead ? { kind: 'dead' } : { kind: 'failed', error })
+  }
+
+  /** A verify's answer: joined in one click lands; a `202` shows the inbox and restarts the resend clock. */
+  const verified = (result: InvitationVerifyResult) => {
+    setFailure(null)
+    if (isConfirmationSent(result)) {
+      setInbox({ email: result.email, resendAt: Date.now() + RESEND_COOLDOWN_SECONDS * 1_000 })
+      return
+    }
+    land(result.tenant, result.user.email, false)
   }
 
   /** Posts the token; a 404 (and, for accept, a 403) is the dead invitation, anything else may pass. */
   const post = (call: JoinCall) => {
-    /** Keeps the failure in page state, so the panel and its focus stay while Try again runs. */
-    const onError = (error: unknown) => {
-      const status = statusFrom(error)
-      const dead = status === 404 || (call === 'accept' && status === 403)
-      setFailure(dead ? { kind: 'dead' } : { kind: 'failed', error })
-    }
     if (call === 'verify') {
-      verify.mutate(token, {
-        onSuccess: ({ tenant, user }) => land(tenant, user.email, false),
-        onError,
-      })
+      verify.mutate(token, { onSuccess: verified, onError: (error) => failWith(call, error) })
     } else if (startedAs) {
       // The bearer is startedAs's session, whose address the server confirmed when it signed them in.
       const account = startedAs.email
       accept.mutate(token, {
         onSuccess: ({ tenant, alreadyMember }) => land(tenant, account, alreadyMember),
-        onError,
+        onError: (error) => failWith(call, error),
       })
     }
+  }
+
+  /**
+   * Resend from "Check your inbox": the same verify with the same token. A rate
+   * limit keeps the inbox, says how long to wait and holds Resend for that
+   * long; any other failure is handled as the first verify's would be.
+   */
+  const resend = () => {
+    verify.mutate(token, {
+      onSuccess: verified,
+      onError: (error) => {
+        if (statusFrom(error) !== 429) {
+          failWith('verify', error)
+          return
+        }
+        toast.error(retryableFailureMessage(error, 'attempts'))
+        const wait = retryAfterSecondsFrom(error)
+        if (wait === null) return
+        setInbox(
+          (current) =>
+            current && {
+              ...current,
+              resendAt: Math.max(current.resendAt, Date.now() + wait * 1_000),
+            }
+        )
+      },
+    })
   }
 
   const start = useEffectEvent(() => {
@@ -347,6 +356,17 @@ function InvitationForToken({ token }: { token: string }) {
             onRetry={() => post(joining.call)}
           />
         </InvitationCard>
+      )
+    }
+    if (inbox && joining.invitation) {
+      return (
+        <InvitationInbox
+          email={inbox.email}
+          tenantName={joining.invitation.tenant.name}
+          resendAt={inbox.resendAt}
+          resending={verify.isPending}
+          onResend={resend}
+        />
       )
     }
     return <JoiningFrame invitation={joining.invitation} />

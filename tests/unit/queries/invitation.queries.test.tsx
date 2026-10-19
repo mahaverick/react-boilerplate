@@ -10,6 +10,7 @@ import {
   invitationKeys,
   inviterName,
   useAcceptInvitation,
+  useConfirmInvitation,
   useInvitationPreview,
   useVerifyInvitation,
 } from '@/queries/invitation.queries'
@@ -410,6 +411,158 @@ describe('invitation queries', () => {
 
       const { result } = renderHook(() => useVerifyInvitation(), { wrapper })
       result.current.mutate(TEST_INVITATION_TOKEN)
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      expect(useAuthStore.getState().isAuthenticated).toBe(false)
+      expect(track).not.toHaveBeenCalled()
+    })
+
+    it('sets no session, tracks nothing and switches no one out on a 202 "Check your inbox"', async () => {
+      server.use(
+        http.post('/api/v1/invitations/verify', () =>
+          ok(
+            { confirmationSent: true, email: 'ada@example.test' },
+            'Check your inbox to finish joining.',
+            202
+          )
+        )
+      )
+      const other = { ...testUser, id: 'other-user-id', email: 'other@b.test' }
+      useAuthStore.getState().login('other-token', other)
+      client.setQueryData(['tenants', 'secret'], { owner: other.id })
+      client.setQueryData(tenantKeys.list, [])
+
+      const { result } = renderHook(() => useVerifyInvitation(), { wrapper })
+      result.current.mutate(TEST_INVITATION_TOKEN)
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(result.current.data).toEqual({ confirmationSent: true, email: 'ada@example.test' })
+      expect(useAuthStore.getState().user).toEqual(other)
+      expect(useAuthStore.getState().accessToken).toBe('other-token')
+      expect(client.getQueryData(['tenants', 'secret'])).toEqual({ owner: other.id })
+      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(false)
+      expect(track).not.toHaveBeenCalled()
+      expect(yieldSharedIdentity).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('useConfirmInvitation', () => {
+    /** Records each confirm post's body and bearer header, answering `answer`. */
+    function serveConfirm(answer: () => Response) {
+      const seen: { body: unknown; authorization: string | null }[] = []
+      server.use(
+        http.post('/api/v1/invitations/confirm', async ({ request }) => {
+          seen.push({
+            body: await request.json(),
+            authorization: request.headers.get('authorization'),
+          })
+          return answer()
+        })
+      )
+      return seen
+    }
+
+    /** The confirm `200`: the verify shape, a session that joined the tenant. */
+    const joined = () =>
+      ok(
+        {
+          user: testUser,
+          accessToken: 'confirm-token',
+          isNewUser: false,
+          tenant: { name: 'Acme Corp', slug: 'acme' },
+          role: 'editor',
+        },
+        'Invitation accepted.'
+      )
+
+    it('posts the token and the trimmed address with no bearer, then signs in and refreshes the tenants', async () => {
+      const seen = serveConfirm(joined)
+      useAuthStore.setState({
+        accessToken: null,
+        user: null,
+        isAuthenticated: false,
+        isBootstrapped: true,
+      })
+      client.setQueryData(tenantKeys.detail('acme'), null)
+      client.setQueryData(tenantKeys.list, [])
+      let signedInAtTrack: boolean | undefined
+      vi.mocked(track).mockImplementation(() => {
+        signedInAtTrack = useAuthStore.getState().isAuthenticated
+      })
+
+      const { result } = renderHook(() => useConfirmInvitation(), { wrapper })
+      result.current.mutate({ token: TEST_INVITATION_TOKEN, email: '  ada@example.test ' })
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(seen).toEqual([
+        { body: { token: TEST_INVITATION_TOKEN, email: 'ada@example.test' }, authorization: null },
+      ])
+      expect(useAuthStore.getState().user).toEqual(testUser)
+      expect(useAuthStore.getState().accessToken).toBe('confirm-token')
+      expect(track).toHaveBeenCalledWith('sign_in_completed', { method: 'link' })
+      expect(signedInAtTrack).toBe(true)
+      expect(client.getQueryState(tenantKeys.detail('acme'))).toBeUndefined()
+      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
+    })
+
+    it.each([
+      ['no address', undefined],
+      ['a blank address', '   '],
+    ])('omits the address when the link has %s', async (_case, email) => {
+      const seen = serveConfirm(joined)
+
+      const { result } = renderHook(() => useConfirmInvitation(), { wrapper })
+      result.current.mutate({ token: TEST_INVITATION_TOKEN, email })
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(seen[0]?.body).toEqual({ token: TEST_INVITATION_TOKEN })
+    })
+
+    it('replaces a signed-in session with the one the link signed in', async () => {
+      serveConfirm(joined)
+      const other = { ...testUser, id: 'other-user-id', email: 'other@b.test' }
+      useAuthStore.getState().login('other-token', other)
+      client.setQueryData(['tenants', 'secret'], { owner: other.id })
+
+      const { result } = renderHook(() => useConfirmInvitation(), { wrapper })
+      result.current.mutate({ token: TEST_INVITATION_TOKEN, email: testUser.email })
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(client.getQueryData(['tenants', 'secret'])).toBeUndefined()
+      expect(useAuthStore.getState().user).toEqual(testUser)
+    })
+
+    it('does not retry a 401 or refresh the session', async () => {
+      let refreshes = 0
+      const seen = serveConfirm(() => fail('Unauthorized', 401))
+      server.use(
+        http.post('/api/v1/auth/refresh', () => {
+          refreshes += 1
+          return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        })
+      )
+
+      const { result } = renderHook(() => useConfirmInvitation(), { wrapper })
+      result.current.mutate({ token: TEST_INVITATION_TOKEN, email: testUser.email })
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      expect(seen).toHaveLength(1)
+      expect(refreshes).toBe(0)
+    })
+
+    it('leaves the store signed out on a 404', async () => {
+      serveConfirm(() =>
+        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+      )
+      useAuthStore.setState({
+        accessToken: null,
+        user: null,
+        isAuthenticated: false,
+        isBootstrapped: true,
+      })
+
+      const { result } = renderHook(() => useConfirmInvitation(), { wrapper })
+      result.current.mutate({ token: TEST_INVITATION_TOKEN, email: testUser.email })
 
       await waitFor(() => expect(result.current.isError).toBe(true))
       expect(useAuthStore.getState().isAuthenticated).toBe(false)

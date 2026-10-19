@@ -883,6 +883,22 @@ describe('invitation accept states', () => {
     await expectNoViolations()
   })
 
+  it('invitation check inbox has no axe violations', async () => {
+    signOut()
+    server.use(
+      http.post('/api/v1/invitations/verify', () =>
+        ok(
+          { confirmationSent: true, email: 'invitee@acme.test' },
+          'Check your inbox to finish joining.',
+          202
+        )
+      )
+    )
+    renderAppAt(acceptPath)
+    await screen.findByRole('button', { name: /^Resend in / })
+    await expectNoViolations()
+  })
+
   it('has no violations when the preview request failed', async () => {
     signIn()
     mockSignedInData()
@@ -890,6 +906,45 @@ describe('invitation accept states', () => {
     renderAppAt(acceptPath)
     // The preview query retries a non-404 once, so the alert appears after that retry.
     await screen.findByRole('alert')
+    await expectNoViolations()
+  })
+})
+
+/** The invitation confirmation page's states, each its own render. */
+describe('invitation confirm states', () => {
+  const confirmPath = `/invitations/confirm?token=${'c'.repeat(43)}&email=ada%40example.test`
+
+  it('invitation confirm joining has no axe violations', async () => {
+    signOut()
+    server.use(
+      http.post('/api/v1/invitations/confirm', async () => {
+        await delay('infinite')
+        return ok(null)
+      })
+    )
+    renderAppAt(confirmPath)
+    await screen.findByRole('heading', { level: 1, name: 'Joining your team' })
+    await expectNoViolations()
+  })
+
+  it('invitation confirm switch has no axe violations', async () => {
+    signIn()
+    mockSignedInData()
+    renderAppAt(confirmPath)
+    await screen.findByRole('button', { name: 'Continue as ada@example.test' })
+    await expectNoViolations()
+  })
+
+  it('invitation confirm dead has no axe violations', async () => {
+    signOut()
+    server.use(
+      http.post('/api/v1/invitations/confirm', () =>
+        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+      )
+    )
+    renderAppAt(confirmPath)
+    await screen.findByRole('heading', { level: 1, name: "This link can't be used" })
+    await screen.findByRole('button', { name: 'Email me a sign-in link' })
     await expectNoViolations()
   })
 })

@@ -6,7 +6,7 @@ import {
   type AnyRouter,
   type RouterHistory,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 import { StrictMode } from 'react'
@@ -487,6 +487,160 @@ describe('accept page, signed out', () => {
     expect(screen.getByText(/for a new invite/)).toHaveTextContent(
       'Ask Ada Lovelace for a new invite.'
     )
+  })
+})
+
+/** The address the server says it mailed; deliberately not the preview's or the URL's. */
+const MAILED = 'invitee@acme.test'
+
+/** A verify that answers "Check your inbox": no session, a confirmation link mailed to `email`. */
+function confirmationSent(email = MAILED) {
+  return () => ok({ confirmationSent: true, email }, 'Check your inbox to finish joining.', 202)
+}
+
+/** A 429 that says to wait `seconds`. */
+function rateLimited(seconds: number) {
+  return () => {
+    const response = fail('Too many attempts. Please try again later.', 429)
+    response.headers.set('Retry-After', String(seconds))
+    return response
+  }
+}
+
+describe('accept page, signed out, an existing account or a staff invitation', () => {
+  beforeEach(arriveSignedOut)
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Fakes only the countdown's clock, so the router's own timers and `findBy*` still run. */
+  function fakeTheCountdown() {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    return userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+  }
+
+  it('shows Check your inbox with the server’s address when verify answers 202, and sets no session', async () => {
+    const verifies = serveVerify(confirmationSent())
+    const accepts = serveAccept(accepted())
+    renderAt(ACCEPT_PATH)
+
+    expect(await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })).toBeVisible()
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(`We sent a link to ${MAILED}.`)
+    expect(within(status).getByText(MAILED)).toHaveClass('ph-sensitive', 'ph-mask')
+    expect(
+      screen.getByText('Open it to join Acme Corp. The link works once and expires in 15 minutes.')
+    ).toBeVisible()
+    const resend = screen.getByRole('button', { name: /^Resend in / })
+    expect(resend).toHaveAttribute('aria-disabled', 'true')
+    expect(resend).toHaveFocus()
+    expect(screen.getByRole('link', { name: 'Go to the home page' })).toHaveAttribute('href', '/')
+    expect(verifies).toEqual([{ body: { token: TEST_INVITATION_TOKEN }, authorization: null }])
+    expect(accepts).toHaveLength(0)
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    expect(useAuthStore.getState().accessToken).toBeNull()
+    expect(screen.queryByText(/You joined/)).not.toBeInTheDocument()
+  })
+
+  it('never names the address from the URL on Check your inbox', async () => {
+    serveVerify(confirmationSent())
+    renderAt(`${ACCEPT_PATH}&email=${encodeURIComponent('mallory@evil.test')}`)
+
+    expect(await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent(`We sent a link to ${MAILED}.`)
+    expect(screen.queryByText(/mallory@evil\.test/)).not.toBeInTheDocument()
+  })
+
+  it('resends with the same token after the countdown, and the countdown blocks an early click', async () => {
+    const user = fakeTheCountdown()
+    const verifies = serveVerify(confirmationSent())
+    renderAt(ACCEPT_PATH)
+
+    const waiting = await screen.findByRole('button', { name: 'Resend in 1:00' })
+    await act(() => vi.advanceTimersByTimeAsync(18_000))
+    expect(waiting).toHaveAccessibleName('Resend in 0:42')
+    await user.click(waiting)
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(verifies).toHaveLength(1)
+
+    await act(() => vi.advanceTimersByTimeAsync(42_000))
+    await user.click(screen.getByRole('button', { name: 'Resend link' }))
+    await vi.waitFor(() => expect(verifies).toHaveLength(2))
+    expect(verifies[1]).toEqual({ body: { token: TEST_INVITATION_TOKEN }, authorization: null })
+
+    // The second 202 restarts the countdown.
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(await screen.findByRole('button', { name: 'Resend in 1:00' })).toBeInTheDocument()
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+  })
+
+  it('lands when a resend answers 200', async () => {
+    const user = fakeTheCountdown()
+    mockTenantRoute()
+    const verifies = serveVerify(confirmationSent(), verified())
+    const accepts = serveAccept(accepted())
+    const router = renderAt(ACCEPT_PATH)
+
+    await screen.findByRole('button', { name: 'Resend in 1:00' })
+    await act(() => vi.advanceTimersByTimeAsync(60_000))
+    await user.click(screen.getByRole('button', { name: 'Resend link' }))
+    vi.useRealTimers()
+
+    await expectLandedInTenant(router)
+    expect(await screen.findAllByText(JOINED)).toHaveLength(1)
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(verifies).toHaveLength(2)
+    expect(accepts).toHaveLength(0)
+  })
+
+  it('shows the dead invitation when a resend answers 404', async () => {
+    const user = fakeTheCountdown()
+    serveVerify(confirmationSent(), () => fail(INVALID, 404, 'invitation_invalid'))
+    renderAt(ACCEPT_PATH)
+
+    await screen.findByRole('button', { name: 'Resend in 1:00' })
+    await act(() => vi.advanceTimersByTimeAsync(60_000))
+    await user.click(screen.getByRole('button', { name: 'Resend link' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: DEAD_TITLE })).toBeVisible()
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+  })
+
+  it('shows the Retry-After text when a resend answers 429', async () => {
+    const user = fakeTheCountdown()
+    const verifies = serveVerify(confirmationSent(), rateLimited(90))
+    renderAt(ACCEPT_PATH)
+
+    await screen.findByRole('button', { name: 'Resend in 1:00' })
+    await act(() => vi.advanceTimersByTimeAsync(60_000))
+    await user.click(screen.getByRole('button', { name: 'Resend link' }))
+
+    expect(await screen.findByText('Too many attempts. Try again in 90 seconds.')).toBeVisible()
+    expect(screen.getByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })).toBeVisible()
+    // The wait the server named holds Resend back.
+    expect(await screen.findByRole('button', { name: 'Resend in 1:30' })).toBeInTheDocument()
+    expect(verifies).toHaveLength(2)
+  })
+
+  it('offers Try again when a resend fails for another reason, and the retry asks again', async () => {
+    const user = fakeTheCountdown()
+    const verifies = serveVerify(
+      confirmationSent(),
+      () => fail('Server error.', 500),
+      confirmationSent()
+    )
+    renderAt(ACCEPT_PATH)
+
+    await screen.findByRole('button', { name: 'Resend in 1:00' })
+    await act(() => vi.advanceTimersByTimeAsync(60_000))
+    await user.click(screen.getByRole('button', { name: 'Resend link' }))
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'We couldn’t add you to Acme Corp' })
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })).toBeVisible()
+    expect(verifies).toHaveLength(3)
   })
 })
 

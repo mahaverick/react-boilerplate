@@ -259,6 +259,14 @@ describe('mailed-link paths and the auth guard', () => {
     expect(router.state.location.pathname).toBe('/invitations/accept')
   })
 
+  it('lets a signed-in visitor open an invitation confirmation link instead of bouncing them', async () => {
+    const router = renderAt(`/invitations/confirm?token=${'t'.repeat(43)}&email=someone%40else.com`)
+
+    expect(await screen.findByRole('heading', { name: 'Join your team' })).toBeInTheDocument()
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(router.state.location.pathname).toBe('/invitations/confirm')
+  })
+
   it('lets a signed-in visitor open a sign-in link instead of bouncing them', async () => {
     const router = renderAt(`/auth/link?token=${'t'.repeat(43)}&email=ada%40example.test`)
 

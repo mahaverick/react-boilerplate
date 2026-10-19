@@ -26,6 +26,7 @@ import { Route as AuthLoginRouteImport } from './pages/_auth/login'
 import { Route as AuthCallbackRouteImport } from './pages/auth/callback'
 import { Route as AuthLinkRouteImport } from './pages/auth/link'
 import { Route as InvitationsAcceptRouteImport } from './pages/invitations/accept'
+import { Route as InvitationsConfirmRouteImport } from './pages/invitations/confirm'
 import { Route as AppSettingsIndexRouteImport } from './pages/_app/settings/index'
 import { Route as AppTenantsIndexRouteImport } from './pages/_app/tenants/index'
 import { Route as AppTenantsSlugRouteImport } from './pages/_app/tenants/$slug'
@@ -125,6 +126,11 @@ const AuthLinkRoute = AuthLinkRouteImport.update({
 const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
   id: '/invitations/accept',
   path: '/invitations/accept',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvitationsConfirmRoute = InvitationsConfirmRouteImport.update({
+  id: '/invitations/confirm',
+  path: '/invitations/confirm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
@@ -237,6 +243,7 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/link': typeof AuthLinkRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/invitations/confirm': typeof InvitationsConfirmRoute
   '/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/settings/': typeof AppSettingsIndexRoute
   '/tenants/': typeof AppTenantsIndexRoute
@@ -270,6 +277,7 @@ export interface FileRoutesByTo {
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/link': typeof AuthLinkRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/invitations/confirm': typeof InvitationsConfirmRoute
   '/settings': typeof AppSettingsIndexRoute
   '/tenants': typeof AppTenantsIndexRoute
   '/settings/account/notifications': typeof AppSettingsAccountNotificationsRoute
@@ -305,6 +313,7 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/link': typeof AuthLinkRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/invitations/confirm': typeof InvitationsConfirmRoute
   '/_app/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/tenants/': typeof AppTenantsIndexRoute
@@ -341,6 +350,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/auth/link'
     | '/invitations/accept'
+    | '/invitations/confirm'
     | '/tenants/$slug'
     | '/settings/'
     | '/tenants/'
@@ -374,6 +384,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/auth/link'
     | '/invitations/accept'
+    | '/invitations/confirm'
     | '/settings'
     | '/tenants'
     | '/settings/account/notifications'
@@ -408,6 +419,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/auth/link'
     | '/invitations/accept'
+    | '/invitations/confirm'
     | '/_app/tenants/$slug'
     | '/_app/settings/'
     | '/_app/tenants/'
@@ -440,6 +452,7 @@ export interface RootRouteChildren {
   AuthCallbackRoute: typeof AuthCallbackRoute
   AuthLinkRoute: typeof AuthLinkRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
+  InvitationsConfirmRoute: typeof InvitationsConfirmRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -561,6 +574,13 @@ declare module '@tanstack/react-router' {
       path: '/invitations/accept'
       fullPath: '/invitations/accept'
       preLoaderRoute: typeof InvitationsAcceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invitations/confirm': {
+      id: '/invitations/confirm'
+      path: '/invitations/confirm'
+      fullPath: '/invitations/confirm'
+      preLoaderRoute: typeof InvitationsConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/settings/': {
@@ -791,6 +811,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCallbackRoute: AuthCallbackRoute,
   AuthLinkRoute: AuthLinkRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
+  InvitationsConfirmRoute: InvitationsConfirmRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

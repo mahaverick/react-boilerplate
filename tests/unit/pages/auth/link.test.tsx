@@ -267,6 +267,7 @@ describe('/auth/link, signed out', () => {
   it.each([
     ['/auth/link', `/auth/link?token=${'y'.repeat(43)}`],
     ['/invitations/accept', '/invitations/accept?token=probe'],
+    ['/invitations/confirm', `/invitations/confirm?token=${'y'.repeat(43)}&email=a%40b.test`],
     ['/auth/link, cased and slashed', `/Auth/Link/?token=${'y'.repeat(43)}`],
   ])('treats a redirect back to a token page (%s) as no redirect', async (_name, tokenPage) => {
     const verify = serveVerify(signedIn({ redirect: tokenPage }))
@@ -308,25 +309,27 @@ describe('/auth/link, signed out', () => {
     })
   })
 
-  it.each([`/auth/link?token=${'y'.repeat(43)}`, '/invitations/accept?token=probe', '//evil.test'])(
-    "does not carry %s into the new link's redirect",
-    async (unsafe) => {
-      serveVerify(() => fail('This link has expired or was already used.', 400, 'LINK_INVALID'))
-      const requests: unknown[] = []
-      server.use(
-        http.post('/api/v1/auth/link/request', async ({ request }) => {
-          requests.push(await request.json())
-          return ok(null, 'Check your inbox for a sign-in link.', 202)
-        })
-      )
-      const user = userEvent.setup()
-      renderAt(`${LINK_PATH}&redirect=${encodeURIComponent(unsafe)}`)
-      await user.click(await screen.findByRole('button', { name: 'Email me a new link' }))
-      await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })
+  it.each([
+    `/auth/link?token=${'y'.repeat(43)}`,
+    '/invitations/accept?token=probe',
+    `/invitations/confirm?token=${'y'.repeat(43)}&email=a%40b.test`,
+    '//evil.test',
+  ])("does not carry %s into the new link's redirect", async (unsafe) => {
+    serveVerify(() => fail('This link has expired or was already used.', 400, 'LINK_INVALID'))
+    const requests: unknown[] = []
+    server.use(
+      http.post('/api/v1/auth/link/request', async ({ request }) => {
+        requests.push(await request.json())
+        return ok(null, 'Check your inbox for a sign-in link.', 202)
+      })
+    )
+    const user = userEvent.setup()
+    renderAt(`${LINK_PATH}&redirect=${encodeURIComponent(unsafe)}`)
+    await user.click(await screen.findByRole('button', { name: 'Email me a new link' }))
+    await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })
 
-      expect(requests).toEqual([{ email: LINK_EMAIL, app: 'web' }])
-    }
-  )
+    expect(requests).toEqual([{ email: LINK_EMAIL, app: 'web' }])
+  })
 
   it.each([
     ['a bare ?email=', `/auth/link?token=${TOKEN}&email=`],
@@ -557,7 +560,11 @@ describe('/auth/link, signed in', () => {
     expect((router.history as RouterHistory).length).toBe(1)
   })
 
-  it.each([`/auth/link?token=${'y'.repeat(43)}`, '/invitations/accept?token=probe'])(
+  it.each([
+    `/auth/link?token=${'y'.repeat(43)}`,
+    '/invitations/accept?token=probe',
+    `/invitations/confirm?token=${'y'.repeat(43)}&email=a%40b.test`,
+  ])(
     'sends the same signed-in person past a token-page redirect (%s) to the dashboard',
     async (tokenPage) => {
       const verify = serveVerify(signedIn())

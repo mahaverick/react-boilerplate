@@ -23,6 +23,7 @@ export const ROUTES = {
   notifications: '/notifications',
   tenants: '/tenants',
   invitationAccept: '/invitations/accept',
+  invitationConfirm: '/invitations/confirm',
 } as const
 
 /** The API path for the Google OAuth start. Same-origin, so a plain anchor. */

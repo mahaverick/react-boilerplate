@@ -116,6 +116,30 @@ export interface InvitationPreview {
   email: string
 }
 
+/**
+ * The `200` of `POST /invitations/verify` and `POST /invitations/confirm`: the
+ * session, whether this click created the account, and the tenant joined.
+ */
+export interface InvitationSignIn {
+  accessToken: string
+  user: User
+  isNewUser: boolean
+  tenant: { name: string; slug: string }
+  role: MembershipRole
+}
+
+/**
+ * The `202` of `POST /invitations/verify`: no session, nothing spent. The
+ * server mailed a confirmation link to `email`, the invited address.
+ */
+export interface InvitationConfirmationSent {
+  confirmationSent: true
+  email: string
+}
+
+/** What `POST /invitations/verify` answers: joined in one click, or "Check your inbox". */
+export type InvitationVerifyResult = InvitationSignIn | InvitationConfirmationSent
+
 /** `POST /invitations/accept`: the tenant the caller is now a member of. */
 export interface AcceptedInvitation {
   tenant: { name: string; slug: string }
