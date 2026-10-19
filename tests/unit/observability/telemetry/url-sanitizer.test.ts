@@ -22,6 +22,10 @@ describe('sanitizeUrl', () => {
       'https://app.example.com/invitations/accept',
     ],
     [
+      'https://app.example.com/invitations/confirm?token=probe-token&email=pii-probe%40example.test',
+      'https://app.example.com/invitations/confirm',
+    ],
+    [
       'https://app.example.com/login?redirect=%2Freset-password%3Ftoken%3Dprobe-token',
       'https://app.example.com/login',
     ],

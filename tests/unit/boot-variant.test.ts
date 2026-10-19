@@ -45,7 +45,10 @@ const AUTH_LAYOUT_IMPORTS = [
   "from '@/components/features/invitations/invitation-parts'",
 ]
 
-/** Every route file under src/pages that imports the auth layout, as the paths it serves. */
+/**
+ * Every route file under src/pages that imports the auth layout, directly or
+ * through `invitation-parts`, as the paths it serves.
+ */
 function authLayoutPaths(): string[] {
   const files = readdirSync(PAGES, { recursive: true, encoding: 'utf8' }).filter((file) =>
     file.endsWith('.tsx')
