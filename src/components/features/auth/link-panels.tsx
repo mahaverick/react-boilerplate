@@ -62,11 +62,11 @@ export function SwitchAccountPanel({
     <div className="grid gap-4">
       {kind === 'link' ? (
         <p className="text-sm">
-          You&apos;re signed in as {current}. This link is for {target}.
+          You’re signed in as {current}. This link is for {target}.
         </p>
       ) : (
         <p className="text-sm">
-          This invitation is for {target}. You&apos;re signed in as {current}.
+          This invitation is for {target}. You’re signed in as {current}.
         </p>
       )}
       <div className="grid gap-2">

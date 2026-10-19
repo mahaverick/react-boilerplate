@@ -372,7 +372,11 @@ describe('auth interceptors', () => {
   it('does not end the session on a 403', async () => {
     useAuthStore.getState().login('tok', testUser)
     const assign = stubLocation()
-    server.use(http.get('/api/v1/widgets', () => fail('Insufficient permissions', 403)))
+    server.use(
+      http.get('/api/v1/widgets', () =>
+        fail("Your role in this workspace doesn't allow this. Ask a workspace owner or admin.", 403)
+      )
+    )
 
     await expect(makeClient().get('/widgets')).rejects.toThrow()
     expect(useAuthStore.getState().isAuthenticated).toBe(true)

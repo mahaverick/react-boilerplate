@@ -220,7 +220,7 @@ function SignInLinkPage() {
   if (failure) {
     if (statusFrom(failure.error) === 400) return <DeadLink email={email} redirect={redirect} />
     return (
-      <LinkCard title="We couldn't sign you in">
+      <LinkCard title="We couldn’t sign you in">
         <VerifyFailedPanel
           message={retryableFailureMessage(failure.error, 'sign-in attempts')}
           retrying={verify.isPending}

@@ -85,7 +85,7 @@ function WelcomePage() {
         <div className="grid gap-3 text-center text-sm">
           {email && (
             <p className="text-muted-foreground">
-              You&apos;re signed in as <Pii>{email}</Pii>.
+              You’re signed in as <Pii>{email}</Pii>.
             </p>
           )}
           <div className="grid gap-3 sm:grid-cols-2">

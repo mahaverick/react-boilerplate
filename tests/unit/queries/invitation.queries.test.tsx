@@ -99,7 +99,11 @@ describe('invitation queries', () => {
       server.use(
         http.post('/api/v1/invitations/preview', () => {
           calls += 1
-          return fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+          return fail(
+            'This invitation link has expired or was already used. Ask the person who invited you for a new one.',
+            404,
+            'invitation_invalid'
+          )
         })
       )
 
@@ -251,7 +255,7 @@ describe('invitation queries', () => {
       server.use(
         http.post('/api/v1/invitations/accept', () =>
           fail(
-            'This invitation was sent to a different email address.',
+            'This invitation is for a different email address. Sign in with the address it was sent to.',
             403,
             'invitation_email_mismatch'
           )
@@ -399,7 +403,11 @@ describe('invitation queries', () => {
     it('leaves the store signed out on a 404', async () => {
       server.use(
         http.post('/api/v1/invitations/verify', () =>
-          fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+          fail(
+            'This invitation link has expired or was already used. Ask the person who invited you for a new one.',
+            404,
+            'invitation_invalid'
+          )
         )
       )
       useAuthStore.setState({
@@ -552,7 +560,11 @@ describe('invitation queries', () => {
 
     it('leaves the store signed out on a 404', async () => {
       serveConfirm(() =>
-        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+        fail(
+          'This invitation link has expired or was already used. Ask the person who invited you for a new one.',
+          404,
+          'invitation_invalid'
+        )
       )
       useAuthStore.setState({
         accessToken: null,

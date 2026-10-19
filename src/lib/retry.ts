@@ -12,6 +12,7 @@ import { messageFrom, retryAfterSecondsFrom, statusFrom } from '@/lib/api-error'
 export function retryableFailureMessage(error: unknown, attempts: string): string {
   const wait = statusFrom(error) === 429 ? retryAfterSecondsFrom(error) : null
   if (wait === null) return messageFrom(error)
-  const after = wait < 120 ? `${wait} seconds` : `${Math.ceil(wait / 60)} minutes`
+  const after =
+    wait < 120 ? `${wait} ${wait === 1 ? 'second' : 'seconds'}` : `${Math.ceil(wait / 60)} minutes`
   return `Too many ${attempts}. Try again in ${after}.`
 }

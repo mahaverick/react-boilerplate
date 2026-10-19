@@ -233,7 +233,7 @@ export const handlers = [
   http.get('/api/v1/tenants/:slug/members', () => ok(listPage([]), 'Members retrieved.')),
   // Pending invitations, empty; a test about them overrides it.
   http.get('/api/v1/tenants/:slug/invitations', () => ok(listPage([]), 'Invitations retrieved.')),
-  // Invite and resend answer 202 with `data: null` whether or not the address has an account, the same way register does.
+  // Invite and resend answer 202 with `data: null` whether or not the address has an account, as the sign-in link request does.
   http.post('/api/v1/tenants/:slug/invitations', () => ok(null, INVITATION_SENT_MESSAGE, 202)),
   http.post('/api/v1/tenants/:slug/invitations/:id/resend', () =>
     ok(null, INVITATION_SENT_MESSAGE, 202)

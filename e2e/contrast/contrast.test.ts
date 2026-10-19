@@ -150,7 +150,7 @@ const SURFACES = [
   {
     name: 'link failed',
     url: signedOut('/auth/link', `token=${TOKEN}&email=a@b.com&link=readonly`),
-    heading: "We couldn't sign you in",
+    heading: 'We couldn’t sign you in',
   },
   {
     name: 'welcome',
@@ -193,7 +193,7 @@ const SURFACES = [
   {
     name: 'invitation confirm dead',
     url: signedOut('/invitations/confirm', `token=${TOKEN}&email=invitee@b.com&confirm=dead`),
-    heading: "This link can't be used",
+    heading: 'This link can’t be used',
   },
   {
     name: 'invitation confirm switch',

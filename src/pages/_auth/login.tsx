@@ -36,12 +36,15 @@ export const Route = createFileRoute('/_auth/login')({
 const OAUTH_ERRORS: Record<string, string> = {
   google_auth_failed: 'Google sign-in failed. Try again, or sign in with an email link.',
   email_not_verified:
-    "Google hasn't verified this email address. Verify it with Google, or sign in with an email link.",
+    'Google hasn’t verified this email address. Verify it with Google, or sign in with an email link.',
   google_email_missing:
-    "Your Google account didn't share an email address. Sign in with an email link instead.",
-  processing_failed: "Google sign-in didn't finish. Try again, or sign in with an email link.",
+    'Your Google account didn’t share an email address. Sign in with an email link instead.',
+  processing_failed: 'Google sign-in didn’t finish. Try again, or sign in with an email link.',
   // The API refuses a non-staff sign-in while maintenance mode is full.
   MAINTENANCE_MODE: 'Sign-in is paused for maintenance. Try again when maintenance ends.',
+  // In read-only maintenance the API signs in existing accounts only; this Google address has none.
+  READ_ONLY_MODE:
+    'We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends.',
 }
 
 /**
@@ -79,7 +82,7 @@ function LoginPage() {
   return (
     <AuthCard
       title={sentTo ? CHECK_INBOX_TITLE : 'Sign in'}
-      description={sentTo ? undefined : "Enter your email and we'll send you a link to sign in."}
+      description={sentTo ? undefined : 'Enter your email and we’ll send you a link to sign in.'}
       footer={<TermsNote />}
     >
       {notice && sentTo === null && (

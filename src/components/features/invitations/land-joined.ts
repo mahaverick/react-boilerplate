@@ -24,7 +24,7 @@ export function landJoined(
 ): void {
   toast.success(
     alreadyMember
-      ? `You've already joined ${tenant.name} as ${account}.`
+      ? `You’ve already joined ${tenant.name} as ${account}.`
       : `You joined ${tenant.name} as ${account}.`
   )
   open(tenant)

@@ -45,9 +45,10 @@ const CONFIRM_PATH = `/invitations/confirm?token=${TOKEN}&email=${encodeURICompo
 const JOINED = `You joined Acme as ${SERVER_EMAIL}.`
 const DEAD_TITLE = CONFIRM_DEAD_TITLE
 const DEAD_BODY =
-  'Open your invitation email and select Join again to get a new link. If the invitation expired, ask the team for a new invite.'
+  'Open your invitation email and select Join again to get a new link, or ask the person who invited you for a new invite.'
 const INCOMPLETE_TITLE = 'This link is incomplete'
-const INVALID = 'This invitation is invalid or has expired.'
+const INVALID =
+  "We couldn't use this link. Open your invitation email and select Join again, or ask the person who invited you for a new invite."
 
 /** Mounts the real route tree at `path`, under StrictMode as dev runs it, and returns the router. */
 function renderAt(path: string): AnyRouter {
@@ -127,7 +128,9 @@ function held() {
 /** A 429 that says to wait `seconds`. */
 function rateLimited(seconds: number) {
   return () => {
-    const response = fail('Too many attempts. Please try again later.', 429)
+    // Express words the wait as it rounds it: whole seconds under a minute, else whole minutes up.
+    const wait = seconds < 60 ? `${seconds} seconds` : `${Math.ceil(seconds / 60)} minutes`
+    const response = fail(`Too many attempts. Try again in ${wait}.`, 429)
     response.headers.set('Retry-After', String(seconds))
     return response
   }
@@ -323,7 +326,7 @@ describe('confirm page, signed out', () => {
         await vi.waitFor(() => expect(heard).toContainEqual({ type: 'signed_in' }))
         expect(await screen.findByText(JOINED)).toBeInTheDocument()
       } else {
-        await screen.findByRole('heading', { level: 1, name: /can't be used|couldn’t add you/ })
+        await screen.findByRole('heading', { level: 1, name: /can’t be used|couldn’t add you/ })
         // A message that is not sent has no event to wait on.
         await act(() => settle(50, 'an unsent broadcast has no event to wait on'))
         expect(heard).not.toContainEqual({ type: 'signed_in' })
@@ -410,7 +413,7 @@ describe('confirm page, signed out', () => {
     [
       'a network error',
       () => HttpResponse.error(),
-      "We couldn't reach the server. Check your connection, then try again.",
+      'We couldn’t reach the server. Check your connection, then try again.',
     ],
   ])('offers Try again on %s, and Try again posts again', async (_case, failure, message) => {
     mockTenantRoute()
@@ -463,7 +466,7 @@ describe('confirm page, signed in', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Join your team' })).toBeVisible()
     expect(screen.getByText(/This invitation is for/)).toHaveTextContent(
-      `This invitation is for ${LINK_EMAIL}. You're signed in as someone@else.test.`
+      `This invitation is for ${LINK_EMAIL}. You’re signed in as someone@else.test.`
     )
     expect(confirms).toHaveLength(0)
 

@@ -858,7 +858,11 @@ describe('invitation accept states', () => {
     signOut()
     server.use(
       http.post('/api/v1/invitations/preview', () =>
-        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+        fail(
+          'This invitation link has expired or was already used. Ask the person who invited you for a new one.',
+          404,
+          'invitation_invalid'
+        )
       )
     )
     renderAppAt(acceptPath)
@@ -872,10 +876,18 @@ describe('invitation accept states', () => {
     mockSignedInData()
     server.use(
       http.post('/api/v1/invitations/preview', () =>
-        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+        fail(
+          'This invitation link has expired or was already used. Ask the person who invited you for a new one.',
+          404,
+          'invitation_invalid'
+        )
       ),
       http.post('/api/v1/invitations/accept', () =>
-        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+        fail(
+          'This invitation link has expired or was already used. Ask the person who invited you for a new one.',
+          404,
+          'invitation_invalid'
+        )
       )
     )
     renderAppAt(acceptPath)
@@ -939,11 +951,15 @@ describe('invitation confirm states', () => {
     signOut()
     server.use(
       http.post('/api/v1/invitations/confirm', () =>
-        fail('This invitation is invalid or has expired.', 404, 'invitation_invalid')
+        fail(
+          'This invitation link has expired or was already used. Ask the person who invited you for a new one.',
+          404,
+          'invitation_invalid'
+        )
       )
     )
     renderAppAt(confirmPath)
-    await screen.findByRole('heading', { level: 1, name: "This link can't be used" })
+    await screen.findByRole('heading', { level: 1, name: 'This link can’t be used' })
     await screen.findByRole('button', { name: 'Email me a sign-in link' })
     await expectNoViolations()
   })

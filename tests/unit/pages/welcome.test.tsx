@@ -360,7 +360,7 @@ describe('/welcome', () => {
   it('shows the slug rule live and the server’s slug_taken under its field', async () => {
     server.use(
       http.post('/api/v1/tenants', () =>
-        fail('A tenant with this slug already exists', 409, SLUG_TAKEN)
+        fail('Another workspace uses this slug. Choose a different one.', 409, SLUG_TAKEN)
       )
     )
     const user = userEvent.setup()
@@ -377,7 +377,7 @@ describe('/welcome', () => {
 
     await waitFor(() => expect(slug).toHaveAttribute('aria-invalid', 'true'))
     expect(slug).toHaveAccessibleDescription(
-      expect.stringContaining('A tenant with this slug already exists')
+      expect.stringContaining('Another workspace uses this slug. Choose a different one.')
     )
   })
 
@@ -399,7 +399,7 @@ describe('/welcome', () => {
     const main = screen.getByRole('main')
     const signedInAs = within(main).getByText(testUser.email)
     expect(signedInAs).toHaveClass('ph-sensitive')
-    expect(signedInAs.parentElement).toHaveTextContent(`You're signed in as ${testUser.email}.`)
+    expect(signedInAs.parentElement).toHaveTextContent(`You’re signed in as ${testUser.email}.`)
     expect(within(main).getByRole('link', { name: 'Go to the dashboard' })).toHaveAttribute(
       'href',
       ROUTES.dashboard

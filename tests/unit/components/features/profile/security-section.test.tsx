@@ -145,7 +145,9 @@ describe('security section', () => {
     renderSecurity()
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('We could not load your sign-in methods.')
+    expect(alert).toHaveTextContent(
+      'We couldn’t load your sign-in methods. Select Try again to load them.'
+    )
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
 
     expect(await screen.findByText(`Email link (`, { exact: false })).toBeInTheDocument()
@@ -257,7 +259,7 @@ describe('sign out other sessions', () => {
     mockProviders(['email'])
     server.use(
       http.post('/api/v1/auth/sessions/revoke-others', () =>
-        fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED')
+        fail('Too many attempts. Try again in 15 minutes.', 429, 'RATE_LIMITED')
       )
     )
     const user = userEvent.setup()
@@ -267,7 +269,7 @@ describe('sign out other sessions', () => {
       await (await section()).findByRole('button', { name: 'Sign out other sessions' })
     )
     expect(
-      await screen.findByText('Too many attempts. Please try again later.')
+      await screen.findByText('Too many attempts. Try again in 15 minutes.')
     ).toBeInTheDocument()
   })
 })

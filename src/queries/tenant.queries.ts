@@ -59,8 +59,7 @@ export interface TenantMembership {
 
 /**
  * One row of `GET /tenants/:slug/members`. `user` is a projection of the users
- * row (id, email and names, plus `active` on the platform tenant), so no
- * `passwordHash`.
+ * row: id, email and names, plus `active` on the platform tenant.
  */
 export interface TenantMember {
   membership: TenantMembership

@@ -97,7 +97,7 @@ const REFRESH_LOCK = 'auth-refresh'
 /** The messages other than `logout` that a tab sends on the auth channel. */
 type AuthMessageType = 'signed_in' | 'step_up_confirmed'
 
-/** A message on the auth channel; `step_up_confirmed` is apex's and this app never posts it. */
+/** A message on the auth channel; `step_up_confirmed` is posted by apex's confirm page. */
 interface AuthMessage {
   type?: 'logout' | AuthMessageType
 }

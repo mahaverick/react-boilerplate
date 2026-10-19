@@ -40,8 +40,7 @@ import {
 import { INVITATION_NOT_FOUND, type TenantInvitation } from '@/types/api.types'
 
 /** Said of the request, not of the tenant: a failed load is not "none pending". */
-const INVITATIONS_ERROR =
-  'We could not load the pending invitations, so none are listed here. This is not a sign that there are none.'
+const INVITATIONS_ERROR = 'We couldn’t load the pending invitations. Select Try again to load them.'
 
 /**
  * Why Resend and Revoke are off: both re-check `canActorGrantRole` against the

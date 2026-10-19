@@ -16,12 +16,12 @@ export const READ_ONLY_MODE_MESSAGE = 'Changes are paused during maintenance.'
 export function messageFrom(error: unknown): string {
   if (error instanceof AxiosError) {
     if (!error.response)
-      return "We couldn't reach the server. Check your connection, then try again."
+      return 'We couldn’t reach the server. Check your connection, then try again.'
     const body = error.response.data as ApiErrorBody | undefined
     if (body?.code === READ_ONLY_MODE) return READ_ONLY_MODE_MESSAGE
     if (body?.message) return body.message
   }
-  return 'Something went wrong. Try again.'
+  return 'We couldn’t complete that. Refresh the page, then try again.'
 }
 
 /**

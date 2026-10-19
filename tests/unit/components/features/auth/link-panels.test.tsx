@@ -76,7 +76,7 @@ describe('SwitchAccountPanel', () => {
       screen.getByText(
         (_, element) =>
           element?.tagName === 'P' &&
-          element.textContent === `You're signed in as ${CURRENT}. This link is for ${TARGET}.`
+          element.textContent === `You’re signed in as ${CURRENT}. This link is for ${TARGET}.`
       )
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: `Continue as ${TARGET}` })).toBeInTheDocument()
@@ -89,7 +89,7 @@ describe('SwitchAccountPanel', () => {
         (_, element) =>
           element?.tagName === 'P' &&
           element.textContent ===
-            `This invitation is for ${TARGET}. You're signed in as ${CURRENT}.`
+            `This invitation is for ${TARGET}. You’re signed in as ${CURRENT}.`
       )
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: `Continue as ${TARGET}` })).toBeInTheDocument()
@@ -136,7 +136,7 @@ describe('SwitchAccountPanel', () => {
         (_, element) =>
           element?.tagName === 'P' &&
           element.textContent ===
-            `You're signed in as ${CURRENT}. This link is for another account.`
+            `You’re signed in as ${CURRENT}. This link is for another account.`
       )
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Continue with this link' })).toBeInTheDocument()
@@ -148,7 +148,7 @@ describe('SwitchAccountPanel', () => {
         (_, element) =>
           element?.tagName === 'P' &&
           element.textContent ===
-            `This invitation is for another account. You're signed in as ${CURRENT}.`
+            `This invitation is for another account. You’re signed in as ${CURRENT}.`
       )
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Continue with this link' })).toBeInTheDocument()

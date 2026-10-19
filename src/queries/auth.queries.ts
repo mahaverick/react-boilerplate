@@ -104,7 +104,7 @@ export function useRevokeOtherSessions() {
   })
 }
 
-const LOGOUT_FAILED_MESSAGE = "Couldn't sign out. Check your connection and try again."
+const LOGOUT_FAILED_MESSAGE = 'Couldn’t sign out. Check your connection and try again.'
 
 /** Names the sign-out mutation, so every sign-out control sees one in flight. */
 const LOGOUT_KEY = ['auth', 'logout'] as const

@@ -48,7 +48,7 @@ function DashboardPage() {
           <EmptyState
             icon={<IconBuilding aria-hidden="true" />}
             title="Create your workspace"
-            description="You don't belong to a workspace yet."
+            description="You don’t belong to a workspace yet."
             action={
               <Link to={ROUTES.welcome} className={buttonVariants({ size: 'sm' })}>
                 Create your workspace

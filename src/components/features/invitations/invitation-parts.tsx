@@ -1,10 +1,11 @@
 /**
  * @file The parts both invitation pages draw, the accept page and the confirm
- * page. Shared with apex byte for byte, with `land-joined.ts`: nothing here
- * names an app's own landing, so each page passes its own.
+ * page. Shared with apex byte for byte, with `land-joined.ts` and
+ * `@/hooks/use-signed-in-elsewhere`: nothing here names an app's own landing,
+ * so each page passes its own.
  */
 import { Link } from '@tanstack/react-router'
-import { useEffect, useEffectEvent, useId, useRef, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { CHECK_INBOX_TITLE, SignInLinkForm } from '@/components/features/auth/sign-in-link-form'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
@@ -13,13 +14,11 @@ import { Pii } from '@/components/shared/pii'
 import { buttonVariants } from '@/components/ui/button'
 import { ROUTES } from '@/constants/routes'
 import { useCountdown } from '@/hooks/use-countdown'
-import { ensureSession, subscribeAuthMessage } from '@/http/session'
 import { formatClock } from '@/lib/countdown'
 import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/states/auth.store'
 
 /** The title of a confirmation link the server refused, whatever the reason. */
-export const CONFIRM_DEAD_TITLE = "This link can't be used"
+export const CONFIRM_DEAD_TITLE = 'This link can’t be used'
 
 /** Every invitation state's frame: one `<main>` (AuthLayout) and one `<h1>`. */
 export function InvitationCard({
@@ -55,11 +54,9 @@ export function HomeLink() {
  * from the URL. Resend waits out a local countdown that the page restarts at
  * each `202`; the server never says its own cooldown. Focus lands on Resend
  * as the state appears, as on the sign-in form's inbox step, and the button
- * carries the status line in case the region is not announced.
- *
- * While it waits it listens for another tab's `signed_in`, sent after that tab
- * opened the confirmation link. A tab that is still signed out restores the
- * shared session and calls `onSignedIn`; a tab already signed in ignores it.
+ * carries the status line in case the region is not announced. The page
+ * listens for the other tab's confirm with `useSignedInElsewhere`, so a failed
+ * Resend that swaps this state out does not stop it listening.
  */
 export function InvitationInbox({
   email,
@@ -67,7 +64,6 @@ export function InvitationInbox({
   resendAt,
   resending,
   onResend,
-  onSignedIn,
 }: {
   email: string
   tenantName: string
@@ -75,36 +71,10 @@ export function InvitationInbox({
   resendAt: number | null
   resending: boolean
   onResend: () => void
-  /** Called once another tab signed this browser in and ensureSession() resolved. */
-  onSignedIn: () => void
 }) {
   const left = useCountdown(resendAt)
   const sentLineId = useId()
   const focused = useRef(false)
-  const signedIn = useEffectEvent(() => onSignedIn())
-
-  useEffect(() => {
-    let restoring = false
-    // A restore that settles after unmount must not navigate.
-    let active = true
-    const unsubscribe = subscribeAuthMessage('signed_in', () => {
-      // A tab already signed in has its own session; restoring would only race it.
-      if (restoring || useAuthStore.getState().isAuthenticated) return
-      restoring = true
-      ensureSession().then(
-        () => {
-          if (active) signedIn()
-        },
-        () => {
-          restoring = false
-        }
-      )
-    })
-    return () => {
-      active = false
-      unsubscribe()
-    }
-  }, [])
 
   /** Takes focus once, as the state mounts, unless the person has already moved it. */
   const takeFocus = (element: HTMLElement | null) => {
@@ -178,7 +148,7 @@ export function ConfirmLinkDead({
 }) {
   const [sentTo, setSentTo] = useState<string | null>(null)
   const description =
-    'Open your invitation email and select Join again to get a new link. If the invitation expired, ask the team for a new invite.'
+    'Open your invitation email and select Join again to get a new link, or ask the person who invited you for a new invite.'
   if (signedInAction) {
     return (
       <InvitationCard title={CONFIRM_DEAD_TITLE} description={description}>

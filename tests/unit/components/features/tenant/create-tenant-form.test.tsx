@@ -146,7 +146,7 @@ describe('CreateTenantForm', () => {
   it('puts the server’s slug_taken under the slug field', async () => {
     server.use(
       http.post('/api/v1/tenants', () =>
-        fail('A tenant with this slug already exists', 409, SLUG_TAKEN)
+        fail('Another workspace uses this slug. Choose a different one.', 409, SLUG_TAKEN)
       )
     )
     const user = userEvent.setup()
@@ -159,9 +159,11 @@ describe('CreateTenantForm', () => {
     const slug = screen.getByLabelText('Slug')
     await waitFor(() => expect(slug).toHaveAttribute('aria-invalid', 'true'))
     expect(slug).toHaveAccessibleDescription(
-      expect.stringContaining('A tenant with this slug already exists')
+      expect.stringContaining('Another workspace uses this slug. Choose a different one.')
     )
-    expect(screen.getAllByText('A tenant with this slug already exists')).toHaveLength(1)
+    expect(
+      screen.getAllByText('Another workspace uses this slug. Choose a different one.')
+    ).toHaveLength(1)
   })
 
   it('shows a refused create once, in the form, with no toast', async () => {

@@ -87,7 +87,7 @@ describe('login page', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument()
     expect(
-      screen.getByText("Enter your email and we'll send you a link to sign in.")
+      screen.getByText('Enter your email and we’ll send you a link to sign in.')
     ).toBeInTheDocument()
     expect(screen.getAllByRole('textbox')).toHaveLength(1)
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
@@ -112,7 +112,7 @@ describe('login page', () => {
     expect(CHECK_INBOX_TITLE).toBe('Check your inbox')
     // The description and Google belong to the email step only.
     expect(
-      screen.queryByText("Enter your email and we'll send you a link to sign in.")
+      screen.queryByText('Enter your email and we’ll send you a link to sign in.')
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Continue with Google' })).not.toBeInTheDocument()
   })
@@ -270,18 +270,22 @@ describe('OAuth failure messages', () => {
   it.each([
     [
       'email_not_verified',
-      "Google hasn't verified this email address. Verify it with Google, or sign in with an email link.",
+      'Google hasn’t verified this email address. Verify it with Google, or sign in with an email link.',
     ],
     [
       'google_email_missing',
-      "Your Google account didn't share an email address. Sign in with an email link instead.",
+      'Your Google account didn’t share an email address. Sign in with an email link instead.',
     ],
     [
       'processing_failed',
-      "Google sign-in didn't finish. Try again, or sign in with an email link.",
+      'Google sign-in didn’t finish. Try again, or sign in with an email link.',
     ],
     ['google_auth_failed', 'Google sign-in failed. Try again, or sign in with an email link.'],
     ['MAINTENANCE_MODE', 'Sign-in is paused for maintenance. Try again when maintenance ends.'],
+    [
+      'READ_ONLY_MODE',
+      'We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends.',
+    ],
   ])('explains ?error=%s', async (code, message) => {
     renderLoginAt(`/login?error=${code}`)
 

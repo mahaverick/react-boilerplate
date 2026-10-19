@@ -11,7 +11,7 @@ import { useAuthProviders, useRevokeOtherSessions } from '@/queries/auth.queries
 import { useAuthStore } from '@/states/auth.store'
 import type { AuthProviders } from '@/types/api.types'
 
-const PROVIDERS_ERROR = 'We could not load your sign-in methods.'
+const PROVIDERS_ERROR = 'We couldn’t load your sign-in methods. Select Try again to load them.'
 
 /** What the other-sessions control says it does. */
 const OTHER_SESSIONS_HINT =

@@ -495,7 +495,7 @@ describe('/auth/link, signed out', () => {
     [
       '429',
       () => {
-        const response = fail('Too many attempts. Please try again later.', 429)
+        const response = fail('Too many attempts. Try again in 42 seconds.', 429)
         response.headers.set('Retry-After', '42')
         return response
       },
@@ -509,7 +509,7 @@ describe('/auth/link, signed out', () => {
     [
       'network',
       () => HttpResponse.error(),
-      "We couldn't reach the server. Check your connection, then try again.",
+      'We couldn’t reach the server. Check your connection, then try again.',
     ],
   ])('offers Try again, not the dead link, on %s', async (_name, failure, message) => {
     const verify = serveVerify(failure, signedIn())
@@ -518,7 +518,7 @@ describe('/auth/link, signed out', () => {
     const router = renderAt(LINK_PATH)
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: "We couldn't sign you in" })
+      await screen.findByRole('heading', { level: 1, name: 'We couldn’t sign you in' })
     ).toBeVisible()
     expect(screen.queryByText(LINK_DEAD_TITLE)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Email me a new link' })).not.toBeInTheDocument()
@@ -596,8 +596,8 @@ describe('/auth/link, signed in', () => {
     renderAt(LINK_PATH)
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Switch account?' })).toBeVisible()
-    expect(screen.getByText(/You're signed in as/)).toHaveTextContent(
-      `You're signed in as ${testUser.email}. This link is for ${LINK_EMAIL}.`
+    expect(screen.getByText(/You’re signed in as/)).toHaveTextContent(
+      `You’re signed in as ${testUser.email}. This link is for ${LINK_EMAIL}.`
     )
     expect(verify.calls()).toBe(0)
 

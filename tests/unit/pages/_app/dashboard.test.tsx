@@ -15,7 +15,7 @@ import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 /** What the dashboard says to a user who belongs to no workspace. */
-const PROMPT = "You don't belong to a workspace yet."
+const PROMPT = 'You don’t belong to a workspace yet.'
 
 /** `GET /tenants` with one membership, Acme as owner. */
 function oneTenant() {

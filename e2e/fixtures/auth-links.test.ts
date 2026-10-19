@@ -129,7 +129,7 @@ test.describe('sign-in link', () => {
     )
 
     await expect(
-      page.getByRole('heading', { level: 1, name: "We couldn't sign you in" })
+      page.getByRole('heading', { level: 1, name: 'We couldn’t sign you in' })
     ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveCount(0)
@@ -153,7 +153,7 @@ test.describe('invitation', () => {
     await page.goto(harness('/invitations/accept', `invite=joined&token=${TOKEN}`))
 
     await expect(
-      page.getByText(`You've already joined Acme Corp as ${HARNESS_EMAIL}.`)
+      page.getByText(`You’ve already joined Acme Corp as ${HARNESS_EMAIL}.`)
     ).toBeVisible()
     await expect(page).toHaveURL(/\/tenants\/acme$/)
     expect(accepts).toEqual([{ token: TOKEN }])
@@ -208,7 +208,7 @@ test.describe('invitation', () => {
     )
 
     await expect(
-      page.getByRole('heading', { level: 1, name: "This link can't be used" })
+      page.getByRole('heading', { level: 1, name: 'This link can’t be used' })
     ).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveValue(
       INVITEE_EMAIL
