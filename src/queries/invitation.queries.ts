@@ -1,14 +1,42 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import type { MembershipRole } from '@/constants/roles'
 import { apiClient, unwrap } from '@/http/client'
 import { statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
+import { track } from '@/observability/telemetry'
 import { refreshProfile } from '@/queries/profile.queries'
 import { tenantKeys } from '@/queries/tenant.queries'
-import type { AcceptedInvitation, ApiSuccess, InvitationPreview } from '@/types/api.types'
+import { useAuthStore } from '@/states/auth.store'
+import type { AcceptedInvitation, ApiSuccess, InvitationPreview, User } from '@/types/api.types'
 
 /** The key of an invite link's preview, one entry per token, under an `invitations` prefix of its own. */
 export const invitationKeys = {
   preview: (token: string) => ['invitations', 'preview', token] as const,
+}
+
+/** What `POST /invitations/verify` answers: the session, whether this click created the account, and the tenant joined. */
+interface InvitationSignIn {
+  accessToken: string
+  user: User
+  isNewUser: boolean
+  tenant: { name: string; slug: string }
+  role: MembershipRole
+}
+
+/**
+ * Makes a just-joined tenant visible: its detail is removed, not invalidated,
+ * because the route loader's `ensureQueryData` would return a cached 404
+ * `null`, and the tenant lists refetch with `refetchType: 'all'`, since the
+ * accept page does not observe them.
+ */
+async function refreshJoinedTenant(queryClient: QueryClient, slug: string): Promise<void> {
+  queryClient.removeQueries({ queryKey: tenantKeys.detail(slug) })
+  await queryClient.invalidateQueries({
+    queryKey: tenantKeys.list,
+    exact: true,
+    refetchType: 'all',
+  })
+  await queryClient.invalidateQueries({ queryKey: tenantKeys.pages, refetchType: 'all' })
 }
 
 /**
@@ -60,14 +88,33 @@ export function useAcceptInvitation() {
         await apiClient.post<ApiSuccess<AcceptedInvitation>>('/invitations/accept', { token })
       ),
     onSuccess: async ({ tenant }) => {
-      queryClient.removeQueries({ queryKey: tenantKeys.detail(tenant.slug) })
-      await queryClient.invalidateQueries({
-        queryKey: tenantKeys.list,
-        exact: true,
-        refetchType: 'all',
-      })
-      await queryClient.invalidateQueries({ queryKey: tenantKeys.pages, refetchType: 'all' })
+      await refreshJoinedTenant(queryClient, tenant.slug)
       await refreshProfile(queryClient)
+    },
+  })
+}
+
+/**
+ * Accepts an invitation in one click, signed out: the API signs the invitee in
+ * (creating the account when the address has none) and joins them. Public like
+ * the preview, so a stale bearer token is never sent. The response carries the
+ * user, so the profile needs no refresh. A 404 is the dead invitation.
+ */
+export function useVerifyInvitation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (token: string) =>
+      unwrap(
+        await apiClient.post<ApiSuccess<InvitationSignIn>>(
+          '/invitations/verify',
+          { token },
+          { skipAuthRetry: true, headers: { Authorization: false } }
+        )
+      ),
+    onSuccess: async ({ accessToken, user, tenant }) => {
+      useAuthStore.getState().login(accessToken, user)
+      track('sign_in_completed', { method: 'link' })
+      await refreshJoinedTenant(queryClient, tenant.slug)
     },
   })
 }

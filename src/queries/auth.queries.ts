@@ -4,6 +4,7 @@ import { apiClient, unwrap } from '@/http/client'
 import { broadcastLogout } from '@/http/session'
 import { statusFrom } from '@/lib/api-error'
 import { toast } from '@/lib/toast'
+import { track } from '@/observability/telemetry'
 import type {
   ChangePasswordInput,
   ForgotPasswordInput,
@@ -22,8 +23,58 @@ interface AuthPayload {
   user: User
 }
 
+/** What `POST /auth/link/verify` answers: the session, whether this click created the account, and the path stored with the link. */
+interface LinkSignIn {
+  accessToken: string
+  user: User
+  isNewUser: boolean
+  redirect: string | null
+}
+
 /** The key of the caller's linked sign-in methods (`useAuthProviders`), under an `auth` prefix of its own. */
 export const authKeys = { providers: ['auth', 'providers'] as const }
+
+/**
+ * Requests a sign-in link. The API answers 202 whether or not the address has
+ * an account, so success says nothing about the address. `redirect` is the
+ * same-origin path to land on after signing in; it is left out when absent.
+ * No bearer token and no refresh retry: the request is public.
+ */
+export function useRequestSignInLink() {
+  return useMutation({
+    mutationFn: async (input: { email: string; redirect?: string }) => {
+      await apiClient.post<ApiSuccess<null>>(
+        '/auth/link/request',
+        { email: input.email, app: 'web', redirect: input.redirect },
+        { skipAuthRetry: true, headers: { Authorization: false } }
+      )
+    },
+    onSuccess: () => track('sign_in_link_requested'),
+  })
+}
+
+/**
+ * Signs in with the token from an emailed link, creating the account on the
+ * first click. Public like the request, so a stale bearer token is never sent.
+ * The store is signed in before `sign_in_completed` is tracked, so the event
+ * carries the new identity.
+ */
+export function useVerifySignInLink() {
+  return useMutation({
+    mutationFn: async (token: string) =>
+      unwrap(
+        await apiClient.post<ApiSuccess<LinkSignIn>>(
+          '/auth/link/verify',
+          { token },
+          { skipAuthRetry: true, headers: { Authorization: false } }
+        )
+      ),
+    onSuccess: ({ accessToken, user }) => {
+      useAuthStore.getState().login(accessToken, user)
+      track('sign_in_completed', { method: 'link' })
+    },
+  })
+}
 
 /** Signs in with email and password and puts the access token and user in the auth store. */
 export function useLogin() {

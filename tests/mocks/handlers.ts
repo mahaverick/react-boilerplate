@@ -170,6 +170,16 @@ export const handlers = [
   http.patch('/api/v1/profile', async ({ request }) =>
     ok({ ...testUser, ...((await request.json()) as Partial<User>) }, 'Profile updated.')
   ),
+  // Express answers every link request 202 with no data, whether or not the address has an account.
+  http.post('/api/v1/auth/link/request', () =>
+    ok(null, 'Check your inbox for a sign-in link.', 202)
+  ),
+  http.post('/api/v1/auth/link/verify', () =>
+    ok(
+      { user: testUser, accessToken: 'link-token', isNewUser: false, redirect: null },
+      'Signed in.'
+    )
+  ),
   // Express answers every registration this way, free address or taken: no user, ever.
   http.post('/api/v1/auth/register', () =>
     ok(null, 'If that address can be registered, a verification email has been sent.', 202)
@@ -230,9 +240,26 @@ export const handlers = [
   http.post('/api/v1/invitations/preview', () =>
     ok(testInvitationPreview, 'Invitation retrieved.')
   ),
+  // Signed out, one click: the invitee is signed in and joined, as express's `verifyInvitation` answers.
+  http.post('/api/v1/invitations/verify', () =>
+    ok(
+      {
+        user: testUser,
+        accessToken: 'invitation-token',
+        isNewUser: false,
+        tenant: testInvitationPreview.tenant,
+        role: testInvitationPreview.role,
+      },
+      'Invitation accepted.'
+    )
+  ),
   http.post('/api/v1/invitations/accept', () =>
     ok(
-      { tenant: testInvitationPreview.tenant, role: testInvitationPreview.role },
+      {
+        tenant: testInvitationPreview.tenant,
+        role: testInvitationPreview.role,
+        alreadyMember: false,
+      },
       'Invitation accepted.'
     )
   ),
