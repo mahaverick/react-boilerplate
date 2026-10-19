@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/mahaverick/react-boilerplate/compare/v3.4.3...v4.0.0) (2026-10-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* password sign-in, registration, password reset and verify-email are removed. Sign-in is by emailed link or Google: /login requests a link, /auth/link spends it, and the first sign-in creates the account. New users land on /welcome to create a workspace; invitations join from /invitations/accept, or confirm by email at /invitations/confirm. /register, /forgot-password, /reset-password and /verify-email redirect to /login?notice=sign-in-link. This needs express >= 6.0.0.
+
+### Features
+
+* passwordless sign-in by email link and Google ([26b0b63](https://github.com/mahaverick/react-boilerplate/commit/26b0b63fc880c901a3dd372a29ec73cc21420d8d))
+
 ## [3.4.3](https://github.com/mahaverick/react-boilerplate/compare/v3.4.2...v3.4.3) (2026-10-17)
 
 
