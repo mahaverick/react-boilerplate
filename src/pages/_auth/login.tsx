@@ -1,42 +1,31 @@
 import '@/lib/zod-jitless'
-import { useForm } from '@tanstack/react-form'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { useEffect, useRef } from 'react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
+import { CHECK_INBOX_TITLE, SignInLinkForm } from '@/components/features/auth/sign-in-link-form'
 import { SocialSignIn } from '@/components/features/auth/social-sign-in'
 import { TermsNote } from '@/components/features/auth/terms-note'
 import { AuthCard } from '@/components/layouts/auth-card'
-import { BusyButton } from '@/components/shared/busy-button'
+import { Note } from '@/components/shared/note'
 import { AuthPending } from '@/components/shared/pending-templates'
-import { FieldDescription, FieldGroup } from '@/components/ui/field'
-import {
-  Form,
-  FormControl,
-  FormError,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
+import { FieldGroup } from '@/components/ui/field'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
-import { fieldValue } from '@/hooks/use-form-field'
-import { useServerErrors } from '@/hooks/use-server-errors'
 import { safeRedirect } from '@/lib/safe-redirect'
 import { toast } from '@/lib/toast'
-import { useLogin } from '@/queries/auth.queries'
-import { loginSchema } from '@/schemas/auth.schemas'
 
 /**
- * The sign-in page. `validateSearch` is a schema so both keys are optional on
+ * The sign-in page. `validateSearch` is a schema so every key is optional on
  * the input side, which lets both `_app`'s `redirect({ search: { redirect } })`
- * and `index`'s bare `redirect()` type-check against this route.
+ * and `index`'s bare `redirect()` type-check against this route. `notice` is
+ * set by the retired password paths; any other value is dropped.
  */
 export const Route = createFileRoute('/_auth/login')({
   validateSearch: z.object({
     error: z.string().optional(),
     redirect: z.string().optional(),
+    // An enum, not a literal: the entry chunk already carries Zod's enum class.
+    notice: z.enum(['sign-in-link']).optional().catch(undefined),
   }),
   head: () => ({ meta: [{ title: pageTitle('Sign in') }] }),
   component: LoginPage,
@@ -47,27 +36,43 @@ export const Route = createFileRoute('/_auth/login')({
 const OAUTH_ERRORS: Record<string, string> = {
   google_auth_failed: 'Google sign-in failed. Please try again.',
   email_not_verified:
-    "Google hasn't verified this email address. Verify it with Google, or sign up with email and password.",
+    "Google hasn't verified this email address. Verify it with Google, or sign in with an email link.",
   google_email_missing: "Your Google account didn't share an email address.",
   processing_failed: 'Something went wrong signing in with Google. Try again.',
   // The API refuses a non-staff sign-in while maintenance mode is full.
   MAINTENANCE_MODE: 'Sign-in is paused for maintenance. Please try again later.',
 }
 
+/** Pages whose URL holds a live token: carried as a redirect, the token would be mailed again inside the new link. */
+const TOKEN_PAGES: ReadonlySet<string> = new Set([ROUTES.authLink, ROUTES.invitationAccept])
+
 /**
- * The sign-in form, on shadcn's login-04 layout, plus a button per configured
- * social provider (`SocialSignIn`).
+ * The landing path to carry through sign-in: `safeRedirect`'s answer, unless
+ * it is a token page. A tab reaches `/login?redirect=` from a token page when
+ * it is signed out there, and the token must not travel on.
+ */
+function landingFrom(redirect: string | undefined): string | undefined {
+  const target = safeRedirect(redirect)
+  if (!target) return undefined
+  return TOKEN_PAGES.has(new URL(target, window.location.origin).pathname) ? undefined : target
+}
+
+/**
+ * Sign-in by emailed link, with Google as the alternative. The card titles
+ * itself from `sentTo`, which this page owns, while `SignInLinkForm` keeps its
+ * place in the tree across the switch to "Check your inbox", so its resend
+ * clock survives. Another tab that uses the link signs this one in, and the
+ * page then lands on the redirect or the dashboard.
  *
  * An OAuth failure arrives as `?error=<code>` and is toasted once per distinct
  * code: StrictMode runs effects twice in dev, and a toast raised without an
- * `id` is not deduped. The value is parsed before posting, so the schema's
- * trimming and lowercasing reach the wire.
+ * `id` is not deduped.
  */
 function LoginPage() {
-  const { error, redirect } = Route.useSearch()
+  const { error, redirect, notice } = Route.useSearch()
   const navigate = useNavigate()
-  const login = useLogin()
-  const serverErrors = useServerErrors()
+  const [sentTo, setSentTo] = useState<string | null>(null)
+  const landing = landingFrom(redirect)
 
   const toastedError = useRef<string | null>(null)
   useEffect(() => {
@@ -76,92 +81,29 @@ function LoginPage() {
     toast.error(OAUTH_ERRORS[error] ?? 'Sign-in failed. Please try again.')
   }, [error])
 
-  const form = useForm({
-    defaultValues: { email: '', password: '' },
-    validators: { onSubmit: loginSchema },
-    onSubmit: async ({ value }) => {
-      serverErrors.reset()
-      try {
-        await login.mutateAsync(loginSchema.parse(value))
-        const target = safeRedirect(redirect)
-        await (target ? navigate({ href: target }) : navigate({ to: ROUTES.dashboard }))
-      } catch (submitError) {
-        serverErrors.capture(submitError)
-      }
-    },
-  })
+  /** Leaves sign-in for the landing path, replacing this page in history. */
+  const onSignedIn = () => {
+    void (landing
+      ? navigate({ href: landing, replace: true })
+      : navigate({ to: ROUTES.dashboard, replace: true }))
+  }
 
   return (
     <AuthCard
-      title="Sign in"
-      description="Enter your email and password to continue."
+      title={sentTo ? CHECK_INBOX_TITLE : 'Sign in'}
+      description={sentTo ? undefined : "Enter your email and we'll send you a link to sign in."}
       footer={<TermsNote />}
     >
-      <Form form={form} serverErrors={serverErrors} className="space-y-0">
-        <FieldGroup className="gap-6">
-          <FormField form={form} name="email">
-            {(field) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    value={fieldValue(field.state.value)}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          </FormField>
-
-          <FormField form={form} name="password">
-            {(field) => (
-              <FormItem>
-                <div className="flex items-center">
-                  <FormLabel>Password</FormLabel>
-                  <Link
-                    to={ROUTES.forgotPassword}
-                    className="ml-auto text-sm underline underline-offset-4"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-                <FormControl>
-                  <Input
-                    type="password"
-                    autoComplete="current-password"
-                    value={fieldValue(field.state.value)}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          </FormField>
-
-          <FormError />
-
-          <BusyButton
-            busy={login.isPending}
-            busyLabel="Signing in…"
-            type="submit"
-            className="w-full"
-          >
-            Sign in
-          </BusyButton>
-
-          <SocialSignIn />
-
-          <FieldDescription className="text-center">
-            Don&apos;t have an account? <Link to={ROUTES.register}>Create an account</Link>
-          </FieldDescription>
-        </FieldGroup>
-      </Form>
+      {notice && sentTo === null && <Note tone="passive">Sign-in now uses email links.</Note>}
+      <FieldGroup className="gap-6">
+        <SignInLinkForm
+          sentTo={sentTo}
+          onSentToChange={setSentTo}
+          redirect={landing}
+          onSignedIn={onSignedIn}
+        />
+        {sentTo === null && <SocialSignIn redirect={landing} />}
+      </FieldGroup>
     </AuthCard>
   )
 }

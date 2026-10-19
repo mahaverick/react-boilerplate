@@ -100,33 +100,20 @@ function InvalidInvitation({ message }: { message: string }) {
   )
 }
 
-/** Signed out: log in (returning here) or create an account with the invited address. */
+/** Signed out: sign in, returning here. */
 function SignedOut({ token, invitation }: { token: string; invitation: InvitationPreview }) {
   return (
     <InvitationCard
       title={`Join ${invitation.tenant.name}`}
       description={invitationSentence(invitation)}
     >
-      <div className="grid gap-3">
-        <Link
-          to={ROUTES.login}
-          search={{ redirect: acceptHref(token) }}
-          className={cn(buttonVariants(), 'w-full')}
-        >
-          Log in
-        </Link>
-        <Link
-          to={ROUTES.register}
-          search={{ email: invitation.email }}
-          className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
-        >
-          Create account
-        </Link>
-        <p className="text-sm text-muted-foreground">
-          New here? Create an account with <Pii>{invitation.email}</Pii>, verify it from your inbox,
-          then open this invitation link again.
-        </p>
-      </div>
+      <Link
+        to={ROUTES.login}
+        search={{ redirect: acceptHref(token) }}
+        className={cn(buttonVariants(), 'w-full')}
+      >
+        Log in
+      </Link>
     </InvitationCard>
   )
 }

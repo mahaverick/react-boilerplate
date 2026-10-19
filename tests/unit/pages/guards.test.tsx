@@ -12,7 +12,7 @@ import { resetSessionForTests } from '@/http/session'
 import { bootstrapSession, queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
-import { fail, ok, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, TEST_INVITATION_TOKEN, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 describe('session bootstrap', () => {
@@ -197,14 +197,13 @@ describe('route guards', () => {
 })
 
 /**
- * `/reset-password` and `/verify-email` are top-level file routes, deliberately outside
- * `_auth`: its guard would send an authenticated visitor to /dashboard, so a user already
- * signed in on this browser who clicks the emailed link would be bounced and the token never
- * consumed. The paths must not move under a prefix either, because the backend builds these
- * links as `${WEB_URL}/reset-password?token=` and `${WEB_URL}/verify-email?token=`. These
- * tests hold both halves in place: no guard, and the same URLs.
+ * The paths a mailed link opens. The token pages are top-level file routes,
+ * outside `_auth`: its guard would send a signed-in visitor to /dashboard
+ * before the token was used. The API mails these fixed paths, so they must not
+ * move under a prefix. The retired password paths send everyone to /login, and
+ * `_auth` then moves a signed-in visitor on to the dashboard.
  */
-describe('token routes outside the auth guard', () => {
+describe('mailed-link paths and the auth guard', () => {
   beforeEach(() => {
     resetSessionForTests()
     useAuthStore.setState({
@@ -239,20 +238,25 @@ describe('token routes outside the auth guard', () => {
     return router as AnyRouter
   }
 
-  it('lets a signed-in visitor open a reset link instead of bouncing them', async () => {
-    const router = renderAt('/reset-password?token=reset-token')
+  it('lets a signed-in visitor open an invitation link instead of bouncing them', async () => {
+    const router = renderAt(`/invitations/accept?token=${TEST_INVITATION_TOKEN}`)
 
-    expect(await screen.findByText('Choose a new password')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /^Join / })).toBeInTheDocument()
     // Meaningful only if they really are signed in.
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
-    expect(router.state.location.pathname).toBe('/reset-password')
+    expect(router.state.location.pathname).toBe('/invitations/accept')
   })
 
-  it('lets a signed-in visitor open a verification link instead of bouncing them', async () => {
-    const router = renderAt('/verify-email?token=verify-token')
+  it.each(['/reset-password?token=ttt', '/verify-email?token=ttt'])(
+    'sends a signed-in visitor on a retired link %s to the dashboard',
+    async (path) => {
+      const router = renderAt(path)
 
-    expect(await screen.findByText('Verify your email')).toBeInTheDocument()
-    expect(useAuthStore.getState().isAuthenticated).toBe(true)
-    expect(router.state.location.pathname).toBe('/verify-email')
-  })
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe('/dashboard')
+      })
+      expect(useAuthStore.getState().isAuthenticated).toBe(true)
+      expect(router.state.location.href).not.toContain('ttt')
+    }
+  )
 })

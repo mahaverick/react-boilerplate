@@ -423,7 +423,7 @@ describe('the axe gate itself', () => {
   it('reports a violation when there is one, so a green run means something', async () => {
     signOut()
     renderAppAt('/login')
-    await screen.findByRole('button', { name: 'Sign in' })
+    await screen.findByRole('button', { name: 'Email me a sign-in link' })
 
     const stray = document.createElement('p')
     stray.textContent = 'Not in any landmark.'
@@ -463,27 +463,11 @@ describe('signed-out pages', () => {
   beforeEach(signOut)
 
   it.each([
-    ['login', '/login', () => screen.findByRole('button', { name: 'Sign in' })],
-    ['register', '/register', () => screen.findByRole('button', { name: 'Create account' })],
+    ['login', '/login', () => screen.findByRole('button', { name: 'Email me a sign-in link' })],
     [
-      'forgot-password',
-      '/forgot-password',
-      () => screen.findByRole('button', { name: 'Send reset link' }),
-    ],
-    [
-      'reset-password',
-      '/reset-password?token=a-token',
-      () => screen.findByRole('button', { name: 'Reset password' }),
-    ],
-    [
-      'verify-email',
-      '/verify-email?token=a-token',
-      () => screen.findByRole('button', { name: 'Verify email' }),
-    ],
-    [
-      'register, prefilled from an invitation',
-      '/register?email=a%40b.com',
-      () => screen.findByDisplayValue('a@b.com'),
+      'login with the note',
+      '/login?notice=sign-in-link',
+      () => screen.findByText('Sign-in now uses email links.'),
     ],
     [
       'invitation accept',
@@ -498,6 +482,16 @@ describe('signed-out pages', () => {
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
+    await expectNoViolations()
+  })
+
+  it('login after sending has no axe violations', async () => {
+    const user = userEvent.setup()
+    renderAppAt('/login')
+    await user.type(await screen.findByLabelText('Email'), 'ada@example.test')
+    await user.click(screen.getByRole('button', { name: 'Email me a sign-in link' }))
+    await screen.findByRole('heading', { level: 1, name: 'Check your inbox' })
+    await screen.findByRole('button', { name: /^Resend in/ })
     await expectNoViolations()
   })
 
@@ -826,7 +820,7 @@ describe('maintenance mode', () => {
     signOut()
     serveMaintenance('read_only')
     renderAppAt('/login')
-    await screen.findByRole('button', { name: 'Sign in' })
+    await screen.findByRole('button', { name: 'Email me a sign-in link' })
     await screen.findByRole('region', { name: 'Maintenance' })
     await expectNoViolations()
   })
@@ -1174,23 +1168,19 @@ describe('keyboard', () => {
     signOut()
     const user = userEvent.setup()
     renderAppAt('/login')
-    await screen.findByRole('button', { name: 'Sign in' })
+    await screen.findByRole('button', { name: 'Email me a sign-in link' })
 
     const expected = [
       // Every layout's first Tab stop.
       screen.getByRole('link', { name: 'Skip to content' }),
       screen.getByLabelText('Email'),
-      // The login-04 layout puts the reset link in the password label's row, so it reads, and tabs, before the field.
-      screen.getByRole('link', { name: 'Forgot password?' }),
-      screen.getByLabelText('Password'),
-      screen.getByRole('button', { name: 'Sign in' }),
+      screen.getByRole('button', { name: 'Email me a sign-in link' }),
       // A plain anchor to a same-origin API route, not a button with a click handler, so it is in the tab order without extra code.
       screen.getByRole('link', { name: 'Continue with Google' }),
-      screen.getByRole('link', { name: 'Create an account' }),
     ]
     expect(screen.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
       'href',
-      GOOGLE_OAUTH_PATH
+      `${GOOGLE_OAUTH_PATH}?app=web`
     )
 
     for (const element of expected) {

@@ -38,19 +38,6 @@ const COLD_TRANSFORM_BUDGET_MS = 20_000
  */
 const SURFACES = [
   { name: 'sign-in', url: '/login', heading: 'Sign in' },
-  { name: 'register', url: '/register', heading: 'Create an account' },
-  { name: 'forgot-password', url: '/forgot-password', heading: 'Forgot your password?' },
-  // Both routes read a token from the query; without one, reset-password renders its "This link is incomplete" branch, which the heading assertion keeps from passing unnoticed.
-  {
-    name: 'reset-password',
-    url: '/reset-password?token=contrast-probe',
-    heading: 'Choose a new password',
-  },
-  {
-    name: 'verify-email',
-    url: '/verify-email?token=contrast-probe',
-    heading: 'Verify your email',
-  },
   // The harness's default page is Settings › Workspace › Members. Its layout's h1 is also "Members", and renders whatever the tenant gate decides, so the panel's own h2 is the one waited for.
   { name: 'members (populated)', url: '/e2e/harness/', heading: { name: 'Members', level: 2 } },
   {

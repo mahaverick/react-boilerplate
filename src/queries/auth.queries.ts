@@ -5,22 +5,8 @@ import { broadcastLogout, switchIdentity } from '@/http/session'
 import { statusFrom } from '@/lib/api-error'
 import { toast } from '@/lib/toast'
 import { track } from '@/observability/telemetry'
-import type {
-  ForgotPasswordInput,
-  LoginInput,
-  RegisterInput,
-  ResendVerificationInput,
-  ResetPasswordInput,
-  VerifyEmailInput,
-} from '@/schemas/auth.schemas'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, AuthProviders, User } from '@/types/api.types'
-
-/** What `POST /auth/login` answers: the access token and the signed-in user. */
-interface AuthPayload {
-  accessToken: string
-  user: User
-}
 
 /** What `POST /auth/link/verify` answers: the session, whether this click created the account, and the path stored with the link. */
 interface LinkSignIn {
@@ -75,59 +61,6 @@ export function useVerifySignInLink() {
       useAuthStore.getState().login(accessToken, user)
       track('sign_in_completed', { method: 'link' })
     },
-  })
-}
-
-/** Signs in with email and password and puts the access token and user in the auth store. */
-export function useLogin() {
-  const login = useAuthStore((s) => s.login)
-  return useMutation({
-    mutationFn: async (input: LoginInput) =>
-      unwrap(await apiClient.post<ApiSuccess<AuthPayload>>('/auth/login', input)),
-    onSuccess: (data) => login(data.accessToken, data.user),
-  })
-}
-
-/** Registers an address; the API answers 202 with `data: null` whether or not it was free. */
-export function useRegister() {
-  return useMutation({
-    mutationFn: async (input: RegisterInput) =>
-      unwrap(await apiClient.post<ApiSuccess<null>>('/auth/register', input)),
-  })
-}
-
-/** Asks for a password-reset email. The API answers 202 whether or not the address has an account. */
-export function useForgotPassword() {
-  return useMutation({
-    mutationFn: async (input: ForgotPasswordInput) =>
-      apiClient.post<ApiSuccess<unknown>>('/auth/forgot-password', input),
-  })
-}
-
-/** Resets the password with the emailed token; `confirmPassword` stays client-side. */
-export function useResetPassword() {
-  return useMutation({
-    mutationFn: async (input: ResetPasswordInput) =>
-      apiClient.post<ApiSuccess<unknown>>('/auth/reset-password', {
-        token: input.token,
-        password: input.password,
-      }),
-  })
-}
-
-/** Confirms an address with the token from the verification email. */
-export function useVerifyEmail() {
-  return useMutation({
-    mutationFn: async (input: VerifyEmailInput) =>
-      apiClient.post<ApiSuccess<unknown>>('/auth/verify-email', input),
-  })
-}
-
-/** Asks the API for a fresh verification link; it answers the same whether or not the address belongs to an unverified account, so success says nothing about the address. */
-export function useResendVerification() {
-  return useMutation({
-    mutationFn: async (input: ResendVerificationInput) =>
-      apiClient.post<ApiSuccess<unknown>>('/auth/resend-verification', input),
   })
 }
 

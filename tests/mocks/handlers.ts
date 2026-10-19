@@ -180,10 +180,6 @@ export const handlers = [
       'Signed in.'
     )
   ),
-  // Express answers every registration this way, free address or taken: no user, ever.
-  http.post('/api/v1/auth/register', () =>
-    ok(null, 'If that address can be registered, a verification email has been sent.', 202)
-  ),
   // Fetched by the profile page's Security section; an email-link account, which a test about Google or a failed load overrides.
   http.get('/api/v1/auth/providers', () =>
     ok(
