@@ -192,6 +192,25 @@ describe('sign-in link queries', () => {
       expect(body).toEqual({ token: LINK_TOKEN, email: testUser.email })
     })
 
+    it.each(['', '   '])('leaves out an address of %j', async (email) => {
+      let body: unknown
+      server.use(
+        http.post('/api/v1/auth/link/verify', async ({ request }) => {
+          body = await request.json()
+          return ok(
+            { user: testUser, accessToken: 'link-token', isNewUser: false, redirect: null },
+            'Signed in.'
+          )
+        })
+      )
+
+      const { result } = renderHook(() => useVerifySignInLink(), { wrapper })
+      result.current.mutate({ token: LINK_TOKEN, email })
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(body).toEqual({ token: LINK_TOKEN })
+    })
+
     it('leaves the store signed out on a 400 LINK_INVALID', async () => {
       server.use(
         http.post('/api/v1/auth/link/verify', () =>

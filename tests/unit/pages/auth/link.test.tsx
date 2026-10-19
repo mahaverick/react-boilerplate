@@ -328,6 +328,29 @@ describe('/auth/link, signed out', () => {
     }
   )
 
+  it.each([
+    ['a bare ?email=', `/auth/link?token=${TOKEN}&email=`],
+    ['a whitespace ?email=', `/auth/link?token=${TOKEN}&email=%20%20`],
+  ])(
+    'posts { token } only for %s, which the server would count as a mismatch',
+    async (_name, path) => {
+      const bodies: unknown[] = []
+      server.use(
+        http.post('/api/v1/auth/link/verify', async ({ request }) => {
+          bodies.push(await request.json())
+          return signedIn()()
+        })
+      )
+      serveOneTenant()
+      const router = renderAt(path)
+
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe('/dashboard')
+      })
+      expect(bodies).toEqual([{ token: TOKEN }])
+    }
+  )
+
   it('posts the token exactly once under StrictMode', async () => {
     const bodies: unknown[] = []
     server.use(

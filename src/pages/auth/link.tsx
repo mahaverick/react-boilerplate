@@ -137,7 +137,9 @@ function DeadLink({
  * page in history, so Back never returns to the token.
  */
 function SignInLinkPage() {
-  const { token, email, redirect } = Route.useSearch()
+  const { token, email: rawEmail, redirect } = Route.useSearch()
+  // A bare or blank `?email=` names no address: no switch target, no "This link is for", none posted.
+  const email = rawEmail?.trim() || undefined
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const verify = useVerifySignInLink()

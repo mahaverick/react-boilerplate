@@ -18,7 +18,7 @@ interface LinkSignIn {
 
 /**
  * What a sign-in link verify posts: the token, and the address the link names
- * when it names one. The server refuses an address that is not the token's
+ * when it names one; a blank one is left out. The server refuses an address that is not the token's
  * own, so a page can show it while verifying without trusting the URL.
  */
 interface SignInLinkVerifyInput {
@@ -60,14 +60,17 @@ export function useRequestSignInLink() {
 export function useVerifySignInLink() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ token, email }: SignInLinkVerifyInput) =>
-      unwrap(
+    mutationFn: async ({ token, email }: SignInLinkVerifyInput) => {
+      // The API counts an empty or blank address as a mismatch, so a link without one sends none.
+      const address = email?.trim()
+      return unwrap(
         await apiClient.post<ApiSuccess<LinkSignIn>>(
           '/auth/link/verify',
-          email === undefined ? { token } : { token, email },
+          address ? { token, email: address } : { token },
           { skipAuthRetry: true, headers: { Authorization: false } }
         )
-      ),
+      )
+    },
     onSuccess: ({ accessToken, user }) => {
       switchIdentity(queryClient, user.id)
       useAuthStore.getState().login(accessToken, user)
