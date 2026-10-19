@@ -206,7 +206,7 @@ describe('sign out other sessions', () => {
 
     mockRevokeOthers(0)
     await user.click(button)
-    expect(await screen.findByText('No other sessions were signed in.')).toBeInTheDocument()
+    expect(await screen.findByText('You have no other sessions.')).toBeInTheDocument()
   })
 
   it('is offered on a Google-only account too', async () => {
@@ -220,7 +220,7 @@ describe('sign out other sessions', () => {
     })
     expect(button).toBeEnabled()
     expect(button).toHaveAccessibleDescription(
-      'Signs you out on every other browser and device. You stay signed in here.'
+      'This ends every other browser and device session. You stay signed in here.'
     )
   })
 

@@ -29,7 +29,7 @@ export const emailSchema = z
 /** The sign-in-link form's values: the address the link is mailed to. */
 export const signInLinkRequestSchema = z.object({ email: emailSchema })
 
-/** The policy for a password being set: registration, reset and change-password. Login and verify-email apply none. */
+/** The policy for a password being set: registration and reset. Login and verify-email apply none. */
 const newPasswordSchema = z
   .string()
   .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`)

@@ -15,14 +15,14 @@ const PROVIDERS_ERROR = 'We could not load your sign-in methods.'
 
 /** What the other-sessions control says it does. */
 const OTHER_SESSIONS_HINT =
-  'Signs you out on every other browser and device. You stay signed in here.'
+  'This ends every other browser and device session. You stay signed in here.'
 
 /**
  * The toast after other sessions were signed out.
  * @param revoked - How many sessions the API ended.
  */
 function revokedMessage(revoked: number): string {
-  if (revoked === 0) return 'No other sessions were signed in.'
+  if (revoked === 0) return 'You have no other sessions.'
   return `Signed out ${String(revoked)} other ${revoked === 1 ? 'session' : 'sessions'}.`
 }
 
