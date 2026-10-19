@@ -12,6 +12,7 @@ import { delay, http, HttpResponse } from 'msw'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CHECK_INBOX_TITLE } from '@/components/features/auth/sign-in-link-form'
+import { CONFIRM_DEAD_TITLE } from '@/components/features/invitations/invitation-parts'
 import { resetSessionForTests } from '@/http/session'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
@@ -41,7 +42,7 @@ const LINK_EMAIL = 'ADA@example.com'
 const SERVER_EMAIL = 'ada@example.com'
 const CONFIRM_PATH = `/invitations/confirm?token=${TOKEN}&email=${encodeURIComponent(LINK_EMAIL)}`
 const JOINED = `You joined Acme as ${SERVER_EMAIL}.`
-const DEAD_TITLE = "This link can't be used"
+const DEAD_TITLE = CONFIRM_DEAD_TITLE
 const DEAD_BODY =
   'Open your invitation email and select Join again to get a new link. If the invitation expired, ask the team for a new invite.'
 const INCOMPLETE_TITLE = 'This link is incomplete'
