@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { CreateTenantForm } from '@/components/features/tenant/create-tenant-form'
 import { AuthCard } from '@/components/layouts/auth-card'
 import { AuthLayout } from '@/components/layouts/auth-layout'
@@ -40,17 +40,19 @@ export const Route = createFileRoute('/welcome')({
  * The create form, with a way past it and a way out. A user who already
  * belongs to a tenant goes to the dashboard; the check reads the list here,
  * not in a loader, because a loader also runs for a hover preload. A pending
- * or failed read shows the form. The create refetches the list, which then
- * holds the new tenant: if it renders before the create's own landing, that
- * later navigation still wins, and once the landing has started this page is
- * no longer rendered.
+ * or failed read shows the form. The check takes the first list this page
+ * reads, never a later one: the create refetches the list, which then holds
+ * the new tenant, and it can render while the create's own landing is still
+ * loading, where a redirect would start after the landing and win.
  */
 function WelcomePage() {
   const tenants = useTenants()
   const email = useAuthStore((state) => state.user?.email)
   const navigate = useNavigate()
   const logout = useLogout()
-  const hasTenant = tenants.data !== undefined && tenants.data.length > 0
+  const [firstList, setFirstList] = useState(tenants.data)
+  if (firstList === undefined && tenants.data !== undefined) setFirstList(tenants.data)
+  const hasTenant = firstList !== undefined && firstList.length > 0
   useEffect(() => {
     if (hasTenant) void navigate({ to: ROUTES.dashboard, replace: true })
   }, [hasTenant, navigate])

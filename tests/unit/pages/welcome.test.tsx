@@ -151,6 +151,52 @@ describe('/welcome', () => {
     expect(router.state.location.pathname).toBe('/tenants/new-co')
   })
 
+  it('lands in the new workspace when the refetched list renders while the landing loads', async () => {
+    // A browser order: the landing's loader waits on the tenant's flags, and the list refetch the create started renders this page meanwhile, now holding the tenant.
+    let posted: unknown = null
+    let listReads = 0
+    let releaseFlags: (() => void) | undefined
+    server.use(
+      http.get('/api/v1/tenants', () => {
+        listReads += 1
+        return tenantsPage(posted ? [NEW_CO] : [])
+      }),
+      http.post('/api/v1/tenants', async ({ request }) => {
+        posted = await request.json()
+        return ok(NEW_CO, 'Tenant created.', 201)
+      }),
+      http.get('/api/v1/tenants/new-co', () => ok(tenantDetail(NEW_CO, 'owner'), 'Tenant.')),
+      http.get('/api/v1/tenants/new-co/flags', async () => {
+        await new Promise<void>((resolve) => (releaseFlags = resolve))
+        return ok(testFlags(), 'Flags retrieved.')
+      })
+    )
+    const user = userEvent.setup()
+    const router = renderAppAt('/welcome')
+
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(
+      'Create your workspace'
+    )
+    await user.type(screen.getByLabelText('Name'), 'New Co')
+    await user.type(screen.getByLabelText('Slug'), 'new-co')
+    await user.click(screen.getByRole('button', { name: 'Create workspace' }))
+
+    // The barrier: the landing waits on the flags, and the refetched list, holding the tenant, has been read.
+    await waitFor(() => {
+      expect(releaseFlags).toBeDefined()
+    })
+    await waitFor(() => {
+      expect(listReads).toBe(2)
+    })
+    await waitFor(() => {
+      expect(queryClient.getQueryData(tenantKeys.list)).toHaveLength(1)
+    })
+    releaseFlags?.()
+
+    await screen.findByRole('heading', { name: 'New Co', level: 1 })
+    expect(router.state.location.pathname).toBe('/tenants/new-co')
+  })
+
   it('sends a user who has a tenant to the dashboard', async () => {
     let releaseFlags: (() => void) | undefined
     server.use(
