@@ -197,6 +197,68 @@ describe('/welcome', () => {
     expect(router.state.location.pathname).toBe('/tenants/new-co')
   })
 
+  it('lands in the new workspace when the first list read failed', async () => {
+    // A failed first read names no tenant; the refetch the create starts is the first answer that holds one.
+    let posted: unknown = null
+    let releaseFlags: (() => void) | undefined
+    server.use(
+      http.get('/api/v1/tenants', () =>
+        posted ? tenantsPage([NEW_CO]) : fail('Something went wrong', 500)
+      ),
+      http.post('/api/v1/tenants', async ({ request }) => {
+        posted = await request.json()
+        return ok(NEW_CO, 'Tenant created.', 201)
+      }),
+      http.get('/api/v1/tenants/new-co', () => ok(tenantDetail(NEW_CO, 'owner'), 'Tenant.')),
+      http.get('/api/v1/tenants/new-co/flags', async () => {
+        await new Promise<void>((resolve) => (releaseFlags = resolve))
+        return ok(testFlags(), 'Flags retrieved.')
+      })
+    )
+    const user = userEvent.setup()
+    const router = renderAppAt('/welcome')
+
+    await waitFor(() => expect(queryClient.getQueryState(tenantKeys.list)?.status).toBe('error'))
+    await user.type(await screen.findByLabelText('Name'), 'New Co')
+    await user.type(screen.getByLabelText('Slug'), 'new-co')
+    await user.click(screen.getByRole('button', { name: 'Create workspace' }))
+
+    // The barrier: the landing waits on the flags, and the refetched list, holding the tenant, is in the cache.
+    await waitFor(() => {
+      expect(releaseFlags).toBeDefined()
+    })
+    await waitFor(() => {
+      expect(queryClient.getQueryData(tenantKeys.list)).toHaveLength(1)
+    })
+    releaseFlags?.()
+
+    await screen.findByRole('heading', { name: 'New Co', level: 1 })
+    expect(router.state.location.pathname).toBe('/tenants/new-co')
+  })
+
+  it('holds the form back until the first list read settles', async () => {
+    // A submit while the first read is pending would make the create's refetch the first answer, and that one holds the new tenant.
+    let listRequested = false
+    let releaseList: (() => void) | undefined
+    server.use(
+      http.get('/api/v1/tenants', async () => {
+        listRequested = true
+        await new Promise<void>((resolve) => (releaseList = resolve))
+        return tenantsPage([])
+      })
+    )
+    renderAppAt('/welcome')
+
+    await waitFor(() => {
+      expect(listRequested).toBe(true)
+    })
+    expect(document.querySelector('[data-slot="auth-frame-skeleton"]')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create workspace' })).not.toBeInTheDocument()
+
+    releaseList?.()
+    expect(await screen.findByRole('button', { name: 'Create workspace' })).toBeInTheDocument()
+  })
+
   it('sends a user who has a tenant to the dashboard', async () => {
     let releaseFlags: (() => void) | undefined
     server.use(
@@ -332,8 +394,9 @@ describe('/welcome', () => {
     const user = userEvent.setup()
     renderAppAt('/welcome')
 
-    const main = await screen.findByRole('main')
+    // After the form: until the first list read settles, the main is the pending frame's.
     await screen.findByRole('button', { name: 'Create workspace' })
+    const main = screen.getByRole('main')
     const signedInAs = within(main).getByText(testUser.email)
     expect(signedInAs).toHaveClass('ph-sensitive')
     expect(signedInAs.parentElement).toHaveTextContent(`You're signed in as ${testUser.email}.`)

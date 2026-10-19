@@ -39,11 +39,14 @@ export const Route = createFileRoute('/welcome')({
 /**
  * The create form, with a way past it and a way out. A user who already
  * belongs to a tenant goes to the dashboard; the check reads the list here,
- * not in a loader, because a loader also runs for a hover preload. A pending
- * or failed read shows the form. The check takes the first list this page
- * reads, never a later one: the create refetches the list, which then holds
- * the new tenant, and it can render while the create's own landing is still
- * loading, where a redirect would start after the landing and win.
+ * not in a loader, because a loader also runs for a hover preload. The check
+ * takes the first list this page reads, never a later one: the create
+ * refetches the list, which then holds the new tenant, and it can render
+ * while the create's own landing is still loading, where a redirect would
+ * start after the landing and win. A failed first read counts as no tenant
+ * and shows the form, which never redirects afterwards. Until the first read
+ * settles the page shows its pending frame, not the form, so no create can
+ * start before the decision.
  */
 function WelcomePage() {
   const tenants = useTenants()
@@ -51,12 +54,15 @@ function WelcomePage() {
   const navigate = useNavigate()
   const logout = useLogout()
   const [firstList, setFirstList] = useState(tenants.data)
-  if (firstList === undefined && tenants.data !== undefined) setFirstList(tenants.data)
+  // A failed first read counts as no tenant: the next list may already hold the one this page creates.
+  if (firstList === undefined && (tenants.data !== undefined || tenants.isError)) {
+    setFirstList(tenants.data ?? [])
+  }
   const hasTenant = firstList !== undefined && firstList.length > 0
   useEffect(() => {
     if (hasTenant) void navigate({ to: ROUTES.dashboard, replace: true })
   }, [hasTenant, navigate])
-  if (hasTenant) return <AuthPagePending />
+  if (firstList === undefined || hasTenant) return <AuthPagePending />
 
   /** Announces the new tenant and opens it, replacing this step in history. */
   const onCreated = async (tenant: Tenant) => {
