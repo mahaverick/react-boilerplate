@@ -16,6 +16,8 @@ function secondsUntil(until: number | null): number {
  * @param until - The epoch-ms time the countdown ends, or `null` for none.
  */
 export function useCountdown(until: number | null): number {
+  // The React Compiler would cache secondsUntil(until) on `until` alone, since it cannot see the clock read, and the countdown would never move.
+  'use no memo'
   const [, setTick] = useState(0)
 
   useEffect(() => {
