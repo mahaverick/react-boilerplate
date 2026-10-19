@@ -15,6 +15,7 @@ import { Route as AppRouteImport } from './pages/_app'
 import { Route as AuthRouteImport } from './pages/_auth'
 import { Route as ResetPasswordRouteImport } from './pages/reset-password'
 import { Route as VerifyEmailRouteImport } from './pages/verify-email'
+import { Route as WelcomeRouteImport } from './pages/welcome'
 import { Route as AppDashboardRouteImport } from './pages/_app/dashboard'
 import { Route as AppNotificationsRouteImport } from './pages/_app/notifications'
 import { Route as AppProfileRouteImport } from './pages/_app/profile'
@@ -68,6 +69,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
   id: '/verify-email',
   path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -214,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/welcome': typeof WelcomeRoute
   '/dashboard': typeof AppDashboardRoute
   '/notifications': typeof AppNotificationsRoute
   '/profile': typeof AppProfileRoute
@@ -246,6 +253,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/welcome': typeof WelcomeRoute
   '/dashboard': typeof AppDashboardRoute
   '/notifications': typeof AppNotificationsRoute
   '/profile': typeof AppProfileRoute
@@ -278,6 +286,7 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/welcome': typeof WelcomeRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/profile': typeof AppProfileRoute
@@ -312,6 +321,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/reset-password'
     | '/verify-email'
+    | '/welcome'
     | '/dashboard'
     | '/notifications'
     | '/profile'
@@ -344,6 +354,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/reset-password'
     | '/verify-email'
+    | '/welcome'
     | '/dashboard'
     | '/notifications'
     | '/profile'
@@ -375,6 +386,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/reset-password'
     | '/verify-email'
+    | '/welcome'
     | '/_app/dashboard'
     | '/_app/notifications'
     | '/_app/profile'
@@ -410,6 +422,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  WelcomeRoute: typeof WelcomeRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
 }
@@ -456,6 +469,13 @@ declare module '@tanstack/react-router' {
       path: '/verify-email'
       fullPath: '/verify-email'
       preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/dashboard': {
@@ -747,6 +767,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  WelcomeRoute: WelcomeRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
 }

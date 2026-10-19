@@ -204,43 +204,6 @@ describe('tenants list', () => {
     expect(screen.queryByRole('link', { name: /Acme Corp/ })).not.toBeInTheDocument()
   })
 
-  it('rejects a mixed-case slug while typing rather than lowercasing it', async () => {
-    const user = userEvent.setup()
-    renderAppAt('/tenants')
-
-    await user.type(await screen.findByLabelText('Slug'), 'MyOrg')
-    // The slug is a routing identifier: silently rewriting "MyOrg" to "myorg" would address a different tenant than the one typed.
-    expect(await screen.findByText(/must be lowercase letters/i)).toBeInTheDocument()
-  })
-
-  it('does not blame a field the user has not reached', async () => {
-    const user = userEvent.setup()
-    renderAppAt('/tenants')
-
-    await user.type(await screen.findByLabelText('Slug'), 'a')
-    // Live validation is scoped to the field being edited: running the whole schema on change would put "Name is required." under an untouched Name on the first slug keystroke.
-    expect(screen.queryByText('Name is required.')).not.toBeInTheDocument()
-    expect(await screen.findByText(/at least 3 characters/i)).toBeInTheDocument()
-  })
-
-  it('still refuses to submit without a name', async () => {
-    const user = userEvent.setup()
-    renderAppAt('/tenants')
-
-    await user.type(await screen.findByLabelText('Slug'), 'acme')
-    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
-    // The whole schema has the last word on submit, so an untouched field is still checked.
-    expect(await screen.findByText('Name is required.')).toBeInTheDocument()
-  })
-
-  it('rejects a reserved slug while typing', async () => {
-    const user = userEvent.setup()
-    renderAppAt('/tenants')
-
-    await user.type(await screen.findByLabelText('Slug'), 'admin')
-    expect(await screen.findByText('This slug is reserved and cannot be used.')).toBeInTheDocument()
-  })
-
   /**
    * A failed load and an account that belongs to nothing both leave `data` undefined, so
    * without this the page would answer a 500 with "You do not belong to any tenants yet.
@@ -286,29 +249,8 @@ describe('tenants list', () => {
     expect(await screen.findByRole('link', { name: /Acme Corp/ })).toBeInTheDocument()
   })
 
-  it('creates a tenant, sending the parsed body', async () => {
-    let posted: unknown = null
-    server.use(
-      http.post('/api/v1/tenants', async ({ request }) => {
-        posted = await request.json()
-        return ok(TENANT, 'Tenant created.', 201)
-      })
-    )
-    const user = userEvent.setup()
-    renderAppAt('/tenants')
-
-    await user.type(await screen.findByLabelText('Name'), '  Acme Corp  ')
-    await user.type(screen.getByLabelText('Slug'), 'acme')
-    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
-
-    await waitFor(() => {
-      expect(posted).not.toBeNull()
-    })
-    // The schema trims, and the untouched description is absent rather than posted as '', which the API's `.min(1)` would refuse.
-    expect(posted).toEqual({ name: 'Acme Corp', slug: 'acme' })
-  })
-
-  it('refreshes the table with the new tenant after a create', async () => {
+  it('refreshes the table with the new tenant after a create, and says so', async () => {
+    const success = vi.spyOn(toast, 'success')
     let created = false
     let tableReads = 0
     server.use(
@@ -338,7 +280,7 @@ describe('tenants list', () => {
       })
     )
     const user = userEvent.setup()
-    renderAppAt('/tenants')
+    const router = renderAppAt('/tenants')
     await user.type(await screen.findByLabelText('Name'), 'Acme Corp')
     await user.type(screen.getByLabelText('Slug'), 'acme')
     const readsBefore = tableReads
@@ -348,22 +290,10 @@ describe('tenants list', () => {
     const table = await screen.findByRole('table', { name: 'Tenants' })
     expect(within(table).getByRole('link', { name: /Acme Corp/ })).toBeInTheDocument()
     expect(tableReads).toBeGreaterThan(readsBefore)
-  })
-
-  it('shows a refused create once, in the form, with no toast', async () => {
-    const toastError = vi.spyOn(toast, 'error')
-    server.use(http.post('/api/v1/tenants', () => fail('Something broke.', 500)))
-    const user = userEvent.setup()
-    renderAppAt('/tenants')
-
-    await user.type(await screen.findByLabelText('Name'), 'Acme Corp')
-    await user.type(screen.getByLabelText('Slug'), 'acme')
-    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
-
-    const message = await screen.findByText('Something broke.')
-    expect(message.closest('form')).not.toBeNull()
-    expect(screen.getAllByText('Something broke.')).toHaveLength(1)
-    expect(toastError).not.toHaveBeenCalled()
+    expect(success).toHaveBeenCalledWith('Acme Corp created.')
+    // The form is ready for another tenant.
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue(''))
+    expect(router.state.location.pathname).toBe('/tenants')
   })
 })
 

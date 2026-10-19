@@ -15,7 +15,7 @@ const PAGES = path.join(ROOT, 'src/pages')
 const SCRIPT = readFileSync(path.join(ROOT, 'public/boot-variant.js'), 'utf8')
 
 /** Listed auth paths without a route file here: apex's pages, and the sign-in link pages whose routes arrive after this list. */
-const SIBLING_ONLY = new Set(['/no-access', '/auth/confirm', '/auth/link', '/welcome'])
+const SIBLING_ONLY = new Set(['/no-access', '/auth/confirm', '/auth/link'])
 
 /** The array literal assigned to `BOOT_AUTH_PATHS` in the script. */
 function listedPaths(): string[] {

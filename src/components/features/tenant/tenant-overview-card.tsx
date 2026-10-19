@@ -23,7 +23,8 @@ import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { formatDate } from '@/lib/format'
 import { toast } from '@/lib/toast'
-import { useMyRole, useTenant, useUpdateTenant, type Tenant } from '@/queries/tenant.queries'
+import { useUpdateTenant } from '@/queries/tenant-forms.queries'
+import { useMyRole, useTenant, type Tenant } from '@/queries/tenant.queries'
 import { updateTenantSchema } from '@/schemas/tenant.schemas'
 
 /** The tenant's creation date, in the reader's own locale. */

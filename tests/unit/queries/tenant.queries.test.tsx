@@ -4,6 +4,7 @@ import { delay, http } from 'msw'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
+import { useUpdateTenantSettings } from '@/queries/tenant-forms.queries'
 import * as tenantQueries from '@/queries/tenant.queries'
 import {
   invitationsListOptions,
@@ -16,7 +17,6 @@ import {
   useMyRole,
   useResendInvitation,
   useRevokeInvitation,
-  useUpdateTenantSettings,
 } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 import {

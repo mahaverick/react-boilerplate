@@ -597,6 +597,21 @@ describe('signed-in pages', () => {
     await expectNoViolations()
   })
 
+  it.each([
+    ['welcome', '/welcome', () => screen.findByRole('button', { name: 'Create workspace' })],
+    [
+      'dashboard without tenants',
+      '/dashboard',
+      () => screen.findByRole('link', { name: 'Create your workspace' }),
+    ],
+  ])('%s has no axe violations', async (_name, path, ready) => {
+    // A user with no workspace: the welcome page shows its form and the dashboard its prompt.
+    server.use(http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')))
+    renderAppAt(path)
+    await ready()
+    await expectNoViolations()
+  })
+
   it('the settings nav with no tenant to act on has no axe violations', async () => {
     // No eligible tenant, so the URL names none and the Workspace items render disabled and described by the hint.
     localStorage.clear()

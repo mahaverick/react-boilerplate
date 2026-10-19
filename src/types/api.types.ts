@@ -124,6 +124,9 @@ export interface AcceptedInvitation {
   alreadyMember: boolean
 }
 
+/** `code` on the 409 for a create whose slug a live tenant already holds. */
+export const SLUG_TAKEN = 'slug_taken'
+
 /** `code` on the 409 for an invite to an address that already belongs to a member of this tenant. */
 export const ALREADY_MEMBER = 'already_member'
 

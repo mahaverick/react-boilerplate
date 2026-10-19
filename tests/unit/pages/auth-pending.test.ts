@@ -8,6 +8,7 @@ import { Route as callback } from '@/pages/auth/callback'
 import { Route as accept } from '@/pages/invitations/accept'
 import { Route as resetPassword } from '@/pages/reset-password'
 import { Route as verifyEmail } from '@/pages/verify-email'
+import { Route as welcome } from '@/pages/welcome'
 
 describe('the auth routes name their own pending template', () => {
   it.each([
@@ -24,6 +25,7 @@ describe('the auth routes name their own pending template', () => {
     ['verify-email', verifyEmail],
     ['invitations/accept', accept],
     ['auth/callback', callback],
+    ['welcome', welcome],
   ])('%s, which draws its own frame, uses the framed template', (_name, route) => {
     expect(route.options.pendingComponent).toBe(AuthPagePending)
   })

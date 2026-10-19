@@ -51,6 +51,15 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     sections: [],
     empty: { url: '/verify-email' },
   },
+  '/welcome': {
+    kind: 'page',
+    area: 'auth',
+    shot: 'welcome',
+    url: '/welcome',
+    as: 'owner',
+    sections: [{ name: 'Tenants', endpoints: ['GET /tenants'] }],
+    note: 'Needs a session with no tenant: one with a tenant lands on /dashboard.',
+  },
   '/dashboard': {
     kind: 'page',
     area: 'dashboard',
