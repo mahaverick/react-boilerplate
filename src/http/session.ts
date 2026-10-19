@@ -68,9 +68,9 @@ export function isAuthVerdict(error: unknown): boolean {
  * would stay where it was, showing cached data.
  *
  * The caller's `pathname + search + hash` goes into `?redirect=`, as `_app`'s
- * guard does, and `login.tsx` reads it back through `safeRedirect`, which
- * re-validates it. On /login itself there is no redirect target, or signing in
- * would return the user to the login page.
+ * guard does, and `login.tsx` reads it back through `safeRedirect`
+ * (`src/lib/safe-redirect.ts`), which re-validates it. On /login itself there
+ * is no redirect target, or signing in would return the user to the login page.
  *
  * A full-page `assign`, not a router navigation: its callers run outside
  * render with no router to hand, and a dead session is the moment to discard
@@ -94,9 +94,12 @@ const AUTH_CHANNEL = 'auth'
 /** Web Lock name that serialises POST /auth/refresh across tabs. */
 const REFRESH_LOCK = 'auth-refresh'
 
-/** A message on the auth channel; `type: 'logout'` is the only one this app sends. */
+/** The messages other than `logout` that a tab sends on the auth channel. */
+type AuthMessageType = 'signed_in' | 'step_up_confirmed'
+
+/** A message on the auth channel; `step_up_confirmed` is posted by apex's confirm page. */
 interface AuthMessage {
-  type?: string
+  type?: 'logout' | AuthMessageType
 }
 
 /** One channel per tab, for posting and listening alike: a second instance would hear this tab's own posts. */
@@ -113,6 +116,28 @@ function authChannel(): BroadcastChannel | null {
 /** Tell every other tab this session has ended; a no-op without BroadcastChannel. */
 export function broadcastLogout(): void {
   authChannel()?.postMessage({ type: 'logout' } satisfies AuthMessage)
+}
+
+/** Tell every other tab something happened to the session; a no-op without BroadcastChannel. */
+export function broadcastAuthMessage(type: AuthMessageType): void {
+  authChannel()?.postMessage({ type } satisfies AuthMessage)
+}
+
+/**
+ * Run `handler` when another tab posts `type`; this tab's own posts are not
+ * delivered. A no-op without BroadcastChannel. Returns the cleanup.
+ */
+export function subscribeAuthMessage(type: AuthMessageType, handler: () => void): () => void {
+  const target = authChannel()
+  if (!target) return () => {}
+  /** Calls the handler for a message of the requested type. */
+  const onMessage = (event: MessageEvent<AuthMessage | null>) => {
+    if (event.data?.type === type) handler()
+  }
+  target.addEventListener('message', onMessage)
+  return () => {
+    target.removeEventListener('message', onMessage)
+  }
 }
 
 /** Sign this tab out when another tab broadcasts a logout; idempotent, returns the cleanup. */
@@ -134,6 +159,25 @@ export function installAuthBroadcastListener(): () => void {
     uninstallListener = null
   }
   return uninstallListener
+}
+
+/**
+ * Ends a different user's session in this tab before `login()` replaces it,
+ * the way a sign-out does: the previous user's cached queries, recents and
+ * shared analytics identity are dropped, and every other tab is told, since
+ * the refresh cookie now belongs to the next user. Nothing happens when nobody
+ * or the same user is signed in. Call it before `login(...)` with the id of
+ * the user about to sign in.
+ * @param queryClient - The app's query client, emptied on a switch.
+ * @param nextUserId - The id of the user about to sign in.
+ */
+export function switchIdentity(queryClient: QueryClient, nextUserId: string): void {
+  const current = useAuthStore.getState().user
+  if (!current || current.id === nextUserId) return
+  yieldSharedIdentity()
+  queryClient.clear()
+  useAuthStore.getState().logout()
+  broadcastLogout()
 }
 
 let uninstallAnalyticsIdentity: (() => void) | null = null

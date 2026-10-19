@@ -25,6 +25,13 @@ describe('pending templates', () => {
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
   })
 
+  it('draws the auth card as one field and two buttons', async () => {
+    await module.AuthPending.preload?.()
+    const { container } = render(<module.AuthPending />)
+    expect(container.querySelectorAll('[data-slot="auth-button-skeleton"]')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-slot="field-skeleton"]')).toHaveLength(1)
+  })
+
   it('shows a nested route its own template inside the layout, not an ancestor fallback', async () => {
     let release!: () => void
     const gate = new Promise<void>((resolve) => {

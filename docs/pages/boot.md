@@ -23,6 +23,8 @@ The dev frames come from `vite dev` (`signed-…`). The production frames (`ngin
 
 ### Signed out, `/login`
 
+The auth shell paints the sign-in card as it renders: a title bar, a description bar, one labelled field bar, a button bar, a separator and a second button bar (`public/boot-variant.js` picks it, `index.html`'s `<style id="boot-shell">` draws it, and `AuthPending` matches it). The frames below were captured with the password-era card, a title bar and three field bars; the final walk retakes them with `pnpm capture:pages`.
+
 Dev (`signed-out-login`):
 
 | Frame                                  | ms   | Moment        | What it shows                                                                                                                                                                                |
@@ -124,10 +126,10 @@ A cold load only shows the boot shell, so the route and section templates are sh
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | Settings, Profile to Notifications | [![](img/settings/account-notifications--nav-route.jpg)](img/settings/account-notifications--nav-route.jpg) | [![](img/settings/account-notifications--nav-sections.jpg)](img/settings/account-notifications--nav-sections.jpg) |
 | Tenants to the tenant's overview   | [![](img/tenants/tenant-overview--nav-route.jpg)](img/tenants/tenant-overview--nav-route.jpg)               | [![](img/tenants/tenant-overview--nav-sections.jpg)](img/tenants/tenant-overview--nav-sections.jpg)               |
-| Settings, Profile to Security      | [![](img/settings/account-security--nav-route.jpg)](img/settings/account-security--nav-route.jpg)           | [![](img/settings/account-security--nav-sections.jpg)](img/settings/account-security--nav-sections.jpg)           |
 
-- **Notifications and Security, route template:** the settings shell stays, with the page's real heading and subtitle, and the page slot shows the nested settings template (stacked cards of field bars). Both shots also show the TanStack Router devtools button, which is dev-only.
-- **Notifications and Security, sections:** the real heading and the card's own title with four preference bars (Notifications), or, on Security, one card whose password and sign-in-method sections are on bars above the real "Other sessions" block, which needs no request.
+- **Notifications, route template:** the settings shell stays, with the page's real heading and subtitle, and the page slot shows the nested settings template (stacked cards of field bars). The shot also shows the TanStack Router devtools button, which is dev-only.
+- **Notifications, sections:** the real heading and the card's own title with four preference bars.
+- **Security** has no navigation shots until the final walk retakes them: its sign-in methods sit on a heading bar and two row bars above the real "Other sessions" block, which needs no request.
 - **Tenant overview, route template:** the app chrome stays (sidebar, header, breadcrumb already reading Tenants, the slug and Overview), with the detail template in the page slot: heading and subtitle bars, tab bars and two cards of rows.
 - **Tenant overview, sections:** the same chrome and detail layout on two cards of rows, with the requests held.
 

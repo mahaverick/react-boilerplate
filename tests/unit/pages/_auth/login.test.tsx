@@ -5,13 +5,14 @@ import {
   RouterProvider,
   type AnyRouter,
 } from '@tanstack/react-router'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { CHECK_INBOX_TITLE } from '@/components/features/auth/sign-in-link-form'
+import { GOOGLE_OAUTH_PATH } from '@/constants/routes'
 import { resetSessionForTests } from '@/http/session'
 import { toast } from '@/lib/toast'
-import { safeRedirect } from '@/pages/_auth/login'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -42,19 +43,6 @@ function renderLoginAt(path: string): AnyRouter {
   return router as AnyRouter
 }
 
-/** The API's successful sign-in envelope. */
-function signedInResponse() {
-  return ok({ accessToken: 'access-token', user: testUser }, 'Signed in.')
-}
-
-/** Submits the sign-in form the way a user does, through the labelled fields and the button. */
-async function fillAndSubmit(email: string, password: string) {
-  const user = userEvent.setup()
-  await user.type(await screen.findByLabelText('Email'), email)
-  await user.type(screen.getByLabelText('Password'), password)
-  await user.click(screen.getByRole('button', { name: 'Sign in' }))
-}
-
 /**
  * A visitor with no refresh cookie, so `_auth`'s guard lets the login page
  * render instead of bouncing them to /dashboard.
@@ -71,232 +59,207 @@ function arriveSignedOut() {
   server.use(http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)))
 }
 
+/** The bodies the link-request endpoint received, in order; it answers 202. */
+function serveLinkRequests() {
+  const bodies: unknown[] = []
+  server.use(
+    http.post('/api/v1/auth/link/request', async ({ request }) => {
+      bodies.push(await request.json())
+      return ok(null, 'Check your inbox for a sign-in link.', 202)
+    })
+  )
+  return bodies
+}
+
+/** Types an address and asks for a link, the way a visitor does. */
+async function requestLink(email = 'ada@example.test') {
+  const user = userEvent.setup()
+  await user.type(await screen.findByLabelText('Email'), email)
+  await user.click(screen.getByRole('button', { name: 'Email me a sign-in link' }))
+  await screen.findByText(/We sent a sign-in link to/)
+}
+
 describe('login page', () => {
   beforeEach(arriveSignedOut)
 
-  it('reports both fields when submitted empty', async () => {
+  it('shows one email field, the link button, the divider and Continue with Google', async () => {
     renderLoginAt('/login')
-    const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByText('Enter a valid email address.')).toBeInTheDocument()
-    expect(screen.getByText('Password is required.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Enter your email and we’ll send you a link to sign in.')
+    ).toBeInTheDocument()
+    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+    expect(screen.getByLabelText('Email')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Password' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Email me a sign-in link' })).toBeInTheDocument()
+    expect(screen.getByText('or')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Continue with Google' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Create an account' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Forgot password?' })).not.toBeInTheDocument()
+    expect(
+      screen.getByText('By signing in, you agree to our Terms of Service and Privacy Policy.')
+    ).toBeInTheDocument()
   })
 
-  it('rejects a malformed email and wires the error to the input', async () => {
+  it('switches to Check your inbox after sending', async () => {
+    serveLinkRequests()
     renderLoginAt('/login')
-    await fillAndSubmit('nope', 'secret123')
+    await requestLink()
 
-    expect(await screen.findByText('Enter a valid email address.')).toBeInTheDocument()
-    // The control itself must say it is invalid and point at the message, not merely have a message rendered near it.
-    const email = screen.getByLabelText('Email')
-    expect(email).toHaveAttribute('aria-invalid', 'true')
-    expect(email).toHaveAccessibleDescription('Enter a valid email address.')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(CHECK_INBOX_TITLE)
+    expect(CHECK_INBOX_TITLE).toBe('Check your inbox')
+    // The description and Google belong to the email step only.
+    expect(
+      screen.queryByText('Enter your email and we’ll send you a link to sign in.')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Continue with Google' })).not.toBeInTheDocument()
   })
 
-  it('posts once on a valid submit and moves to the dashboard', async () => {
-    let calls = 0
-    server.use(
-      http.post('/api/v1/auth/login', () => {
-        calls += 1
-        return signedInResponse()
-      })
+  it('keeps the resend countdown running through the switch to Check your inbox', async () => {
+    // Only the clock the countdown reads is faked, so the router's and React's own timers still run.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'], shouldAdvanceTime: true })
+    try {
+      serveLinkRequests()
+      // The note and the Google button both leave the tree at the switch; the form must not remount with them.
+      renderLoginAt('/login?notice=sign-in-link')
+      await requestLink()
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(CHECK_INBOX_TITLE)
+      expect(
+        screen.getByRole('button', { name: /^Resend in 1:00$|^Resend in 0:59$/ })
+      ).toBeVisible()
+
+      await act(() => vi.advanceTimersByTimeAsync(5_000))
+
+      const resend = screen.getByRole('button', { name: /^Resend in 0:5\d$/ })
+      expect(resend).toHaveAttribute('aria-disabled', 'true')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('sends the safe redirect with the request', async () => {
+    const bodies = serveLinkRequests()
+    renderLoginAt(`/login?redirect=${encodeURIComponent('/tenants/acme?tab=members')}`)
+    await requestLink()
+
+    expect(bodies).toEqual([
+      { email: 'ada@example.test', app: 'web', redirect: '/tenants/acme?tab=members' },
+    ])
+  })
+
+  it.each(['//evil.test', '/\\evil.test', 'https://evil.test', 'javascript:alert(1)'])(
+    'drops an unsafe ?redirect before requesting the link (%s)',
+    async (unsafe) => {
+      const bodies = serveLinkRequests()
+      renderLoginAt(`/login?redirect=${encodeURIComponent(unsafe)}`)
+      await requestLink()
+
+      expect(bodies).toHaveLength(1)
+      expect(bodies[0]).not.toHaveProperty('redirect')
+    }
+  )
+
+  it.each([
+    `/auth/link?token=${'t'.repeat(43)}&email=a%40b.test`,
+    `/auth/link/?token=${'t'.repeat(43)}`,
+    `/Auth/Link?token=${'t'.repeat(43)}`,
+    `/invitations/accept?token=${'t'.repeat(43)}`,
+    `/invitations/accept//?token=${'t'.repeat(43)}`,
+    `/invitations/confirm?token=${'t'.repeat(43)}&email=a%40b.test`,
+  ])('does not carry a token page as the redirect (%s)', async (tokenPage) => {
+    const bodies = serveLinkRequests()
+    renderLoginAt(`/login?redirect=${encodeURIComponent(tokenPage)}`)
+    expect(await screen.findByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
+      'href',
+      `${GOOGLE_OAUTH_PATH}?app=web`
     )
-    const router = renderLoginAt('/login')
-    await fillAndSubmit('a@b.com', 'secret123')
+    await requestLink()
 
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/dashboard')
-    })
-    expect(calls).toBe(1)
+    expect(bodies[0]).not.toHaveProperty('redirect')
+  })
+
+  it('points Continue with Google at the API with app=web and the redirect', async () => {
+    renderLoginAt(`/login?redirect=${encodeURIComponent('/tenants/acme')}`)
+
+    expect(await screen.findByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
+      'href',
+      '/api/v1/auth/google?app=web&redirect=%2Ftenants%2Facme'
+    )
+  })
+
+  it('points Continue with Google at app=web alone without a safe redirect', async () => {
+    renderLoginAt(`/login?redirect=${encodeURIComponent('//evil.test')}`)
+
+    expect(await screen.findByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
+      'href',
+      `${GOOGLE_OAUTH_PATH}?app=web`
+    )
+  })
+
+  it('shows the sign-in-link note for notice=sign-in-link', async () => {
+    renderLoginAt('/login?notice=sign-in-link')
+
+    expect(
+      await screen.findByText('Sign in with an email link or Google. Passwords no longer work.')
+    ).toBeInTheDocument()
+  })
+
+  it('shows no note without the notice, and ignores an unknown one', async () => {
+    const router = renderLoginAt('/login?notice=other')
+
+    await screen.findByRole('button', { name: 'Email me a sign-in link' })
+    expect(
+      screen.queryByText('Sign in with an email link or Google. Passwords no longer work.')
+    ).not.toBeInTheDocument()
+    expect(router.state.location.search).not.toHaveProperty('notice', 'other')
+  })
+
+  it('lands on the redirect when another tab signs in', async () => {
+    serveLinkRequests()
+    const router = renderLoginAt(`/login?redirect=${encodeURIComponent('/notifications')}`)
+    await requestLink()
+
+    // The other tab used the link, so the shared refresh cookie now restores a session here.
+    server.use(
+      http.post('/api/v1/auth/refresh', () =>
+        ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      ),
+      http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.'))
+    )
+    const otherTab = new BroadcastChannel('auth')
+    try {
+      otherTab.postMessage({ type: 'signed_in' })
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe('/notifications')
+      })
+    } finally {
+      otherTab.close()
+    }
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
-  it('posts the NORMALISED email, not what was typed', async () => {
-    let body: unknown
-    server.use(
-      http.post('/api/v1/auth/login', async ({ request }) => {
-        body = await request.json()
-        return signedInResponse()
-      })
-    )
-    renderLoginAt('/login')
-    await fillAndSubmit('  ADA@B.COM  ', 'secret123')
-
-    // The schema trims and lower-cases, but TanStack hands `onSubmit` the raw form state, so only parsing before posting puts the transform on the wire; otherwise this arrives as "  ADA@B.COM  ".
-    await waitFor(() => {
-      expect(body).toEqual({ email: 'ada@b.com', password: 'secret123' })
-    })
-  })
-
-  it("surfaces the server's own message on a 401, once, inside the form", async () => {
-    const toastError = vi.spyOn(toast, 'error')
-    server.use(http.post('/api/v1/auth/login', () => fail('Invalid email or password.', 401)))
+  it('lands on the dashboard when another tab signs in and there is no redirect', async () => {
+    serveLinkRequests()
     const router = renderLoginAt('/login')
-    await fillAndSubmit('a@b.com', 'wrong-password')
+    await requestLink()
 
-    const message = await screen.findByText('Invalid email or password.')
-    expect(message.closest('form')).not.toBeNull()
-    expect(message.closest('[role="alert"]')).not.toBeNull()
-    expect(screen.getAllByText('Invalid email or password.')).toHaveLength(1)
-    expect(toastError).not.toHaveBeenCalled()
-    expect(router.state.location.pathname).toBe('/login')
-    expect(useAuthStore.getState().isAuthenticated).toBe(false)
-  })
-
-  it('honours a same-origin ?redirect= after signing in', async () => {
-    server.use(http.post('/api/v1/auth/login', () => signedInResponse()))
-    const router = renderLoginAt('/login?redirect=%2Fdashboard%3Fnext%3D1')
-    await fillAndSubmit('a@b.com', 'secret123')
-
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/dashboard')
-    })
-    // `next=1` can only have come from the redirect param, since the fallback target carries no search.
-    expect(router.state.location.searchStr).toContain('next=1')
-  })
-
-  it('ignores an off-site ?redirect= and falls back to the dashboard', async () => {
-    server.use(http.post('/api/v1/auth/login', () => signedInResponse()))
-    const router = renderLoginAt('/login?redirect=https%3A%2F%2Fevil.example%2Fsteal')
-    await fillAndSubmit('a@b.com', 'secret123')
-
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/dashboard')
-    })
-    expect(router.state.location.href).not.toContain('evil.example')
-  })
-
-  it('ignores a protocol-relative ?redirect=', async () => {
-    server.use(http.post('/api/v1/auth/login', () => signedInResponse()))
-    const router = renderLoginAt('/login?redirect=%2F%2Fevil.example%2Fsteal')
-    await fillAndSubmit('a@b.com', 'secret123')
-
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/dashboard')
-    })
-    expect(router.state.location.href).not.toContain('evil.example')
-  })
-})
-
-/**
- * Inline errors under each field, mapped from the envelope's `errors`. A server verdict goes
- * stale when the user starts fixing that field, no sooner, and only for that field.
- */
-describe('server-side validation errors', () => {
-  /**
-   * The envelope the backend emits: `{...fieldErrors, ...(formErrors.length > 0 && { formErrors })}`.
-   * `formErrors` is the one key that is not a field name.
-   */
-  function validationFailure() {
-    return HttpResponse.json(
-      {
-        success: false,
-        message: 'Validation failed.',
-        statusCode: 400,
-        errors: {
-          email: ['That address is not registered.'],
-          password: ['Password is too short.'],
-          formErrors: ['These credentials are not valid together.'],
-        },
-        requestId: 'test-request-id',
-      },
-      { status: 400 }
+    server.use(
+      http.post('/api/v1/auth/refresh', () =>
+        ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+      ),
+      http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.'))
     )
-  }
-
-  beforeEach(() => {
-    arriveSignedOut()
-    server.use(http.post('/api/v1/auth/login', () => validationFailure()))
-  })
-
-  it('raises no toast for field errors it already shows', async () => {
-    const toastError = vi.spyOn(toast, 'error')
-    renderLoginAt('/login')
-    await fillAndSubmit('a@b.com', 'secret123')
-
-    expect(await screen.findByText('That address is not registered.')).toBeInTheDocument()
-    // "Validation failed." is the envelope's own message; the fields say it better.
-    expect(screen.queryByText('Validation failed.')).not.toBeInTheDocument()
-    expect(toastError).not.toHaveBeenCalled()
-  })
-
-  it('moves focus to the first field the server faulted, described by its message', async () => {
-    renderLoginAt('/login')
-    await fillAndSubmit('a@b.com', 'secret123')
-
-    const email = screen.getByLabelText('Email')
-    await waitFor(() => expect(email).toHaveFocus())
-    const message = screen.getByText('That address is not registered.')
-    expect(email).toHaveAttribute('aria-describedby', message.id)
-  })
-
-  it('renders a field error under its own field and describes the control', async () => {
-    renderLoginAt('/login')
-    await fillAndSubmit('a@b.com', 'secret123')
-
-    expect(await screen.findByText('That address is not registered.')).toBeInTheDocument()
-    expect(screen.getByLabelText('Email')).toHaveAccessibleDescription(
-      'That address is not registered.'
-    )
-    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription('Password is too short.')
-  })
-
-  it('clears a field error when that field changes — and leaves its sibling alone', async () => {
-    renderLoginAt('/login')
-    await fillAndSubmit('a@b.com', 'secret123')
-    expect(await screen.findByText('That address is not registered.')).toBeInTheDocument()
-
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText('Email'), 'x')
-
-    await waitFor(() => {
-      expect(screen.queryByText('That address is not registered.')).not.toBeInTheDocument()
-    })
-    // The password is untouched, so what the server said about it is still true and must stay on screen.
-    expect(screen.getByText('Password is too short.')).toBeInTheDocument()
-    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription('Password is too short.')
-  })
-
-  it('does not clear on blur alone', async () => {
-    renderLoginAt('/login')
-    await fillAndSubmit('a@b.com', 'secret123')
-    expect(await screen.findByText('That address is not registered.')).toBeInTheDocument()
-
-    const user = userEvent.setup()
-    await user.click(screen.getByLabelText('Email'))
-    await user.click(screen.getByLabelText('Password'))
-
-    expect(screen.getByText('That address is not registered.')).toBeInTheDocument()
-  })
-
-  it('renders formErrors at form level, against no input', async () => {
-    renderLoginAt('/login')
-    await fillAndSubmit('a@b.com', 'secret123')
-
-    const message = await screen.findByText('These credentials are not valid together.')
-    expect(message.closest('[role="alert"]')).not.toBeNull()
-    // It names no field, so it must not be wired to one: there is no input called "formErrors".
-    expect(screen.getByLabelText('Email')).not.toHaveAccessibleDescription(
-      'These credentials are not valid together.'
-    )
-    expect(screen.getByLabelText('Password')).not.toHaveAccessibleDescription(
-      'These credentials are not valid together.'
-    )
-  })
-
-  it('drops the previous verdict when the form is submitted again', async () => {
-    renderLoginAt('/login')
-    await fillAndSubmit('a@b.com', 'secret123')
-    expect(await screen.findByText('Password is too short.')).toBeInTheDocument()
-
-    server.use(http.post('/api/v1/auth/login', () => signedInResponse()))
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: 'Sign in' }))
-
-    await waitFor(() => {
-      expect(screen.queryByText('Password is too short.')).not.toBeInTheDocument()
-    })
+    const otherTab = new BroadcastChannel('auth')
+    try {
+      otherTab.postMessage({ type: 'signed_in' })
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe('/dashboard')
+      })
+    } finally {
+      otherTab.close()
+    }
   })
 })
 
@@ -307,12 +270,22 @@ describe('OAuth failure messages', () => {
   it.each([
     [
       'email_not_verified',
-      "Google hasn't verified this email address. Verify it with Google, or sign up with email and password.",
+      'Google hasn’t verified this email address. Verify it with Google, or sign in with an email link.',
     ],
-    ['google_email_missing', "Your Google account didn't share an email address."],
-    ['processing_failed', 'Something went wrong signing in with Google. Try again.'],
-    ['google_auth_failed', 'Google sign-in failed. Please try again.'],
-    ['MAINTENANCE_MODE', 'Sign-in is paused for maintenance. Please try again later.'],
+    [
+      'google_email_missing',
+      'Your Google account didn’t share an email address. Sign in with an email link instead.',
+    ],
+    [
+      'processing_failed',
+      'Google sign-in didn’t finish. Try again, or sign in with an email link.',
+    ],
+    ['google_auth_failed', 'Google sign-in failed. Try again, or sign in with an email link.'],
+    ['MAINTENANCE_MODE', 'Sign-in is paused for maintenance. Try again when maintenance ends.'],
+    [
+      'READ_ONLY_MODE',
+      'We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends.',
+    ],
   ])('explains ?error=%s', async (code, message) => {
     renderLoginAt(`/login?error=${code}`)
 
@@ -322,50 +295,19 @@ describe('OAuth failure messages', () => {
   it('falls back to a generic message for a code it does not know', async () => {
     renderLoginAt('/login?error=something_new')
 
-    expect(await screen.findByText('Sign-in failed. Please try again.')).toBeInTheDocument()
-  })
-})
-
-describe('safeRedirect', () => {
-  it('accepts an absolute same-origin path', () => {
-    expect(safeRedirect('/dashboard')).toBe('/dashboard')
-    expect(safeRedirect('/tenants/acme?tab=members')).toBe('/tenants/acme?tab=members')
+    expect(
+      await screen.findByText('Sign-in failed. Try again, or sign in with an email link.')
+    ).toBeInTheDocument()
   })
 
-  it('keeps the query and hash, which a redirect target may carry', () => {
-    expect(safeRedirect('/dashboard?next=1')).toBe('/dashboard?next=1')
-    expect(safeRedirect('/dashboard#section')).toBe('/dashboard#section')
-  })
+  it('toasts the Google error once', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    serveLinkRequests()
+    renderLoginAt('/login?error=google_auth_failed')
+    await screen.findByText('Google sign-in failed. Try again, or sign in with an email link.')
+    // A re-render (the switch to Check your inbox) must not raise it again.
+    await requestLink()
 
-  it('rejects everything that could leave the origin', () => {
-    // `?redirect=` comes off the URL bar, so each of these can be supplied by an attacker.
-    expect(safeRedirect('https://evil.example')).toBeNull()
-    expect(safeRedirect('//evil.example')).toBeNull()
-    // Browsers normalise a backslash here to a slash, making it protocol-relative.
-    expect(safeRedirect('/\\evil.example')).toBeNull()
-    expect(safeRedirect('javascript:alert(1)')).toBeNull()
-    expect(safeRedirect('dashboard')).toBeNull()
-    expect(safeRedirect(undefined)).toBeNull()
-    expect(safeRedirect('')).toBeNull()
-  })
-
-  /**
-   * Each of these starts with exactly one slash, so a `^/(?![/\\])`-shaped test passes it,
-   * yet the URL standard resolves it off-origin: the first four because the parser strips
-   * ASCII tab, LF and CR, leaving "//", the last three because dot segments collapse to "//".
-   * All are typeable into the URL bar as %09, %0A, %0D and ..%2F%2F. The result goes to
-   * `navigate({ href })`, and router-core takes a document navigation (`window.location`) for
-   * an href with a scheme, so the guard has to refuse anything off-origin itself.
-   */
-  it.each([
-    ['tab', '/\t/evil.example'],
-    ['line feed', '/\n/evil.example'],
-    ['carriage return', '/\r/evil.example'],
-    ['tab then backslash', '/\t\\evil.example'],
-    ['double dot segment', '/..//evil.example'],
-    ['single dot segment', '/.//evil.example'],
-    ['dot segments below the root', '/a/../..//evil.example'],
-  ])('rejects the %s bypass', (_label, input) => {
-    expect(safeRedirect(input)).toBeNull()
+    expect(toastError).toHaveBeenCalledTimes(1)
   })
 })

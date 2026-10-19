@@ -1,7 +1,15 @@
 import path from 'node:path'
+import babel from '@rolldown/plugin-babel'
+import { reactCompilerPreset } from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  /**
+   * The app's own React Compiler, as vite.config.ts registers it, so a unit
+   * test sees the memoization the browser runs: a render-time read the
+   * compiler caches (a clock, module state) passes uncompiled.
+   */
+  plugins: [babel({ presets: [reactCompilerPreset()] })],
   /** vite.config.ts's `define`, which this standalone config does not inherit. */
   define: { __APP_RELEASE__: JSON.stringify('test') },
   resolve: {

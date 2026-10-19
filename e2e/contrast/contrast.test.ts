@@ -25,6 +25,14 @@ const AXE_PATH = require.resolve('axe-core/axe.min.js')
  */
 const COLD_TRANSFORM_BUDGET_MS = 20_000
 
+/** A token the link and invitation pages take: 43 base64url characters, low-entropy so no scanner reads it as a secret. */
+const TOKEN = 't'.repeat(43)
+
+/** The harness URL for a signed-out visit to `path`, with `query` appended. */
+function signedOut(path: string, query: string): string {
+  return `/e2e/harness/?session=none&path=${path}&${query}`
+}
+
 /**
  * Every surface reachable without a backend. Each entry's `heading` is
  * something only that surface renders, asserted before axe runs: a route that
@@ -38,19 +46,6 @@ const COLD_TRANSFORM_BUDGET_MS = 20_000
  */
 const SURFACES = [
   { name: 'sign-in', url: '/login', heading: 'Sign in' },
-  { name: 'register', url: '/register', heading: 'Create an account' },
-  { name: 'forgot-password', url: '/forgot-password', heading: 'Forgot your password?' },
-  // Both routes read a token from the query; without one, reset-password renders its "This link is incomplete" branch, which the heading assertion keeps from passing unnoticed.
-  {
-    name: 'reset-password',
-    url: '/reset-password?token=contrast-probe',
-    heading: 'Choose a new password',
-  },
-  {
-    name: 'verify-email',
-    url: '/verify-email?token=contrast-probe',
-    heading: 'Verify your email',
-  },
   // The harness's default page is Settings › Workspace › Members. Its layout's h1 is also "Members", and renders whatever the tenant gate decides, so the panel's own h2 is the one waited for.
   { name: 'members (populated)', url: '/e2e/harness/', heading: { name: 'Members', level: 2 } },
   {
@@ -141,6 +136,69 @@ const SURFACES = [
     name: 'security (methods loading)',
     url: '/e2e/harness/?path=/settings/account/security&hold=/api/v1/auth/providers',
     heading: { loading: 'section', heading: { name: 'Security', level: 1 } },
+  },
+  {
+    name: 'link verifying',
+    url: signedOut('/auth/link', `token=${TOKEN}&email=a@b.com&hold=/api/v1/auth/link/verify`),
+    heading: 'Signing you in',
+  },
+  {
+    name: 'link dead',
+    url: signedOut('/auth/link', `token=${TOKEN}&email=a@b.com&link=dead`),
+    heading: 'This link expired or was already used',
+  },
+  {
+    name: 'link failed',
+    url: signedOut('/auth/link', `token=${TOKEN}&email=a@b.com&link=readonly`),
+    heading: 'We couldn’t sign you in',
+  },
+  {
+    name: 'welcome',
+    url: '/e2e/harness/?path=/welcome&tenants=none',
+    heading: 'Create your workspace',
+  },
+  {
+    name: 'invitation joining',
+    url: signedOut(
+      '/invitations/accept',
+      `token=${TOKEN}&invite=ok&hold=/api/v1/invitations/verify`
+    ),
+    heading: 'Joining Acme Corp',
+  },
+  {
+    name: 'invitation dead',
+    url: signedOut('/invitations/accept', `token=${TOKEN}&invite=dead`),
+    heading: 'This invitation can’t be used',
+  },
+  {
+    name: 'invitation switch',
+    url: `/e2e/harness/?path=/invitations/accept&token=${TOKEN}`,
+    heading: 'Join Acme Corp',
+  },
+  {
+    name: 'invitation check inbox',
+    url: signedOut('/invitations/accept', `token=${TOKEN}&invite=inbox`),
+    heading: 'Check your inbox',
+    // The sign-in form's inbox has the same heading; this line is the invitation's own.
+    text: 'Open it to join Acme Corp.',
+  },
+  {
+    name: 'invitation confirm joining',
+    url: signedOut(
+      '/invitations/confirm',
+      `token=${TOKEN}&email=invitee@b.com&hold=/api/v1/invitations/confirm`
+    ),
+    heading: 'Joining your team',
+  },
+  {
+    name: 'invitation confirm dead',
+    url: signedOut('/invitations/confirm', `token=${TOKEN}&email=invitee@b.com&confirm=dead`),
+    heading: 'This link can’t be used',
+  },
+  {
+    name: 'invitation confirm switch',
+    url: `/e2e/harness/?path=/invitations/confirm&token=${TOKEN}&email=invitee@b.com`,
+    heading: 'Join your team',
   },
 ] as const
 
@@ -275,6 +333,7 @@ for (const theme of THEMES) {
   for (const surface of SURFACES) {
     test(`${surface.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
       const result = await contrastOf(page, surface.url, theme, surface.heading)
+      if ('text' in surface) await expect(page.getByText(surface.text)).toBeVisible()
 
       // `incomplete` is not a pass: axe files a node there when it cannot resolve the background (a gradient, an image, an overlap), so it is surfaced for a human rather than asserted.
       if (result.incomplete.length > 0) {
@@ -288,6 +347,47 @@ for (const theme of THEMES) {
     })
   }
 }
+
+/**
+ * The states a click reaches, which no URL opens: each is reached on its page,
+ * then graded as the page entries are, once its heading has rendered.
+ */
+test.describe('states a click reaches', () => {
+  const STATES = [
+    {
+      name: 'check inbox',
+      url: signedOut('/login', ''),
+      heading: 'Check your inbox',
+      // The invitation's inbox has the same heading; this line is the sign-in form's own.
+      text: 'We sent a sign-in link to ada@example.test.',
+      reach: async (page: Page) => {
+        await page
+          .getByRole('textbox', { name: 'Email', exact: true })
+          .fill('ada@example.test', { timeout: COLD_TRANSFORM_BUDGET_MS })
+        await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+      },
+    },
+  ] as const
+
+  for (const theme of THEMES) {
+    for (const state of STATES) {
+      test(`${state.name} meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+        await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`)
+        await page.goto(state.url)
+        await state.reach(page)
+        await expect(page.getByRole('heading', { level: 1, name: state.heading })).toBeVisible({
+          timeout: COLD_TRANSFORM_BUDGET_MS,
+        })
+        await expect(page.getByText(state.text)).toBeVisible()
+        await afterFontsAndFrames(page)
+        await page.addScriptTag({ path: AXE_PATH })
+
+        const result = await runAxe(page)
+        expect(report(state.name, theme, result), report(state.name, theme, result)).toBe('')
+      })
+    }
+  }
+})
 
 /**
  * The menus and the tenant switcher, opened and graded at their popup. Each
@@ -424,6 +524,7 @@ test.describe('popups that are not menus', () => {
 
       await facet.getByRole('checkbox', { name: 'Owner' }).click()
       await page.keyboard.press('Escape')
+      await expect(facet).toBeHidden()
       await expect(
         members.getByRole('button', { name: 'Remove filter: Role: Owner' })
       ).toBeVisible()
@@ -599,7 +700,7 @@ test.describe('toasts', () => {
     {
       name: 'error toast',
       url: '/login?error=google_auth_failed',
-      title: 'Google sign-in failed. Please try again.',
+      title: 'Google sign-in failed. Try again, or sign in with an email link.',
       raise: async () => {},
     },
     {
@@ -611,7 +712,7 @@ test.describe('toasts', () => {
           timeout: COLD_TRANSFORM_BUDGET_MS,
         })
         await page
-          .getByRole('button', { name: /^Resend invitation to/ })
+          .getByRole('button', { name: /^Resend, invitation to/ })
           .first()
           .click()
       },

@@ -657,7 +657,11 @@ describe('inviting, and the pending invitations', () => {
   it('shows already_member on the email field, not in a toast', async () => {
     server.use(
       http.post('/api/v1/tenants/acme/invitations', () =>
-        fail('That person is already a member.', 409, 'already_member')
+        fail(
+          'That person is already a member of this workspace. No invitation was sent.',
+          409,
+          'already_member'
+        )
       )
     )
     const user = userEvent.setup()
@@ -668,15 +672,25 @@ describe('inviting, and the pending invitations', () => {
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
 
     await waitFor(() => {
-      expect(email).toHaveAccessibleDescription('That person is already a member.')
+      expect(email).toHaveAccessibleDescription(
+        'That person is already a member of this workspace. No invitation was sent.'
+      )
     })
     expect(email).toHaveAttribute('aria-invalid', 'true')
     // Inline only: a toast as well would say the same thing twice.
-    expect(screen.getAllByText('That person is already a member.')).toHaveLength(1)
+    expect(
+      screen.getAllByText(
+        'That person is already a member of this workspace. No invitation was sent.'
+      )
+    ).toHaveLength(1)
 
     await user.type(email, 'x')
     await waitFor(() => {
-      expect(screen.queryByText('That person is already a member.')).not.toBeInTheDocument()
+      expect(
+        screen.queryByText(
+          'That person is already a member of this workspace. No invitation was sent.'
+        )
+      ).not.toBeInTheDocument()
     })
   })
 
@@ -714,7 +728,7 @@ describe('inviting, and the pending invitations', () => {
     const toastError = vi.spyOn(toast, 'error')
     server.use(
       http.post('/api/v1/tenants/acme/invitations', () =>
-        fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED')
+        fail('Too many attempts. Try again in 15 minutes.', 429, 'RATE_LIMITED')
       )
     )
     const user = userEvent.setup()
@@ -724,9 +738,9 @@ describe('inviting, and the pending invitations', () => {
     await user.type(email, 'new@b.com')
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
 
-    const message = await screen.findByText('Too many attempts. Please try again later.')
+    const message = await screen.findByText('Too many attempts. Try again in 15 minutes.')
     expect(message.closest('form')).not.toBeNull()
-    expect(screen.getAllByText('Too many attempts. Please try again later.')).toHaveLength(1)
+    expect(screen.getAllByText('Too many attempts. Try again in 15 minutes.')).toHaveLength(1)
     expect(toastError).not.toHaveBeenCalled()
     expect(email).toHaveAttribute('aria-invalid', 'false')
   })
@@ -827,7 +841,7 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/could not load the pending invitations/i)
+    expect(alert).toHaveTextContent(/couldn’t load the pending invitations/i)
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
 
     expect(await screen.findByText('invitee@b.com')).toBeInTheDocument()
@@ -857,7 +871,7 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
-      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+      await screen.findByRole('button', { name: 'Resend, invitation to invitee@b.com' })
     )
 
     expect(await screen.findByText('Invitation resent to invitee@b.com.')).toBeInTheDocument()
@@ -885,7 +899,7 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
-      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+      await screen.findByRole('button', { name: 'Resend, invitation to invitee@b.com' })
     )
 
     expect(
@@ -910,7 +924,7 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     for (const email of ['owner@b.com', 'admin@b.com']) {
-      const resend = await screen.findByRole('button', { name: `Resend invitation to ${email}` })
+      const resend = await screen.findByRole('button', { name: `Resend, invitation to ${email}` })
       const revoke = screen.getByRole('button', { name: `Revoke invitation to ${email}` })
       for (const control of [resend, revoke]) {
         expect(control).toBeDisabled()
@@ -923,7 +937,10 @@ describe('inviting, and the pending invitations', () => {
     expect(
       screen.getAllByText('Only an owner can resend or revoke an invitation for this role.')
     ).toHaveLength(2)
-    for (const name of ['Resend invitation to editor@b.com', 'Revoke invitation to editor@b.com']) {
+    for (const name of [
+      'Resend, invitation to editor@b.com',
+      'Revoke invitation to editor@b.com',
+    ]) {
       const control = screen.getByRole('button', { name })
       expect(control).toBeEnabled()
       expect(control).not.toHaveAttribute('aria-describedby')
@@ -949,7 +966,7 @@ describe('inviting, and the pending invitations', () => {
 
     for (const role of ['owner', 'admin', 'manager', 'editor', 'viewer']) {
       const email = `${role}@b.com`
-      const resend = await screen.findByRole('button', { name: `Resend invitation to ${email}` })
+      const resend = await screen.findByRole('button', { name: `Resend, invitation to ${email}` })
       const revoke = screen.getByRole('button', { name: `Revoke invitation to ${email}` })
       for (const control of [resend, revoke]) {
         expect(control).toBeEnabled()
@@ -976,7 +993,7 @@ describe('inviting, and the pending invitations', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
-      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+      await screen.findByRole('button', { name: 'Resend, invitation to invitee@b.com' })
     )
 
     expect(await screen.findByText('That invitation is no longer pending.')).toBeInTheDocument()
@@ -1562,7 +1579,7 @@ describe('a customer tenant reached through platform access', () => {
         await screen.findByRole('heading', { name: 'Pending invitations' })
       ).toBeInTheDocument()
       expect(await screen.findByText('invitee@b.com')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /^Resend invitation/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^Resend, invitation/ })).toBeNull()
       expect(screen.queryByRole('button', { name: /^Revoke invitation/ })).toBeNull()
       expect(screen.queryByRole('columnheader', { name: 'Actions' })).toBeNull()
       expect(
@@ -1611,7 +1628,7 @@ describe('a customer tenant reached through platform access', () => {
 describe('a stale sign-in on a platform-tenant write', () => {
   const SIGN_IN_AGAIN = 'For your security, sign out and sign in again before making this change.'
   /** The refusal for a sign-in too old to change the platform tenant. */
-  const stale = () => fail('Confirm your identity to continue', 401, REAUTH_REQUIRED)
+  const stale = () => fail("Confirm it's you to continue.", 401, REAUTH_REQUIRED)
 
   beforeEach(() => {
     resetSessionForTests()
@@ -1635,7 +1652,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
     await user.click(await screen.findByRole('option', { name: 'Editor' }))
 
     expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
-    expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
+    expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument()
   })
 
   it('tells the reader to sign in again when a removal is refused', async () => {
@@ -1649,7 +1666,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }))
 
     expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
-    expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
+    expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument()
   })
 
   it('tells the reader to sign in again when an invitation is refused', async () => {
@@ -1661,7 +1678,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
 
     expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
-    expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
+    expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument()
   })
 
   it('tells the reader to sign in again when leaving is refused', async () => {
@@ -1675,7 +1692,7 @@ describe('a stale sign-in on a platform-tenant write', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Leave' }))
 
     expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
-    expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
+    expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/settings/workspace/acme/members')
   })
 
@@ -1693,11 +1710,11 @@ describe('a stale sign-in on a platform-tenant write', () => {
     renderAppAt('/settings/workspace/acme/members')
 
     await user.click(
-      await screen.findByRole('button', { name: 'Resend invitation to invitee@b.com' })
+      await screen.findByRole('button', { name: 'Resend, invitation to invitee@b.com' })
     )
 
     expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
-    expect(screen.queryByText('Confirm your identity to continue')).not.toBeInTheDocument()
+    expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument()
   })
 })
 

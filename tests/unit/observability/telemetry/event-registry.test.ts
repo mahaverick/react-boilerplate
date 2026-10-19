@@ -46,8 +46,22 @@ describe('the browser event registry', () => {
       | 'command_palette_opened'
       | 'command_palette_action_run'
       | 'maintenance_page_viewed'
+      | 'sign_in_link_requested'
+      | 'sign_in_completed'
     >()
     expect(REGISTRY_HAS_NO_FREE_STRINGS).toBe(true)
+  })
+
+  it('types the sign-in events', () => {
+    // The calls never run: `track` is inert here.
+    track('sign_in_link_requested')
+    track('sign_in_completed', { method: 'link' })
+    track('sign_in_completed', { method: 'google' })
+    // @ts-expect-error a free string is no method
+    track('sign_in_completed', { method: 'a@b.test' })
+    expectTypeOf<BrowserEventProps['sign_in_completed']>().toEqualTypeOf<{
+      method: 'link' | 'google'
+    }>()
   })
 
   it('accepts the fixed `default` as table_sorted’s sort, for the default order no column owns', () => {

@@ -39,14 +39,15 @@ describe('PageSkeleton', () => {
     expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(3)
   })
 
-  it('draws the auth card', () => {
+  it('draws the auth card as one field and two buttons', () => {
     const { container } = render(<PageSkeleton variant="auth" />)
     const region = screen.getByRole('status', { name: 'Loading' })
     expect(region).toHaveAttribute('data-variant', 'auth')
     expect(container.querySelector('[data-slot="page-heading-skeleton"]')).toBeNull()
     expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(1)
-    expect(container.querySelectorAll('[data-slot="field-skeleton"]')).toHaveLength(2)
-    expect(container.querySelectorAll('[data-slot="auth-button-skeleton"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-slot="field-skeleton"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-slot="auth-button-skeleton"]')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-slot="auth-separator-skeleton"]')).toHaveLength(1)
     expect(container.querySelector('[data-slot="card"]')).toHaveClass(
       'max-w-sm',
       'md:max-w-(--boot-auth-width)'

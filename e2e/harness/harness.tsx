@@ -86,6 +86,8 @@ const INVITATIONS = [
     invitedBy: { id: USER_ID, firstName: 'A', lastName: 'B' },
     expiresAt: '2026-10-01T00:00:00.000Z',
     createdAt: '2026-09-24T00:00:00.000Z',
+    lastSentAt: null,
+    resendAvailableAt: null,
   },
 ]
 
@@ -93,9 +95,9 @@ const NOTIFICATIONS = [
   {
     id: NOTIFICATION_ID,
     userId: USER_ID,
-    type: 'verify_email',
-    title: 'Confirm your email',
-    body: 'We sent a link to a@b.com.',
+    type: 'tenant_invitation',
+    title: 'You are invited to Acme',
+    body: 'A B invited you to join Acme Corp.',
     data: null,
     readAt: null,
     createdAt: '2026-01-02T09:00:00.000Z',
@@ -103,9 +105,9 @@ const NOTIFICATIONS = [
   {
     id: NOTIFICATION_ID_2,
     userId: USER_ID,
-    type: 'password_changed',
-    title: 'Your password changed',
-    body: 'If this was not you, reset it now.',
+    type: 'maintenance_mode_changed',
+    title: 'Maintenance mode changed',
+    body: 'Maintenance mode is now on.',
     data: null,
     readAt: '2026-01-02T10:00:00.000Z',
     createdAt: '2026-01-02T08:00:00.000Z',
@@ -116,8 +118,8 @@ const NOTIFICATIONS = [
 const AUDIT_ACTOR = { id: USER_ID, name: 'A B', email: 'a@b.com' }
 
 const PREFERENCES = [
-  { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
-  { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
+  { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'maintenance_mode_changed', emailEnabled: true, inAppEnabled: false },
 ]
 
 /**
@@ -176,9 +178,6 @@ const ONBOARDING = {
   dismissedAt: null,
 }
 
-/** The one current password the change-password handler below accepts. */
-const HARNESS_PASSWORD = 'current-password'
-
 const testUser = {
   id: USER_ID,
   email: 'a@b.com',
@@ -191,7 +190,11 @@ const testUser = {
 
 /**
  * The name and address `?pii=probe` gives every person in the fixtures, for
- * the DOM PII guard in `e2e/fixtures/pii.test.ts`; nothing may render them unmasked.
+ * the DOM PII guard in `e2e/fixtures/pii.test.ts`; nothing may render them
+ * unmasked. The invitation's address, which its preview and its `202` "Check
+ * your inbox" name, becomes a probe too, and the signed-in probe user is one
+ * half of every switch-account pair; the test puts the other half, and the
+ * address a sign-in link goes to, in the URL or the form.
  */
 const PROBE_NAME = { firstName: 'Pii', lastName: 'Probe' }
 const PROBE_EMAIL = 'pii-probe@example.test'
@@ -215,16 +218,82 @@ if (new URLSearchParams(location.search).get('pii') === 'probe') {
     invitation.email = 'pii-probe+invitee@example.test'
     if (invitation.invitedBy) Object.assign(invitation.invitedBy, PROBE_NAME)
   }
-  for (const notification of NOTIFICATIONS) {
-    if (notification.type === 'verify_email') notification.body = 'Pii Probe sent you a link.'
-  }
+  NOTIFICATIONS[0]!.body = 'Pii Probe sent you a link.'
   Object.assign(AUDIT_ACTOR, { name: 'Pii Probe', email: PROBE_EMAIL })
 }
 
-/** An express success envelope as a `Response`. */
+/** An express success envelope as a `Response`, with `statusCode` as its HTTP status too. */
 function ok<T>(data: T, message = 'OK', statusCode = 200) {
-  return Response.json({ success: true, message, statusCode, data })
+  return Response.json({ success: true, message, statusCode, data }, { status: statusCode })
 }
+
+/** An express error envelope as a `Response`; `headers` carries a `Maintenance-Mode` answer. */
+function fail(
+  message: string,
+  statusCode: number,
+  code?: string,
+  headers?: HeadersInit,
+  extra: Record<string, unknown> = {}
+) {
+  return Response.json(
+    { success: false, message, statusCode, code, ...extra, requestId: 'harness-request-id' },
+    { status: statusCode, headers }
+  )
+}
+
+/** express's `INVITATION_INVALID_MESSAGE`, its one answer for every dead invitation. */
+const INVITATION_INVALID =
+  'This invitation link has expired or was already used. Ask the person who invited you for a new one.'
+
+/** express's 503 while maintenance is read-only: its `mode` and `since`, `Retry-After`, and the header that moves the app's mode. */
+function readOnly() {
+  return fail(
+    'The service is read-only for maintenance.',
+    503,
+    'READ_ONLY_MODE',
+    { 'Maintenance-Mode': 'read_only', 'Retry-After': '30' },
+    { mode: 'read_only', since: null }
+  )
+}
+
+const params = new URLSearchParams(location.search)
+
+/**
+ * `?session=none` starts signed out: the store is settled with no user, so no
+ * bootstrap refresh runs, and a refresh answers 401 as express does without a
+ * cookie. Only public routes (`/login`, `/auth/link`, the invitation pages)
+ * render under it; a signed-in route sends it to `/login`.
+ */
+const signedOut = params.get('session') === 'none'
+/** Whether the browser holds a refresh cookie: from the start when signed in, else once a link or an invitation signed it in. */
+let hasRefreshCookie = !signedOut
+
+/**
+ * `?link=` picks what `POST /auth/link/verify` answers: `ok` (the default)
+ * signs the harness user in, `new` does so as a new account (and the tenant
+ * list starts empty until a workspace is created), `dead` is the 400
+ * `LINK_INVALID`, and `readonly` the 503 `READ_ONLY_MODE` with its
+ * `Maintenance-Mode` header.
+ */
+const linkMode = params.get('link') ?? 'ok'
+
+/**
+ * `?invite=` picks the invitation answers. With none, the preview is for
+ * another address, so a signed-in user is asked before switching. `ok` makes
+ * the preview the harness user's: signed in, the page accepts; signed out, the
+ * verify signs in and joins at once. `inbox` answers the verify with the `202`
+ * "Check your inbox" for the preview's address. `dead` 404s the preview, the
+ * verify and the accept. `joined` 404s the preview, as for a used link, and the
+ * accept answers `alreadyMember`.
+ */
+const inviteMode = params.get('invite')
+
+/**
+ * `?confirm=` picks what `POST /invitations/confirm` answers: `ok` (the
+ * default) signs the harness user in and joins Acme, `dead` is the 404
+ * `invitation_invalid`, and `readonly` the 503 `READ_ONLY_MODE`.
+ */
+const confirmMode = params.get('confirm') ?? 'ok'
 
 /**
  * `?state=` picks what the members endpoint answers: `loaded` (the default),
@@ -240,6 +309,12 @@ if (asStaff) testUser.platformRole = 'viewer'
 const suspended = state === 'suspended'
 /** `?tenants=many` lists Beta Inc and the suspended Gamma Ltd beside Acme, for the palette's Switch tenant. */
 const manyTenants = new URLSearchParams(location.search).get('tenants') === 'many'
+/**
+ * Whether the harness user belongs to Acme yet. `?tenants=none`, and a new
+ * account from `?link=new`, start with no tenant, as `/welcome` expects; a
+ * created workspace joins the list.
+ */
+let hasTenant = params.get('tenants') !== 'none' && linkMode !== 'new'
 const MORE_TENANTS = manyTenants
   ? [
       { ...TENANT, id: TENANT_ID_2, name: 'Beta Inc', slug: 'beta' },
@@ -308,19 +383,21 @@ const membersHandler =
 /**
  * `?hold=` and `?fail=` each take comma-separated API paths
  * (`/api/v1/notifications`), matched exactly as MSW path patterns (a `:param`
- * segment matches any value; there is no prefix match). A held path never answers and a failed one
- * answers 500, so a fixture can show that one section's request changes only
- * that section. Only `/api/v1/` paths are taken. These handlers come first,
- * so they win over the defaults below.
+ * segment matches any value; there is no prefix match), for every method, so
+ * a held POST such as `/api/v1/auth/link/verify` or
+ * `/api/v1/invitations/verify` stays pending too. A held path never answers
+ * and a failed one answers 500, so a fixture can show that one section's
+ * request changes only that section. Only `/api/v1/` paths are taken. These
+ * handlers come first, so they win over the defaults below.
  */
 const sectionParams = new URLSearchParams(location.search)
 /** The `/api/v1/` paths listed under `key`. */
 const pathsOf = (key: string) =>
   (sectionParams.get(key) ?? '').split(',').filter((path) => path.startsWith('/api/v1/'))
 const sectionHandlers = [
-  ...pathsOf('hold').map((path) => http.get(path, () => new Promise<Response>(() => {}))),
+  ...pathsOf('hold').map((path) => http.all(path, () => new Promise<Response>(() => {}))),
   ...pathsOf('fail').map((path) =>
-    http.get(
+    http.all(
       path,
       () =>
         new Response(
@@ -338,7 +415,7 @@ const worker = setupWorker(
   http.get('/api/v1/tenants', () =>
     ok(
       listPage(
-        asStaff
+        asStaff || !hasTenant
           ? []
           : [
               {
@@ -372,6 +449,11 @@ const worker = setupWorker(
         )
   ),
   membersHandler,
+  // The first-tenant step's create: Acme joins the list, so its pages answer the landing.
+  http.post('/api/v1/tenants', () => {
+    hasTenant = true
+    return ok(TENANT, 'Tenant created.', 201)
+  }),
   http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.')),
   // The members page lists pending invitations for an owner; unmocked, this 401s and signs the harness user out.
   http.get('/api/v1/tenants/acme/invitations', () =>
@@ -380,7 +462,91 @@ const worker = setupWorker(
   http.post('/api/v1/tenants/acme/invitations/:id/resend', () =>
     ok(null, 'If that address can be invited, an invitation has been sent.')
   ),
-  http.post('/api/v1/invitations/preview', () => ok(INVITATION_PREVIEW, 'Invitation retrieved.')),
+  http.post('/api/v1/invitations/preview', () =>
+    inviteMode === 'dead' || inviteMode === 'joined'
+      ? fail(INVITATION_INVALID, 404, 'invitation_invalid')
+      : ok(
+          inviteMode === 'ok'
+            ? { ...INVITATION_PREVIEW, email: testUser.email }
+            : INVITATION_PREVIEW,
+          'Invitation retrieved.'
+        )
+  ),
+  http.post('/api/v1/invitations/verify', () => {
+    if (inviteMode === 'dead' || inviteMode === 'joined') {
+      return fail(INVITATION_INVALID, 404, 'invitation_invalid')
+    }
+    if (inviteMode === 'inbox') {
+      return ok(
+        { confirmationSent: true, email: INVITATION_PREVIEW.email },
+        'Check your inbox to finish joining.',
+        202
+      )
+    }
+    hasRefreshCookie = true
+    return ok(
+      {
+        user: testUser,
+        accessToken: 'harness-token',
+        isNewUser: true,
+        tenant: INVITATION_PREVIEW.tenant,
+        role: INVITATION_PREVIEW.role,
+      },
+      'Invitation accepted.'
+    )
+  }),
+  http.post('/api/v1/invitations/accept', () =>
+    inviteMode === 'dead'
+      ? fail(INVITATION_INVALID, 404, 'invitation_invalid')
+      : ok(
+          {
+            tenant: INVITATION_PREVIEW.tenant,
+            role: INVITATION_PREVIEW.role,
+            alreadyMember: inviteMode === 'joined',
+          },
+          'Invitation accepted.'
+        )
+  ),
+  http.post('/api/v1/invitations/confirm', () => {
+    if (confirmMode === 'dead') {
+      return fail(
+        "We couldn't use this link. Open your invitation email and select Join again, or ask the person who invited you for a new invite.",
+        404,
+        'invitation_invalid'
+      )
+    }
+    if (confirmMode === 'readonly') return readOnly()
+    hasRefreshCookie = true
+    return ok(
+      {
+        user: testUser,
+        accessToken: 'harness-token',
+        isNewUser: false,
+        tenant: INVITATION_PREVIEW.tenant,
+        role: INVITATION_PREVIEW.role,
+      },
+      'Invitation accepted.'
+    )
+  }),
+  http.post('/api/v1/auth/link/request', () =>
+    ok(null, 'Check your inbox for a sign-in link.', 202)
+  ),
+  http.post('/api/v1/auth/link/verify', () => {
+    if (linkMode === 'dead') {
+      return fail('This link has expired or was already used.', 400, 'LINK_INVALID')
+    }
+    if (linkMode === 'readonly') return readOnly()
+    hasRefreshCookie = true
+    return ok(
+      {
+        user: testUser,
+        accessToken: 'harness-token',
+        isNewUser: linkMode === 'new',
+        redirect: null,
+      },
+      'Signed in.'
+    )
+  }),
   http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
   // Every overview mounts the Getting started card, staff's included; unmocked, it 401s and signs the harness user out.
   http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
@@ -449,7 +615,6 @@ const worker = setupWorker(
           { provider: 'email', linkedAt: '2026-01-01T00:00:00.000Z' },
           { provider: 'google', linkedAt: '2026-01-02T00:00:00.000Z' },
         ],
-        hasPassword: true,
       },
       'Auth providers retrieved.'
     )
@@ -457,34 +622,22 @@ const worker = setupWorker(
   http.post('/api/v1/auth/sessions/revoke-others', () =>
     ok({ revoked: 2 }, 'Other sessions signed out.')
   ),
-  http.post('/api/v1/auth/change-password', async ({ request }) => {
-    const body = (await request.json()) as { currentPassword?: unknown }
-    if (body.currentPassword === HARNESS_PASSWORD) return ok(null, 'Password has been changed.')
-    return Response.json(
-      {
-        success: false,
-        message: 'Current password is incorrect.',
-        statusCode: 400,
-        requestId: 'harness',
-      },
-      { status: 400 }
-    )
-  }),
   // A refresh with no handler would bypass MSW and 401, which signs the harness user out.
   http.post('/api/v1/auth/refresh', () =>
-    ok({ accessToken: 'harness-token', user: testUser }, 'Session refreshed.')
+    hasRefreshCookie
+      ? ok({ accessToken: 'harness-token', user: testUser }, 'Session refreshed.')
+      : fail('Missing refresh token', 401)
   )
 )
 
 await worker.start({ onUnhandledRequest: 'bypass', quiet: true })
 
-// The real store state a signed-in user has. `isBootstrapped` skips the refresh round trip the root route would otherwise wait on.
-useAuthStore.setState({
-  accessToken: 'harness-token',
-  user: testUser,
-  isAuthenticated: true,
-  isBootstrapped: true,
-})
+// The real store state a signed-in (or, for `?session=none`, signed-out) user has. `isBootstrapped` skips the refresh round trip the root route would otherwise wait on.
+useAuthStore.setState(
+  signedOut
+    ? { accessToken: null, user: null, isAuthenticated: false, isBootstrapped: true }
+    : { accessToken: 'harness-token', user: testUser, isAuthenticated: true, isBootstrapped: true }
+)
 
 /**
  * `?path=` picks the in-app route to mount, defaulting to the members page
@@ -503,7 +656,14 @@ const targetPath =
     : '/settings/workspace/acme/members'
 
 // replaceState, not router.navigate: before the router mounts, navigate does a real navigation and the dev server answers it with the SPA fallback (index.html), so the harness never runs.
-history.replaceState(null, '', targetPath + location.search)
+history.replaceState(
+  null,
+  '',
+  // A path that holds its own query gets the harness keys after an `&`, never a second `?`.
+  targetPath.includes('?')
+    ? `${targetPath}&${location.search.slice(1)}`
+    : targetPath + location.search
+)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

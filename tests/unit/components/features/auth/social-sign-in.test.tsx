@@ -10,15 +10,32 @@ describe('SocialSignIn', () => {
     expect(SOCIAL_PROVIDERS.map((provider) => provider.id)).toEqual(['google'])
   })
 
-  it('renders Google as a link to the OAuth start route when it is configured', () => {
+  it('builds the Google start URL for web, with the redirect when there is one', () => {
+    const [google] = SOCIAL_PROVIDERS
+    expect(google?.hrefFor()).toBe(`${GOOGLE_OAUTH_PATH}?app=web`)
+    expect(google?.hrefFor('/tenants/acme?tab=members')).toBe(
+      `${GOOGLE_OAUTH_PATH}?app=web&redirect=%2Ftenants%2Facme%3Ftab%3Dmembers`
+    )
+  })
+
+  it('renders Google as a link to the OAuth start route, under an "or" divider', () => {
     render(<SocialSignIn />)
 
     const google = screen.getByRole('link', { name: 'Continue with Google' })
-    expect(google).toHaveAttribute('href', GOOGLE_OAUTH_PATH)
-    expect(screen.getByText('Or continue with')).toBeInTheDocument()
+    expect(google).toHaveAttribute('href', `${GOOGLE_OAUTH_PATH}?app=web`)
+    expect(screen.getByText('or')).toBeInTheDocument()
     // Only configured providers: the block's Apple and Meta buttons are not drawn.
     expect(screen.getAllByRole('link')).toHaveLength(1)
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('carries the redirect it is given into the start URL', () => {
+    render(<SocialSignIn redirect="/tenants/acme" />)
+
+    expect(screen.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
+      'href',
+      '/api/v1/auth/google?app=web&redirect=%2Ftenants%2Facme'
+    )
   })
 
   it('renders no divider and no button when no provider is configured', () => {
@@ -30,15 +47,21 @@ describe('SocialSignIn', () => {
   it('renders exactly the providers it is given', () => {
     render(
       <SocialSignIn
+        redirect="/x"
         providers={[
-          { id: 'github', label: 'GitHub', href: '/api/v1/auth/github', Icon: IconBrandGithub },
+          {
+            id: 'github',
+            label: 'GitHub',
+            hrefFor: (redirect) => `/api/v1/auth/github?to=${redirect ?? ''}`,
+            Icon: IconBrandGithub,
+          },
         ]}
       />
     )
 
     expect(screen.getByRole('link', { name: 'Continue with GitHub' })).toHaveAttribute(
       'href',
-      '/api/v1/auth/github'
+      '/api/v1/auth/github?to=/x'
     )
     expect(screen.queryByRole('link', { name: 'Continue with Google' })).not.toBeInTheDocument()
   })

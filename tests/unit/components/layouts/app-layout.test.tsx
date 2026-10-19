@@ -41,9 +41,9 @@ function notificationRow(id: string, readAt: string | null): Notification {
   return {
     id,
     userId: testUser.id,
-    type: 'verify_email',
-    title: 'Verify your email',
-    body: 'Follow the link we sent you.',
+    type: 'tenant_invitation',
+    title: 'You are invited to Acme',
+    body: 'A B invited you to join Acme Corp.',
     metadata: null,
     readAt,
     createdAt: '2026-09-21T10:00:00.000Z',
@@ -65,7 +65,7 @@ const mobileMatchMedia = ((query: string) => ({
   dispatchEvent: () => false,
 })) as unknown as typeof window.matchMedia
 
-const LOGOUT_FAILED = "Couldn't sign out. Check your connection and try again."
+const LOGOUT_FAILED = 'Couldn’t sign out. Check your connection and try again.'
 
 /** Every way POST /auth/logout can fail without the server saying the session is over. */
 const LOGOUT_FAILURES: [string, () => Response][] = [
@@ -73,7 +73,7 @@ const LOGOUT_FAILURES: [string, () => Response][] = [
   ['a 503 from a restarting upstream', () => fail('Service Unavailable', 503)],
   [
     'a 429 from the logout rate limiter',
-    () => fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED'),
+    () => fail('Too many attempts. Try again in 15 minutes.', 429, 'RATE_LIMITED'),
   ],
 ]
 

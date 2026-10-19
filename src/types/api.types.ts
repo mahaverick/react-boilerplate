@@ -63,9 +63,6 @@ export function isMaintenanceMode(value: unknown): value is MaintenanceMode {
   return typeof value === 'string' && (MAINTENANCE_MODES as readonly string[]).includes(value)
 }
 
-/** `code` on the 409 verify-email answers for a used link whose account is already verified. */
-export const EMAIL_ALREADY_VERIFIED = 'email_already_verified'
-
 /** `code` on the 503 while maintenance is `full`, on customer routes and on a non-staff sign-in. */
 export const MAINTENANCE_MODE = 'MAINTENANCE_MODE'
 
@@ -104,6 +101,10 @@ export interface TenantInvitation {
   invitedBy: InvitationInviter | null
   expiresAt: string
   createdAt: string
+  /** When the invitation was last mailed, ISO; `null` if never. */
+  lastSentAt: string | null
+  /** When a resend is allowed again, ISO; `null` when it is allowed now. */
+  resendAvailableAt: string | null
 }
 
 /** `POST /invitations/preview` with `{ token }`: what an invite link opens onto. */
@@ -115,12 +116,41 @@ export interface InvitationPreview {
   email: string
 }
 
+/**
+ * The `200` of `POST /invitations/verify` and `POST /invitations/confirm`: the
+ * session, whether this click created the account, and the tenant joined.
+ */
+export interface InvitationSignIn {
+  accessToken: string
+  user: User
+  isNewUser: boolean
+  tenant: { name: string; slug: string }
+  role: MembershipRole
+}
+
+/**
+ * The `202` of `POST /invitations/verify`: no session, nothing spent. The
+ * server mailed a confirmation link to `email`, the invited address.
+ */
+export interface InvitationConfirmationSent {
+  confirmationSent: true
+  email: string
+}
+
+/** What `POST /invitations/verify` answers: joined in one click, or "Check your inbox". */
+export type InvitationVerifyResult = InvitationSignIn | InvitationConfirmationSent
+
 /** `POST /invitations/accept`: the tenant the caller is now a member of. */
 export interface AcceptedInvitation {
   tenant: { name: string; slug: string }
   /** The caller's current role there: an existing member keeps theirs, so not necessarily the invited one. */
   role: MembershipRole
+  /** True when the caller had joined already, as on a repeat accept of the same link. */
+  alreadyMember: boolean
 }
+
+/** `code` on the 409 for a create whose slug a live tenant already holds. */
+export const SLUG_TAKEN = 'slug_taken'
 
 /** `code` on the 409 for an invite to an address that already belongs to a member of this tenant. */
 export const ALREADY_MEMBER = 'already_member'
@@ -144,9 +174,6 @@ export const MEMBER_NOT_FOUND = 'member_not_found'
 
 /** The message of that 404, the only sign of it from an API older than 2.1.0. */
 export const MEMBER_NOT_FOUND_MESSAGE = 'Member not found'
-
-/** `code` on the 403 for an accept by the invited account while its email is unverified. */
-export const INVITATION_EMAIL_UNVERIFIED = 'invitation_email_unverified'
 
 /** How an audit entry's actor reached the tenant. `system` is a script, with no actor. */
 type AuditAccess = 'member' | 'platform' | 'system'
@@ -202,12 +229,11 @@ interface AuthProviderLink {
 }
 
 /**
- * `GET /auth/providers`. `hasPassword` is the only password signal: a Google
- * sign-up also has an `'email'` row, and cannot sign in with a password.
+ * `GET /auth/providers`. A Google sign-up also has an `'email'` row. Any other
+ * field the API still sends is ignored.
  */
 export interface AuthProviders {
   providers: AuthProviderLink[]
-  hasPassword: boolean
 }
 
 /** Where a tenant is in onboarding, as a member sees it; `stuck` reads `in_progress` and `awaiting_owner` reads `not_tracked`. */

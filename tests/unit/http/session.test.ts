@@ -2,12 +2,14 @@ import { delay, http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ROUTES } from '@/constants/routes'
 import {
+  broadcastAuthMessage,
   broadcastLogout,
   ensureSession,
   installAuthBroadcastListener,
   isAuthVerdict,
   resetSessionForTests,
   SessionIdentityChangedError,
+  subscribeAuthMessage,
 } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
 import { USER_ID_2 } from '@/tests/fixtures/ids'
@@ -443,6 +445,67 @@ describe('across tabs', () => {
 
     await flushDeliveries(probe, 1)
     expect(probe.received).toEqual([{ type: 'sentinel' }])
+  })
+
+  it('delivers signed_in to another tab and not to the sender', async () => {
+    const probe = openOtherTab()
+    const own = vi.fn()
+    subscribeAuthMessage('signed_in', own)
+
+    broadcastAuthMessage('signed_in')
+    await flushDeliveries(probe, 1)
+    expect(probe.received).toEqual([{ type: 'signed_in' }])
+    expect(own).not.toHaveBeenCalled()
+
+    // The other tab's post reaches this tab's subscriber.
+    probe.tab.postMessage({ type: 'signed_in' })
+    await vi.waitFor(() => expect(own).toHaveBeenCalledTimes(1))
+  })
+
+  it('only delivers the type it was asked for', async () => {
+    const probe = openOtherTab()
+    const handler = vi.fn()
+    subscribeAuthMessage('signed_in', handler)
+
+    probe.tab.postMessage({ type: 'step_up_confirmed' })
+    probe.tab.postMessage({ type: 'signed_in' })
+    await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(1))
+  })
+
+  it('stops delivering after the cleanup', async () => {
+    const probe = openOtherTab()
+    const handler = vi.fn()
+    const stop = subscribeAuthMessage('signed_in', handler)
+    stop()
+
+    probe.tab.postMessage({ type: 'signed_in' })
+    // A message on the same channel after it is the barrier: the earlier one was delivered by then.
+    const barrier = vi.fn()
+    subscribeAuthMessage('step_up_confirmed', barrier)
+    probe.tab.postMessage({ type: 'step_up_confirmed' })
+    await vi.waitFor(() => expect(barrier).toHaveBeenCalledTimes(1))
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('does not sign a tab out on signed_in', async () => {
+    const assign = stubLocation()
+    useAuthStore.getState().login('tok', testUser)
+    installAuthBroadcastListener()
+    const heard = vi.fn()
+    subscribeAuthMessage('signed_in', heard)
+
+    openOtherTab().tab.postMessage({ type: 'signed_in' })
+    await vi.waitFor(() => expect(heard).toHaveBeenCalledTimes(1))
+
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(assign).not.toHaveBeenCalled()
+  })
+
+  it('is silent where BroadcastChannel does not exist, for signed_in too', () => {
+    vi.stubGlobal('BroadcastChannel', undefined)
+    resetSessionForTests()
+    expect(() => broadcastAuthMessage('signed_in')).not.toThrow()
+    expect(() => subscribeAuthMessage('signed_in', () => {})()).not.toThrow()
   })
 
   it('works, silently, where BroadcastChannel does not exist', async () => {

@@ -81,7 +81,11 @@ describe('notification settings page', () => {
     server.use(
       http.get('/api/v1/notifications/preferences', () =>
         ok(
-          { preferences: [{ notificationType: 'verify_email', emailEnabled: true, inAppEnabled }] },
+          {
+            preferences: [
+              { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled },
+            ],
+          },
           'Notification preferences retrieved.'
         )
       )
@@ -93,13 +97,13 @@ describe('notification settings page', () => {
     renderPreferences()
 
     const main = await screen.findByRole('main')
-    expect(await within(main).findByText('Verify email')).toBeInTheDocument()
+    expect(await within(main).findByText('Tenant invitation')).toBeInTheDocument()
     expect(within(main).getByText('Email: On')).toBeInTheDocument()
     expect(
       within(main).getByText(/email for these notifications cannot be turned off/i)
     ).toBeInTheDocument()
     expect(within(main).getAllByRole('switch')).toHaveLength(1)
-    expect(within(main).getByRole('switch', { name: /Verify email/ })).not.toBeChecked()
+    expect(within(main).getByRole('switch', { name: /Tenant invitation/ })).not.toBeChecked()
   })
 
   it('PUTs the whole entry with emailEnabled true and updates the row', async () => {
@@ -111,7 +115,7 @@ describe('notification settings page', () => {
         ok(
           {
             preferences: [
-              { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: stored },
+              { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: stored },
             ],
           },
           'Notification preferences retrieved.'
@@ -124,17 +128,21 @@ describe('notification settings page', () => {
       })
     )
     renderPreferences()
-    const toggle = await screen.findByRole('switch', { name: /Verify email/ })
+    const toggle = await screen.findByRole('switch', { name: /Tenant invitation/ })
     expect(toggle).not.toBeChecked()
 
     await user.click(toggle)
 
-    await waitFor(() => expect(screen.getByRole('switch', { name: /Verify email/ })).toBeChecked())
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: /Tenant invitation/ })).toBeChecked()
+    )
     expect(body).toEqual({
-      preferences: [{ notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true }],
+      preferences: [
+        { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
+      ],
     })
     await waitFor(() =>
-      expect(screen.getByRole('switch', { name: /Verify email/ })).not.toHaveAttribute(
+      expect(screen.getByRole('switch', { name: /Tenant invitation/ })).not.toHaveAttribute(
         'aria-disabled',
         'true'
       )
@@ -153,22 +161,22 @@ describe('notification settings page', () => {
     )
     renderPreferences()
 
-    await user.click(await screen.findByRole('switch', { name: /Verify email/ }))
+    await user.click(await screen.findByRole('switch', { name: /Tenant invitation/ }))
     // The disabled state is the barrier: past it, the click and keys below land on a disabled switch.
     await waitFor(() =>
-      expect(screen.getByRole('switch', { name: /Verify email/ })).toHaveAttribute(
+      expect(screen.getByRole('switch', { name: /Tenant invitation/ })).toHaveAttribute(
         'aria-disabled',
         'true'
       )
     )
-    const toggle = screen.getByRole('switch', { name: /Verify email/ })
+    const toggle = screen.getByRole('switch', { name: /Tenant invitation/ })
     await user.click(toggle)
     toggle.focus()
     await user.keyboard(' ')
     await user.keyboard('{Enter}')
 
     expect(puts).toBe(1)
-    expect(screen.getByRole('switch', { name: /Verify email/ })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: /Tenant invitation/ })).not.toBeChecked()
   })
 
   it('toggles from the keyboard with Space', async () => {
@@ -182,14 +190,16 @@ describe('notification settings page', () => {
       })
     )
     renderPreferences()
-    const toggle = await screen.findByRole('switch', { name: /Verify email/ })
+    const toggle = await screen.findByRole('switch', { name: /Tenant invitation/ })
 
     toggle.focus()
     await user.keyboard(' ')
 
     await waitFor(() =>
       expect(body).toEqual({
-        preferences: [{ notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true }],
+        preferences: [
+          { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
+        ],
       })
     )
   })
@@ -207,10 +217,10 @@ describe('notification settings page', () => {
     )
     renderPreferences()
 
-    await user.click(await screen.findByRole('switch', { name: /Verify email/ }))
+    await user.click(await screen.findByRole('switch', { name: /Tenant invitation/ }))
     // Held at the gate, the row shows the requested state.
     await waitFor(() =>
-      expect(screen.getByRole('switch', { name: /Verify email/ })).not.toBeChecked()
+      expect(screen.getByRole('switch', { name: /Tenant invitation/ })).not.toBeChecked()
     )
     released = true
 
@@ -218,7 +228,7 @@ describe('notification settings page', () => {
       expect(error).toHaveBeenCalledWith('This notification type does not exist.')
     )
     await waitFor(() => {
-      const toggle = screen.getByRole('switch', { name: /Verify email/ })
+      const toggle = screen.getByRole('switch', { name: /Tenant invitation/ })
       expect(toggle).not.toHaveAttribute('aria-disabled', 'true')
       expect(toggle).toBeChecked()
     })
@@ -231,7 +241,7 @@ describe('notification settings page', () => {
         ok(
           {
             preferences: [
-              { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
+              { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
             ],
           },
           'Notification preferences retrieved.'
@@ -241,7 +251,7 @@ describe('notification settings page', () => {
     renderPreferences()
 
     const main = await screen.findByRole('main')
-    expect(await within(main).findByText('Verify email')).toBeInTheDocument()
+    expect(await within(main).findByText('Tenant invitation')).toBeInTheDocument()
     expect(within(main).queryByText(/maintenance/i)).not.toBeInTheDocument()
   })
 

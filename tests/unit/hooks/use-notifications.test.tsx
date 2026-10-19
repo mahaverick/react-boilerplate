@@ -32,9 +32,9 @@ const STREAM_URL = `${API_PREFIX}/notifications/stream`
  */
 const streamPayload: Omit<Notification, 'userId' | 'metadata'> = {
   id: NOTIFICATION_ID,
-  type: 'verify_email',
-  title: 'Verify your email',
-  body: 'Follow the link we sent you.',
+  type: 'tenant_invitation',
+  title: 'You are invited to Acme',
+  body: 'A B invited you to join Acme Corp.',
   readAt: null,
   createdAt: '2026-09-21T10:00:00.000Z',
 }
@@ -43,9 +43,9 @@ const streamPayload: Omit<Notification, 'userId' | 'metadata'> = {
 const listRow: Notification = {
   id: NOTIFICATION_ID,
   userId: testUser.id,
-  type: 'verify_email',
-  title: 'Verify your email',
-  body: 'Follow the link we sent you.',
+  type: 'tenant_invitation',
+  title: 'You are invited to Acme',
+  body: 'A B invited you to join Acme Corp.',
   metadata: null,
   readAt: null,
   createdAt: '2026-09-21T10:00:00.000Z',
@@ -81,6 +81,27 @@ describe('useNotificationStream', () => {
     // Restores the `fetch` that existed before this test's stub, not `undefined`.
     vi.unstubAllGlobals()
     client.clear()
+  })
+
+  /**
+   * A page load opens the stream once per token. StrictMode's second effect run aborts the
+   * first connect, so one connection stays live. The plain-mount half settles one microtask
+   * turn only, so a reconnect on a backoff timer is out of scope.
+   */
+  it('opens one stream per token per mount, StrictMode included', async () => {
+    const { unmount } = renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {})
+    expect(MockFetchStream.instances).toHaveLength(1)
+    unmount()
+
+    MockFetchStream.instances = []
+    const strict = renderHook(() => useNotificationStream(), { wrapper, reactStrictMode: true })
+    // Two connects prove StrictMode's mount-unmount-mount ran; the first must be aborted.
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+    await act(async () => {})
+    expect(MockFetchStream.instances.map((stream) => stream.aborted)).toEqual([true, false])
+    strict.unmount()
   })
 
   /**

@@ -22,8 +22,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item'
 import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
+import { useCountdown } from '@/hooks/use-countdown'
 import { useFocusAfter } from '@/hooks/use-focus-after'
-import { codeFrom } from '@/lib/api-error'
+import { codeFrom, retryAfterSecondsFrom } from '@/lib/api-error'
+import { formatTimeLeft } from '@/lib/countdown'
 import { formatDate } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
@@ -38,8 +40,7 @@ import {
 import { INVITATION_NOT_FOUND, type TenantInvitation } from '@/types/api.types'
 
 /** Said of the request, not of the tenant: a failed load is not "none pending". */
-const INVITATIONS_ERROR =
-  'We could not load the pending invitations, so none are listed here. This is not a sign that there are none.'
+const INVITATIONS_ERROR = 'We couldn’t load the pending invitations. Select Try again to load them.'
 
 /**
  * Why Resend and Revoke are off: both re-check `canActorGrantRole` against the
@@ -50,6 +51,9 @@ const GRANT_REASON = 'Only an owner can resend or revoke an invitation for this 
 
 /** Resend or revoke found the row accepted, revoked or expired meanwhile. */
 const NO_LONGER_PENDING = 'That invitation is no longer pending.'
+
+/** The code express answers a resend with while the cooldown from the last send is running. */
+const RESEND_COOLDOWN = 'invitation_resend_cooldown'
 
 /**
  * What a failed resend or revoke tells the reader: "no longer pending" for
@@ -68,6 +72,20 @@ function expiresOn(expiresAt: string): string {
 }
 
 /**
+ * When Resend opens again, as epoch ms: the later of the server's
+ * `resendAvailableAt` and a locally held deadline. A `null` or unreadable
+ * time counts as none, so it never poisons the other with `NaN`.
+ */
+function resendDeadline(
+  resendAvailableAt: string | null,
+  localUntil: number | null
+): number | null {
+  const server = resendAvailableAt === null ? Number.NaN : Date.parse(resendAvailableAt)
+  const times = [server, localUntil ?? Number.NaN].filter(Number.isFinite)
+  return times.length === 0 ? null : Math.max(...times)
+}
+
+/**
  * Resend for one row, named after the invitee since there is one per row.
  * With `reasonId` (the actor may not grant the invitation's role) the button
  * is disabled and described by the row's one reason, which `InvitationItem`
@@ -75,6 +93,13 @@ function expiresOn(expiresAt: string): string {
  * tooltip on it would never open. It uses `mutateAsync`, because the list
  * refetch can unmount this row first and `mutate`'s callbacks skip an
  * unmounted observer.
+ *
+ * While express's resend cooldown runs, the button reads "Resend in 4 min"
+ * and stays focusable (`aria-disabled`), so a keyboard user can still reach
+ * it. The deadline is the later of the row's `resendAvailableAt` and the
+ * `Retry-After` of a 429 this button just got. The text is not a live
+ * region, so it does not announce every tick. At zero the button re-enables
+ * without a refetch.
  */
 function ResendInvitationButton({
   slug,
@@ -87,6 +112,10 @@ function ResendInvitationButton({
   reasonId?: string
 }) {
   const resend = useResendInvitation(slug)
+  const [localUntil, setLocalUntil] = useState<number | null>(null)
+  const left = useCountdown(
+    reasonId ? null : resendDeadline(invitation.resendAvailableAt, localUntil)
+  )
 
   if (reasonId) {
     return (
@@ -94,7 +123,7 @@ function ResendInvitationButton({
         variant="outline"
         size="sm"
         disabled
-        aria-label={`Resend invitation to ${invitation.email}`}
+        aria-label={`Resend, invitation to ${invitation.email}`}
         aria-describedby={reasonId}
       >
         Resend
@@ -102,20 +131,33 @@ function ResendInvitationButton({
     )
   }
 
+  const waiting = left > 0
   return (
     <Button
       variant="outline"
       size="sm"
-      disabled={resend.isPending}
-      aria-label={`Resend invitation to ${invitation.email}`}
+      disabled={waiting || resend.isPending}
+      focusableWhenDisabled
+      aria-label={
+        waiting
+          ? `Resend in ${formatTimeLeft(left)}, invitation to ${invitation.email}`
+          : `Resend, invitation to ${invitation.email}`
+      }
       onClick={() => {
+        if (waiting) return
         resend.mutateAsync(invitation.id).then(
           () => toast.success(`Invitation resent to ${invitation.email}.`),
-          (error: unknown) => toast.error(actionFailure(error))
+          (error: unknown) => {
+            if (codeFrom(error) === RESEND_COOLDOWN) {
+              const wait = retryAfterSecondsFrom(error)
+              if (wait !== null) setLocalUntil(Date.now() + wait * 1_000)
+            }
+            toast.error(actionFailure(error))
+          }
         )
       }}
     >
-      Resend
+      {waiting ? `Resend in ${formatTimeLeft(left)}` : 'Resend'}
     </Button>
   )
 }

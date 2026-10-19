@@ -243,7 +243,7 @@ describe('?tenant on pages without $slug', () => {
     expect(await findSwitcher('Globex')).toBeInTheDocument()
   })
 
-  it('validates the ?tenant of a login redirect after sign-in', async () => {
+  it('validates the ?tenant of a sign-in link redirect after the link signs in', async () => {
     useAuthStore.setState({
       accessToken: null,
       user: null,
@@ -252,18 +252,17 @@ describe('?tenant on pages without $slug', () => {
     })
     server.use(
       http.post('/api/v1/auth/refresh', () => fail('Unauthorized', 401)),
-      http.post('/api/v1/auth/login', () =>
-        ok({ accessToken: 'access-token', user: testUser }, 'Signed in.')
+      http.post('/api/v1/auth/link/verify', () =>
+        ok(
+          { user: testUser, accessToken: 'link-token', isNewUser: false, redirect: null },
+          'Signed in.'
+        )
       )
     )
     serveTenants([GLOBEX])
     const { router } = renderAt(
-      `/login?redirect=${encodeURIComponent('/settings/account/profile?tenant=acme')}`
+      `/auth/link?token=${'t'.repeat(43)}&redirect=${encodeURIComponent('/settings/account/profile?tenant=acme')}`
     )
-    const user = userEvent.setup()
-    await user.type(await screen.findByLabelText('Email'), 'test@example.com')
-    await user.type(screen.getByLabelText('Password'), 'Password1!')
-    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     await expectHref(router, '/settings/account/profile?tenant=globex')
     expect(await findSwitcher('Globex')).toBeInTheDocument()
@@ -499,8 +498,10 @@ describe('carrying the tenant between pages', () => {
     const { router } = renderAt('/tenants/globex')
     expect(await findSwitcher('Globex')).toBeInTheDocument()
 
-    await router.navigate({ to: '/verify-email' })
-    await waitFor(() => expect(router.state.location.pathname).toBe('/verify-email'))
+    await router.navigate({ to: '/invitations/accept' })
+    expect(
+      await screen.findByRole('heading', { name: 'This link is incomplete' })
+    ).toBeInTheDocument()
     // Opening globex remembered it; a different remembered tenant tells a carried tenant from the fallback.
     useCurrentTenantStore.getState().remember(testUser.id, 'acme')
     await router.navigate({ to: '/dashboard' })

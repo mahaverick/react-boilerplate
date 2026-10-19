@@ -71,6 +71,15 @@ describe('the boot shell', () => {
     expect(new TextEncoder().encode(shipped).length).toBeLessThan(BUDGET_BYTES)
   })
 
+  it('draws the sign-in card as one field and two buttons', () => {
+    const card = /<div class="boot-card">([\s\S]*?)<\/div>/.exec(rootMarkup())?.[1] ?? ''
+    expect(card.match(/class="boot-bar boot-field"/g)).toHaveLength(1)
+    expect(card.match(/class="boot-bar boot-button"/g)).toHaveLength(2)
+    expect(styleBlock('boot-shell')).toMatch(
+      /\.boot-field,\s*\.boot-button\s*\{\s*height:\s*2\.25rem/
+    )
+  })
+
   it('announces itself as loading without the router pending screen’s label', () => {
     const markup = rootMarkup()
     expect(markup).toMatch(/<div class="boot-shell" role="status">/)

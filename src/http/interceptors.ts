@@ -151,7 +151,7 @@ export function installInterceptors(client: AxiosInstance): void {
       const isUnauthorized = error.response?.status === 401
       const isExpired = isUnauthorized && error.response?.data?.code === ACCESS_TOKEN_EXPIRED
 
-      // With no token (the login form), a 401 judged a password, not a session.
+      // With no token (a signed-out request), a 401 judged that request, not a session.
       if (isUnauthorized && !isExpired && config?.headers.has('Authorization')) {
         useAuthStore.getState().logout()
         broadcastLogout()

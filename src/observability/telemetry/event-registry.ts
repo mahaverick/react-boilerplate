@@ -54,6 +54,10 @@ export interface BrowserEventProps {
   command_palette_action_run: { action: AnalyticsKey }
   /** The maintenance page (`full`) or the read-only banner was shown, once per maintenance period. */
   maintenance_page_viewed: { mode: 'full' | 'read_only' }
+  /** A sign-in link was requested for an address (the API answered 202); the address is never sent. */
+  sign_in_link_requested: Record<never, never>
+  /** A sign-in finished: by an emailed link (also an invitation link) or by Google. */
+  sign_in_completed: { method: 'link' | 'google' }
 }
 
 /** A registered event name. */

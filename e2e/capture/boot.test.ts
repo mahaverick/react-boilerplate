@@ -12,7 +12,7 @@
 import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
-import { apiIsReady, createVerifiedUser, freshEmail, logIn } from '../live/helpers'
+import { apiIsReady, createUser, freshEmail, logIn } from '../live/helpers'
 import { DOCS_DIR, RECORDS_DIR } from './shoot'
 import type { BootFrame } from './types'
 
@@ -192,7 +192,7 @@ for (const scenario of SCENARIOS) {
     })
     if (scenario.signedIn) {
       const email = freshEmail()
-      await createVerifiedUser(email)
+      await createUser(email)
       const page = await context.newPage()
       await logIn(page, email)
       // Closed so its notifications stream holds none of the boot's connections.

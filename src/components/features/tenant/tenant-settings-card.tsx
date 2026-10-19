@@ -23,12 +23,8 @@ import { useChangedFields } from '@/hooks/use-changed-fields'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { toast } from '@/lib/toast'
-import {
-  useMyRole,
-  useTenantSettings,
-  useUpdateTenantSettings,
-  type TenantSettings,
-} from '@/queries/tenant.queries'
+import { useTenantSettings, useUpdateTenantSettings } from '@/queries/tenant-forms.queries'
+import { useMyRole, type TenantSettings } from '@/queries/tenant.queries'
 import { tenantSettingsFormSchema } from '@/schemas/tenant.schemas'
 
 /**

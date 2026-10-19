@@ -6,6 +6,7 @@ import {
   formErrorsFrom,
   messageFrom,
   READ_ONLY_MODE_MESSAGE,
+  retryAfterSecondsFrom,
   statusFrom,
 } from '@/lib/api-error'
 import type { ApiErrorBody } from '@/types/api.types'
@@ -29,7 +30,7 @@ const VALIDATION_FAILURE = axiosErrorWith({
   // The backend's shape: `z.flattenError`'s field errors, plus `formErrors` when there are any.
   errors: {
     email: ['Enter a valid email address.'],
-    formErrors: ['Passwords do not match.'],
+    formErrors: ['Change at least one field before you save.'],
   },
   requestId: 'req-1',
 })
@@ -40,8 +41,18 @@ describe('api-error', () => {
   })
 
   it('falls back for anything that is not an API error', () => {
-    expect(messageFrom(new Error('boom'))).toBe('Something went wrong. Please try again.')
-    expect(messageFrom(undefined)).toBe('Something went wrong. Please try again.')
+    expect(messageFrom(new Error('boom'))).toBe(
+      'We couldn’t complete that. Refresh the page, then try again.'
+    )
+    expect(messageFrom(undefined)).toBe(
+      'We couldn’t complete that. Refresh the page, then try again.'
+    )
+  })
+
+  it('says the server was not reached when no response arrived, with a next step', () => {
+    expect(messageFrom(new AxiosError('Network Error', 'ERR_NETWORK'))).toBe(
+      'We couldn’t reach the server. Check your connection, then try again.'
+    )
   })
 
   it('keeps the reserved formErrors key out of the field errors', () => {
@@ -53,7 +64,9 @@ describe('api-error', () => {
   })
 
   it('returns the schema-level issues separately, for form-level display', () => {
-    expect(formErrorsFrom(VALIDATION_FAILURE)).toEqual(['Passwords do not match.'])
+    expect(formErrorsFrom(VALIDATION_FAILURE)).toEqual([
+      'Change at least one field before you save.',
+    ])
   })
 
   it('reports the response status, and undefined when there was no response', () => {
@@ -66,7 +79,7 @@ describe('api-error', () => {
   it('returns empty collections when the body carries no validator detail', () => {
     const plain = axiosErrorWith({
       success: false,
-      message: 'Invalid email or password.',
+      message: 'Authentication required',
       statusCode: 401,
       requestId: 'req-2',
     })
@@ -78,7 +91,7 @@ describe('api-error', () => {
   it('reads the machine-readable code, and undefined when there is none', () => {
     const conflict = axiosErrorWith({
       success: false,
-      message: 'That person is already a member.',
+      message: 'That person is already a member of this workspace. No invitation was sent.',
       statusCode: 409,
       code: 'already_member',
       requestId: 'req-3',
@@ -111,4 +124,59 @@ describe('api-error', () => {
     })
     expect(messageFrom(refusal)).toBe('Upgrading the database. Back by 11:00.')
   })
+})
+
+describe('retryAfterSecondsFrom', () => {
+  /** An Axios error whose response carries the given headers. */
+  function errorWithHeaders(headers: Record<string, string>): AxiosError {
+    const config = { headers: new AxiosHeaders() }
+    return new AxiosError('Too many requests', '429', config, null, {
+      data: null,
+      status: 429,
+      statusText: 'Too Many Requests',
+      headers,
+      config,
+    })
+  }
+
+  /** An HTTP-date `seconds` from now. */
+  function httpDate(seconds: number): string {
+    return new Date(Date.now() + seconds * 1_000).toUTCString()
+  }
+
+  it.each([
+    ['42', 42],
+    ['0', 1],
+  ])('reads Retry-After %s', (value, expected) => {
+    expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': value }))).toBe(expected)
+  })
+
+  it('reads Retry-After as an HTTP date', () => {
+    const seconds = retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': httpDate(90) }))
+    // The date has whole-second resolution, so the answer is 90 less the truncated part.
+    expect(seconds).toBeGreaterThanOrEqual(89)
+    expect(seconds).toBeLessThanOrEqual(90)
+  })
+
+  it('answers at least 1 for a date in the past', () => {
+    expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': httpDate(-30) }))).toBe(1)
+  })
+
+  it('answers null without a response or header', () => {
+    expect(retryAfterSecondsFrom(new AxiosError('Network Error'))).toBeNull()
+    expect(retryAfterSecondsFrom(errorWithHeaders({}))).toBeNull()
+    expect(retryAfterSecondsFrom(new Error('boom'))).toBeNull()
+  })
+
+  it('answers null for a header it cannot parse', () => {
+    expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': 'soon' }))).toBeNull()
+    expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': '-5' }))).toBeNull()
+  })
+
+  it.each(['1.5', '1e3', '+5', '1.5.2', 'abc 12', '12 Mar', 'Mar 12 2030'])(
+    'answers null for the non-integer %s',
+    (value) => {
+      expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': value }))).toBeNull()
+    }
+  )
 })

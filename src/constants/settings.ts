@@ -61,7 +61,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     group: 'account',
     to: '/settings/account/security',
     label: 'Security',
-    description: 'Your password, sign-in methods and other sessions.',
+    description: 'Your sign-in methods and other sessions.',
     Icon: IconShieldLock,
   },
   {

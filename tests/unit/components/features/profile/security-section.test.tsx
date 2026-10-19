@@ -1,12 +1,10 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
-import { toast } from '@/lib/toast'
-import { authKeys } from '@/queries/auth.queries'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -34,15 +32,12 @@ function renderSecurity() {
   return router
 }
 
-/** Serves the account's sign-in methods: these providers, and whether it has a password. */
-function mockProviders(providers: string[], hasPassword: boolean) {
+/** Serves the account's sign-in methods: these providers. */
+function mockProviders(providers: string[]) {
   server.use(
     http.get('/api/v1/auth/providers', () =>
       ok(
-        {
-          providers: providers.map((provider) => ({ provider, linkedAt: LINKED_AT })),
-          hasPassword,
-        },
+        { providers: providers.map((provider) => ({ provider, linkedAt: LINKED_AT })) },
         'Auth providers retrieved.'
       )
     )
@@ -52,15 +47,6 @@ function mockProviders(providers: string[], hasPassword: boolean) {
 /** The Security region, once the profile route has rendered it. */
 async function section() {
   return within(await screen.findByRole('region', { name: 'Security' }))
-}
-
-/** Fills in the change-password form, confirming with `next` unless told otherwise, and submits it. */
-async function fillAndSubmit(current: string, next: string, confirm = next) {
-  const user = userEvent.setup()
-  await user.type(await screen.findByLabelText('Current password'), current)
-  await user.type(screen.getByLabelText('New password'), next)
-  await user.type(screen.getByLabelText('Confirm new password'), confirm)
-  await user.click(screen.getByRole('button', { name: 'Change password' }))
 }
 
 afterEach(() => {
@@ -79,178 +65,69 @@ describe('security section', () => {
     })
   })
 
-  it('holds the sign-in methods and the password form’s place while the methods load', async () => {
+  it('holds the sign-in methods’ place while they load', async () => {
     server.use(http.get('/api/v1/auth/providers', () => new Promise<Response>(() => {})))
     renderSecurity()
     const busy = await screen.findByRole('region', { name: 'Security' })
     expect(busy.querySelector('[data-slot="query-state"][aria-busy="true"]')).not.toBeNull()
-    // Two headings, two method rows, three label-and-input pairs and the button bar.
-    expect(busy.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(11)
+    // One heading and two method rows.
+    expect(busy.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(3)
     expect(screen.getByRole('button', { name: 'Sign out other sessions' })).toBeVisible()
   })
 
-  it('lists a password and Google, and never the raw email row', async () => {
-    mockProviders(['email', 'google'], true)
+  it('lists Email link with the masked address, and Google when linked', async () => {
+    mockProviders(['email', 'google'])
     renderSecurity()
 
     const security = await section()
-    expect(await security.findByText('Email & password')).toBeInTheDocument()
+    const rows = await security.findAllByRole('listitem')
+    expect(rows.map((row) => row.textContent)).toEqual([`Email link (${testUser.email})`, 'Google'])
+    expect(security.getByText(testUser.email)).toHaveClass('ph-sensitive', 'ph-mask')
     expect(security.getByRole('heading', { level: 2, name: 'Security' })).toHaveClass('sr-only')
-    expect(security.getByText('Google')).toBeInTheDocument()
     expect(security.queryByText('email')).not.toBeInTheDocument()
   })
 
+  it('lists only Email link without Google', async () => {
+    mockProviders(['email'])
+    renderSecurity()
+
+    const rows = await (await section()).findAllByRole('listitem')
+    expect(rows.map((row) => row.textContent)).toEqual([`Email link (${testUser.email})`])
+  })
+
   it('shows an unrecognised provider by its own name', async () => {
-    mockProviders(['email', 'github'], true)
+    mockProviders(['email', 'github'])
     renderSecurity()
 
     expect(await (await section()).findByText('github')).toBeInTheDocument()
   })
 
-  it('replaces the form with a note on a Google-only account', async () => {
-    // A Google sign-up has an 'email' row too; `hasPassword` is what decides.
-    mockProviders(['email', 'google'], false)
-    renderSecurity()
-
-    const security = await section()
-    expect(
-      await security.findByText(
-        'This account signs in with Google only. To add a password, use Forgot password on the sign-in page.'
-      )
-    ).toBeInTheDocument()
-    expect(security.getByText('Google')).toBeInTheDocument()
-    expect(security.queryByText('Email & password')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
-  })
-
-  it('refuses a mismatched confirmation without touching the network', async () => {
-    let called = false
+  it('ignores a hasPassword field the API may still send', async () => {
     server.use(
-      http.post('/api/v1/auth/change-password', () => {
-        called = true
-        return ok(null, 'Password has been changed.')
-      })
-    )
-    renderSecurity()
-    await fillAndSubmit('old-password', 'a-long-enough-password', 'a-different-password-9')
-
-    expect(await screen.findByText('Passwords do not match.')).toBeInTheDocument()
-    expect(called).toBe(false)
-  })
-
-  it('holds the new password to the registration rule', async () => {
-    let called = false
-    server.use(
-      http.post('/api/v1/auth/change-password', () => {
-        called = true
-        return ok(null, 'Password has been changed.')
-      })
-    )
-    renderSecurity()
-    await fillAndSubmit('old-password', 'short')
-
-    expect(
-      await screen.findByText('Password must be at least 15 characters long.')
-    ).toBeInTheDocument()
-    expect(called).toBe(false)
-  })
-
-  it('posts only the two passwords, confirms, and clears the form', async () => {
-    let body: unknown
-    server.use(
-      http.post('/api/v1/auth/change-password', async ({ request }) => {
-        body = await request.json()
-        return ok(null, 'Password has been changed.')
-      })
-    )
-    renderSecurity()
-    await fillAndSubmit('old-password', 'a-long-enough-password')
-
-    expect(
-      await screen.findByText('Password changed. Other sessions were signed out.')
-    ).toBeInTheDocument()
-    expect(body).toEqual({ currentPassword: 'old-password', newPassword: 'a-long-enough-password' })
-    await waitFor(() => {
-      expect(screen.getByLabelText('Current password')).toHaveValue('')
-    })
-    expect(screen.getByLabelText('New password')).toHaveValue('')
-    expect(screen.getByLabelText('Confirm new password')).toHaveValue('')
-  })
-
-  it('puts a wrong current password on that field, once, with no toast', async () => {
-    const toastError = vi.spyOn(toast, 'error')
-    server.use(
-      http.post('/api/v1/auth/change-password', () => fail('Current password is incorrect.', 400))
-    )
-    renderSecurity()
-    await fillAndSubmit('wrong-password', 'a-long-enough-password')
-
-    const current = screen.getByLabelText('Current password')
-    await waitFor(() => {
-      expect(current).toHaveAccessibleDescription('Current password is incorrect.')
-    })
-    expect(current).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.getAllByText('Current password is incorrect.')).toHaveLength(1)
-    expect(toastError).not.toHaveBeenCalled()
-  })
-
-  it('puts an unchanged password on the new-password field', async () => {
-    server.use(
-      http.post('/api/v1/auth/change-password', () =>
-        fail('New password must be different from the current password.', 400)
-      )
-    )
-    renderSecurity()
-    await fillAndSubmit('a-long-enough-password', 'a-long-enough-password')
-
-    await waitFor(() => {
-      expect(screen.getByLabelText('New password')).toHaveAccessibleDescription(
-        'New password must be different from the current password.'
-      )
-    })
-  })
-
-  it("maps the server's field errors onto their fields", async () => {
-    server.use(
-      http.post('/api/v1/auth/change-password', () =>
-        HttpResponse.json(
-          {
-            success: false,
-            message: 'Validation failed',
-            statusCode: 400,
-            errors: { newPassword: ['Password is too long.'] },
-            requestId: 'test-request-id',
-          },
-          { status: 400 }
+      http.get('/api/v1/auth/providers', () =>
+        ok(
+          { providers: [{ provider: 'email', linkedAt: LINKED_AT }], hasPassword: true },
+          'Auth providers retrieved.'
         )
       )
     )
     renderSecurity()
-    await fillAndSubmit('old-password', 'a-long-enough-password')
 
-    await waitFor(() => {
-      expect(screen.getByLabelText('New password')).toHaveAccessibleDescription(
-        'Password is too long.'
-      )
-    })
-    expect(screen.queryByText('Validation failed')).not.toBeInTheDocument()
+    const rows = await (await section()).findAllByRole('listitem')
+    expect(rows).toHaveLength(1)
   })
 
-  it('shows a rate-limited attempt at form level, against no field', async () => {
-    server.use(
-      http.post('/api/v1/auth/change-password', () =>
-        fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED')
-      )
-    )
+  it('shows no password control or wording', async () => {
+    mockProviders(['email', 'google'])
     renderSecurity()
-    await fillAndSubmit('old-password', 'a-long-enough-password')
 
-    const message = await screen.findByText('Too many attempts. Please try again later.')
-    expect(message.closest('[role="alert"]')).not.toBeNull()
-    expect(screen.getByLabelText('Current password')).toHaveAttribute('aria-invalid', 'false')
+    const security = await section()
+    await security.findAllByRole('listitem')
+    expect(screen.queryByText(/password/i)).toBeNull()
+    expect(screen.queryByLabelText(/password/i)).toBeNull()
   })
 
-  it('offers a retry when the sign-in methods fail to load', async () => {
+  it('shows the load error for a failed providers read', async () => {
     let calls = 0
     server.use(
       http.get('/api/v1/auth/providers', () => {
@@ -259,7 +136,7 @@ describe('security section', () => {
         return calls <= 2
           ? fail('Something went wrong.', 500)
           : ok(
-              { providers: [{ provider: 'email', linkedAt: LINKED_AT }], hasPassword: true },
+              { providers: [{ provider: 'email', linkedAt: LINKED_AT }] },
               'Auth providers retrieved.'
             )
       })
@@ -268,34 +145,12 @@ describe('security section', () => {
     renderSecurity()
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('We could not load your sign-in methods.')
+    expect(alert).toHaveTextContent(
+      'We couldn’t load your sign-in methods. Select Try again to load them.'
+    )
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
 
-    expect(await screen.findByLabelText('Current password')).toBeInTheDocument()
-  })
-
-  it('keeps this device signed in after a successful change', async () => {
-    const toastSuccess = vi.spyOn(toast, 'success')
-    mockProviders(['email'], true)
-    server.use(http.post('/api/v1/auth/change-password', () => ok(null, 'Password changed.')))
-    let refreshCalls = 0
-    server.use(
-      http.post('/api/v1/auth/refresh', () => {
-        refreshCalls += 1
-        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
-      })
-    )
-    const router = renderSecurity()
-    await fillAndSubmit('old-passphrase-1', 'new-passphrase-2')
-
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalled())
-    expect(useAuthStore.getState().accessToken).toBe('access-token')
-    expect(await screen.findByRole('region', { name: 'Security' })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/settings/account/security')
-    await act(() => queryClient.refetchQueries({ queryKey: authKeys.providers }))
-    expect(queryClient.getQueryState(authKeys.providers)?.status).toBe('success')
-    // A password change keeps this device's token, so it must never trigger a refresh.
-    expect(refreshCalls).toBe(0)
+    expect(await screen.findByText(`Email link (`, { exact: false })).toBeInTheDocument()
   })
 })
 
@@ -327,7 +182,7 @@ describe('sign out other sessions', () => {
   }
 
   it('posts an empty JSON body and says how many sessions it ended', async () => {
-    mockProviders(['email'], true)
+    mockProviders(['email'])
     const requests = mockRevokeOthers(2)
     const user = userEvent.setup()
     renderSecurity()
@@ -342,7 +197,7 @@ describe('sign out other sessions', () => {
   })
 
   it('says one session in the singular, and none when there were none', async () => {
-    mockProviders(['email'], true)
+    mockProviders(['email'])
     mockRevokeOthers(1)
     const user = userEvent.setup()
     renderSecurity()
@@ -353,11 +208,11 @@ describe('sign out other sessions', () => {
 
     mockRevokeOthers(0)
     await user.click(button)
-    expect(await screen.findByText('No other sessions were signed in.')).toBeInTheDocument()
+    expect(await screen.findByText('You have no other sessions.')).toBeInTheDocument()
   })
 
   it('is offered on a Google-only account too', async () => {
-    mockProviders(['email', 'google'], false)
+    mockProviders(['email', 'google'])
     renderSecurity()
 
     const button = await (
@@ -367,12 +222,12 @@ describe('sign out other sessions', () => {
     })
     expect(button).toBeEnabled()
     expect(button).toHaveAccessibleDescription(
-      'Signs you out on every other browser and device. You stay signed in here.'
+      'This ends every other browser and device session. You stay signed in here.'
     )
   })
 
   it('switches the button off while it signs out, so a second click sends nothing', async () => {
-    mockProviders(['email'], true)
+    mockProviders(['email'])
     let calls = 0
     /** Lets the held revoke request answer. */
     let release = () => {}
@@ -401,10 +256,10 @@ describe('sign out other sessions', () => {
   })
 
   it('shows the server’s message when it is refused', async () => {
-    mockProviders(['email'], true)
+    mockProviders(['email'])
     server.use(
       http.post('/api/v1/auth/sessions/revoke-others', () =>
-        fail('Too many attempts. Please try again later.', 429, 'RATE_LIMITED')
+        fail('Too many attempts. Try again in 15 minutes.', 429, 'RATE_LIMITED')
       )
     )
     const user = userEvent.setup()
@@ -414,7 +269,7 @@ describe('sign out other sessions', () => {
       await (await section()).findByRole('button', { name: 'Sign out other sessions' })
     )
     expect(
-      await screen.findByText('Too many attempts. Please try again later.')
+      await screen.findByText('Too many attempts. Try again in 15 minutes.')
     ).toBeInTheDocument()
   })
 })

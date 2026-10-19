@@ -1,7 +1,7 @@
 /**
  * @file Helpers for the `live` e2e project: accounts and tenants made through a
- * real express's API and Mailpit, a sign-in through the UI, and a guarded
- * restart of the express under test.
+ * real express's API and Mailpit, signed in by emailed link through the API or
+ * the UI, and a guarded restart of the express under test.
  */
 import { execFile as execFileCallback, spawn } from 'node:child_process'
 import { readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -28,22 +28,21 @@ import {
   type RecordedServer,
   type Supervisor,
 } from '../../scripts/api-restart-guard.mjs'
+import { mailedLink } from '../capture/mailpit'
 import { settle } from '../timing'
 
 const execFile = promisify(execFileCallback)
 
 /** Where the express under test listens: `E2E_API_ORIGIN`, default :4040. */
 export const API_ORIGIN = process.env.E2E_API_ORIGIN ?? 'http://localhost:4040'
-const MAILPIT_ORIGIN = process.env.E2E_MAILPIT_ORIGIN ?? 'http://localhost:8025'
-
-/** The password every e2e account uses. Long enough for the register schema. */
-export const PASSWORD = 'a very long passphrase for e2e'
 
 /**
- * A unique e2e address per call, because the login limiter is keyed `ip:email`
- * (`rate-limit.constants.ts:loginRateLimitKey`) at five attempts per fifteen
- * minutes. A fixed address would rate-limit reruns for the rest of the window,
- * which reads as a broken test rather than a spent bucket.
+ * A unique e2e address per call. Express mails one address at most one
+ * sign-in link a minute (`SIGN_IN_LINK_MAIL_COOLDOWN`) and ten a day
+ * (`SIGN_IN_LINK_RECIPIENT_DAILY_LIMIT`), answering 202 either way, so a fixed
+ * address would leave reruns waiting on links that never arrive. The per-IP
+ * limiter (ten link requests per fifteen minutes) holds whatever the address;
+ * `RATE_LIMIT_SCALE` on the API under test widens it.
  */
 export function freshEmail(): string {
   return `e2e-${Date.now()}-${Math.floor(Math.random() * 1e4)}@example.com`
@@ -55,69 +54,167 @@ async function json(url: string, init?: RequestInit) {
   return { status: response.status, body: (await response.json().catch(() => null)) as unknown }
 }
 
-/**
- * Registers an account through the API and verifies it, so the browser can sign in.
- *
- * Verification is required: `/auth/register` answers 202 with "If that address
- * can be registered…" and login stays 401 until the address is verified. The
- * link only exists in the email, so Mailpit is a required part of this stack.
- */
-export async function createVerifiedUser(email: string): Promise<void> {
-  const registered = await json(`${API_ORIGIN}/api/v1/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: PASSWORD }),
-  })
-  if (registered.status !== 202 && registered.status !== 201) {
-    throw new Error(`register failed: ${registered.status} ${JSON.stringify(registered.body)}`)
-  }
-
-  const token = await verificationTokenFor(email)
-
-  // Both fields: express answers a body that fails `verifyEmailSchema` with the same "Invalid or expired verification token" a bad token gets, so omitting the password looks like a dead token.
-  const verified = await json(`${API_ORIGIN}/api/v1/auth/verify-email`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, password: PASSWORD }),
-  })
-  if (verified.status !== 200) {
-    throw new Error(`verify failed: ${verified.status} ${JSON.stringify(verified.body)}`)
-  }
-}
-
-/** The token in the newest verification email to `email`, or '' while none has arrived. */
-async function verificationTokenInMailpit(email: string): Promise<string> {
-  const search = await fetch(
-    `${MAILPIT_ORIGIN}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`
-  )
-  const found = (await search.json()) as { messages?: { ID: string }[] }
-  const id = found.messages?.[0]?.ID
-  if (!id) return ''
-  const message = await fetch(`${MAILPIT_ORIGIN}/api/v1/message/${id}`)
-  const body = (await message.json()) as { Text?: string; HTML?: string }
-  return /[?&]token=([a-f0-9]+)/i.exec(`${body.Text ?? ''}${body.HTML ?? ''}`)?.[1] ?? ''
+/** A session the API issued: its access token and the refresh cookie it set. */
+interface LiveSession {
+  accessToken: string
+  refreshCookie: { name: string; value: string; path: string }
 }
 
 /**
- * Polls Mailpit for the verification link and returns its token. A Mailpit that
- * is down fails at once: `expect.poll` does not retry a callback that throws.
+ * The session `createUser` signed each address in with, kept for one browser:
+ * `logIn` hands its refresh cookie to a page once, since the cookie rotates on
+ * its first use and a second holder would be refused.
  */
-async function verificationTokenFor(email: string): Promise<string> {
-  let token = ''
-  await expect
-    .poll(
-      async () => {
-        token = await verificationTokenInMailpit(email)
-        return token
-      },
-      {
-        message: `no verification email arrived for ${email} — is mailpit up on ${MAILPIT_ORIGIN}?`,
-        intervals: [500],
-        timeout: 15_000,
-      }
+const keptSessions = new Map<string, { session: LiveSession; used: boolean }>()
+
+/**
+ * Express's default `SIGN_IN_LINK_MAIL_COOLDOWN` (one minute), with a second
+ * of margin: inside it, a second link request to the same address is
+ * answered 202 and mails nothing.
+ */
+const MAIL_COOLDOWN_MS = 61_000
+
+/** When these helpers last asked for a link to each address. */
+const lastLinkRequest = new Map<string, number>()
+
+/**
+ * Waits out the mail cooldown for `email` when these helpers had a link sent
+ * to it less than a minute ago. Call `linkRequested` once the request is
+ * answered.
+ * @returns The time to pass to `mailedLink` as `since`, read before the request.
+ */
+async function linkRequestSlot(email: string): Promise<number> {
+  const last = lastLinkRequest.get(email)
+  const wait = last === undefined ? 0 : last + MAIL_COOLDOWN_MS - Date.now()
+  if (wait > 0) await settle(wait, 'express mails one sign-in link per address per minute')
+  return Date.now()
+}
+
+/**
+ * Records that a link request for `email` was answered. Read after the 202:
+ * express starts the cooldown after it replies, so a time read before the
+ * request would end the wait early by the request's own latency.
+ */
+function linkRequested(email: string): void {
+  lastLinkRequest.set(email, Date.now())
+}
+
+/** What a 429 from `/auth/link/request` means here: express allows ten per fifteen minutes per IP. */
+const RATE_LIMITED = 'sign-in link rate limit hit: set RATE_LIMIT_SCALE on the API under test'
+
+/**
+ * Asks the API to mail `email` a sign-in link, as the sign-in page does.
+ * @returns The time to pass to `mailedLink` as `since`.
+ * @throws On a 429, naming `RATE_LIMIT_SCALE`, and on any answer but 202.
+ */
+export async function requestSignInLink(email: string): Promise<number> {
+  const since = await linkRequestSlot(email)
+  const requested = await json(`${API_ORIGIN}/api/v1/auth/link/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, app: 'web' }),
+  })
+  if (requested.status === 429) throw new Error(RATE_LIMITED)
+  if (requested.status !== 202) {
+    throw new Error(`link request failed: ${requested.status} ${JSON.stringify(requested.body)}`)
+  }
+  linkRequested(email)
+  return since
+}
+
+/**
+ * express's refresh cookie names: plain, or with the `__Host-` or `__Secure-`
+ * prefix it takes when `COOKIE_SECURE` is on.
+ */
+export const REFRESH_COOKIE_NAME = /^(__Host-|__Secure-)?refreshToken$/
+
+/**
+ * The refresh cookie in a response's `Set-Cookie` headers, or `null`.
+ * @param headers - The response headers.
+ */
+function refreshCookieFrom(headers: Headers): LiveSession['refreshCookie'] | null {
+  for (const cookie of headers.getSetCookie()) {
+    const [pair = '', ...attributes] = cookie.split(';').map((part) => part.trim())
+    const split = pair.indexOf('=')
+    const name = pair.slice(0, split)
+    if (split < 1 || !REFRESH_COOKIE_NAME.test(name)) continue
+    const path = attributes.find((attribute) => /^path=/i.test(attribute))?.slice(5) ?? '/'
+    return { name, value: pair.slice(split + 1), path }
+  }
+  return null
+}
+
+/**
+ * Posts a mailed link's token, with the link's address, to the endpoint that
+ * spends it, as the page that opens the link does.
+ * @param endpoint - `/auth/link/verify` or `/invitations/confirm`, under /api/v1.
+ * @param link - The mailed link.
+ * @returns The session it signed in.
+ */
+async function spendLink(endpoint: string, link: URL): Promise<LiveSession> {
+  const response = await fetch(`${API_ORIGIN}/api/v1${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      token: link.searchParams.get('token'),
+      email: link.searchParams.get('email') ?? undefined,
+    }),
+  })
+  const body = (await response.json().catch(() => null)) as {
+    data?: { accessToken?: string }
+  } | null
+  const accessToken = body?.data?.accessToken
+  const refreshCookie = refreshCookieFrom(response.headers)
+  if (response.status !== 200 || !accessToken || !refreshCookie) {
+    throw new Error(`${endpoint} failed: ${response.status} ${JSON.stringify(body)}`)
+  }
+  return { accessToken, refreshCookie }
+}
+
+/**
+ * Signs `email` in through the API the way a person does: request a link,
+ * read it from Mailpit, post its token. The click creates the account when
+ * the address has none. The session is kept, unused, for `logIn` and
+ * `apiLogin`. Mailpit is a required part of this stack: the link only exists
+ * in the email.
+ */
+export async function createUser(email: string): Promise<LiveSession> {
+  const since = await requestSignInLink(email)
+  const session = await spendLink('/auth/link/verify', await mailedLink(email, '/auth/link', since))
+  keptSessions.set(email, { session, used: false })
+  return session
+}
+
+/**
+ * Joins `email`'s existing account to an invitation the way the accept page
+ * does when it is signed out: the verify answers 202 and mails a confirmation
+ * link, which is then followed. The confirm signs the account in, and that
+ * session replaces any kept one.
+ * @param email - The invited address, which already has an account.
+ * @param invitationToken - The token from the invitation email.
+ * @returns The session the confirmation signed in.
+ */
+export async function joinByConfirmation(
+  email: string,
+  invitationToken: string
+): Promise<LiveSession> {
+  const since = Date.now()
+  const verified = await json(`${API_ORIGIN}/api/v1/invitations/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: invitationToken }),
+  })
+  if (verified.status !== 202) {
+    throw new Error(
+      `invitation verify did not ask to confirm: ${verified.status} ${JSON.stringify(verified.body)}`
     )
-    .not.toBe('')
-  return token
+  }
+  const session = await spendLink(
+    '/invitations/confirm',
+    await mailedLink(email, '/invitations/confirm', since)
+  )
+  keptSessions.set(email, { session, used: false })
+  return session
 }
 
 /** Whether the API answers its readiness probe. */
@@ -436,41 +533,83 @@ export async function restartApi(): Promise<{ stoppedPids: number[]; startedPids
 }
 
 /**
- * Signs an existing, verified account in through the UI, leaving the browser
- * with a real session and refresh cookie.
+ * Signs in through the sign-in page and the mailed link, as a person does:
+ * fill Email, ask for the link, wait for "Check your inbox", then open the
+ * link. Lands wherever the link page sends the account, which is never
+ * `/login` or `/auth/link`.
  *
- * The fields are matched by their exact label, never `/email/i`: with the
+ * The field is matched by its exact label, never `/email/i`: with the
  * TanStack Router devtools open the dev server also renders route-match
- * buttons labelled "Open match details for /verify-email" (and likewise for
- * forgot-password and reset-password against `/password/i`), so a loose pattern
- * matches several elements and Playwright's strict mode throws.
+ * buttons labelled with route paths, so a loose pattern matches several
+ * elements and Playwright's strict mode throws.
  */
-export async function logIn(page: Page, email: string): Promise<void> {
+async function signInThroughPage(page: Page, email: string): Promise<void> {
+  const since = await linkRequestSlot(email)
   await page.goto('/login')
   await page.getByRole('textbox', { name: 'Email', exact: true }).fill(email)
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
-  await page.getByRole('button', { name: /sign in|log in/i }).click()
-  await expect(page).not.toHaveURL(/login/, { timeout: 15_000 })
+  const requested = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/v1/auth/link/request'
+  )
+  await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+  if ((await requested).status() === 429) throw new Error(RATE_LIMITED)
+  linkRequested(email)
+  await expect(page.getByRole('heading', { name: 'Check your inbox', level: 1 })).toBeVisible()
+  const link = await mailedLink(email, '/auth/link', since)
+  await page.goto(`${link.pathname}${link.search}`)
+  await expect(page).not.toHaveURL(/\/(login|auth\/link)(\?|$)/, { timeout: 15_000 })
 }
 
-/** Registers and verifies an account through the API, then signs it in through the UI. */
-export async function signIn(page: Page, email: string): Promise<void> {
-  await createVerifiedUser(email)
-  await logIn(page, email)
-}
-
-/** An access token straight from the API, for requests made outside the browser: the SPA's token lives in memory only. */
-export async function apiLogin(email: string): Promise<string> {
-  const response = await json(`${API_ORIGIN}/api/v1/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: PASSWORD }),
-  })
-  const token = (response.body as { data?: { accessToken?: string } } | null)?.data?.accessToken
-  if (response.status !== 200 || !token) {
-    throw new Error(`login failed: ${response.status} ${JSON.stringify(response.body)}`)
+/**
+ * Signs `email` in on `page`, leaving the browser with a real session and
+ * refresh cookie. While `createUser`'s session for the address is unused, its
+ * refresh cookie goes into the page's context and the page opens the
+ * dashboard, which restores the session; the session is then used. Otherwise
+ * it signs in through the page and a newly mailed link, waiting out the
+ * address's mail cooldown first.
+ */
+export async function logIn(page: Page, email: string): Promise<void> {
+  const kept = keptSessions.get(email)
+  if (!kept || kept.used) {
+    await signInThroughPage(page, email)
+    return
   }
-  return token
+  kept.used = true
+  // The origin is the page's own, which may be the dev server or the production image.
+  await page.goto('/login')
+  const { hostname } = new URL(page.url())
+  const { name, value, path } = kept.session.refreshCookie
+  await page.context().addCookies([
+    {
+      name,
+      value,
+      domain: hostname,
+      path,
+      httpOnly: true,
+      sameSite: 'Strict',
+      // A prefixed cookie is dropped without `Secure`.
+      secure: name.startsWith('__'),
+    },
+  ])
+  await page.goto('/dashboard')
+  await expect(page).not.toHaveURL(/\/(login|auth\/link)(\?|$)/, { timeout: 15_000 })
+}
+
+/** Signs a fresh address in through the page and its mailed link, which creates the account and lands on /welcome. */
+export async function signIn(page: Page, email: string): Promise<void> {
+  await signInThroughPage(page, email)
+  await expect(page).toHaveURL(/\/welcome$/)
+}
+
+/**
+ * An access token straight from the API, for requests made outside the
+ * browser: the SPA's token lives in memory only. It is the kept session's,
+ * or a new `createUser` sign-in's when the address has none.
+ */
+export async function apiLogin(email: string): Promise<string> {
+  const kept = keptSessions.get(email)
+  return (kept?.session ?? (await createUser(email))).accessToken
 }
 
 /** One authenticated API call, answered with its status and parsed body. */

@@ -17,9 +17,9 @@ import { server } from '@/tests/mocks/server'
 const unreadRow: Notification = {
   id: NOTIFICATION_ID,
   userId: testUser.id,
-  type: 'verify_email',
-  title: 'Verify your email',
-  body: 'Follow the link we sent you.',
+  type: 'tenant_invitation',
+  title: 'You are invited to Acme',
+  body: 'A B invited you to join Acme Corp.',
   metadata: null,
   readAt: null,
   createdAt: '2026-09-21T10:00:00.000Z',
@@ -83,7 +83,7 @@ describe('notifications page', () => {
   it('shows the inbox as cards at every width, with a search box and paging', async () => {
     renderNotifications()
     const cards = await screen.findByRole('list', { name: 'Notifications' })
-    expect(within(cards).getByRole('listitem')).toHaveTextContent('Verify your email')
+    expect(within(cards).getByRole('listitem')).toHaveTextContent('You are invited to Acme')
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: 'Search notifications' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Notifications pagination' })).toBeInTheDocument()
@@ -362,6 +362,72 @@ describe('notifications page', () => {
       await user.click(screen.getByRole('button', { name: 'Mark "Second" as read' }))
 
       await waitFor(() => expect(card('Second')).toHaveFocus())
+    })
+  })
+
+  describe('Mark all read', () => {
+    /** Serves an inbox whose unread total is `count`, and a read-all answer that zeroes it. */
+    function serveUnread(count: number) {
+      let unread = count
+      server.use(
+        http.get('/api/v1/notifications', () =>
+          ok(
+            listPage([unreadRow], {}, { count: unread, capped: false }),
+            'Notifications retrieved.'
+          )
+        ),
+        http.patch('/api/v1/notifications/read-all', () => {
+          unread = 0
+          return ok({ count: 1 }, 'Marked read.')
+        })
+      )
+    }
+
+    it('keeps Mark all read in place, disabled, when nothing is unread', async () => {
+      serveUnread(0)
+      renderNotifications()
+      await screen.findByRole('list', { name: 'Notifications' })
+
+      expect(screen.getByRole('button', { name: 'Mark all read' })).toBeDisabled()
+    })
+
+    it('enables it with unread notifications', async () => {
+      serveUnread(2)
+      renderNotifications()
+      await screen.findByRole('button', { name: 'Notifications, 2 unread' })
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Mark all read' })).toBeEnabled()
+      )
+    })
+
+    it('keeps it after marking the last one read', async () => {
+      serveUnread(1)
+      const user = userEvent.setup()
+      renderNotifications()
+      const button = await screen.findByRole('button', { name: 'Mark all read' })
+      await waitFor(() => expect(button).toBeEnabled())
+
+      await user.click(button)
+
+      await waitFor(() => expect(button).toBeDisabled())
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1, name: 'Notifications' })).toHaveFocus()
+      )
+    })
+
+    it('keeps focus on Mark all read when the request fails', async () => {
+      serveUnread(1)
+      server.use(http.patch('/api/v1/notifications/read-all', () => fail('Server error', 500)))
+      const user = userEvent.setup()
+      renderNotifications()
+      const button = await screen.findByRole('button', { name: 'Mark all read' })
+      await waitFor(() => expect(button).toBeEnabled())
+
+      await user.click(button)
+
+      await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'))
+      expect(button).toHaveFocus()
     })
   })
 

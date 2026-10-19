@@ -14,11 +14,24 @@ const RELATIVE_BASE = 'http://relative.invalid'
 /** An absolute http(s) URL, the shape every URL-valued posthog-js property takes. */
 const ABSOLUTE_HTTP_URL = /^https?:\/\//i
 
+/**
+ * The only shape an allowlisted `utm_*` value may take: the fixed constants
+ * express writes on the links it mails. An address, a dot, uppercase or a long
+ * or token-shaped value fails it, and the key is dropped with its value.
+ */
+const CAMPAIGN_VALUE = /^[a-z0-9_-]{1,64}$/
+
+/** Whether an allowlisted key keeps this value: a campaign key only with a constant-shaped one. */
+function keepsValue(key: string, value: string): boolean {
+  return !key.startsWith('utm_') || CAMPAIGN_VALUE.test(value)
+}
+
 /** The `href="…"` and `attr__href="…"` segments of an `$elements_chain`. */
 const CHAIN_HREF = /(?<!\w)((?:attr__)?href=")((?:\\.|[^"\\])*)(")/g
 
 /**
- * The URL with only `allowlist` query keys kept, in their order, and no hash,
+ * The URL with only `allowlist` query keys kept, in their order (a `utm_*`
+ * key only when its value is constant-shaped), and no hash,
  * credentials or fragment. A relative URL stays relative. A non-http(s) URL
  * (`mailto:`, `tel:`) keeps only its scheme, since its address is the payload.
  * @param url - Absolute or relative.
@@ -36,7 +49,7 @@ export function sanitizeUrl(url: string, allowlist: readonly string[]): string {
 
   const kept = new URLSearchParams()
   for (const [key, value] of parsed.searchParams) {
-    if (allowlist.includes(key)) kept.append(key, value)
+    if (allowlist.includes(key) && keepsValue(key, value)) kept.append(key, value)
   }
   const query = kept.toString()
   const isRelative = parsed.origin === RELATIVE_BASE && !url.startsWith(RELATIVE_BASE)

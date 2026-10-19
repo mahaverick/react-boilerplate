@@ -17,7 +17,7 @@ import {
   type FakePosthogEvent,
 } from '../helpers/fake-posthog'
 import { settle } from '../timing'
-import { requireServedApp } from './csp'
+import { requireServedApp, routeSignInLinkChunk } from './csp'
 
 /** The `GIT_SHA` the image under test was built with; CI's e2e image takes none. */
 const RELEASE = process.env.E2E_RELEASE ?? 'dev'
@@ -325,11 +325,11 @@ test.describe('error tracking against a fake PostHog', () => {
     { tag: '@no-api' },
     async ({ page }) => {
       let isBlocked = false
-      await page.route(/\/assets\/forgot-password[^/]*\.js$/, async (route) => {
+      await routeSignInLinkChunk(page, async (route) => {
         isBlocked = true
         await route.abort('failed')
       })
-      await page.goto('/forgot-password')
+      await page.goto('/auth/link')
       await expect(
         page.getByRole('heading', { name: 'A new version is available', level: 1 })
       ).toBeVisible()

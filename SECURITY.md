@@ -90,17 +90,43 @@ browser storage is readable by whoever runs the page, so:
     not a bad session; it rejects untouched for the caller to handle;
   - any other 401 on a request that carried a bearer token: sign this tab
     out, broadcast the logout and redirect to `/login`;
-  - a 401 on a request with no token (the sign-in form): a wrong password,
-    not a session verdict.
+  - a 401 on a request with no token (a link request or a token page's
+    verify): an answer about that request, not a session verdict.
 - **`skipAuthRetry` opts a request out of both paths.** It is set on the two
   requests a refresh makes (re-entering `ensureSession()` there would await
-  itself), on `POST /auth/logout`, and on the invitation preview, which is
-  asked as a stranger.
+  itself), on `POST /auth/logout`, and on every request a signed-out visitor
+  makes with a mailed link: the link request, the link verify, and the
+  invitation preview, verify and confirm, each sent with no bearer.
 - **Every tab follows a sign-out.** A sign-out posts `logout` on the `auth`
   BroadcastChannel; a tab that hears it while signed in clears its store and
   loads `/login`. A tab that is not signed in ignores it, and a refresh that
   fails in such a tab broadcasts nothing, so it cannot sign out a sibling
   that just logged in.
+- **A sign-in in one tab reaches only a tab that waits for it.** The page
+  that spends a sign-in or invitation-confirm link posts `signed_in`, with no
+  data. Only a tab with a link out listens: the sign-in form's "Check your
+  inbox" step, and the accept page while its confirmation link is out (its
+  Try again panel after a failed Resend included). It acts only while it is
+  signed out; it restores the shared session through `ensureSession()`, the
+  same refresh as a reload, so the message itself grants nothing. A tab that
+  is already signed in ignores it.
+- **A link never signs in over another account.** When a sign-in or
+  invitation link opens in a tab signed in as someone else, the page asks
+  first. "Continue" signs the current account out through the API (every
+  tab hears the logout) and reloads the page signed out before it posts the
+  token, so the token never travels with the other account's bearer. A
+  verify that still finds a different user in the store switches identity
+  fully before it signs in: the query cache, palette recents and analytics
+  identity are cleared, and the switch is broadcast.
+- **The page names the address it signs in.** A link carries its address,
+  and the sign-in page sends it back with the token; express refuses a
+  mismatch without spending the link. While verifying, the page shows the
+  link's address, then the address the server signed in. The confirm page
+  does the same with its link's address. The accept page names only the
+  address from the server's preview or answer, never one from the URL. This
+  is the mitigation for login CSRF, which any emailed link allows: an
+  attacker's own link would sign a victim into the attacker's account, so
+  the victim sees whose account it is.
 - **Choosing to sign out** (`useLogout` in `src/queries/auth.queries.ts`)
   asks the API first. The local session ends when the API confirms, or
   answers 401 because its session is already over; a network error, 5xx or
@@ -112,22 +138,31 @@ browser storage is readable by whoever runs the page, so:
   analytics resets and every flag value and exposure mark is dropped, so the
   next person never sees or sends the last one's (`installAnalyticsIdentity`
   in `src/http/session.ts`).
-- **The post-login redirect cannot leave the origin.** `?redirect=` arrives
-  from the URL bar. `safeRedirect` (`src/pages/_auth/login.tsx`) accepts only
-  a value starting with `/` that the URL parser resolves to this origin and
-  whose path does not start with `//`, which refuses `/\t/evil.example` and
-  `/..//evil.example`.
-- **Passwords.** A password being set (registration, reset, change) needs at
-  least 15 code points and at most 72 UTF-8 bytes, bcrypt's limit
-  (`src/schemas/auth.schemas.ts`); sign-in and email verification check
-  none, as the API does. Changing the password keeps this session; the API
-  revokes every other one.
-- **An already-verified link.** When `POST /auth/verify-email` answers 409
-  with `email_already_verified`, the verify page
-  (`src/pages/verify-email.tsx`) treats it as done, not as a failure: it shows
-  the API's message and a **Sign in** link to `/login`, and offers no
-  resend. The resend form shows the same message whatever the API answers,
-  so it never reveals whether an address needs verifying.
+- **A landing cannot leave the origin.** `safeRedirect`
+  (`src/lib/safe-redirect.ts`) accepts only a value starting with `/` that the
+  URL parser resolves to this origin, whose path does not start with `//`,
+  and whose resolved path is at most 2048 characters, the API's limit. It
+  refuses `/\t/evil.example` and `/..//evil.example`. Every landing passes
+  through it: `/login`'s `?redirect=`, the link's `redirect` hint, the verify
+  response's `redirect` and the Google callback's `?redirect=`. `/login` drops
+  an unsafe hint rather than sending it. No landing and no carried redirect
+  is ever a token page (`safeLanding` in `src/lib/landing.ts`): carried, its
+  token would be mailed again inside the new link; landed on, the page on
+  screen would never act on it. `safeLanding` decodes the path before the
+  check, as the router does before it matches, so `/auth/%6Cink` counts as
+  `/auth/link`, and a path that does not decode is refused. Each landing
+  replaces the token page in history, so Back never returns to it.
+- **A token is posted once per page load.** `/auth/link` and the invitation
+  pages post their token from a mutation that a ref-guarded effect fires, so
+  StrictMode's second run and a re-render never spend the link twice. A
+  query would post it again on refocus or reconnect. The invitation preview
+  is a query because it spends nothing. Every verify is sent
+  with no bearer and `skipAuthRetry`.
+- **No password anywhere.** Sign-in is by emailed link or Google. No page,
+  form, schema or query takes a password, and `/register`,
+  `/forgot-password`, `/reset-password` and `/verify-email` only redirect to
+  `/login?notice=sign-in-link`, dropping their `?token=` before anything
+  renders.
 
 ## CSP and headers
 
@@ -193,11 +228,15 @@ The policy is enforced, not report-only:
   there, not in `nginx.conf`.
 - **The access log keeps no query string.** Its server-level format
   records `$uri`, not `$request`, because every SPA route falls back to
-  `index.html`, including `/reset-password?token=…` and
-  `/verify-email?token=…`, whose tokens are credentials mailed to users.
-  `Referrer-Policy: no-referrer` keeps the page URL out of the logged
-  referrer. The invitation preview posts its token in a request body, so it
-  stays out of URLs and logs (`src/queries/invitation.queries.ts`).
+  `index.html`, including the token pages: `/auth/link?token=…&email=…`,
+  `/invitations/accept?token=…` and `/invitations/confirm?token=…&email=…`,
+  whose tokens are credentials mailed to users. `Referrer-Policy: no-referrer`
+  on every response keeps a token page's URL out of the referrer the browser
+  sends to any request it makes, and out of the logged referrer. The pages
+  carry no `<meta name="referrer">`: the header covers them in production,
+  and dev has no nginx and nothing secret to leak. Each page posts its token
+  in a request body, so it stays out of request URLs and logs
+  (`src/queries/auth.queries.ts`, `src/queries/invitation.queries.ts`).
 - **The error log can keep one.** nginx writes the full request line, query
   string included, into every upstream error message, and no log format
   changes that. A request-line leak happens at every level up to `error`, so
@@ -295,7 +334,13 @@ too.
   bodies or JSON-LD, and each recorded request URL is sanitised.
 - **Captured URLs keep only allowlisted query keys.**
   `ANALYTICS_URL_QUERY_ALLOWLIST` (`src/observability/telemetry/config.ts`)
-  is the whole list: `tab`; the sanitizer
+  is the whole list: `tab` and the campaign keys express puts on every link it
+  mails (`utm_source`, `utm_medium`, `utm_campaign`, `utm_content`), so a
+  mailed link's landing page view keeps its campaign while its `token` and
+  `email` go. The sanitizer keeps a `utm_*` value only when it matches
+  `^[a-z0-9_-]{1,64}$`, the shape of every value express sends, and otherwise
+  drops the key with its value; an `@`, a `.`, uppercase, or a value longer
+  than 64 characters never reaches PostHog. The sanitizer
   (`src/observability/telemetry/url-sanitizer.ts`) runs as `before_send` and
   rewrites every absolute http(s) string in an event's properties, `$set` and
   `$set_once`, to eight levels deep, plus the hrefs in `$elements` and
@@ -304,7 +349,9 @@ too.
   personal-data masking also covers `token`, `email`, `redirect`,
   `invitation`, `q`, `search`, `ph_did` and `ph_sid`. Add a key to the
   allowlist only when its values can never be a token, an address, a search
-  term or a redirect.
+  term or a redirect. The `utm_*` keys are the one exception: their values
+  arrive from the URL, so the sanitizer's value check above is what keeps an
+  address or a token out (the UTM rule of 2026-10-19).
 - **Events never cross people** (`guardEvent` in
   `src/observability/telemetry/telemetry.ts`). posthog-js adopts the
   identity cookie before every event, and where `config.ts` shares that

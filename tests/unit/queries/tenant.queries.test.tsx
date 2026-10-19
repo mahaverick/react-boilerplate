@@ -4,6 +4,7 @@ import { delay, http } from 'msw'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetSessionForTests } from '@/http/session'
+import { useUpdateTenantSettings } from '@/queries/tenant-forms.queries'
 import * as tenantQueries from '@/queries/tenant.queries'
 import {
   invitationsListOptions,
@@ -16,7 +17,6 @@ import {
   useMyRole,
   useResendInvitation,
   useRevokeInvitation,
-  useUpdateTenantSettings,
 } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 import {
@@ -210,7 +210,11 @@ describe('tenant invitation queries', () => {
   it('does not invalidate anything when the address is already a member', async () => {
     server.use(
       http.post('/api/v1/tenants/acme/invitations', () =>
-        fail('That person is already a member.', 409, 'already_member')
+        fail(
+          'That person is already a member of this workspace. No invitation was sent.',
+          409,
+          'already_member'
+        )
       )
     )
     seedCache()

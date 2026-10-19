@@ -14,15 +14,16 @@ export const API_PREFIX = '/api/v1'
 export const ROUTES = {
   home: '/',
   login: '/login',
-  register: '/register',
-  forgotPassword: '/forgot-password',
+  authLink: '/auth/link',
   dashboard: '/dashboard',
+  welcome: '/welcome',
   settings: '/settings',
   settingsProfile: '/settings/account/profile',
   settingsNotifications: '/settings/account/notifications',
   notifications: '/notifications',
   tenants: '/tenants',
   invitationAccept: '/invitations/accept',
+  invitationConfirm: '/invitations/confirm',
 } as const
 
 /** The API path for the Google OAuth start. Same-origin, so a plain anchor. */

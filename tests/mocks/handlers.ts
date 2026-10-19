@@ -38,6 +38,8 @@ export const testInvitation: TenantInvitation = {
   invitedBy: { id: USER_ID, firstName: 'A', lastName: 'B' },
   expiresAt: '2026-10-01T00:00:00.000Z',
   createdAt: '2026-09-24T00:00:00.000Z',
+  lastSentAt: null,
+  resendAvailableAt: null,
 }
 
 /** Sent to `testUser`'s own address, so a signed-in test user is the invitee. */
@@ -170,16 +172,26 @@ export const handlers = [
   http.patch('/api/v1/profile', async ({ request }) =>
     ok({ ...testUser, ...((await request.json()) as Partial<User>) }, 'Profile updated.')
   ),
-  // Express answers every registration this way, free address or taken: no user, ever.
-  http.post('/api/v1/auth/register', () =>
-    ok(null, 'If that address can be registered, a verification email has been sent.', 202)
+  // Express answers every link request 202 with no data, whether or not the address has an account.
+  http.post('/api/v1/auth/link/request', () =>
+    ok(null, 'Check your inbox for a sign-in link.', 202)
   ),
-  // Fetched by the profile page's Security section; a password account, which a test about Google or a failed load overrides.
+  // The token signs in the test user; like the API, a different address in the body is refused and spends nothing.
+  http.post('/api/v1/auth/link/verify', async ({ request }) => {
+    const { email } = (await request.json()) as { email?: string }
+    if (email !== undefined && email.toLowerCase() !== testUser.email) {
+      return fail('This link has expired or was already used.', 400, 'LINK_INVALID')
+    }
+    return ok(
+      { user: testUser, accessToken: 'link-token', isNewUser: false, redirect: null },
+      'Signed in.'
+    )
+  }),
+  // Fetched by the profile page's Security section; an email-link account, which a test about Google or a failed load overrides.
   http.get('/api/v1/auth/providers', () =>
     ok(
       {
         providers: [{ provider: 'email', linkedAt: '2026-01-01T00:00:00.000Z' }],
-        hasPassword: true,
       },
       'Auth providers retrieved.'
     )
@@ -221,7 +233,7 @@ export const handlers = [
   http.get('/api/v1/tenants/:slug/members', () => ok(listPage([]), 'Members retrieved.')),
   // Pending invitations, empty; a test about them overrides it.
   http.get('/api/v1/tenants/:slug/invitations', () => ok(listPage([]), 'Invitations retrieved.')),
-  // Invite and resend answer 202 with `data: null` whether or not the address has an account, the same way register does.
+  // Invite and resend answer 202 with `data: null` whether or not the address has an account, as the sign-in link request does.
   http.post('/api/v1/tenants/:slug/invitations', () => ok(null, INVITATION_SENT_MESSAGE, 202)),
   http.post('/api/v1/tenants/:slug/invitations/:id/resend', () =>
     ok(null, INVITATION_SENT_MESSAGE, 202)
@@ -230,9 +242,39 @@ export const handlers = [
   http.post('/api/v1/invitations/preview', () =>
     ok(testInvitationPreview, 'Invitation retrieved.')
   ),
+  // Signed out, one click: the invitee is signed in and joined, as express's `verifyInvitation` answers.
+  http.post('/api/v1/invitations/verify', () =>
+    ok(
+      {
+        user: testUser,
+        accessToken: 'invitation-token',
+        isNewUser: false,
+        tenant: testInvitationPreview.tenant,
+        role: testInvitationPreview.role,
+      },
+      'Invitation accepted.'
+    )
+  ),
   http.post('/api/v1/invitations/accept', () =>
     ok(
-      { tenant: testInvitationPreview.tenant, role: testInvitationPreview.role },
+      {
+        tenant: testInvitationPreview.tenant,
+        role: testInvitationPreview.role,
+        alreadyMember: false,
+      },
+      'Invitation accepted.'
+    )
+  ),
+  // The mailed confirmation link: the invitee is signed in and joined, as express's confirm answers.
+  http.post('/api/v1/invitations/confirm', () =>
+    ok(
+      {
+        user: testUser,
+        accessToken: 'confirm-token',
+        isNewUser: false,
+        tenant: testInvitationPreview.tenant,
+        role: testInvitationPreview.role,
+      },
       'Invitation accepted.'
     )
   ),

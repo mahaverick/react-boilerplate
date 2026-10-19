@@ -331,20 +331,20 @@ describe('auth interceptors', () => {
     )
   })
 
-  // The login form's 401 judges a password, not a session: no token was sent.
-  it("leaves an unauthenticated request's 401 alone, like the login form's", async () => {
+  // A request with no token judged that request, not a session.
+  it('does not sign out on a 401 to a request that carried no token', async () => {
     const assign = stubLocation(ROUTES.login)
     let seen: string | null = 'unset'
     server.use(
-      http.post('/api/v1/auth/login', ({ request }) => {
+      http.post('/api/v1/example', ({ request }) => {
         seen = request.headers.get('authorization')
-        return fail('Invalid email or password', 401)
+        return fail('Unauthorized', 401)
       })
     )
 
-    await expect(
-      makeClient().post('/auth/login', { email: 'a@b.com', password: 'wrong' })
-    ).rejects.toMatchObject({ response: { status: 401 } })
+    await expect(makeClient().post('/example', {})).rejects.toMatchObject({
+      response: { status: 401 },
+    })
     expect(seen).toBeNull()
     expect(assign).not.toHaveBeenCalled()
   })
@@ -372,7 +372,11 @@ describe('auth interceptors', () => {
   it('does not end the session on a 403', async () => {
     useAuthStore.getState().login('tok', testUser)
     const assign = stubLocation()
-    server.use(http.get('/api/v1/widgets', () => fail('Insufficient permissions', 403)))
+    server.use(
+      http.get('/api/v1/widgets', () =>
+        fail("Your role in this workspace doesn't allow this. Ask a workspace owner or admin.", 403)
+      )
+    )
 
     await expect(makeClient().get('/widgets')).rejects.toThrow()
     expect(useAuthStore.getState().isAuthenticated).toBe(true)

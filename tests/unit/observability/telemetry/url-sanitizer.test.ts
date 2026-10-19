@@ -22,6 +22,10 @@ describe('sanitizeUrl', () => {
       'https://app.example.com/invitations/accept',
     ],
     [
+      'https://app.example.com/invitations/confirm?token=probe-token&email=pii-probe%40example.test',
+      'https://app.example.com/invitations/confirm',
+    ],
+    [
       'https://app.example.com/login?redirect=%2Freset-password%3Ftoken%3Dprobe-token',
       'https://app.example.com/login',
     ],
@@ -32,6 +36,43 @@ describe('sanitizeUrl', () => {
     ['https://app.example.com/plain', 'https://app.example.com/plain'],
   ])('%s → %s', (input, expected) => {
     expect(sanitizeUrl(input, ALLOW)).toBe(expected)
+  })
+
+  it('drops token, email and redirect from a sign-in link URL', () => {
+    expect(
+      sanitizeUrl('https://app.test/auth/link?token=ttt&email=a%40b.test&redirect=%2Fx', ['tab'])
+    ).toBe('https://app.test/auth/link')
+  })
+
+  describe('a campaign value', () => {
+    const CAMPAIGN = ['tab', 'utm_content']
+
+    it('is kept when it is a plain constant', () => {
+      expect(sanitizeUrl('https://app.test/auth/link?utm_content=primary_button', CAMPAIGN)).toBe(
+        'https://app.test/auth/link?utm_content=primary_button'
+      )
+    })
+
+    it('is dropped when it holds an address', () => {
+      expect(sanitizeUrl('https://app.test/auth/link?utm_content=ada%40x.test', CAMPAIGN)).toBe(
+        'https://app.test/auth/link'
+      )
+    })
+
+    it('is dropped when it is longer than 64 characters', () => {
+      expect(
+        sanitizeUrl(`https://app.test/auth/link?utm_content=${'a'.repeat(65)}`, CAMPAIGN)
+      ).toBe('https://app.test/auth/link')
+      expect(
+        sanitizeUrl(`https://app.test/auth/link?utm_content=${'a'.repeat(64)}`, CAMPAIGN)
+      ).toBe(`https://app.test/auth/link?utm_content=${'a'.repeat(64)}`)
+    })
+
+    it.each(['Primary', 'a.b', 'a b', ''])('is dropped for %j', (value) => {
+      expect(sanitizeUrl(`/x?utm_content=${encodeURIComponent(value)}&tab=a`, CAMPAIGN)).toBe(
+        '/x?tab=a'
+      )
+    })
   })
 
   it('cuts an unparseable URL at its query', () => {
@@ -74,6 +115,16 @@ describe('sanitizeEventUrls', () => {
       'https://app.example.com/a',
     ])
     expect(JSON.stringify(event)).toContain('probe-token')
+  })
+
+  it('drops them from a $pageview through sanitizeEventUrls', () => {
+    const url = 'https://app.test/auth/link?token=ttt&email=a%40b.test&redirect=%2Fx'
+    const sanitized = sanitizeEventUrls(
+      { uuid: 'u', event: '$pageview', properties: { $current_url: url, $referrer: url } },
+      ['tab']
+    )
+    expect(sanitized.properties.$current_url).toBe('https://app.test/auth/link')
+    expect(sanitized.properties.$referrer).toBe('https://app.test/auth/link')
   })
 
   it('adds no $set or $set_once the event did not have', () => {

@@ -4,9 +4,10 @@ import { SOCIAL_PROVIDERS, type SocialProvider } from '@/constants/auth-provider
 import { cn } from '@/lib/utils'
 
 /**
- * The "Or continue with" divider and one button per configured provider, or
- * nothing when there is none. `providers` defaults to `SOCIAL_PROVIDERS`; it
- * is a prop so a test can render the empty and populated cases.
+ * The "or" divider and one button per configured provider, or nothing when
+ * there is none. `providers` defaults to `SOCIAL_PROVIDERS`; it is a prop so a
+ * test can render the empty and populated cases. `redirect`, already passed
+ * through `safeRedirect`, goes into each provider's start URL.
  *
  * Each button is a plain anchor with `buttonVariants` classes, a top-level
  * navigation to a same-origin API route. It stays a link (the keyboard test
@@ -15,18 +16,22 @@ import { cn } from '@/lib/utils'
  */
 export function SocialSignIn({
   providers = SOCIAL_PROVIDERS,
+  redirect,
 }: {
   providers?: readonly SocialProvider[]
+  redirect?: string
 }) {
   if (providers.length === 0) return null
   return (
     <>
-      <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
-        Or continue with
-      </FieldSeparator>
+      <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">or</FieldSeparator>
       <div className="grid gap-3">
-        {providers.map(({ id, label, href, Icon }) => (
-          <a key={id} href={href} className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
+        {providers.map(({ id, label, hrefFor, Icon }) => (
+          <a
+            key={id}
+            href={hrefFor(redirect)}
+            className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
+          >
             <Icon aria-hidden="true" />
             Continue with {label}
           </a>

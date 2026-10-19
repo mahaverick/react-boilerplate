@@ -5,7 +5,7 @@ import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { Card, CardContent } from '@/components/ui/card'
 import { pageTitle } from '@/constants/app'
 
-/** Settings › Security: password, sign-in methods and other sessions. */
+/** Settings › Security: sign-in methods and other sessions. */
 export const Route = createFileRoute('/_app/settings/account/security')({
   head: () => ({ meta: [{ title: pageTitle('Security') }] }),
   staticData: { crumb: 'Security' },

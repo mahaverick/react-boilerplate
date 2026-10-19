@@ -9,7 +9,7 @@ import {
   apiIsReady,
   apiLogin,
   createTenant,
-  createVerifiedUser,
+  createUser,
   freshEmail,
   freshSlug,
   logIn,
@@ -33,7 +33,7 @@ test('the signed-in app, its live stream and a tenant page run with no violation
 }) => {
   test.setTimeout(90_000)
   const email = freshEmail()
-  await createVerifiedUser(email)
+  await createUser(email)
   const slug = freshSlug()
   const name = `E2E ${slug}`
   await createTenant(await apiLogin(email), { name, slug })

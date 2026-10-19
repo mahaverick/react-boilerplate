@@ -93,6 +93,23 @@ reason: warning and info variants
 ours: s/bg-muted text-sm text-foreground/bg-muted text-sm text-muted-foreground/
 ```
 
+### button.tsx
+
+- **A focusable disabled button looks disabled** (`aria-disabled:opacity-50
+aria-disabled:cursor-not-allowed`). With `focusableWhenDisabled`, Base UI drops
+  the native `disabled` attribute for `aria-disabled`, so the registry's
+  `disabled:` styles never apply. No `pointer-events-none`: the button stays
+  focusable and its click handler returns early. Re-apply: yes.
+
+```ui-drift-hunk
+reason: a disabled button that stays focusable shows it
+ const buttonVariants = cva(
+-  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
++  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+```
+
+The narrowed `transition` is the `*` section's edit.
+
 ### checkbox.tsx
 
 - **`aria-hidden="true"` on the check icon**, the `*` section's edit, on a

@@ -14,6 +14,13 @@ const PALETTE_LOAD_FAILED_ID = 'palette-load-failed'
 /** How long the fallback waits, where there is no idle callback, before it fetches the palette's code. */
 const IDLE_FALLBACK_MS = 2000
 
+/** The palette module if a fetch anywhere has resolved; read on every render, since nothing notifies the host. */
+function usePeekedPalette(): ReturnType<typeof peekPalette> {
+  // The React Compiler would cache this read; it reads module state the compiler cannot see change.
+  'use no memo'
+  return peekPalette()
+}
+
 /**
  * Where the signed-in shell mounts the palette: the ⌘K shortcut, the recents'
  * identity rule (`installRecentItems`), and the palette itself, whose code is
@@ -33,7 +40,8 @@ export function CommandPaletteHost() {
     () => peekPalette()?.CommandPalette ?? null
   )
   // A fetch started elsewhere (the header trigger's hover) may have resolved without this host hearing of it.
-  const Palette = loadedPalette ?? peekPalette()?.CommandPalette ?? null
+  const peeked = usePeekedPalette()
+  const Palette = loadedPalette ?? peeked?.CommandPalette ?? null
 
   useEffect(() => {
     installRecentItems()

@@ -2,153 +2,135 @@
 
 The signed-out pages and the pages a mailed link opens. Back to the [route map](README.md#route-map).
 
-All of them render inside `AuthLayout` (`src/components/layouts/auth-layout.tsx`): a muted full-height page with one centred `AuthCard` (`src/components/layouts/auth-card.tsx`). The card has the page's `h1` and description over its content on the left, and the brand panel (app name and tagline on the primary colour) on the right; below `md` the brand panel is hidden and the card is one column. `/login`, `/register` and `/forgot-password` sit under the `_auth` layout route, whose `beforeLoad` sends a signed-in user to `/dashboard` (except while maintenance mode is `full`). `/reset-password`, `/verify-email`, `/auth/callback` and `/invitations/accept` are top-level routes outside `_auth`, because a signed-in user opens their links too; each renders `AuthLayout` itself. None of these pages awaits a request before it renders, beyond the boot's `POST /auth/refresh` ([boot.md](boot.md#what-happens)).
+All of them render inside `AuthLayout` (`src/components/layouts/auth-layout.tsx`): a muted full-height page with one centred `AuthCard` (`src/components/layouts/auth-card.tsx`). The card has the page's `h1` and description over its content on the left, and the brand panel (app name and tagline on the primary colour) on the right; below `md` the brand panel is hidden and the card is one column. `/login` sits under the `_auth` layout route, whose `beforeLoad` sends a signed-in user to `/dashboard` (except while maintenance mode is `full`). `/auth/callback`, `/auth/link`, `/welcome`, `/invitations/accept` and `/invitations/confirm` are top-level routes outside `_auth`, because a signed-in user opens their links too; each renders `AuthLayout` itself. None of these pages awaits a request before it renders, beyond the boot's `POST /auth/refresh` ([boot.md](boot.md#what-happens)).
+
+Sign-in is by emailed link or Google. There is no password, registration, password reset or email-verification page. The shots of these pages are retaken once a live express 6 stack runs (`pnpm capture:pages`); until then the pages below have no shot.
 
 ### `/login` — Sign in
 
-![Sign in](img/auth/login--default.jpg)
+|                     |                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose             | Ask for a sign-in link by email, or sign in with Google.                                                                                                                                                                                                                                                                                                             |
+| File                | `src/pages/_auth/login.tsx`, rendering `SignInLinkForm` (`src/components/features/auth/sign-in-link-form.tsx`) and `SocialSignIn`                                                                                                                                                                                                                                    |
+| Guard and redirects | `_auth`: signed in → `/dashboard`. `?redirect=` is sent with the link request when `safeLanding` accepts it (a same-origin path that is not a token page); an unsafe one is dropped, not sent. `?notice=sign-in-link` (from a retired password path) shows "Sign in with an email link or Google. Passwords no longer work." `?error=<code>` raises one error toast. |
+| Layout              | `AuthLayout` + `AuthCard`, `TermsNote` under the card                                                                                                                                                                                                                                                                                                                |
+| Data                | no query; `POST /auth/link/request` (`{ email, app: 'web', redirect? }`) on submit and on Resend                                                                                                                                                                                                                                                                     |
+| Sections            | Sign in: the Email field, "Email me a sign-in link", then an "or" divider and Continue with Google. After a `202`, Check your inbox (below).                                                                                                                                                                                                                         |
+| Components          | `Form`, `FormField`, `FormError`, `Input`, `BusyButton`, `FieldGroup`, `FieldSeparator`, `Pii`, `Note`; hand-rolled: `AuthCard`'s brand panel, `TermsNote`                                                                                                                                                                                                           |
+| Transitions         | Email me a sign-in link → Check your inbox (same URL); the mailed link → `/auth/link`; Continue with Google → the API's Google flow → `/auth/callback`; another tab that opens the link → this tab lands on `?redirect` or `/dashboard`                                                                                                                              |
 
-|                     |                                                                                                                                                                                                                       |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose             | Sign in with email and password, or with Google.                                                                                                                                                                      |
-| File                | `src/pages/_auth/login.tsx`                                                                                                                                                                                           |
-| Guard and redirects | `_auth`: signed in → `/dashboard`. After sign-in → `?redirect=` when `safeRedirect` accepts it (a same-origin path), else `/dashboard`. `?error=<code>` raises one error toast (Google failures, `MAINTENANCE_MODE`). |
-| Layout              | `AuthLayout` + `AuthCard`, `TermsNote` under the card                                                                                                                                                                 |
-| Data                | no query; `POST /auth/login` on submit                                                                                                                                                                                |
-| Sections            | Email and password form (no request until submit); "Or continue with" and one link per social provider (`SocialSignIn`, a top-level navigation to `/api/v1/auth/google`)                                              |
-| Components          | `Form`, `FormField`, `FormError`, `Input`, `BusyButton`, `FieldGroup`, `FieldDescription`, `FieldSeparator`; hand-rolled: `AuthCard`'s brand panel, `TermsNote`                                                       |
-| Transitions         | Forgot password? → `/forgot-password`; Create an account → `/register`; Sign in → `?redirect` or `/dashboard`; Continue with Google → the API's Google flow → `/auth/callback`                                        |
+**Check your inbox.** The title becomes "Check your inbox". The status line reads "We sent a sign-in link to {address}." and the next line "The link works once and expires in 15 minutes." Resend waits 60 seconds after each send ("Resend in 0:42", focusable while it waits); a 429 extends the wait to its `Retry-After`. "Use a different email" returns to the form with the address kept. While this step shows, the page listens for another tab's `signed_in` and restores the shared session when it hears one.
 
-Pending state: the button reads "Signing in…" and is disabled. Errors: `FormError` above the button, field messages under the fields.
+**`?error=` codes** (from the API's Google callback):
 
-| Dark                                          | Mobile                                 |
-| --------------------------------------------- | -------------------------------------- |
-| ![](img/auth/login--dark.jpg)                 | ![](img/auth/login--mobile.jpg)        |
-| The brand panel inverts to the light surface. | One column; the brand panel is hidden. |
+| Code                   | Toast                                                                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `google_auth_failed`   | Google sign-in failed. Try again, or sign in with an email link.                                                             |
+| `email_not_verified`   | Google hasn’t verified this email address. Verify it with Google, or sign in with an email link.                             |
+| `google_email_missing` | Your Google account didn’t share an email address. Sign in with an email link instead.                                       |
+| `processing_failed`    | Google sign-in didn’t finish. Try again, or sign in with an email link.                                                      |
+| `MAINTENANCE_MODE`     | Sign-in is paused for maintenance. Try again when maintenance ends.                                                          |
+| `READ_ONLY_MODE`       | We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends. |
+| anything else          | Sign-in failed. Try again, or sign in with an email link.                                                                    |
+
+`READ_ONLY_MODE` arrives when read-only maintenance refuses a Google sign-in that would create an account; an existing account still signs in.
 
 Findings: [F-auth-5](findings.md#f-auth-5)
 
-### `/register` — Create an account
-
-![Create an account](img/auth/register--default.jpg)
+### `/auth/link` — Sign in by emailed link
 
 |                     |                                                                                                                                                                                                                                                 |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose             | Register with email and password; then tell the user to verify the address.                                                                                                                                                                     |
-| File                | `src/pages/_auth/register.tsx`                                                                                                                                                                                                                  |
-| Guard and redirects | `_auth`: signed in → `/dashboard`. `?email=` prefills the address (an invitation's "Create account" sends it).                                                                                                                                  |
-| Layout              | `AuthLayout` + `AuthCard`, `TermsNote` under the card                                                                                                                                                                                           |
-| Data                | no query; `POST /auth/register` on submit; `POST /auth/resend-verification` from the "Check your email" card                                                                                                                                    |
-| Sections            | First and last name (optional), email, password and confirmation, the minimum-length hint; social sign-in; after a successful submit the card is replaced by "Check your email" with a "Resend verification email" button and "Back to sign in" |
-| Components          | `Form`, `FormField`, `FormDescription`, `FormError`, `Input`, `BusyButton` (also the resend), `Pii`; hand-rolled: `TermsNote`                                                                                                                   |
-| Transitions         | Sign in → `/login`; Create account → the "Check your email" card (same URL); the emailed link → `/verify-email?token=`                                                                                                                          |
+| Purpose             | Where a mailed sign-in link opens (`/auth/link?token=…&email=…[&redirect=…]`): spend the token and land signed in.                                                                                                                              |
+| File                | `src/pages/auth/link.tsx`                                                                                                                                                                                                                       |
+| Guard and redirects | none (top level). Lands with `replace`, so Back never returns to the token: a new account → `/welcome`; else the response's `redirect`, then the link's, through `safeLanding`; else `/welcome` for an account with no tenant, or `/dashboard`. |
+| Layout              | `AuthLayout` + `AuthCard`, rendered by the page                                                                                                                                                                                                 |
+| Data                | started: `POST /auth/link/verify` (`{ token, email }`, no bearer) once per page load, from a ref-guarded effect, when signed out; on the dead link `POST /auth/link/request`; on Continue `POST /auth/logout`                                   |
+| Components          | `AuthCard`, `SigningInStatus`, `SwitchAccountPanel`, `VerifyFailedPanel` (`src/components/features/auth/link-panels.tsx`), `SignInLinkForm`, `Pii`                                                                                              |
+| Transitions         | as in the states below; after a verify the page posts `signed_in`, so another tab waiting on Check your inbox moves on too                                                                                                                      |
 
-Pending state: "Creating account…" on the button. The "Check your email" card is not shot.
+The page has these states:
 
-Findings: [F-auth-5](findings.md#f-auth-5)
-
-### `/forgot-password` — Forgot password
-
-![Forgot your password?](img/auth/forgot-password--default.jpg)
-
-|                     |                                                                                                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose             | Ask for a password-reset email.                                                                                                                                                                                                             |
-| File                | `src/pages/_auth/forgot-password.tsx`                                                                                                                                                                                                       |
-| Guard and redirects | `_auth`: signed in → `/dashboard`                                                                                                                                                                                                           |
-| Layout              | `AuthLayout` + `AuthCard`                                                                                                                                                                                                                   |
-| Data                | no query; `POST /auth/forgot-password` on submit                                                                                                                                                                                            |
-| Sections            | Email form; after submit, whatever the outcome, the fixed message "If that address has an account, a reset email has been sent." (`role="status"`). Server errors are never shown, so the page cannot reveal which addresses have accounts. |
-| Components          | `Form`, `FormField`, `Input`, `BusyButton`, `FieldDescription`                                                                                                                                                                              |
-| Transitions         | Back to sign in → `/login`; the emailed link → `/reset-password?token=`                                                                                                                                                                     |
-
-### `/reset-password` — Choose a new password
-
-![Choose a new password](img/auth/reset-password--default.jpg)
-
-|                     |                                                                                                                                                            |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose             | Set a new password with the token from the reset email.                                                                                                    |
-| File                | `src/pages/reset-password.tsx`                                                                                                                             |
-| Guard and redirects | none: top level, so a signed-in user can use a reset link. After a successful reset → toast "Your password has been reset. Sign in with it." and `/login`. |
-| Layout              | `AuthLayout` + `AuthCard`, rendered by the page                                                                                                            |
-| Data                | no query; `POST /auth/reset-password` on submit (the token rides in the form values, unrendered)                                                           |
-| Sections            | New password and confirmation; `FormError` for a refused token                                                                                             |
-| Components          | `Form`, `FormField`, `FormError`, `Input`, `BusyButton`                                                                                                    |
-| Transitions         | Reset password → `/login`; Back to sign in → `/login`; without a token, Request a new link → `/forgot-password`                                            |
-
-| Empty                                                              |
-| ------------------------------------------------------------------ |
-| ![](img/auth/reset-password--empty.jpg)                            |
-| No `?token`: "This link is incomplete", with "Request a new link". |
-
-### `/verify-email` — Verify your email
-
-![Verify your email](img/auth/verify-email--default.jpg)
-
-|                     |                                                                                                                                                                                                                                                                                  |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose             | Confirm the emailed verification token with the account's password.                                                                                                                                                                                                              |
-| File                | `src/pages/verify-email.tsx`                                                                                                                                                                                                                                                     |
-| Guard and redirects | none: top level. After success → toast "Your email is verified. Sign in to continue." and `/login`.                                                                                                                                                                              |
-| Layout              | `AuthLayout` + `AuthCard`, rendered by the page                                                                                                                                                                                                                                  |
-| Data                | no query; `POST /auth/verify-email` on submit; `POST /auth/resend-verification` from the resend form                                                                                                                                                                             |
-| Sections            | A visible, editable "Verification token" field prefilled from `?token`, and a password field. After a failed try, a resend form ("Links expire. Enter your address and we will send a fresh one."). After `EMAIL_ALREADY_VERIFIED`, the server's message and a "Sign in" button. |
-| Components          | `Form`, `FormField`, `FormError`, `Input`, `BusyButton`, `FieldSeparator`                                                                                                                                                                                                        |
-| Transitions         | Verify email → `/login`; Back to sign in → `/login`; Sign in (already verified) → `/login`                                                                                                                                                                                       |
-
-| Empty                                                 |
-| ----------------------------------------------------- |
-| ![](img/auth/verify-email--empty.jpg)                 |
-| No `?token`: the same form with an empty token field. |
-
-Findings: [F-auth-1](findings.md#f-auth-1), [F-auth-2](findings.md#f-auth-2)
+1. **Verifying** (signed out): "Signing you in", with "Signing you in…" and the link's address, then the address the server signed in.
+2. **Dead link** (any 400, or no `?token` while signed out): "This link expired or was already used", described "The link works once and expires in 15 minutes.", and the sign-in form prefilled with the link's address, its button "Email me a new link". The new link keeps the old one's `redirect`.
+3. **Retryable failure** (429, 503, a network error or a 5xx): "We couldn’t sign you in", the reason (a 429 names its wait, "Too many sign-in attempts. Try again in 42 seconds."; a read-only refusal, which express sends only when the click would create the account, says "We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends.") and Try again. The link stays usable.
+4. **Signed in as the link's address:** goes straight on to the link's `redirect` or `/dashboard`, spending nothing.
+5. **Signed in as someone else:** "Switch account?", "You’re signed in as {current}. This link is for {target}.", Continue as {target} (signs out and reloads this URL signed out, which then verifies) and Stay signed in as {current} (→ `/dashboard`).
 
 ### `/auth/callback` — Google sign-in return
 
 No shot: the page redirects as soon as it mounts.
 
-|                     |                                                                                                                                                           |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose             | Where the API's Google callback lands; sends the user on.                                                                                                 |
-| File                | `src/pages/auth/callback.tsx`                                                                                                                             |
-| Guard and redirects | none (top level). In an effect: signed in → `/dashboard`, else `/login?error=google_auth_failed`, which toasts "Google sign-in failed. Please try again." |
-| Layout              | `AuthLayout` + `AuthCard` titled "Signing in", with a spinner and "Completing sign-in…" (`role="status"`) for the instant before the redirect             |
-| Data                | no query; the session restore has already used the cookie the API set                                                                                     |
-| Components          | `AuthCard`, `Spinner`                                                                                                                                     |
-| Transitions         | → `/dashboard` or `/login?error=google_auth_failed`                                                                                                       |
+|                     |                                                                                                                                                                                                                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Purpose             | Where the API's Google callback lands (`/auth/callback[?redirect=…][&new=1]`); sends the user on.                                                                                                                                                                                                                  |
+| File                | `src/pages/auth/callback.tsx`                                                                                                                                                                                                                                                                                      |
+| Guard and redirects | none (top level). In an effect, with `replace`: signed out → `/login?error=google_auth_failed`; `new=1` → `/welcome`; else `?redirect=` when `safeLanding` accepts it (same origin, not a token page); else `/welcome` for an account with no tenant, or `/dashboard`. A failed tenant read lands on `/dashboard`. |
+| Layout              | `AuthLayout` + `AuthCard` titled "Signing in", with a spinner and "Completing sign-in…" (`role="status"`) for the instant before the redirect                                                                                                                                                                      |
+| Data                | the session restore has already used the cookie the API set; `GET /tenants` only when there is no redirect                                                                                                                                                                                                         |
+| Components          | `AuthCard`, `Spinner`                                                                                                                                                                                                                                                                                              |
+| Transitions         | → `/welcome`, the redirect, `/dashboard`, or `/login?error=google_auth_failed`                                                                                                                                                                                                                                     |
 
-The walk confirmed both exits: signed in, `/auth/callback` landed on `/dashboard`; signed out, on `/login?error=google_auth_failed`.
+A Google failure the API detects itself never reaches this page: the API redirects to `/login?error=<code>` (the table above).
+
+### `/register`, `/forgot-password`, `/reset-password`, `/verify-email` — retired
+
+Each redirects in `beforeLoad` to `/login?notice=sign-in-link`, dropping any `?token=`, before anything renders (`src/pages/{register,forgot-password,reset-password,verify-email}.tsx`). Old mailed links and bookmarks still reach them. The boot shell paints the auth card for them (`public/boot-variant.js`).
+
+### `/welcome` — Create your workspace
+
+No shot yet: the capture needs a seeded session with no tenant.
+
+|                     |                                                                                                                                                                                                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose             | The first-tenant step: a signed-in user with no workspace creates one.                                                                                                                                                                                                                                                                      |
+| File                | `src/pages/welcome.tsx`                                                                                                                                                                                                                                                                                                                     |
+| Guard and redirects | own `beforeLoad` (top level, outside `_auth` and `_app`): signed out → `/login?redirect=/welcome`; none while maintenance is `full`. A user whose `GET /tenants` lists a tenant goes to `/dashboard` (replace), with the auth skeleton until it lands; the skeleton also shows while the read is pending, and a failed read shows the form. |
+| Layout              | `AuthLayout` + `AuthCard` titled "Create your workspace", described "Name your workspace. You can invite your team next."                                                                                                                                                                                                                   |
+| Data                | started: `GET /tenants` (`['tenants']`); on submit `POST /tenants`, which refetches the list; on sign-out `POST /auth/logout`                                                                                                                                                                                                               |
+| Sections            | `CreateTenantForm` (Name, Slug with its live rule, Description; "Create workspace", "Creating…" while the create and the landing run; `slug_taken` under Slug). Under a separator: "You’re signed in as {email}.", a "Go to the dashboard" link and a Sign out button.                                                                      |
+| Components          | `AuthCard`, `CreateTenantForm`, `BusyButton`, `FieldSeparator`, `Pii`                                                                                                                                                                                                                                                                       |
+| Transitions         | create → toast "{name} created." and `/tenants/$slug` (replace); "Go to the dashboard" → `/dashboard`, which shows the workspace prompt; Sign out → `/login`                                                                                                                                                                                |
 
 ### `/invitations/accept` — Accept an invitation
 
-![Join Capture Co](img/auth/invitation-accept--default.jpg)
-
-|                     |                                                                                                                                                                                                                       |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose             | The landing page of an invitation email: preview the invitation, then sign in, switch account or accept.                                                                                                              |
-| File                | `src/pages/invitations/accept.tsx`                                                                                                                                                                                    |
-| Guard and redirects | none: top level, opened signed out and signed in alike. Log in → `/login?redirect=/invitations/accept?token=…`; Create account → `/register?email=<invited address>`.                                                 |
-| Layout              | `AuthLayout` + `AuthCard` (`InvitationCard`), rendered by the page                                                                                                                                                    |
-| Data                | started: `POST /invitations/preview` (`['invitations', 'preview', token]`; no auth; a failure other than 404 is retried once); `POST /invitations/accept` on accept; `POST /auth/logout` from the wrong-account state |
-| Sections            | Chosen by `?token` and who is signed in, below.                                                                                                                                                                       |
-| Components          | `AuthCard`, `Skeleton` (a sentence, two buttons and a hint, sized like the loaded card), `LoadError`, `Alert` (destructive, the refusal), `Button`, `BusyButton` (accept, sign out), `Pii`                            |
-| Transitions         | Log in → `/login` and back here; Create account → `/register`; Sign out → here, signed out; Accept invitation → `/tenants/$slug`; Go to the home page → `/`                                                           |
+|                     |                                                                                                                                                                                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose             | The landing page of an invitation email: join the team in one click, or confirm by an emailed link.                                                                                                                                                                                                     |
+| File                | `src/pages/invitations/accept.tsx`, with the shared parts in `src/components/features/invitations/invitation-parts.tsx`                                                                                                                                                                                 |
+| Guard and redirects | none: top level, opened signed out and signed in alike. A join lands on `/tenants/$slug` (replace) with the toast "You joined {tenant} as {address}."                                                                                                                                                   |
+| Layout              | `AuthLayout` + `AuthCard` (`InvitationCard`), rendered by the page                                                                                                                                                                                                                                      |
+| Data                | started: `POST /invitations/preview` (`['invitations', 'preview', token]`; no auth); then, once per page load, `POST /invitations/verify` signed out or `POST /invitations/accept` signed in as the invitee; `POST /auth/logout` on Continue; `POST /auth/link/request` from the dead invitation's form |
+| Sections            | Chosen by `?token`, the preview and who is signed in, below.                                                                                                                                                                                                                                            |
+| Components          | `AuthCard`, `Skeleton`, `LoadError`, `SigningInStatus`, `SwitchAccountPanel`, `VerifyFailedPanel`, `InvitationInbox`, `SignInLinkForm`, `Pii`                                                                                                                                                           |
+| Transitions         | as in the states below; Go to the home page → `/`                                                                                                                                                                                                                                                       |
 
 The page has these states (`AcceptInvitationPage` and `InvitationForToken`):
 
-1. **No `?token`:** "This link is incomplete" and "Go to the home page" (shot: empty).
-2. **Malformed token** (fails `invitationTokenSchema`): "This invitation can't be used" with the server's 404 copy, no request made. Seen in the walk with `?token=not-a-real-token`.
-3. **Preview pending:** "Checking your invitation" over four skeleton bars: a sentence, two buttons and a hint (shot: loading).
-4. **Preview failed with 404** (revoked, expired or used): "This invitation can't be used" with the server's message.
-5. **Preview failed otherwise:** "We could not load this invitation", a `LoadError` with Try again, and "Go to the home page" (shot: error).
-6. **Signed out** (`SignedOut`): "Join {tenant}", "{inviter} invited you to join {tenant} as {role}.", Log in, Create account, and a hint to create the account with the invited address (shot: default).
-7. **Signed in as another address** (`WrongAccount`): the same title and sentence, "This invitation was sent to {invited}. You're signed in as {current}.", a Sign out button that returns here signed out, and "Go to the home page". Not shot.
-8. **Signed in as the invited address** (`AcceptPanel`): the same title and sentence, Accept invitation ("Accepting…" while pending) and "Go to the home page". A 403 shows the refusal inline (`role="alert"`), with a hint to verify the email when the code is `INVITATION_EMAIL_UNVERIFIED`; a 404 replaces the panel with state 4; other failures toast. Success toasts "You joined {tenant}." and opens `/tenants/$slug`. Not shot.
-
-| Loading                                                                    | Error                                      | Empty                                      |
-| -------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------ |
-| ![](img/auth/invitation-accept--loading.jpg)                               | ![](img/auth/invitation-accept--error.jpg) | ![](img/auth/invitation-accept--empty.jpg) |
-| skeleton · a sentence, two buttons and a hint, at the loaded card's height | alert · `LoadError`                        | No `?token`: "This link is incomplete"     |
+1. **No `?token`:** "This link is incomplete", "Part of this link is missing. Open the most recent invitation email and select Join.", and "Go to the home page".
+2. **Malformed token, or a 404** (revoked, expired or used): "This invitation can’t be used", described "Ask {inviter} for a new invite." when a live preview named one, else "Ask the person who invited you for a new invite." Signed in, "Go to the dashboard"; signed out, "Or sign in:" and the sign-in form, with no address and no redirect.
+3. **Preview pending:** "Checking your invitation" over skeleton bars: a sentence, two buttons and a hint.
+4. **Preview failed otherwise:** "We couldn’t check this invitation", a `LoadError` reading "The check failed, and your invitation link is unchanged. Select Try again.", and "Go to the home page".
+5. **Joining** (signed out, or signed in as the invited address): "Joining {tenant}", "{inviter} invited you to join {tenant} as {role}.", and "Joining {tenant} as {invited address}…". The address is the preview's, never a URL parameter. A new address on a customer invitation joins in one click and lands.
+6. **Check your inbox** (signed out; the verify answered `202` for an existing account or a staff invitation): "We sent a link to {address}.", "Open it to join {tenant}. The link works once and expires in 15 minutes.", Resend (waits 60 seconds; a 429 extends it), and "Go to the home page". The page listens for another tab's `signed_in` from the confirmation link, including after a failed Resend, and then lands on the tenant when the restored account is the mailed address, else on `/dashboard`.
+7. **Retryable failure:** "We couldn’t add you to {tenant}", the reason and Try again.
+8. **Signed in as another address:** "Join {tenant}", the invitation sentence, "This invitation is for {invited}. You’re signed in as {current}.", Continue (signs out and reloads this page signed out, which then verifies) and Cancel (→ `/dashboard`).
+9. **Used link, signed in as the invitee:** the accept answers `alreadyMember`, and the page lands with "You’ve already joined {tenant} as {address}."
 
 Findings: [F-auth-3](findings.md#f-auth-3), [F-auth-4](findings.md#f-auth-4)
+
+### `/invitations/confirm` — Confirm a join
+
+No shot yet.
+
+|                     |                                                                                                                                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose             | Where the confirmation link mailed after a `202` opens (`/invitations/confirm?token=…&email=…`): join the team and sign in.                                                                                       |
+| File                | `src/pages/invitations/confirm.tsx`                                                                                                                                                                               |
+| Guard and redirects | none (top level). Lands on `/tenants/$slug` (replace) with the join toast.                                                                                                                                        |
+| Layout              | `AuthLayout` + `AuthCard` (`InvitationCard`), rendered by the page                                                                                                                                                |
+| Data                | started: `POST /invitations/confirm` (`{ token, email }`) once per page load, signed out or signed in as the link's address; `POST /auth/logout` on Continue; `POST /auth/link/request` from the dead link's form |
+| Components          | `InvitationCard`, `SigningInStatus`, `SwitchAccountPanel`, `VerifyFailedPanel`, `ConfirmLinkDead`, `ConfirmLinkIncomplete`, `SignInLinkForm`                                                                      |
+| Transitions         | after a `200` the page posts `signed_in`, so the accept page waiting on Check your inbox lands too                                                                                                                |
+
+States: "Joining your team" while the confirm runs; "This link is incomplete" without a token or an address; "This link can’t be used" for a malformed link or a 404, described "Open your invitation email and select Join again to get a new link, or ask the person who invited you for a new invite." (signed in: "Go to the dashboard"; signed out: the sign-in form); "We couldn’t add you to your team" with Try again for anything else; and "Join your team" with Continue and Cancel when someone else is signed in.

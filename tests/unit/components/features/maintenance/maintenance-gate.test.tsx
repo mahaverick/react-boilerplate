@@ -120,25 +120,25 @@ describe('full maintenance', () => {
     expect(document.querySelector('main b, main img')).toBeNull()
   })
 
-  it.each([
-    ['sign-in', '/login', 'Sign in'],
-    ['sign-up', '/register', 'Create account'],
-  ])('replaces the %s page too', async (_name, path, button) => {
-    useAuthStore.setState({ isBootstrapped: false })
-    server.use(
-      http.post('/api/v1/auth/refresh', () =>
-        HttpResponse.json(
-          { success: false, message: 'Missing refresh token', statusCode: 401, requestId: 'r' },
-          { status: 401, headers: { 'Maintenance-Mode': 'full' } }
+  it.each([['sign-in', '/login', 'Email me a sign-in link']])(
+    'replaces the %s page too',
+    async (_name, path, button) => {
+      useAuthStore.setState({ isBootstrapped: false })
+      server.use(
+        http.post('/api/v1/auth/refresh', () =>
+          HttpResponse.json(
+            { success: false, message: 'Missing refresh token', statusCode: 401, requestId: 'r' },
+            { status: 401, headers: { 'Maintenance-Mode': 'full' } }
+          )
         )
       )
-    )
-    serveStatus('full')
-    renderAppAt(path)
+      serveStatus('full')
+      renderAppAt(path)
 
-    await findMaintenancePage()
-    expect(screen.queryByRole('button', { name: button })).not.toBeInTheDocument()
-  })
+      await findMaintenancePage()
+      expect(screen.queryByRole('button', { name: button })).not.toBeInTheDocument()
+    }
+  )
 
   it('stays up, without crashing, while the status endpoint answers an nginx 502', async () => {
     signIn()
@@ -237,7 +237,9 @@ describe('full maintenance', () => {
       useMaintenanceModeStore.getState().setFromStatus({ mode: 'off', message: null, since: null })
     )
 
-    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Email me a sign-in link' })
+    ).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/login')
   })
 })
@@ -417,7 +419,7 @@ describe('read-only maintenance', () => {
 
     expect(await screen.findByRole('region', { name: 'Maintenance' })).toBeInTheDocument()
     expect(screen.getAllByRole('region', { name: 'Maintenance' })).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Email me a sign-in link' })).toBeEnabled()
   })
 })
 

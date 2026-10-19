@@ -135,7 +135,12 @@ Each rule's reason is in [Analytics privacy](SECURITY.md#analytics-privacy).
   fails if it reaches a first-visit chunk.
 - **Never widen the privacy guards**: the free-string ban in `event-registry.ts`, the
   browser's ban on person and group properties, `ANALYTICS_URL_QUERY_ALLOWLIST`
-  and `guardEvent`. What each one stops is in SECURITY.md.
+  and `guardEvent`. What each one stops is in SECURITY.md. The one exception is
+  the campaign keys `utm_source`, `utm_medium`, `utm_campaign` and `utm_content`
+  in the allowlist: express puts them on every link it mails, with values from
+  its own constants. The sanitizer keeps a campaign value only when it matches
+  `^[a-z0-9_-]{1,64}$`, so a hand-edited address or token is dropped. Never add
+  `token`, `email` or `redirect`.
 - **Never call the SDK's `reset()` directly.** It drops the super properties and
   the consent answer. `resetKeepingConsent` restores both and the page's tenant
   group.
@@ -434,9 +439,25 @@ jsdom has no layout. The harness has two traps:
   reports it as an escape. If a fixtures test lands on `/login`, look for an
   unmocked endpoint.
 
-**`live`** needs a real express and its services, and runs only with `E2E_LIVE=1`.
-Each run registers a fresh address (`freshEmail`), because express rate-limits
-sign-in per address. `live/flags.test.ts` fails, rather than skips, without
+**`live`** needs a real express and its services, Mailpit included, and runs only
+with `E2E_LIVE=1`. Sign-in is by emailed link, so the helpers in
+`e2e/live/helpers.ts` read each link from Mailpit (`mailedLink` in
+`e2e/capture/mailpit.ts`, at `E2E_MAILPIT_ORIGIN`):
+
+- **`freshEmail` per run.** Express mails one address at most one sign-in link
+  a minute and ten a day, and answers 202 either way, so a reused address waits
+  on links that never arrive.
+- **The mail cooldown.** The helpers wait out the one-minute cooldown before
+  they ask for a second link to the same address.
+- **`RATE_LIMIT_SCALE`.** Express allows ten link requests per IP per fifteen
+  minutes. A 429 from `/auth/link/request` fails with a message naming
+  `RATE_LIMIT_SCALE`; set it on the API under test to widen the limit.
+- **`createUser` and `logIn`.** `createUser` signs an address in through the API
+  (request, Mailpit, verify), which creates the account. `logIn` hands that
+  session's refresh cookie to a page once, because the cookie rotates on first
+  use; after that it signs in through the page and a new link.
+
+`live/flags.test.ts` fails, rather than skips, without
 `E2E_FLAGS_SET_CMD`. `live/platform.test.ts` grants platform roles by running
 `pnpm platform:grant` in `E2E_API_DIR`, which has no default: point it at the
 express checkout whose database the API under test uses, the main
@@ -471,7 +492,7 @@ commands; the rules are in `scripts/api-restart-guard.mjs`.
 
 To run it, give express a worktree whose `.env` comes from `.env.example`, never
 from the main checkout's, and services of its own: throwaway Postgres, Redis and
-Mailpit containers, never the dev ones on 5433, 6380 and 8025. The run registers
+Mailpit containers, never the dev ones on 5433, 6380 and 8025. The run creates
 accounts and restarts servers, so it stays out of the dev database, keys and mail.
 
 `.env.example` leaves several required values empty, and express refuses to boot
@@ -481,7 +502,7 @@ without them. Set `APP_PORT=4999`, `APP_URL=http://localhost:4999`,
 `REDIS_KEY_PREFIX=express-sse`. `WEB_URL` must be the image's origin
 (`E2E_NGINX_ORIGIN`): `/auth/refresh` refuses a browser `Origin` that is not
 `WEB_URL`, `APEX_URL` or in `CORS_ALLOWED_ORIGINS`, and the test's full page load
-refreshes the session. The helpers read the verification email from
+refreshes the session. The helpers read the sign-in link from
 `E2E_MAILPIT_ORIGIN`, so point it at the run's Mailpit, not the default :8025.
 
 ```sh

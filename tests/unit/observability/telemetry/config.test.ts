@@ -70,9 +70,15 @@ describe('isAnalyticsAvailable', () => {
 })
 
 describe('the app constants', () => {
-  it('names this app and keeps only `tab` in URLs', () => {
+  it('names this app and keeps only `tab` and the campaign keys in URLs', () => {
     expect(ANALYTICS_APP).toBe('react')
-    expect(ANALYTICS_URL_QUERY_ALLOWLIST).toEqual(['tab'])
+    expect(ANALYTICS_URL_QUERY_ALLOWLIST).toEqual([
+      'tab',
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_content',
+    ])
   })
 
   it('accepts a handoff and shares its identity with a sibling-subdomain website', () => {

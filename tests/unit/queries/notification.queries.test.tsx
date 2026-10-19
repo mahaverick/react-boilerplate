@@ -52,7 +52,7 @@ describe('notification preference queries', () => {
         ok(
           {
             preferences: [
-              { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
+              { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
             ],
           },
           'Notification preferences retrieved.'
@@ -64,7 +64,7 @@ describe('notification preference queries', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data).toEqual([
-      { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
+      { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
     ])
   })
 
@@ -80,14 +80,16 @@ describe('notification preference queries', () => {
 
     const { result } = renderHook(() => useUpdatePreferences(), { wrapper })
     result.current.mutate({
-      notificationType: 'verify_email',
+      notificationType: 'tenant_invitation',
       emailEnabled: true,
       inAppEnabled: true,
     })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(body).toEqual({
-      preferences: [{ notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true }],
+      preferences: [
+        { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
+      ],
     })
   })
 })
@@ -115,9 +117,9 @@ describe('notification list mutations', () => {
   const UNREAD = {
     id: NOTIFICATION_ID,
     userId: USER_ID,
-    type: 'verify_email',
-    title: 'Confirm your email',
-    body: 'We sent a link to a@b.com.',
+    type: 'tenant_invitation',
+    title: 'You are invited to Acme',
+    body: 'A B invited you to join Acme Corp.',
     metadata: null,
     readAt: null,
     createdAt: '2026-01-02T09:00:00.000Z',

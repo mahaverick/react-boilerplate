@@ -29,9 +29,11 @@ import {
   apiLogin,
   apiRequest,
   createTenant,
-  createVerifiedUser,
+  createUser,
+  freshEmail,
   freshSlug,
   logIn,
+  signIn,
 } from '../live/helpers'
 import {
   CONTENT_SECURITY_POLICY,
@@ -45,7 +47,7 @@ import {
 const HANDOFF_ORIGIN = 'https://www.example.test'
 
 const PROBE_NAME = { firstName: 'Pii', lastName: 'Probe' }
-/** A token of the shape the invitation, reset and verify pages accept. */
+/** A token of the shape the sign-in link and invitation pages accept. */
 const PROBE_TOKEN = 'pii-probe-token-'.padEnd(43, 'x')
 const PROBE_EMAIL = 'pii-probe@example.test'
 /** The profile page, which the account menu's Profile item opens. */
@@ -222,10 +224,10 @@ function tenantOf(event: FakePosthogEvent | undefined): unknown {
   return (event?.properties.$groups as Record<string, unknown> | undefined)?.tenant
 }
 
-/** A verified account named `Pii Probe`, as its address, access token and user id. */
+/** An account named `Pii Probe`, as its address, access token and user id. */
 async function probeAccount(request: APIRequestContext, suffix: string) {
   const email = `pii-probe-${suffix}-${Date.now()}@example.test`
-  await createVerifiedUser(email)
+  await createUser(email)
   const token = await apiLogin(email)
   await apiRequest(token, 'PATCH', '/profile', PROBE_NAME)
   const profile = await request.get(`${API_ORIGIN}/api/v1/profile`, {
@@ -311,7 +313,7 @@ test.describe('the /api/v1/collect/ location', () => {
     'leaves the rest of /api/ at nginx’s 1 MB default',
     { tag: '@no-api' },
     async ({ request }) => {
-      const response = await request.post('/api/v1/auth/login', {
+      const response = await request.post('/api/v1/auth/link/request', {
         data: Buffer.alloc(2_000_000, 1),
         headers: { 'Content-Type': 'text/plain' },
       })
@@ -345,13 +347,26 @@ test.describe('analytics against a fake PostHog', () => {
       const workers: string[] = []
       page.on('worker', (worker) => workers.push(worker.url()))
 
+      // With nothing behind /api the request is answered here, so "Check your inbox" renders as it would after a real send.
+      await page.route('**/api/v1/auth/link/request', (route) =>
+        route.fulfill({
+          status: 202,
+          json: {
+            success: true,
+            message: 'Check your inbox for a sign-in link.',
+            statusCode: 202,
+            data: null,
+          },
+        })
+      )
       const response = await page.goto('/login')
       expect(response?.headers()['content-security-policy']).toBe(CONTENT_SECURITY_POLICY)
       await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible()
-      await page.getByRole('link', { name: 'Forgot password?' }).click()
-      const heading = page.getByRole('heading', { name: 'Forgot your password?', level: 1 })
+      await page.getByRole('textbox', { name: 'Email', exact: true }).fill('replay@example.test')
+      await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+      const heading = page.getByRole('heading', { name: 'Check your inbox', level: 1 })
       await expect(heading).toBeVisible()
-      await clickUntilReplayed(fake, heading, 'Forgot your password?')
+      await clickUntilReplayed(fake, heading, 'Check your inbox')
       expect(fake.events().some((event) => event.properties.app === 'react')).toBe(true)
       expect(fake.events().every((event) => event.properties.environment === 'ci')).toBe(true)
       expect(fake.requests.some((request) => request.path.startsWith('/static/'))).toBe(true)
@@ -366,11 +381,11 @@ test.describe('analytics against a fake PostHog', () => {
     { tag: '@no-api' },
     async ({ page }) => {
       test.setTimeout(90_000)
+      // The replay half of this walk is the only proof that a token in the page URL never reaches replay: the unit suite cannot run posthog-js's recorder.
       const walk = [
-        `/register?email=${encodeURIComponent(PROBE_EMAIL)}`,
+        `/auth/link?token=${PROBE_TOKEN}&email=${encodeURIComponent(PROBE_EMAIL)}`,
         `/invitations/accept?token=${PROBE_TOKEN}`,
-        `/reset-password?token=${PROBE_TOKEN}`,
-        `/verify-email?token=${PROBE_TOKEN}`,
+        `/invitations/confirm?token=${PROBE_TOKEN}&email=${encodeURIComponent(PROBE_EMAIL)}`,
         `/login?redirect=${encodeURIComponent(`/invitations/accept?token=${PROBE_TOKEN}`)}`,
       ]
       for (const url of walk) {
@@ -660,9 +675,9 @@ test.describe('analytics end to end, through express', () => {
 
     // Signed out first: these URLs carry the probe in their query strings.
     for (const path of [
-      `/register?email=${encodeURIComponent(owner.email)}`,
+      `/auth/link?token=${PROBE_TOKEN}&email=${encodeURIComponent(owner.email)}`,
       `/invitations/accept?token=${PROBE_TOKEN}`,
-      `/reset-password?token=${PROBE_TOKEN}`,
+      `/invitations/confirm?token=${PROBE_TOKEN}&email=${encodeURIComponent(owner.email)}`,
       `/login?redirect=${encodeURIComponent(`/invitations/accept?token=${PROBE_TOKEN}`)}`,
     ]) {
       await page.goto(path)
@@ -696,29 +711,34 @@ test.describe('analytics end to end, through express', () => {
       const url = event.properties.$current_url
       return typeof url === 'string' ? [url] : []
     })
-    expect(urls.some((url) => url.endsWith('/register'))).toBe(true)
+    expect(urls.some((url) => url.endsWith('/auth/link'))).toBe(true)
     expect(urls.some((url) => url.endsWith('/invitations/accept'))).toBe(true)
+    expect(urls.some((url) => url.endsWith('/invitations/confirm'))).toBe(true)
 
     const egress = fake.bodies()
     for (const probe of PROBES) expect(egress, `"${probe}" reached PostHog`).not.toContain(probe)
   })
 
-  test('server events carry the browser’s trace and replay session', async ({ page, request }) => {
+  test('server events carry the browser’s trace and replay session', async ({ page }) => {
     test.setTimeout(120_000)
-    const user = await probeAccount(request, 'trace')
     const traceparents: string[] = []
     page.on('request', (entry) => {
-      if (entry.url().endsWith('/api/v1/auth/login') && entry.method() === 'POST') {
+      if (entry.url().endsWith('/api/v1/auth/link/verify') && entry.method() === 'POST') {
         traceparents.push(entry.headers().traceparent ?? '')
       }
     })
+    const verified = page.waitForResponse(
+      (entry) => entry.url().endsWith('/api/v1/auth/link/verify') && entry.status() === 200
+    )
 
-    await logIn(page, user.email)
-    await expect(page.getByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
+    // A fresh address through the page, so the browser itself posts the sign-in: a kept API session would restore with no sign-in request.
+    await signIn(page, freshEmail())
+    const { data } = (await (await verified).json()) as { data: { user: { id: string } } }
+    const user = { id: data.user.id }
     const traceId = traceIdOf(traceparents[0])
     expect(traceId, 'the sign-in request carried a traceparent').toBeDefined()
 
-    // probeAccount signed in through the API too, so the trace id picks out the browser's sign-in.
+    // Other runs share the fake, so the trace id picks out this browser's sign-in.
     let signedIn: FakePosthogEvent | undefined
     await expect
       .poll(

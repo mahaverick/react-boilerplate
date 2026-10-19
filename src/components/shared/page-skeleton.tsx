@@ -117,7 +117,9 @@ export function PageSkeleton({ variant, nested = false }: PageSkeletonProps) {
           <CardContent className="grid gap-4">
             <Skeleton className="h-6 w-40 justify-self-center" />
             <Skeleton className="h-4 w-56 justify-self-center" />
-            <FormFieldsSkeleton fields={2} action={false} />
+            <FormFieldsSkeleton fields={1} action={false} />
+            <Skeleton data-slot="auth-button-skeleton" className="h-9 w-full" />
+            <Skeleton data-slot="auth-separator-skeleton" className="h-4 w-full" />
             <Skeleton data-slot="auth-button-skeleton" className="h-9 w-full" />
           </CardContent>
         </Card>

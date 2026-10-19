@@ -48,7 +48,7 @@ to your backend, which sets person properties server-side if it must.
 
 The website hands the anonymous id over in the link instead:
 
-    https://app.example.com/register?ph_did=<anonymous id>&ph_sid=<session id>
+    https://app.example.com/login?ph_did=<anonymous id>&ph_sid=<session id>
 
 The app accepts the handoff only when all of these hold, and strips both
 parameters from the address bar either way (`readHandoff` and
@@ -67,7 +67,8 @@ parameters from the address bar either way (`readHandoff` and
 - the app runs in the `opt_out` consent mode. In `required` mode nothing is
   stored before consent, so there is nothing to continue.
 
-When the visitor then signs up or signs in, the app's `identify` merges the
+When the visitor then signs in (a first sign-in by link or Google creates the
+account), the app's `identify` merges the
 website's anonymous history into the user.
 
 ### What the website must do
