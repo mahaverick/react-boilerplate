@@ -101,9 +101,9 @@ const NOTIFICATIONS = [
   {
     id: NOTIFICATION_ID,
     userId: USER_ID,
-    type: 'verify_email',
-    title: 'Confirm your email',
-    body: 'We sent a link to a@b.com.',
+    type: 'tenant_invitation',
+    title: 'You are invited to Acme',
+    body: 'A B invited you to join Acme Corp.',
     data: null,
     readAt: null,
     createdAt: '2026-01-02T09:00:00.000Z',
@@ -111,9 +111,9 @@ const NOTIFICATIONS = [
   {
     id: NOTIFICATION_ID_2,
     userId: USER_ID,
-    type: 'password_changed',
-    title: 'Your password changed',
-    body: 'If this was not you, reset it now.',
+    type: 'maintenance_mode_changed',
+    title: 'Maintenance mode changed',
+    body: 'Maintenance mode is now on.',
     data: null,
     readAt: '2026-01-02T10:00:00.000Z',
     createdAt: '2026-01-02T08:00:00.000Z',
@@ -153,8 +153,8 @@ const AUDIT_ENTRIES: AuditEntry[] = [
   },
 ]
 const PREFERENCES = [
-  { notificationType: 'verify_email', emailEnabled: true, inAppEnabled: true },
-  { notificationType: 'password_changed', emailEnabled: true, inAppEnabled: false },
+  { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'maintenance_mode_changed', emailEnabled: true, inAppEnabled: false },
 ]
 
 /**

@@ -17,7 +17,7 @@ import { server } from '@/tests/mocks/server'
 const unreadRow: Notification = {
   id: NOTIFICATION_ID,
   userId: testUser.id,
-  type: 'verify_email',
+  type: 'tenant_invitation',
   title: 'Verify your email',
   body: 'Follow the link we sent you.',
   metadata: null,
@@ -362,6 +362,60 @@ describe('notifications page', () => {
       await user.click(screen.getByRole('button', { name: 'Mark "Second" as read' }))
 
       await waitFor(() => expect(card('Second')).toHaveFocus())
+    })
+  })
+
+  describe('Mark all read', () => {
+    /** Serves an inbox whose unread total is `count`, and a read-all answer that zeroes it. */
+    function serveUnread(count: number) {
+      let unread = count
+      server.use(
+        http.get('/api/v1/notifications', () =>
+          ok(
+            listPage([unreadRow], {}, { count: unread, capped: false }),
+            'Notifications retrieved.'
+          )
+        ),
+        http.patch('/api/v1/notifications/read-all', () => {
+          unread = 0
+          return ok({ count: 1 }, 'Marked read.')
+        })
+      )
+    }
+
+    it('keeps Mark all read in place, disabled, when nothing is unread', async () => {
+      serveUnread(0)
+      renderNotifications()
+      await screen.findByRole('list', { name: 'Notifications' })
+
+      expect(screen.getByRole('button', { name: 'Mark all read' })).toBeDisabled()
+    })
+
+    it('enables it with unread notifications', async () => {
+      serveUnread(2)
+      renderNotifications()
+      await screen.findByRole('button', { name: 'Notifications, 2 unread' })
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Mark all read' })).toBeEnabled()
+      )
+    })
+
+    it('keeps it after marking the last one read', async () => {
+      serveUnread(1)
+      const user = userEvent.setup()
+      renderNotifications()
+      const button = await screen.findByRole('button', { name: 'Mark all read' })
+      await waitFor(() => expect(button).toBeEnabled())
+
+      await user.click(button)
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Mark all read' })).toBeDisabled()
+      )
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1, name: 'Notifications' })).toHaveFocus()
+      )
     })
   })
 

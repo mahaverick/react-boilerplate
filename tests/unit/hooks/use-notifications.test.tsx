@@ -32,7 +32,7 @@ const STREAM_URL = `${API_PREFIX}/notifications/stream`
  */
 const streamPayload: Omit<Notification, 'userId' | 'metadata'> = {
   id: NOTIFICATION_ID,
-  type: 'verify_email',
+  type: 'tenant_invitation',
   title: 'Verify your email',
   body: 'Follow the link we sent you.',
   readAt: null,
@@ -43,7 +43,7 @@ const streamPayload: Omit<Notification, 'userId' | 'metadata'> = {
 const listRow: Notification = {
   id: NOTIFICATION_ID,
   userId: testUser.id,
-  type: 'verify_email',
+  type: 'tenant_invitation',
   title: 'Verify your email',
   body: 'Follow the link we sent you.',
   metadata: null,

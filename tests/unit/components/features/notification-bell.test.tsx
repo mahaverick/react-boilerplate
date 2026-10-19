@@ -17,7 +17,7 @@ import { server } from '@/tests/mocks/server'
 const unreadRow: Notification = {
   id: NOTIFICATION_ID,
   userId: testUser.id,
-  type: 'verify_email',
+  type: 'tenant_invitation',
   title: 'Verify your email',
   body: 'Follow the link we sent you.',
   metadata: null,

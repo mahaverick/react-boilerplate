@@ -41,7 +41,7 @@ function notificationRow(id: string, readAt: string | null): Notification {
   return {
     id,
     userId: testUser.id,
-    type: 'verify_email',
+    type: 'tenant_invitation',
     title: 'Verify your email',
     body: 'Follow the link we sent you.',
     metadata: null,

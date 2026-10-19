@@ -160,7 +160,8 @@ function NotificationRow({
  * The inbox: every notification as a card, a page at a time, with a search box
  * and a read-state filter. The list's loading, error and empty states are
  * `DataTable`'s, so a failed load is never the empty inbox. "Mark all read"
- * shows while the API's unread total is above zero.
+ * always shows and is disabled with nothing unread, so the toolbar keeps its
+ * place; focus moves to the heading once the button disables.
  */
 function NotificationsPage() {
   const list = useListSearch(notificationsList)
@@ -200,18 +201,18 @@ function NotificationsPage() {
               Notification settings
             </Link>
           </CardDescription>
-          {unread !== undefined && unread.count > 0 && (
-            <div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={markAllRead.isPending}
-                onClick={() => markAllRead.mutate()}
-              >
-                Mark all read
-              </Button>
-            </div>
-          )}
+          <div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={unread === undefined || unread.count === 0 || markAllRead.isPending}
+              onClick={() =>
+                markAllRead.mutate(undefined, { onSuccess: () => focus.focusAfter('heading') })
+              }
+            >
+              Mark all read
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-3">
           <DataTable
