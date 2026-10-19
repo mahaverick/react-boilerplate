@@ -14,8 +14,8 @@ const ROOT = path.resolve(import.meta.dirname, '../..')
 const PAGES = path.join(ROOT, 'src/pages')
 const SCRIPT = readFileSync(path.join(ROOT, 'public/boot-variant.js'), 'utf8')
 
-/** Auth pages the sibling app has and this one may not: apex's /no-access. */
-const SIBLING_ONLY = new Set(['/no-access'])
+/** Listed auth paths without a route file here: apex's pages, and the sign-in link pages whose routes arrive after this list. */
+const SIBLING_ONLY = new Set(['/no-access', '/auth/confirm', '/auth/link', '/welcome'])
 
 /** The array literal assigned to `BOOT_AUTH_PATHS` in the script. */
 function listedPaths(): string[] {
@@ -68,6 +68,14 @@ describe('boot-variant.js', () => {
   it.each(listedPaths())('marks %s as an auth page', (pathname) => {
     expect(variantFor(pathname)).toBe('auth')
     expect(variantFor(`${pathname}/`)).toBe('auth')
+  })
+
+  it.each(['/auth/link', '/welcome', '/auth/confirm'])('marks %s as an auth page', (pathname) => {
+    expect(variantFor(pathname)).toBe('auth')
+  })
+
+  it('marks a trailing-slash /auth/link/ too', () => {
+    expect(variantFor('/auth/link/')).toBe('auth')
   })
 
   it.each(['/', '/dashboard', '/tenants/acme', '/login-help', '/settings/account/security'])(

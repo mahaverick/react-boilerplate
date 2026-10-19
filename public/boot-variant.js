@@ -9,13 +9,16 @@
 
 var BOOT_AUTH_PATHS = [
   '/login',
+  '/auth/link',
+  '/auth/callback',
+  '/auth/confirm',
+  '/welcome',
+  '/invitations/accept',
+  '/no-access',
   '/register',
   '/forgot-password',
   '/reset-password',
   '/verify-email',
-  '/auth/callback',
-  '/invitations/accept',
-  '/no-access',
 ]
 
 try {
