@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { act, type ReactNode } from 'react'
+import { act, StrictMode, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_PREFIX } from '@/constants/routes'
 import { useNotificationStream } from '@/hooks/use-notifications'
@@ -81,6 +81,29 @@ describe('useNotificationStream', () => {
     // Restores the `fetch` that existed before this test's stub, not `undefined`.
     vi.unstubAllGlobals()
     client.clear()
+  })
+
+  /**
+   * A page load opens the stream once per token. StrictMode's second effect run aborts the
+   * first connect, so at most one connection stays live, and none is left open beside it.
+   */
+  it('opens one stream per token per mount, StrictMode included', async () => {
+    const { unmount } = renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {})
+    expect(MockFetchStream.instances).toHaveLength(1)
+    unmount()
+
+    MockFetchStream.instances = []
+    const strict = renderHook(() => useNotificationStream(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <StrictMode>{wrapper({ children })}</StrictMode>
+      ),
+    })
+    await waitFor(() => expect(MockFetchStream.instances.length).toBeGreaterThan(0))
+    await act(async () => {})
+    expect(MockFetchStream.instances.filter((stream) => !stream.aborted)).toHaveLength(1)
+    strict.unmount()
   })
 
   /**
