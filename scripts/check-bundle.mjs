@@ -56,9 +56,14 @@ import { build } from 'vite'
  * lazy too, but the entry's preload map names every chunk a lazy route
  * loads, and the section split `passkey.queries` and `DialogRoot` into
  * chunks of their own (80 B: 588,608 B); the setup screen will add its
- * own names. One final P2 raise, to 589,000 B.
+ * own names. One final P2 raise, to 589,000 B. Required mode then put
+ * its 403 interceptor, its store, the router's retry predicate and `passkey.types`
+ * in the entry, and the app shell's lazy setup-screen wrapper (with its
+ * preload map names) in the `_app` chunk. They must load with the entry to catch
+ * the first 403 PASSKEY_SETUP_REQUIRED, so they cannot be lazy: 589,423 B,
+ * rounded up to 589,500 B.
  */
-const ENTRY_BUDGET_BYTES = 589_000
+const ENTRY_BUDGET_BYTES = 589_500
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

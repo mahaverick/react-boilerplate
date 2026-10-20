@@ -28,6 +28,23 @@ vi.mock('@/lib/webauthn', async (importOriginal) => ({
   signalPasskeyUser: vi.fn(),
 }))
 
+const finish = vi.hoisted(() => ({ failWith: null as Error | null }))
+const noted = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/passkey-setup', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/lib/passkey-setup')>()
+  return {
+    ...original,
+    finishPasskeySetup: (...args: Parameters<typeof original.finishPasskeySetup>) =>
+      finish.failWith ? Promise.reject(finish.failWith) : original.finishPasskeySetup(...args),
+  }
+})
+
+vi.mock('@/observability/errors', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/observability/errors')>()),
+  noteError: noted,
+}))
+
 const SETUP_MESSAGE = 'Create a passkey to continue. Every account here needs one.'
 const PASSKEY = {
   id: 'pk-1',
@@ -198,5 +215,37 @@ describe('the required-mode setup screen', () => {
     await user.click(await screen.findByRole('button', { name: 'Create a passkey' }))
     await waitFor(() => expect(error).toHaveBeenCalledWith('You have 20 passkeys.'))
     expect(usePasskeySetupStore.getState().required).toBe(true)
+  })
+
+  it('reports a failed refresh after create without a second toast or an unhandled rejection', async () => {
+    const user = userEvent.setup()
+    const boom = new Error('refresh failed')
+    finish.failWith = boom
+    noted.mockReset()
+    const error = vi.spyOn(toast, 'error')
+    const success = vi.spyOn(toast, 'success')
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      server.use(
+        http.post('/api/v1/auth/passkeys/registration/options', () =>
+          ok({ challengeId: 'c1', options: { challenge: 'x' } }, 'Options.')
+        ),
+        http.post('/api/v1/auth/passkeys/registration/verify', () =>
+          ok({ passkey: PASSKEY }, 'Passkey created.')
+        )
+      )
+      usePasskeySetupStore.setState({ required: true, message: SETUP_MESSAGE })
+      renderAppAt('/settings/account/profile')
+
+      await user.click(await screen.findByRole('button', { name: 'Create a passkey' }))
+      await waitFor(() => expect(noted).toHaveBeenCalledWith(boom, 'rejection', true))
+      expect(success).toHaveBeenCalledWith('Passkey created.')
+      expect(error).not.toHaveBeenCalled()
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+      finish.failWith = null
+    }
   })
 })

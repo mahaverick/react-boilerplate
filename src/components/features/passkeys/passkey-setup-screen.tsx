@@ -8,6 +8,7 @@ import { STEP_UP_WAITING_LABEL, useStepUp, useStepUpWaiting } from '@/hooks/use-
 import { createFailureMessage } from '@/lib/passkey-create-failure'
 import { finishPasskeySetup } from '@/lib/passkey-setup'
 import { toast } from '@/lib/toast'
+import { noteError } from '@/observability/errors'
 import { useLogout, useLogoutPending } from '@/queries/auth.queries'
 import { useCreatePasskey, usePasskeyCreateSupport } from '@/queries/passkey-manage.queries'
 import { usePasskeySetupStore } from '@/states/passkey-setup.store'
@@ -70,7 +71,10 @@ export function PasskeySetupScreen() {
                   .then(
                     () => {
                       toast.success('Passkey created.')
-                      return finishPasskeySetup(router, queryClient)
+                      // The passkey exists; a failed refresh is reported, not toasted.
+                      return finishPasskeySetup(router, queryClient).catch((error: unknown) => {
+                        noteError(error, 'rejection', true)
+                      })
                     },
                     (error: unknown) => {
                       const failure = createFailureMessage(error)
