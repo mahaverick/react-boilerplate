@@ -24,6 +24,7 @@ import { Route as AppProfileRouteImport } from './pages/_app/profile'
 import { Route as AppSettingsRouteImport } from './pages/_app/settings'
 import { Route as AuthLoginRouteImport } from './pages/_auth/login'
 import { Route as AuthCallbackRouteImport } from './pages/auth/callback'
+import { Route as AuthConfirmRouteImport } from './pages/auth/confirm'
 import { Route as AuthLinkRouteImport } from './pages/auth/link'
 import { Route as InvitationsAcceptRouteImport } from './pages/invitations/accept'
 import { Route as InvitationsConfirmRouteImport } from './pages/invitations/confirm'
@@ -116,6 +117,11 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthConfirmRoute = AuthConfirmRouteImport.update({
+  id: '/auth/confirm',
+  path: '/auth/confirm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthLinkRoute = AuthLinkRouteImport.update({
@@ -241,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRouteWithChildren
   '/login': typeof AuthLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/auth/link': typeof AuthLinkRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/invitations/confirm': typeof InvitationsConfirmRoute
@@ -275,6 +282,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AppProfileRoute
   '/login': typeof AuthLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/auth/link': typeof AuthLinkRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/invitations/confirm': typeof InvitationsConfirmRoute
@@ -311,6 +319,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_auth/login': typeof AuthLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/auth/link': typeof AuthLinkRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/invitations/confirm': typeof InvitationsConfirmRoute
@@ -348,6 +357,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/login'
     | '/auth/callback'
+    | '/auth/confirm'
     | '/auth/link'
     | '/invitations/accept'
     | '/invitations/confirm'
@@ -382,6 +392,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/login'
     | '/auth/callback'
+    | '/auth/confirm'
     | '/auth/link'
     | '/invitations/accept'
     | '/invitations/confirm'
@@ -417,6 +428,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_auth/login'
     | '/auth/callback'
+    | '/auth/confirm'
     | '/auth/link'
     | '/invitations/accept'
     | '/invitations/confirm'
@@ -450,6 +462,7 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   WelcomeRoute: typeof WelcomeRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  AuthConfirmRoute: typeof AuthConfirmRoute
   AuthLinkRoute: typeof AuthLinkRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   InvitationsConfirmRoute: typeof InvitationsConfirmRoute
@@ -560,6 +573,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/callback'
       fullPath: '/auth/callback'
       preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/confirm': {
+      id: '/auth/confirm'
+      path: '/auth/confirm'
+      fullPath: '/auth/confirm'
+      preLoaderRoute: typeof AuthConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/link': {
@@ -809,6 +829,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   WelcomeRoute: WelcomeRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  AuthConfirmRoute: AuthConfirmRoute,
   AuthLinkRoute: AuthLinkRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
   InvitationsConfirmRoute: InvitationsConfirmRoute,

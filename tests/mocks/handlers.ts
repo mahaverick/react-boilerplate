@@ -190,7 +190,9 @@ export const handlers = [
   http.get('/api/v1/auth/passkeys/config', () =>
     ok({ mode: 'optional', rpId: 'localhost' }, 'Passkey settings retrieved.')
   ),
-  http.get('/api/v1/auth/passkeys', () => ok({ passkeys: [] }, 'Passkeys retrieved.')),
+  http.get('/api/v1/auth/passkeys', () =>
+    ok({ passkeys: [], userHandle: 'HANDLE' }, 'Passkeys retrieved.')
+  ),
   // Fetched by the profile page's Security section; an email-link account, which a test about Google or a failed load overrides.
   http.get('/api/v1/auth/providers', () =>
     ok(

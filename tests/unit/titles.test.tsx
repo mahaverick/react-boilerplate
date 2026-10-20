@@ -147,6 +147,7 @@ describe('page titles', () => {
     ['the workspace general page', '/settings/workspace/acme/general', 'General · acme'],
     ['the workspace activity page', '/settings/workspace/acme/activity', 'Activity · acme'],
     ['the invitation confirmation page', '/invitations/confirm', 'Join your team'],
+    ['the confirm-it’s-you page', '/auth/confirm', 'Confirm it’s you'],
   ])('names %s', async (_name, path, title) => {
     useAuthStore.setState({
       accessToken: 'access-token',

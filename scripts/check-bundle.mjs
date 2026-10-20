@@ -48,9 +48,13 @@ import { build } from 'vite'
  * over the 587,437 B measured before it);
  * the tenant list's query function became `readMemberships` itself, and the
  * entry's error and not-found screens lost the sentences their titles already
- * say: 587,427 B.
+ * say: 587,427 B. The confirm-it's-you page, a second lazy token-page
+ * route, adds its route options, its route-tree entry, `setToken` on the auth
+ * store and its chunk's preload list to the entry (1,228 B over the 587,298 B
+ * measured before it); the page, the dialog and the step-up provider's
+ * runner stay in lazy chunks: 588,526 B.
  */
-const ENTRY_BUDGET_BYTES = 587_500
+const ENTRY_BUDGET_BYTES = 588_600
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

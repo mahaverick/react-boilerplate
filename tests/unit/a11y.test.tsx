@@ -1015,6 +1015,23 @@ describe('auth link states', () => {
   })
 })
 
+/** The confirm-it's-you page, which has a state for each outcome; the card without a token is the one that needs no request. */
+describe('auth confirm states', () => {
+  it('auth confirm incomplete link has no axe violations', async () => {
+    signOut()
+    renderAppAt('/auth/confirm')
+    await screen.findByRole('heading', { level: 1, name: 'This link is incomplete' })
+    await expectNoViolations()
+  })
+
+  it('auth confirm signed out has no axe violations', async () => {
+    signOut()
+    renderAppAt(`/auth/confirm?token=${'t'.repeat(43)}`)
+    await screen.findByRole('heading', { level: 1, name: 'Sign in to confirm' })
+    await expectNoViolations()
+  })
+})
+
 /**
  * Overlays and menus, which a default-state sweep never sees. A Base UI `Dialog` with no
  * `Title` gets `aria-labelledby: null` and, unlike Radix, emits no development warning, so
@@ -1038,6 +1055,23 @@ describe('open overlays', () => {
     const dialog = await screen.findByRole('alertdialog')
     // Asserted directly rather than implied by a clean axe run: this catches a dropped Title.
     expect(dialog).toHaveAccessibleName('Remove Cleo D?')
+    await expectNoViolations()
+  })
+
+  it('has no violations with the confirm-it’s-you dialog open, and the dialog is named', async () => {
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('Confirm it’s you to continue.', 401, 'REAUTH_REQUIRED')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm it’s you' })
+    await within(dialog).findByRole('button', { name: 'Email me a link' })
     await expectNoViolations()
   })
 

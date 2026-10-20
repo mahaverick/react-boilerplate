@@ -102,6 +102,15 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     sections: [{ name: 'Verify', endpoints: ['POST /auth/link/verify'] }],
     note: 'The seed owner’s spent link, so the default is the dead link with the address filled in; the loading shot is "Signing you in", the error shot "Try again".',
   },
+  '/auth/confirm': {
+    kind: 'page',
+    area: 'auth',
+    shot: 'confirm-its-you',
+    url: '/auth/confirm',
+    as: 'anonymous',
+    sections: [],
+    note: 'No token: the incomplete-link card.',
+  },
   '/invitations/accept': {
     kind: 'page',
     area: 'auth',

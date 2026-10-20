@@ -14,6 +14,7 @@ export const API_PREFIX = '/api/v1'
 export const ROUTES = {
   home: '/',
   login: '/login',
+  authConfirm: '/auth/confirm',
   authLink: '/auth/link',
   dashboard: '/dashboard',
   welcome: '/welcome',

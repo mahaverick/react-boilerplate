@@ -2,7 +2,7 @@
 
 The signed-out pages and the pages a mailed link opens. Back to the [route map](README.md#route-map).
 
-All of them render inside `AuthLayout` (`src/components/layouts/auth-layout.tsx`): a muted full-height page with one centred `AuthCard` (`src/components/layouts/auth-card.tsx`). The card has the page's `h1` and description over its content on the left, and the brand panel (app name and tagline on the primary colour) on the right; below `md` the brand panel is hidden and the card is one column. `/login` sits under the `_auth` layout route, whose `beforeLoad` sends a signed-in user to `/dashboard` (except while maintenance mode is `full`). `/auth/callback`, `/auth/link`, `/welcome`, `/invitations/accept` and `/invitations/confirm` are top-level routes outside `_auth`, because a signed-in user opens their links too; each renders `AuthLayout` itself. None of these pages awaits a request before it renders, beyond the boot's `POST /auth/refresh` ([boot.md](boot.md#what-happens)).
+All of them render inside `AuthLayout` (`src/components/layouts/auth-layout.tsx`): a muted full-height page with one centred `AuthCard` (`src/components/layouts/auth-card.tsx`). The card has the page's `h1` and description over its content on the left, and the brand panel (app name and tagline on the primary colour) on the right; below `md` the brand panel is hidden and the card is one column. `/login` sits under the `_auth` layout route, whose `beforeLoad` sends a signed-in user to `/dashboard` (except while maintenance mode is `full`). `/auth/callback`, `/auth/confirm`, `/auth/link`, `/welcome`, `/invitations/accept` and `/invitations/confirm` are top-level routes outside `_auth`, because a signed-in user opens their links too; each renders `AuthLayout` itself. None of these pages awaits a request before it renders, beyond the boot's `POST /auth/refresh` ([boot.md](boot.md#what-happens)).
 
 Sign-in is by emailed link or Google. There is no password, registration, password reset or email-verification page. The shots of these pages are retaken once a live express 6 stack runs (`pnpm capture:pages`); until then the pages below have no shot.
 
@@ -56,6 +56,28 @@ The page has these states:
 3. **Retryable failure** (429, 503, a network error or a 5xx): "We couldn’t sign you in", the reason (a 429 names its wait, "Too many sign-in attempts. Try again in 42 seconds."; a read-only refusal, which express sends only when the click would create the account, says "We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends.") and Try again. The link stays usable.
 4. **Signed in as the link's address:** goes straight on to the link's `redirect` or `/dashboard`, spending nothing.
 5. **Signed in as someone else:** "Switch account?", "You’re signed in as {current}. This link is for {target}.", Continue as {target} (signs out and reloads this URL signed out, which then verifies) and Stay signed in as {current} (→ `/dashboard`).
+
+### `/auth/confirm` — Confirm it’s you
+
+|                     |                                                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Purpose             | Where the “Confirm it’s you” email link opens (`/auth/confirm?token=…`): confirm the signed-in session, so a write that needs a recent sign-in can run.                                    |
+| File                | `src/pages/auth/confirm.tsx`                                                                                                                                                               |
+| Guard and redirects | none (top level), because the link must open signed in and a signed-out browser must hear where it works. Drops `token` from the address bar once the outcome is final, and keeps `utm_*`. |
+| Layout              | `AuthLayout` + `AuthCard`, rendered by the page                                                                                                                                            |
+| Data                | started: `POST /auth/step-up/link/verify` (`{ token }`, with the session’s bearer) once per page load when signed in; an expired access token is refreshed once and the token posted again |
+| Components          | `AuthCard`, `SigningInStatus`, `VerifyFailedPanel` (`src/components/features/auth/link-panels.tsx`)                                                                                        |
+| Transitions         | on success the page swaps in the new access token and posts `step_up_confirmed`, so the tab that asked retries its action                                                                  |
+
+The page has these states:
+
+1. **Incomplete link** (no `?token`): “This link is incomplete”.
+2. **Signed out:** “Sign in to confirm”, with a Sign in link. Nothing is posted.
+3. **Confirming:** “Confirming it’s you”.
+4. **Confirmed:** “Confirmed”. If a tab is waiting, “You can close this tab.”; if none is, “Go back to React Boilerplate and try the action again.” with Go to Dashboard; where the browser cannot say, “Return to the React Boilerplate tab where you started. If you closed it, try the action again.”
+5. **Dead link** (400): “This link didn’t confirm it’s you”.
+6. **Session ended** (401): “Your session ended”, with a Sign in link.
+7. **Retryable failure** (anything else): “We couldn’t confirm it’s you”, the reason and Try again.
 
 ### `/auth/callback` — Google sign-in return
 

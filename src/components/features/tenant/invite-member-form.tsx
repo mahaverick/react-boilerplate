@@ -27,12 +27,13 @@ import {
 } from '@/constants/roles'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
+import { STEP_UP_WAITING_LABEL, useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { codeFrom, messageFrom } from '@/lib/api-error'
+import { isReauthRequired, stepUpRefusal } from '@/lib/step-up'
 import { toast } from '@/lib/toast'
-import { SIGN_IN_AGAIN } from '@/lib/write-failure'
 import { useInviteMember } from '@/queries/tenant.queries'
 import { inviteMemberSchema } from '@/schemas/tenant.schemas'
-import { ALREADY_MEMBER, INVITATION_CONFLICT, REAUTH_REQUIRED } from '@/types/api.types'
+import { ALREADY_MEMBER, INVITATION_CONFLICT } from '@/types/api.types'
 
 /** A 409 `invitation_conflict`: another invite for this address just won the race. */
 const RACED =
@@ -51,6 +52,8 @@ const RACED =
  */
 export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: MembershipRole }) {
   const inviteMember = useInviteMember(slug)
+  const stepUp = useStepUp()
+  const waiting = useStepUpWaiting()
   const serverErrors = useServerErrors()
   const grantable = MEMBERSHIP_ROLES.filter((role) => canActorGrantRole(myRole, role))
 
@@ -67,7 +70,7 @@ export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: Membe
       serverErrors.reset()
       try {
         const input = inviteMemberSchema.parse(value)
-        await inviteMember.mutateAsync(input)
+        await stepUp.run(() => inviteMember.mutateAsync(input))
         toast.success(`Invitation sent to ${input.email}.`)
         form.reset()
       } catch (error) {
@@ -80,8 +83,8 @@ export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: Membe
           serverErrors.setFormErrors([RACED])
           return
         }
-        if (code === REAUTH_REQUIRED) {
-          serverErrors.setFormErrors([SIGN_IN_AGAIN])
+        if (isReauthRequired(error)) {
+          serverErrors.setFormErrors([stepUpRefusal(error)])
           return
         }
         serverErrors.capture(error)
@@ -143,9 +146,18 @@ export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: Membe
 
       <div className="grid gap-2 sm:pt-6">
         <FormError />
-        <BusyButton busy={inviteMember.isPending} busyLabel="Sending…" type="submit">
-          Invite member
-        </BusyButton>
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
+            <BusyButton
+              // The refused send is not pending while its step-up waits; the submit still is.
+              busy={inviteMember.isPending || (waiting && isSubmitting)}
+              busyLabel={waiting && isSubmitting ? STEP_UP_WAITING_LABEL : 'Sending…'}
+              type="submit"
+            >
+              Invite member
+            </BusyButton>
+          )}
+        </form.Subscribe>
       </div>
     </Form>
   )

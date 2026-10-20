@@ -1,18 +1,12 @@
-import { codeFrom, messageFrom } from '@/lib/api-error'
-import { REAUTH_REQUIRED } from '@/types/api.types'
+import { messageFrom } from '@/lib/api-error'
+import { isReauthRequired, stepUpRefusal } from '@/lib/step-up'
 
 /**
- * What a refused stale step-up says. This app has no step-up flow, so the only
- * way to a fresh sign-in is to sign out and back in.
- */
-export const SIGN_IN_AGAIN =
-  'For your security, sign out and sign in again before making this change.'
-
-/**
- * The message for a failed write: the prompt to sign in again when the API
- * refused with `REAUTH_REQUIRED` (a sign-in too old for a staff write on the
- * platform tenant's members or invitations), otherwise the server's own message.
+ * The message for a failed write: what a refused step-up means
+ * (`stepUpRefusal`, for a `REAUTH_REQUIRED` the "Confirm it's you" dialog could
+ * not settle: dismissed, or refused again after confirming), otherwise the
+ * server's own message.
  */
 export function writeFailureMessage(error: unknown): string {
-  return codeFrom(error) === REAUTH_REQUIRED ? SIGN_IN_AGAIN : messageFrom(error)
+  return isReauthRequired(error) ? stepUpRefusal(error) : messageFrom(error)
 }

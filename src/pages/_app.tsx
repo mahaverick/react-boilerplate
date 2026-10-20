@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { AppLayout } from '@/components/layouts/app-layout'
+import { AppShell } from '@/components/layouts/app-shell'
 import { ROUTES } from '@/constants/routes'
 import { retainTenant, tenantSearchSchema } from '@/lib/current-tenant'
 import { ensureFlags } from '@/observability/flags/flag-query'
@@ -40,5 +40,5 @@ export const Route = createFileRoute('/_app')({
   },
   loader: ({ context, params }) =>
     ensureFlags(context.queryClient, flagScopeFor(params as { slug?: string })),
-  component: AppLayout,
+  component: AppShell,
 })
