@@ -140,10 +140,10 @@ const MAX_MEMBERSHIP_PAGES = 50
  * `MAX_MEMBERSHIP_PAGES` pages, is a fault and rejects, so the read never
  * loops. A tenant that moved across a page boundary between two reads is
  * listed once.
- * @param signal - The query's abort signal, handed to every page's request.
+ * @param context - The query's context; its abort signal goes with every page's request.
  * @returns The rows of every page, the first of any repeated tenant kept.
  */
-async function readMemberships(signal: AbortSignal): Promise<TenantWithRole[]> {
+async function readMemberships({ signal }: { signal: AbortSignal }): Promise<TenantWithRole[]> {
   const rows = new Map<string, TenantWithRole>()
   const sent = new Set<string>()
   let cursor: string | undefined
@@ -173,7 +173,7 @@ async function readMemberships(signal: AbortSignal): Promise<TenantWithRole[]> {
 export function tenantsQueryOptions() {
   return queryOptions({
     queryKey: tenantKeys.list,
-    queryFn: ({ signal }) => readMemberships(signal),
+    queryFn: readMemberships,
   })
 }
 

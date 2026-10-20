@@ -100,6 +100,7 @@ describe('route errors', () => {
       within(alert).getByRole('heading', { level: 1, name: 'This page didn’t load' })
     ).toBeInTheDocument()
     expect(within(alert).getByRole('link', { name: 'Go home' })).toHaveAttribute('href', '/')
+    expect(within(alert).getByText('Try again, or go home.')).toBeInTheDocument()
 
     failing = false
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
@@ -179,6 +180,7 @@ describe('route errors', () => {
       within(alert).getByRole('heading', { level: 1, name: 'A new version is available' })
     ).toBeInTheDocument()
     expect(within(alert).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    expect(within(alert).getByText('Reload to get the latest version.')).toBeInTheDocument()
 
     await user.click(within(alert).getByRole('button', { name: 'Reload' }))
     expect(reload).toHaveBeenCalledOnce()

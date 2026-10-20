@@ -44,11 +44,13 @@ import { build } from 'vite'
  * a new lazy token-page route, adds its route options, its route-tree entry
  * and its chunk's preload list to the entry (648 B over the 586,796 B
  * measured before it); its component chunk stays lazy: 587,444 B. Every
- * query function then passed TanStack Query's `signal` to the request, so a
- * cancel aborts it, and the entry's load-error copy was reworded (101 B):
- * 587,545 B.
+ * query function then passed TanStack Query's `signal` to the request (108 B
+ * over the 587,437 B measured before it);
+ * the tenant list's query function became `readMemberships` itself, and the
+ * entry's error and not-found screens lost the sentences their titles already
+ * say: 587,427 B.
  */
-const ENTRY_BUDGET_BYTES = 587_600
+const ENTRY_BUDGET_BYTES = 587_500
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

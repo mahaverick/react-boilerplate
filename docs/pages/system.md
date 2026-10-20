@@ -28,7 +28,7 @@ The walk confirmed both: signed out, `/` landed on `/login`; signed in, on `/das
 | Guard and redirects | none: the splat route is top level, under neither `_app` nor `_auth`, so it renders the same for everyone                    |
 | Layout              | none: the route renders its own `<main>` around `RouteNotFound` on a plain background, with no app shell and no `AuthLayout` |
 | Data                | none                                                                                                                         |
-| Sections            | A `Card` with "Page not found", "The address may be mistyped, or the page may have moved." and Go home                       |
+| Sections            | A `Card` with "Page not found", "Check the address, or go home." and Go home                                                 |
 | Components          | `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardFooter`, `buttonVariants`                                         |
 | Transitions         | Go home → `/`, which redirects to `/dashboard` or `/login`                                                                   |
 

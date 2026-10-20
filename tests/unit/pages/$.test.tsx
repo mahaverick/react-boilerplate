@@ -45,5 +45,6 @@ describe('the catch-all route', () => {
 
     await screen.findByRole('heading', { level: 1, name: 'Page not found' })
     expect(screen.getAllByRole('main')).toHaveLength(1)
+    expect(screen.getByText('Check the address, or go home.')).toBeInTheDocument()
   })
 })

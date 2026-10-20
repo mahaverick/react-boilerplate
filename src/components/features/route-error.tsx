@@ -40,7 +40,7 @@ export function RouteError({
       <RouteErrorCard
         heading={heading}
         title="A new version is available"
-        description="This page was built before the latest update. Reload to get the new version."
+        description="Reload to get the latest version."
       >
         <Button onClick={() => window.location.reload()}>Reload</Button>
       </RouteErrorCard>
@@ -57,7 +57,7 @@ export function RouteError({
     <RouteErrorCard
       heading={heading}
       title="This page didn’t load"
-      description="An error stopped this page from loading. Try again, or go home."
+      description="Try again, or go home."
       detail={import.meta.env.DEV && error instanceof Error ? error.message : undefined}
     >
       <Button onClick={() => void retry()}>Try again</Button>
