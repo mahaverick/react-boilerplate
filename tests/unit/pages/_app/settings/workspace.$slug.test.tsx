@@ -178,6 +178,17 @@ describe('workspace settings', () => {
     }
   })
 
+  it('describes the invitation as it works now: one click for someone new, a sign-in link otherwise', async () => {
+    mockTenant('owner')
+    renderAppAt('/settings/workspace/acme/members')
+    const heading = await screen.findByRole('heading', { name: 'Invite a member', level: 2 })
+    const card = heading.closest('[data-slot="card"]')
+    expect(card).toHaveTextContent(
+      'We email them an invitation that expires in 3 days. Someone new joins in one click. Someone with an account gets a sign-in link to confirm.'
+    )
+    expect(card).not.toHaveTextContent(/open the link again/)
+  })
+
   it('leaves the tenant home with only Overview and flagged tabs', async () => {
     mockTenant('owner')
     renderAppAt('/tenants/acme')
