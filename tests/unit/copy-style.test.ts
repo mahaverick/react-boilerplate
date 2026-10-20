@@ -9,12 +9,17 @@ const SOURCES = import.meta.glob<string>(
 /**
  * Phrasings the copy rules retire: passive "could not be …", the vague
  * "Something went wrong", and the hedge "This is not a sign". Each says what
- * failed without naming who or what to do next.
+ * failed without naming who or what to do next. Then the filler that adds
+ * no fact ("successfully", "was able to", "in order to", "currently"), the
+ * vague "shortly", and the peacock words that praise instead of naming the
+ * mechanism.
  */
 const RETIRED: readonly RegExp[] = [
   /\b[Cc]ould not (?:load|open|copy|be (?:loaded|shown|refreshed))\b/,
   /\bSomething went wrong\b/,
   /\bThis is not a sign\b/,
+  /\b(?:successfully|currently|shortly|(?:was|were) able to|in order to|please note)\b/i,
+  /\b(?:simply|seamless(?:ly)?|exciting|outstanding|innovative|world-class|powerful|best-in-class)\b/i,
 ]
 
 /**
@@ -35,9 +40,28 @@ describe('user-facing copy', () => {
   it('the scan flags a retired phrasing in code and skips it in a comment', () => {
     expect(
       retiredPhrasings(
-        "const A = 'Tenants could not be loaded'\n// it could not load\n * could not open"
+        [
+          "const A = 'Tenants could not be loaded'",
+          '// it could not load',
+          ' * could not open',
+          "const B = 'Invitation successfully sent.'",
+          "const C = 'We were able to save it.'",
+          "const D = 'Select Save in order to keep it.'",
+          "const E = 'Maintenance is currently on.'",
+          "const F = 'It appears shortly.'",
+          "const G = 'A powerful, seamless sign-in.'",
+          '// simply a comment',
+        ].join('\n')
       )
-    ).toEqual(["const A = 'Tenants could not be loaded'"])
+    ).toEqual([
+      "const A = 'Tenants could not be loaded'",
+      "const B = 'Invitation successfully sent.'",
+      "const C = 'We were able to save it.'",
+      "const D = 'Select Save in order to keep it.'",
+      "const E = 'Maintenance is currently on.'",
+      "const F = 'It appears shortly.'",
+      "const G = 'A powerful, seamless sign-in.'",
+    ])
   })
 
   it('uses none of the retired phrasings', () => {
