@@ -62,10 +62,11 @@ export function listQueryOptions<T>({
     queryKey: total
       ? ([...key, 'list', request] as const)
       : ([...key, 'list', request, 'no-total'] as const),
-    queryFn: async () =>
+    queryFn: async ({ signal }) =>
       unwrap(
         await apiClient.get<ApiSuccess<ListPage<T>>>(path, {
           params: request.cursor === undefined && total ? { ...request, total: 1 } : request,
+          signal,
         })
       ),
     /** The previous view's rows stay up, marked busy, while the next view loads. */

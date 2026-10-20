@@ -215,7 +215,7 @@ describe('tenants list', () => {
     renderAppAt('/tenants')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/could not load your tenants/i)
+    expect(alert).toHaveTextContent(/couldn’t load your tenants/i)
     expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     expect(screen.queryByText(/do not belong to any tenants/i)).not.toBeInTheDocument()
   })
@@ -386,7 +386,7 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
 
     // Until that navigation completes, the page being left says the request failed, not that this account owns nothing.
     release?.()
-    expect(await screen.findByRole('alert')).toHaveTextContent(/could not load your tenants/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn’t load your tenants/i)
     expect(screen.queryByText(/do not belong to any tenants/i)).not.toBeInTheDocument()
   })
 })

@@ -33,7 +33,7 @@ import { tenantSettingsFormSchema } from '@/schemas/tenant.schemas'
  * tenant and would never re-issue the settings request.
  */
 const SETTINGS_ERROR =
-  'We could not load this tenant’s settings, so none are shown here. This is not a sign that it has none.'
+  'We couldn’t load this tenant’s settings, so none are shown. Try again to load them.'
 
 /** `metadata` as a textarea holds it: pretty JSON, or empty for none. */
 function metadataText(metadata: Record<string, unknown> | null): string {

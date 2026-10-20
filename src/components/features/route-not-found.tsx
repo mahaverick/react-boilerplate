@@ -16,9 +16,7 @@ export function RouteNotFound() {
           <CardTitle>
             <h1>Page not found</h1>
           </CardTitle>
-          <CardDescription>
-            The address may be mistyped, or the page may have moved.
-          </CardDescription>
+          <CardDescription>Check the address, or go home.</CardDescription>
         </CardHeader>
         <CardFooter>
           <Link to={ROUTES.home} className={buttonVariants({ variant: 'outline' })}>

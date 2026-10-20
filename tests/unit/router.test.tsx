@@ -97,9 +97,10 @@ describe('route errors', () => {
 
     const alert = await screen.findByRole('alert')
     expect(
-      within(alert).getByRole('heading', { level: 1, name: 'Something went wrong' })
+      within(alert).getByRole('heading', { level: 1, name: 'This page didn’t load' })
     ).toBeInTheDocument()
     expect(within(alert).getByRole('link', { name: 'Go home' })).toHaveAttribute('href', '/')
+    expect(within(alert).getByText('Try again, or go home.')).toBeInTheDocument()
 
     failing = false
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
@@ -122,7 +123,7 @@ describe('route errors', () => {
 
     const alert = await screen.findByRole('alert')
     expect(
-      within(alert).getByRole('heading', { level: 1, name: 'Something went wrong' })
+      within(alert).getByRole('heading', { level: 1, name: 'This page didn’t load' })
     ).toBeInTheDocument()
     expect(alert).toHaveTextContent('render exploded')
 
@@ -160,7 +161,7 @@ describe('route errors', () => {
     }, '/page')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('Something went wrong')
+    expect(alert).toHaveTextContent('This page didn’t load')
     expect(alert).not.toHaveTextContent('loader exploded')
   })
 
@@ -179,6 +180,7 @@ describe('route errors', () => {
       within(alert).getByRole('heading', { level: 1, name: 'A new version is available' })
     ).toBeInTheDocument()
     expect(within(alert).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    expect(within(alert).getByText('Reload to get the latest version.')).toBeInTheDocument()
 
     await user.click(within(alert).getByRole('button', { name: 'Reload' }))
     expect(reload).toHaveBeenCalledOnce()

@@ -15,7 +15,8 @@ import {
 } from '@/queries/notification.queries'
 
 /** What the card says when the preferences query failed, as opposed to came back empty. */
-const PREFERENCES_ERROR = 'We could not load your notification preferences, so none are shown here.'
+const PREFERENCES_ERROR =
+  'We couldn’t load your notification preferences, so none are shown. Try again to load them.'
 
 /**
  * One notification type's channels. Email is read-only text: the API refuses to

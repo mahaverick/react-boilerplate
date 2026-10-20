@@ -109,7 +109,7 @@ const PLATFORM_INVITATIONS_REVOKED_ON_REMOVE =
 const STAFF_VIEW = 'You’re viewing this tenant as staff. Make changes from the staff console.'
 
 /** What a role change or removal says when its target is no longer a member. */
-const MEMBER_GONE = 'That member is no longer in this tenant.'
+const MEMBER_GONE = 'That member is no longer in this tenant. We refreshed the list.'
 
 /**
  * The toast for a failed role change or removal: `MEMBER_GONE` for a target
@@ -134,7 +134,7 @@ const LAST_OWNER_REASON = 'A tenant must always have an owner. Add another owner
  * again retries that request.
  */
 const MEMBERS_ERROR =
-  'We could not load this tenant’s members, so none are listed here. This is not a sign that it has none.'
+  'We couldn’t load this tenant’s members, so none are listed. Try again to load them.'
 
 /**
  * The role cell: a select when the actor may change this member's role, plain
@@ -662,7 +662,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
             <>
               {owners.isError && (
                 <LoadError
-                  message="Owners could not be loaded."
+                  message="Owners didn’t load, so owner changes are locked."
                   onRetry={() => void owners.refetch()}
                 />
               )}

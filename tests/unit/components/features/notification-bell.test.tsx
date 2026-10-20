@@ -139,7 +139,7 @@ describe('NotificationBell', () => {
     await openBell()
 
     expect(await screen.findByText('You have no notifications.')).toBeInTheDocument()
-    expect(screen.queryByText('Notifications could not be loaded.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Notifications didn’t load.')).not.toBeInTheDocument()
     // A zero count that a request established is announced.
     expect(
       await screen.findByRole('button', { name: 'Notifications, 0 unread' })
@@ -157,7 +157,7 @@ describe('NotificationBell', () => {
     await openBell()
 
     // The queryClient is `retry: 1`, so the error state arrives only after a second attempt; tests/setup.ts removes the backoff between the two.
-    expect(await screen.findByText('Notifications could not be loaded.')).toBeInTheDocument()
+    expect(await screen.findByText('Notifications didn’t load.')).toBeInTheDocument()
     expect(screen.queryByText('You have no notifications.')).not.toBeInTheDocument()
     // The label must not announce a count nothing established: "0 unread" would be the same false claim, read by a screen reader on every page.
     expect(screen.getByRole('button', { name: 'Notifications, count unavailable' })).toBeVisible()
@@ -194,7 +194,7 @@ describe('NotificationBell', () => {
     await waitFor(() => expect(bell.querySelector('[data-slot="bell-unavailable"]')).not.toBeNull())
     const user = await openBell()
     // Both reads have failed their retries once the menu says so; only then do they succeed.
-    await screen.findByText('Notifications could not be loaded.')
+    await screen.findByText('Notifications didn’t load.')
     failing = false
     await user.click(await screen.findByRole('menuitem', { name: 'Try again' }))
     expect(await screen.findByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible()

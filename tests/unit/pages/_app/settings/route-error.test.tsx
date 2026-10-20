@@ -95,11 +95,11 @@ describe('a settings page that fails to render', () => {
       )
       renderAppAt(path)
 
-      await screen.findByText('Something went wrong')
+      await screen.findByText('This page didn’t load')
       const headings = screen.getAllByRole('heading', { level: 1 })
       expect(headings.map((heading) => heading.textContent)).toEqual([h1])
       expect(
-        screen.getByRole('heading', { level: 2, name: 'Something went wrong' })
+        screen.getByRole('heading', { level: 2, name: 'This page didn’t load' })
       ).toBeInTheDocument()
     }
   )

@@ -165,15 +165,8 @@ export const INVITATION_CONFLICT = 'invitation_conflict'
 /** `code` on the 404 for a resend or revoke of an invitation that is no longer pending. */
 export const INVITATION_NOT_FOUND = 'invitation_not_found'
 
-/**
- * 404 on a role change or removal: the target is not a member of the tenant
- * (express 2.1.0 or later). Older APIs answer the same 404 with no code and
- * `MEMBER_NOT_FOUND_MESSAGE`.
- */
+/** `code` on the 404 for a role change or removal whose target is not a member of the tenant. */
 export const MEMBER_NOT_FOUND = 'member_not_found'
-
-/** The message of that 404, the only sign of it from an API older than 2.1.0. */
-export const MEMBER_NOT_FOUND_MESSAGE = 'Member not found'
 
 /** How an audit entry's actor reached the tenant. `system` is a script, with no actor. */
 type AuditAccess = 'member' | 'platform' | 'system'

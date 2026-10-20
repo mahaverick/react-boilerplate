@@ -168,6 +168,6 @@ describe('the boot sequence', () => {
 
     const alert = container.querySelector('[role="alert"]')
     expect(alert).not.toBeNull()
-    expect(alert?.textContent).toContain('Something went wrong')
+    expect(alert?.textContent).toContain('This page didn’t load')
   })
 })

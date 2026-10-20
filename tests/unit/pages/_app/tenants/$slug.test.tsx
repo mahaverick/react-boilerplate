@@ -120,7 +120,7 @@ describe('tenant detail', () => {
 
     const seen: boolean[] = []
     const observer = new MutationObserver(() =>
-      seen.push(/not one of yours|Tenant not available/.test(document.body.textContent))
+      seen.push(/you aren’t a member|Tenant not available/.test(document.body.textContent))
     )
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
     try {
@@ -140,7 +140,7 @@ describe('tenant detail', () => {
       http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
     )
     renderAppAt('/tenants/acme')
-    expect(await screen.findByText(/not one of yours/)).toBeInTheDocument()
+    expect(await screen.findByText(/you aren’t a member/)).toBeInTheDocument()
   })
 
   /**
@@ -155,7 +155,7 @@ describe('tenant detail', () => {
     renderAppAt('/tenants/acme')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/could not load this tenant/i)
+    expect(alert).toHaveTextContent(/couldn’t load this tenant/i)
     expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     // Not the 404 panel: the tenant may exist and merely be unreachable.
     expect(screen.queryByText(/Tenant not available/i)).not.toBeInTheDocument()
@@ -182,8 +182,8 @@ describe('tenant detail', () => {
     expect(
       await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
     ).toBeInTheDocument()
-    expect(screen.getByText('This tenant is suspended. Contact support.')).toBeInTheDocument()
-    expect(screen.queryByText(/not one of yours/)).not.toBeInTheDocument()
+    expect(screen.getByText('Contact support to restore access.')).toBeInTheDocument()
+    expect(screen.queryByText(/you aren’t a member/)).not.toBeInTheDocument()
   })
 
   it('shows no not-found text while the tenant list is still loading, then the suspended panel', async () => {
@@ -216,7 +216,7 @@ describe('tenant detail', () => {
 
     const seen: boolean[] = []
     const observer = new MutationObserver(() =>
-      seen.push(/not one of yours|Tenant not available/.test(document.body.textContent))
+      seen.push(/you aren’t a member|Tenant not available/.test(document.body.textContent))
     )
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
     try {
@@ -235,8 +235,8 @@ describe('tenant detail', () => {
     renderAppAt('/tenants/acme')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/could not load this tenant/i)
-    expect(screen.queryByText(/not one of yours/)).not.toBeInTheDocument()
+    expect(alert).toHaveTextContent(/couldn’t load this tenant/i)
+    expect(screen.queryByText(/you aren’t a member/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Tenant suspended/)).not.toBeInTheDocument()
   })
 
@@ -313,7 +313,7 @@ describe('tenant detail', () => {
     server.use(http.get('/api/v1/tenants/acme/onboarding', () => fail('Something went wrong', 500)))
     renderAppAt('/tenants/acme')
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Getting started could not be loaded.'
+      'Getting started didn’t load. Try again.'
     )
     expect(screen.getByRole('heading', { level: 2, name: 'Details' })).toBeVisible()
   })

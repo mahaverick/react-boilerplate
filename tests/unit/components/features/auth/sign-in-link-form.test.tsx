@@ -10,6 +10,7 @@ import {
   RESEND_COOLDOWN_SECONDS,
   SignInLinkForm,
 } from '@/components/features/auth/sign-in-link-form'
+import { useSignedInElsewhere } from '@/hooks/use-signed-in-elsewhere'
 import { ensureSession, resetSessionForTests, subscribeAuthMessage } from '@/http/session'
 import { toast } from '@/lib/toast'
 import { PII_CLASS_NAME, track } from '@/observability/telemetry'
@@ -26,6 +27,12 @@ vi.mock('@/http/session', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/http/session')>()),
   ensureSession: vi.fn(),
 }))
+
+// A pass-through spy: the listener stays real, and the test can see what the form hands it.
+vi.mock('@/hooks/use-signed-in-elsewhere', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/use-signed-in-elsewhere')>()
+  return { ...actual, useSignedInElsewhere: vi.fn(actual.useSignedInElsewhere) }
+})
 
 const REQUEST_URL = '/api/v1/auth/link/request'
 
@@ -334,6 +341,17 @@ describe('SignInLinkForm', () => {
     renderForm({ defaultEmail: 'ada@example.test', submitLabel: 'Email me a new link' })
 
     expect(screen.getByLabelText('Email')).toHaveValue('ada@example.test')
+  })
+
+  it('listens through useSignedInElsewhere only while a link is out', async () => {
+    serveRequests()
+    const onSignedIn = vi.fn()
+    const user = userEvent.setup()
+    renderForm({ onSignedIn })
+    expect(vi.mocked(useSignedInElsewhere)).toHaveBeenLastCalledWith(false, onSignedIn)
+    await send(user)
+    await sentLine()
+    expect(vi.mocked(useSignedInElsewhere)).toHaveBeenLastCalledWith(true, onSignedIn)
   })
 
   it('moves on when another tab signs in', async () => {

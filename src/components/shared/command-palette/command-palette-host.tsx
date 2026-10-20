@@ -6,7 +6,7 @@ import { installRecentItems } from './recent-items'
 import { usePaletteShortcut } from './use-palette-shortcut'
 
 /** What the toast says when the palette's code could not be fetched. */
-export const PALETTE_LOAD_FAILED = 'Search could not be loaded. Reloading the page will fix it.'
+export const PALETTE_LOAD_FAILED = 'Search didn’t load. Reload the page to use it.'
 
 /** The toast's key, so a burst of failed opens shows one toast. */
 const PALETTE_LOAD_FAILED_ID = 'palette-load-failed'

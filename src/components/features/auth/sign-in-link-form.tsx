@@ -1,5 +1,5 @@
 import { useForm } from '@tanstack/react-form'
-import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { BusyButton } from '@/components/shared/busy-button'
 import { Pii } from '@/components/shared/pii'
 import { Button } from '@/components/ui/button'
@@ -17,13 +17,12 @@ import { Input } from '@/components/ui/input'
 import { useCountdown } from '@/hooks/use-countdown'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
-import { ensureSession, subscribeAuthMessage } from '@/http/session'
+import { useSignedInElsewhere } from '@/hooks/use-signed-in-elsewhere'
 import { messageFrom, retryAfterSecondsFrom } from '@/lib/api-error'
 import { formatClock } from '@/lib/countdown'
 import { toast } from '@/lib/toast'
 import { useRequestSignInLink } from '@/queries/auth.queries'
 import { signInLinkRequestSchema } from '@/schemas/auth.schemas'
-import { useAuthStore } from '@/states/auth.store'
 
 /** How long resend waits after each link is sent, in seconds; a 429's `Retry-After` can make it longer. */
 export const RESEND_COOLDOWN_SECONDS = 60
@@ -53,10 +52,9 @@ interface SignInLinkFormProps {
  * inbox" with a resend countdown. The value is parsed before posting, so the
  * schema's trimming and lowercasing reach the wire.
  *
- * While it waits on the inbox it listens for another tab's `signed_in`, sent
- * after that tab used the link. A tab that is still signed out restores the
- * shared session and calls `onSignedIn`; a tab already signed in ignores it,
- * and so does the email form, which has sent nothing to wait for.
+ * While it waits on the inbox it listens, through `useSignedInElsewhere`, for
+ * another tab's `signed_in`, sent after that tab used the link. The email
+ * form has sent nothing to wait for, so it does not listen.
  */
 export function SignInLinkForm({
   sentTo,
@@ -74,31 +72,7 @@ export function SignInLinkForm({
   /** Which control takes focus once it mounts, because the one just used is gone or changed. */
   const focusNext = useRef<'resend' | 'email' | null>(null)
 
-  const signedIn = useEffectEvent(() => onSignedIn())
-
-  useEffect(() => {
-    if (!sentTo) return
-    let restoring = false
-    // A restore that settles after unmount, or after the form left the inbox, must not navigate.
-    let active = true
-    const unsubscribe = subscribeAuthMessage('signed_in', () => {
-      // A tab already signed in has its own session; restoring would only race it.
-      if (restoring || useAuthStore.getState().isAuthenticated) return
-      restoring = true
-      ensureSession().then(
-        () => {
-          if (active) signedIn()
-        },
-        () => {
-          restoring = false
-        }
-      )
-    })
-    return () => {
-      active = false
-      unsubscribe()
-    }
-  }, [sentTo])
+  useSignedInElsewhere(Boolean(sentTo), onSignedIn)
 
   /** Hands focus to the control a step left behind, unless the person has moved on. */
   const takeFocus = (key: 'resend' | 'email') => (element: HTMLElement | null) => {

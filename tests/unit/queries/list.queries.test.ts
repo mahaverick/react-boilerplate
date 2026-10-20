@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { AxiosError, AxiosHeaders } from 'axios'
-import { http } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { delay, http } from 'msw'
+import { describe, expect, it, vi } from 'vitest'
 import { listQueryOptions, retryList } from '@/queries/list.queries'
 import { listPage } from '@/tests/fixtures/list-page'
 import { ok } from '@/tests/mocks/handlers'
@@ -88,5 +88,27 @@ describe('listQueryOptions', () => {
     expect(seen[0]?.get('search')).toBe('a')
     expect(seen[1]?.get('total')).toBeNull()
     expect(first.queryKey).toEqual(['rows', 'list', { search: 'a' }])
+  })
+
+  it('aborts the page on the wire when the query is cancelled', async () => {
+    let started = false
+    server.use(
+      http.get('/api/v1/test/rows', () => {
+        started = true
+        return delay('infinite')
+      })
+    )
+    const client = new QueryClient()
+    const options = listQueryOptions({ key: ['rows'], path: '/test/rows', request: {} })
+    const abort = vi.spyOn(XMLHttpRequest.prototype, 'abort')
+    try {
+      void client.fetchQuery(options).catch(() => undefined)
+      await vi.waitFor(() => expect(started).toBe(true))
+      expect(abort).not.toHaveBeenCalled()
+      await client.cancelQueries({ queryKey: options.queryKey })
+      expect(abort).toHaveBeenCalledTimes(1)
+    } finally {
+      abort.mockRestore()
+    }
   })
 })

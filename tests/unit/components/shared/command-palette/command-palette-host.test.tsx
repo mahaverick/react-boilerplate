@@ -68,7 +68,7 @@ describe('CommandPaletteHost', () => {
     render(<CommandPaletteHost />)
     act(() => useCommandPaletteStore.getState().setOpen(true))
     await waitFor(() => expect(useCommandPaletteStore.getState().open).toBe(false))
-    expect(PALETTE_LOAD_FAILED).toMatch(/reload/i)
+    expect(PALETTE_LOAD_FAILED).toBe('Search didn’t load. Reload the page to use it.')
     const [title, options] = error.mock.calls[0] ?? []
     expect(title).toBe(PALETTE_LOAD_FAILED)
     expect(options?.action?.label).toBe('Reload')

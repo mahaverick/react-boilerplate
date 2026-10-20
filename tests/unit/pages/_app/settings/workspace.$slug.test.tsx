@@ -700,8 +700,8 @@ describe('workspace general settings', () => {
     renderAppAt('/settings/workspace/acme/general')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/could not load this tenant’s settings/i)
-    expect(screen.queryByText(/could not load your role/i)).not.toBeInTheDocument()
+    expect(alert).toHaveTextContent(/couldn’t load this tenant’s settings/i)
+    expect(screen.queryByText(/couldn’t load your role/i)).not.toBeInTheDocument()
 
     // Two calls because the queryClient is `retry: 1`.
     await waitFor(() => {

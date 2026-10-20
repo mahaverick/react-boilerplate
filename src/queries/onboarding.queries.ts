@@ -7,8 +7,10 @@ import type { ApiSuccess, TenantOnboarding } from '@/types/api.types'
 export function tenantOnboardingQueryOptions(slug: string) {
   return queryOptions({
     queryKey: tenantKeys.onboarding(slug),
-    queryFn: async () =>
-      unwrap(await apiClient.get<ApiSuccess<TenantOnboarding>>(`/tenants/${slug}/onboarding`)),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await apiClient.get<ApiSuccess<TenantOnboarding>>(`/tenants/${slug}/onboarding`, { signal })
+      ),
   })
 }
 

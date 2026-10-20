@@ -19,7 +19,7 @@ test('a failed tenant list shows on the switcher, and the page still renders', a
   await page.goto('/e2e/harness/?path=/dashboard&fail=/api/v1/tenants')
   await expect(page.getByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
   await expect(
-    page.getByRole('combobox', { name: 'Switch tenant. Current: Tenants could not be loaded' })
+    page.getByRole('combobox', { name: 'Switch tenant. Current: Tenants didn’t load' })
   ).toBeVisible()
 })
 
@@ -32,7 +32,7 @@ test('a held checklist read leaves the tenant’s details on screen', async ({ p
 test('a failed checklist read shows one error, in the checklist’s place', async ({ page }) => {
   await page.goto('/e2e/harness/?path=/tenants/acme&fail=/api/v1/tenants/acme/onboarding')
   await expect(page.getByRole('alert')).toHaveCount(1)
-  await expect(page.getByRole('alert')).toContainText('Getting started could not be loaded.')
+  await expect(page.getByRole('alert')).toContainText('Getting started didn’t load. Try again.')
   await expect(page.getByRole('heading', { level: 2, name: 'Details' })).toBeVisible()
 })
 
@@ -42,7 +42,7 @@ test('a failed settings read leaves the Overview card usable', async ({ page }) 
   )
   await expect(page.getByRole('heading', { level: 2, name: 'Overview' })).toBeVisible()
   await expect(page.getByRole('alert')).toHaveCount(1)
-  await expect(page.getByRole('alert')).toContainText('We could not load this tenant’s settings')
+  await expect(page.getByRole('alert')).toContainText('We couldn’t load this tenant’s settings')
   await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeVisible()
   await expect(page.getByRole('textbox', { name: 'Name' })).toBeEnabled()
 })

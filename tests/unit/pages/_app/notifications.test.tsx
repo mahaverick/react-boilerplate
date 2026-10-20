@@ -73,7 +73,7 @@ describe('notifications page', () => {
 
     const alerts = await screen.findAllByRole('alert')
     const inbox = alerts.find((alert) =>
-      /could not load your notifications/i.test(alert.textContent ?? '')
+      /couldn’t load your notifications/i.test(alert.textContent ?? '')
     )
     expect(inbox).toBeDefined()
     expect(within(inbox!).getByRole('button', { name: 'Try again' })).toBeInTheDocument()

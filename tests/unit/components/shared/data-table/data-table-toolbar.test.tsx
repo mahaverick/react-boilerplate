@@ -343,7 +343,7 @@ describe('DataTable facets', () => {
     await screen.findByText('Item 01')
     await user.click(screen.getByRole('button', { name: 'Filter by status, Items' }))
     const popup = await screen.findByRole('dialog', { name: 'Filter by status, Items' })
-    expect(within(popup).getByText('Status could not be loaded.')).toBeInTheDocument()
+    expect(within(popup).getByText('Status options didn’t load.')).toBeInTheDocument()
     await user.click(within(popup).getByRole('button', { name: 'Try again' }))
     expect(retry).toHaveBeenCalledOnce()
   })

@@ -194,7 +194,7 @@ test.describe('error tracking against a fake PostHog', () => {
       await stubApi(page, { firstName: 42 })
       await page.goto('/dashboard')
       await expect(
-        page.getByRole('heading', { name: 'Something went wrong', level: 1 })
+        page.getByRole('heading', { name: 'This page didn’t load', level: 1 })
       ).toBeVisible()
 
       await expect.poll(() => exceptions(fake).length, POLL).toBe(1)
@@ -233,7 +233,7 @@ test.describe('error tracking against a fake PostHog', () => {
       await stubApi(page, { firstName: 42, analyticsOptOut: true })
       await page.goto('/dashboard')
       const alert = page.getByRole('alert')
-      await expect(alert.getByRole('heading', { name: 'Something went wrong' })).toBeVisible()
+      await expect(alert.getByRole('heading', { name: 'This page didn’t load' })).toBeVisible()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(1)
       // Try again renders the menu again, which throws again: a new crash, one more event.
       await alert.getByRole('button', { name: 'Try again' }).click()
@@ -274,7 +274,7 @@ test.describe('error tracking against a fake PostHog', () => {
       await stubApi(page, { firstName: 42 })
       await page.goto('/dashboard')
       await expect(
-        page.getByRole('heading', { name: 'Something went wrong', level: 1 })
+        page.getByRole('heading', { name: 'This page didn’t load', level: 1 })
       ).toBeVisible()
       await expect.poll(() => heldChunk, POLL).toBeDefined()
       await reporter
@@ -295,14 +295,14 @@ test.describe('error tracking against a fake PostHog', () => {
     const reporter = page.waitForResponse(REPORTER_CHUNK)
     await stubApi(page, { tenantDetail: 500 })
     await page.goto('/tenants/acme')
-    await expect(page.getByText(/could not load this tenant/i)).toBeVisible()
+    await expect(page.getByText(/couldn’t load this tenant/i)).toBeVisible()
     await reporter
 
     await page.unrouteAll({ behavior: 'ignoreErrors' })
     await routeCollectToFake(page, fake)
     await stubApi(page, { tenantDetail: 'network' })
     await page.getByRole('button', { name: 'Try again' }).click()
-    await expect(page.getByText(/could not load this tenant/i)).toBeVisible()
+    await expect(page.getByText(/couldn’t load this tenant/i)).toBeVisible()
 
     await settle(4_000, 'absence has no event: the reporter batches for 2 s before it sends')
     expect(exceptions(fake)).toEqual([])
@@ -313,7 +313,7 @@ test.describe('error tracking against a fake PostHog', () => {
     await stubApi(page, { firstName: 42 })
     await page.goto('/dashboard')
     await expect(
-      page.getByRole('heading', { name: 'Something went wrong', level: 1 })
+      page.getByRole('heading', { name: 'This page didn’t load', level: 1 })
     ).toBeVisible()
     await expect.poll(() => exceptions(fake).length, POLL).toBe(1)
     const list = exceptions(fake)[0]?.properties.$exception_list as { type: string }[]
@@ -354,12 +354,12 @@ test.describe('error tracking against a fake PostHog', () => {
       await stubApi(page, { firstName: 42 })
       await page.goto(`/dashboard?token=${PROBE_TOKEN}&email=${encodeURIComponent(PROBE_EMAIL)}`)
       await expect(
-        page.getByRole('heading', { name: 'Something went wrong', level: 1 })
+        page.getByRole('heading', { name: 'This page didn’t load', level: 1 })
       ).toBeVisible()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(1)
 
       await page.goto(`/tenants/${PROBE_EMAIL}`)
-      const crashed = page.getByRole('heading', { name: 'Something went wrong', level: 1 })
+      const crashed = page.getByRole('heading', { name: 'This page didn’t load', level: 1 })
       await expect(crashed).toBeVisible()
       await expect.poll(() => exceptions(fake).length, POLL).toBe(2)
       // The barrier: a replay upload from this page, so the read below covers a known flush.

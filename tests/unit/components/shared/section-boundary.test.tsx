@@ -24,7 +24,9 @@ describe('SectionBoundary', () => {
         <p>Sibling still here</p>
       </>
     )
-    expect(screen.getByRole('alert')).toHaveTextContent('Sign-ups could not be shown.')
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Sign-ups didn’t load. Reload the page to try again.'
+    )
     expect(screen.getByText('Sibling still here')).toBeInTheDocument()
   })
 
@@ -45,7 +47,7 @@ describe('SectionBoundary', () => {
     expect((error as Error).message).toBe('chart exploded')
     expect(origin).toBe('react')
     expect(handled).toBe(true)
-    expect(container.textContent).toContain('Sign-ups could not be shown.')
+    expect(container.textContent).toContain('Sign-ups didn’t load. Reload the page to try again.')
     act(() => root.unmount())
     container.remove()
   })
