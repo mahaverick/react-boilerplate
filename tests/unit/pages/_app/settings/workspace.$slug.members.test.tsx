@@ -1294,9 +1294,15 @@ describe('the remove and leave dialogs', () => {
     )
   })
 
-  it('lands on the tenant list when the membership was already gone', async () => {
+  it.each([
+    ['no code', undefined],
+    ['the tenant_not_found code', 'tenant_not_found'],
+    ['the member_not_found code', 'member_not_found'],
+  ])('lands on the tenant list when the membership was already gone (%s)', async (_label, code) => {
     mockTenant('viewer', [member(ME, 'viewer', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
-    server.use(http.delete('/api/v1/tenants/acme/membership', () => fail('Tenant not found', 404)))
+    server.use(
+      http.delete('/api/v1/tenants/acme/membership', () => fail('Tenant not found', 404, code))
+    )
     const user = userEvent.setup()
     const router = renderAppAt('/settings/workspace/acme/members')
 
