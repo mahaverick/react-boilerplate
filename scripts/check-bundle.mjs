@@ -60,7 +60,7 @@ import { build } from 'vite'
  * its 403 interceptor, its store, the router's retry predicate and `passkey.types`
  * in the entry, and the app shell's lazy setup-screen wrapper (with its
  * preload map names) in the `_app` chunk. They must load with the entry to catch
- * the first 403 PASSKEY_SETUP_REQUIRED, so they cannot be lazy: 589,423 B,
+ * the first 403 PASSKEY_SETUP_REQUIRED, so they cannot be lazy: 589,476 B (with the lazy-chunk error boundary),
  * rounded up to 589,500 B.
  */
 const ENTRY_BUDGET_BYTES = 589_500
