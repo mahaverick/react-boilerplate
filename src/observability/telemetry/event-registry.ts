@@ -58,7 +58,7 @@ export interface BrowserEventProps {
   sign_in_link_requested: Record<never, never>
   /** A sign-in finished: by an emailed link (also an invitation link), by Google or by a passkey. */
   sign_in_completed: { method: 'link' | 'google' | 'passkey' }
-  /** The person dismissed the browser's passkey prompt, or it timed out: in which ceremony, never which passkey. */
+  /** The person dismissed the browser's passkey prompt, or it timed out, or the browser refused a prompt that opened without a click: in which ceremony, never which passkey. */
   passkey_prompt_cancelled: { ceremony: 'sign_in' | 'create' | 'confirm' }
 }
 

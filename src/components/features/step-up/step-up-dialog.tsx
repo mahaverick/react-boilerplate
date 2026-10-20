@@ -76,6 +76,22 @@ function noPasskeyPath(error: unknown): boolean {
 type View = 'opening' | 'passkey' | 'start' | 'email' | 'resuming' | 'resume_failed'
 
 /**
+ * Whether no control has claimed focus: it is on the page body, outside any
+ * dialog (the button that opened this one), or on a dialog's own popup before
+ * anything inside took it.
+ * @returns True when a view may take focus.
+ */
+function focusUnclaimed(): boolean {
+  const active = document.activeElement
+  return (
+    active === null ||
+    active === document.body ||
+    !active.closest('[role="dialog"]') ||
+    active.getAttribute('role') === 'dialog'
+  )
+}
+
+/**
  * Where focus goes when the step-up closes: into the dialog still open
  * beneath it (the reason dialog waiting on this confirmation), at its first
  * enabled field, else onto that dialog's popup. Left to Base UI, focus would
@@ -280,8 +296,11 @@ function StepUpBody({
 
   // The opening view starts with no notice and busy, so the mount sets no state before its first await.
   const openPasskey = useEffectEvent(() => void runPasskey('opening'))
+  // Set once per body and never reset: StrictMode's mount, cleanup, mount runs the effect twice, and the first attempt survives the cleanup (it bumps no attempt number), so the second run must not fetch again.
+  const opened = useRef(false)
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- every state change in the attempt follows its first await, so none runs in the effect body
+    if (opened.current) return
+    opened.current = true
     openPasskey()
   }, [])
 
@@ -384,17 +403,7 @@ function StepUpBody({
    * open, where the dialog's own initial focus decides.
    */
   const arrive = useCallback((element: HTMLElement | null) => {
-    const active = document.activeElement
-    // Focus on the dialog's own popup is no choice either: nothing inside it had taken focus yet.
-    if (
-      element &&
-      (active === null ||
-        active === document.body ||
-        !active.closest('[role="dialog"]') ||
-        active.getAttribute('role') === 'dialog')
-    ) {
-      element.focus()
-    }
+    if (element && focusUnclaimed()) element.focus()
   }, [])
   /** Email me a link's ref: the dialog's initial focus, and focused on a return to the start. */
   const sendButtonRef = useCallback(
@@ -409,10 +418,7 @@ function StepUpBody({
   useEffect(() => {
     if (view !== 'start' && view !== 'passkey') return
     const frame = requestAnimationFrame(() => {
-      const active = document.activeElement
-      if (active === null || active === document.body || active.getAttribute('role') === 'dialog') {
-        sendRef.current?.focus()
-      }
+      if (focusUnclaimed()) sendRef.current?.focus()
     })
     return () => cancelAnimationFrame(frame)
   }, [view, sendRef])

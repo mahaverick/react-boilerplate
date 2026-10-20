@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
-import { useState } from 'react'
+import { delay, http, HttpResponse } from 'msw'
+import { StrictMode, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { StepUpDialog } from '@/components/features/step-up/step-up-dialog'
 import { StepUpProvider } from '@/components/features/step-up/step-up-provider'
 import { useStepUp } from '@/hooks/use-step-up'
 import { apiClient } from '@/http/client'
@@ -919,6 +920,52 @@ describe('confirming by passkey', () => {
     await user.keyboard('{Escape}')
 
     expect(await screen.findByText('outcome: failed')).toBeInTheDocument()
+  })
+
+  it('under StrictMode fetches options once, prompts once and confirms once', async () => {
+    const calls = optionsRoute()
+    verifyRoute()
+    vi.mocked(requestPasskey).mockResolvedValue(RESPONSE as never)
+    const onConfirmed = vi.fn()
+    render(
+      <StrictMode>
+        <QueryClientProvider client={new QueryClient()}>
+          <StepUpDialog open onConfirmed={onConfirmed} onDismissed={() => {}} />
+        </QueryClientProvider>
+      </StrictMode>
+    )
+
+    await waitFor(() => expect(onConfirmed).toHaveBeenCalled())
+    expect(calls).toHaveLength(1)
+    expect(requestPasskey).toHaveBeenCalledTimes(1)
+    expect(onConfirmed).toHaveBeenCalledTimes(1)
+  })
+
+  it('Use another method while fresh options are pending starts no prompt and keeps the link view', async () => {
+    let calls = 0
+    server.use(
+      http.post('/api/v1/auth/passkeys/step-up/options', async () => {
+        calls += 1
+        if (calls > 1) await delay(200)
+        return ok({ challengeId: 'C1', options: OPTIONS }, 'Options.')
+      })
+    )
+    vi.mocked(requestPasskey).mockReturnValue(new Promise(() => {}))
+    dangerRoute(1)
+    const user = userEvent.setup()
+    renderHarness()
+    const dialog = await openPasskeyStepUp(user, 'Use another method')
+    await user.click(within(dialog).getByRole('button', { name: 'Use another method' }))
+    await user.click(
+      await within(dialog).findByRole('button', { name: 'Use your passkey instead' })
+    )
+    await waitFor(() => expect(calls).toBe(2))
+    await user.click(within(dialog).getByRole('button', { name: 'Use another method' }))
+
+    expect(await within(dialog).findByRole('button', { name: 'Email me a link' })).toBeVisible()
+    await settle(50, 'a late prompt has no event to wait on; absence is the assertion')
+    expect(requestPasskey).toHaveBeenCalledTimes(1)
+    expect(within(dialog).getByRole('button', { name: 'Email me a link' })).toBeVisible()
   })
 
   it('unmount cancels the prompt', async () => {
