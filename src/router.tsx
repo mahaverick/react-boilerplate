@@ -12,6 +12,7 @@ import {
 } from '@/http/session'
 import { installCurrentTenant } from '@/lib/current-tenant'
 import { installMaintenanceModeInterceptor } from '@/lib/maintenance-mode'
+import { installPasskeySetupInterceptor } from '@/lib/passkey-setup'
 import { setErrorRouteSource } from '@/observability/errors'
 import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
 import {
@@ -22,13 +23,21 @@ import { installRouteAnalytics } from '@/observability/route-telemetry'
 import { forgetStaleIdentity } from '@/observability/telemetry'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { isPasskeySetupRequired } from '@/types/passkey.types'
 
 // Before any request: the session restore's own answers carry the maintenance mode.
 installMaintenanceModeInterceptor(apiClient)
+// Required mode answers 403 PASSKEY_SETUP_REQUIRED to every route off its allowlist; the flag swaps the shell for the setup screen.
+installPasskeySetupInterceptor(apiClient)
 
-/** The app's query client: results stay fresh 30 seconds and a failed query is retried once. */
+/** The app's query client: results stay fresh 30 seconds and a failed query is retried once, except a refusal that asks for a passkey, which a retry cannot change. */
 export const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: (failureCount, error) => failureCount < 1 && !isPasskeySetupRequired(error),
+    },
+  },
 })
 
 /**

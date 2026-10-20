@@ -20,6 +20,7 @@ import { useAuthStore } from '@/states/auth.store'
 import { useCommandPaletteStore } from '@/states/command-palette.store'
 import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
+import { usePasskeySetupStore } from '@/states/passkey-setup.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
 import {
@@ -819,6 +820,24 @@ function serveMaintenance(mode: 'read_only' | 'full') {
     )
   )
 }
+
+describe('required-mode passkey setup', () => {
+  afterEach(() => {
+    usePasskeySetupStore.setState({ required: false, message: null })
+  })
+
+  it('the Create your passkey screen has no axe violations', async () => {
+    signIn()
+    mockSignedInData()
+    usePasskeySetupStore.setState({
+      required: true,
+      message: 'Create a passkey to continue. Every account here needs one.',
+    })
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: 'Create your passkey', level: 1 })
+    await expectNoViolations()
+  })
+})
 
 describe('maintenance mode', () => {
   it('the full maintenance page, signed in, has no axe violations', async () => {

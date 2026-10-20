@@ -1,5 +1,4 @@
 import { IconKey } from '@tabler/icons-react'
-import { AxiosError } from 'axios'
 import { useId, useState } from 'react'
 import {
   DeletePasskeyDialog,
@@ -13,11 +12,9 @@ import { Button } from '@/components/ui/button'
 import { Item, ItemContent, ItemGroup } from '@/components/ui/item'
 import { STEP_UP_WAITING_LABEL, useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { formatDate } from '@/lib/format'
+import { createFailureMessage } from '@/lib/passkey-create-failure'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
-import { passkeyFailure } from '@/lib/webauthn'
-import { writeFailureMessage } from '@/lib/write-failure'
-import { track } from '@/observability/telemetry'
 import { useCreatePasskey, usePasskeyCreateSupport } from '@/queries/passkey-manage.queries'
 import { usePasskeyConfig, usePasskeys } from '@/queries/passkey.queries'
 import { MAX_PASSKEYS, type PasskeyMode, type PublicPasskey } from '@/types/passkey.types'
@@ -25,29 +22,9 @@ import { MAX_PASSKEYS, type PasskeyMode, type PublicPasskey } from '@/types/pass
 const LEAD =
   'Sign in and confirm it’s you with Face ID, Touch ID, Windows Hello, a device PIN or a security key.'
 const LOAD_ERROR = 'We couldn’t load your passkeys. Select Try again to load them.'
-const ALREADY_ON_DEVICE =
-  'This device already holds a passkey for your account. Use that passkey, or create one on another device.'
-const CREATE_FAILED = 'Your browser didn’t create a passkey. Try again, or use another device.'
 const UNSUPPORTED =
   'This browser can’t create passkeys. Use a current version of Chrome, Edge, Firefox or Safari.'
 const LIMIT_HINT = `You have ${String(MAX_PASSKEYS)} passkeys, the limit for one account. Delete one to create another.`
-
-/**
- * What a failed create tells the person. An API failure shows the server's
- * message (or the step-up refusal); a browser failure is worded here, and a
- * dismissed prompt says nothing but is tracked.
- * @param error - What the create rejected with.
- * @returns The toast text, or null for a dismissed prompt.
- */
-function createFailureMessage(error: unknown): string | null {
-  if (error instanceof AxiosError) return writeFailureMessage(error)
-  const failure = passkeyFailure(error)
-  if (failure === 'cancelled') {
-    track('passkey_prompt_cancelled', { ceremony: 'create' })
-    return null
-  }
-  return failure === 'already_registered' ? ALREADY_ON_DEVICE : CREATE_FAILED
-}
 
 /**
  * The passkeys section, or nothing while the config is unread or passkeys are
