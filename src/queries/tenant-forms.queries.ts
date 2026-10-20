@@ -45,8 +45,10 @@ export function useUpdateTenant(slug: string) {
 export function useTenantSettings(slug: string) {
   return useQuery({
     queryKey: tenantKeys.settings(slug),
-    queryFn: async () =>
-      unwrap(await apiClient.get<ApiSuccess<TenantSettings>>(`/tenants/${slug}/settings`)),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await apiClient.get<ApiSuccess<TenantSettings>>(`/tenants/${slug}/settings`, { signal })
+      ),
   })
 }
 

@@ -18,8 +18,8 @@ interface TenantBeta {
 function tenantBetaQueryOptions(slug: string) {
   return queryOptions({
     queryKey: [...tenantKeys.detail(slug), 'beta'] as const,
-    queryFn: async () =>
-      unwrap(await apiClient.get<ApiSuccess<TenantBeta>>(`/tenants/${slug}/beta`)),
+    queryFn: async ({ signal }) =>
+      unwrap(await apiClient.get<ApiSuccess<TenantBeta>>(`/tenants/${slug}/beta`, { signal })),
   })
 }
 

@@ -270,9 +270,12 @@ export function useDeleteNotification() {
 export function usePreferences() {
   return useQuery({
     queryKey: notificationKeys.preferences,
-    queryFn: async () =>
-      unwrap(await apiClient.get<ApiSuccess<PreferencesPayload>>('/notifications/preferences'))
-        .preferences,
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await apiClient.get<ApiSuccess<PreferencesPayload>>('/notifications/preferences', {
+          signal,
+        })
+      ).preferences,
   })
 }
 

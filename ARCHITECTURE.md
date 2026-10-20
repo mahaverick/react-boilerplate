@@ -563,6 +563,11 @@ and the maintenance recovery follows the mode. The auth store's user is the
 profile the session restore or the sign-in loaded; the maintenance store
 holds what the API last said about the mode, from any of its three sources.
 
+Every `queryFn` hands TanStack Query's `signal` to `apiClient`, so a cancelled
+query (`cancelQueries`, or a read no observer wants any more) aborts its
+request on the wire. `tests/unit/queries/query-cancellation.test.tsx` pins it
+for each read, and `list.queries.test.ts` for the list pages.
+
 ## The HTTP layer and session
 
 Every REST call goes through `apiClient` (`src/http/client.ts`): an axios

@@ -140,9 +140,10 @@ const MAX_MEMBERSHIP_PAGES = 50
  * `MAX_MEMBERSHIP_PAGES` pages, is a fault and rejects, so the read never
  * loops. A tenant that moved across a page boundary between two reads is
  * listed once.
+ * @param signal - The query's abort signal, handed to every page's request.
  * @returns The rows of every page, the first of any repeated tenant kept.
  */
-async function readMemberships(): Promise<TenantWithRole[]> {
+async function readMemberships(signal: AbortSignal): Promise<TenantWithRole[]> {
   const rows = new Map<string, TenantWithRole>()
   const sent = new Set<string>()
   let cursor: string | undefined
@@ -150,6 +151,7 @@ async function readMemberships(): Promise<TenantWithRole[]> {
     const { items, page } = unwrap(
       await apiClient.get<ApiSuccess<ListPage<TenantWithRole>>>('/tenants', {
         params: { limit: MEMBERSHIPS_PAGE_LIMIT, ...(cursor === undefined ? {} : { cursor }) },
+        signal,
       })
     )
     for (const item of items) if (!rows.has(item.tenant.id)) rows.set(item.tenant.id, item)
@@ -171,7 +173,7 @@ async function readMemberships(): Promise<TenantWithRole[]> {
 export function tenantsQueryOptions() {
   return queryOptions({
     queryKey: tenantKeys.list,
-    queryFn: () => readMemberships(),
+    queryFn: ({ signal }) => readMemberships(signal),
   })
 }
 
@@ -222,9 +224,9 @@ export function useTenants() {
 export function tenantQueryOptions(slug: string) {
   return queryOptions({
     queryKey: tenantKeys.detail(slug),
-    queryFn: async ({ client }) => {
+    queryFn: async ({ client, signal }) => {
       try {
-        return unwrap(await apiClient.get<ApiSuccess<TenantDetail>>(`/tenants/${slug}`))
+        return unwrap(await apiClient.get<ApiSuccess<TenantDetail>>(`/tenants/${slug}`, { signal }))
       } catch (error) {
         if (statusFrom(error) === 404) {
           // A suspended tenant answers 404 too; the list is what tells it apart, and may be stale.
@@ -319,10 +321,11 @@ export function ownersQueryOptions(slug: string) {
   return queryOptions({
     queryKey: [...tenantKeys.members(slug), 'owners'] as const,
     // Not `listQueryOptions`: it asks a first page for a total, which this read never shows.
-    queryFn: async () =>
+    queryFn: async ({ signal }) =>
       unwrap(
         await apiClient.get<ApiSuccess<ListPage<TenantMember>>>(`/tenants/${slug}/members`, {
           params: { role: 'owner', limit: 100 },
+          signal,
         })
       ),
     retry: retryList,
