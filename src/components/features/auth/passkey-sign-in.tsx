@@ -1,14 +1,14 @@
 import { BusyButton } from '@/components/shared/busy-button'
 import { passkeySignInMessage } from '@/lib/passkey-sign-in-message'
 import { toast } from '@/lib/toast'
-import { passkeyFailure } from '@/lib/webauthn'
+import { cancelPasskeyPrompt, passkeyFailure } from '@/lib/webauthn'
 import { track } from '@/observability/telemetry'
 import { usePasskeySignIn, usePasskeySupport } from '@/queries/passkey.queries'
 
 /**
  * "Sign in with a passkey": opens the browser's passkey sheet. It renders only
  * where the browser can use passkeys. Starting the prompt cancels a pending
- * autofill request (the wrapper aborts the older ceremony). A dismissed prompt
+ * autofill request, even one that has not opened its ceremony yet. A dismissed prompt
  * is tracked and says nothing; any other failure toasts.
  *
  * @param props.onSignedIn - Called once the passkey signed this tab in.
@@ -27,6 +27,8 @@ export function PasskeySignInButton({
 
   /** Runs the prompt and routes its outcome. */
   const start = async () => {
+    // Ends a pending autofill first, including one still fetching its options, so it cannot start after this sheet and abort it.
+    cancelPasskeyPrompt()
     try {
       await signIn.mutateAsync('modal')
     } catch (error) {

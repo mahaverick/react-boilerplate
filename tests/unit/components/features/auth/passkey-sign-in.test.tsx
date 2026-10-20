@@ -9,12 +9,13 @@ import { track } from '@/observability/telemetry'
 import { fail, ok } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
-const webauthn = vi.hoisted(() => ({ support: vi.fn(), request: vi.fn() }))
+const webauthn = vi.hoisted(() => ({ support: vi.fn(), request: vi.fn(), cancel: vi.fn() }))
 
 vi.mock('@/lib/webauthn', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/webauthn')>()),
   passkeySupport: webauthn.support,
   requestPasskey: webauthn.request,
+  cancelPasskeyPrompt: webauthn.cancel,
 }))
 
 vi.mock('@/observability/telemetry', async (importOriginal) => ({
@@ -39,6 +40,7 @@ describe('PasskeySignInButton', () => {
   beforeEach(() => {
     webauthn.support.mockReset().mockResolvedValue({ create: true, autofill: false })
     webauthn.request.mockReset()
+    webauthn.cancel.mockReset()
     vi.mocked(track).mockClear()
     server.use(
       http.post('/api/v1/auth/passkeys/sign-in/options', () =>
@@ -53,6 +55,21 @@ describe('PasskeySignInButton', () => {
 
     await waitFor(() => expect(webauthn.support).toHaveBeenCalled())
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('ends any pending autofill before it opens the modal sheet', async () => {
+    webauthn.request.mockReturnValue(new Promise(() => undefined))
+    renderButton()
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Sign in with a passkey' }))
+
+    await waitFor(() => expect(webauthn.request).toHaveBeenCalled())
+    expect(webauthn.cancel).toHaveBeenCalledTimes(1)
+    expect(webauthn.cancel.mock.invocationCallOrder[0]).toBeLessThan(
+      webauthn.request.mock.invocationCallOrder[0] ?? 0
+    )
   })
 
   it('shows the waiting label while the prompt is open', async () => {
