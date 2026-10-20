@@ -109,6 +109,37 @@ describe('usePasskeyAutofill', () => {
     expect(webauthn.request).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves one live ceremony after a mount is discarded and another follows', async () => {
+    // StrictMode does not double-run effects under this test setup, so the discard is made by hand.
+    const real = await vi.importActual<typeof import('@/lib/webauthn')>('@/lib/webauthn')
+    // The wrapper's own rule: a request begun before a cancel is aborted.
+    webauthn.cancel.mockImplementation(real.cancelPasskeyPrompt)
+    let live = 0
+    webauthn.request.mockImplementation((_options: unknown, _mode: unknown, since: number) => {
+      if (since !== real.passkeyCancelGeneration()) {
+        return Promise.reject(new DOMException('cancelled', 'AbortError'))
+      }
+      live += 1
+      return new Promise(() => undefined)
+    })
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    client.setQueryData(passkeyKeys.support, { create: true, autofill: true })
+    /** Mounts the hook against the shared client. */
+    const mount = () =>
+      renderHook(() => usePasskeyAutofill({ enabled: true, onSignedIn: vi.fn() }), {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      })
+
+    mount().unmount()
+    mount()
+
+    await waitFor(() => expect(live).toBeGreaterThan(0))
+    await settle(50, 'let a stray second live ceremony show up')
+    expect(live).toBe(1)
+  })
+
   it('posts one sign-in options request under StrictMode', async () => {
     let posts = 0
     server.use(

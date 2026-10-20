@@ -76,18 +76,27 @@ export function usePasskeys(enabled: boolean) {
 }
 
 /**
+ * Query options for what this browser can do with passkeys, read once. Every
+ * reader of `passkeyKeys.support` uses these, so they stay one entry.
+ * @param enabled - False while passkeys are off, so nothing loads the package.
+ */
+export function passkeySupportQueryOptions(enabled = true) {
+  return queryOptions({
+    queryKey: passkeyKeys.support,
+    enabled,
+    staleTime: Infinity,
+    queryFn: passkeySupport,
+  })
+}
+
+/**
  * What this browser can do with passkeys (`passkeySupport`), read once and
  * shared by every caller. Both are false until the answer arrives, and while
  * `enabled` is false nothing loads the WebAuthn package.
  * @param enabled - False while passkeys are off, so the check never runs.
  */
 export function usePasskeySupport(enabled: boolean): { create: boolean; autofill: boolean } {
-  const { data } = useQuery({
-    queryKey: passkeyKeys.support,
-    enabled,
-    staleTime: Infinity,
-    queryFn: passkeySupport,
-  })
+  const { data } = useQuery(passkeySupportQueryOptions(enabled))
   return data ?? { create: false, autofill: false }
 }
 

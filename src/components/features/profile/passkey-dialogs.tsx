@@ -35,7 +35,7 @@ import { Input } from '@/components/ui/input'
 import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { STEP_UP_WAITING_LABEL, useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
-import { codeFrom, messageFrom } from '@/lib/api-error'
+import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
 import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
 import { useDeletePasskey, useRenamePasskey } from '@/queries/passkey-manage.queries'
@@ -81,6 +81,7 @@ export function RenamePasskeyDialog({
 /** The rename dialog's form. */
 function RenameForm({ passkey, onDone }: { passkey: PublicPasskey; onDone: () => void }) {
   const rename = useRenamePasskey()
+  const queryClient = useQueryClient()
   const serverErrors = useServerErrors()
   const form = useForm({
     defaultValues: { name: passkey.name },
@@ -92,6 +93,10 @@ function RenameForm({ passkey, onDone }: { passkey: PublicPasskey; onDone: () =>
         toast.success('Passkey renamed.')
         onDone()
       } catch (error) {
+        // A 404: another tab deleted this passkey, so the list is stale.
+        if (statusFrom(error) === 404) {
+          void queryClient.invalidateQueries({ queryKey: passkeyKeys.list })
+        }
         serverErrors.capture(error)
       }
     },
@@ -171,7 +176,7 @@ export function DeletePasskeyDialog({
         },
         (error: unknown) => {
           onOpenChange(false)
-          if (codeFrom(error) === LAST_PASSKEY) {
+          if (codeFrom(error) === LAST_PASSKEY || statusFrom(error) === 404) {
             void queryClient.invalidateQueries({ queryKey: passkeyKeys.list })
             toast.error(messageFrom(error))
             return

@@ -36,8 +36,8 @@ const PROVIDER_LABELS: Record<string, string> = { google: 'Google' }
 
 /**
  * Sign-in methods, passkeys (unless the API has them off) and signing out other
- * sessions, for whichever account page hosts it. Signing out other sessions is offered on every account. The heading is `sr-only`: it
- * names the region for assistive tech, and the page's h1 already says Security.
+ * sessions, for whichever account page hosts it. Signing out other sessions is
+ * offered on every account. The heading is `sr-only`: it names the region for assistive tech, and the page's h1 already says Security.
  */
 export function SecuritySection() {
   const providers = useAuthProviders()

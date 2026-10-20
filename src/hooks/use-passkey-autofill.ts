@@ -25,6 +25,9 @@ interface PasskeyAutofillOptions {
  * - the first `PASSKEY_VERIFICATION_FAILED` restarts once with fresh options, with no toast, because options older than 5 minutes fail this way;
  * - every other failure toasts.
  *
+ * It starts after a microtask, so a mount discarded at once (StrictMode, a fast
+ * unmount) starts nothing: the sign-in reads its cancel count only when it
+ * begins, which would be after that cleanup's cancel.
  * Cleanup (an unmount, or `enabled` going false) cancels the pending request.
  */
 export function usePasskeyAutofill({
@@ -57,7 +60,8 @@ export function usePasskeyAutofill({
       }
     }
 
-    void run(false)
+    // A microtask later: see the hook's JSDoc.
+    void Promise.resolve().then(() => (live ? run(false) : undefined))
     return () => {
       live = false
       cancelPasskeyPrompt()

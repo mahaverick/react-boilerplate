@@ -14,6 +14,7 @@ import { Item, ItemContent, ItemGroup } from '@/components/ui/item'
 import { STEP_UP_WAITING_LABEL, useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { formatDate } from '@/lib/format'
 import { toast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
 import { passkeyFailure } from '@/lib/webauthn'
 import { writeFailureMessage } from '@/lib/write-failure'
 import { track } from '@/observability/telemetry'
@@ -160,13 +161,13 @@ function ProviderIcon({ passkey }: { passkey: PublicPasskey }) {
   return (
     <>
       {iconLight ? (
-        <img src={iconLight} alt="" className={`size-5 shrink-0${iconDark ? 'dark:hidden' : ''}`} />
+        <img src={iconLight} alt="" className={cn('size-5 shrink-0', iconDark && 'dark:hidden')} />
       ) : null}
       {iconDark ? (
         <img
           src={iconDark}
           alt=""
-          className={`size-5 shrink-0${iconLight ? 'hidden dark:block' : ''}`}
+          className={cn('size-5 shrink-0', iconLight && 'hidden dark:block')}
         />
       ) : null}
     </>

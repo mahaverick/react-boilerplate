@@ -52,9 +52,13 @@ import { build } from 'vite'
  * route, adds its route options, its route-tree entry, `setToken` on the auth
  * store and its chunk's preload list to the entry (1,228 B over the 587,298 B
  * measured before it); the page, the dialog and the step-up provider's
- * runner stay in lazy chunks: 588,526 B.
+ * runner stay in lazy chunks: 588,526 B. The passkey settings section is
+ * lazy too, but the entry's preload map names every chunk a lazy route
+ * loads, and the section split `passkey.queries` and `DialogRoot` into
+ * chunks of their own (80 B: 588,608 B); the setup screen will add its
+ * own names. One final P2 raise, to 589,000 B.
  */
-const ENTRY_BUDGET_BYTES = 588_600
+const ENTRY_BUDGET_BYTES = 589_000
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

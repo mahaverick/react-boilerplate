@@ -3,12 +3,15 @@ import { FRONTEND_APP } from '@/constants/frontend-app'
 import { apiClient, unwrap } from '@/http/client'
 import {
   createPasskeyCredential,
-  passkeySupport,
   signalAcceptedPasskeys,
   signalPasskeyUser,
   type PublicKeyCredentialCreationOptionsJSON,
 } from '@/lib/webauthn'
-import { passkeyKeys, usePasskeyConfig } from '@/queries/passkey.queries'
+import {
+  passkeyKeys,
+  passkeySupportQueryOptions,
+  usePasskeyConfig,
+} from '@/queries/passkey.queries'
 import { passkeyNameSchema } from '@/schemas/passkey.schemas'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess } from '@/types/api.types'
@@ -21,15 +24,11 @@ import type { PasskeyChallenge, PasskeyList, PublicPasskey } from '@/types/passk
 
 /**
  * Whether this browser can create passkeys, once known. Shares the cache entry
- * of `usePasskeySupport`, so the package loads once. `known` is false until the
+ * of `usePasskeySupport` (one options factory), so the package loads once. `known` is false until the
  * answer arrives, so the page does not flash "can't create" first.
  */
 export function usePasskeyCreateSupport(): { known: boolean; create: boolean } {
-  const { data } = useQuery({
-    queryKey: passkeyKeys.support,
-    staleTime: Infinity,
-    queryFn: passkeySupport,
-  })
+  const { data } = useQuery(passkeySupportQueryOptions())
   return { known: data !== undefined, create: data?.create ?? false }
 }
 

@@ -419,4 +419,76 @@ describe('PasskeysSection', () => {
     await waitFor(() => expect(lists).toBe(2))
     await waitFor(() => expect(screen.queryByText('Passkey 1')).not.toBeInTheDocument())
   })
+
+  it('shows the light icon only in light and the dark icon only in dark', async () => {
+    mockList([makePasskey(1)])
+    renderSection()
+
+    await screen.findByText('Passkey 1')
+    const [light, dark] = Array.from(document.querySelectorAll('img'))
+    expect(light?.getAttribute('src')).toBe('data:image/png;base64,AA')
+    expect(light?.className.split(' ')).toEqual(expect.arrayContaining(['shrink-0', 'dark:hidden']))
+    expect(dark?.className.split(' ')).toEqual(
+      expect.arrayContaining(['shrink-0', 'hidden', 'dark:block'])
+    )
+  })
+
+  it.each([
+    ['PASSKEY_LIMIT', 409, 'You have 20 passkeys. Delete one to create another.'],
+    ['EMAIL_UNVERIFIED', 403, 'Verify your email address to create a passkey.'],
+  ])('a %s refusal on create toasts the server message', async (code, status, message) => {
+    const toastError = vi.spyOn(toast, 'error')
+    server.use(
+      http.post('/api/v1/auth/passkeys/registration/options', () => fail(message, status, code))
+    )
+    renderSection()
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Create a passkey' }))
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith(message))
+    expect(webauthn.create).not.toHaveBeenCalled()
+  })
+
+  it('refetches the list when a delete answers 404 passkey_not_found', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    let lists = 0
+    server.use(
+      http.get('/api/v1/auth/passkeys', () => {
+        lists += 1
+        return ok({ passkeys: [makePasskey(1), makePasskey(2)], userHandle: 'H' }, 'Passkeys.')
+      }),
+      http.delete('/api/v1/auth/passkeys/pk-1', () =>
+        fail('Passkey not found.', 404, 'passkey_not_found')
+      )
+    )
+    renderSection()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Delete Passkey 1' }))
+    await user.click(await screen.findByRole('button', { name: 'Delete passkey' }))
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith('Passkey not found.'))
+    await waitFor(() => expect(lists).toBe(2))
+  })
+
+  it('refetches the list when a rename answers 404 passkey_not_found', async () => {
+    let lists = 0
+    server.use(
+      http.get('/api/v1/auth/passkeys', () => {
+        lists += 1
+        return ok({ passkeys: [makePasskey(1)], userHandle: 'H' }, 'Passkeys.')
+      }),
+      http.patch('/api/v1/auth/passkeys/pk-1', () =>
+        fail('Passkey not found.', 404, 'passkey_not_found')
+      )
+    )
+    renderSection()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Rename Passkey 1' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Rename passkey' }))
+    await user.click(dialog.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(lists).toBe(2))
+  })
 })
