@@ -47,7 +47,9 @@ function renderAt(path: string): AnyRouter {
 /** The API just set the refresh cookie, so the root's bootstrap restores a session. */
 function arriveSignedIn() {
   server.use(
-    http.post('/api/v1/auth/refresh', () => ok({ accessToken: 'fresh-token' }, 'Token refreshed.')),
+    http.post('/api/v1/auth/refresh', () =>
+      ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
+    ),
     http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.'))
   )
 }

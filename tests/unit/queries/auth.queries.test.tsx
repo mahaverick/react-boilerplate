@@ -53,7 +53,7 @@ describe('sign-in link queries', () => {
         }),
         http.post('/api/v1/auth/refresh', () => {
           refreshes += 1
-          return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+          return ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
         })
       )
 
@@ -104,7 +104,11 @@ describe('sign-in link queries', () => {
     })
 
     it('tracks nothing when the request fails', async () => {
-      server.use(http.post('/api/v1/auth/link/request', () => fail('Too many requests.', 429)))
+      server.use(
+        http.post('/api/v1/auth/link/request', () =>
+          fail("You've reached the limit of 20 requests in 1 minute. Try again in 1 minute.", 429)
+        )
+      )
 
       const { result } = renderHook(() => useRequestSignInLink(), { wrapper })
       result.current.mutate({ email: 'a@b.test' })
@@ -161,7 +165,7 @@ describe('sign-in link queries', () => {
         }),
         http.post('/api/v1/auth/refresh', () => {
           refreshes += 1
-          return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+          return ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
         })
       )
 
@@ -214,7 +218,7 @@ describe('sign-in link queries', () => {
     it('leaves the store signed out on a 400 LINK_INVALID', async () => {
       server.use(
         http.post('/api/v1/auth/link/verify', () =>
-          fail('This link has expired or was already used.', 400, 'LINK_INVALID')
+          fail('This link expired or was already used. Ask for a new link.', 400, 'LINK_INVALID')
         )
       )
 

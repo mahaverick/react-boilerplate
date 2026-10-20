@@ -249,6 +249,18 @@ describe('tenants list', () => {
     expect(await screen.findByRole('link', { name: /Acme Corp/ })).toBeInTheDocument()
   })
 
+  it('states the slug’s length and characters, and that it is fixed once created', async () => {
+    renderAppAt('/tenants')
+    expect(await screen.findByText(/^Use 3 to 100 lowercase letters/)).toHaveTextContent(
+      'Use 3 to 100 lowercase letters, numbers and hyphens. The slug becomes the address: /tenants/your-slug. We refuse capitals rather than convert them.'
+    )
+    expect(
+      screen.getByText(
+        'You become its owner. You can’t change the slug after you create the tenant.'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('never shows Creating… for a submit that fails validation', async () => {
     const user = userEvent.setup()
     renderAppAt('/tenants')

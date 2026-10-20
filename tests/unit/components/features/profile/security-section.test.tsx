@@ -259,7 +259,11 @@ describe('sign out other sessions', () => {
     mockProviders(['email'])
     server.use(
       http.post('/api/v1/auth/sessions/revoke-others', () =>
-        fail('Too many attempts. Try again in 15 minutes.', 429, 'RATE_LIMITED')
+        fail(
+          "You've reached the limit of 10 attempts in 15 minutes. Try again in 15 minutes.",
+          429,
+          'RATE_LIMITED'
+        )
       )
     )
     const user = userEvent.setup()
@@ -269,7 +273,9 @@ describe('sign out other sessions', () => {
       await (await section()).findByRole('button', { name: 'Sign out other sessions' })
     )
     expect(
-      await screen.findByText('Too many attempts. Try again in 15 minutes.')
+      await screen.findByText(
+        "You've reached the limit of 10 attempts in 15 minutes. Try again in 15 minutes."
+      )
     ).toBeInTheDocument()
   })
 })

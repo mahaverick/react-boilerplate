@@ -394,7 +394,7 @@ describe('confirm page, signed out', () => {
     renderAt(CONFIRM_PATH)
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'We’ll be back soon' })
+      await screen.findByRole('heading', { level: 1, name: 'Maintenance in progress' })
     ).toBeVisible()
     expect(confirms).toHaveLength(1)
     expect(screen.queryByText(DEAD_TITLE)).not.toBeInTheDocument()

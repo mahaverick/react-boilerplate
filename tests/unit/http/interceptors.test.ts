@@ -91,7 +91,7 @@ describe('auth interceptors', () => {
       http.get('/api/v1/widgets', ({ request }) => {
         attempts += 1
         if (request.headers.get('authorization') === 'Bearer stale') {
-          return fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+          return fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
         }
         return ok(['widget'])
       })
@@ -113,7 +113,7 @@ describe('auth interceptors', () => {
       ),
       http.post('/api/v1/widgets', () => {
         attempts += 1
-        return fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+        return fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
       })
     )
 
@@ -133,11 +133,11 @@ describe('auth interceptors', () => {
     server.use(
       http.post('/api/v1/auth/refresh', () => {
         refreshCount += 1
-        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        return ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       }),
       http.get('/api/v1/widgets', ({ request }) =>
         request.headers.get('authorization') === 'Bearer stale'
-          ? fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+          ? fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
           : ok(['widget'])
       )
     )
@@ -172,7 +172,7 @@ describe('auth interceptors', () => {
         attempts += 1
         return attempts > RETRY_CAP
           ? ok(['widget'])
-          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+          : fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
       })
     )
 
@@ -198,7 +198,7 @@ describe('auth interceptors', () => {
         attempts += 1
         return attempts > RETRY_CAP
           ? ok(['widget'])
-          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+          : fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
       })
     )
 
@@ -222,7 +222,7 @@ describe('auth interceptors', () => {
         attempts += 1
         return attempts > RETRY_CAP
           ? ok(['widget'])
-          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+          : fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
       })
     )
 
@@ -244,7 +244,7 @@ describe('auth interceptors', () => {
         attempts += 1
         return attempts > RETRY_CAP
           ? ok(['widget'])
-          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+          : fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
       })
     )
 
@@ -265,7 +265,7 @@ describe('auth interceptors', () => {
         attempts += 1
         return attempts > RETRY_CAP
           ? ok(['widget'])
-          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+          : fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
       })
     )
 
@@ -285,7 +285,7 @@ describe('auth interceptors', () => {
         attempts += 1
         return attempts > RETRY_CAP
           ? ok(['widget'])
-          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+          : fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
       })
     )
 
@@ -300,7 +300,12 @@ describe('auth interceptors', () => {
     useAuthStore.getState().login('tok', testUser)
     const assign = stubLocation('/tenants', '?page=2')
     server.use(
-      http.get('/api/v1/widgets', () => fail('Account no longer exists or is inactive', 401))
+      http.get('/api/v1/widgets', () =>
+        fail(
+          'This account is deactivated or deleted. Sign in with another account, or ask your team admin.',
+          401
+        )
+      )
     )
 
     await expect(makeClient().get('/widgets')).rejects.toMatchObject({
@@ -319,8 +324,11 @@ describe('auth interceptors', () => {
     server.use(
       http.get('/api/v1/widgets', ({ request }) =>
         request.headers.get('authorization') === 'Bearer stale'
-          ? fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
-          : fail('Account no longer exists or is inactive', 401)
+          ? fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
+          : fail(
+              'This account is deactivated or deleted. Sign in with another account, or ask your team admin.',
+              401
+            )
       )
     )
 
@@ -357,7 +365,7 @@ describe('auth interceptors', () => {
     server.use(
       http.post('/api/v1/auth/refresh', () => {
         refreshCalls += 1
-        return fail('Missing refresh token', 401)
+        return fail("You're signed out. Sign in to continue.", 401)
       })
     )
 
@@ -391,7 +399,11 @@ describe('auth interceptors', () => {
     otherTab.addEventListener('message', (event: MessageEvent<unknown>) => {
       received.push(event.data)
     })
-    server.use(http.get('/api/v1/widgets', () => fail('Invalid access token', 401)))
+    server.use(
+      http.get('/api/v1/widgets', () =>
+        fail("We don't recognize this sign-in. Sign in again to continue.", 401)
+      )
+    )
 
     try {
       await expect(makeClient().get('/widgets')).rejects.toThrow()
@@ -409,7 +421,7 @@ describe('auth interceptors', () => {
     server.use(
       http.post('/api/v1/auth/refresh', () => {
         refreshes += 1
-        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        return ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       }),
       http.post('/api/v1/widgets', () => {
         attempts += 1

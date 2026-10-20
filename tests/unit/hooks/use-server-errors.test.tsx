@@ -21,10 +21,10 @@ import { toast } from '@/lib/toast'
 /** A 400 carrying detail for one field and one schema-level issue. */
 function validationFailure(): AxiosError {
   const config = { headers: new AxiosHeaders() }
-  return new AxiosError('Validation failed.', '400', config, null, {
+  return new AxiosError('Check the highlighted fields, then try again.', '400', config, null, {
     data: {
       success: false,
-      message: 'Validation failed.',
+      message: 'Check the highlighted fields, then try again.',
       statusCode: 400,
       errors: { email: ['Already taken.'], formErrors: ['Those two do not go together.'] },
       requestId: 'test-request-id',
@@ -51,10 +51,10 @@ function plainFailure(message: string, status: number): AxiosError {
 /** A 400 naming a field the form may not render. */
 function failureNaming(field: string): AxiosError {
   const config = { headers: new AxiosHeaders() }
-  return new AxiosError('Validation failed.', '400', config, null, {
+  return new AxiosError('Check the highlighted fields, then try again.', '400', config, null, {
     data: {
       success: false,
-      message: 'Validation failed.',
+      message: 'Check the highlighted fields, then try again.',
       statusCode: 400,
       errors: { [field]: ['Not allowed.'] },
       requestId: 'test-request-id',
@@ -69,10 +69,10 @@ function failureNaming(field: string): AxiosError {
 /** A 400 whose detail is all field-level. */
 function fieldOnlyFailure(): AxiosError {
   const config = { headers: new AxiosHeaders() }
-  return new AxiosError('Validation failed.', '400', config, null, {
+  return new AxiosError('Check the highlighted fields, then try again.', '400', config, null, {
     data: {
       success: false,
-      message: 'Validation failed.',
+      message: 'Check the highlighted fields, then try again.',
       statusCode: 400,
       errors: { email: ['Already taken.'] },
       requestId: 'test-request-id',
@@ -330,10 +330,17 @@ describe('capture', () => {
     const { result } = renderHook(() => useServerErrors())
 
     act(() => {
-      result.current.capture(plainFailure('Too many attempts. Try again in 15 minutes.', 429))
+      result.current.capture(
+        plainFailure(
+          "You've reached the limit of 10 attempts in 15 minutes. Try again in 15 minutes.",
+          429
+        )
+      )
     })
 
-    expect(result.current.formErrors).toEqual(['Too many attempts. Try again in 15 minutes.'])
+    expect(result.current.formErrors).toEqual([
+      "You've reached the limit of 10 attempts in 15 minutes. Try again in 15 minutes.",
+    ])
     expect(result.current.fieldErrors).toEqual({})
   })
 

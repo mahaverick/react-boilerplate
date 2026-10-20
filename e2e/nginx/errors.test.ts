@@ -49,7 +49,12 @@ function envelope(data: unknown, status = 200) {
     body: JSON.stringify(
       status === 200
         ? { success: true, message: 'OK', statusCode: 200, data }
-        : { success: false, message: 'Internal server error', statusCode: status }
+        : {
+            success: false,
+            message:
+              'Our server hit an error. Try again, and contact support with the error ID if it happens again.',
+            statusCode: status,
+          }
     ),
   }
 }

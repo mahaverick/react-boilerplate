@@ -27,8 +27,7 @@ export const testUser: User = {
 export const TEST_INVITATION_TOKEN = 'inv-token-'.padEnd(43, 'x')
 
 /** express's one answer to an invite and to a resend, whether or not the address has an account. */
-export const INVITATION_SENT_MESSAGE =
-  'If that address can be invited, an invitation has been sent.'
+export const INVITATION_SENT_MESSAGE = 'If we can invite that address, we sent it an invitation.'
 
 /** One pending row, as `GET /tenants/:slug/invitations` lists it. */
 export const testInvitation: TenantInvitation = {
@@ -166,7 +165,7 @@ export function tenantDetail<T extends object>(
 
 /** The default msw handlers every test starts with; a test overrides one with `server.use(...)`. */
 export const handlers = [
-  http.post('/api/v1/auth/refresh', () => ok({ accessToken: 'fresh-token' }, 'Token refreshed.')),
+  http.post('/api/v1/auth/refresh', () => ok({ accessToken: 'fresh-token' }, 'Session refreshed.')),
   http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.')),
   // The profile's analytics switch; the name form's tests answer PATCH themselves.
   http.patch('/api/v1/profile', async ({ request }) =>
@@ -180,7 +179,7 @@ export const handlers = [
   http.post('/api/v1/auth/link/verify', async ({ request }) => {
     const { email } = (await request.json()) as { email?: string }
     if (email !== undefined && email.toLowerCase() !== testUser.email) {
-      return fail('This link has expired or was already used.', 400, 'LINK_INVALID')
+      return fail('This link expired or was already used. Ask for a new link.', 400, 'LINK_INVALID')
     }
     return ok(
       { user: testUser, accessToken: 'link-token', isNewUser: false, redirect: null },

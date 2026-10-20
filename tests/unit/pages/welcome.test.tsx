@@ -346,14 +346,14 @@ describe('/welcome', () => {
     })
     useMaintenanceModeStore.setState({ mode: 'full', message: null, since: null })
     server.use(
-      http.post('/api/v1/auth/refresh', () => fail('Missing refresh token', 401)),
+      http.post('/api/v1/auth/refresh', () => fail("You're signed out. Sign in to continue.", 401)),
       http.get('/api/v1/status/maintenance', () =>
         ok({ mode: 'full', message: 'Upgrading.', since: null }, 'Maintenance status retrieved.')
       )
     )
     const router = renderAppAt('/welcome')
 
-    await screen.findByRole('heading', { name: 'We’ll be back soon' })
+    await screen.findByRole('heading', { name: 'Maintenance in progress' })
     expect(router.state.location.pathname).toBe('/welcome')
   })
 

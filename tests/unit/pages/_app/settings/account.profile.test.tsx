@@ -361,7 +361,7 @@ describe('profile settings page', () => {
         HttpResponse.json(
           {
             success: false,
-            message: 'Validation failed.',
+            message: 'Check the highlighted fields, then try again.',
             statusCode: 400,
             errors: { firstName: ['That name is not allowed.'] },
             requestId: 'test-request-id',

@@ -172,9 +172,10 @@ function serveMembers(): URLSearchParams[] {
       const params = new URL(request.url).searchParams
       seen.push(params)
       if (params.get('cursor') === 'bad') {
-        return fail('Validation failed', 400, 'CURSOR_INVALID')
+        return fail('Check the highlighted fields, then try again.', 400, 'CURSOR_INVALID')
       }
-      if (params.get('cursor') === 'wrong') return fail('Validation failed', 400)
+      if (params.get('cursor') === 'wrong')
+        return fail('Check the highlighted fields, then try again.', 400)
       if (params.get('cursor') === 'c2')
         return ok(listPage([{ id: 'b' }], { hasPrev: true, prevCursor: 'c1' }))
       // A cursor whose page came back empty: 4a answers with the first page instead.

@@ -157,7 +157,7 @@ export function serveTestItems(
       const answer = await respond(params)
       if (typeof answer === 'number') return fail('Refused.', answer)
       if ('items' in answer) return ok(answer, 'Items retrieved.')
-      return fail('Validation failed', answer.status, answer.code)
+      return fail('Check the highlighted fields, then try again.', answer.status, answer.code)
     })
   )
   return seen

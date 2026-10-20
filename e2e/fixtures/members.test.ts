@@ -57,7 +57,7 @@ test.describe('desktop', () => {
     await expect(dialog).toBeVisible()
     await dialog.getByRole('button', { name: 'Leave' }).click()
 
-    await expect(page.getByText('You left this tenant.')).toBeVisible()
+    await expect(page.getByText('You left Acme Corp.')).toBeVisible()
     await expect(page).toHaveURL(/\/tenants(\?|$)/)
   })
 })

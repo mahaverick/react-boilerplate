@@ -6,7 +6,7 @@ import { retryableFailureMessage } from '@/lib/retry'
 /** An Axios error with this status, envelope and headers, as the API's error arrives. */
 function errorWith(status: number, headers: Record<string, string> = {}, code?: string) {
   const config = { headers: new AxiosHeaders() }
-  const message = 'Too many attempts. Try again in 15 minutes.'
+  const message = "You've reached the limit of 10 attempts in 15 minutes. Try again in 15 minutes."
   return new AxiosError(message, String(status), config, null, {
     data: { success: false, message, statusCode: status, ...(code ? { code } : {}) },
     status,
@@ -37,7 +37,7 @@ describe('retryableFailureMessage', () => {
 
   it("keeps the server's message for a 429 without Retry-After", () => {
     expect(retryableFailureMessage(errorWith(429), 'attempts')).toBe(
-      'Too many attempts. Try again in 15 minutes.'
+      "You've reached the limit of 10 attempts in 15 minutes. Try again in 15 minutes."
     )
   })
 

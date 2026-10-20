@@ -25,7 +25,7 @@ function axiosErrorWith(body: ApiErrorBody): AxiosError {
 
 const VALIDATION_FAILURE = axiosErrorWith({
   success: false,
-  message: 'Validation failed.',
+  message: 'Check the highlighted fields, then try again.',
   statusCode: 422,
   // The backend's shape: `z.flattenError`'s field errors, plus `formErrors` when there are any.
   errors: {
@@ -37,7 +37,7 @@ const VALIDATION_FAILURE = axiosErrorWith({
 
 describe('api-error', () => {
   it('uses the server message when there is one', () => {
-    expect(messageFrom(VALIDATION_FAILURE)).toBe('Validation failed.')
+    expect(messageFrom(VALIDATION_FAILURE)).toBe('Check the highlighted fields, then try again.')
   })
 
   it('falls back for anything that is not an API error', () => {
@@ -79,7 +79,7 @@ describe('api-error', () => {
   it('returns empty collections when the body carries no validator detail', () => {
     const plain = axiosErrorWith({
       success: false,
-      message: 'Authentication required',
+      message: 'Sign in to continue.',
       statusCode: 401,
       requestId: 'req-2',
     })

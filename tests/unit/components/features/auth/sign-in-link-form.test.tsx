@@ -169,14 +169,16 @@ describe('SignInLinkForm', () => {
   })
 
   it('does not track or leave the form when the request fails', async () => {
-    serveRequests(() => fail('Too many requests. Try again in 60 seconds.', 429))
+    serveRequests(() =>
+      fail("You've reached the limit of 20 requests in 1 minute. Try again in 60 seconds.", 429)
+    )
     const user = userEvent.setup()
     renderForm()
 
     await send(user)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Too many requests. Try again in 60 seconds.'
+      "You've reached the limit of 20 requests in 1 minute. Try again in 60 seconds."
     )
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
     expect(track).not.toHaveBeenCalled()
@@ -229,7 +231,8 @@ describe('SignInLinkForm', () => {
         ? HttpResponse.json(
             {
               success: false,
-              message: 'Too many requests. Try again in 2 minutes.',
+              message:
+                "You've reached the limit of 20 requests in 1 minute. Try again in 2 minutes.",
               statusCode: 429,
               requestId: 'test-request-id',
             },
@@ -249,7 +252,9 @@ describe('SignInLinkForm', () => {
 
     // The toast follows the deadline update in the same handler.
     await vi.waitFor(() =>
-      expect(error).toHaveBeenCalledWith('Too many requests. Try again in 2 minutes.')
+      expect(error).toHaveBeenCalledWith(
+        "You've reached the limit of 20 requests in 1 minute. Try again in 2 minutes."
+      )
     )
     await act(() => vi.advanceTimersByTimeAsync(0))
     expect(screen.getByRole('button', { name: 'Resend in 2:00' })).toBeInTheDocument()
@@ -287,7 +292,7 @@ describe('SignInLinkForm', () => {
       HttpResponse.json(
         {
           success: false,
-          message: 'Validation failed',
+          message: 'Check the highlighted fields, then try again.',
           statusCode: 400,
           errors: { email: ['Enter a valid email address.'] },
           requestId: 'test-request-id',

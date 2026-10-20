@@ -339,19 +339,51 @@ describe('tenant logo and website: http or https URLs only', () => {
   const base = { name: 'Acme', slug: 'acme' }
 
   it.each([
-    ['website', 'javascript:alert(document.domain)', 'Website must be an http or https URL.'],
-    ['logo', 'javascript:alert(1)', 'Logo must be an http or https URL.'],
-    ['logo', 'data:text/html,<script>alert(1)</script>', 'Logo must be an http or https URL.'],
-    ['website', 'call us maybe', 'Website must be an http or https URL.'],
-    ['website', 'https://bank.example@evil.example/', 'Website must be an http or https URL.'],
-    ['website', 'https://user:pw@host.example/', 'Website must be an http or https URL.'],
-    ['website', 'https://:pw@host.example/', 'Website must be an http or https URL.'],
+    [
+      'website',
+      'javascript:alert(document.domain)',
+      'Website must be a web address that starts with http:// or https://.',
+    ],
+    [
+      'logo',
+      'javascript:alert(1)',
+      'Logo must be a web address that starts with http:// or https://.',
+    ],
+    [
+      'logo',
+      'data:text/html,<script>alert(1)</script>',
+      'Logo must be a web address that starts with http:// or https://.',
+    ],
+    [
+      'website',
+      'call us maybe',
+      'Website must be a web address that starts with http:// or https://.',
+    ],
+    [
+      'website',
+      'https://bank.example@evil.example/',
+      'Website must be a web address that starts with http:// or https://.',
+    ],
+    [
+      'website',
+      'https://user:pw@host.example/',
+      'Website must be a web address that starts with http:// or https://.',
+    ],
+    [
+      'website',
+      'https://:pw@host.example/',
+      'Website must be a web address that starts with http:// or https://.',
+    ],
     [
       'website',
       String.raw`https://evil.example\@good.example/`,
-      'Website must be an http or https URL.',
+      'Website must be a web address that starts with http:// or https://.',
     ],
-    ['logo', String.raw`https://good.example/a\b`, 'Logo must be an http or https URL.'],
+    [
+      'logo',
+      String.raw`https://good.example/a\b`,
+      'Logo must be a web address that starts with http:// or https://.',
+    ],
   ])('refuses %s %s', (field, value, message) => {
     for (const schema of [newTenantSchema, updateTenantSchema]) {
       const result = schema.safeParse({ ...base, [field]: value })

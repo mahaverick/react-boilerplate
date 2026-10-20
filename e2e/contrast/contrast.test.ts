@@ -676,7 +676,7 @@ test.describe('maintenance surfaces', () => {
           page,
           '/e2e/harness/?path=/dashboard',
           theme,
-          mode === 'full' ? 'We’ll be back soon' : /^Welcome back/
+          mode === 'full' ? 'Maintenance in progress' : /^Welcome back/
         )
         if (mode === 'read_only') {
           await expect(page.getByRole('region', { name: 'Maintenance' })).toBeVisible()

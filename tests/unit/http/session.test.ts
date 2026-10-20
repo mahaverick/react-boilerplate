@@ -46,7 +46,7 @@ describe('ensureSession', () => {
     server.use(
       http.post('/api/v1/auth/refresh', () => {
         refreshCount += 1
-        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        return ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       })
     )
 
@@ -114,7 +114,7 @@ describe('ensureSession', () => {
         attempts += 1
         return attempts === 1
           ? HttpResponse.error()
-          : ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+          : ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       })
     )
 
@@ -128,7 +128,7 @@ describe('ensureSession', () => {
     server.use(
       http.post('/api/v1/auth/refresh', () => {
         refreshCount += 1
-        return ok({ accessToken: `token-${refreshCount}` }, 'Token refreshed.')
+        return ok({ accessToken: `token-${refreshCount}` }, 'Session refreshed.')
       })
     )
 
@@ -149,7 +149,7 @@ describe('ensureSession', () => {
       http.get('/api/v1/profile', ({ request }) =>
         request.headers.get('authorization') === 'Bearer fresh-token'
           ? ok(testUser, 'Profile retrieved.')
-          : fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED)
+          : fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
       )
     )
 
@@ -169,7 +169,7 @@ describe('ensureSession', () => {
         refreshCount += 1
         return refreshCount === 1
           ? fail('Unauthorized', 401)
-          : ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+          : ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       })
     )
 
@@ -190,7 +190,9 @@ describe('ensureSession', () => {
   it('rejects rather than hanging when its own profile call 401s as expired', async () => {
     useAuthStore.getState().login('stale', testUser)
     server.use(
-      http.get('/api/v1/profile', () => fail('Access token expired', 401, ACCESS_TOKEN_EXPIRED))
+      http.get('/api/v1/profile', () =>
+        fail('Your sign-in expired. Sign in again to continue.', 401, ACCESS_TOKEN_EXPIRED)
+      )
     )
 
     await expect(ensureSession()).rejects.toThrow()
@@ -290,7 +292,7 @@ describe('across tabs', () => {
         maxActive = Math.max(maxActive, active)
         await delay(20)
         active -= 1
-        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        return ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       })
     )
 

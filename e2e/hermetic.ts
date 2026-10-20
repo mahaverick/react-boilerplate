@@ -31,8 +31,8 @@ function unauthorized(pathname: string) {
     success: false,
     message:
       pathname === '/api/v1/auth/refresh'
-        ? 'Missing refresh token'
-        : 'Missing or malformed Authorization header',
+        ? "You're signed out. Sign in to continue."
+        : 'Sign in to continue.',
     statusCode: 401,
     requestId: 'e2e-api-fallback',
   }

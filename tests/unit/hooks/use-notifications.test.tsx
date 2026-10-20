@@ -284,14 +284,14 @@ describe('useNotificationStream', () => {
   it('treats a non-ok connect response as a refused connect, not a delivered frame, and recovers exactly like a mid-stream failure', async () => {
     server.use(
       http.post('/api/v1/auth/refresh', () =>
-        ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       )
     )
     queueConnectRefusal({
       status: 401,
       body: {
         success: false,
-        message: 'Access token expired',
+        message: 'Your sign-in expired. Sign in again to continue.',
         statusCode: 401,
         code: 'ACCESS_TOKEN_EXPIRED',
         requestId: 'r',
@@ -320,7 +320,8 @@ describe('useNotificationStream', () => {
     status: 503,
     body: {
       success: false,
-      message: 'The server is at its notification stream capacity. Try again shortly.',
+      message:
+        'Notifications are at capacity on this server. Reload this page in 30 seconds to try again.',
       statusCode: 503,
       code: 'stream_capacity',
       requestId: 'r',
@@ -336,7 +337,7 @@ describe('useNotificationStream', () => {
     server.use(
       http.post('/api/v1/auth/refresh', () => {
         refreshes += 1
-        return ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        return ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       })
     )
     return () => refreshes
@@ -461,7 +462,7 @@ describe('useNotificationStream', () => {
   it('reconnects through ensureSession after a stream failure', async () => {
     server.use(
       http.post('/api/v1/auth/refresh', () =>
-        ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       )
     )
     renderHook(() => useNotificationStream(), { wrapper })
@@ -491,7 +492,7 @@ describe('useNotificationStream', () => {
         attempts += 1
         return attempts === 1
           ? HttpResponse.error()
-          : ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+          : ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       })
     )
     renderHook(() => useNotificationStream(), { wrapper })

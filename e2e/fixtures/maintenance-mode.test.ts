@@ -61,7 +61,7 @@ test('full: the maintenance screen replaces the app, and the app returns to the 
   // A fresh harness load, not a reload: the harness has replaced its URL with the app's.
   status.mode = 'full'
   await page.goto(HARNESS_ACME)
-  await expect(page.getByRole('heading', { name: 'We’ll be back soon' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Maintenance in progress' })).toBeVisible()
   await expect(page.getByText(MESSAGE)).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0)
 
@@ -71,7 +71,7 @@ test('full: the maintenance screen replaces the app, and the app returns to the 
   await expect.poll(() => status.reads).toBeGreaterThan(readsBefore)
 
   await expect(page.getByRole('heading', { name: 'Acme Corp', level: 1 })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'We’ll be back soon' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Maintenance in progress' })).toHaveCount(0)
   await expect(page).toHaveURL(/\/tenants\/acme(\?|$)/)
 })
 

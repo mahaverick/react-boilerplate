@@ -55,7 +55,9 @@ function arriveSignedOut() {
 /** A refresh cookie for the test user (a@b.com): the root's bootstrap restores that session. */
 function arriveSignedIn() {
   server.use(
-    http.post('/api/v1/auth/refresh', () => ok({ accessToken: 'fresh-token' }, 'Token refreshed.')),
+    http.post('/api/v1/auth/refresh', () =>
+      ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
+    ),
     http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.'))
   )
 }
@@ -284,7 +286,9 @@ describe('/auth/link, signed out', () => {
   })
 
   it("carries the old link's redirect into the new link, and lands there", async () => {
-    serveVerify(() => fail('This link has expired or was already used.', 400, 'LINK_INVALID'))
+    serveVerify(() =>
+      fail('This link expired or was already used. Ask for a new link.', 400, 'LINK_INVALID')
+    )
     const requests: unknown[] = []
     server.use(
       http.post('/api/v1/auth/link/request', async ({ request }) => {
@@ -318,7 +322,9 @@ describe('/auth/link, signed out', () => {
     `/invitations/confirm?token=${'y'.repeat(43)}&email=a%40b.test`,
     '//evil.test',
   ])("does not carry %s into the new link's redirect", async (unsafe) => {
-    serveVerify(() => fail('This link has expired or was already used.', 400, 'LINK_INVALID'))
+    serveVerify(() =>
+      fail('This link expired or was already used. Ask for a new link.', 400, 'LINK_INVALID')
+    )
     const requests: unknown[] = []
     server.use(
       http.post('/api/v1/auth/link/request', async ({ request }) => {
@@ -389,7 +395,9 @@ describe('/auth/link, signed out', () => {
   })
 
   it('shows the dead link with the address prefilled on a 400, and one click resends', async () => {
-    serveVerify(() => fail('This link has expired or was already used.', 400, 'LINK_INVALID'))
+    serveVerify(() =>
+      fail('This link expired or was already used. Ask for a new link.', 400, 'LINK_INVALID')
+    )
     const requests: unknown[] = []
     server.use(
       http.post('/api/v1/auth/link/request', async ({ request }) => {
@@ -412,7 +420,9 @@ describe('/auth/link, signed out', () => {
   })
 
   it('lands on the dashboard when another tab uses the new link', async () => {
-    serveVerify(() => fail('This link has expired or was already used.', 400, 'LINK_INVALID'))
+    serveVerify(() =>
+      fail('This link expired or was already used. Ask for a new link.', 400, 'LINK_INVALID')
+    )
     serveOneTenant()
     const user = userEvent.setup()
     const router = renderAt(LINK_PATH)
@@ -440,7 +450,7 @@ describe('/auth/link, signed out', () => {
         sent.push(body)
         return body.email === 'attacker@example.test'
           ? signedIn()()
-          : fail('This link has expired or was already used.', 400, 'LINK_INVALID')
+          : fail('This link expired or was already used. Ask for a new link.', 400, 'LINK_INVALID')
       }),
       http.post('/api/v1/auth/refresh', () => {
         refreshes += 1
@@ -477,7 +487,9 @@ describe('/auth/link, signed out', () => {
   })
 
   it('never says which kind of dead link it was', async () => {
-    serveVerify(() => fail('This link has expired or was already used.', 400, 'LINK_INVALID'))
+    serveVerify(() =>
+      fail('This link expired or was already used. Ask for a new link.', 400, 'LINK_INVALID')
+    )
     renderAt(LINK_PATH)
     await screen.findByRole('heading', { level: 1, name: LINK_DEAD_TITLE })
     const invalid = document.querySelector('main')?.textContent
@@ -486,7 +498,7 @@ describe('/auth/link, signed out', () => {
     queryClient.clear()
     resetSessionForTests()
     useAuthStore.setState({ isBootstrapped: false })
-    serveVerify(() => fail('Validation failed', 400))
+    serveVerify(() => fail('Check the highlighted fields, then try again.', 400))
     renderAt(LINK_PATH)
     await screen.findByRole('heading', { level: 1, name: LINK_DEAD_TITLE })
 
@@ -498,7 +510,10 @@ describe('/auth/link, signed out', () => {
     [
       '429',
       () => {
-        const response = fail('Too many attempts. Try again in 42 seconds.', 429)
+        const response = fail(
+          "You've reached the limit of 10 attempts in 15 minutes. Try again in 42 seconds.",
+          429
+        )
         response.headers.set('Retry-After', '42')
         return response
       },
