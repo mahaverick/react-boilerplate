@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.2](https://github.com/mahaverick/react-boilerplate/compare/v4.0.1...v4.0.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* abort cancelled queries, reword legacy copy, share the sign-in listener ([#132](https://github.com/mahaverick/react-boilerplate/issues/132)) ([0b1240e](https://github.com/mahaverick/react-boilerplate/commit/0b1240eaa68669115223730ddb01b41933225419))
+
 ## [4.0.1](https://github.com/mahaverick/react-boilerplate/compare/v4.0.0...v4.0.1) (2026-10-20)
 
 
