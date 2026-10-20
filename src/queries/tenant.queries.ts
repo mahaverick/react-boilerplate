@@ -9,7 +9,7 @@ import { MEMBERSHIP_ROLES } from '@/constants/membership-roles'
 import type { MembershipRole } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
-import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
+import { codeFrom, statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
 import { analyticsKey } from '@/observability/telemetry'
 import { listQueryOptions, retryList } from '@/queries/list.queries'
@@ -20,7 +20,6 @@ import { useAuthStore } from '@/states/auth.store'
 import {
   INVITATION_CONFLICT,
   MEMBER_NOT_FOUND,
-  MEMBER_NOT_FOUND_MESSAGE,
   type ApiSuccess,
   type TenantAccess,
   type TenantInvitation,
@@ -428,13 +427,10 @@ export function useRevokeInvitation(slug: string) {
 
 /**
  * Whether a role change or removal found its target no longer a member: the
- * `member_not_found` code first, then, from an API older than 2.1.0 that sends
- * no code, the bare 404 message.
+ * `member_not_found` code, which every 404 of those routes carries.
  */
 export function isMemberNotFound(error: unknown): boolean {
-  const code = codeFrom(error)
-  if (code !== undefined) return code === MEMBER_NOT_FOUND
-  return statusFrom(error) === 404 && messageFrom(error) === MEMBER_NOT_FOUND_MESSAGE
+  return codeFrom(error) === MEMBER_NOT_FOUND
 }
 
 /**

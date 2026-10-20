@@ -1382,7 +1382,7 @@ describe('a member who is already gone', () => {
 
   it.each([
     ['the member_not_found code', () => fail('No such member here', 404, 'member_not_found')],
-    ['an older API’s bare 404 message', () => fail('Member not found', 404)],
+    ['the code with the old message', () => fail('Member not found', 404, 'member_not_found')],
   ])('says so and refreshes the list when a removal meets %s', async (_answer, answer) => {
     const reads = serveVicThenNone()
     server.use(http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, answer))
@@ -1404,7 +1404,7 @@ describe('a member who is already gone', () => {
 
   it.each([
     ['the member_not_found code', () => fail('No such member here', 404, 'member_not_found')],
-    ['an older API’s bare 404 message', () => fail('Member not found', 404)],
+    ['the code with the old message', () => fail('Member not found', 404, 'member_not_found')],
   ])('says so and refreshes the list when a role change meets %s', async (_answer, answer) => {
     const reads = serveVicThenNone()
     server.use(http.patch(`/api/v1/tenants/acme/members/${USER_ID_3}`, answer))
@@ -1440,12 +1440,10 @@ describe('a member who is already gone', () => {
     expect(reads.count).toBe(1)
   })
 
-  it('reads another code first, even with the old message', async () => {
+  it('reads only the code: the old message with no code is any other 404', async () => {
     serveVicThenNone()
     server.use(
-      http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, () =>
-        fail('Member not found', 404, 'some_other_code')
-      )
+      http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, () => fail('Member not found', 404))
     )
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/members')
