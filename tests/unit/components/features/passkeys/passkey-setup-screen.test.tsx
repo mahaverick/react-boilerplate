@@ -9,6 +9,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { pageTitle } from '@/constants/app'
 import { resetSessionForTests } from '@/http/session'
 import { toast } from '@/lib/toast'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
@@ -17,6 +18,7 @@ import { useAuthStore } from '@/states/auth.store'
 import { usePasskeySetupStore } from '@/states/passkey-setup.store'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+import { refuseShellUntilCreated } from '@/tests/mocks/setup-refusal'
 import { confirmStepUp } from '@/tests/mocks/step-up'
 
 const webauthn = vi.hoisted(() => ({ support: vi.fn(), create: vi.fn() }))
@@ -72,15 +74,6 @@ function renderAppAt(path: string): AnyRouter {
   return router
 }
 
-/** Answers the shell's tenant list with the required-mode refusal until `state.created` flips. */
-function refuseTenantsUntilCreated(state: { created: boolean }) {
-  server.use(
-    http.get('/api/v1/tenants', () =>
-      state.created ? ok({ items: [], nextCursor: null, hasMore: false }, 'ok') : refusal()
-    )
-  )
-}
-
 /** The 403 required mode answers while the account has no passkey. */
 function refusal() {
   return fail(SETUP_MESSAGE, 403, 'PASSKEY_SETUP_REQUIRED')
@@ -120,13 +113,13 @@ describe('the required-mode setup screen', () => {
     expect(screen.getAllByRole('main')).toHaveLength(1)
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeVisible()
-    await waitFor(() => expect(document.title).toBe('Create your passkey · React Boilerplate'))
+    await waitFor(() => expect(document.title).toBe(pageTitle('Create your passkey')))
   })
 
   it('returns to the page after create, with no reload (the lockout path through the email link)', async () => {
     const user = userEvent.setup()
     const state = { created: false }
-    refuseTenantsUntilCreated(state)
+    refuseShellUntilCreated(state)
     let optionsCalls = 0
     server.use(
       http.post('/api/v1/auth/passkeys/registration/options', () => {
