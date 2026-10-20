@@ -710,8 +710,8 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
                 <h2>Invite a member</h2>
               </CardTitle>
               <CardDescription>
-                We email them a link to join. Someone without an account can create one with that
-                address, then open the link again.
+                We email them an invitation that expires in 3 days. Someone new joins in one click.
+                Someone with an account gets a sign-in link to confirm.
               </CardDescription>
             </CardHeader>
             <CardContent>
