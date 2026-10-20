@@ -56,8 +56,8 @@ export function RouteError({
   return (
     <RouteErrorCard
       heading={heading}
-      title="Something went wrong"
-      description="This page could not be shown. Try again, or go back to the start."
+      title="This page didn’t load"
+      description="An error stopped this page from loading. Try again, or go home."
       detail={import.meta.env.DEV && error instanceof Error ? error.message : undefined}
     >
       <Button onClick={() => void retry()}>Try again</Button>

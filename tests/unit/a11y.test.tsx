@@ -759,7 +759,7 @@ describe('signed-in pages', () => {
       server.use(http.get('/api/v1/tenants', () => fail('Something went wrong', 500)))
       renderAppAt('/dashboard')
       await screen.findByRole('combobox', {
-        name: 'Switch tenant. Current: Tenants could not be loaded',
+        name: 'Switch tenant. Current: Tenants didn’t load',
       })
       await expectNoViolations()
     })

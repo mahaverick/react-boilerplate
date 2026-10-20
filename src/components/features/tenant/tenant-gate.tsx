@@ -9,7 +9,7 @@ import { useRememberTenant } from '@/states/current-tenant.store'
 
 /** Said of the request, not of the tenant: unlike `TenantNotFound`, the tenant may be fine. */
 export const TENANT_LOAD_ERROR =
-  'We could not load this tenant. The request failed, which is not the same as the tenant being gone.'
+  'We couldn’t load this tenant because the request failed. Try again.'
 
 /**
  * What a 404 looks like. `GET /tenants/:slug` answers the same 404 for "no such
@@ -23,8 +23,8 @@ function TenantNotFound({ slug, heading: Heading }: { slug: string; heading: Gat
       title={<Heading>Tenant not available</Heading>}
       description={
         <>
-          We could not open <span className="font-medium">/{slug}</span>. Either it does not exist
-          or it is not one of yours.
+          We couldn’t open <span className="font-medium">/{slug}</span>. It doesn’t exist, or you
+          aren’t a member.
         </>
       }
       action={
@@ -49,8 +49,8 @@ function TenantSuspended({ name, heading: Heading }: { name: string; heading: Ga
       title={<Heading>Tenant suspended</Heading>}
       description={
         <>
-          <span className="font-medium">{name}</span> is unavailable right now.
-          <span className="mt-2 block">This tenant is suspended. Contact support.</span>
+          <span className="font-medium">{name}</span> is suspended, so its pages are closed.
+          <span className="mt-2 block">Contact support to restore access.</span>
         </>
       }
       action={

@@ -22,7 +22,7 @@ interface QueryStateProps<T> {
   empty?: ReactNode
   /** Section name, for the boundary and LoadError copy. */
   name: string
-  /** LoadError's message, where the section has its own; `{name} could not be loaded.` otherwise. */
+  /** LoadError's message, where the section has its own; `{name} didn’t load. Try again.` otherwise. */
   errorMessage?: string
   className?: string
   children: (data: T) => ReactNode
@@ -90,7 +90,7 @@ export function QueryState<T>({
     <RoleDenied />
   ) : isError ? (
     <LoadError
-      message={errorMessage ?? `${name} could not be loaded.`}
+      message={errorMessage ?? `${name} didn’t load. Try again.`}
       onRetry={() => void query.refetch()}
     />
   ) : null

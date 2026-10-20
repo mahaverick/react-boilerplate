@@ -101,8 +101,14 @@ describe('TenantGate', () => {
     )
     renderGate('acme')
     expect(await screen.findByRole('heading', { name: 'Tenant suspended' })).toBeInTheDocument()
-    expect(screen.getByText('This tenant is suspended. Contact support.')).toBeInTheDocument()
+    expect(screen.getByText('Contact support to restore access.')).toBeInTheDocument()
     expect(readRememberedTenant(testUser.id)).toBeNull()
+  })
+
+  it('words a failed read as the request failing, with the next step', () => {
+    expect(TENANT_LOAD_ERROR).toBe(
+      'We couldn’t load this tenant because the request failed. Try again.'
+    )
   })
 
   it('claims neither suspended nor missing when the tenant list fails too', async () => {

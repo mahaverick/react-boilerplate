@@ -23,9 +23,8 @@ export const Route = createFileRoute('/_app/tenants/')({
 /** The create form's element id: `/tenants#create` opens the page on it. */
 const CREATE_FORM_ID = 'create'
 
-/** What the list says when it could not be loaded: a claim about the request, not the account. */
-const TENANTS_ERROR =
-  'We could not load your tenants, so none are listed here. This is not a sign that you have none.'
+/** What the list says when it did not load: a claim about the request, not the account. */
+const TENANTS_ERROR = 'We couldn’t load your tenants, so none are listed. Try again to load them.'
 
 /** The create card around the shared form: a new tenant is announced and the form cleared for another. */
 function CreateTenantCard({ cardRef }: { cardRef: Ref<HTMLDivElement> }) {

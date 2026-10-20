@@ -222,7 +222,7 @@ describe('TenantSwitcher', () => {
     await openSwitcher()
 
     expect(await screen.findByText('No tenants yet')).toBeInTheDocument()
-    expect(screen.queryByText('Tenants could not be loaded')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tenants didn’t load')).not.toBeInTheDocument()
   })
 
   it('says the list is still loading when the popup opens mid-flight', async () => {
@@ -244,7 +244,7 @@ describe('TenantSwitcher', () => {
     await openSwitcher()
 
     const popup = screen.getByRole('dialog', { name: 'Switch tenant' })
-    expect(await within(popup).findByText('Tenants could not be loaded')).toBeInTheDocument()
+    expect(await within(popup).findByText('Tenants didn’t load')).toBeInTheDocument()
     expect(screen.queryByText('No tenants yet')).not.toBeInTheDocument()
   })
 
@@ -280,7 +280,7 @@ describe('TenantSwitcher', () => {
     // The queryClient is `retry: 1`: the failure lands after the second attempt.
     expect(
       await screen.findByRole('combobox', {
-        name: 'Switch tenant. Current: Tenants could not be loaded',
+        name: 'Switch tenant. Current: Tenants didn’t load',
       })
     ).toBeVisible()
     const user = await openSwitcher()

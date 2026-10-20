@@ -1,7 +1,7 @@
 import { toast } from '@/lib/toast'
 
 /** What a failed copy says. The id itself never appears in a toast. */
-export const COPY_FAILED = 'Could not copy the ID.'
+export const COPY_FAILED = 'We couldn’t copy the ID. Try again.'
 
 /**
  * Puts an id on the clipboard and says so. Call it inside the click or the

@@ -97,7 +97,7 @@ describe('route errors', () => {
 
     const alert = await screen.findByRole('alert')
     expect(
-      within(alert).getByRole('heading', { level: 1, name: 'Something went wrong' })
+      within(alert).getByRole('heading', { level: 1, name: 'This page didn’t load' })
     ).toBeInTheDocument()
     expect(within(alert).getByRole('link', { name: 'Go home' })).toHaveAttribute('href', '/')
 
@@ -122,7 +122,7 @@ describe('route errors', () => {
 
     const alert = await screen.findByRole('alert')
     expect(
-      within(alert).getByRole('heading', { level: 1, name: 'Something went wrong' })
+      within(alert).getByRole('heading', { level: 1, name: 'This page didn’t load' })
     ).toBeInTheDocument()
     expect(alert).toHaveTextContent('render exploded')
 
@@ -160,7 +160,7 @@ describe('route errors', () => {
     }, '/page')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('Something went wrong')
+    expect(alert).toHaveTextContent('This page didn’t load')
     expect(alert).not.toHaveTextContent('loader exploded')
   })
 

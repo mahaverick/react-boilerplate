@@ -73,7 +73,7 @@ export function DataTableFacetedFilter({
         )}
         {state?.isError ? (
           <div className="grid justify-items-start gap-2 p-1">
-            <p className="text-sm">{filter.label} could not be loaded.</p>
+            <p className="text-sm">{filter.label} options didn’t load.</p>
             <Button variant="outline" size="sm" onClick={state.retry}>
               Try again
             </Button>

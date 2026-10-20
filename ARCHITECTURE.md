@@ -457,7 +457,7 @@ and the `empty` state; the rest is optional (`search`, `filters`, `toolbar`,
 
 - _States_ come from `QueryState`: a table-shaped skeleton inside
   `role="status"`, a role refusal, a load error with Try again (the list's
-  own `errorMessage`, or `{label} could not be loaded.`), the empty state, or
+  own `errorMessage`, or `{label} didn’t load. Try again.`), the empty state, or
   the rows. An empty list under a search or filter says "Nothing matches these
   filters." with Reset; an empty page behind a cursor says "Nothing on this
   page." with First page. While the page on screen is the old view's

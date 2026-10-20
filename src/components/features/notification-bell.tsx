@@ -107,7 +107,7 @@ export function NotificationBell() {
           ) : preview.isError ? (
             <>
               <p className="p-2 text-center text-sm text-muted-foreground">
-                Notifications could not be loaded.
+                Notifications didn’t load.
               </p>
               <DropdownMenuItem
                 closeOnClick={false}

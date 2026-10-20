@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
  * One definition, so every tab words the same failure the same way.
  */
 export const ROLE_ERROR =
-  'We could not load your role in this tenant, so its controls are hidden until we can.'
+  'We couldn’t load your role in this tenant, so its controls are hidden. Try again to show them.'
 
 /**
  * What a screen shows when something it needs could not be loaded: not a

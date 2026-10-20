@@ -295,14 +295,14 @@ test.describe('error tracking against a fake PostHog', () => {
     const reporter = page.waitForResponse(REPORTER_CHUNK)
     await stubApi(page, { tenantDetail: 500 })
     await page.goto('/tenants/acme')
-    await expect(page.getByText(/could not load this tenant/i)).toBeVisible()
+    await expect(page.getByText(/couldn’t load this tenant/i)).toBeVisible()
     await reporter
 
     await page.unrouteAll({ behavior: 'ignoreErrors' })
     await routeCollectToFake(page, fake)
     await stubApi(page, { tenantDetail: 'network' })
     await page.getByRole('button', { name: 'Try again' }).click()
-    await expect(page.getByText(/could not load this tenant/i)).toBeVisible()
+    await expect(page.getByText(/couldn’t load this tenant/i)).toBeVisible()
 
     await settle(4_000, 'absence has no event: the reporter batches for 2 s before it sends')
     expect(exceptions(fake)).toEqual([])

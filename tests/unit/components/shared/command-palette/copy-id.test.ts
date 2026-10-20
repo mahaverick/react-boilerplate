@@ -8,6 +8,10 @@ describe('copyId', () => {
     vi.restoreAllMocks()
   })
 
+  it('words a failed copy as the copy rules ask', () => {
+    expect(COPY_FAILED).toBe('We couldn’t copy the ID. Try again.')
+  })
+
   it('copies the id and says so without naming it', async () => {
     userEvent.setup()
     const success = vi.spyOn(toast, 'success')

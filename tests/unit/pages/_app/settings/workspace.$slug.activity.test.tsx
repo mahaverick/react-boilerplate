@@ -257,7 +257,7 @@ describe('tenant activity page', () => {
     renderAppAt('/settings/workspace/acme/activity')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/could not load the activity/i)
+    expect(alert).toHaveTextContent(/couldn’t load the activity/i)
     expect(screen.queryByText('Nothing has happened in this tenant yet.')).not.toBeInTheDocument()
 
     const before = seen.length
@@ -500,7 +500,7 @@ describe('tenant activity page', () => {
     await screen.findByText(/created the tenant/)
     await user.click(screen.getByRole('button', { name: 'Filter by actor, Activity' }))
     const popup = await screen.findByRole('dialog', { name: 'Filter by actor, Activity' })
-    expect(await within(popup).findByText('Actor could not be loaded.')).toBeInTheDocument()
+    expect(await within(popup).findByText('Actor options didn’t load.')).toBeInTheDocument()
     await user.click(within(popup).getByRole('button', { name: 'Try again' }))
     expect(await within(popup).findByRole('checkbox', { name: 'A B' })).toBeInTheDocument()
   })

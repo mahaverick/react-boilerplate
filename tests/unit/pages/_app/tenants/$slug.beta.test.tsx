@@ -177,7 +177,7 @@ describe('the Beta page', () => {
     renderAppAt('/tenants/acme/beta')
     expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument()
     expect(
-      screen.getByText('We could not load the beta features for this tenant.')
+      screen.getByText('We couldn’t load this tenant’s beta features. Try again to load them.')
     ).toBeInTheDocument()
     // The beta query's own retry is done once its error shows.
     const betaReadsAtError = betaReads

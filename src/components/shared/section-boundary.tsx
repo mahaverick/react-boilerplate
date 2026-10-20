@@ -34,7 +34,7 @@ export class SectionBoundary extends Component<SectionBoundaryProps, { failed: b
       return (
         <Alert variant="destructive">
           <IconAlertCircle aria-hidden="true" />
-          <AlertTitle>{this.props.name} could not be shown.</AlertTitle>
+          <AlertTitle>{this.props.name} didn’t load. Reload the page to try again.</AlertTitle>
         </Alert>
       )
     }

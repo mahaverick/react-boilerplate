@@ -61,7 +61,7 @@ function ownTenantsMessage({
   isPending: boolean
   isEmpty: boolean
 }): string | null {
-  if (!hasData) return isPending ? 'Loading tenants…' : 'Tenants could not be loaded'
+  if (!hasData) return isPending ? 'Loading tenants…' : 'Tenants didn’t load'
   return isEmpty ? 'No tenants yet' : null
 }
 
@@ -116,7 +116,7 @@ export function TenantSwitcher() {
     (tenants.data !== undefined
       ? 'Choose a tenant'
       : tenants.isError
-        ? 'Tenants could not be loaded'
+        ? 'Tenants didn’t load'
         : 'Loading tenants…')
   const ownMessage = ownTenantsMessage({
     hasData: tenants.data !== undefined,

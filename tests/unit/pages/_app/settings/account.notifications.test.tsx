@@ -69,7 +69,7 @@ describe('notification settings page', () => {
     renderPreferences()
 
     expect(
-      await screen.findByText(/could not load your notification preferences/i)
+      await screen.findByText(/couldn’t load your notification preferences/i)
     ).toBeInTheDocument()
     expect(
       screen.queryByText('This account has no notification types yet.')

@@ -40,7 +40,7 @@ test.describe('desktop', () => {
       page.getByRole('region', { name: 'Members' }).getByRole('button', { name: 'Try again' })
     ).toBeVisible({ timeout: 10_000 })
     // `.` rather than an apostrophe: the copy uses a typographic ’ (U+2019), and an ASCII ' silently matches nothing.
-    await expect(page.getByText(/could not load this tenant.s members/i)).toBeVisible()
+    await expect(page.getByText(/couldn’t load this tenant.s members/i)).toBeVisible()
   })
 
   test('lets a viewer leave from their own row, then lands on the tenant list', async ({
