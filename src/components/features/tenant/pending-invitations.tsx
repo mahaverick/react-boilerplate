@@ -57,7 +57,7 @@ const NO_LONGER_PENDING = 'That invitation is no longer pending.'
 const RESEND_COOLDOWN = 'invitation_resend_cooldown'
 
 /**
- * What a failed resend or revoke tells the reader. A step-up refusal says
+ * What a failed resend or revoke tells the reader. A step-up refusal
  * (`writeFailureMessage`) says whether the confirmation was dismissed or did
  * not take. "No longer pending" is for `invitation_not_found`; anything else is
  * the server's own message (a 403 for a role the actor can't grant included).

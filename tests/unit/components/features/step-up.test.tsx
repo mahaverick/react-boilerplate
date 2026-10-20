@@ -10,6 +10,8 @@ import { apiClient } from '@/http/client'
 import { ensureSession, resetSessionForTests } from '@/http/session'
 import { STEP_UP_WAIT_LOCK } from '@/lib/step-up-presence'
 import { toast } from '@/lib/toast'
+import { cancelPasskeyPrompt, requestPasskey } from '@/lib/webauthn'
+import { track } from '@/observability/telemetry'
 import { useAuthStore } from '@/states/auth.store'
 import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
@@ -18,6 +20,22 @@ import { server } from '@/tests/mocks/server'
 import { STEP_UP_EMAIL_WAIT } from '@/tests/mocks/step-up'
 import { removeWebLocks, stubWebLocks } from '@/tests/mocks/web-locks'
 import { REAUTH_REQUIRED } from '@/types/api.types'
+import {
+  NO_PASSKEY,
+  PASSKEY_SETUP_REQUIRED,
+  PASSKEY_VERIFICATION_FAILED,
+} from '@/types/passkey.types'
+
+// The browser prompt and the package behind it are not under test: `requestPasskey` and `cancelPasskeyPrompt` are mocked, `passkeyFailure` is real.
+vi.mock('@/lib/webauthn', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/webauthn')>()),
+  requestPasskey: vi.fn(),
+  cancelPasskeyPrompt: vi.fn(),
+}))
+vi.mock('@/observability/telemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/observability/telemetry')>()),
+  track: vi.fn(),
+}))
 
 const DIALOG = 'Confirm it’s you'
 const START_BODY =
@@ -153,7 +171,10 @@ function confirmFromAnotherTab() {
 /** Opens the dialog over the guarded action and returns it. */
 async function openStepUp(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Do it' }))
-  return screen.findByRole('dialog', { name: DIALOG })
+  const dialog = await screen.findByRole('dialog', { name: DIALOG })
+  // The passkey options call answers 409 by default, so the dialog settles on the link view.
+  await within(dialog).findByRole('button', { name: 'Email me a link' })
+  return dialog
 }
 
 /** Opens the dialog and sends a link, then returns the dialog in its wait view. */
@@ -710,5 +731,206 @@ describe('StepUpDialog: the wait lock', () => {
     await waitFor(() => expect(holdsWaitLock(locks)).toBe(true))
     unmount()
     await waitFor(() => expect(holdsWaitLock(locks)).toBe(false))
+  })
+})
+
+/** The mocked `cancelPasskeyPrompt`. */
+function cancelPasskeyPromptMock() {
+  return vi.mocked(cancelPasskeyPrompt)
+}
+
+const OPTIONS = { challenge: 'CHALLENGE', rpId: 'localhost', timeout: 60_000 }
+const RESPONSE = { id: 'CRED', rawId: 'CRED', type: 'public-key', response: {} }
+
+/** The passkey step-up options call: records each call and answers `answer`, 200 with `OPTIONS` by default. */
+function optionsRoute(
+  answer: () => Response = () => ok({ challengeId: 'C1', options: OPTIONS }, 'Options.')
+) {
+  const calls: unknown[] = []
+  server.use(
+    http.post('/api/v1/auth/passkeys/step-up/options', async ({ request }) => {
+      calls.push(await request.json())
+      return answer()
+    })
+  )
+  return calls
+}
+
+/** The passkey step-up verify call: records each body and answers `answer`, a fresh token by default. */
+function verifyRoute(answer?: () => Response) {
+  const bodies: unknown[] = []
+  server.use(
+    http.post('/api/v1/auth/passkeys/step-up/verify', async ({ request }) => {
+      bodies.push(await request.json())
+      return answer?.() ?? ok({ accessToken: 'fresh-token' }, 'Confirmed.')
+    })
+  )
+  return bodies
+}
+
+/** Clicks the guarded action and returns the dialog once it shows `ready`. */
+async function openPasskeyStepUp(user: ReturnType<typeof userEvent.setup>, ready: string) {
+  await user.click(screen.getByRole('button', { name: 'Do it' }))
+  const dialog = await screen.findByRole('dialog', { name: DIALOG })
+  await within(dialog).findByRole('button', { name: ready })
+  return dialog
+}
+
+describe('confirming by passkey', () => {
+  beforeEach(() => {
+    vi.mocked(requestPasskey).mockReset()
+    vi.mocked(track).mockReset()
+  })
+
+  it('opens straight to the passkey prompt when the user has a passkey', async () => {
+    const calls = optionsRoute()
+    vi.mocked(requestPasskey).mockReturnValue(new Promise(() => {}))
+    dangerRoute(1)
+    const user = userEvent.setup()
+    renderHarness()
+    const dialog = await openPasskeyStepUp(user, 'Use another method')
+
+    expect(calls).toEqual([{}])
+    expect(requestPasskey).toHaveBeenCalledWith(OPTIONS, 'modal')
+    expect(
+      within(dialog).getByRole('button', { name: 'Waiting for your passkey…' })
+    ).toHaveAttribute('aria-disabled', 'true')
+    expect(
+      within(dialog).getByText(
+        'This action needs a confirmation from the last 10 minutes. Use your passkey to confirm it’s you.'
+      )
+    ).toBeVisible()
+  })
+
+  it('a passkey confirmation posts { challengeId, response } with no app, swaps the token and retries the action', async () => {
+    optionsRoute()
+    const bodies = verifyRoute()
+    vi.mocked(requestPasskey).mockResolvedValue(RESPONSE as never)
+    const bearers = dangerRoute(1)
+    const user = userEvent.setup()
+    renderHarness()
+    await user.click(screen.getByRole('button', { name: 'Do it' }))
+
+    expect(await screen.findByText('outcome: done')).toBeInTheDocument()
+    expect(bodies).toEqual([{ challengeId: 'C1', response: RESPONSE }])
+    expect(useAuthStore.getState().accessToken).toBe('fresh-token')
+    expect(bearers.at(-1)).toBe('Bearer fresh-token')
+  })
+
+  it.each([
+    ['NO_PASSKEY', () => fail('You have no passkey.', 409, NO_PASSKEY)],
+    ['the off-mode 404', () => fail('Not found', 404)],
+    [
+      'a 403 PASSKEY_SETUP_REQUIRED',
+      () => fail('Create a passkey to continue.', 403, PASSKEY_SETUP_REQUIRED),
+    ],
+  ])('%s opens the email-link view without a notice', async (_name, answer) => {
+    optionsRoute(answer)
+    dangerRoute(1)
+    const user = userEvent.setup()
+    renderHarness()
+    const dialog = await openPasskeyStepUp(user, 'Email me a link')
+
+    expect(requestPasskey).not.toHaveBeenCalled()
+    expect(within(dialog).queryByRole('alert')).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Use your passkey instead' })).toBeNull()
+    expect(within(dialog).getByText(START_BODY)).toBeVisible()
+  })
+
+  it('any other options failure opens the email-link view with the server message', async () => {
+    optionsRoute(() => fail('Try again later.', 500))
+    dangerRoute(1)
+    const user = userEvent.setup()
+    renderHarness()
+    const dialog = await openPasskeyStepUp(user, 'Email me a link')
+
+    expect(within(dialog).getByText('Try again later.')).toBeVisible()
+    expect(requestPasskey).not.toHaveBeenCalled()
+  })
+
+  it('Use another method cancels the prompt and shows Email me a link, with Use your passkey instead', async () => {
+    optionsRoute()
+    vi.mocked(requestPasskey).mockReturnValue(new Promise(() => {}))
+    dangerRoute(1)
+    const user = userEvent.setup()
+    renderHarness()
+    const dialog = await openPasskeyStepUp(user, 'Use another method')
+    await user.click(within(dialog).getByRole('button', { name: 'Use another method' }))
+
+    expect(cancelPasskeyPromptMock()).toHaveBeenCalled()
+    expect(await within(dialog).findByRole('button', { name: 'Email me a link' })).toBeVisible()
+    expect(within(dialog).getByRole('button', { name: 'Use your passkey instead' })).toBeVisible()
+  })
+
+  it('Use your passkey instead prompts again with fresh options', async () => {
+    const calls = optionsRoute()
+    vi.mocked(requestPasskey).mockReturnValue(new Promise(() => {}))
+    dangerRoute(1)
+    const user = userEvent.setup()
+    renderHarness()
+    const dialog = await openPasskeyStepUp(user, 'Use another method')
+    await user.click(within(dialog).getByRole('button', { name: 'Use another method' }))
+    await user.click(
+      await within(dialog).findByRole('button', { name: 'Use your passkey instead' })
+    )
+
+    await waitFor(() => expect(requestPasskey).toHaveBeenCalledTimes(2))
+    expect(calls).toHaveLength(2)
+    expect(await within(dialog).findByRole('button', { name: 'Use another method' })).toBeVisible()
+  })
+
+  it('a cancelled prompt stays on the passkey view, tracks passkey_prompt_cancelled { ceremony: "confirm" }, and Use your passkey prompts again with fresh options', async () => {
+    const calls = optionsRoute()
+    vi.mocked(requestPasskey).mockRejectedValueOnce(
+      Object.assign(new Error('cancelled'), { name: 'NotAllowedError' })
+    )
+    vi.mocked(requestPasskey).mockReturnValue(new Promise(() => {}))
+    dangerRoute(1)
+    const user = userEvent.setup()
+    renderHarness()
+    const dialog = await openPasskeyStepUp(user, 'Use your passkey')
+
+    expect(track).toHaveBeenCalledWith('passkey_prompt_cancelled', { ceremony: 'confirm' })
+    expect(within(dialog).queryByRole('alert')).toBeNull()
+    await user.click(within(dialog).getByRole('button', { name: 'Use your passkey' }))
+    await waitFor(() => expect(requestPasskey).toHaveBeenCalledTimes(2))
+    expect(calls).toHaveLength(2)
+  })
+
+  it('a PASSKEY_VERIFICATION_FAILED shows the server message in the alert', async () => {
+    optionsRoute()
+    verifyRoute(() => fail('We couldn’t verify that passkey.', 400, PASSKEY_VERIFICATION_FAILED))
+    vi.mocked(requestPasskey).mockResolvedValue(RESPONSE as never)
+    dangerRoute(1)
+    const user = userEvent.setup()
+    renderHarness()
+    const dialog = await openPasskeyStepUp(user, 'Use your passkey')
+
+    expect(await within(dialog).findByText('We couldn’t verify that passkey.')).toBeVisible()
+  })
+
+  it('Escape dismisses the passkey view and fails the action', async () => {
+    optionsRoute()
+    vi.mocked(requestPasskey).mockReturnValue(new Promise(() => {}))
+    dangerRoute(1)
+    const user = userEvent.setup()
+    renderHarness()
+    await openPasskeyStepUp(user, 'Use another method')
+    await user.keyboard('{Escape}')
+
+    expect(await screen.findByText('outcome: failed')).toBeInTheDocument()
+  })
+
+  it('unmount cancels the prompt', async () => {
+    optionsRoute()
+    vi.mocked(requestPasskey).mockReturnValue(new Promise(() => {}))
+    dangerRoute(1)
+    const user = userEvent.setup()
+    const { unmount } = renderHarness()
+    await openPasskeyStepUp(user, 'Use another method')
+    cancelPasskeyPromptMock().mockClear()
+    unmount()
+
+    expect(cancelPasskeyPromptMock()).toHaveBeenCalled()
   })
 })

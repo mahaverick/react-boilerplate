@@ -9,6 +9,7 @@ import {
   type RefObject,
 } from 'react'
 import { SigningInStatus } from '@/components/features/auth/link-panels'
+import { PasskeyConfirm } from '@/components/features/step-up/passkey-confirm'
 import { BusyButton } from '@/components/shared/busy-button'
 import { Pii } from '@/components/shared/pii'
 import { Alert, AlertTitle } from '@/components/ui/alert'
@@ -34,18 +35,45 @@ import {
 } from '@/lib/step-up'
 import { holdStepUpWait } from '@/lib/step-up-presence'
 import { toast } from '@/lib/toast'
-import { useRequestStepUpLink } from '@/queries/step-up.queries'
+import { cancelPasskeyPrompt, passkeyFailure, requestPasskey } from '@/lib/webauthn'
+import { track } from '@/observability/telemetry'
+import {
+  useFinishPasskeyStepUp,
+  useRequestStepUpLink,
+  useStartPasskeyStepUp,
+} from '@/queries/step-up.queries'
 import { useAuthStore } from '@/states/auth.store'
-import { STEP_UP_LINK_COOLDOWN } from '@/types/passkey.types'
+import { isPasskeySetupRequired, NO_PASSKEY, STEP_UP_LINK_COOLDOWN } from '@/types/passkey.types'
+
+/** What the dialog says when the browser's prompt failed for a reason other than being dismissed. */
+const PASSKEY_PROMPT_FAILED =
+  'Your browser couldn’t use your passkey. Try again, or use another method.'
+
+/**
+ * Whether the options call says this account has no passkey to use: a 409
+ * `NO_PASSKEY`, the unknown-route 404 of mode `off`, or the 403 that required
+ * mode answers a user still in setup. Each opens the email link with no notice.
+ * @param error - The options call's rejection.
+ * @returns True when the passkey path is closed to this account.
+ */
+function noPasskeyPath(error: unknown): boolean {
+  return (
+    (statusFrom(error) === 409 && codeFrom(error) === NO_PASSKEY) ||
+    statusFrom(error) === 404 ||
+    isPasskeySetupRequired(error)
+  )
+}
 
 /**
  * Where the dialog is:
+ * - `opening`: fetching the passkey options;
+ * - `passkey`: the browser's passkey prompt is open, or was dismissed;
  * - `start`: why it asks, Email me a link, and any notice;
  * - `email`: waiting on an emailed link;
  * - `resuming`: confirmed elsewhere, refreshing the session;
  * - `resume_failed`: that refresh failed, with Try again.
  */
-type View = 'start' | 'email' | 'resuming' | 'resume_failed'
+type View = 'opening' | 'passkey' | 'start' | 'email' | 'resuming' | 'resume_failed'
 
 /**
  * Where focus goes when the step-up closes: into the dialog still open
@@ -72,10 +100,12 @@ function focusBeneath(self: HTMLElement | null): HTMLElement | true {
 }
 
 /**
- * "Confirm it's you", by an emailed link. The body mounts only while open, so
- * every step-up starts on Email me a link. Escape and the backdrop dismiss
- * only where nothing is pending (the start, and a failed resume); while it
- * waits on a link, only Cancel does. Any dismissal rejects the waiting action.
+ * "Confirm it's you", by passkey or by an emailed link. The body mounts only
+ * while open, so every step-up starts by fetching passkey options: a user with
+ * a passkey gets the browser's prompt at once, anyone else Email me a link.
+ * Escape and the backdrop dismiss only where nothing is pending (the opening,
+ * the passkey prompt, the start, and a failed resume); while it waits on a
+ * link, only Cancel does. Any dismissal rejects the waiting action.
  */
 export function StepUpDialog({
   open,
@@ -139,8 +169,10 @@ function StepUpBody({
   onDismissibleChange: (dismissible: boolean) => void
 }) {
   const requestLink = useRequestStepUpLink()
+  const startPasskey = useStartPasskeyStepUp()
+  const finishPasskey = useFinishPasskeyStepUp()
   const email = useAuthStore((state) => state.user?.email)
-  const [view, setView] = useState<View>('start')
+  const [view, setView] = useState<View>('opening')
   const [notice, setNotice] = useState<string | null>(null)
   const [resendAt, setResendAt] = useState<number | null>(null)
   const [linkExpiresAt, setLinkExpiresAt] = useState<number | null>(null)
@@ -150,18 +182,24 @@ function StepUpBody({
   // The auth_time the session had when the wait began, from the API's clock.
   const baseline = useRef<number | null>(null)
   const resuming = useRef(false)
+  // Whether the last options call answered 200, which is when the link view offers the passkey.
+  const [hasPasskey, setHasPasskey] = useState(false)
+  const [passkeyBusy, setPasskeyBusy] = useState(true)
+  // Which passkey attempt is current; an older one that settles late is ignored.
+  const attempt = useRef(0)
 
   useEffect(() => {
     mounted.current = true
     return () => {
       mounted.current = false
+      cancelPasskeyPrompt()
       release.current?.()
       release.current = null
     }
   }, [])
 
   useEffect(() => {
-    onDismissibleChange(view === 'start' || view === 'resume_failed')
+    onDismissibleChange(view !== 'email' && view !== 'resuming')
   }, [view, onDismissibleChange])
   useEffect(() => () => onDismissibleChange(true), [onDismissibleChange])
 
@@ -176,6 +214,83 @@ function StepUpBody({
   const showStart = (message: string | null) => {
     setNotice(message)
     setView('start')
+  }
+
+  /**
+   * Fetches fresh passkey options and opens the browser's prompt, then posts
+   * the answer. Every attempt takes a number; an older one that settles after
+   * a newer began, or after Use another method, changes nothing.
+   * @param from - The view the attempt began in.
+   */
+  const runPasskey = async (from: View) => {
+    const mine = ++attempt.current
+    /** Whether this attempt is still the live one. */
+    const current = () => mounted.current && attempt.current === mine
+    let challenge
+    try {
+      challenge = await startPasskey.mutateAsync()
+    } catch (error) {
+      if (!current()) return
+      setPasskeyBusy(false)
+      if (noPasskeyPath(error)) {
+        setHasPasskey(false)
+        showStart(null)
+      } else if (from === 'opening') {
+        setHasPasskey(false)
+        showStart(actionMessageFrom(error))
+      } else {
+        setNotice(actionMessageFrom(error))
+      }
+      return
+    }
+    if (!current()) return
+    setHasPasskey(true)
+    setView('passkey')
+    let response
+    try {
+      response = await requestPasskey(challenge.options, 'modal')
+    } catch (error) {
+      if (!current()) return
+      setPasskeyBusy(false)
+      if (passkeyFailure(error) === 'cancelled')
+        track('passkey_prompt_cancelled', { ceremony: 'confirm' })
+      else setNotice(PASSKEY_PROMPT_FAILED)
+      return
+    }
+    if (!current()) return
+    try {
+      await finishPasskey.mutateAsync({ challengeId: challenge.challengeId, response })
+    } catch (error) {
+      if (!current()) return
+      setPasskeyBusy(false)
+      setNotice(actionMessageFrom(error))
+      return
+    }
+    // The new token is in the store, so the action retries even if the person has since moved to the link.
+    if (mounted.current) onConfirmed()
+  }
+
+  /** Asks again, from a view that is already showing: clears the notice, shows busy, and from the link also opens the passkey view. */
+  const promptPasskey = (from: View) => {
+    setNotice(null)
+    setPasskeyBusy(true)
+    if (from === 'start') setView('passkey')
+    void runPasskey(from)
+  }
+
+  // The opening view starts with no notice and busy, so the mount sets no state before its first await.
+  const openPasskey = useEffectEvent(() => void runPasskey('opening'))
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- every state change in the attempt follows its first await, so none runs in the effect body
+    openPasskey()
+  }, [])
+
+  /** Leaves the passkey prompt for the emailed link. */
+  const switchToLink = () => {
+    attempt.current += 1
+    cancelPasskeyPrompt()
+    setPasskeyBusy(false)
+    showStart(null)
   }
 
   /**
@@ -270,10 +385,40 @@ function StepUpBody({
    */
   const arrive = useCallback((element: HTMLElement | null) => {
     const active = document.activeElement
-    if (element && (active === null || active === document.body)) element.focus()
+    // Focus on the dialog's own popup is no choice either: nothing inside it had taken focus yet.
+    if (
+      element &&
+      (active === null ||
+        active === document.body ||
+        !active.closest('[role="dialog"]') ||
+        active.getAttribute('role') === 'dialog')
+    ) {
+      element.focus()
+    }
   }, [])
   /** Email me a link's ref: the dialog's initial focus, and focused on a return to the start. */
   const sendButtonRef = useCallback(
+    (element: HTMLButtonElement | null) => {
+      sendRef.current = element
+      arrive(element)
+    },
+    [sendRef, arrive]
+  )
+
+  // The dialog's own initial focus can land after the opening view hands over to the first real view; a frame later, a popup still holding focus gives it to the main control.
+  useEffect(() => {
+    if (view !== 'start' && view !== 'passkey') return
+    const frame = requestAnimationFrame(() => {
+      const active = document.activeElement
+      if (active === null || active === document.body || active.getAttribute('role') === 'dialog') {
+        sendRef.current?.focus()
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [view, sendRef])
+
+  /** Use your passkey's ref: the dialog's initial focus, and focused on arrival. */
+  const passkeyButtonRef = useCallback(
     (element: HTMLButtonElement | null) => {
       sendRef.current = element
       arrive(element)
@@ -286,6 +431,26 @@ function StepUpBody({
       Cancel
     </Button>
   )
+
+  if (view === 'opening') {
+    return (
+      // No buttons yet, so focus stays on the dialog until a view takes it; Escape dismisses.
+      <SigningInStatus label="Opening your passkey…" />
+    )
+  }
+
+  if (view === 'passkey') {
+    return (
+      <PasskeyConfirm
+        notice={notice}
+        busy={passkeyBusy}
+        buttonRef={passkeyButtonRef}
+        cancel={cancel}
+        onUsePasskey={() => promptPasskey('passkey')}
+        onOtherMethod={switchToLink}
+      />
+    )
+  }
 
   if (view === 'resuming') return <SigningInStatus label="Confirmed. Continuing…" />
 
@@ -343,6 +508,16 @@ function StepUpBody({
           Email me a link
         </BusyButton>
       </DialogFooter>
+      {hasPasskey && (
+        <Button
+          type="button"
+          variant="link"
+          className="justify-self-center"
+          onClick={() => promptPasskey('start')}
+        >
+          Use your passkey instead
+        </Button>
+      )}
     </div>
   )
 }

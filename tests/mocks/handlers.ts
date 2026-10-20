@@ -190,6 +190,10 @@ export const handlers = [
   http.get('/api/v1/auth/passkeys/config', () =>
     ok({ mode: 'optional', rpId: 'localhost' }, 'Passkey settings retrieved.')
   ),
+  // Step-up by passkey: the account has none, so the "Confirm it's you" dialog opens on the email link. A passkey test overrides this.
+  http.post('/api/v1/auth/passkeys/step-up/options', () =>
+    fail('You have no passkey.', 409, 'NO_PASSKEY')
+  ),
   http.get('/api/v1/auth/passkeys', () =>
     ok({ passkeys: [], userHandle: 'HANDLE' }, 'Passkeys retrieved.')
   ),

@@ -3,8 +3,13 @@ import { FRONTEND_APP } from '@/constants/frontend-app'
 import { apiClient, unwrap } from '@/http/client'
 import { broadcastAuthMessage, ensureSession, isAuthVerdict } from '@/http/session'
 import { codeFrom, statusFrom } from '@/lib/api-error'
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+} from '@/lib/webauthn'
 import { useAuthStore } from '@/states/auth.store'
 import { ACCESS_TOKEN_EXPIRED, type ApiSuccess } from '@/types/api.types'
+import type { PasskeyChallenge } from '@/types/passkey.types'
 
 /** Posts a step-up link's token with the current bearer, refusing the interceptor's refresh-and-retry. */
 async function postStepUpLink(token: string) {
@@ -71,5 +76,43 @@ export function useRequestStepUpLink() {
           { app: FRONTEND_APP }
         )
       ),
+  })
+}
+
+/**
+ * Starts "Confirm it's you" by passkey (express `POST /auth/passkeys/step-up/options`,
+ * which takes `{}`). It answers the browser's request options and the id of
+ * the challenge the server holds; a 409 `NO_PASSKEY` when the account has
+ * none, a 404 when passkeys are off.
+ */
+export function useStartPasskeyStepUp() {
+  return useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await apiClient.post<ApiSuccess<PasskeyChallenge<PublicKeyCredentialRequestOptionsJSON>>>(
+          '/auth/passkeys/step-up/options',
+          {}
+        )
+      ),
+  })
+}
+
+/**
+ * Finishes "Confirm it's you" by passkey (express `POST /auth/passkeys/step-up/verify`,
+ * which takes `{ challengeId, response }` and no `app`). On success it swaps
+ * in the new access token, whose `auth_time` is now.
+ */
+export function useFinishPasskeyStepUp() {
+  return useMutation({
+    mutationFn: async (body: { challengeId: string; response: AuthenticationResponseJSON }) =>
+      unwrap(
+        await apiClient.post<ApiSuccess<{ accessToken: string }>>(
+          '/auth/passkeys/step-up/verify',
+          body
+        )
+      ),
+    onSuccess: ({ accessToken }) => {
+      useAuthStore.getState().setToken(accessToken)
+    },
   })
 }

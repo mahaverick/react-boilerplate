@@ -33,7 +33,7 @@ export async function confirmStepUp(user: UserEvent, dialog?: HTMLElement): Prom
       ok(useAuthStore.getState().user ?? testUser, 'Profile retrieved.')
     )
   )
-  await user.click(within(stepUp).getByRole('button', { name: 'Email me a link' }))
+  await user.click(await within(stepUp).findByRole('button', { name: 'Email me a link' }))
   await within(stepUp).findByText(STEP_UP_EMAIL_WAIT)
   const otherTab = new BroadcastChannel('auth')
   try {

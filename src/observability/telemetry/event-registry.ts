@@ -56,8 +56,10 @@ export interface BrowserEventProps {
   maintenance_page_viewed: { mode: 'full' | 'read_only' }
   /** A sign-in link was requested for an address (the API answered 202); the address is never sent. */
   sign_in_link_requested: Record<never, never>
-  /** A sign-in finished: by an emailed link (also an invitation link) or by Google. */
-  sign_in_completed: { method: 'link' | 'google' }
+  /** A sign-in finished: by an emailed link (also an invitation link), by Google or by a passkey. */
+  sign_in_completed: { method: 'link' | 'google' | 'passkey' }
+  /** The person dismissed the browser's passkey prompt, or it timed out: in which ceremony, never which passkey. */
+  passkey_prompt_cancelled: { ceremony: 'sign_in' | 'create' | 'confirm' }
 }
 
 /** A registered event name. */

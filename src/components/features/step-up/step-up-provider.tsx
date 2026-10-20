@@ -1,14 +1,30 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { StepUpContext, StepUpWaitingContext, type StepUp } from '@/hooks/use-step-up'
 import { isReauthRequired, markRefusedAfterConfirm, sentWithCurrentToken } from '@/lib/step-up'
 
+/** The dialog's props. */
+type DialogProps = { open: boolean; onConfirmed: () => void; onDismissed: () => void }
+
+/** The one in-flight or settled load of the dialog chunk. */
+let loading: Promise<ComponentType<DialogProps>> | null = null
+
 /**
- * The dialog loads on the first refusal, never with the shell: a person who
- * is never asked to confirm does not download it.
+ * Loads the dialog chunk. It loads on the first refusal, never with the
+ * shell: a person who is never asked to confirm does not download it. A
+ * failed load (the chunk is gone after a deploy) rejects, and the next call
+ * tries again.
+ * @returns The dialog component.
  */
-const StepUpDialog = lazy(() =>
-  import('@/components/features/step-up/step-up-dialog').then((m) => ({ default: m.StepUpDialog }))
-)
+function loadDialog(): Promise<ComponentType<DialogProps>> {
+  loading ??= import('@/components/features/step-up/step-up-dialog').then(
+    (module) => module.StepUpDialog,
+    (error: unknown) => {
+      loading = null
+      throw error
+    }
+  )
+  return loading
+}
 
 /** An action refused for a stale sign-in: `resolve` retries it after a confirmation, `reject` surfaces its refusal after a dismissal. */
 interface Waiter {
@@ -25,8 +41,8 @@ interface Waiter {
  */
 export function StepUpProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
-  // Once asked, the dialog stays mounted, so it can play its closing animation.
-  const [asked, setAsked] = useState(false)
+  // Once loaded, the dialog stays mounted, so it can play its closing animation.
+  const [Dialog, setDialog] = useState<ComponentType<DialogProps> | null>(null)
   const waiters = useRef<Waiter[]>([])
 
   const finish = useCallback((confirmed: boolean) => {
@@ -43,10 +59,14 @@ export function StepUpProvider({ children }: { children: ReactNode }) {
     () =>
       new Promise<void>((resolve, reject) => {
         waiters.current.push({ resolve, reject })
-        setAsked(true)
         setOpen(true)
+        // A chunk that fails to load rejects every waiter, so no button stays disabled.
+        loadDialog().then(
+          (component) => setDialog(() => component),
+          () => finish(false)
+        )
       }),
-    []
+    [finish]
   )
 
   const value = useMemo<StepUp>(
@@ -79,14 +99,8 @@ export function StepUpProvider({ children }: { children: ReactNode }) {
   return (
     <StepUpContext value={value}>
       <StepUpWaitingContext value={open}>{children}</StepUpWaitingContext>
-      {asked && (
-        <Suspense fallback={null}>
-          <StepUpDialog
-            open={open}
-            onConfirmed={() => finish(true)}
-            onDismissed={() => finish(false)}
-          />
-        </Suspense>
+      {Dialog && (
+        <Dialog open={open} onConfirmed={() => finish(true)} onDismissed={() => finish(false)} />
       )}
     </StepUpContext>
   )

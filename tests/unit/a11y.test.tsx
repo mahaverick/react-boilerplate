@@ -1075,6 +1075,28 @@ describe('open overlays', () => {
     await expectNoViolations()
   })
 
+  it('has no violations with the confirm-it’s-you dialog open on its passkey view', async () => {
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('Confirm it’s you to continue.', 401, 'REAUTH_REQUIRED')
+      ),
+      http.post('/api/v1/auth/passkeys/step-up/options', () =>
+        ok({ challengeId: 'C1', options: { challenge: 'CHALLENGE' } }, 'Options.')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    // jsdom has no WebAuthn, so the prompt fails and the view stays, with its notice and buttons.
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm it’s you' })
+    await within(dialog).findByText(/couldn’t use your passkey/)
+    expect(within(dialog).getByRole('button', { name: 'Use another method' })).toBeVisible()
+    await expectNoViolations()
+  })
+
   it('has no violations with the revoke-invitation dialog open, and the dialog is named', async () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/members')
