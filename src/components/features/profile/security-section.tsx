@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { lazy, Suspense, useId } from 'react'
 import { BusyButton } from '@/components/shared/busy-button'
 import { Pii } from '@/components/shared/pii'
 import { QueryState } from '@/components/shared/query-state'
@@ -11,6 +11,11 @@ import { useAuthProviders, useRevokeOtherSessions } from '@/queries/auth.queries
 import { useAuthStore } from '@/states/auth.store'
 import type { AuthProviders } from '@/types/api.types'
 
+const PasskeysSection = lazy(() =>
+  import('@/components/features/profile/passkeys-section').then((m) => ({
+    default: m.PasskeysSection,
+  }))
+)
 const PROVIDERS_ERROR = 'We couldn’t load your sign-in methods. Select Try again to load them.'
 
 /** What the other-sessions control says it does. */
@@ -30,8 +35,8 @@ function revokedMessage(revoked: number): string {
 const PROVIDER_LABELS: Record<string, string> = { google: 'Google' }
 
 /**
- * Sign-in methods and signing out other sessions, for whichever account page
- * hosts it. Signing out other sessions is offered on every account. The heading is `sr-only`: it
+ * Sign-in methods, passkeys (unless the API has them off) and signing out other
+ * sessions, for whichever account page hosts it. Signing out other sessions is offered on every account. The heading is `sr-only`: it
  * names the region for assistive tech, and the page's h1 already says Security.
  */
 export function SecuritySection() {
@@ -59,6 +64,9 @@ export function SecuritySection() {
       >
         {(data) => <SignInMethods {...data} />}
       </QueryState>
+      <Suspense fallback={null}>
+        <PasskeysSection />
+      </Suspense>
       <OtherSessions />
     </section>
   )

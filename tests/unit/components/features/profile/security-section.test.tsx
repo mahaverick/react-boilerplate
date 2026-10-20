@@ -8,6 +8,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -277,5 +278,37 @@ describe('sign out other sessions', () => {
         "You've reached the limit of 10 attempts in 15 minutes. Try again in 15 minutes."
       )
     ).toBeInTheDocument()
+  })
+
+  it('shows Passkeys between Sign-in methods and Other sessions when passkeys are on', async () => {
+    mockProviders(['email'])
+    renderSecurity()
+
+    const security = await section()
+    await security.findByText('You have no passkeys.')
+    expect(
+      (await security.findAllByRole('heading', { level: 3 })).map((heading) => heading.textContent)
+    ).toEqual(['Sign-in methods', 'Passkeys', 'Other sessions'])
+  })
+
+  it('shows no Passkeys section, and asks for no list, when passkeys are off', async () => {
+    let listed = false
+    mockProviders(['email'])
+    server.use(
+      http.get('/api/v1/auth/passkeys/config', () =>
+        ok({ mode: 'off', rpId: '' }, 'Passkey settings retrieved.')
+      ),
+      http.get('/api/v1/auth/passkeys', () => {
+        listed = true
+        return ok({ passkeys: [], userHandle: 'H' }, 'Passkeys retrieved.')
+      })
+    )
+    renderSecurity()
+
+    const security = await section()
+    await security.findByRole('heading', { level: 3, name: 'Other sessions' })
+    await settle(50, 'let a stray passkey request show up')
+    expect(security.queryByRole('heading', { name: 'Passkeys' })).not.toBeInTheDocument()
+    expect(listed).toBe(false)
   })
 })

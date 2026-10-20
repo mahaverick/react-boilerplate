@@ -755,6 +755,48 @@ describe('signed-in pages', () => {
       await expectNoViolationsWhileLoading()
     })
 
+    /** Serves two passkeys on the security page. */
+    function servePasskeys() {
+      /** One passkey row as the API lists it. */
+      const passkey = (index: number) => ({
+        id: `pk-${String(index)}`,
+        name: `Passkey ${String(index)}`,
+        provider: { name: 'iCloud Keychain', iconLight: null, iconDark: null },
+        synced: true,
+        createdAt: '2026-10-01T10:00:00.000Z',
+        lastUsedAt: null,
+        credentialId: `cred-${String(index)}`,
+      })
+      server.use(
+        http.get('/api/v1/auth/passkeys', () =>
+          ok({ passkeys: [passkey(1), passkey(2)], userHandle: 'HANDLE' }, 'Passkeys retrieved.')
+        )
+      )
+    }
+
+    it('the security page with two passkeys has no axe violations', async () => {
+      servePasskeys()
+      renderAppAt('/settings/account/security')
+      await screen.findByText('Passkey 2')
+      await expectNoViolations()
+    })
+
+    it('the open delete-passkey dialog has no axe violations', async () => {
+      servePasskeys()
+      renderAppAt('/settings/account/security')
+      await userEvent.setup().click(await screen.findByRole('button', { name: 'Delete Passkey 1' }))
+      await screen.findByRole('alertdialog')
+      await expectNoViolations()
+    })
+
+    it('the open rename-passkey dialog has no axe violations', async () => {
+      servePasskeys()
+      renderAppAt('/settings/account/security')
+      await userEvent.setup().click(await screen.findByRole('button', { name: 'Rename Passkey 1' }))
+      await screen.findByRole('dialog', { name: 'Rename passkey' })
+      await expectNoViolations()
+    })
+
     it('the dashboard with the tenant list failed has no axe violations', async () => {
       server.use(http.get('/api/v1/tenants', () => fail('Something went wrong', 500)))
       renderAppAt('/dashboard')
