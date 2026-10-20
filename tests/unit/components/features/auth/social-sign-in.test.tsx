@@ -65,4 +65,21 @@ describe('SocialSignIn', () => {
     )
     expect(screen.queryByRole('link', { name: 'Continue with Google' })).not.toBeInTheDocument()
   })
+
+  it('shows the divider and the extra control first when no provider is configured', () => {
+    render(
+      <SocialSignIn providers={[]} extra={<button type="button">Sign in with a passkey</button>} />
+    )
+
+    expect(screen.getByText('or')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in with a passkey' })).toBeInTheDocument()
+  })
+
+  it('puts the extra control before the providers', () => {
+    render(<SocialSignIn extra={<button type="button">Sign in with a passkey</button>} />)
+
+    const button = screen.getByRole('button', { name: 'Sign in with a passkey' })
+    const link = screen.getByRole('link', { name: 'Continue with Google' })
+    expect(button.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })

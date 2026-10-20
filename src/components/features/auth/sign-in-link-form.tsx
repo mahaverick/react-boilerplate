@@ -45,6 +45,8 @@ interface SignInLinkFormProps {
   submitLabel?: string
   /** Called once another tab signed this browser in and ensureSession() resolved. */
   onSignedIn: () => void
+  /** True where a passkey can sign in: the email field then carries the `webauthn` autofill token. */
+  passkeyAutofill?: boolean
 }
 
 /**
@@ -63,6 +65,7 @@ export function SignInLinkForm({
   defaultEmail,
   submitLabel = 'Email me a sign-in link',
   onSignedIn,
+  passkeyAutofill = false,
 }: SignInLinkFormProps) {
   const request = useRequestSignInLink()
   /** The epoch-ms time resend opens again. */
@@ -99,6 +102,7 @@ export function SignInLinkForm({
         busy={request.isPending}
         onSend={send}
         inputRef={takeFocus('email')}
+        passkeyAutofill={passkeyAutofill}
       />
     )
   }
@@ -133,12 +137,14 @@ function EmailStep({
   busy,
   onSend,
   inputRef,
+  passkeyAutofill,
 }: {
   initialEmail: string
   submitLabel: string
   busy: boolean
   onSend: (email: string) => Promise<void>
   inputRef: (element: HTMLElement | null) => void
+  passkeyAutofill: boolean
 }) {
   const serverErrors = useServerErrors()
   const form = useForm({
@@ -165,7 +171,7 @@ function EmailStep({
                 <Input
                   ref={inputRef}
                   type="email"
-                  autoComplete="email"
+                  autoComplete={passkeyAutofill ? 'username webauthn' : 'email'}
                   placeholder="you@example.com"
                   value={fieldValue(field.state.value)}
                   onBlur={field.handleBlur}

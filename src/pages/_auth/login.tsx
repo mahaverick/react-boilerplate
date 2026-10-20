@@ -2,6 +2,7 @@ import '@/lib/zod-jitless'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
+import { PasskeySignInButton } from '@/components/features/auth/passkey-sign-in'
 import { CHECK_INBOX_TITLE, SignInLinkForm } from '@/components/features/auth/sign-in-link-form'
 import { SocialSignIn } from '@/components/features/auth/social-sign-in'
 import { TermsNote } from '@/components/features/auth/terms-note'
@@ -11,8 +12,11 @@ import { AuthPending } from '@/components/shared/pending-templates'
 import { FieldGroup } from '@/components/ui/field'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
+import { usePasskeyAutofill } from '@/hooks/use-passkey-autofill'
 import { safeLanding } from '@/lib/landing'
+import { SIGN_IN_PAUSED_MESSAGE } from '@/lib/passkey-sign-in-message'
 import { toast } from '@/lib/toast'
+import { usePasskeyConfig } from '@/queries/passkey.queries'
 
 /**
  * The sign-in page. `validateSearch` is a schema so every key is optional on
@@ -41,7 +45,7 @@ const OAUTH_ERRORS: Record<string, string> = {
     'Your Google account didn’t share an email address. Sign in with an email link instead.',
   processing_failed: 'Google sign-in didn’t finish. Try again, or sign in with an email link.',
   // The API refuses a non-staff sign-in while maintenance mode is full.
-  MAINTENANCE_MODE: 'Sign-in is paused for maintenance. Try again when maintenance ends.',
+  MAINTENANCE_MODE: SIGN_IN_PAUSED_MESSAGE,
   // In read-only maintenance the API signs in existing accounts only; this Google address has none.
   READ_ONLY_MODE:
     'We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends.',
@@ -62,6 +66,10 @@ function LoginPage() {
   const { error, redirect, notice } = Route.useSearch()
   const navigate = useNavigate()
   const [sentTo, setSentTo] = useState<string | null>(null)
+  const passkeyConfig = usePasskeyConfig()
+  const passkeysOn = passkeyConfig.data !== undefined && passkeyConfig.data.mode !== 'off'
+  /** Bumped when the button's prompt ends without a sign-in, so autofill asks again. */
+  const [autofillRun, setAutofillRun] = useState(0)
   // A token page is dropped: carried through, its token would be mailed again inside the new link.
   const landing = safeLanding(redirect) ?? undefined
 
@@ -79,6 +87,12 @@ function LoginPage() {
       : navigate({ to: ROUTES.dashboard, replace: true }))
   }
 
+  usePasskeyAutofill({
+    enabled: passkeysOn && sentTo === null,
+    onSignedIn,
+    restartKey: autofillRun,
+  })
+
   return (
     <AuthCard
       title={sentTo ? CHECK_INBOX_TITLE : 'Sign in'}
@@ -94,8 +108,21 @@ function LoginPage() {
           onSentToChange={setSentTo}
           redirect={landing}
           onSignedIn={onSignedIn}
+          passkeyAutofill={passkeysOn}
         />
-        {sentTo === null && <SocialSignIn redirect={landing} />}
+        {sentTo === null && (
+          <SocialSignIn
+            redirect={landing}
+            extra={
+              passkeysOn ? (
+                <PasskeySignInButton
+                  onSignedIn={onSignedIn}
+                  onModalSettled={() => setAutofillRun((run) => run + 1)}
+                />
+              ) : undefined
+            }
+          />
+        )}
       </FieldGroup>
     </AuthCard>
   )

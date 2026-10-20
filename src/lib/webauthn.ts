@@ -60,17 +60,38 @@ export async function passkeySupport(): Promise<{ create: boolean; autofill: boo
   }
 }
 
+/** Bumped by every `cancelPasskeyPrompt`, so a request that began before a cancel can tell. */
+let cancelGeneration = 0
+
+/**
+ * The cancel count now. Read it before the work that leads to a request (such
+ * as fetching its options) and pass it to `requestPasskey`: a cancel in between
+ * then stops the request from starting.
+ * @returns A number that changes whenever `cancelPasskeyPrompt` runs.
+ */
+export function passkeyCancelGeneration(): number {
+  return cancelGeneration
+}
+
 /**
  * Asks the browser for a passkey assertion. A new request cancels a pending one.
+ * A `cancelPasskeyPrompt` after `since` (by default, after this call began)
+ * rejects it as cancelled before the browser is asked, including while the
+ * package is still loading.
  * @param options - The server's request options.
  * @param mode - `modal` opens the browser's passkey sheet; `autofill` waits behind the page's `webauthn` input.
+ * @param since - A `passkeyCancelGeneration()` read earlier; defaults to the count at this call.
  * @returns The assertion to send to the server.
  */
 export async function requestPasskey(
   options: PublicKeyCredentialRequestOptionsJSON,
-  mode: 'modal' | 'autofill'
+  mode: 'modal' | 'autofill',
+  since: number = cancelGeneration
 ): Promise<AuthenticationResponseJSON> {
   const { startAuthentication } = await loadWebAuthn()
+  if (since !== cancelGeneration) {
+    throw new DOMException('The passkey request was cancelled.', 'AbortError')
+  }
   return startAuthentication(
     mode === 'autofill'
       ? { optionsJSON: options, useBrowserAutofill: true }
@@ -90,8 +111,12 @@ export async function createPasskeyCredential(
   return startRegistration({ optionsJSON: options })
 }
 
-/** Cancels the pending passkey prompt, if any. Does nothing when the package never loaded. */
+/**
+ * Cancels the pending passkey prompt, if any, and any request still waiting
+ * for the package to load.
+ */
 export function cancelPasskeyPrompt(): void {
+  cancelGeneration += 1
   loaded?.WebAuthnAbortService.cancelCeremony()
 }
 

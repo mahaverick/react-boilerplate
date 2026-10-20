@@ -3,6 +3,7 @@ import {
   cancelPasskeyPrompt,
   createPasskeyCredential,
   PASSKEY_SIGNALS,
+  passkeyCancelGeneration,
   passkeyFailure,
   passkeySupport,
   requestPasskey,
@@ -104,6 +105,28 @@ describe('webauthn', () => {
     await requestPasskey(OPTIONS, 'modal')
     cancelPasskeyPrompt()
     expect(mocks.cancelCeremony).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts no ceremony when a cancel lands while the package is still loading', async () => {
+    vi.resetModules()
+    const fresh = await import('@/lib/webauthn')
+    const pending = fresh.requestPasskey(OPTIONS, 'autofill')
+    // The package's first import() has not settled: there is nothing to abort, so the cancel must be remembered.
+    fresh.cancelPasskeyPrompt()
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fresh.passkeyFailure(await pending.catch((error: unknown) => error))).toBe('cancelled')
+    expect(mocks.startAuthentication).not.toHaveBeenCalled()
+  })
+
+  it('starts no ceremony when a cancel came after the generation the caller read', async () => {
+    mocks.startAuthentication.mockResolvedValue({ id: 'r' })
+    const before = passkeyCancelGeneration()
+    cancelPasskeyPrompt()
+    await expect(requestPasskey(OPTIONS, 'autofill', before)).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(mocks.startAuthentication).not.toHaveBeenCalled()
+    await expect(requestPasskey(OPTIONS, 'autofill')).resolves.toEqual({ id: 'r' })
   })
 
   describe('signals', () => {
