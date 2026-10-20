@@ -36,8 +36,8 @@ import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { STEP_UP_WAITING_LABEL, useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
+import { isReauthRequired, stepUpRefusal } from '@/lib/step-up'
 import { toast } from '@/lib/toast'
-import { writeFailureMessage } from '@/lib/write-failure'
 import { useDeletePasskey, useRenamePasskey } from '@/queries/passkey-manage.queries'
 import { passkeyKeys } from '@/queries/passkey.queries'
 import { renamePasskeySchema } from '@/schemas/passkey.schemas'
@@ -181,7 +181,7 @@ export function DeletePasskeyDialog({
             toast.error(messageFrom(error))
             return
           }
-          toast.error(writeFailureMessage(error))
+          toast.error(isReauthRequired(error) ? stepUpRefusal(error) : messageFrom(error))
         }
       )
   }

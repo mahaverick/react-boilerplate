@@ -1,6 +1,7 @@
 import { AxiosError } from 'axios'
+import { messageFrom } from '@/lib/api-error'
+import { isReauthRequired, stepUpRefusal } from '@/lib/step-up'
 import { passkeyFailure } from '@/lib/webauthn'
-import { writeFailureMessage } from '@/lib/write-failure'
 import { track } from '@/observability/telemetry'
 
 const ALREADY_ON_DEVICE =
@@ -15,7 +16,8 @@ const CREATE_FAILED = 'Your browser didn’t create a passkey. Try again, or use
  * @returns The toast text, or null for a dismissed prompt.
  */
 export function createFailureMessage(error: unknown): string | null {
-  if (error instanceof AxiosError) return writeFailureMessage(error)
+  if (error instanceof AxiosError)
+    return isReauthRequired(error) ? stepUpRefusal(error) : messageFrom(error)
   const failure = passkeyFailure(error)
   if (failure === 'cancelled') {
     track('passkey_prompt_cancelled', { ceremony: 'create' })
