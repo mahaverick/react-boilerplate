@@ -695,8 +695,8 @@ test.describe('analytics end to end, through express', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible()
     await page.goto(`/settings/workspace/${slug}/members`)
     await expect(page.getByRole('heading', { name: 'Pending invitations' })).toBeVisible()
-    await page.getByRole('button', { name: /^Resend invitation to/ }).click()
-    await expect(page.getByText(/^Invitation resent to/)).toBeVisible()
+    // A fresh invitation is inside express's resend cooldown, so its Resend reads "Resend in 10 min" and names the invitee.
+    await expect(page.getByRole('button', { name: /^Resend in .+, invitation to / })).toBeDisabled()
     await page.goto(`/settings/workspace/${slug}/activity`)
     await expect(page.getByRole('table', { name: 'Activity' })).toBeVisible()
     await page.getByRole('button', { name: 'Filter by access, Activity' }).click()
