@@ -108,4 +108,27 @@ describe('usePasskeyAutofill', () => {
     await settle(50, 'let a stray second request show up')
     expect(webauthn.request).toHaveBeenCalledTimes(1)
   })
+
+  it('posts one sign-in options request under StrictMode', async () => {
+    let posts = 0
+    server.use(
+      http.post('/api/v1/auth/passkeys/sign-in/options', () => {
+        posts += 1
+        return ok({ challengeId: 'c', options: {} }, 'Options.')
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    client.setQueryData(passkeyKeys.support, { create: true, autofill: true })
+    renderHook(() => usePasskeyAutofill({ enabled: true, onSignedIn: vi.fn() }), {
+      wrapper: ({ children }) => (
+        <StrictMode>
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        </StrictMode>
+      ),
+    })
+
+    await waitFor(() => expect(webauthn.request).toHaveBeenCalled())
+    await settle(50, 'let a stray second options request show up')
+    expect(posts).toBe(1)
+  })
 })

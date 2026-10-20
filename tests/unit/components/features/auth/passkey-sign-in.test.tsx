@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PasskeySignInButton } from '@/components/features/auth/passkey-sign-in'
 import { toast } from '@/lib/toast'
@@ -97,5 +97,27 @@ describe('PasskeySignInButton', () => {
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith('Slow down.'))
     expect(onModalSettled).toHaveBeenCalledTimes(1)
+  })
+
+  it('names the wait when a 429 carries Retry-After', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    webauthn.request.mockResolvedValue({ id: 'cred' })
+    server.use(
+      http.post('/api/v1/auth/passkeys/sign-in/verify', () =>
+        HttpResponse.json(
+          { success: false, message: 'Slow down.', statusCode: 429, code: 'RATE_LIMITED' },
+          { status: 429, headers: { 'Retry-After': '42' } }
+        )
+      )
+    )
+    renderButton()
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Sign in with a passkey' }))
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('Too many sign-in attempts. Try again in 42 seconds.')
+    )
   })
 })

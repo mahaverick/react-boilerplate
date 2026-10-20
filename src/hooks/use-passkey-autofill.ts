@@ -25,9 +25,7 @@ interface PasskeyAutofillOptions {
  * - the first `PASSKEY_VERIFICATION_FAILED` restarts once with fresh options, with no toast, because options older than 5 minutes fail this way;
  * - every other failure toasts.
  *
- * It starts after a microtask, so StrictMode's discarded first effect starts
- * nothing. Cleanup (an unmount, or `enabled` going false) cancels the pending
- * request.
+ * Cleanup (an unmount, or `enabled` going false) cancels the pending request.
  */
 export function usePasskeyAutofill({
   enabled,
@@ -59,7 +57,7 @@ export function usePasskeyAutofill({
       }
     }
 
-    void Promise.resolve().then(() => (live ? run(false) : undefined))
+    void run(false)
     return () => {
       live = false
       cancelPasskeyPrompt()
