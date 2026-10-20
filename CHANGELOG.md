@@ -7,6 +7,13 @@
 
 * password sign-in, registration, password reset and verify-email are removed. Sign-in is by emailed link or Google: /login requests a link, /auth/link spends it, and the first sign-in creates the account. New users land on /welcome to create a workspace; invitations join from /invitations/accept, or confirm by email at /invitations/confirm. /register, /forgot-password, /reset-password and /verify-email redirect to /login?notice=sign-in-link. This needs express >= 6.0.0.
 
+#### Code a derived project must update
+
+* Removed: loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema, verifyEmailSchema, resendVerificationSchema, changePasswordSchema, MIN_PASSWORD_LENGTH and their *Input types (src/schemas/auth.schemas.ts now exports emailSchema and signInLinkRequestSchema); every password query and mutation in src/queries/auth.queries.ts (useLogin, useRegister, useForgotPassword, useResetPassword, useVerifyEmail, useResendVerification, useChangePassword); EMAIL_ALREADY_VERIFIED, INVITATION_EMAIL_UNVERIFIED and AuthProviders.hasPassword (src/types/api.types.ts); ROUTES.register and ROUTES.forgotPassword.
+* Added: ROUTES.authLink, ROUTES.welcome, ROUTES.invitationConfirm; useRequestSignInLink and useVerifySignInLink (src/queries/auth.queries.ts); useVerifyInvitation and useConfirmInvitation (src/queries/invitation.queries.ts).
+* Moved: useCreateTenant, useUpdateTenant, useTenantSettings and useUpdateTenantSettings, from @/queries/tenant.queries to @/queries/tenant-forms.queries.
+* Changed: SocialProvider.href is now hrefFor(redirect?) and sends app=web; TenantInvitation gains lastSentAt and resendAvailableAt; AcceptedInvitation gains alreadyMember; ANALYTICS_URL_QUERY_ALLOWLIST adds utm_source, utm_medium, utm_campaign and utm_content (kept only when the value matches ^[a-z0-9_-]{1,64}$); messageFrom's fallback text changed.
+
 ### Features
 
 * passwordless sign-in by email link and Google ([26b0b63](https://github.com/mahaverick/react-boilerplate/commit/26b0b63fc880c901a3dd372a29ec73cc21420d8d))
