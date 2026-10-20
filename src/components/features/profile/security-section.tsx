@@ -1,5 +1,6 @@
 import { lazy, Suspense, useId } from 'react'
 import { BusyButton } from '@/components/shared/busy-button'
+import { LazyBoundary } from '@/components/shared/lazy-boundary'
 import { Pii } from '@/components/shared/pii'
 import { QueryState } from '@/components/shared/query-state'
 import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
@@ -64,9 +65,11 @@ export function SecuritySection() {
       >
         {(data) => <SignInMethods {...data} />}
       </QueryState>
-      <Suspense fallback={null}>
-        <PasskeysSection />
-      </Suspense>
+      <LazyBoundary fallback={null}>
+        <Suspense fallback={null}>
+          <PasskeysSection />
+        </Suspense>
+      </LazyBoundary>
       <OtherSessions />
     </section>
   )
