@@ -15,6 +15,7 @@ import { GOOGLE_OAUTH_PATH } from '@/constants/routes'
 import { resetSessionForTests } from '@/http/session'
 import { toast } from '@/lib/toast'
 import { track } from '@/observability/telemetry'
+import { passkeyKeys } from '@/queries/passkey.queries'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
@@ -402,6 +403,14 @@ describe('login page passkeys', () => {
     return webauthn.request.mock.calls.filter(([, mode]) => mode === 'autofill')
   }
 
+  /** The barrier for an absence check: the config read has answered, then a beat for any reaction to it. */
+  async function configSettled() {
+    await waitFor(() =>
+      expect(queryClient.getQueryState(passkeyKeys.config)?.status).toBe('success')
+    )
+    await settle(30, 'let an unwanted passkey button or request show up')
+  }
+
   it('mode off renders no passkey button, keeps autocomplete="email" and calls nothing', async () => {
     server.use(
       http.get('/api/v1/auth/passkeys/config', () => ok({ mode: 'off', rpId: '' }, 'Settings.'))
@@ -410,6 +419,7 @@ describe('login page passkeys', () => {
 
     const email = await screen.findByLabelText('Email')
     await screen.findByRole('link', { name: 'Continue with Google' })
+    await configSettled()
     expect(email).toHaveAttribute('autocomplete', 'email')
     expect(screen.queryByRole('button', { name: 'Sign in with a passkey' })).not.toBeInTheDocument()
     expect(webauthn.support).not.toHaveBeenCalled()
@@ -421,8 +431,11 @@ describe('login page passkeys', () => {
     server.use(http.get('/api/v1/auth/passkeys/config', () => fail('Not found.', 404)))
     renderLoginAt('/login')
 
-    expect(await screen.findByLabelText('Email')).toHaveAttribute('autocomplete', 'email')
+    const email = await screen.findByLabelText('Email')
+    await configSettled()
+    expect(email).toHaveAttribute('autocomplete', 'email')
     expect(screen.queryByRole('button', { name: 'Sign in with a passkey' })).not.toBeInTheDocument()
+    expect(webauthn.request).not.toHaveBeenCalled()
     expect(optionsCalls).toBe(0)
   })
 
