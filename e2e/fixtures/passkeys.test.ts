@@ -6,12 +6,9 @@
  * builds and signs is real.
  */
 import type { Page } from '@playwright/test'
-import { USER_ID } from '../../tests/fixtures/ids'
+import { USER_HANDLE } from '../../tests/fixtures/user-handle'
 import { addVirtualAuthenticator } from '../helpers/virtual-authenticator'
 import { expect, test } from '../hermetic'
-
-/** `USER_ID`'s 16 bytes, base64url: the WebAuthn user handle the harness lists. */
-const USER_HANDLE = Buffer.from(USER_ID.replaceAll('-', ''), 'hex').toString('base64url')
 
 /** The harness URL for `path` with `query` (already `&`-joined). */
 function harness(path: string, query = ''): string {
@@ -65,7 +62,9 @@ test('mode off shows no passkey button on sign-in and no Passkeys section in Sec
   await expect(page.getByRole('heading', { level: 1, name: 'Sign in' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Sign in with a passkey' })).toHaveCount(0)
 
+  const securityConfig = page.waitForResponse('**/auth/passkeys/config')
   await page.goto(harness('/settings/account/security', 'passkeys=off'))
+  await securityConfig
   await expect(page.getByRole('button', { name: 'Sign out other sessions' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Passkeys' })).toHaveCount(0)
   expect(listed, 'the list is never read in mode off').toEqual([])

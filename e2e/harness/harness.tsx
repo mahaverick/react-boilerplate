@@ -34,6 +34,7 @@ import {
   USER_ID_2,
 } from '../../tests/fixtures/ids'
 import { listPage } from '../../tests/fixtures/list-page'
+import { USER_HANDLE } from '../../tests/fixtures/user-handle'
 
 const TENANT = {
   id: TENANT_ID,
@@ -418,12 +419,6 @@ const sectionHandlers = [
 const PROBE_PASSKEY_NAME = 'Pii Probe’s phone'
 
 /**
- * The WebAuthn user handle the harness answers: `USER_ID`'s 16 bytes, base64url.
- * `e2e/fixtures/passkeys.test.ts` seeds its virtual authenticator with the same.
- */
-const USER_HANDLE = 'IAAAAAAAQACAAAAAAAAAAQ'
-
-/**
  * `?passkeys=off|optional|required` sets the config mode (default `optional`).
  * In `off` every passkey route but the config answers express's unknown-route 404.
  */
@@ -500,6 +495,20 @@ function requestOptions() {
   }
 }
 
+/**
+ * A 400 when the request body is not exactly `expected` (the contract's strict bodies), else
+ * `null`. Keeps a wrong wire shape from passing through the harness unseen.
+ */
+async function wrongBody(request: Request, expected: Record<string, unknown>) {
+  const body = (await request
+    .clone()
+    .json()
+    .catch(() => null)) as unknown
+  return JSON.stringify(body) === JSON.stringify(expected)
+    ? null
+    : fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
+}
+
 /** The list answer: the passkeys and the user handle. */
 function passkeyList() {
   return { passkeys, userHandle: USER_HANDLE }
@@ -510,10 +519,11 @@ const passkeyHandlers = [
   http.get('/api/v1/auth/passkeys/config', () =>
     ok({ mode: passkeyMode, rpId: 'localhost' }, 'Passkey config retrieved.')
   ),
-  http.post('/api/v1/auth/passkeys/sign-in/options', () =>
+  http.post('/api/v1/auth/passkeys/sign-in/options', async ({ request }) =>
     passkeyMode === 'off'
       ? unknownRoute()
-      : ok({ challengeId: 'harness-sign-in', options: requestOptions() }, 'Options.')
+      : ((await wrongBody(request, {})) ??
+        ok({ challengeId: 'harness-sign-in', options: requestOptions() }, 'Options.'))
   ),
   http.post('/api/v1/auth/passkeys/sign-in/verify', () => {
     if (passkeyMode === 'off') return unknownRoute()
@@ -523,8 +533,10 @@ const passkeyHandlers = [
       'Signed in.'
     )
   }),
-  http.post('/api/v1/auth/passkeys/step-up/options', () => {
+  http.post('/api/v1/auth/passkeys/step-up/options', async ({ request }) => {
     if (passkeyMode === 'off') return unknownRoute()
+    const malformed = await wrongBody(request, {})
+    if (malformed) return malformed
     const refusal = setupRefusal()
     if (refusal) return refusal
     if (passkeys.length === 0) {
@@ -532,8 +544,18 @@ const passkeyHandlers = [
     }
     return ok({ challengeId: 'harness-step-up', options: requestOptions() }, 'Options.')
   }),
-  http.post('/api/v1/auth/passkeys/step-up/verify', () => {
+  http.post('/api/v1/auth/passkeys/step-up/verify', async ({ request }) => {
     if (passkeyMode === 'off') return unknownRoute()
+    // Strict body: `app` is not accepted here.
+    if (
+      'app' in
+      ((await request
+        .clone()
+        .json()
+        .catch(() => ({}))) as object)
+    ) {
+      return fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
+    }
     stepUpFresh = true
     return ok({ accessToken: 'harness-token-confirmed' }, 'Confirmed.')
   }),
@@ -547,8 +569,10 @@ const passkeyHandlers = [
   http.get('/api/v1/auth/passkeys', () =>
     passkeyMode === 'off' ? unknownRoute() : ok(passkeyList(), 'Passkeys retrieved.')
   ),
-  http.post('/api/v1/auth/passkeys/registration/options', () => {
+  http.post('/api/v1/auth/passkeys/registration/options', async ({ request }) => {
     if (passkeyMode === 'off') return unknownRoute()
+    const malformed = await wrongBody(request, { app: 'web' })
+    if (malformed) return malformed
     const stale = reauthRefusal()
     if (stale) return stale
     return ok(
@@ -591,8 +615,11 @@ const passkeyHandlers = [
     passkey.name = ((await request.json()) as { name: string }).name
     return ok({ passkey }, 'Passkey renamed.')
   }),
-  http.delete('/api/v1/auth/passkeys/:id', ({ params: route }) => {
+  http.delete('/api/v1/auth/passkeys/:id', ({ params: route, request }) => {
     if (passkeyMode === 'off') return unknownRoute()
+    if (new URL(request.url).searchParams.get('app') !== 'web') {
+      return fail('Query does not match the contract.', 400, 'VALIDATION_ERROR')
+    }
     const stale = reauthRefusal()
     if (stale) return stale
     const index = passkeys.findIndex((row) => row.id === route.id)
