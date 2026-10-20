@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.3](https://github.com/mahaverick/react-boilerplate/compare/v4.0.2...v4.0.3) (2026-10-20)
+
+
+### Bug Fixes
+
+* **copy:** absolute dates, named tenants, units and no vague time in ui copy ([#135](https://github.com/mahaverick/react-boilerplate/issues/135)) ([499d248](https://github.com/mahaverick/react-boilerplate/commit/499d248c7637bfc73ab2772625d48607747ce92a))
+
 ## [4.0.2](https://github.com/mahaverick/react-boilerplate/compare/v4.0.1...v4.0.2) (2026-10-20)
 
 
