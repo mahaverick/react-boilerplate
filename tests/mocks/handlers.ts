@@ -186,6 +186,11 @@ export const handlers = [
       'Signed in.'
     )
   }),
+  // Passkeys default to optional with none created; a test for another mode or a list overrides these.
+  http.get('/api/v1/auth/passkeys/config', () =>
+    ok({ mode: 'optional', rpId: 'localhost' }, 'Passkey settings retrieved.')
+  ),
+  http.get('/api/v1/auth/passkeys', () => ok({ passkeys: [] }, 'Passkeys retrieved.')),
   // Fetched by the profile page's Security section; an email-link account, which a test about Google or a failed load overrides.
   http.get('/api/v1/auth/providers', () =>
     ok(

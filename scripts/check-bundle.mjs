@@ -1,8 +1,8 @@
 /**
  * @file Builds the app in memory and checks the chunks it would ship: more than
  * one JS chunk, first-visit JS (the entry chunk and its static imports) under
- * budget and free of posthog-js and `@posthog/core` (each of which must exist
- * in some other chunk, or the check proves nothing), the error listener in the
+ * budget and free of posthog-js, `@posthog/core` and `@simplewebauthn/browser`
+ * (each of which must exist in some other chunk, or the check proves nothing), the error listener in the
  * entry chunk under its own budget, Zod's config reached before any app code
  * that reaches Zod, and no devtools module in any chunk. Run with
  * `pnpm check:bundle`.
@@ -71,6 +71,13 @@ const POSTHOG_MODULE = /[\\/]posthog-js[\\/]/
  * reporter imports it, so it must stay out of the first-visit chunks.
  */
 const POSTHOG_CORE_MODULE = /[\\/]@posthog[\\/]core[\\/]/
+
+/**
+ * An `@simplewebauthn/browser` module, by its node_modules path. Only
+ * `src/lib/webauthn.ts` imports it, with a dynamic `import()`, so it must stay
+ * out of every first-visit chunk.
+ */
+const SIMPLEWEBAUTHN_MODULE = /[\\/]@simplewebauthn[\\/]browser[\\/]/
 
 /** The palette's lazy code: the app's commands, the shell and the vendored command list. */
 const PALETTE_LAZY_MODULE =
@@ -161,6 +168,11 @@ if (entries.length !== 1) {
         `first-visit chunk ${fileName} contains @posthog/core, which must load on demand`
       )
     }
+    if (moduleIds.some((id) => SIMPLEWEBAUTHN_MODULE.test(id))) {
+      failures.push(
+        `first-visit chunk ${fileName} contains @simplewebauthn/browser, which must load on demand`
+      )
+    }
   }
   const entry = entries[0]
   const listenerId = entry.moduleIds.find((id) => ERROR_LISTENER_MODULE.test(id))
@@ -185,6 +197,12 @@ if (!chunks.some((chunk) => chunk.moduleIds.some((id) => POSTHOG_MODULE.test(id)
 
 if (!chunks.some((chunk) => chunk.moduleIds.some((id) => POSTHOG_CORE_MODULE.test(id)))) {
   failures.push('no chunk contains @posthog/core: the lazy-load check above proved nothing')
+}
+
+if (!chunks.some((chunk) => chunk.moduleIds.some((id) => SIMPLEWEBAUTHN_MODULE.test(id)))) {
+  failures.push(
+    'no chunk contains @simplewebauthn/browser: the lazy-load check above proved nothing'
+  )
 }
 
 /**
