@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.1](https://github.com/mahaverick/react-boilerplate/compare/v4.0.0...v4.0.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **invitations:** describe the one-click and confirm-by-email join ([#130](https://github.com/mahaverick/react-boilerplate/issues/130)) ([894f08c](https://github.com/mahaverick/react-boilerplate/commit/894f08ccb375ef31bfc3ac39459cf472fb1d22f5))
+
 ## [4.0.0](https://github.com/mahaverick/react-boilerplate/compare/v3.4.3...v4.0.0) (2026-10-19)
 
 
