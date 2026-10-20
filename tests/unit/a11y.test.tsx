@@ -1421,7 +1421,7 @@ describe('keyboard', () => {
     ]
     expect(screen.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
       'href',
-      `${GOOGLE_OAUTH_PATH}?app=web`
+      GOOGLE_OAUTH_PATH
     )
 
     for (const element of expected) {

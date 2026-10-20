@@ -208,7 +208,7 @@ describe('login page', () => {
     renderLoginAt(`/login?redirect=${encodeURIComponent(tokenPage)}`)
     expect(await screen.findByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
       'href',
-      `${GOOGLE_OAUTH_PATH}?app=web`
+      GOOGLE_OAUTH_PATH
     )
     await requestLink()
 
@@ -229,7 +229,7 @@ describe('login page', () => {
 
     expect(await screen.findByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
       'href',
-      `${GOOGLE_OAUTH_PATH}?app=web`
+      GOOGLE_OAUTH_PATH
     )
   })
 
