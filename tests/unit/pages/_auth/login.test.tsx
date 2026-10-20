@@ -224,7 +224,7 @@ describe('login page', () => {
     // The other tab used the link, so the shared refresh cookie now restores a session here.
     server.use(
       http.post('/api/v1/auth/refresh', () =>
-        ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       ),
       http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.'))
     )
@@ -247,7 +247,7 @@ describe('login page', () => {
 
     server.use(
       http.post('/api/v1/auth/refresh', () =>
-        ok({ accessToken: 'fresh-token' }, 'Token refreshed.')
+        ok({ accessToken: 'fresh-token' }, 'Session refreshed.')
       ),
       http.get('/api/v1/profile', () => ok(testUser, 'Profile retrieved.'))
     )

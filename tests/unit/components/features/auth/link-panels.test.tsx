@@ -160,14 +160,26 @@ describe('VerifyFailedPanel', () => {
     const user = userEvent.setup()
     const onRetry = vi.fn()
     const { rerender } = render(
-      <VerifyFailedPanel message="Too many requests." retrying={false} onRetry={onRetry} />
+      <VerifyFailedPanel
+        message="You've reached the limit of 20 requests in 1 minute. Try again in 1 minute."
+        retrying={false}
+        onRetry={onRetry}
+      />
     )
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Too many requests.')
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "You've reached the limit of 20 requests in 1 minute. Try again in 1 minute."
+    )
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(onRetry).toHaveBeenCalledTimes(1)
 
-    rerender(<VerifyFailedPanel message="Too many requests." retrying onRetry={onRetry} />)
+    rerender(
+      <VerifyFailedPanel
+        message="You've reached the limit of 20 requests in 1 minute. Try again in 1 minute."
+        retrying
+        onRetry={onRetry}
+      />
+    )
     expect(screen.getByRole('button', { name: 'Trying again…' })).toHaveAttribute(
       'aria-busy',
       'true'

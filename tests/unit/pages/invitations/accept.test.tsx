@@ -443,7 +443,10 @@ describe('accept page, signed out', () => {
     [
       'a 429',
       () => {
-        const response = fail('Too many attempts. Try again in 42 seconds.', 429)
+        const response = fail(
+          "You've reached the limit of 10 attempts in 15 minutes. Try again in 42 seconds.",
+          429
+        )
         response.headers.set('Retry-After', '42')
         return response
       },
@@ -674,7 +677,7 @@ describe('accept page, Check your inbox, when another tab confirms', () => {
     server.use(
       http.post('/api/v1/auth/refresh', () => {
         restored.refreshes += 1
-        return ok({ accessToken: 'shared-token' }, 'Token refreshed.')
+        return ok({ accessToken: 'shared-token' }, 'Session refreshed.')
       }),
       http.get('/api/v1/profile', () => ok({ ...testUser, email }, 'Profile retrieved.'))
     )

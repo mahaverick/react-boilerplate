@@ -986,7 +986,7 @@ describe('auth link states', () => {
     signOut()
     server.use(
       http.post('/api/v1/auth/link/verify', () =>
-        fail('This link has expired or was already used.', 400, 'LINK_INVALID')
+        fail('This link expired or was already used. Ask for a new link.', 400, 'LINK_INVALID')
       )
     )
     renderAppAt(linkPath)
@@ -1005,7 +1005,9 @@ describe('auth link states', () => {
   it('auth link failed has no axe violations', async () => {
     signOut()
     server.use(
-      http.post('/api/v1/auth/link/verify', () => fail('Too many requests. Try again later.', 429))
+      http.post('/api/v1/auth/link/verify', () =>
+        fail("You've reached the limit of 20 requests in 1 minute. Try again in 1 minute.", 429)
+      )
     )
     renderAppAt(linkPath)
     await screen.findByRole('button', { name: 'Try again' })

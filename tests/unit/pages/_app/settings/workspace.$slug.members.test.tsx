@@ -571,7 +571,7 @@ describe('the invite form role select', () => {
         HttpResponse.json(
           {
             success: false,
-            message: 'Validation failed.',
+            message: 'Check the highlighted fields, then try again.',
             statusCode: 400,
             errors: { role: ['That role is not yours to grant.'] },
             requestId: 'test-request-id',
@@ -728,7 +728,11 @@ describe('inviting, and the pending invitations', () => {
     const toastError = vi.spyOn(toast, 'error')
     server.use(
       http.post('/api/v1/tenants/acme/invitations', () =>
-        fail('Too many attempts. Try again in 15 minutes.', 429, 'RATE_LIMITED')
+        fail(
+          "You've reached the limit of 10 attempts in 15 minutes. Try again in 15 minutes.",
+          429,
+          'RATE_LIMITED'
+        )
       )
     )
     const user = userEvent.setup()
@@ -738,9 +742,15 @@ describe('inviting, and the pending invitations', () => {
     await user.type(email, 'new@b.com')
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
 
-    const message = await screen.findByText('Too many attempts. Try again in 15 minutes.')
+    const message = await screen.findByText(
+      "You've reached the limit of 10 attempts in 15 minutes. Try again in 15 minutes."
+    )
     expect(message.closest('form')).not.toBeNull()
-    expect(screen.getAllByText('Too many attempts. Try again in 15 minutes.')).toHaveLength(1)
+    expect(
+      screen.getAllByText(
+        "You've reached the limit of 10 attempts in 15 minutes. Try again in 15 minutes."
+      )
+    ).toHaveLength(1)
     expect(toastError).not.toHaveBeenCalled()
     expect(email).toHaveAttribute('aria-invalid', 'false')
   })
@@ -1275,7 +1285,7 @@ describe('the remove and leave dialogs', () => {
       http.delete('/api/v1/tenants/acme/membership', () => {
         ottoRole = 'admin'
         return fail(
-          'You are the last owner: make someone else an owner before you leave.',
+          "You're the last owner. Make someone else an owner before you leave.",
           409,
           'LAST_OWNER'
         )
@@ -1324,7 +1334,7 @@ describe('the remove and leave dialogs', () => {
     server.use(
       http.delete('/api/v1/tenants/acme/membership', () =>
         fail(
-          'You are the last owner: make someone else an owner before you leave.',
+          "You're the last owner. Make someone else an owner before you leave.",
           409,
           'LAST_OWNER'
         )
@@ -1340,9 +1350,7 @@ describe('the remove and leave dialogs', () => {
     )
 
     expect(
-      await screen.findByText(
-        'You are the last owner: make someone else an owner before you leave.'
-      )
+      await screen.findByText("You're the last owner. Make someone else an owner before you leave.")
     ).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/settings/workspace/acme/members')
     expect(me.getByRole('button', { name: 'Leave' })).toBeEnabled()

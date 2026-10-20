@@ -127,7 +127,12 @@ describe('full maintenance', () => {
       server.use(
         http.post('/api/v1/auth/refresh', () =>
           HttpResponse.json(
-            { success: false, message: 'Missing refresh token', statusCode: 401, requestId: 'r' },
+            {
+              success: false,
+              message: "You're signed out. Sign in to continue.",
+              statusCode: 401,
+              requestId: 'r',
+            },
             { status: 401, headers: { 'Maintenance-Mode': 'full' } }
           )
         )
@@ -191,7 +196,7 @@ describe('full maintenance', () => {
         HttpResponse.json(
           {
             success: true,
-            message: 'Token refreshed.',
+            message: 'Session refreshed.',
             statusCode: 200,
             data: { accessToken: 't' },
           },
@@ -228,7 +233,9 @@ describe('full maintenance', () => {
     })
     useMaintenanceModeStore.setState({ mode: 'full', message: null, since: null })
     serveStatus('full')
-    server.use(http.post('/api/v1/auth/refresh', () => fail('Missing refresh token', 401)))
+    server.use(
+      http.post('/api/v1/auth/refresh', () => fail("You're signed out. Sign in to continue.", 401))
+    )
     const router = renderAppAt('/settings/account/profile')
     await findMaintenancePage()
 
@@ -413,7 +420,9 @@ describe('read-only maintenance', () => {
 
   it('shows on the sign-in page, which still works', async () => {
     useAuthStore.setState({ isBootstrapped: false })
-    server.use(http.post('/api/v1/auth/refresh', () => fail('Missing refresh token', 401)))
+    server.use(
+      http.post('/api/v1/auth/refresh', () => fail("You're signed out. Sign in to continue.", 401))
+    )
     serveStatus('read_only')
     renderAppAt('/login')
 

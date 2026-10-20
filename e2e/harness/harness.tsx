@@ -460,7 +460,7 @@ const worker = setupWorker(
     ok(listPage(INVITATIONS), 'Invitations retrieved.')
   ),
   http.post('/api/v1/tenants/acme/invitations/:id/resend', () =>
-    ok(null, 'If that address can be invited, an invitation has been sent.')
+    ok(null, 'If we can invite that address, we sent it an invitation.')
   ),
   http.post('/api/v1/invitations/preview', () =>
     inviteMode === 'dead' || inviteMode === 'joined'
@@ -533,7 +533,7 @@ const worker = setupWorker(
   ),
   http.post('/api/v1/auth/link/verify', () => {
     if (linkMode === 'dead') {
-      return fail('This link has expired or was already used.', 400, 'LINK_INVALID')
+      return fail('This link expired or was already used. Ask for a new link.', 400, 'LINK_INVALID')
     }
     if (linkMode === 'readonly') return readOnly()
     hasRefreshCookie = true
@@ -626,7 +626,7 @@ const worker = setupWorker(
   http.post('/api/v1/auth/refresh', () =>
     hasRefreshCookie
       ? ok({ accessToken: 'harness-token', user: testUser }, 'Session refreshed.')
-      : fail('Missing refresh token', 401)
+      : fail("You're signed out. Sign in to continue.", 401)
   )
 )
 

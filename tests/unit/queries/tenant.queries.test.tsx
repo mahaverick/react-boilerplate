@@ -232,7 +232,7 @@ describe('tenant invitation queries', () => {
     server.use(
       http.patch('/api/v1/tenants/acme/settings', () =>
         shouldFail
-          ? fail('Validation failed', 400)
+          ? fail('Check the highlighted fields, then try again.', 400)
           : ok(
               {
                 tenantId: TENANT_ID,
@@ -646,7 +646,7 @@ describe('member mutations and the caller’s own profile', () => {
       server.use(
         http.delete('/api/v1/tenants/acme/membership', () =>
           fail(
-            'You are the last owner: make someone else an owner before you leave.',
+            "You're the last owner. Make someone else an owner before you leave.",
             409,
             'LAST_OWNER'
           )
