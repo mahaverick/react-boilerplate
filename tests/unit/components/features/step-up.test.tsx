@@ -6,6 +6,7 @@ import { StrictMode, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StepUpDialog } from '@/components/features/step-up/step-up-dialog'
 import { StepUpProvider } from '@/components/features/step-up/step-up-provider'
+import { FRONTEND_APP } from '@/constants/frontend-app'
 import { useStepUp } from '@/hooks/use-step-up'
 import { apiClient } from '@/http/client'
 import { ensureSession, resetSessionForTests } from '@/http/session'
@@ -349,7 +350,7 @@ describe('StepUpDialog: email', () => {
     renderHarness()
     const dialog = await sendLink(user)
 
-    expect(bodies).toEqual([{ app: 'web' }])
+    expect(bodies).toEqual([{ app: FRONTEND_APP }])
     expect(within(dialog).getByRole('status')).toHaveTextContent(
       `We sent the link to ${testUser.email}. It expires in 15 minutes.`
     )

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PasskeysSection } from '@/components/features/profile/passkeys-section'
+import { FRONTEND_APP } from '@/constants/frontend-app'
 import { StepUpContext, type StepUp } from '@/hooks/use-step-up'
 import { isReauthRequired } from '@/lib/step-up'
 import { toast } from '@/lib/toast'
@@ -147,7 +148,7 @@ describe('PasskeysSection', () => {
     server.use(
       http.post('/api/v1/auth/passkeys/registration/options', async ({ request }) => {
         optionCalls += 1
-        expect(await request.json()).toEqual({ app: 'web' })
+        expect(await request.json()).toEqual({ app: FRONTEND_APP })
         if (optionCalls === 1) return fail('Confirm it’s you.', 401, 'REAUTH_REQUIRED')
         return ok({ challengeId: 'c1', options: { challenge: 'x' } }, 'Options.')
       }),
@@ -155,7 +156,7 @@ describe('PasskeysSection', () => {
         expect(await request.json()).toEqual({
           challengeId: 'c1',
           response: { id: 'new-cred' },
-          app: 'web',
+          app: FRONTEND_APP,
         })
         return ok({ passkey: makePasskey(1, { name: 'MacBook' }) }, 'Created.')
       })
@@ -304,7 +305,7 @@ describe('PasskeysSection', () => {
     expect(await screen.findByText('Work laptop')).toBeVisible()
   })
 
-  it('delete confirms, sends ?app=web, toasts, and signals the remaining credential ids', async () => {
+  it('delete confirms, sends the app param, toasts, and signals the remaining credential ids', async () => {
     const toastSuccess = vi.spyOn(toast, 'success')
     let query = ''
     mockList([makePasskey(1), makePasskey(2)])
@@ -327,7 +328,7 @@ describe('PasskeysSection', () => {
     await user.click(dialog.getByRole('button', { name: 'Delete passkey' }))
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Passkey deleted.'))
-    expect(query).toBe('?app=web')
+    expect(query).toBe(`?app=${FRONTEND_APP}`)
     expect(webauthn.signalAccepted).toHaveBeenCalledTimes(1)
     const [rpId, handle, remaining] = webauthn.signalAccepted.mock.calls[0] as [
       string,
