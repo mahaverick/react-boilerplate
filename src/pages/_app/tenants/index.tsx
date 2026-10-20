@@ -34,7 +34,9 @@ function CreateTenantCard({ cardRef }: { cardRef: Ref<HTMLDivElement> }) {
         <CardTitle>
           <h2>Create a tenant</h2>
         </CardTitle>
-        <CardDescription>You become its owner. The slug cannot be changed later.</CardDescription>
+        <CardDescription>
+          You become its owner. You can’t change the slug after you create the tenant.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <CreateTenantForm

@@ -784,7 +784,7 @@ describe('maintenance mode', () => {
     mockSignedInData()
     serveMaintenance('full')
     renderAppAt('/dashboard')
-    await screen.findByRole('heading', { name: 'We’ll be back soon' })
+    await screen.findByRole('heading', { name: 'Maintenance in progress' })
     await expectNoViolations()
   })
 

@@ -20,6 +20,7 @@ import { useServerErrors } from '@/hooks/use-server-errors'
 import { codeFrom, messageFrom } from '@/lib/api-error'
 import { useCreateTenant } from '@/queries/tenant-forms.queries'
 import type { Tenant } from '@/queries/tenant.queries'
+import { MAX_SLUG_LENGTH, MIN_SLUG_LENGTH } from '@/schemas/slug.schemas'
 import { newTenantSchema, slugSchema } from '@/schemas/tenant.schemas'
 import { SLUG_TAKEN } from '@/types/api.types'
 
@@ -106,8 +107,9 @@ export function CreateTenantForm({ submitLabel, busyLabel, onCreated }: CreateTe
               />
             </FormControl>
             <FormDescription>
-              Use lowercase letters, numbers and hyphens. The slug becomes the address:
-              /tenants/your-slug. The form refuses capitals instead of converting them.
+              Use {MIN_SLUG_LENGTH} to {MAX_SLUG_LENGTH} lowercase letters, numbers and hyphens. The
+              slug becomes the address: /tenants/your-slug. We refuse capitals rather than convert
+              them.
             </FormDescription>
             <FormMessage />
           </FormItem>

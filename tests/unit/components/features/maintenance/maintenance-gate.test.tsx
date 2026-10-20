@@ -75,7 +75,7 @@ function signIn() {
 }
 
 /** Waits for the full-page maintenance screen. */
-const findMaintenancePage = () => screen.findByRole('heading', { name: 'We’ll be back soon' })
+const findMaintenancePage = () => screen.findByRole('heading', { name: 'Maintenance in progress' })
 
 beforeEach(() => {
   resetSessionForTests()

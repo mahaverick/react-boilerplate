@@ -217,7 +217,8 @@ function RevokeInvitationButton({
             Revoke the invitation to <Pii>{invitation.email}</Pii>?
           </AlertDialogTitle>
           <AlertDialogDescription>
-            The link in their email stops working immediately. You can invite them again later.
+            The link in their email stops working immediately. You can invite them again from this
+            page.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -35,7 +35,8 @@ import { inviteMemberSchema } from '@/schemas/tenant.schemas'
 import { ALREADY_MEMBER, INVITATION_CONFLICT, REAUTH_REQUIRED } from '@/types/api.types'
 
 /** A 409 `invitation_conflict`: another invite for this address just won the race. */
-const RACED = 'Someone just invited this address — refresh and try again.'
+const RACED =
+  'Another member invited this address first. Their invitation is under Pending invitations.'
 
 /**
  * Invite someone by email. Shown to owners and admins (`canManageTenant`); the

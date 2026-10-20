@@ -271,6 +271,9 @@ describe('workspace general settings', () => {
     renderAppAt('/settings/workspace/acme/general')
 
     const metadata = await screen.findByLabelText('Metadata')
+    expect(screen.getByText(/^A JSON \(JavaScript Object Notation\) object/)).toHaveTextContent(
+      'A JSON (JavaScript Object Notation) object of at most 16,384 characters. Leave it empty to clear it.'
+    )
     await user.clear(metadata)
     await user.type(metadata, '{{oops')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
@@ -351,7 +354,9 @@ describe('workspace general settings', () => {
     await waitFor(() => {
       expect(patched).toEqual({ name: 'Acme Ltd' })
     })
-    expect(screen.queryByText('Logo must be an http or https URL.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Logo must be a web address that starts with http:// or https://.')
+    ).not.toBeInTheDocument()
     expect(screen.getByLabelText('Logo URL')).toHaveAttribute('aria-invalid', 'false')
   })
 
@@ -402,7 +407,9 @@ describe('workspace general settings', () => {
     await user.type(logo, '2')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
-    expect(await screen.findByText('Logo must be an http or https URL.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Logo must be a web address that starts with http:// or https://.')
+    ).toBeInTheDocument()
     expect(screen.getByLabelText('Logo URL')).toHaveAttribute('aria-invalid', 'true')
     expect(screen.queryByText('Description contains characters that are not allowed')).toBeNull()
     // The message is the barrier: a refused submit never reaches onSubmit.

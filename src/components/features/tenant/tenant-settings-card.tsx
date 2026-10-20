@@ -25,7 +25,7 @@ import { useServerErrors } from '@/hooks/use-server-errors'
 import { toast } from '@/lib/toast'
 import { useTenantSettings, useUpdateTenantSettings } from '@/queries/tenant-forms.queries'
 import { useMyRole, type TenantSettings } from '@/queries/tenant.queries'
-import { tenantSettingsFormSchema } from '@/schemas/tenant.schemas'
+import { MAX_TENANT_METADATA_LENGTH, tenantSettingsFormSchema } from '@/schemas/tenant.schemas'
 
 /**
  * What this tab says when the settings request failed, as opposed to the role
@@ -133,8 +133,9 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
               />
             </FormControl>
             <FormDescription>
-              A JSON object. Leave it empty to clear it. Invalid JSON is caught here rather than
-              coming back as an error with no field attached.
+              A JSON (JavaScript Object Notation) object of at most{' '}
+              {MAX_TENANT_METADATA_LENGTH.toLocaleString('en-US')} characters. Leave it empty to
+              clear it.
             </FormDescription>
             <FormMessage />
           </FormItem>

@@ -716,7 +716,7 @@ describe('inviting, and the pending invitations', () => {
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
 
     const raced = await screen.findByText(
-      'Someone just invited this address — refresh and try again.'
+      'Another member invited this address first. Their invitation is under Pending invitations.'
     )
     expect(raced.closest('form')).not.toBeNull()
     expect(toastError).not.toHaveBeenCalled()
@@ -1021,6 +1021,9 @@ describe('inviting, and the pending invitations', () => {
     )
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveAccessibleName('Revoke the invitation to invitee@b.com?')
+    expect(dialog).toHaveAccessibleDescription(
+      'The link in their email stops working immediately. You can invite them again from this page.'
+    )
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
     await waitFor(() => {
@@ -1168,7 +1171,7 @@ describe('the remove and leave dialogs', () => {
       )
       await user.click(within(dialog).getByRole('button', { name: 'Leave' }))
 
-      expect(await screen.findByText('You left this tenant.')).toBeInTheDocument()
+      expect(await screen.findByText('You left Acme Corp.')).toBeInTheDocument()
       expect(left).toBe(1)
       await waitFor(() => expect(router.state.location.pathname).toBe('/tenants'))
     }
@@ -1217,7 +1220,7 @@ describe('the remove and leave dialogs', () => {
     await user.click(confirm)
     release()
 
-    expect(await screen.findByText('You left this tenant.')).toBeInTheDocument()
+    expect(await screen.findByText('You left Acme Corp.')).toBeInTheDocument()
     expect(left).toBe(1)
   })
 
@@ -1311,9 +1314,7 @@ describe('the remove and leave dialogs', () => {
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
     )
 
-    expect(
-      await screen.findByText('You are no longer a member of this tenant.')
-    ).toBeInTheDocument()
+    expect(await screen.findByText('You’re no longer a member of Acme Corp.')).toBeInTheDocument()
     expect(screen.queryByText('Tenant not found')).not.toBeInTheDocument()
     await waitFor(() => expect(router.state.location.pathname).toBe('/tenants'))
   })
@@ -1871,7 +1872,7 @@ describe('keyboard focus after a row action succeeds', () => {
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
     )
 
-    expect(await screen.findByText('You left this tenant.')).toBeInTheDocument()
+    expect(await screen.findByText('You left Acme Corp.')).toBeInTheDocument()
     expect(document.activeElement?.tagName).not.toBe('H2')
   })
 })

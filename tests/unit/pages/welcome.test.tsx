@@ -353,7 +353,7 @@ describe('/welcome', () => {
     )
     const router = renderAppAt('/welcome')
 
-    await screen.findByRole('heading', { name: 'We’ll be back soon' })
+    await screen.findByRole('heading', { name: 'Maintenance in progress' })
     expect(router.state.location.pathname).toBe('/welcome')
   })
 

@@ -35,7 +35,7 @@ export function MaintenancePage({
           <CardHeader>
             <IconTool aria-hidden="true" className="mb-2 size-6 text-muted-foreground" />
             <CardTitle>
-              <h1>We’ll be back soon</h1>
+              <h1>Maintenance in progress</h1>
             </CardTitle>
             {started && <CardDescription>Maintenance started {started}.</CardDescription>}
           </CardHeader>

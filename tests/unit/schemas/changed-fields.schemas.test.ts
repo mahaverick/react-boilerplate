@@ -31,8 +31,8 @@ describe('changedFieldsOf', () => {
       website: 'https://user:pw@host.test/',
     })
     expect(issuesOf(result)).toEqual([
-      ['logo', 'Logo must be an http or https URL.'],
-      ['website', 'Website must be an http or https URL.'],
+      ['logo', 'Logo must be a web address that starts with http:// or https://.'],
+      ['website', 'Website must be a web address that starts with http:// or https://.'],
     ])
   })
 

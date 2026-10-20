@@ -63,6 +63,7 @@ import {
   membersListOptions,
   ownersBesides,
   ownersQueryOptions,
+  tenantQueryOptions,
   useLeaveTenant,
   useMyRole,
   useRemoveMember,
@@ -121,8 +122,20 @@ function memberWriteFailureMessage(error: unknown): string {
   return isMemberNotFound(error) ? MEMBER_GONE : writeFailureMessage(error)
 }
 
-/** What a leave says when the API answers 404: the membership was already gone. */
-const NO_LONGER_A_MEMBER = 'You are no longer a member of this tenant.'
+/**
+ * The leave toast. It names the tenant, since it shows on the tenant list,
+ * where "this tenant" names nothing; the name comes from the tenant read the
+ * page already holds.
+ * @param tenantName - The tenant's name, when the cache has it.
+ */
+const leftTenant = (tenantName: string | undefined) => `You left ${tenantName ?? 'this tenant'}.`
+
+/**
+ * What a leave says when the API answers 404: the membership was already gone.
+ * @param tenantName - The tenant's name, when the cache has it.
+ */
+const noLongerMember = (tenantName: string | undefined) =>
+  `You’re no longer a member of ${tenantName ?? 'this tenant'}.`
 
 /** The reason the last owner's own controls are switched off. */
 const LAST_OWNER_REASON = 'A tenant must always have an owner. Add another owner first.'
@@ -276,17 +289,18 @@ function RemoveMemberButton({
 
   /** Leaves, then lands on the tenant list and forgets the tenant; other failures stay here. */
   async function leave() {
+    const tenantName = queryClient.getQueryData(tenantQueryOptions(slug).queryKey)?.name
     try {
       await leaveTenant.mutateAsync()
       setIsOpen(false)
-      toast.success('You left this tenant.')
+      toast.success(leftTenant(tenantName))
     } catch (error) {
       setIsOpen(false)
       if (statusFrom(error) !== 404) {
         toast.error(writeFailureMessage(error))
         return
       }
-      toast.success(NO_LONGER_A_MEMBER)
+      toast.success(noLongerMember(tenantName))
     }
     await navigate({ to: '/tenants' })
     dropTenantCache(queryClient, slug)

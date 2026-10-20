@@ -13,7 +13,7 @@ export function RoleDenied() {
     <Alert variant="destructive">
       <IconLock aria-hidden="true" />
       <AlertTitle>Your role can’t see this any more.</AlertTitle>
-      <AlertDescription>If your access just changed, reload the page.</AlertDescription>
+      <AlertDescription>Reload the page to see what your current role allows.</AlertDescription>
       <AlertAction>
         <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
           Reload

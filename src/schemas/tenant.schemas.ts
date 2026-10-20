@@ -148,7 +148,7 @@ function boundedText(max: number, label: string, safe?: SafeTextMode) {
   if (!safe) return bounded
   const safeField = bounded.refine(safeText({ multiline }), notAllowedMessage(label))
   if (safe !== 'url') return safeField
-  const notHttpUrl = `${label} must be an http or https URL.`
+  const notHttpUrl = `${label} must be a web address that starts with http:// or https://.`
   return safeField.refine(hasNoUserinfoOrBackslash, notHttpUrl).pipe(httpUrlCheck(notHttpUrl))
 }
 
@@ -228,7 +228,7 @@ export const inviteMemberSchema = z.object({
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>
 
 /** The most characters `metadata` may take as JSON: every member downloads it with the settings. */
-const MAX_TENANT_METADATA_LENGTH = 16_384
+export const MAX_TENANT_METADATA_LENGTH = 16_384
 
 /** The deepest `metadata` may nest; its own object is level 1. */
 const MAX_TENANT_METADATA_DEPTH = 10
