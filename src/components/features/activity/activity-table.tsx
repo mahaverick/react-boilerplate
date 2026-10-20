@@ -23,20 +23,21 @@ import { analyticsKey } from '@/observability/telemetry'
 import type { AuditEntry } from '@/types/api.types'
 
 /**
- * The entry's time, relative, with the absolute time in a tooltip and in hidden text.
+ * The entry's time, absolute, since an audit line is read long after it is
+ * written; the relative time is in a tooltip and in hidden text.
  * @param props - The entry's ISO time.
  * @param props.occurredAt - When the entry was recorded.
  */
 function When({ occurredAt }: { occurredAt: string }) {
   const now = useNow()
-  const absolute = absoluteTime(occurredAt)
+  const relative = relativeTime(occurredAt, now)
   return (
     <Tooltip>
       <TooltipTrigger className="cursor-default underline decoration-dotted underline-offset-2">
-        <time dateTime={occurredAt}>{relativeTime(occurredAt, now)}</time>
-        <span className="sr-only">, {absolute}</span>
+        <time dateTime={occurredAt}>{absoluteTime(occurredAt)}</time>
+        <span className="sr-only">, {relative}</span>
       </TooltipTrigger>
-      <TooltipContent>{absolute}</TooltipContent>
+      <TooltipContent>{relative}</TooltipContent>
     </Tooltip>
   )
 }

@@ -11,6 +11,7 @@ import { delay, http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
+import { absoluteTime } from '@/lib/relative-time'
 import * as analytics from '@/observability/telemetry'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
@@ -183,6 +184,17 @@ describe('tenant activity page', () => {
     expect(created.queryByText('Staff')).not.toBeInTheDocument()
     // The machine-readable instant is on the element, whatever the words say.
     expect(document.querySelector('time[datetime="2026-09-25T09:00:00.000Z"]')).not.toBeNull()
+  })
+
+  it('shows each entry’s absolute date and time, since an audit line is read long after it happens', async () => {
+    mockTenant('owner')
+    mockLog(() => page([CREATED]))
+    renderAppAt('/settings/workspace/acme/activity')
+
+    await screen.findByText(/created the tenant/)
+    const time = document.querySelector(`time[datetime="${CREATED.occurredAt}"]`)
+    expect(time).toHaveTextContent(absoluteTime(CREATED.occurredAt))
+    expect(time).not.toHaveTextContent(/ago|just now|yesterday/)
   })
 
   it('shows a nameless actor’s email once, not twice', async () => {
