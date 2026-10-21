@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test'
+import { test as base, expect, type Page, type Request } from '@playwright/test'
 
 /**
  * Stamped on every fallback answer: an `/api` response without it came from
@@ -53,6 +53,8 @@ function unauthorized(pathname: string) {
 type ApiFallback = {
   /** `METHOD /path` of every request the fallback answered, in order. */
   answered: string[]
+  /** `METHOD /path` of every call aborted during a navigation while another page was open. */
+  swallowed: string[]
 }
 
 /**
@@ -76,18 +78,26 @@ export const test = base.extend<{ apiFallback: ApiFallback }>({
     async ({ context }, use) => {
       const answered: string[] = []
       const escaped: string[] = []
-      /** Pages between a navigation's request and its commit. Their old document is outside the service worker, and a 401 would sign it out and redirect over the navigation, so its calls are aborted. */
-      const navigating = new Set<Page>()
+      /** Each page's main-frame navigation in flight: its request, from the request to its commit, failure or end. The old document is outside the service worker, and a 401 would sign it out and redirect over the navigation, so the calls of a navigating page are aborted. */
+      const navigating = new Map<Page, Request>()
+      /** Calls aborted while another page, not navigating, could have made them. The routed requests are the service worker's pass-throughs, which carry no frame, so the caller cannot be told; such a call is an unmocked endpoint swallowed, and teardown fails on it. */
+      const swallowed: string[] = []
       /** Tracks `page`'s main-frame navigations in `navigating`. */
       const watch = (page: Page) => {
         page.on('request', (request) => {
           if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
-            navigating.add(page)
+            navigating.set(page, request)
           }
         })
         page.on('framenavigated', (frame) => {
           if (frame === page.mainFrame()) navigating.delete(page)
         })
+        /** Ends `page`'s tracked navigation when its own request fails or finishes without a commit. */
+        const end = (request: Request) => {
+          if (navigating.get(page) === request) navigating.delete(page)
+        }
+        page.on('requestfailed', end)
+        page.on('requestfinished', end)
       }
       context.pages().forEach(watch)
       context.on('page', watch)
@@ -96,6 +106,8 @@ export const test = base.extend<{ apiFallback: ApiFallback }>({
         const { pathname } = new URL(request.url())
         const call = `${request.method()} ${pathname}`
         if (navigating.size > 0) {
+          const others = context.pages().filter((page) => !navigating.has(page))
+          if (others.some((page) => page.url() !== 'about:blank')) swallowed.push(call)
           await route.abort('aborted')
           return
         }
@@ -129,8 +141,12 @@ export const test = base.extend<{ apiFallback: ApiFallback }>({
         escaped.push(`${response.request().method()} ${url.pathname} → ${response.status()}`)
       })
 
-      await use({ answered })
+      await use({ answered, swallowed })
 
+      expect(
+        swallowed,
+        'calls aborted during a navigation that another open page could have made'
+      ).toEqual([])
       expect(escaped, '/api responses that came from the dev server proxy').toEqual([])
       expect(
         answered.filter(
