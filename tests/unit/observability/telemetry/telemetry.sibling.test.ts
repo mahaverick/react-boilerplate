@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import type { CaptureResult, PostHog } from 'posthog-js'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/telemetry/config'
 import { settle } from '@/tests/fixtures/timing'
 import { analyticsConfigFor, stopPersisting } from '@/tests/mocks/posthog'

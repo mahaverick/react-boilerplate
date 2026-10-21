@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, waitFor } from '@testing-library/react'
 import { http } from 'msw'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { resetSessionForTests } from '@/http/session'
 import { installCurrentTenant } from '@/lib/current-tenant'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'

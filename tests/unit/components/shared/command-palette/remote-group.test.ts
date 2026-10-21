@@ -1,5 +1,5 @@
 import { AxiosError, type AxiosResponse } from 'axios'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import type { PaletteCommand } from '@/components/shared/command-palette/palette-types'
 import { remoteGroup, type RemoteQuery } from '@/components/shared/command-palette/remote-group'
 import { isRoleDenied } from '@/lib/role-denied'

@@ -1,5 +1,5 @@
 import { fireEvent, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { usePaletteShortcut } from '@/components/shared/command-palette/use-palette-shortcut'
 import { useCommandPaletteStore } from '@/states/command-palette.store'
 

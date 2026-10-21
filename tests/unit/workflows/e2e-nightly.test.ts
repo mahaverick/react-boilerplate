@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { FAKE_FLAGS_PROJECT_KEY, FAKE_FLAGS_SECURE_KEY } from '../../../e2e/helpers/fake-flags.mjs'
 
 /**

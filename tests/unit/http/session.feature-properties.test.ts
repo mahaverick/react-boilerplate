@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 import { http } from 'msw'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { installAnalyticsIdentity, resetSessionForTests } from '@/http/session'
 import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
 import { syncFeatureProperties } from '@/observability/flags/register'

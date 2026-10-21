@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { AuthPagePending, PageSkeleton, type PageVariant } from '@/components/shared/page-skeleton'
 
 const VARIANTS: PageVariant[] = ['list', 'detail', 'dashboard', 'settings']

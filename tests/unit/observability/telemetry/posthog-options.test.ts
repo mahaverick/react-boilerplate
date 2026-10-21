@@ -1,5 +1,5 @@
 import type { CapturedNetworkRequest, CaptureResult } from 'posthog-js'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import {
   ANALYTICS_CROSS_SUBDOMAIN_COOKIE,
   ANALYTICS_PERSISTENCE_NAME,

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { invitationTokenSchema } from '@/schemas/invitation.schemas'
 import { TEST_INVITATION_TOKEN } from '@/tests/mocks/handlers'
 

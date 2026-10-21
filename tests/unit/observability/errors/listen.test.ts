@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-router'
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { z } from 'zod'
 import {
   currentRouteId,

@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { AxiosError, AxiosHeaders } from 'axios'
 import { delay, http } from 'msw'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { listQueryOptions, retryList } from '@/queries/list.queries'
 import { listPage } from '@/tests/fixtures/list-page'
 import { ok } from '@/tests/mocks/handlers'

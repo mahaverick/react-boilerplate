@@ -1,5 +1,5 @@
 import { AxiosError, AxiosHeaders } from 'axios'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { markRefusedAfterConfirm } from '@/lib/step-up'
 import { writeFailureMessage } from '@/lib/write-failure'
 

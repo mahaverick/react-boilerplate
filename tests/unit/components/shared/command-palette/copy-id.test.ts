@@ -1,5 +1,5 @@
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { COPY_FAILED, copyId } from '@/components/shared/command-palette/copy-id'
 import { toast } from '@/lib/toast'
 

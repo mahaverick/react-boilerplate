@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { renderHook, waitFor } from '@testing-library/react'
 import { delay, http } from 'msw'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { resetSessionForTests } from '@/http/session'
 import { useAuthProviders } from '@/queries/auth.queries'
 import { useTenantBeta } from '@/queries/beta.queries'

@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import { Component, Profiler, type ProfilerOnRenderCallback, type ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { ToastHost } from '@/components/shared/toast-host'
 import { toast } from '@/lib/toast'
 

@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react'
 import { useEffect } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { useFocusAfter, type FocusAfter } from '@/hooks/use-focus-after'
 
 /** Renders the targets and hands the hook's api to the test, which has no other way to reach it. */

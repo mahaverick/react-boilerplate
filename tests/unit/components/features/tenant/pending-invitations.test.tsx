@@ -8,7 +8,7 @@ import {
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { StepUpProvider } from '@/components/features/step-up/step-up-provider'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
 import { toast } from '@/lib/toast'

@@ -29,6 +29,6 @@ export async function requireClientFlag<K extends ClientFlagKey>(
 ): Promise<void> {
   const values = await ensureFlags(queryClient, scope)
   const opening: unknown = expected ?? true
-  // eslint-disable-next-line @typescript-eslint/only-throw-error -- notFound() is the plain object TanStack Router catches to render its not-found screen
+  // oxlint-disable-next-line @typescript-eslint/only-throw-error -- notFound() is the plain object TanStack Router catches to render its not-found screen
   if (values[key] !== opening) throw notFound()
 }

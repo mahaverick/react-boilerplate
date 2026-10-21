@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 // The glob is relative to the repo root; vendored shadcn output is the registry's copy, not ours.
 const SOURCES = import.meta.glob<string>(

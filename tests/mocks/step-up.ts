@@ -6,7 +6,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
 import { http } from 'msw'
-import { expect } from 'vitest'
+import { expect } from 'vite-plus/test'
 import { useAuthStore } from '@/states/auth.store'
 import { ok, testUser } from '@/tests/mocks/handlers'
 import { freshlyConfirmedToken } from '@/tests/mocks/jwt'

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { AuthPagePending, AuthPending } from '@/components/shared/pending-templates'
 import { Route as authRoute } from '@/pages/_auth'
 import { Route as login } from '@/pages/_auth/login'

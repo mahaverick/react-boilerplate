@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { NavMain, type NavMainItem } from '@/components/layouts/nav-main'
 import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 

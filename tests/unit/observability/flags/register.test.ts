@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vite-plus/test'
 import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
 import type { ClientFlagKey } from '@/observability/flags/flag-types'
 import { featurePropertyName, syncFeatureProperties } from '@/observability/flags/register'

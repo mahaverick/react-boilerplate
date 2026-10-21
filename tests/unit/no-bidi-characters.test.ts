@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 // A static import rather than the glob below: Vite's import.meta.glob leaves the calling file out of its results, so this is how the scan covers itself.
 import ownSource from './no-bidi-characters.test.ts?raw'
 

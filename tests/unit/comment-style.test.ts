@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { Linter } from 'eslint'
 import tseslint from 'typescript-eslint'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { commentStyleRule } from '../../scripts/comment-style.mjs'
 
 const linter = new Linter({ configType: 'flat' })

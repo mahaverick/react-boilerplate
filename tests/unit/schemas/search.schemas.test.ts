@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { searchText } from '@/schemas/search.schemas'
 
 describe('searchText', () => {

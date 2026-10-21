@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { createTraceparent } from '@/http/traceparent'
 
 const FORMAT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/

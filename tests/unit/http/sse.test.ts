@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { parseSseStream, type SseEvent } from '@/http/sse'
 
 /** A stream that delivers each chunk as its own read, then closes. */

@@ -62,3 +62,4 @@ dist-ssr
 
 # Left by an interrupted `pnpm ui:drift:refresh`; `pnpm ui:drift` fails while one exists.
 scripts/ui-registry.*/
+.vitest/

@@ -3,7 +3,7 @@
  * which are express-boilerplate's byte for byte, plus the properties no single
  * vector shows: idempotence, the length cap and the bounded scan.
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { SCRUB_VALUE_MAX, scrubText, TRUNCATION_MARKER } from '@/observability/errors/scrub'
 import vectors from '@/tests/fixtures/error-scrub-vectors.json'
 

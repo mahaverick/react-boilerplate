@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { lazy, Suspense } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { LazyBoundary } from '@/components/shared/lazy-boundary'
 
 /** A child that throws while rendering. */

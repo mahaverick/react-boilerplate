@@ -1,6 +1,6 @@
 import { IconUsers } from '@tabler/icons-react'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { EmptyState } from '@/components/shared/empty-state'
 
 describe('EmptyState', () => {

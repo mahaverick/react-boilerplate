@@ -5,7 +5,7 @@
  * line under it starts to compile.
  */
 import { linkOptions } from '@tanstack/react-router'
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vite-plus/test'
 import type { z } from 'zod'
 import { analyticsKey } from '@/observability/telemetry'
 import { invitationsList, membersList, myTenantsList } from '@/queries/tenant.queries'

@@ -9,7 +9,7 @@ import {
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { NavSettings } from '@/components/layouts/nav-settings'
 import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { queryClient } from '@/router'

@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { PostHog } from 'posthog-js'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
   CONSUMED_HANDOFFS_KEY,
   isPersistedIdentified,

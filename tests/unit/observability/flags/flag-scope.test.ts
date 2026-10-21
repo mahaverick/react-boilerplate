@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 import type { AnyRouter } from '@tanstack/react-router'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vite-plus/test'
 import { EXPOSURE_DEDUPE_PREFIX } from '@/observability/flags/exposure'
 import { flagKeys } from '@/observability/flags/flag-query'
 import { flagScopeFor, flagsPathFor, installFlagScopeReset } from '@/observability/flags/flag-scope'

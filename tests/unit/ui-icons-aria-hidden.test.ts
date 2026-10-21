@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 // Tabler, unlike Lucide, does not add `aria-hidden` on its own. The glob is relative to the repo root.
 const UI_SOURCES = import.meta.glob<string>('/src/components/ui/*.tsx', {

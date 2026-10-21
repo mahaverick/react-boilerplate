@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, configure } from '@testing-library/react'
 import { toHaveNoViolations } from 'jest-axe'
 import { createElement } from 'react'
-import { afterAll, afterEach, beforeAll, expect, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, expect, vi } from 'vite-plus/test'
 // This import loads `use-list-search` for every test file: a `vi.mock` of that module must use `vi.doMock` or a reset.
 import { resetListPositions } from '@/components/shared/data-table/use-list-search'
 import { toast } from '@/lib/toast'
@@ -70,7 +70,7 @@ declare module 'vitest' {
    * exactly: declaration merging rejects an interface whose parameters differ at all, so
    * `T` cannot be dropped even though this matcher takes no subject type.
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by declaration merging, unused by this matcher's signature
+  // oxlint-disable-next-line @typescript-eslint/no-unused-vars -- required by declaration merging, unused by this matcher's signature
   interface Matchers<R extends void | Promise<void> = void | Promise<void>, T = unknown> {
     toHaveNoViolations(): R
   }

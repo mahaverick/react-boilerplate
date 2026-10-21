@@ -1,5 +1,5 @@
 import { AxiosError, AxiosHeaders, CanceledError } from 'axios'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { resetErrorListenForTests, setErrorRouteSource } from '@/observability/errors/listen'
 import {
   BATCH_MAX_BYTES,

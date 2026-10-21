@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vite-plus/test'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 
 const SINCE = '2026-10-06T10:42:00.000Z'

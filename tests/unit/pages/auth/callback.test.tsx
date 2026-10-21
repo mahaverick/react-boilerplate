@@ -9,7 +9,7 @@ import {
 import { render, waitFor } from '@testing-library/react'
 import { http } from 'msw'
 import { StrictMode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { resetSessionForTests } from '@/http/session'
 import { track } from '@/observability/telemetry'
 import { Route as callback } from '@/pages/auth/callback'

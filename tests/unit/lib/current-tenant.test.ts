@@ -1,5 +1,5 @@
 import type { AnyRouter } from '@tanstack/react-router'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { installCurrentTenant, retainTenant, type TenantSearch } from '@/lib/current-tenant'
 
 /** What the router hands an `onBeforeLoad` listener, as far as the hook reads it. */

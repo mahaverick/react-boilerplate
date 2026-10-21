@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { isNotFound } from '@tanstack/react-router'
 import { http, HttpResponse } from 'msw'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import type {
   BooleanClientFlagKey,
   MultivariateClientFlagKey,

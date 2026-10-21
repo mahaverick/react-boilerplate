@@ -17,7 +17,7 @@ import {
 import { createColumnHelper } from '@tanstack/react-table'
 import { render } from '@testing-library/react'
 import { http } from 'msw'
-import { afterEach } from 'vitest'
+import { afterEach } from 'vite-plus/test'
 import { DataTable, type DataTableProps } from '@/components/shared/data-table/data-table'
 import type {
   DataTableFeatures,

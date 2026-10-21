@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { recordRecent } from '@/components/shared/command-palette/recent-items'
 import { clearAllRecents, RECENT_KEY_PREFIX } from '@/components/shared/command-palette/recent-keys'
 

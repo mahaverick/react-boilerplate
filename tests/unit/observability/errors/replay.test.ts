@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { noteError, resetErrorListenForTests } from '@/observability/errors/listen'
 import {
   BATCH_WINDOW_MS,

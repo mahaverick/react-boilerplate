@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { RECENT_KEY_PREFIX } from '@/components/shared/command-palette/recent-keys'
 import { useAuthStore } from '@/states/auth.store'
 import { USER_ID } from '@/tests/fixtures/ids'

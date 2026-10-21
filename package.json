@@ -5,12 +5,12 @@
   "type": "module",
   "packageManager": "pnpm@12.4.1",
   "engines": {
-    "node": ">=24"
+    "node": "^24.11.0"
   },
   "devEngines": {
     "runtime": {
       "name": "node",
-      "version": ">=24",
+      "version": "^24.11.0",
       "onFail": "error"
     }
   },
@@ -20,18 +20,18 @@
     "email": "support@mahaverick.com"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "lint": "eslint . && prettier --check \"**/*.{ts,tsx,js,jsx,mjs,css,json,jsonc,md,html}\"",
+    "dev": "vp dev",
+    "build": "tsc -b && vp build",
+    "preview": "vp preview",
+    "lint": "vp lint . && vp fmt --check \"**/*.{ts,tsx,js,jsx,mjs,css,json,jsonc,md,html}\"",
     "lint:docs": "node scripts/lint-docs.mjs",
     "knip": "knip",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && pnpm typecheck:e2e",
     "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,css,json,jsonc,md,html}\"",
-    "test": "vitest --watch=false",
-    "test:coverage": "vitest --watch=false --coverage",
-    "test:watch": "vitest",
+    "format": "vp fmt \"**/*.{ts,tsx,js,jsx,mjs,css,json,jsonc,md,html}\"",
+    "test": "vp test --watch=false",
+    "test:coverage": "vp test --watch=false --coverage",
+    "test:watch": "vp test",
     "prepare": "husky",
     "test:e2e": "playwright test --project=fixtures",
     "test:e2e:live": "E2E_LIVE=1 playwright test --project=live",
@@ -66,8 +66,6 @@
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
     "@commitlint/config-conventional": "21.2.3",
-    "@eslint/js": "10.0.1",
-    "@ianvs/prettier-plugin-sort-imports": "4.7.1",
     "@playwright/test": "^1.63.0",
     "@posthog/cli": "0.18.9",
     "@rolldown/plugin-babel": "0.2.4",
@@ -85,15 +83,12 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
-    "@vitest/coverage-v8": "5.0.1",
+    "@vitest/coverage-v8": "catalog:",
     "axe-core": "4.13.0",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "10.11.0",
-    "eslint-config-prettier": "10.1.8",
     "eslint-plugin-check-file": "3.3.2",
     "eslint-plugin-jsdoc": "65.1.0",
-    "eslint-plugin-react-hooks": "7.1.1",
-    "eslint-plugin-react-refresh": "0.5.7",
     "eslint-plugin-tailwindcss": "4.4.0",
     "globals": "17.12.0",
     "husky": "9.1.7",
@@ -103,26 +98,25 @@
     "lint-staged": "17.5.1",
     "msw": "2.15.0",
     "playwright": "^1.63.0",
-    "prettier": "3.9.8",
-    "prettier-plugin-tailwindcss": "0.8.1",
     "shadcn": "4.21.4",
     "tailwindcss": "4.3.3",
     "typescript": "~6.0.3",
     "typescript-eslint": "8.70.1",
-    "vite": "8.3.0",
-    "vitest": "5.0.1"
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix --max-warnings 0 --no-warn-ignored",
-      "prettier --write"
+      "vp lint --fix --max-warnings 0 --no-warn-ignored",
+      "vp fmt"
     ],
     "*.{js,jsx,mjs}": [
-      "eslint --fix --max-warnings 0 --no-warn-ignored",
-      "prettier --write"
+      "vp lint --fix --max-warnings 0 --no-warn-ignored",
+      "vp fmt"
     ],
     "*.{css,json,jsonc,md,html}": [
-      "prettier --write"
+      "vp fmt"
     ]
   }
 }

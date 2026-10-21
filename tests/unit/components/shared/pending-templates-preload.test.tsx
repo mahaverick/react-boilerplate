@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
 /** Loads a fresh `pending-templates` whose page-skeleton chunk is the one `chunk` returns. */
 async function loadModule(chunk: () => Promise<unknown>) {
