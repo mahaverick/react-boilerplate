@@ -20,6 +20,9 @@ overrides:
   # vulnerable seroval. Via @tanstack/react-query-devtools > query-devtools.
   # Dev only (the devtools never reach a production chunk).
   solid-js@<1.9.16: ^1.9.16
+  # GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c: follow-redirects 1.16.0 leaks credential
+  # headers across origins. Via axios. Production.
+  follow-redirects@<1.16.1: ^1.16.1
 auditConfig:
   ignoreGhsas:
     # braces <=3.0.3 stack exhaustion on deeply nested brace patterns; no
