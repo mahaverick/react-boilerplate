@@ -8,6 +8,7 @@
   // directory instead of `src/components/ui/`. The real mapping for the build
   // lives in tsconfig.app.json and must stay in sync with this one.
   "compilerOptions": {
+    "baseUrl": ".",
     "paths": { "@/tests/*": ["./tests/*"], "@/*": ["./src/*"] }
   }
 }
