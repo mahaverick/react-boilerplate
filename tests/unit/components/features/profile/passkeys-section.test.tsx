@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PasskeysSection } from '@/components/features/profile/passkeys-section'
 import { FRONTEND_APP } from '@/constants/frontend-app'
 import { StepUpContext, type StepUp } from '@/hooks/use-step-up'
+import { formatDate } from '@/lib/format'
 import { isReauthRequired } from '@/lib/step-up'
 import { toast } from '@/lib/toast'
 import { track } from '@/observability/telemetry'
@@ -34,6 +35,9 @@ vi.mock('@/observability/telemetry', async (importOriginal) => ({
   track: vi.fn(),
 }))
 
+const CREATED_AT = '2026-10-01T10:00:00.000Z'
+const LAST_USED_AT = '2026-10-05T10:00:00.000Z'
+
 /** One passkey row as the API lists it. */
 function makePasskey(index: number, overrides: Partial<PublicPasskey> = {}): PublicPasskey {
   return {
@@ -45,7 +49,7 @@ function makePasskey(index: number, overrides: Partial<PublicPasskey> = {}): Pub
       iconDark: 'data:image/png;base64,BB',
     },
     synced: true,
-    createdAt: '2026-10-01T10:00:00.000Z',
+    createdAt: CREATED_AT,
     lastUsedAt: null,
     credentialId: `cred-${String(index)}`,
     ...overrides,
@@ -103,15 +107,15 @@ describe('PasskeysSection', () => {
   })
 
   it('lists each passkey with its provider, Synced or This device only, and absolute dates', async () => {
-    mockList([
-      makePasskey(1),
-      makePasskey(2, { synced: false, lastUsedAt: '2026-10-05T10:00:00.000Z' }),
-    ])
+    mockList([makePasskey(1), makePasskey(2, { synced: false, lastUsedAt: LAST_USED_AT })])
     renderSection()
 
-    expect(await screen.findAllByText('Created 1 Oct 2026')).toHaveLength(2)
+    // The app formats in the reader's locale and zone, so the expectation does too.
+    expect(await screen.findAllByText(`Created ${formatDate(CREATED_AT, 'medium')}`)).toHaveLength(
+      2
+    )
     expect(screen.getByText('Never used')).toBeVisible()
-    expect(screen.getByText('Last used 5 Oct 2026')).toBeVisible()
+    expect(screen.getByText(`Last used ${formatDate(LAST_USED_AT, 'medium')}`)).toBeVisible()
     expect(screen.getByText('Synced')).toBeVisible()
     expect(screen.getByText('This device only')).toBeVisible()
     expect(screen.getAllByText('iCloud Keychain')).toHaveLength(2)
