@@ -9,6 +9,7 @@ import { resetSessionForTests } from '@/http/session'
 import { toast } from '@/lib/toast'
 import { notificationsListOptions, type Notification } from '@/queries/notification.queries'
 import { useAuthStore } from '@/states/auth.store'
+import { usePasskeySetupStore } from '@/states/passkey-setup.store'
 import { NOTIFICATION_ID, NOTIFICATION_ID_7 } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
 import {
@@ -66,6 +67,7 @@ describe('useNotificationStream', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     resetSessionForTests()
+    usePasskeySetupStore.setState({ required: false, message: null })
     useAuthStore.setState({
       accessToken: 'tok-a',
       user: testUser,
@@ -161,6 +163,61 @@ describe('useNotificationStream', () => {
 
     await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
     expect(latest().headers['Last-Event-ID']).toBe(NOTIFICATION_ID_7)
+  })
+
+  /** Required mode switched on mid-session: the stream's 403 stops it and raises the setup flag. */
+  it('stops the stream on PASSKEY_SETUP_REQUIRED', async () => {
+    queueConnectRefusal({
+      status: 403,
+      body: {
+        success: false,
+        message: 'Create a passkey to continue. Every account here needs one.',
+        statusCode: 403,
+        requestId: 'r-1',
+        code: 'PASSKEY_SETUP_REQUIRED',
+      },
+    })
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(usePasskeySetupStore.getState().required).toBe(true))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(1)
+    expect(usePasskeySetupStore.getState().message).toBe(
+      'Create a passkey to continue. Every account here needs one.'
+    )
+  })
+
+  it('does not connect while the setup flag is set, and connects once it clears', async () => {
+    usePasskeySetupStore.setState({ required: true, message: null })
+    renderHook(() => useNotificationStream(), { wrapper })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(0)
+
+    act(() => usePasskeySetupStore.getState().setRequired(false))
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+  })
+
+  it('keeps reconnecting after a 403 that is not PASSKEY_SETUP_REQUIRED', async () => {
+    queueConnectRefusal({
+      status: 403,
+      body: {
+        success: false,
+        message: 'No.',
+        statusCode: 403,
+        requestId: 'r-2',
+        code: 'FORBIDDEN',
+      },
+    })
+    renderHook(() => useNotificationStream(), { wrapper })
+    await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    expect(MockFetchStream.instances).toHaveLength(2)
+    expect(usePasskeySetupStore.getState().required).toBe(false)
   })
 
   it('tears down and rebuilds when the token changes', async () => {

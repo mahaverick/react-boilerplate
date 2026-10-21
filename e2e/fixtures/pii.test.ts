@@ -7,6 +7,7 @@
  * is `e2e/nginx/analytics.test.ts`.
  */
 import type { Page } from '@playwright/test'
+import { maskReplayAttribute } from '../../src/observability/telemetry/mask-attribute'
 import { USER_ID_2 } from '../../tests/fixtures/ids'
 import { expect, test } from '../hermetic'
 
@@ -107,7 +108,8 @@ test('the activity log masks actors, and so does its actor filter', async ({ pag
   // A chosen actor shows as a chip ("Actor: {name}") and as the remove button's label.
   await page.goto(harness('/settings/workspace/acme/activity', `&actor=${USER_ID_2}`))
   await expect(page.getByText('Actor: ')).toBeVisible()
-  await expect(page.getByRole('button', { name: /^Remove filter: Actor: / })).toBeVisible()
+  // The chip's name resolves from the member list, so wait for it before scanning.
+  await expect(page.getByRole('button', { name: /^Remove filter: Actor: Pii Probe/ })).toBeVisible()
   await expectAllMasked(page, 3)
 })
 
@@ -150,4 +152,30 @@ test('a confirmation link for another account masks both addresses', async ({ pa
   await expect(page.getByRole('heading', { level: 1, name: 'Join your team' })).toBeVisible()
   // The sentence names both, and Continue names the link's.
   await expectAllMasked(page, 3)
+})
+
+test('the passkeys list and both dialogs mask a passkey’s name and its button labels', async ({
+  page,
+}) => {
+  await page.goto(harness('/settings/account/security'))
+  const row = page.getByRole('listitem').filter({ hasText: 'Pii Probe’s phone' })
+  await expect(row).toBeVisible()
+  await expectAllMasked(page, 3)
+
+  // The buttons' labels carry the name; replay masks the attribute.
+  for (const action of ['Rename', 'Delete']) {
+    const label = await row.getByRole('button', { name: action }).getAttribute('aria-label')
+    expect(label).toBe(`${action} Pii Probe’s phone`)
+    expect(maskReplayAttribute('aria-label', label!)).toBe('***')
+  }
+
+  await row.getByRole('button', { name: 'Rename' }).click()
+  await expect(page.getByRole('dialog', { name: 'Rename passkey' })).toBeVisible()
+  await expectAllMasked(page, 3)
+  await page.getByRole('button', { name: 'Cancel' }).click()
+
+  await row.getByRole('button', { name: 'Delete' }).click()
+  await expect(page.getByRole('alertdialog')).toBeVisible()
+  await expect(page.getByRole('alertdialog').getByText('Pii Probe’s phone')).toBeVisible()
+  await expectAllMasked(page, 4)
 })

@@ -54,6 +54,7 @@ interface HostProps {
   defaultEmail?: string
   redirect?: string
   onSignedIn?: () => void
+  passkeyAutofill?: boolean
 }
 
 /**
@@ -129,6 +130,15 @@ afterEach(() => {
 })
 
 describe('SignInLinkForm', () => {
+  it('keeps autocomplete="email" without passkeys and adds the webauthn token with them', () => {
+    renderForm()
+    expect(screen.getByLabelText('Email')).toHaveAttribute('autocomplete', 'email')
+    cleanup()
+
+    renderForm({ passkeyAutofill: true })
+    expect(screen.getByLabelText('Email')).toHaveAttribute('autocomplete', 'username webauthn')
+  })
+
   it('pins the titles and the cooldown the pages share', () => {
     expect(CHECK_INBOX_TITLE).toBe('Check your inbox')
     expect(LINK_DEAD_TITLE).toBe('This link expired or was already used')

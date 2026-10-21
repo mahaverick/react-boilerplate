@@ -30,8 +30,9 @@ shows a read-only Members page (Settings › Workspace › Members).** It offers
 role change, removal, invite, resend or revoke. A staff owner or admin sees one
 line pointing to the staff console. The reason: express refuses those writes
 from staff without a recent sign-in and a reason
-(`requireRecentAuthAndReasonOnPlatformAccess`), and only apex has that step-up
-and reason flow. The member list and pending invitations stay readable.
+(`requireRecentAuthAndReasonOnPlatformAccess`), and only apex has the reason
+flow. This app has "Confirm it's you" (a passkey or an emailed link) for the
+recent sign-in, but no reason prompt. The member list and pending invitations stay readable.
 Staff who are members of the tenant (`access: 'member'`) keep their controls.
 
 ## The current tenant
@@ -114,6 +115,14 @@ and [Sign-out rules](SECURITY.md#sign-out-rules).
   store never gets a `persist` middleware.
 - **`ensureSession()` is the only caller of `/auth/refresh`.** A second call site
   brings back the refresh race, and the existing tests will not see it.
+- **`auth.store.setToken` is the only token swap that is not a sign-in.** Only a
+  "Confirm it's you" result calls it. It keeps the user, so never use it to
+  change who is signed in.
+- **Run a write that may need a recent sign-in through `useStepUp().run`.** A
+  401 `REAUTH_REQUIRED` then opens the dialog and retries once; no caller shows
+  "sign in again". The new shared passkey and step-up files are apex's copy
+  source ([Sibling sync with apex](ARCHITECTURE.md#sibling-sync-with-apex)):
+  change them here first.
 - **Only an auth verdict signs a user out** (`isAuthVerdict`). If you widen it to
   any error, every user is signed out during a deploy.
 

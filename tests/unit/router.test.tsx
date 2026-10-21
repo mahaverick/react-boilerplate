@@ -8,11 +8,12 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { AxiosError, AxiosHeaders } from 'axios'
 import { act, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { templatesReady } from '@/components/shared/pending-templates'
 import { noteError } from '@/observability/errors'
-import { router as appRouter, ROUTER_DEFAULTS } from '@/router'
+import { router as appRouter, queryClient, ROUTER_DEFAULTS } from '@/router'
 import { settle } from '@/tests/fixtures/timing'
 
 vi.mock('@/observability/errors', async (importOriginal) => ({
@@ -293,5 +294,31 @@ describe('pending navigation', () => {
     await act(() => vi.advanceTimersByTimeAsync(1))
     expect(screen.getByRole('heading', { level: 1, name: 'Page' })).toBeInTheDocument()
     expect(screen.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument()
+  })
+})
+
+describe('the query client retry', () => {
+  /** The default retry predicate under test. */
+  const retry = queryClient.getDefaultOptions().queries?.retry as (
+    failureCount: number,
+    error: unknown
+  ) => boolean
+
+  /** An API refusal with `status` and `code`. */
+  function refusal(status: number, code: string) {
+    return new AxiosError('refused', String(status), undefined, null, {
+      status,
+      statusText: '',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { success: false, message: 'm', code },
+    })
+  }
+
+  it('does not retry a query refused with PASSKEY_SETUP_REQUIRED, and retries a 500 once', () => {
+    expect(retry(0, refusal(403, 'PASSKEY_SETUP_REQUIRED'))).toBe(false)
+    expect(retry(0, refusal(500, 'INTERNAL'))).toBe(true)
+    expect(retry(1, refusal(500, 'INTERNAL'))).toBe(false)
+    expect(retry(0, new Error('network'))).toBe(true)
   })
 })

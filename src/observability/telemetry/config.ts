@@ -19,7 +19,7 @@ export const ANALYTICS_APP = 'react'
  * most 64), so a hand-edited link's address or token is dropped. Every other
  * key, and the hash, is dropped before an event leaves the browser: the
  * `?token=` and `?email=` of `/auth/link` and `/invitations/confirm`, the
- * `?token=` of `/invitations/accept`, and a `?redirect=` wrapping any of them
+ * `?token=` of `/auth/confirm` and `/invitations/accept`, and a `?redirect=` wrapping any of them
  * would otherwise reach PostHog.
  */
 export const ANALYTICS_URL_QUERY_ALLOWLIST: readonly string[] = [

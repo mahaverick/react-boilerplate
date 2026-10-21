@@ -133,6 +133,17 @@ const SURFACES = [
     heading: { name: 'Details', level: 2 },
   },
   {
+    name: 'security (passkeys)',
+    url: '/e2e/harness/?path=/settings/account/security',
+    heading: { name: 'Passkeys', level: 3 },
+    text: 'MacBook Touch ID',
+  },
+  {
+    name: 'passkey setup (required mode)',
+    url: '/e2e/harness/?path=/dashboard&passkeys=required&setup=1',
+    heading: { name: 'Create your passkey', level: 1 },
+  },
+  {
     name: 'security (methods loading)',
     url: '/e2e/harness/?path=/settings/account/security&hold=/api/v1/auth/providers',
     heading: { loading: 'section', heading: { name: 'Security', level: 1 } },
@@ -585,6 +596,61 @@ test.describe('command palette', () => {
 
       const result = await runAxe(page, '[role="dialog"]')
       expect(report('palette', theme, result), report('palette', theme, result)).toBe('')
+    })
+  }
+})
+
+// Each passkey dialog is asserted open and populated: a closed dialog grades clean and proves nothing.
+test.describe('passkey dialogs', () => {
+  for (const theme of THEMES) {
+    test(`the rename dialog meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      await contrastOf(page, '/e2e/harness/?path=/settings/account/security', theme, {
+        name: 'Passkeys',
+        level: 3,
+      })
+      await page.getByRole('button', { name: 'Rename MacBook Touch ID' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Rename passkey' })
+      await expect(dialog.getByRole('textbox', { name: 'Name' })).toBeVisible()
+      await afterAnimations(dialog)
+      await afterFontsAndFrames(page)
+      const result = await runAxe(page, '[role="dialog"]')
+      expect(report('rename dialog', theme, result), report('rename dialog', theme, result)).toBe(
+        ''
+      )
+    })
+
+    test(`the delete dialog meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      await contrastOf(page, '/e2e/harness/?path=/settings/account/security', theme, {
+        name: 'Passkeys',
+        level: 3,
+      })
+      await page.getByRole('button', { name: 'Delete MacBook Touch ID' }).click()
+      const dialog = page.getByRole('alertdialog', { name: 'Delete “MacBook Touch ID”?' })
+      await expect(dialog.getByRole('button', { name: 'Delete passkey' })).toBeVisible()
+      await afterAnimations(dialog)
+      await afterFontsAndFrames(page)
+      const result = await runAxe(page, '[role="alertdialog"]')
+      expect(report('delete dialog', theme, result), report('delete dialog', theme, result)).toBe(
+        ''
+      )
+    })
+
+    test(`the Confirm it’s you dialog meets WCAG AA contrast in ${theme}`, async ({ page }) => {
+      await contrastOf(
+        page,
+        '/e2e/harness/?path=/settings/account/security&stepUp=stale&passkeyList=none',
+        theme,
+        { name: 'Passkeys', level: 3 }
+      )
+      await page.getByRole('button', { name: 'Create a passkey' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Confirm it’s you' })
+      await expect(dialog.getByRole('button', { name: 'Email me a link' })).toBeVisible()
+      await afterAnimations(dialog)
+      await afterFontsAndFrames(page)
+      const result = await runAxe(page, '[role="dialog"]')
+      expect(report('confirm dialog', theme, result), report('confirm dialog', theme, result)).toBe(
+        ''
+      )
     })
   }
 })

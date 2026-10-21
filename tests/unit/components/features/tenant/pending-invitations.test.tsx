@@ -9,6 +9,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { StepUpProvider } from '@/components/features/step-up/step-up-provider'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
 import { toast } from '@/lib/toast'
 import { listPage } from '@/tests/fixtures/list-page'
@@ -56,7 +57,11 @@ function renderPanel(myRole: 'owner' | 'admin' = 'owner') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createRouter({
     routeTree: createRootRoute({
-      component: () => <PendingInvitations slug="acme" myRole={myRole} />,
+      component: () => (
+        <StepUpProvider>
+          <PendingInvitations slug="acme" myRole={myRole} />
+        </StepUpProvider>
+      ),
     }),
     history: createMemoryHistory({ initialEntries: ['/'] }),
   })

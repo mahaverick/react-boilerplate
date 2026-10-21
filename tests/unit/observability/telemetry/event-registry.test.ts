@@ -48,6 +48,7 @@ describe('the browser event registry', () => {
       | 'maintenance_page_viewed'
       | 'sign_in_link_requested'
       | 'sign_in_completed'
+      | 'passkey_prompt_cancelled'
     >()
     expect(REGISTRY_HAS_NO_FREE_STRINGS).toBe(true)
   })
@@ -59,8 +60,18 @@ describe('the browser event registry', () => {
     track('sign_in_completed', { method: 'google' })
     // @ts-expect-error a free string is no method
     track('sign_in_completed', { method: 'a@b.test' })
+    track('sign_in_completed', { method: 'passkey' })
     expectTypeOf<BrowserEventProps['sign_in_completed']>().toEqualTypeOf<{
-      method: 'link' | 'google'
+      method: 'link' | 'google' | 'passkey'
+    }>()
+  })
+
+  it('types passkey_prompt_cancelled by ceremony', () => {
+    track('passkey_prompt_cancelled', { ceremony: 'confirm' })
+    // @ts-expect-error a free string is no ceremony
+    track('passkey_prompt_cancelled', { ceremony: 'a@b.test' })
+    expectTypeOf<BrowserEventProps['passkey_prompt_cancelled']>().toEqualTypeOf<{
+      ceremony: 'sign_in' | 'create' | 'confirm'
     }>()
   })
 

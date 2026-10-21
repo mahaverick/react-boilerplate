@@ -21,7 +21,7 @@ export interface SocialProvider {
  * (its `GET /auth/providers` is the signed-in caller's linked methods), and it
  * mounts `/auth/google` only while Google OAuth is configured, so a deployment
  * without Google removes its entry here. An empty list renders no divider and
- * no buttons. Google's start names this app (`app=web`) so the callback comes
+ * no buttons. Google's start names this app (`app=` and `FRONTEND_APP`, in `GOOGLE_OAUTH_PATH`) so the callback comes
  * back here, and carries the landing path, which the API keeps only when its
  * own redirect rule accepts it.
  */
@@ -30,7 +30,7 @@ export const SOCIAL_PROVIDERS: readonly SocialProvider[] = [
     id: 'google',
     label: 'Google',
     hrefFor: (redirect) =>
-      `${GOOGLE_OAUTH_PATH}?app=web${redirect ? `&redirect=${encodeURIComponent(redirect)}` : ''}`,
+      `${GOOGLE_OAUTH_PATH}${redirect ? `&redirect=${encodeURIComponent(redirect)}` : ''}`,
     Icon: IconBrandGoogleFilled,
   },
 ]

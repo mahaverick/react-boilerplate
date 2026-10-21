@@ -23,6 +23,9 @@ import {
   MEMBERSHIP_ID_2,
   NOTIFICATION_ID,
   NOTIFICATION_ID_2,
+  PASSKEY_ID,
+  PASSKEY_ID_2,
+  PASSKEY_ID_3,
   STAFF_USER_ID,
   TENANT_ID,
   TENANT_ID_2,
@@ -31,6 +34,7 @@ import {
   USER_ID_2,
 } from '../../tests/fixtures/ids'
 import { listPage } from '../../tests/fixtures/list-page'
+import { USER_HANDLE } from '../../tests/fixtures/user-handle'
 
 const TENANT = {
   id: TENANT_ID,
@@ -348,8 +352,11 @@ const flagHandlers =
   new URLSearchParams(location.search).get('flags') === 'network'
     ? []
     : [
-        http.get('/api/v1/flags', () =>
-          ok({ flags: FLAG_FALLBACKS, evaluatedAt: '2026-10-05T09:00:00.000Z' }, 'Flags.')
+        http.get(
+          '/api/v1/flags',
+          () =>
+            setupRefusal() ??
+            ok({ flags: FLAG_FALLBACKS, evaluatedAt: '2026-10-05T09:00:00.000Z' }, 'Flags.')
         ),
         http.get('/api/v1/tenants/acme/flags', () =>
           ok({ flags: FLAG_FALLBACKS, evaluatedAt: '2026-10-05T09:00:00.000Z' }, 'Flags.')
@@ -408,27 +415,252 @@ const sectionHandlers = [
   ),
 ]
 
+/** The probe's passkey name, for `?pii=probe`: the first row carries it. */
+const PROBE_PASSKEY_NAME = 'Pii Probe’s phone'
+
+/**
+ * `?passkeys=off|optional|required` sets the config mode (default `optional`).
+ * In `off` every passkey route but the config answers express's unknown-route 404.
+ */
+const passkeyMode = (params.get('passkeys') ?? 'optional') as 'off' | 'optional' | 'required'
+
+/**
+ * `?setup=1` is required mode for an account with no passkey yet: `/flags`,
+ * `/tenants` and `POST /auth/passkeys/step-up/options` answer 403
+ * `PASSKEY_SETUP_REQUIRED` until a registration verify succeeds, as express's
+ * allowlist does. It also starts the list empty unless `?passkeyList=` says otherwise.
+ */
+const setupMode = params.get('setup') === '1'
+let setupDone = !setupMode
+
+/** `?passkeyList=none|one|two` (default `two`, or `none` under `?setup=1`). */
+const passkeyListMode = params.get('passkeyList') ?? (setupMode ? 'none' : 'two')
+
+/**
+ * `?stepUp=stale|fresh` (default `fresh`). `stale` answers registration options
+ * and DELETE with 401 `REAUTH_REQUIRED` until a passkey or link step-up verify succeeds.
+ */
+let stepUpFresh = params.get('stepUp') !== 'stale'
+
+/** The harness user's passkeys, oldest first; a registration appends, a delete removes. */
+const passkeys = [
+  {
+    id: PASSKEY_ID,
+    name: params.get('pii') === 'probe' ? PROBE_PASSKEY_NAME : 'MacBook Touch ID',
+    provider: { name: 'iCloud Keychain', iconLight: null, iconDark: null },
+    synced: true,
+    createdAt: '2026-09-01T10:00:00.000Z',
+    lastUsedAt: '2026-10-01T10:00:00.000Z',
+    credentialId: 'Y3JlZGVudGlhbC0x',
+  },
+  {
+    id: PASSKEY_ID_2,
+    name: 'Work security key',
+    provider: { name: 'YubiKey 5', iconLight: null, iconDark: null },
+    synced: false,
+    createdAt: '2026-09-15T10:00:00.000Z',
+    lastUsedAt: null,
+    credentialId: 'Y3JlZGVudGlhbC0y',
+  },
+].slice(0, passkeyListMode === 'none' ? 0 : passkeyListMode === 'one' ? 1 : 2)
+
+/** express's unknown-route 404, which every passkey route but the config answers in `off` mode. */
+function unknownRoute() {
+  return fail('Route not found', 404, 'not_found')
+}
+
+/** The 403 that required mode answers while the account has no passkey, or null once it has one. */
+function setupRefusal() {
+  return setupDone
+    ? null
+    : fail(
+        'Create a passkey to continue. Every account here needs one.',
+        403,
+        'PASSKEY_SETUP_REQUIRED'
+      )
+}
+
+/** The 401 a stale sign-in answers for a write that needs a recent confirmation, or null when fresh. */
+function reauthRefusal() {
+  return stepUpFresh ? null : fail('Confirm it’s you to continue.', 401, 'REAUTH_REQUIRED')
+}
+
+/** A request challenge for `rpId` `localhost`, the harness's origin. */
+function requestOptions() {
+  return {
+    challenge: 'aGFybmVzcy1jaGFsbGVuZ2U',
+    rpId: 'localhost',
+    timeout: 60000,
+    userVerification: 'required',
+  }
+}
+
+/**
+ * A 400 when the request body is not exactly `expected` (the contract's strict bodies), else
+ * `null`. Keeps a wrong wire shape from passing through the harness unseen.
+ */
+async function wrongBody(request: Request, expected: Record<string, unknown>) {
+  const body = (await request
+    .clone()
+    .json()
+    .catch(() => null)) as unknown
+  return JSON.stringify(body) === JSON.stringify(expected)
+    ? null
+    : fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
+}
+
+/** The list answer: the passkeys and the user handle. */
+function passkeyList() {
+  return { passkeys, userHandle: USER_HANDLE }
+}
+
+/** Handlers for the twelve passkey and step-up calls of the contract. */
+const passkeyHandlers = [
+  http.get('/api/v1/auth/passkeys/config', () =>
+    ok({ mode: passkeyMode, rpId: 'localhost' }, 'Passkey config retrieved.')
+  ),
+  http.post('/api/v1/auth/passkeys/sign-in/options', async ({ request }) =>
+    passkeyMode === 'off'
+      ? unknownRoute()
+      : ((await wrongBody(request, {})) ??
+        ok({ challengeId: 'harness-sign-in', options: requestOptions() }, 'Options.'))
+  ),
+  http.post('/api/v1/auth/passkeys/sign-in/verify', () => {
+    if (passkeyMode === 'off') return unknownRoute()
+    hasRefreshCookie = true
+    return ok(
+      { user: testUser, accessToken: 'harness-token', isNewUser: false, redirect: null },
+      'Signed in.'
+    )
+  }),
+  http.post('/api/v1/auth/passkeys/step-up/options', async ({ request }) => {
+    if (passkeyMode === 'off') return unknownRoute()
+    const malformed = await wrongBody(request, {})
+    if (malformed) return malformed
+    const refusal = setupRefusal()
+    if (refusal) return refusal
+    if (passkeys.length === 0) {
+      return fail('You have no passkey to confirm with.', 409, 'NO_PASSKEY')
+    }
+    return ok({ challengeId: 'harness-step-up', options: requestOptions() }, 'Options.')
+  }),
+  http.post('/api/v1/auth/passkeys/step-up/verify', async ({ request }) => {
+    if (passkeyMode === 'off') return unknownRoute()
+    // Strict body: `app` is not accepted here.
+    if (
+      'app' in
+      ((await request
+        .clone()
+        .json()
+        .catch(() => ({}))) as object)
+    ) {
+      return fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
+    }
+    stepUpFresh = true
+    return ok({ accessToken: 'harness-token-confirmed' }, 'Confirmed.')
+  }),
+  http.post('/api/v1/auth/step-up/link/request', () =>
+    ok({ resendAvailableAt: new Date(Date.now() + 60_000).toISOString() }, 'Link sent.', 202)
+  ),
+  http.post('/api/v1/auth/step-up/link/verify', () => {
+    stepUpFresh = true
+    return ok({ accessToken: 'harness-token-confirmed' }, 'Confirmed.')
+  }),
+  http.get('/api/v1/auth/passkeys', () =>
+    passkeyMode === 'off' ? unknownRoute() : ok(passkeyList(), 'Passkeys retrieved.')
+  ),
+  http.post('/api/v1/auth/passkeys/registration/options', async ({ request }) => {
+    if (passkeyMode === 'off') return unknownRoute()
+    const malformed = await wrongBody(request, { app: 'web' })
+    if (malformed) return malformed
+    const stale = reauthRefusal()
+    if (stale) return stale
+    return ok(
+      {
+        challengeId: 'harness-registration',
+        options: {
+          challenge: 'aGFybmVzcy1jaGFsbGVuZ2U',
+          rp: { id: 'localhost', name: 'Harness' },
+          user: { id: USER_HANDLE, name: testUser.email, displayName: 'A B' },
+          pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+          timeout: 60000,
+          attestation: 'none',
+          authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+        },
+      },
+      'Options.'
+    )
+  }),
+  http.post('/api/v1/auth/passkeys/registration/verify', () => {
+    if (passkeyMode === 'off') return unknownRoute()
+    const stale = reauthRefusal()
+    if (stale) return stale
+    const passkey = {
+      id: PASSKEY_ID_3,
+      name: 'Passkey 3',
+      provider: { name: 'Chrome on Mac', iconLight: null, iconDark: null },
+      synced: false,
+      createdAt: '2026-10-21T10:00:00.000Z',
+      lastUsedAt: null,
+      credentialId: 'Y3JlZGVudGlhbC0z',
+    }
+    passkeys.push(passkey)
+    setupDone = true
+    return ok({ passkey }, 'Passkey created.', 201)
+  }),
+  http.patch('/api/v1/auth/passkeys/:id', async ({ params: route, request }) => {
+    if (passkeyMode === 'off') return unknownRoute()
+    const passkey = passkeys.find((row) => row.id === route.id)
+    if (!passkey) return fail('Passkey not found', 404, 'passkey_not_found')
+    passkey.name = ((await request.json()) as { name: string }).name
+    return ok({ passkey }, 'Passkey renamed.')
+  }),
+  http.delete('/api/v1/auth/passkeys/:id', ({ params: route, request }) => {
+    if (passkeyMode === 'off') return unknownRoute()
+    if (new URL(request.url).searchParams.get('app') !== 'web') {
+      return fail('Query does not match the contract.', 400, 'VALIDATION_ERROR')
+    }
+    const stale = reauthRefusal()
+    if (stale) return stale
+    const index = passkeys.findIndex((row) => row.id === route.id)
+    if (index === -1) return fail('Passkey not found', 404, 'passkey_not_found')
+    if (passkeys.length === 1 && passkeyMode === 'required') {
+      return fail(
+        'Your account needs at least one passkey. Create another before you delete this one.',
+        409,
+        'LAST_PASSKEY'
+      )
+    }
+    passkeys.splice(index, 1)
+    return ok(passkeyList(), 'Passkey deleted.')
+  }),
+]
+
 const worker = setupWorker(
   ...sectionHandlers,
+  ...passkeyHandlers,
   // The signed-in layout reads the page's flags on every route; unmocked, they 401 and sign the harness user out.
   ...flagHandlers,
-  http.get('/api/v1/tenants', () =>
-    ok(
-      listPage(
-        asStaff || !hasTenant
-          ? []
-          : [
-              {
-                tenant: suspended ? { ...TENANT, lifecycleState: 'suspended' } : TENANT,
-                role: selfRole ?? 'owner',
-                isPlatform: false,
-                joinedAt: '2026-01-01T00:00:00.000Z',
-              },
-              ...MORE_TENANTS,
-            ]
-      ),
-      'Tenants retrieved.'
-    )
+  http.get(
+    '/api/v1/tenants',
+    () =>
+      setupRefusal() ??
+      ok(
+        listPage(
+          asStaff || !hasTenant
+            ? []
+            : [
+                {
+                  tenant: suspended ? { ...TENANT, lifecycleState: 'suspended' } : TENANT,
+                  role: selfRole ?? 'owner',
+                  isPlatform: false,
+                  joinedAt: '2026-01-01T00:00:00.000Z',
+                },
+                ...MORE_TENANTS,
+              ]
+        ),
+        'Tenants retrieved.'
+      )
   ),
   http.get('/api/v1/tenants/acme', () =>
     suspended

@@ -10,11 +10,11 @@ describe('SocialSignIn', () => {
     expect(SOCIAL_PROVIDERS.map((provider) => provider.id)).toEqual(['google'])
   })
 
-  it('builds the Google start URL for web, with the redirect when there is one', () => {
+  it('builds the Google start URL for this app, with the redirect when there is one', () => {
     const [google] = SOCIAL_PROVIDERS
-    expect(google?.hrefFor()).toBe(`${GOOGLE_OAUTH_PATH}?app=web`)
+    expect(google?.hrefFor()).toBe(GOOGLE_OAUTH_PATH)
     expect(google?.hrefFor('/tenants/acme?tab=members')).toBe(
-      `${GOOGLE_OAUTH_PATH}?app=web&redirect=%2Ftenants%2Facme%3Ftab%3Dmembers`
+      `${GOOGLE_OAUTH_PATH}&redirect=%2Ftenants%2Facme%3Ftab%3Dmembers`
     )
   })
 
@@ -22,7 +22,7 @@ describe('SocialSignIn', () => {
     render(<SocialSignIn />)
 
     const google = screen.getByRole('link', { name: 'Continue with Google' })
-    expect(google).toHaveAttribute('href', `${GOOGLE_OAUTH_PATH}?app=web`)
+    expect(google).toHaveAttribute('href', GOOGLE_OAUTH_PATH)
     expect(screen.getByText('or')).toBeInTheDocument()
     // Only configured providers: the block's Apple and Meta buttons are not drawn.
     expect(screen.getAllByRole('link')).toHaveLength(1)
@@ -34,7 +34,7 @@ describe('SocialSignIn', () => {
 
     expect(screen.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
       'href',
-      '/api/v1/auth/google?app=web&redirect=%2Ftenants%2Facme'
+      `${GOOGLE_OAUTH_PATH}&redirect=%2Ftenants%2Facme`
     )
   })
 
@@ -64,5 +64,22 @@ describe('SocialSignIn', () => {
       '/api/v1/auth/github?to=/x'
     )
     expect(screen.queryByRole('link', { name: 'Continue with Google' })).not.toBeInTheDocument()
+  })
+
+  it('shows the divider and the extra control first when no provider is configured', () => {
+    render(
+      <SocialSignIn providers={[]} extra={<button type="button">Sign in with a passkey</button>} />
+    )
+
+    expect(screen.getByText('or')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in with a passkey' })).toBeInTheDocument()
+  })
+
+  it('puts the extra control before the providers', () => {
+    render(<SocialSignIn extra={<button type="button">Sign in with a passkey</button>} />)
+
+    const button = screen.getByRole('button', { name: 'Sign in with a passkey' })
+    const link = screen.getByRole('link', { name: 'Continue with Google' })
+    expect(button.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })

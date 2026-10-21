@@ -87,7 +87,7 @@ goes back to the opener, so the palette's own close returns it there. A failed f
 action: Chromium keeps a failed `import()` for the page's lifetime, so there is
 no in-page retry. `pnpm check:bundle` fails if a chunk that holds the palette's
 code is reachable from the entry or the host by static imports, and its entry
-budget is 586,800 B.
+budget is 589,500 B.
 
 Recents live in `localStorage` per user (`palette.recent.v1:<userId>`, five
 tenants, newest first). `logout()` in `auth.store.ts` removes every
@@ -188,15 +188,15 @@ Routes are files under `src/pages/`; `__root.tsx`, `_auth.tsx` and
 `$slug.members.tsx` follow TanStack Router's naming, not the kebab-case rule
 the rest of `src/` follows.
 
-| Route group                                                                   | Guard                                                                                                                                                                                              |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/_app` (dashboard, notifications, tenants, every tenant tab, settings)       | Not signed in: redirect to `/login?redirect=<href>`. Then the tenant guard ([The current tenant in the URL](#the-current-tenant-in-the-url)). Its loader warms the page's flags.                   |
-| `/_auth` (login)                                                              | Signed in: redirect to the dashboard.                                                                                                                                                              |
-| `/welcome`                                                                    | Its own guard: not signed in, redirect to `/login?redirect=/welcome`. A user who already has a tenant goes on to the dashboard.                                                                    |
-| `/`                                                                           | Redirects in `beforeLoad`: signed in to the dashboard, anyone else to `/login`.                                                                                                                    |
-| `/auth/callback`, `/auth/link`, `/invitations/accept`, `/invitations/confirm` | None. These open from Google or from a mailed link, often in a tab that is already signed in, so each page decides for itself; `_auth`'s guard would bounce a visitor the page has just signed in. |
-| `/register`, `/forgot-password`, `/reset-password`, `/verify-email`           | Redirect in `beforeLoad` to `/login?notice=sign-in-link`, dropping any `?token=`. Old mailed links and bookmarks still reach them.                                                                 |
-| `/$`                                                                          | None. The splat route renders `RouteNotFound` inside its own `<main>`.                                                                                                                             |
+| Route group                                                                                    | Guard                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/_app` (dashboard, notifications, tenants, every tenant tab, settings)                        | Not signed in: redirect to `/login?redirect=<href>`. Then the tenant guard ([The current tenant in the URL](#the-current-tenant-in-the-url)). Its loader warms the page's flags.                   |
+| `/_auth` (login)                                                                               | Signed in: redirect to the dashboard.                                                                                                                                                              |
+| `/welcome`                                                                                     | Its own guard: not signed in, redirect to `/login?redirect=/welcome`. A user who already has a tenant goes on to the dashboard.                                                                    |
+| `/`                                                                                            | Redirects in `beforeLoad`: signed in to the dashboard, anyone else to `/login`.                                                                                                                    |
+| `/auth/callback`, `/auth/confirm`, `/auth/link`, `/invitations/accept`, `/invitations/confirm` | None. These open from Google or from a mailed link, often in a tab that is already signed in, so each page decides for itself; `_auth`'s guard would bounce a visitor the page has just signed in. |
+| `/register`, `/forgot-password`, `/reset-password`, `/verify-email`                            | Redirect in `beforeLoad` to `/login?notice=sign-in-link`, dropping any `?token=`. Old mailed links and bookmarks still reach them.                                                                 |
+| `/$`                                                                                           | None. The splat route renders `RouteNotFound` inside its own `<main>`.                                                                                                                             |
 
 Both layout guards stand down while maintenance is `full`
 ([Maintenance mode](#maintenance-mode)). The guards read the auth store
@@ -212,6 +212,20 @@ cannot spend it) and lands on the safe `redirect`, on `/welcome` for a new
 account, or on the dashboard. Every landing passes through `safeRedirect`
 (`src/lib/safe-redirect.ts`) and replaces the token page in history. The
 accept and confirm pages follow the same rules for invitation links.
+
+`/auth/confirm?token=…` is the page the "Confirm it's you" email link opens. It
+is outside the layouts for the same reason, and it posts the token to
+`POST /auth/step-up/link/verify` with the session's bearer, once per page load.
+Its result swaps the access token in place (`setToken`) and posts
+`step_up_confirmed` on the `auth` channel, so the tab that asked retries its
+action. It has no 404 branch: express answers a dead link with 400.
+
+**`AppShell`** (`src/components/layouts/app-shell.tsx`) is the `/_app` route's
+component. It wraps `AppLayout` in `StepUpProvider`, which owns the "Confirm
+it's you" dialog, and in required mode it renders the lazy Create your passkey
+screen in place of `AppLayout` while the setup flag is raised
+([Passkeys](#passkeys)). The URL stays the page the user opened, so after the
+passkey is created the same route renders with no reload.
 
 The Google sign-in button on `/login` is a plain anchor to
 `GOOGLE_OAUTH_PATH`, which `src/constants/routes.ts` derives from
@@ -533,6 +547,15 @@ brought it to 586,530 B, and the members read's `total` opt-out added 67 B. The
 budget is the final 586,597 B rounded up to the next 100 B. The list route
 search types are type-only and cost nothing.
 
+Passkeys raised `ENTRY_BUDGET_BYTES` from 587,500 to 589,500 B (0.34 %), in three
+rulings. The `/auth/confirm` route registration cost about 1.1 KB, since a new
+top-level route cannot be lazy-registered. The Passkeys section and the setup
+screen added lazy-chunk file names to the entry's preload map (`__vite__mapDeps`)
+and split `passkey.queries` out of `login`. Required mode put the setup
+interceptor, its store and the retry predicate in the entry, so the first 403
+is caught. No passkey UI is in the entry, and the WebAuthn package stays in a
+lazy chunk.
+
 **The inbox** is a list in card layout. Its writes (mark read, mark all read,
 delete) are optimistic across every cached page of every view: a read row
 leaves the unread views and lowers an exact unread total by one. Each write
@@ -599,6 +622,11 @@ in the order they are registered:
 | Request   | –     | Trace headers                 | On a same-origin request under the prefix: a `traceparent` when the request has none (a replay keeps its own), and the analytics session id when one may be linked. |
 | Response  | 1     | 401 handling                  | Refreshes and replays once on an expired token; signs out on a verdict; leaves `REAUTH_REQUIRED` to the caller.                                                     |
 | Response  | 2     | `rejectMalformedJsonResponse` | Rejects a 2xx whose body is not a JSON object, such as an HTML page from a misrouted proxy.                                                                         |
+| Response  | 3     | Passkey setup                 | Raises the setup flag on a 403 `PASSKEY_SETUP_REQUIRED` and rejects with the same error (`installPasskeySetupInterceptor`, `src/lib/passkey-setup.ts`).             |
+
+The passkey-setup interceptor is installed from `src/router.tsx`, after the
+maintenance one; the app-side interceptors are not in `src/http/`, which stays
+shared with apex.
 
 A replay goes through the whole chain again. The rules each step enforces,
 and why, are in [Sign-out rules](SECURITY.md#sign-out-rules).
@@ -615,6 +643,9 @@ browser; the header only lets the API's span join a trace the browser chose.
   new token, since the refresh returns only a token. A profile whose id
   differs from the tab's user fails the refresh with
   `SessionIdentityChangedError`.
+- `useAuthStore.setToken()` swaps the access token and keeps the user. It is the
+  only token swap that is not a sign-in: a "Confirm it's you" result (by email
+  link or passkey) calls it so the next write carries a recent sign-in.
 - `isAuthVerdict()` is the one test of whether a failure may end a session.
 - `redirectToLogin()` is the one place a dead session navigates, to
   `/login?redirect=…`.
@@ -625,7 +656,9 @@ browser; the header only lets the API's span join a trace the browser chose.
   confirmation link is out) restores the shared session with
   `ensureSession()` and moves on,
   and a tab that is already signed in ignores it. `step_up_confirmed` is
-  posted by apex's confirm page; this app never sends it.
+  posted by `/auth/confirm` after it confirms; the tab that asked
+  ([Confirm it's you](#confirm-its-you)) hears it through the `step-up-wait`
+  Web Lock and retries its action.
 - `installAnalyticsIdentity()` subscribes to the auth store: a change of
   user resets analytics and drops every cached flag value and exposure mark
   before the next user is identified.
@@ -633,6 +666,51 @@ browser; the header only lets the API's span join a trace the browser chose.
 Why each of these holds, and what breaks if it does not, is in
 [Token storage and refresh](SECURITY.md#token-storage-and-refresh) and
 [Sign-out rules](SECURITY.md#sign-out-rules).
+
+## Passkeys
+
+Express runs passkeys in one of three modes, read from the public
+`GET /auth/passkeys/config` (`{ mode, rpId }`): `off`, `optional` and
+`required`. `usePasskeyConfig` (`src/queries/passkey.queries.ts`) reads it
+without a bearer and treats any failure, a 404 from an API without passkey
+routes included, as `off`. In `off` the app shows no passkey button, no
+Passkeys section and makes no other passkey request.
+
+- **WebAuthn code is lazy.** `src/lib/webauthn.ts` is the only importer of
+  `@simplewebauthn/browser`, through one cached `import()`.
+  `pnpm check:bundle` fails if the package reaches a first-visit chunk, and
+  fails if no chunk holds it.
+- **Sign-in.** `/login` shows "Sign in with a passkey" when the mode is not
+  `off` and the browser supports WebAuthn, and starts a conditional (autofill)
+  request on the email field (`use-passkey-autofill.ts`). Clicking the button,
+  sending a link or leaving the page cancels that request first. A stale autofill
+  pick (`PASSKEY_VERIFICATION_FAILED`) restarts autofill once, quietly.
+- **Settings.** Settings › Security shows the Passkeys section
+  (`passkeys-section.tsx`, `passkey-dialogs.tsx`) between Sign-in methods and
+  Other sessions: list, Create, Rename and Delete. Create and Delete run through
+  `useStepUp().run`, so a `REAUTH_REQUIRED` opens the dialog and retries.
+- **Required mode.** A 403 `PASSKEY_SETUP_REQUIRED` raises
+  `passkey-setup.store`; `AppShell` swaps `AppLayout` for Create your passkey
+  (`passkey-setup-screen.tsx`). `finishPasskeySetup` clears the flag and
+  re-runs the loaders, so the page the user opened renders without a reload.
+  The flag resets on sign-out or a switch of user, not on sign-in. The
+  notification stream (`useNotificationStream`) reads a 403's body, stops and
+  does not reconnect on `PASSKEY_SETUP_REQUIRED`.
+
+### Confirm it's you
+
+`StepUpProvider` and `useStepUp().run(action)` wrap a write that express may
+refuse with 401 `REAUTH_REQUIRED` (tenant invitations and members, creating and
+deleting a passkey). The refusal opens `StepUpDialog` (loaded on first use by an
+explicit cached import; a failed import rejects every waiter and closes). The
+dialog tries the passkey first when the user has one (`NO_PASSKEY` goes straight
+to the link view), offers "Use another method" (an emailed link to open in this
+browser, then `/auth/confirm`) and, from the link view, "Use your passkey
+instead". Either path ends in `setToken`, then the action runs again.
+`src/lib/step-up.ts`, `step-up-presence.ts` (the `step-up-wait` lock) and
+`src/hooks/use-step-up.ts` hold the shared mechanics. This replaces the old
+sign-in-again message on `REAUTH_REQUIRED`; `write-failure.ts` now maps that
+code to the step-up refusal copy.
 
 ## Realtime (this app only)
 
@@ -670,6 +748,9 @@ The hook's connection cycle:
   per-user cap) says nothing about the session, so it reconnects with the
   same token and no refresh, after the longer of the backoff and the
   response's `Retry-After` (capped at five minutes, plus up to 20 % jitter).
+- **A 403 `PASSKEY_SETUP_REQUIRED`** (required mode switched on while the
+  stream was open) raises the setup flag and stops: no reconnect, and the
+  effect idles until the flag clears.
 - **A token change or unmount** cancels the timer and aborts the request.
 
 Each open stream holds two connections in nginx, the browser's and the one
@@ -711,6 +792,9 @@ value, through a dynamic `import()`. The rest of the app imports the barrel,
   (this app's router hook: [Router hooks](#router-hooks-this-app-only)).
 - **Identity follows the auth store**, through `installAnalyticsIdentity` in
   `src/http/session.ts` ([The HTTP layer and session](#the-http-layer-and-session)).
+- **Passkey events.** `sign_in_completed.method` is `'link'`, `'google'` or
+  `'passkey'`. `passkey_prompt_cancelled` carries only the ceremony
+  (`sign_in`, `create` or `confirm`), never a passkey or its name.
 - **Per-app constants** sit at the top of
   `src/observability/telemetry/config.ts`: the `app` property, the query-key
   allowlist, whether consent modes and the cross-domain handoff are
@@ -988,6 +1072,16 @@ request, and the description says what happened there.
 | `public/boot-variant.js`, `index.html`'s `<style id="boot-shell">` block and `#root` markup (not its `<style id="boot-tokens">` colours, each app's own), `tests/unit/boot-shell.test.ts`, `tests/unit/boot-variant.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | One first-paint shell; the colours are pinned to each app's `globals.css`                                                                                                                                                                                                                                                                                                                                                                                  |
 | `src/types/list.types.ts`, `src/schemas/{list,list-request,search}.schemas.ts`, `src/queries/list.queries.ts`, `src/components/shared/data-table/{data-table,data-table-cards,data-table-chip,data-table-column-header,data-table-faceted-filter,data-table-pagination,data-table-sort-menu,data-table-toolbar}.tsx`, `src/components/shared/data-table/{data-table-model,use-list-query,use-list-search}.ts`, `src/components/ui/{popover,checkbox}.tsx`, `tests/fixtures/list-page.ts`, `tests/unit/schemas/{list,search}.schemas.test.ts`, `tests/unit/queries/list.queries.test.ts`, `tests/unit/components/shared/data-table/{list-harness.tsx,use-list-search.test.tsx,data-table.test.tsx,data-table-toolbar.test.tsx}`; the `resetListPositions` import and `afterEach` call in `tests/setup.ts` (the lines, not the file) | Byte-identical list contract and DataTable: one URL shape, one table, one test suite. Each app keeps its own list definitions and query files, columns, `event-registry.ts` entries (`table_*`), constants such as `membership-roles.ts`, and `e2e/fixtures/lists.test.ts`                                                                                                                                                                                 |
 | `src/components/ui/command.tsx`, `src/lib/shortcut.ts`, `src/hooks/use-debounced-value.ts`, `src/states/command-palette.store.ts`, `src/components/shared/command-palette/*` (`command-palette-host.tsx` included, whose open-time read must stay compiler-safe), `tests/unit/hooks/use-debounced-value.test.tsx`, `tests/unit/lib/shortcut.test.ts`, `tests/unit/states/command-palette.store.test.ts`, `tests/unit/components/shared/command-palette/*`; the `### command.tsx` section of `docs/ui-local-edits.md`                                                                                                                                                                                                                                                                                                               | Byte-identical command palette core: one shell, one shortcut, one recents rule, one test suite. `recent-keys.ts` holds the recents' key prefix and the sign-out clear, and each app's `auth.store.ts` (not shared) calls its `clearAllRecents()`. Each app keeps its own `src/components/features/command-palette.tsx` (its commands), the components that register This page commands, its `event-registry.ts` entries and `e2e/fixtures/palette.test.ts` |
+| `src/lib/webauthn.ts`, `src/types/passkey.types.ts`, `src/queries/passkey.queries.ts`, `src/queries/passkey-manage.queries.ts`, `src/schemas/passkey.schemas.ts`, `src/lib/passkey-create-failure.ts`, `src/lib/passkey-sign-in-message.ts`, `tests/unit/lib/webauthn.test.ts`, `tests/unit/queries/passkey.queries.test.tsx`, `tests/unit/queries/passkey-sign-in-cancel.test.tsx`, `tests/fixtures/user-handle.ts`, `tests/unit/schemas/passkey.schemas.test.ts`                                                                                                                                                                                                                                                                                                                                                                 | One WebAuthn wrapper, one set of passkey types, queries and wire shapes. `passkey-create-failure.ts` holds `createFailureMessage`, which the Passkeys section and the setup screen both use. `check-bundle.mjs`'s `@simplewebauthn/browser` rule keeps the package lazy in both.                                                                                                                                                                           |
+| `src/lib/step-up.ts`, `src/lib/step-up-presence.ts`, `src/hooks/use-step-up.ts`, `src/queries/step-up.queries.ts`, `src/components/features/step-up/*`, `tests/mocks/{step-up,jwt,web-locks}.ts` and their tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | "Confirm it's you": the dialog, the passkey view, the `step-up-wait` lock and the link requests (`{ app: FRONTEND_APP }`).                                                                                                                                                                                                                                                                                                                                 |
+| `src/components/features/auth/{passkey-sign-in,social-sign-in}.tsx`, `src/hooks/use-passkey-autofill.ts` and their tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | The sign-in passkey button, `SocialSign-in`'s extra slot and the conditional-UI autofill request.                                                                                                                                                                                                                                                                                                                                                          |
+| `src/components/features/profile/{passkeys-section,passkey-dialogs}.tsx`, `src/components/features/passkeys/passkey-setup-screen.tsx`, `src/states/passkey-setup.store.ts`, `src/lib/passkey-setup.ts` and their tests (`passkey-dialogs.tsx` is covered by the Passkeys section's test; `security-section-chunk-failure.test.tsx` joins `security-section`'s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | The Passkeys section and its dialogs, the required-mode setup screen, and the setup flag with its interceptor.                                                                                                                                                                                                                                                                                                                                             |
+| `src/components/layouts/app-shell.tsx`, `src/components/shared/lazy-boundary.tsx`, `e2e/helpers/virtual-authenticator.ts`, `tests/unit/components/shared/lazy-boundary.test.tsx`, `tests/unit/components/layouts/app-shell-chunk-failure.test.tsx`, `tests/unit/components/features/profile/security-section-chunk-failure.test.tsx`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | The shell that mounts `StepUpProvider` and swaps in the setup screen; the error boundary that keeps a failed lazy passkey chunk from taking out the route (nothing for the Passkeys section, a Reload message for the setup screen); the CDP virtual authenticator for e2e. Apex's `_app.tsx` renders `AppShell`, and its `router.tsx` calls `installPasskeySetupInterceptor(apiClient)`.                                                                  |
+| `src/constants/frontend-app.ts`, `src/lib/action-message.ts` and `tests/mocks/setup-refusal.ts` (per app, not shared)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | The three seam files. `FRONTEND_APP` is `'web'` here and `'apex'` there; `actionMessageFrom` is `messageFrom` here and `staffMessageFrom` there; `refuseShellUntilCreated` refuses the first read the app's shell makes (react: `GET /api/v1/tenants`; apex: `GET /api/v1/platform/me/flags`), which the setup screen's test needs. Shared passkey files and tests import them, so they differ on purpose.                                                 |
+
+Apex P3 copies every passkey and step-up file above from the P2 merge commit
+byte for byte (`cmp` clean), apart from the two per-app seam files. Change a
+shared file here first, then copy it.
 
 The error scrubber is also held in step with express-boilerplate; see
 [The scrubber](SECURITY.md#the-scrubber).

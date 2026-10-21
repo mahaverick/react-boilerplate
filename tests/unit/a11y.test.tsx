@@ -20,6 +20,7 @@ import { useAuthStore } from '@/states/auth.store'
 import { useCommandPaletteStore } from '@/states/command-palette.store'
 import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
+import { usePasskeySetupStore } from '@/states/passkey-setup.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
 import {
@@ -755,6 +756,48 @@ describe('signed-in pages', () => {
       await expectNoViolationsWhileLoading()
     })
 
+    /** Serves two passkeys on the security page. */
+    function servePasskeys() {
+      /** One passkey row as the API lists it. */
+      const passkey = (index: number) => ({
+        id: `pk-${String(index)}`,
+        name: `Passkey ${String(index)}`,
+        provider: { name: 'iCloud Keychain', iconLight: null, iconDark: null },
+        synced: true,
+        createdAt: '2026-10-01T10:00:00.000Z',
+        lastUsedAt: null,
+        credentialId: `cred-${String(index)}`,
+      })
+      server.use(
+        http.get('/api/v1/auth/passkeys', () =>
+          ok({ passkeys: [passkey(1), passkey(2)], userHandle: 'HANDLE' }, 'Passkeys retrieved.')
+        )
+      )
+    }
+
+    it('the security page with two passkeys has no axe violations', async () => {
+      servePasskeys()
+      renderAppAt('/settings/account/security')
+      await screen.findByText('Passkey 2')
+      await expectNoViolations()
+    })
+
+    it('the open delete-passkey dialog has no axe violations', async () => {
+      servePasskeys()
+      renderAppAt('/settings/account/security')
+      await userEvent.setup().click(await screen.findByRole('button', { name: 'Delete Passkey 1' }))
+      await screen.findByRole('alertdialog')
+      await expectNoViolations()
+    })
+
+    it('the open rename-passkey dialog has no axe violations', async () => {
+      servePasskeys()
+      renderAppAt('/settings/account/security')
+      await userEvent.setup().click(await screen.findByRole('button', { name: 'Rename Passkey 1' }))
+      await screen.findByRole('dialog', { name: 'Rename passkey' })
+      await expectNoViolations()
+    })
+
     it('the dashboard with the tenant list failed has no axe violations', async () => {
       server.use(http.get('/api/v1/tenants', () => fail('Something went wrong', 500)))
       renderAppAt('/dashboard')
@@ -777,6 +820,24 @@ function serveMaintenance(mode: 'read_only' | 'full') {
     )
   )
 }
+
+describe('required-mode passkey setup', () => {
+  afterEach(() => {
+    usePasskeySetupStore.setState({ required: false, message: null })
+  })
+
+  it('the Create your passkey screen has no axe violations', async () => {
+    signIn()
+    mockSignedInData()
+    usePasskeySetupStore.setState({
+      required: true,
+      message: 'Create a passkey to continue. Every account here needs one.',
+    })
+    renderAppAt('/dashboard')
+    await screen.findByRole('heading', { name: 'Create your passkey', level: 1 })
+    await expectNoViolations()
+  })
+})
 
 describe('maintenance mode', () => {
   it('the full maintenance page, signed in, has no axe violations', async () => {
@@ -1015,6 +1076,23 @@ describe('auth link states', () => {
   })
 })
 
+/** The confirm-it's-you page, which has a state for each outcome; the card without a token is the one that needs no request. */
+describe('auth confirm states', () => {
+  it('auth confirm incomplete link has no axe violations', async () => {
+    signOut()
+    renderAppAt('/auth/confirm')
+    await screen.findByRole('heading', { level: 1, name: 'This link is incomplete' })
+    await expectNoViolations()
+  })
+
+  it('auth confirm signed out has no axe violations', async () => {
+    signOut()
+    renderAppAt(`/auth/confirm?token=${'t'.repeat(43)}`)
+    await screen.findByRole('heading', { level: 1, name: 'Sign in to confirm' })
+    await expectNoViolations()
+  })
+})
+
 /**
  * Overlays and menus, which a default-state sweep never sees. A Base UI `Dialog` with no
  * `Title` gets `aria-labelledby: null` and, unlike Radix, emits no development warning, so
@@ -1038,6 +1116,45 @@ describe('open overlays', () => {
     const dialog = await screen.findByRole('alertdialog')
     // Asserted directly rather than implied by a clean axe run: this catches a dropped Title.
     expect(dialog).toHaveAccessibleName('Remove Cleo D?')
+    await expectNoViolations()
+  })
+
+  it('has no violations with the confirm-it’s-you dialog open, and the dialog is named', async () => {
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('Confirm it’s you to continue.', 401, 'REAUTH_REQUIRED')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm it’s you' })
+    await within(dialog).findByRole('button', { name: 'Email me a link' })
+    await expectNoViolations()
+  })
+
+  it('has no violations with the confirm-it’s-you dialog open on its passkey view', async () => {
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('Confirm it’s you to continue.', 401, 'REAUTH_REQUIRED')
+      ),
+      http.post('/api/v1/auth/passkeys/step-up/options', () =>
+        ok({ challengeId: 'C1', options: { challenge: 'CHALLENGE' } }, 'Options.')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    // jsdom has no WebAuthn, so the prompt fails and the view stays, with its notice and buttons.
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm it’s you' })
+    await within(dialog).findByText(/couldn’t use your passkey/)
+    expect(within(dialog).getByRole('button', { name: 'Use another method' })).toBeVisible()
     await expectNoViolations()
   })
 
@@ -1304,7 +1421,7 @@ describe('keyboard', () => {
     ]
     expect(screen.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
       'href',
-      `${GOOGLE_OAUTH_PATH}?app=web`
+      GOOGLE_OAUTH_PATH
     )
 
     for (const element of expected) {

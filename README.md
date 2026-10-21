@@ -1,8 +1,9 @@
 # React Boilerplate
 
 A React 19 + TypeScript single-page app, built to talk to the
-`express-boilerplate` API (6.0.0 or later). People sign in by emailed link or
-Google; there are no passwords. Session handling, routing guards, forms, tenant
+`express-boilerplate` API (6.0.0 or later). People sign in by emailed link, Google or
+(when the API turns them on) a passkey; there are no passwords. Passkey routes
+need express 8.0.0 or later; an older API reads as passkeys off. Session handling, routing guards, forms, tenant
 management, a Settings area for the account and the current tenant, and a live
 notification stream are wired up, so a new project starts here rather than at
 `create-vite`.
@@ -206,6 +207,13 @@ Unit tests live under `tests/unit/`, mirroring `src/`. No test file lives under
 `tests/unit/a11y.test.tsx` is an **accessibility gate**: no rule is disabled to
 pass it, and a violation is fixed in the markup. What it covers, and why colour
 contrast is measured elsewhere, is in [CLAUDE.md](CLAUDE.md#accessibility).
+
+The `fixtures` project covers passkeys in Chrome with a virtual authenticator
+(`e2e/helpers/virtual-authenticator.ts`, over CDP): the harness answers the
+contract's calls (`?passkeys=off|optional|required`, `?passkeyList=`,
+`?stepUp=`, `?setup=1`), while the browser builds and signs the credential. The
+private keys are generated at run time. `e2e/live/passkeys.test.ts` runs the
+same flows against an express with passkeys on.
 
 Playwright has five projects in `e2e/`:
 

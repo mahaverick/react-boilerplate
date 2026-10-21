@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect, type Page } from '@playwright/test'
 
 /**
  * Stamped on every fallback answer: an `/api` response without it came from
@@ -18,6 +18,17 @@ const MAINTENANCE_OFF = {
   message: 'Maintenance status retrieved.',
   statusCode: 200,
   data: { mode: 'off', message: null, since: null },
+}
+
+/** The sign-in page's public passkey config read, made by every signed-out page that shows sign-in. */
+const PASSKEY_CONFIG = 'GET /api/v1/auth/passkeys/config'
+
+/** The config answer for an API with passkeys off, so a page outside the harness shows no passkey UI. */
+const PASSKEYS_OFF = {
+  success: true,
+  message: 'Passkey config retrieved.',
+  statusCode: 200,
+  data: { mode: 'off', rpId: '' },
 }
 
 /** Whether a request URL is an `/api` call, which the fallback answers. */
@@ -47,8 +58,8 @@ type ApiFallback = {
 /**
  * Playwright's `test`, extended to answer every `/api` request that would
  * leave the browser, the MSW service worker's pass-throughs included, with
- * express's 401 envelope, except the maintenance status read, which gets
- * express's `off` answer. A route a test adds itself is registered later, so
+ * express's 401 envelope, except the maintenance status read and the passkey
+ * config read, which get express's `off` answer. A route a test adds itself is registered later, so
  * Playwright consults it first; if it lets a request through with
  * `route.continue()`, that reaches the dev server's proxy and is caught only at
  * teardown. A fulfilled response must carry `FALLBACK_HEADER` or teardown
@@ -65,16 +76,43 @@ export const test = base.extend<{ apiFallback: ApiFallback }>({
     async ({ context }, use) => {
       const answered: string[] = []
       const escaped: string[] = []
+      /** Pages between a navigation's request and its commit. Their old document is outside the service worker, and a 401 would sign it out and redirect over the navigation, so its calls are aborted. */
+      const navigating = new Set<Page>()
+      /** Tracks `page`'s main-frame navigations in `navigating`. */
+      const watch = (page: Page) => {
+        page.on('request', (request) => {
+          if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+            navigating.add(page)
+          }
+        })
+        page.on('framenavigated', (frame) => {
+          if (frame === page.mainFrame()) navigating.delete(page)
+        })
+      }
+      context.pages().forEach(watch)
+      context.on('page', watch)
       await context.route(isApi, async (route) => {
         const request = route.request()
         const { pathname } = new URL(request.url())
         const call = `${request.method()} ${pathname}`
+        if (navigating.size > 0) {
+          await route.abort('aborted')
+          return
+        }
         answered.push(call)
         if (call === MAINTENANCE_STATUS) {
           await route.fulfill({
             status: 200,
             headers: { [FALLBACK_HEADER]: '1', 'Maintenance-Mode': 'off' },
             json: MAINTENANCE_OFF,
+          })
+          return
+        }
+        if (call === PASSKEY_CONFIG) {
+          await route.fulfill({
+            status: 200,
+            headers: { [FALLBACK_HEADER]: '1' },
+            json: PASSKEYS_OFF,
           })
           return
         }
@@ -95,7 +133,10 @@ export const test = base.extend<{ apiFallback: ApiFallback }>({
 
       expect(escaped, '/api responses that came from the dev server proxy').toEqual([])
       expect(
-        answered.filter((call) => call !== BOOTSTRAP_REFRESH && call !== MAINTENANCE_STATUS),
+        answered.filter(
+          (call) =>
+            call !== BOOTSTRAP_REFRESH && call !== MAINTENANCE_STATUS && call !== PASSKEY_CONFIG
+        ),
         'endpoints nothing mocked, answered by the fallback'
       ).toEqual([])
     },

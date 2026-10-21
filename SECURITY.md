@@ -87,7 +87,9 @@ browser storage is readable by whoever runs the page, so:
     (`_retried` stops a loop), and send the user to `/login` only when the
     refresh failed with a verdict;
   - a 401 with `REAUTH_REQUIRED`: the sign-in is too old for the action,
-    not a bad session; it rejects untouched for the caller to handle;
+    not a bad session; it rejects untouched, and `useStepUp().run` opens
+    "Confirm it's you" and retries the action once ([Confirm it's
+    you](#confirm-its-you-in-this-app));
   - any other 401 on a request that carried a bearer token: sign this tab
     out, broadcast the logout and redirect to `/login`;
   - a 401 on a request with no token (a link request or a token page's
@@ -164,6 +166,65 @@ browser storage is readable by whoever runs the page, so:
   `/login?notice=sign-in-link`, dropping their `?token=` before anything
   renders.
 
+## Passkeys
+
+Express is the relying party; this app only runs the browser half. Why each
+rule holds:
+
+- **The relying-party ID comes from the API.** `GET /auth/passkeys/config`
+  returns `rpId`, and the options the API signs carry it. The browser refuses
+  a ceremony for an RP ID outside the page's own origin, so a wrong value
+  fails closed. The app never builds an RP ID, challenge or credential
+  parameter of its own.
+- **User verification is the server's to require.** The options set
+  `userVerification: 'required'` and express checks the verified flag on
+  every answer. Nothing in the browser can lower it; a hand-built request
+  that skips it is refused by the API.
+- **A passkey is checked by the server, never by the app.** The app posts
+  the browser's response with its `challengeId` and trusts only the API's
+  answer.
+- **The WebAuthn package loads on demand.** `src/lib/webauthn.ts` is the only
+  importer of `@simplewebauthn/browser`, through one cached `import()`.
+  `pnpm check:bundle` fails if it reaches a first-visit chunk. A failed import
+  surfaces as a prompt failure, never as a hang.
+- **Signals tell the browser what the server knows, and nothing else.** After
+  a refused credential (`PASSKEY_UNKNOWN`), a delete, and a create or rename,
+  the app calls the browser's `signalUnknownCredential`,
+  `signalAllAcceptedCredentials` and `signalCurrentUserDetails`. The data
+  is the credential ids the account already holds, its user handle and its
+  name and address, sent to the browser's own passkey store, not the network.
+  Each is feature-detected and fire-and-forget, and `PASSKEY_SIGNALS` in
+  `src/lib/webauthn.ts` turns each off for a browser that misbehaves.
+- **Passkey names are personal data.** A name is whatever the person typed
+  (or the device's name), so the list and both dialogs wrap it in `<Pii>`, and
+  the row buttons' `aria-label` is masked by `mask-attribute.ts`
+  (`e2e/fixtures/pii.test.ts` scans them).
+- **Analytics sees the ceremony, not the passkey.** `passkey_prompt_cancelled`
+  carries `sign_in`, `create` or `confirm` and nothing else;
+  `sign_in_completed.method` gains `'passkey'`.
+- **Required mode is enforced by the API.** The setup screen is a convenience:
+  the API answers 403 `PASSKEY_SETUP_REQUIRED` to every other authenticated
+  route until the account holds a passkey, whatever the page shows. The
+  notification stream stops on that refusal instead of retrying.
+
+### Confirm it's you in this app
+
+Writes that need a recent sign-in (tenant invitations and members, creating
+and deleting a passkey) are refused with 401 `REAUTH_REQUIRED`. The dialog
+confirms by passkey (`/auth/passkeys/step-up/*`) or by an emailed link that
+opens `/auth/confirm` in the browser that asked. Rules:
+
+- **Google cannot confirm.** It cannot prove a fresh sign-in, so there is no
+  "Re-confirm with Google"; the options are the passkey and the email link.
+- **A confirmation swaps the access token and nothing else.** `setToken` keeps
+  the user, so a confirmation never changes who is signed in.
+- **`/auth/confirm` posts its token once per page load**, with the session's
+  bearer, and drops `token` from the address bar once the outcome is final. It
+  is a token page: see [CSP and headers](#csp-and-headers).
+- **The link opens in the browser that asked.** The page tells the waiting
+  tab through the `auth` channel and the `step-up-wait` Web Lock; where the
+  browser cannot say whether a tab waits, the page says to return to it.
+
 ## CSP and headers
 
 nginx sends these on every response it answers itself (`nginx.conf`):
@@ -229,7 +290,7 @@ The policy is enforced, not report-only:
 - **The access log keeps no query string.** Its server-level format
   records `$uri`, not `$request`, because every SPA route falls back to
   `index.html`, including the token pages: `/auth/link?token=…&email=…`,
-  `/invitations/accept?token=…` and `/invitations/confirm?token=…&email=…`,
+  `/auth/confirm?token=…`, `/invitations/accept?token=…` and `/invitations/confirm?token=…&email=…`,
   whose tokens are credentials mailed to users. `Referrer-Policy: no-referrer`
   on every response keeps a token page's URL out of the referrer the browser
   sends to any request it makes, and out of the logged referrer. The pages

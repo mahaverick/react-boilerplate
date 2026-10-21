@@ -50,6 +50,7 @@ import {
 } from '@/constants/roles'
 import { PLATFORM_TENANT_SLUG } from '@/constants/routes'
 import { useFocusAfter } from '@/hooks/use-focus-after'
+import { useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
 import { toast } from '@/lib/toast'
@@ -189,6 +190,8 @@ function RoleCell({
   onGone: () => void
 }) {
   const updateRole = useUpdateMemberRole(slug)
+  const stepUp = useStepUp()
+  const stepping = useStepUpWaiting()
   const targetRole = member.membership.role
   const name = memberName(member)
 
@@ -200,18 +203,23 @@ function RoleCell({
     <div className="grid gap-1">
       <Select
         value={targetRole}
-        disabled={isLastOwner || ownersPending || updateRole.isPending}
+        // The refused change is not pending while its step-up waits, so the select stays off.
+        disabled={isLastOwner || ownersPending || updateRole.isPending || stepping}
         onValueChange={(value: string | null) => {
           if (value === null || value === targetRole) return
-          updateRole.mutateAsync({ userId: member.user.id, role: value as MembershipRole }).then(
-            () => {
-              toast.success(`${name} is now ${ROLE_LABELS[value as MembershipRole]}.`)
-            },
-            (error: unknown) => {
-              toast.error(memberWriteFailureMessage(error))
-              if (isMemberNotFound(error)) onGone()
-            }
-          )
+          stepUp
+            .run(() =>
+              updateRole.mutateAsync({ userId: member.user.id, role: value as MembershipRole })
+            )
+            .then(
+              () => {
+                toast.success(`${name} is now ${ROLE_LABELS[value as MembershipRole]}.`)
+              },
+              (error: unknown) => {
+                toast.error(memberWriteFailureMessage(error))
+                if (isMemberNotFound(error)) onGone()
+              }
+            )
         }}
       >
         <SelectTrigger
@@ -280,6 +288,8 @@ function RemoveMemberButton({
 }) {
   const removeMember = useRemoveMember(slug)
   const leaveTenant = useLeaveTenant(slug)
+  const stepUp = useStepUp()
+  const stepping = useStepUpWaiting()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
@@ -291,7 +301,7 @@ function RemoveMemberButton({
   async function leave() {
     const tenantName = queryClient.getQueryData(tenantQueryOptions(slug).queryKey)?.name
     try {
-      await leaveTenant.mutateAsync()
+      await stepUp.run(() => leaveTenant.mutateAsync())
       setIsOpen(false)
       toast.success(leftTenant(tenantName))
     } catch (error) {
@@ -320,7 +330,14 @@ function RemoveMemberButton({
   }
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+    <AlertDialog
+      open={isOpen}
+      onOpenChange={(next) => {
+        // While the write waits on "Confirm it's you", Escape and outside presses belong to it.
+        if (!next && stepping) return
+        setIsOpen(next)
+      }}
+    >
       <AlertDialogTrigger
         render={
           <Button variant="outline" size="sm" disabled={isPending}>
@@ -363,24 +380,26 @@ function RemoveMemberButton({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
-            disabled={isPending}
+            disabled={isPending || stepping}
             onClick={() => {
               if (isSelf) {
                 void leave()
                 return
               }
-              removeMember.mutateAsync(member.user.id).then(
-                () => {
-                  setIsOpen(false)
-                  toast.success(`${name} removed.`)
-                  onRemoved()
-                },
-                (error: unknown) => {
-                  setIsOpen(false)
-                  toast.error(memberWriteFailureMessage(error))
-                  if (isMemberNotFound(error)) onRemoved()
-                }
-              )
+              stepUp
+                .run(() => removeMember.mutateAsync(member.user.id))
+                .then(
+                  () => {
+                    setIsOpen(false)
+                    toast.success(`${name} removed.`)
+                    onRemoved()
+                  },
+                  (error: unknown) => {
+                    setIsOpen(false)
+                    toast.error(memberWriteFailureMessage(error))
+                    if (isMemberNotFound(error)) onRemoved()
+                  }
+                )
             }}
           >
             {isSelf ? 'Leave' : 'Remove'}

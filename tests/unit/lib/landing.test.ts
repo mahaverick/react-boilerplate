@@ -7,6 +7,8 @@ describe('safeLanding', () => {
   })
 
   it.each([
+    '/auth/confirm?token=ttt',
+    '/Auth/Confirm/',
     '/auth/link?token=ttt',
     '/auth/link',
     '/Auth/Link/?token=ttt',
@@ -20,6 +22,10 @@ describe('safeLanding', () => {
     '/invitations/confirm%2F?token=ttt',
   ])('refuses the token page %s', (value) => {
     expect(safeLanding(value)).toBeNull()
+  })
+
+  it('treats /auth/confirm as a token page in safeLanding', () => {
+    expect(safeLanding('/auth/confirm?token=x')).toBeNull()
   })
 
   it('refuses a path whose escapes do not decode', () => {

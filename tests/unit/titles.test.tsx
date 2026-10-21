@@ -12,6 +12,7 @@ import { resetSessionForTests } from '@/http/session'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { usePasskeySetupStore } from '@/states/passkey-setup.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
@@ -147,6 +148,7 @@ describe('page titles', () => {
     ['the workspace general page', '/settings/workspace/acme/general', 'General · acme'],
     ['the workspace activity page', '/settings/workspace/acme/activity', 'Activity · acme'],
     ['the invitation confirmation page', '/invitations/confirm', 'Join your team'],
+    ['the confirm-it’s-you page', '/auth/confirm', 'Confirm it’s you'],
   ])('names %s', async (_name, path, title) => {
     useAuthStore.setState({
       accessToken: 'access-token',
@@ -179,6 +181,23 @@ describe('page titles', () => {
       .filter((route) => typeof route.options.head !== 'function')
       .map((route) => String(route.id))
     expect(untitled).toEqual([])
+  })
+
+  it('titles the passkey setup screen, and gives the page its title back afterwards', async () => {
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+    usePasskeySetupStore.setState({ required: true, message: null })
+    renderAppAt('/settings/account/profile')
+
+    await waitFor(() => expect(document.title).toBe('Create your passkey · React Boilerplate'))
+    expect(document.querySelectorAll('title')).toHaveLength(1)
+    act(() => usePasskeySetupStore.getState().setRequired(false))
+    await screen.findByRole('heading', { name: 'Profile', level: 1 })
+    await waitFor(() => expect(document.title).toBe('Profile · React Boilerplate'))
   })
 
   it('titles an unknown URL as not found', async () => {

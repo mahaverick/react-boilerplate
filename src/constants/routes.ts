@@ -1,3 +1,5 @@
+import { FRONTEND_APP } from '@/constants/frontend-app'
+
 /**
  * The API's path prefix, fixed rather than configurable, and where the
  * JavaScript side writes it for the app's own API calls: the axios base, the
@@ -14,6 +16,7 @@ export const API_PREFIX = '/api/v1'
 export const ROUTES = {
   home: '/',
   login: '/login',
+  authConfirm: '/auth/confirm',
   authLink: '/auth/link',
   dashboard: '/dashboard',
   welcome: '/welcome',
@@ -27,7 +30,7 @@ export const ROUTES = {
 } as const
 
 /** The API path for the Google OAuth start. Same-origin, so a plain anchor. */
-export const GOOGLE_OAUTH_PATH = `${API_PREFIX}/auth/google`
+export const GOOGLE_OAUTH_PATH = `${API_PREFIX}/auth/google?app=${FRONTEND_APP}`
 
 /**
  * The platform tenant's slug, seeded by express migration 0016 and reserved

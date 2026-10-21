@@ -46,6 +46,7 @@ import {
   testUser,
 } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+import { confirmStepUp, dismissStepUp } from '@/tests/mocks/step-up'
 import { REAUTH_REQUIRED, type TenantInvitation } from '@/types/api.types'
 
 afterEach(() => {
@@ -1638,10 +1639,11 @@ describe('a customer tenant reached through platform access', () => {
   })
 })
 
-describe('a stale sign-in on a platform-tenant write', () => {
-  const SIGN_IN_AGAIN = 'For your security, sign out and sign in again before making this change.'
+describe('a stale sign-in on a member or invitation write', () => {
+  const DISMISSED = 'Confirm it’s you to continue.'
+  const NOT_CONFIRMED = 'We couldn’t confirm it’s you. Try the action again.'
   /** The refusal for a sign-in too old to change the platform tenant. */
-  const stale = () => fail("Confirm it's you to continue.", 401, REAUTH_REQUIRED)
+  const stale = () => fail('Confirm it’s you to continue.', 401, REAUTH_REQUIRED)
 
   beforeEach(() => {
     resetSessionForTests()
@@ -1653,9 +1655,14 @@ describe('a stale sign-in on a platform-tenant write', () => {
       isBootstrapped: true,
     })
     mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'viewer', 'Vic')])
+    server.use(
+      http.post('/api/v1/auth/step-up/link/request', () =>
+        ok({ resendAvailableAt: new Date(Date.now() + 60_000).toISOString() }, 'Sent.', 202)
+      )
+    )
   })
 
-  it('tells the reader to sign in again when a role change is refused', async () => {
+  it('asks to confirm, and says so when dismissed, if a role change is refused', async () => {
     server.use(http.patch(`/api/v1/tenants/acme/members/${USER_ID_3}`, stale))
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/members')
@@ -1664,11 +1671,11 @@ describe('a stale sign-in on a platform-tenant write', () => {
     await user.click(vic.getByRole('combobox', { name: 'Role for Vic X' }))
     await user.click(await screen.findByRole('option', { name: 'Editor' }))
 
-    expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
-    expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument()
+    await dismissStepUp(user)
+    expect(await screen.findByText(DISMISSED)).toBeInTheDocument()
   })
 
-  it('tells the reader to sign in again when a removal is refused', async () => {
+  it('asks to confirm, and says so when dismissed, if a removal is refused', async () => {
     server.use(http.delete(`/api/v1/tenants/acme/members/${USER_ID_3}`, stale))
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/members')
@@ -1678,11 +1685,11 @@ describe('a stale sign-in on a platform-tenant write', () => {
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }))
 
-    expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
-    expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument()
+    await dismissStepUp(user)
+    expect(await screen.findByText(DISMISSED)).toBeInTheDocument()
   })
 
-  it('tells the reader to sign in again when an invitation is refused', async () => {
+  it('asks to confirm, and says so when dismissed, if an invitation is refused', async () => {
     server.use(http.post('/api/v1/tenants/acme/invitations', stale))
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/members')
@@ -1690,11 +1697,11 @@ describe('a stale sign-in on a platform-tenant write', () => {
     await user.type(await screen.findByLabelText('Email'), 'new@b.com')
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
 
-    expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
-    expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument()
+    await dismissStepUp(user)
+    expect(await screen.findByText(DISMISSED)).toBeInTheDocument()
   })
 
-  it('tells the reader to sign in again when leaving is refused', async () => {
+  it('asks to confirm, and says so when dismissed, if leaving is refused', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_4, 'owner', 'Otto')])
     server.use(http.delete('/api/v1/tenants/acme/membership', stale))
     const user = userEvent.setup()
@@ -1704,12 +1711,12 @@ describe('a stale sign-in on a platform-tenant write', () => {
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Leave' }))
 
-    expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
-    expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument()
+    await dismissStepUp(user)
+    expect(await screen.findByText(DISMISSED)).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/settings/workspace/acme/members')
   })
 
-  it('tells the reader to sign in again when a resend is refused', async () => {
+  it('asks to confirm, and says so when dismissed, if a resend is refused', async () => {
     server.use(
       http.get('/api/v1/tenants/acme/invitations', () =>
         ok(
@@ -1726,8 +1733,39 @@ describe('a stale sign-in on a platform-tenant write', () => {
       await screen.findByRole('button', { name: 'Resend, invitation to invitee@b.com' })
     )
 
-    expect(await screen.findByText(SIGN_IN_AGAIN)).toBeInTheDocument()
-    expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument()
+    await dismissStepUp(user)
+    expect(await screen.findByText(DISMISSED)).toBeInTheDocument()
+  })
+
+  it('retries the invitation once after the dialog confirms', async () => {
+    let calls = 0
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () => {
+        calls += 1
+        return calls === 1 ? stale() : ok(null, INVITATION_SENT_MESSAGE, 202)
+      })
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+    await confirmStepUp(user)
+
+    expect(await screen.findByText('Invitation sent to new@b.com.')).toBeInTheDocument()
+    expect(calls).toBe(2)
+  })
+
+  it('says the confirmation did not take when the retry is refused again', async () => {
+    server.use(http.post('/api/v1/tenants/acme/invitations', stale))
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+    await confirmStepUp(user)
+
+    expect(await screen.findByText(NOT_CONFIRMED)).toBeInTheDocument()
   })
 })
 

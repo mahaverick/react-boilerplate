@@ -186,6 +186,17 @@ export const handlers = [
       'Signed in.'
     )
   }),
+  // Passkeys default to optional with none created; a test for another mode or a list overrides these.
+  http.get('/api/v1/auth/passkeys/config', () =>
+    ok({ mode: 'optional', rpId: 'localhost' }, 'Passkey settings retrieved.')
+  ),
+  // Step-up by passkey: the account has none, so the "Confirm it's you" dialog opens on the email link. A passkey test overrides this.
+  http.post('/api/v1/auth/passkeys/step-up/options', () =>
+    fail('You have no passkey.', 409, 'NO_PASSKEY')
+  ),
+  http.get('/api/v1/auth/passkeys', () =>
+    ok({ passkeys: [], userHandle: 'HANDLE' }, 'Passkeys retrieved.')
+  ),
   // Fetched by the profile page's Security section; an email-link account, which a test about Google or a failed load overrides.
   http.get('/api/v1/auth/providers', () =>
     ok(

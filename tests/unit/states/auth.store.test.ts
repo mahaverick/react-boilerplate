@@ -40,6 +40,15 @@ describe('auth store', () => {
     expect(s.isAuthenticated).toBe(true)
   })
 
+  it('setToken replaces the token and keeps the user', () => {
+    useAuthStore.getState().login('tok', user)
+    useAuthStore.getState().setToken('tok2')
+    const s = useAuthStore.getState()
+    expect(s.accessToken).toBe('tok2')
+    expect(s.user).toEqual(user)
+    expect(s.isAuthenticated).toBe(true)
+  })
+
   it('logout clears token, user and isAuthenticated but preserves isBootstrapped', () => {
     useAuthStore.getState().login('tok', user)
     useAuthStore.getState().setBootstrapped()

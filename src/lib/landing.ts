@@ -4,6 +4,7 @@ import { safeRedirect } from '@/lib/safe-redirect'
 /** Pages whose URL holds a live token. */
 const TOKEN_PAGES: ReadonlySet<string> = new Set([
   ROUTES.authLink,
+  ROUTES.authConfirm,
   ROUTES.invitationAccept,
   ROUTES.invitationConfirm,
 ])

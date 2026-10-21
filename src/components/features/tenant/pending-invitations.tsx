@@ -24,6 +24,7 @@ import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/co
 import { canActorGrantRole, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
 import { useCountdown } from '@/hooks/use-countdown'
 import { useFocusAfter } from '@/hooks/use-focus-after'
+import { useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { codeFrom, retryAfterSecondsFrom } from '@/lib/api-error'
 import { formatTimeLeft } from '@/lib/countdown'
 import { formatDate } from '@/lib/format'
@@ -56,11 +57,11 @@ const NO_LONGER_PENDING = 'That invitation is no longer pending.'
 const RESEND_COOLDOWN = 'invitation_resend_cooldown'
 
 /**
- * What a failed resend or revoke tells the reader: "no longer pending" for
- * `invitation_not_found`, otherwise `writeFailureMessage`, which is the
- * server's own message (a 403 for a role the actor can't grant included)
- * unless the sign-in is too old. The list refetches either way (the hooks'
- * `onSettled`).
+ * What a failed resend or revoke tells the reader. A step-up refusal
+ * (`writeFailureMessage`) says whether the confirmation was dismissed or did
+ * not take. "No longer pending" is for `invitation_not_found`; anything else is
+ * the server's own message (a 403 for a role the actor can't grant included).
+ * The list refetches either way (the hooks' `onSettled`).
  */
 function actionFailure(error: unknown): string {
   return codeFrom(error) === INVITATION_NOT_FOUND ? NO_LONGER_PENDING : writeFailureMessage(error)
@@ -112,6 +113,8 @@ function ResendInvitationButton({
   reasonId?: string
 }) {
   const resend = useResendInvitation(slug)
+  const stepUp = useStepUp()
+  const stepping = useStepUpWaiting()
   const [localUntil, setLocalUntil] = useState<number | null>(null)
   const left = useCountdown(
     reasonId ? null : resendDeadline(invitation.resendAvailableAt, localUntil)
@@ -136,7 +139,8 @@ function ResendInvitationButton({
     <Button
       variant="outline"
       size="sm"
-      disabled={waiting || resend.isPending}
+      // The refused resend is not pending while its step-up waits, so a second press would start another.
+      disabled={waiting || resend.isPending || stepping}
       focusableWhenDisabled
       aria-label={
         waiting
@@ -145,16 +149,18 @@ function ResendInvitationButton({
       }
       onClick={() => {
         if (waiting) return
-        resend.mutateAsync(invitation.id).then(
-          () => toast.success(`Invitation resent to ${invitation.email}.`),
-          (error: unknown) => {
-            if (codeFrom(error) === RESEND_COOLDOWN) {
-              const wait = retryAfterSecondsFrom(error)
-              if (wait !== null) setLocalUntil(Date.now() + wait * 1_000)
+        stepUp
+          .run(() => resend.mutateAsync(invitation.id))
+          .then(
+            () => toast.success(`Invitation resent to ${invitation.email}.`),
+            (error: unknown) => {
+              if (codeFrom(error) === RESEND_COOLDOWN) {
+                const wait = retryAfterSecondsFrom(error)
+                if (wait !== null) setLocalUntil(Date.now() + wait * 1_000)
+              }
+              toast.error(actionFailure(error))
             }
-            toast.error(actionFailure(error))
-          }
-        )
+          )
       }}
     >
       {waiting ? `Resend in ${formatTimeLeft(left)}` : 'Resend'}
@@ -181,6 +187,8 @@ function RevokeInvitationButton({
   onRevoked: () => void
 }) {
   const revoke = useRevokeInvitation(slug)
+  const stepUp = useStepUp()
+  const stepping = useStepUpWaiting()
   const [isOpen, setIsOpen] = useState(false)
 
   if (reasonId) {
@@ -198,7 +206,14 @@ function RevokeInvitationButton({
   }
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+    <AlertDialog
+      open={isOpen}
+      onOpenChange={(next) => {
+        // While the revoke waits on "Confirm it's you", Escape and outside presses belong to it.
+        if (!next && stepping) return
+        setIsOpen(next)
+      }}
+    >
       <AlertDialogTrigger
         render={
           <Button
@@ -225,19 +240,21 @@ function RevokeInvitationButton({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
-            disabled={revoke.isPending}
+            disabled={revoke.isPending || stepping}
             onClick={() => {
-              revoke.mutateAsync(invitation.id).then(
-                () => {
-                  setIsOpen(false)
-                  onRevoked()
-                  toast.success(`Invitation to ${invitation.email} revoked.`)
-                },
-                (error: unknown) => {
-                  setIsOpen(false)
-                  toast.error(actionFailure(error))
-                }
-              )
+              stepUp
+                .run(() => revoke.mutateAsync(invitation.id))
+                .then(
+                  () => {
+                    setIsOpen(false)
+                    onRevoked()
+                    toast.success(`Invitation to ${invitation.email} revoked.`)
+                  },
+                  (error: unknown) => {
+                    setIsOpen(false)
+                    toast.error(actionFailure(error))
+                  }
+                )
             }}
           >
             Revoke

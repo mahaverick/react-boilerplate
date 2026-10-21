@@ -5,6 +5,9 @@ import { ensureSession, isAuthVerdict, redirectToLogin } from '@/http/session'
 import { parseSseStream } from '@/http/sse'
 import { notificationKeys } from '@/queries/notification.queries'
 import { useAuthStore } from '@/states/auth.store'
+import { usePasskeySetupStore } from '@/states/passkey-setup.store'
+import type { ApiErrorBody } from '@/types/api.types'
+import { PASSKEY_SETUP_REQUIRED } from '@/types/passkey.types'
 
 const INITIAL_BACKOFF_MS = 1_000
 const MAX_BACKOFF_MS = 30_000
@@ -75,6 +78,10 @@ const NOTIFICATION_EVENT = 'notification'
  * (nothing else would move a tab that is sitting still), and any other
  * failure (a deploy's 502, a 429, an unreachable API) keeps retrying.
  *
+ * A connect refused with 403 `PASSKEY_SETUP_REQUIRED` (required mode switched on
+ * mid-session) raises the setup flag and does not reconnect; the effect stays
+ * down while the flag is set and reconnects when setup ends.
+ *
  * A connect the server refused with anything but a 401 (a 503 at its stream
  * capacity, a 429 over the per-user cap) says nothing about the session, so
  * it reconnects with the same token and no refresh. It waits the backoff or
@@ -87,12 +94,13 @@ const NOTIFICATION_EVENT = 'notification'
  */
 export function useNotificationStream(): void {
   const accessToken = useAuthStore((s) => s.accessToken)
+  const setupRequired = usePasskeySetupStore((s) => s.required)
   const queryClient = useQueryClient()
   const backoffRef = useRef(INITIAL_BACKOFF_MS)
   const lastEventId = useRef<string | undefined>(undefined)
 
   useEffect(() => {
-    if (!accessToken) return
+    if (!accessToken || setupRequired) return
 
     let abort: AbortController | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
@@ -171,6 +179,14 @@ export function useNotificationStream(): void {
             signal: controller.signal,
           })
 
+          if (response.status === 403) {
+            // Required mode switched on mid-session: stay down until the account has a passkey.
+            const body = (await response.json().catch(() => null)) as ApiErrorBody | null
+            if (body?.code === PASSKEY_SETUP_REQUIRED) {
+              usePasskeySetupStore.getState().setRequired(true, body.message)
+              return
+            }
+          }
           if (!response.ok || !response.body) {
             throw new StreamRefusedError(
               response.status,
@@ -198,5 +214,5 @@ export function useNotificationStream(): void {
       if (retryTimer) clearTimeout(retryTimer)
       abort?.abort()
     }
-  }, [accessToken, queryClient])
+  }, [accessToken, queryClient, setupRequired])
 }

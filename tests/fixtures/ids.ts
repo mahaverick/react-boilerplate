@@ -5,7 +5,7 @@
  *
  * Hand-written and fixed, never generated, so an assertion can name the id it expects. The first
  * digit names the kind (1 tenant, 2 user, 3 membership, 4 invitation, 5 notification, 6 audit
- * entry) and the last digits the ordinal; `...100` is the platform-side one.
+ * entry, 7 passkey) and the last digits the ordinal; `...100` is the platform-side one.
  */
 
 /** The tenant most tests act in. */
@@ -87,3 +87,9 @@ export const AUDIT_ID_2 = '60000000-0000-4000-8000-000000000002'
 export const AUDIT_ID_3 = '60000000-0000-4000-8000-000000000003'
 /** An older entry, for paging and retired-action rows in the activity tests. */
 export const AUDIT_ID_4 = '60000000-0000-4000-8000-000000000004'
+/** The harness user's first passkey ('7' names the kind, as above). */
+export const PASSKEY_ID = '70000000-0000-4000-8000-000000000001'
+/** The harness user's second passkey. */
+export const PASSKEY_ID_2 = '70000000-0000-4000-8000-000000000002'
+/** The passkey a harness registration creates. */
+export const PASSKEY_ID_3 = '70000000-0000-4000-8000-000000000003'
