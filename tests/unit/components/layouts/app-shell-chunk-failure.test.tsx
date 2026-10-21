@@ -31,6 +31,9 @@ describe('AppShell when the setup screen chunk fails to load', () => {
     expect(
       await screen.findByText('We couldn’t load this page. Reload to try again.')
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Create your passkey' })
+    ).toBeInTheDocument()
     await userEvent.setup().click(screen.getByRole('button', { name: 'Reload' }))
     expect(reload).toHaveBeenCalledTimes(1)
     vi.unstubAllGlobals()

@@ -103,7 +103,7 @@ export function useRenamePasskey() {
 }
 
 /**
- * Deletes a passkey (`DELETE /auth/passkeys/:id?app=web`). The answer is the
+ * Deletes a passkey (`DELETE /auth/passkeys/:id`, naming this app in `?app=` with `FRONTEND_APP`). The answer is the
  * passkeys that remain: they replace the cached list, and the browser is told
  * which credentials the account still accepts. The page runs it through
  * `useStepUp().run`.

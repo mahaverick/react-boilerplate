@@ -12,7 +12,7 @@ vi.mock('@/components/features/profile/passkeys-section', () => {
 })
 
 describe('SecuritySection when the Passkeys chunk fails to load', () => {
-  it('drops the Passkeys section and keeps the rest of the page', async () => {
+  it('says Passkeys did not load and keeps the rest of the page', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     server.use(
       http.get('/api/v1/auth/providers', () => ok({ providers: [] }, 'Auth providers retrieved.'))
@@ -27,6 +27,9 @@ describe('SecuritySection when the Passkeys chunk fails to load', () => {
     await waitFor(() => expect(logged).toHaveBeenCalled())
     expect(await screen.findByRole('button', { name: /sign out other/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Security' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Passkeys didn’t load. Reload the page to try again.')
+    ).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Passkeys' })).not.toBeInTheDocument()
   })
 })

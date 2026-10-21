@@ -16,6 +16,7 @@ const PasskeySetupScreen = lazy(() =>
 function SetupScreenLoadFailed() {
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6 text-center">
+      <h1 className="text-2xl font-semibold">Create your passkey</h1>
       <p>We couldn’t load this page. Reload to try again.</p>
       <Button type="button" onClick={() => window.location.reload()}>
         Reload
