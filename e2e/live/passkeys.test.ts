@@ -38,7 +38,8 @@ test('creates a passkey, signs out and signs back in with it', async ({ page }) 
   // The link sign-in is recent, so creating needs no confirmation dialog.
   await page.getByRole('button', { name: 'Create a passkey' }).click()
   await expect(page.getByText('Passkey created.')).toBeVisible()
-  await expect(page.getByRole('dialog')).toHaveCount(0)
+  // A toast is a Base UI dialog too, so only the Confirm it's you dialog counts.
+  await expect(page.getByRole('dialog', { name: /Confirm it/ })).toHaveCount(0)
   expect(await auth.credentials()).toHaveLength(1)
 
   await page.getByRole('button', { name: /Account menu for/ }).click()
