@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect, type Page } from '@playwright/test'
 
 /**
  * Stamped on every fallback answer: an `/api` response without it came from
@@ -76,10 +76,29 @@ export const test = base.extend<{ apiFallback: ApiFallback }>({
     async ({ context }, use) => {
       const answered: string[] = []
       const escaped: string[] = []
+      /** Pages between a navigation's request and its commit. Their old document is outside the service worker, and a 401 would sign it out and redirect over the navigation, so its calls are aborted. */
+      const navigating = new Set<Page>()
+      /** Tracks `page`'s main-frame navigations in `navigating`. */
+      const watch = (page: Page) => {
+        page.on('request', (request) => {
+          if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+            navigating.add(page)
+          }
+        })
+        page.on('framenavigated', (frame) => {
+          if (frame === page.mainFrame()) navigating.delete(page)
+        })
+      }
+      context.pages().forEach(watch)
+      context.on('page', watch)
       await context.route(isApi, async (route) => {
         const request = route.request()
         const { pathname } = new URL(request.url())
         const call = `${request.method()} ${pathname}`
+        if (navigating.size > 0) {
+          await route.abort('aborted')
+          return
+        }
         answered.push(call)
         if (call === MAINTENANCE_STATUS) {
           await route.fulfill({
