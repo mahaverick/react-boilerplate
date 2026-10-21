@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0](https://github.com/mahaverick/react-boilerplate/compare/v4.0.3...v4.1.0) (2026-10-21)
+
+
+### Features
+
+* **auth:** passkeys for sign-in, confirm it's you and account security ([#137](https://github.com/mahaverick/react-boilerplate/issues/137)) ([b4c152b](https://github.com/mahaverick/react-boilerplate/commit/b4c152b1e19aeccc8fc870b10b279689ff5e8373))
+
 ## [4.0.3](https://github.com/mahaverick/react-boilerplate/compare/v4.0.2...v4.0.3) (2026-10-20)
 
 
