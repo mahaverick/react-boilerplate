@@ -81,7 +81,7 @@ export default defineConfig({
       'no-unsafe-optional-chaining': 'error',
       'no-unused-labels': 'error',
       'no-unused-private-class-members': 'error',
-      'no-unused-vars': 'error',
+      'no-unused-vars': ['error', {}],
       'no-useless-assignment': 'error',
       'no-useless-backreference': 'error',
       'no-useless-catch': 'error',
@@ -194,19 +194,6 @@ export default defineConfig({
         plugins: ['react'],
         env: {
           browser: true,
-        },
-      },
-      {
-        files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.svelte', '**/*.vue'],
-        rules: {},
-        globals: {
-          $state: 'readonly',
-          $derived: 'readonly',
-          $effect: 'readonly',
-          $props: 'readonly',
-          $bindable: 'readonly',
-          $inspect: 'readonly',
-          $host: 'readonly',
         },
       },
       {
