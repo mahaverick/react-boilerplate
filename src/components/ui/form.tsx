@@ -240,6 +240,7 @@ export function FormField({
   return React.createElement(Field, {
     name,
     validators,
+    // oxlint-disable-next-line react/no-children-prop -- TanStack Form's Field takes a render function as children through createElement
     children: (field: AnyFieldApi) => (
       <FieldProvider name={name} field={field}>
         {children(field)}

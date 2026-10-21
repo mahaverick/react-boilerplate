@@ -153,7 +153,8 @@ describe('report', () => {
     })
     expect(event?.uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/)
     expect(event?.properties).not.toHaveProperty('$process_person_profile')
-    const [exception] = event?.properties.$exception_list as {
+    expect(event).toBeDefined()
+    const [exception] = event!.properties.$exception_list as {
       type: string
       value: string
       mechanism: { handled: boolean }
@@ -273,7 +274,8 @@ describe('report', () => {
     await drain()
     const [event] = sentEvents()
     expect(event?.properties.origin).toBe('chunk_load')
-    const [exception] = event?.properties.$exception_list as { mechanism: { handled: boolean } }[]
+    expect(event).toBeDefined()
+    const [exception] = event!.properties.$exception_list as { mechanism: { handled: boolean } }[]
     expect(exception?.mechanism.handled).toBe(true)
   })
 
@@ -321,7 +323,8 @@ describe('report', () => {
     report(first, 'window', false)
     await drain()
     const [event] = sentEvents()
-    expect((event?.properties.$exception_list as unknown[]).length).toBeLessThanOrEqual(CAUSE_DEPTH)
+    expect(event).toBeDefined()
+    expect((event!.properties.$exception_list as unknown[]).length).toBeLessThanOrEqual(CAUSE_DEPTH)
   })
 
   it('throttles to five per fingerprint and thirty per page life', async () => {
@@ -526,7 +529,9 @@ describe('waiting for analytics to settle', () => {
     await vi.advanceTimersByTimeAsync(100)
     dispatchEvent(new Event('pagehide'))
     expect(beacon).toHaveBeenCalledTimes(1)
-    const body = JSON.parse(await (beacon.mock.calls[0]?.[1] as Blob).text()) as {
+    const [call] = beacon.mock.calls
+    expect(call).toBeDefined()
+    const body = JSON.parse(await call![1].text()) as {
       batch: ExceptionEvent[]
     }
     expect(body.batch).toHaveLength(1)

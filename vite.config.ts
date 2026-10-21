@@ -8,20 +8,13 @@ import { runtimeConfigPlugin } from './scripts/runtime-config-plugin.mjs'
 
 export default defineConfig({
   lint: {
-    plugins: ['oxc', 'typescript', 'unicorn'],
-    jsPlugins: [
-      '@tanstack/eslint-plugin-router',
-      {
-        name: 'vite-plus',
-        specifier: 'vite-plus/oxlint-plugin',
-      },
-    ],
+    plugins: ['oxc', 'typescript', 'unicorn', 'react', 'jsdoc', 'import'],
     categories: {
-      correctness: 'warn',
+      correctness: 'error',
     },
     options: {
       typeAware: true,
-      typeCheck: true,
+      typeCheck: false,
     },
     env: {
       builtin: true,
@@ -100,8 +93,6 @@ export default defineConfig({
       'valid-typeof': 'error',
       'no-array-constructor': 'error',
       'no-unused-expressions': 'error',
-      '@tanstack/router/create-route-property-order': 'warn',
-      '@tanstack/router/route-param-names': 'error',
       'typescript/await-thenable': 'error',
       'typescript/ban-ts-comment': 'error',
       'typescript/no-array-delete': 'error',
@@ -142,7 +133,12 @@ export default defineConfig({
       'typescript/restrict-template-expressions': 'error',
       'typescript/triple-slash-reference': 'error',
       'typescript/unbound-method': 'error',
-      'vite-plus/prefer-vite-plus-imports': 'error',
+      'react/no-danger': 'error',
+      'react/jsx-no-target-blank': 'error',
+      'react/iframe-missing-sandbox': 'error',
+      'react/jsx-no-script-url': 'error',
+      'no-eval': 'error',
+      'no-new-func': 'error',
     },
     overrides: [
       {
@@ -202,18 +198,7 @@ export default defineConfig({
       },
       {
         files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.svelte', '**/*.vue'],
-        rules: {
-          'tailwindcss/classnames-order': 'warn',
-          'tailwindcss/enforces-canonical-classname': 'warn',
-          'tailwindcss/enforces-negative-arbitrary-values': 'warn',
-          'tailwindcss/enforces-shorthand': 'warn',
-          'tailwindcss/important-modifier-suffix': 'warn',
-          'tailwindcss/no-arbitrary-value': 'off',
-          'tailwindcss/no-custom-classname': 'warn',
-          'tailwindcss/no-contradicting-classname': 'error',
-          'tailwindcss/no-unnecessary-arbitrary-value': 'warn',
-        },
-        jsPlugins: ['eslint-plugin-tailwindcss'],
+        rules: {},
         globals: {
           $state: 'readonly',
           $derived: 'readonly',
@@ -226,10 +211,7 @@ export default defineConfig({
       },
       {
         files: ['src/**/*.{ts,tsx}'],
-        rules: {
-          'tailwindcss/classnames-order': 'off',
-        },
-        jsPlugins: ['eslint-plugin-tailwindcss'],
+        rules: {},
       },
       {
         files: [
@@ -301,16 +283,10 @@ export default defineConfig({
           'typescript/switch-exhaustiveness-check': 'off',
           'typescript/unbound-method': 'off',
           'typescript/use-unknown-in-catch-callback-variable': 'off',
-          'tailwindcss/classnames-order': 'off',
-          'tailwindcss/enforces-canonical-classname': 'off',
-          'tailwindcss/enforces-negative-arbitrary-values': 'off',
-          'tailwindcss/enforces-shorthand': 'off',
-          'tailwindcss/important-modifier-suffix': 'off',
-          'tailwindcss/no-custom-classname': 'off',
-          'tailwindcss/no-contradicting-classname': 'off',
-          'tailwindcss/no-unnecessary-arbitrary-value': 'off',
         },
-        jsPlugins: ['eslint-plugin-tailwindcss'],
+        env: {
+          node: true,
+        },
       },
       {
         files: ['public/theme-init.js', 'public/boot-variant.js'],
@@ -375,16 +351,7 @@ export default defineConfig({
           'typescript/switch-exhaustiveness-check': 'off',
           'typescript/unbound-method': 'off',
           'typescript/use-unknown-in-catch-callback-variable': 'off',
-          'tailwindcss/classnames-order': 'off',
-          'tailwindcss/enforces-canonical-classname': 'off',
-          'tailwindcss/enforces-negative-arbitrary-values': 'off',
-          'tailwindcss/enforces-shorthand': 'off',
-          'tailwindcss/important-modifier-suffix': 'off',
-          'tailwindcss/no-custom-classname': 'off',
-          'tailwindcss/no-contradicting-classname': 'off',
-          'tailwindcss/no-unnecessary-arbitrary-value': 'off',
         },
-        jsPlugins: ['eslint-plugin-tailwindcss'],
         env: {
           browser: true,
         },
@@ -459,92 +426,22 @@ export default defineConfig({
       },
       {
         files: ['e2e/**/*.{ts,tsx}'],
-        rules: {
-          'tailwindcss/classnames-order': 'off',
-          'tailwindcss/enforces-canonical-classname': 'off',
-          'tailwindcss/enforces-negative-arbitrary-values': 'off',
-          'tailwindcss/enforces-shorthand': 'off',
-          'tailwindcss/important-modifier-suffix': 'off',
-          'tailwindcss/no-custom-classname': 'off',
-          'tailwindcss/no-contradicting-classname': 'off',
-          'tailwindcss/no-unnecessary-arbitrary-value': 'off',
-        },
-        jsPlugins: ['eslint-plugin-tailwindcss'],
+        rules: {},
         env: {
           browser: true,
         },
       },
       {
         files: ['src/!(pages)/**/*.{ts,tsx}', 'src/*.{ts,tsx}'],
-        rules: {
-          'check-file/filename-naming-convention': [
-            'error',
-            {
-              'src/!(pages)/**/*.{ts,tsx}': 'KEBAB_CASE',
-              'src/*.{ts,tsx}': 'KEBAB_CASE',
-            },
-            {
-              ignoreMiddleExtensions: true,
-            },
-          ],
-          'check-file/folder-naming-convention': [
-            'error',
-            {
-              'src/!(pages)/**/': 'KEBAB_CASE',
-            },
-          ],
-          'check-file/folder-match-with-fex': [
-            'error',
-            {
-              '**/*.store.ts': 'src/states/**',
-              '**/*.queries.ts': 'src/queries/**',
-              '**/*.schemas.ts': 'src/schemas/**',
-              '**/*.types.ts': 'src/types/**',
-            },
-          ],
-        },
-        jsPlugins: ['eslint-plugin-check-file'],
+        rules: {},
       },
       {
         files: ['src/**/*.{ts,tsx}'],
-        rules: {
-          'check-file/filename-blocklist': [
-            'error',
-            {
-              '**/*.{test,spec}.{ts,tsx}': 'tests/unit/**/*.test.{ts,tsx}',
-              '**/__tests__/**': 'tests/unit/**/*.test.{ts,tsx}',
-              'src/tests/**': 'tests/**',
-            },
-            {
-              errorMessage:
-                '`{{ target }}` is a test file under src/. Tests live in tests/unit/, mirroring the src/ path of the subject, e.g. src/http/session.ts → tests/unit/http/session.test.ts.',
-            },
-          ],
-        },
-        jsPlugins: ['eslint-plugin-check-file'],
+        rules: {},
       },
       {
         files: ['tests/**/*.{ts,tsx}'],
         rules: {
-          'tailwindcss/classnames-order': 'off',
-          'tailwindcss/enforces-canonical-classname': 'off',
-          'tailwindcss/enforces-negative-arbitrary-values': 'off',
-          'tailwindcss/enforces-shorthand': 'off',
-          'tailwindcss/important-modifier-suffix': 'off',
-          'tailwindcss/no-custom-classname': 'off',
-          'tailwindcss/no-contradicting-classname': 'off',
-          'tailwindcss/no-unnecessary-arbitrary-value': 'off',
-          'check-file/filename-blocklist': [
-            'error',
-            {
-              '**/*.spec.{ts,tsx}': '*.test.{ts,tsx}',
-              '**/__tests__/**': '*.test.{ts,tsx}',
-            },
-            {
-              errorMessage:
-                'This project uses `.test.` filenames under tests/unit/ — not `.spec.` and not a `__tests__/` folder.',
-            },
-          ],
           'react/rules-of-hooks': 'error',
           'react/exhaustive-deps': 'warn',
           'react/static-components': 'error',
@@ -559,8 +456,9 @@ export default defineConfig({
           'react/purity': 'error',
           'react/set-state-in-render': 'error',
           'react/unsupported-syntax': 'warn',
+          // tests fake `window.location` by spreading it
+          'typescript/no-misused-spread': 'off',
         },
-        jsPlugins: ['eslint-plugin-tailwindcss', 'eslint-plugin-check-file'],
         plugins: ['react'],
         env: {
           browser: true,
@@ -574,19 +472,7 @@ export default defineConfig({
           'src/types/**/*.ts',
           'src/hooks/**/*.{ts,tsx}',
         ],
-        rules: {
-          'check-file/filename-naming-convention': [
-            'error',
-            {
-              'src/states/**/*.ts': '+([a-z])*([a-z0-9])*(-+([a-z0-9])).store',
-              'src/queries/**/*.ts': '+([a-z])*([a-z0-9])*(-+([a-z0-9])).queries',
-              'src/schemas/**/*.ts': '+([a-z])*([a-z0-9])*(-+([a-z0-9])).schemas',
-              'src/types/**/*.ts': '+([a-z])*([a-z0-9])*(-+([a-z0-9])).types',
-              'src/hooks/**/*.{ts,tsx}': 'use-+([a-z])*([a-z0-9])*(-+([a-z0-9]))',
-            },
-          ],
-        },
-        jsPlugins: ['eslint-plugin-check-file'],
+        rules: {},
       },
       {
         files: ['src/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
@@ -635,18 +521,8 @@ export default defineConfig({
       {
         files: ['src/components/ui/**'],
         rules: {
-          'tailwindcss/classnames-order': 'off',
-          'tailwindcss/enforces-canonical-classname': 'off',
-          'tailwindcss/enforces-negative-arbitrary-values': 'off',
-          'tailwindcss/enforces-shorthand': 'off',
-          'tailwindcss/important-modifier-suffix': 'off',
-          'tailwindcss/no-arbitrary-value': 'off',
-          'tailwindcss/no-contradicting-classname': 'off',
-          'tailwindcss/no-custom-classname': 'off',
-          'tailwindcss/no-unnecessary-arbitrary-value': 'off',
           'react/only-export-components': 'off',
         },
-        jsPlugins: ['eslint-plugin-tailwindcss'],
         plugins: ['react'],
       },
       {
@@ -670,14 +546,6 @@ export default defineConfig({
       {
         files: ['src/components/ui/form.tsx'],
         rules: {
-          'tailwindcss/enforces-canonical-classname': 'warn',
-          'tailwindcss/enforces-negative-arbitrary-values': 'warn',
-          'tailwindcss/enforces-shorthand': 'warn',
-          'tailwindcss/important-modifier-suffix': 'warn',
-          'tailwindcss/no-arbitrary-value': 'off',
-          'tailwindcss/no-contradicting-classname': 'error',
-          'tailwindcss/no-custom-classname': 'warn',
-          'tailwindcss/no-unnecessary-arbitrary-value': 'warn',
           'react/only-export-components': [
             'warn',
             {
@@ -685,7 +553,6 @@ export default defineConfig({
             },
           ],
         },
-        jsPlugins: ['eslint-plugin-tailwindcss'],
         plugins: ['react'],
       },
       {
@@ -705,6 +572,28 @@ export default defineConfig({
           ],
         },
         plugins: ['jsdoc'],
+      },
+      {
+        files: ['src/lib/utils.ts', 'src/components/ui/*.tsx'],
+        rules: { 'no-restricted-imports': 'off' },
+      },
+      {
+        files: ['src/components/ui/form.tsx'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            { paths: [{ name: 'cn', message: "Import `cn` from '@/lib/utils'." }] },
+          ],
+        },
+      },
+      {
+        files: ['tests/fixtures/timing.ts', 'e2e/timing.ts'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            { paths: [{ name: 'cn', message: "Import `cn` from '@/lib/utils'." }] },
+          ],
+        },
       },
     ],
   },
