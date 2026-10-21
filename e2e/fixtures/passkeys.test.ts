@@ -34,9 +34,18 @@ function postsTo(page: Page, path: string): unknown[] {
   return bodies
 }
 
+/**
+ * The virtual authenticator answers a conditional (autofill) request by itself,
+ * so with a credential on it the login page signs in before the click, and the
+ * button is gone by then. The test reports no conditional-mediation support.
+ */
 test('signs in with the passkey button and lands on the dashboard', async ({ page }) => {
   const auth = await addVirtualAuthenticator(page)
   await auth.addResidentCredential({ rpId: 'localhost', userHandle: USER_HANDLE })
+  // Autofill would sign in before the click on a slow runner; hide it so the button is the way in.
+  await page.addInitScript(() => {
+    PublicKeyCredential.isConditionalMediationAvailable = () => Promise.resolve(false)
+  })
   await page.goto('/e2e/harness/?session=none&path=/login')
 
   const verify = page.waitForRequest('**/auth/passkeys/sign-in/verify')
