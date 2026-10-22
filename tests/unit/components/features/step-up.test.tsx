@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { delay, http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { StrictMode, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { StepUpDialog } from '@/components/features/step-up/step-up-dialog'
@@ -736,6 +736,26 @@ describe('StepUpDialog: the wait lock', () => {
   })
 })
 
+/**
+ * Resolves when MSW has produced the response for `requestId`. A test that holds a request
+ * open waits on this after releasing it, so the response reaches the client while jsdom is
+ * still alive: one that lands after the file's environment is torn down throws
+ * `ProgressEvent is not defined` as an unhandled rejection.
+ * @param requestId - The id MSW gave the request, from the handler's resolver info.
+ * @returns A promise that settles once the mocked response exists.
+ */
+function responseMocked(requestId: string): Promise<void> {
+  return new Promise((resolve) => {
+    /** Resolves on this request's response and stops listening. */
+    const onMocked = (event: { requestId: string }) => {
+      if (event.requestId !== requestId) return
+      server.events.removeListener('response:mocked', onMocked)
+      resolve()
+    }
+    server.events.on('response:mocked', onMocked)
+  })
+}
+
 /** The mocked `cancelPasskeyPrompt`. */
 function cancelPasskeyPromptMock() {
   return vi.mocked(cancelPasskeyPrompt)
@@ -944,10 +964,20 @@ describe('confirming by passkey', () => {
 
   it('Use another method while fresh options are pending starts no prompt and keeps the link view', async () => {
     let calls = 0
+    /** Lets the held options call answer. */
+    let releaseOptions = () => {}
+    const held = new Promise<void>((resolve) => {
+      releaseOptions = resolve
+    })
+    /** Settles once the held call's response has gone out, so the request cannot outlive the test. */
+    let answered: Promise<void> = Promise.resolve()
     server.use(
-      http.post('/api/v1/auth/passkeys/step-up/options', async () => {
+      http.post('/api/v1/auth/passkeys/step-up/options', async ({ requestId }) => {
         calls += 1
-        if (calls > 1) await delay(200)
+        if (calls > 1) {
+          answered = responseMocked(requestId)
+          await held
+        }
         return ok({ challengeId: 'C1', options: OPTIONS }, 'Options.')
       })
     )
@@ -964,6 +994,8 @@ describe('confirming by passkey', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Use another method' }))
 
     expect(await within(dialog).findByRole('button', { name: 'Email me a link' })).toBeVisible()
+    releaseOptions()
+    await answered
     await settle(50, 'a late prompt has no event to wait on; absence is the assertion')
     expect(requestPasskey).toHaveBeenCalledTimes(1)
     expect(within(dialog).getByRole('button', { name: 'Email me a link' })).toBeVisible()

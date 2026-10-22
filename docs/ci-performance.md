@@ -71,10 +71,10 @@ Load average (1 min): 4.71 at the start, 30.9 at the end of the hyperfine run. `
 
 | Command              | Mean wall time [s] | Before [s] |
 | :------------------- | -----------------: | ---------: |
-| `pnpm check`         |      15.206 ± 1.589 |          - |
-| `pnpm exec eslint .` |      10.319 ± 0.311 |     26.961 |
-| `pnpm test`          |      60.801 ± 5.845 |     61.098 |
-| `pnpm build`         |       6.829 ± 1.283 |      5.058 |
+| `pnpm check`         |     15.206 ± 1.589 |          - |
+| `pnpm exec eslint .` |     10.319 ± 0.311 |     26.961 |
+| `pnpm test`          |     60.801 ± 5.845 |     61.098 |
+| `pnpm build`         |      6.829 ± 1.283 |      5.058 |
 
 `pnpm check` replaces the old eslint plus prettier pair (26.961 + 5.407 = 32.4s before). `pnpm exec eslint .` is the 17 untyped leftover rules. `pnpm build` is noisier than before because of the load.
 
