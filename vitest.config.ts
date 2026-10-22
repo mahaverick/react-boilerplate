@@ -57,8 +57,14 @@ export default defineConfig({
         'src/components/ui/{alert,empty,item,kbd,spinner}.tsx',
         'src/components/ui/{checkbox,popover}.tsx',
       ],
-      /** About ten points under the measured coverage, so a large drop fails CI. */
-      thresholds: { statements: 88, branches: 82, functions: 86, lines: 89 },
+      /**
+       * About ten points under the measured coverage, so a large drop fails CI.
+       * A shard sees part of the suite; the merge job enforces the gate on the whole.
+       */
+      thresholds:
+        process.env.COVERAGE_SHARD === '1'
+          ? undefined
+          : { statements: 88, branches: 82, functions: 86, lines: 89 },
     },
   },
 })
