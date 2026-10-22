@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { filterGroups, matchCommand } from '@/components/shared/command-palette/match'
 import type { PaletteCommand } from '@/components/shared/command-palette/palette-types'
 import { analyticsKey } from '@/observability/telemetry'

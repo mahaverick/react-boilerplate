@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { MAX_REDIRECT_LENGTH, safeRedirect } from '@/lib/safe-redirect'
 
 describe('safeRedirect', () => {

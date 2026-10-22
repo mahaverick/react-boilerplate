@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { isApplePlatform, paletteShortcutHint } from '@/lib/shortcut'
 
 /** Makes `navigator.platform` report `name` until mocks are restored. */

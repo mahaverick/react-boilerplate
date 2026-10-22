@@ -1,5 +1,5 @@
 import { act, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Toaster } from '@/components/ui/toast'
 import { toast } from '@/lib/toast'
 

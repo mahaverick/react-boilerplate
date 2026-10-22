@@ -1,5 +1,5 @@
 import { AxiosError, AxiosHeaders } from 'axios'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { READ_ONLY_MODE_MESSAGE } from '@/lib/api-error'
 import { retryableFailureMessage } from '@/lib/retry'
 

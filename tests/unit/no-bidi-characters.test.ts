@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 // A static import rather than the glob below: Vite's import.meta.glob leaves the calling file out of its results, so this is how the scan covers itself.
+// oxlint-disable-next-line import/default -- Vite's ?raw import has a default export the resolver cannot see
 import ownSource from './no-bidi-characters.test.ts?raw'
 
 const BIDI_OVERRIDE = /[\u{202A}-\u{202E}\u{2066}-\u{2069}]/u

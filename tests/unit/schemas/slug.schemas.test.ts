@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { isSlugShaped } from '@/schemas/slug.schemas'
 
 describe('isSlugShaped', () => {

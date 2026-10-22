@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { absoluteTime, relativeTime } from '@/lib/relative-time'
 
 const NOW = Date.parse('2026-09-25T12:00:00.000Z')

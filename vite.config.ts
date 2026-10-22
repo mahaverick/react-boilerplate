@@ -3,11 +3,510 @@ import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, lazyPlugins } from 'vite-plus'
 import { runtimeConfigPlugin } from './scripts/runtime-config-plugin.mjs'
 
+/**
+ * Type-aware rules off for the root configs, the pre-paint scripts and the `.mjs`
+ * scripts, as typescript-eslint's `disableTypeChecked` turned them off in ESLint.
+ */
+const typeAwareRulesOff = {
+  'typescript/await-thenable': 'off',
+  'typescript/consistent-return': 'off',
+  'typescript/consistent-type-exports': 'off',
+  'typescript/dot-notation': 'off',
+  'typescript/no-array-delete': 'off',
+  'typescript/no-base-to-string': 'off',
+  'typescript/no-confusing-void-expression': 'off',
+  'typescript/no-deprecated': 'off',
+  'typescript/no-duplicate-type-constituents': 'off',
+  'typescript/no-floating-promises': 'off',
+  'typescript/no-for-in-array': 'off',
+  'typescript/no-generated-empty-object-type': 'off',
+  'typescript/no-implied-eval': 'off',
+  'typescript/no-meaningless-void-operator': 'off',
+  'typescript/no-misused-promises': 'off',
+  'typescript/no-misused-spread': 'off',
+  'typescript/no-mixed-enums': 'off',
+  'typescript/no-redundant-type-constituents': 'off',
+  'typescript/no-unnecessary-boolean-literal-compare': 'off',
+  'typescript/no-unnecessary-condition': 'off',
+  'typescript/no-unnecessary-qualifier': 'off',
+  'typescript/no-unnecessary-template-expression': 'off',
+  'typescript/no-unnecessary-type-arguments': 'off',
+  'typescript/no-unnecessary-type-assertion': 'off',
+  'typescript/no-unnecessary-type-conversion': 'off',
+  'typescript/no-unnecessary-type-parameters': 'off',
+  'typescript/no-unsafe-argument': 'off',
+  'typescript/no-unsafe-assignment': 'off',
+  'typescript/no-unsafe-call': 'off',
+  'typescript/no-unsafe-enum-comparison': 'off',
+  'typescript/no-unsafe-member-access': 'off',
+  'typescript/no-unsafe-return': 'off',
+  'typescript/no-unsafe-type-assertion': 'off',
+  'typescript/no-unsafe-unary-minus': 'off',
+  'typescript/no-useless-default-assignment': 'off',
+  'typescript/non-nullable-type-assertion-style': 'off',
+  'typescript/only-throw-error': 'off',
+  'typescript/prefer-find': 'off',
+  'typescript/prefer-includes': 'off',
+  'typescript/prefer-nullish-coalescing': 'off',
+  'typescript/prefer-optional-chain': 'off',
+  'typescript/prefer-promise-reject-errors': 'off',
+  'typescript/prefer-readonly': 'off',
+  'typescript/prefer-readonly-parameter-types': 'off',
+  'typescript/prefer-reduce-type-parameter': 'off',
+  'typescript/prefer-regexp-exec': 'off',
+  'typescript/prefer-return-this-type': 'off',
+  'typescript/prefer-string-starts-ends-with': 'off',
+  'typescript/promise-function-async': 'off',
+  'typescript/related-getter-setter-pairs': 'off',
+  'typescript/require-array-sort-compare': 'off',
+  'typescript/require-await': 'off',
+  'typescript/restrict-plus-operands': 'off',
+  'typescript/restrict-template-expressions': 'off',
+  'typescript/return-await': 'off',
+  'typescript/strict-boolean-expressions': 'off',
+  'typescript/strict-void-return': 'off',
+  'typescript/switch-exhaustiveness-check': 'off',
+  'typescript/unbound-method': 'off',
+  'typescript/use-unknown-in-catch-callback-variable': 'off',
+} satisfies Record<string, 'off'>
+
 export default defineConfig({
-  plugins: [
+  lint: {
+    plugins: ['oxc', 'typescript', 'unicorn', 'react', 'jsdoc', 'import'],
+    categories: {
+      correctness: 'error',
+    },
+    options: {
+      typeAware: true,
+      typeCheck: false,
+      denyWarnings: true,
+      reportUnusedDisableDirectives: 'error',
+    },
+    env: {
+      builtin: true,
+    },
+    ignorePatterns: [
+      'dist',
+      'src/routeTree.gen.ts',
+      'coverage',
+      'public/mockServiceWorker.js',
+      'test-results',
+      'playwright-report',
+      'scripts/ui-registry',
+    ],
+    rules: {
+      'constructor-super': 'error',
+      'for-direction': 'error',
+      'getter-return': 'error',
+      'no-async-promise-executor': 'error',
+      'no-case-declarations': 'error',
+      'no-class-assign': 'error',
+      'no-compare-neg-zero': 'error',
+      'no-cond-assign': 'error',
+      'no-const-assign': 'error',
+      'no-constant-binary-expression': 'error',
+      'no-constant-condition': 'error',
+      'no-control-regex': 'error',
+      'no-debugger': 'error',
+      'no-delete-var': 'error',
+      'no-dupe-class-members': 'error',
+      'no-dupe-else-if': 'error',
+      'no-dupe-keys': 'error',
+      'no-duplicate-case': 'error',
+      'no-empty': 'error',
+      'no-empty-character-class': 'error',
+      'no-empty-pattern': 'error',
+      'no-empty-static-block': 'error',
+      'no-ex-assign': 'error',
+      'no-extra-boolean-cast': 'error',
+      'no-fallthrough': 'error',
+      'no-func-assign': 'error',
+      'no-global-assign': 'error',
+      'no-import-assign': 'error',
+      'no-invalid-regexp': 'error',
+      'no-irregular-whitespace': 'error',
+      'no-loss-of-precision': 'error',
+      'no-misleading-character-class': 'error',
+      'no-new-native-nonconstructor': 'error',
+      'no-nonoctal-decimal-escape': 'error',
+      'no-obj-calls': 'error',
+      'no-prototype-builtins': 'error',
+      'no-redeclare': 'error',
+      'no-regex-spaces': 'error',
+      'no-self-assign': 'error',
+      'no-setter-return': 'error',
+      'no-shadow-restricted-names': 'error',
+      'no-sparse-arrays': 'error',
+      'no-this-before-super': 'error',
+      'no-unassigned-vars': 'error',
+      'no-undef': 'error',
+      'no-unexpected-multiline': 'error',
+      'no-unreachable': 'error',
+      'no-unsafe-finally': 'error',
+      'no-unsafe-negation': 'error',
+      'no-unsafe-optional-chaining': 'error',
+      'no-unused-labels': 'error',
+      'no-unused-private-class-members': 'error',
+      'no-unused-vars': ['error', {}],
+      'no-useless-assignment': 'error',
+      'no-useless-backreference': 'error',
+      'no-useless-catch': 'error',
+      'no-useless-escape': 'error',
+      'no-with': 'error',
+      'preserve-caught-error': 'error',
+      'require-yield': 'error',
+      'use-isnan': 'error',
+      'valid-typeof': 'error',
+      'no-array-constructor': 'error',
+      'no-unused-expressions': 'error',
+      'typescript/await-thenable': 'error',
+      'typescript/ban-ts-comment': 'error',
+      'typescript/no-array-delete': 'error',
+      'typescript/no-base-to-string': 'error',
+      'typescript/no-duplicate-enum-values': 'error',
+      'typescript/no-duplicate-type-constituents': 'error',
+      'typescript/no-empty-object-type': 'error',
+      'typescript/no-explicit-any': 'error',
+      'typescript/no-extra-non-null-assertion': 'error',
+      'typescript/no-floating-promises': 'error',
+      'typescript/no-for-in-array': 'error',
+      'typescript/no-implied-eval': 'error',
+      'typescript/no-misused-new': 'error',
+      'typescript/no-misused-promises': 'error',
+      'typescript/no-namespace': 'error',
+      'typescript/no-non-null-asserted-optional-chain': 'error',
+      'typescript/no-redundant-type-constituents': 'error',
+      'typescript/no-require-imports': 'error',
+      'typescript/no-this-alias': 'error',
+      'typescript/no-unnecessary-type-assertion': 'error',
+      'typescript/no-unnecessary-type-constraint': 'error',
+      'typescript/no-unsafe-argument': 'error',
+      'typescript/no-unsafe-assignment': 'error',
+      'typescript/no-unsafe-call': 'error',
+      'typescript/no-unsafe-declaration-merging': 'error',
+      'typescript/no-unsafe-enum-comparison': 'error',
+      'typescript/no-unsafe-function-type': 'error',
+      'typescript/no-unsafe-member-access': 'error',
+      'typescript/no-unsafe-return': 'error',
+      'typescript/no-unsafe-unary-minus': 'error',
+      'typescript/no-wrapper-object-types': 'error',
+      'typescript/only-throw-error': 'error',
+      'typescript/prefer-as-const': 'error',
+      'typescript/prefer-namespace-keyword': 'error',
+      'typescript/prefer-promise-reject-errors': 'error',
+      'typescript/require-await': 'error',
+      'typescript/restrict-plus-operands': 'error',
+      'typescript/restrict-template-expressions': 'error',
+      'typescript/triple-slash-reference': 'error',
+      'typescript/unbound-method': 'error',
+      'react/no-danger': 'error',
+      'react/jsx-no-target-blank': 'error',
+      'react/iframe-missing-sandbox': 'error',
+      'react/jsx-no-script-url': 'error',
+      'no-eval': 'error',
+      'no-new-func': 'error',
+    },
+    overrides: [
+      {
+        files: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
+        rules: {
+          'constructor-super': 'off',
+          'getter-return': 'off',
+          'no-class-assign': 'off',
+          'no-const-assign': 'off',
+          'no-dupe-class-members': 'off',
+          'no-dupe-keys': 'off',
+          'no-func-assign': 'off',
+          'no-import-assign': 'off',
+          'no-new-native-nonconstructor': 'off',
+          'no-obj-calls': 'off',
+          'no-redeclare': 'off',
+          'no-setter-return': 'off',
+          'no-this-before-super': 'off',
+          'no-undef': 'off',
+          'no-unreachable': 'off',
+          'no-unsafe-negation': 'off',
+          'no-var': 'error',
+          'no-with': 'off',
+          'prefer-const': 'error',
+          'prefer-rest-params': 'error',
+          'prefer-spread': 'error',
+        },
+      },
+      {
+        files: ['src/**/*.{ts,tsx}'],
+        rules: {
+          'react/rules-of-hooks': 'error',
+          'react/exhaustive-deps': 'warn',
+          'react/static-components': 'error',
+          'react/use-memo': 'error',
+          'react/preserve-manual-memoization': 'error',
+          'react/incompatible-library': 'warn',
+          'react/immutability': 'error',
+          'react/globals': 'error',
+          'react/refs': 'error',
+          'react/set-state-in-effect': 'error',
+          'react/error-boundaries': 'error',
+          'react/purity': 'error',
+          'react/set-state-in-render': 'error',
+          'react/unsupported-syntax': 'warn',
+          'react/only-export-components': [
+            'warn',
+            {
+              allowConstantExport: true,
+            },
+          ],
+        },
+        plugins: ['react'],
+        env: {
+          browser: true,
+        },
+      },
+      {
+        files: [
+          'eslint.config.js',
+          'vite.config.ts',
+          'vitest.config.ts',
+          'playwright.config.ts',
+          'commitlint.config.js',
+        ],
+        rules: typeAwareRulesOff,
+        env: {
+          node: true,
+        },
+      },
+      {
+        files: ['public/theme-init.js', 'public/boot-variant.js'],
+        rules: typeAwareRulesOff,
+        env: {
+          browser: true,
+        },
+      },
+      {
+        files: ['scripts/**/*.mjs', 'scripts/**/*.d.mts', 'e2e/**/*.mjs', 'e2e/**/*.d.mts'],
+        rules: typeAwareRulesOff,
+        env: {
+          node: true,
+        },
+      },
+      {
+        files: ['e2e/**/*.{ts,tsx}'],
+        rules: {},
+        env: {
+          browser: true,
+        },
+      },
+      {
+        files: ['tests/**/*.{ts,tsx}'],
+        rules: {
+          'react/rules-of-hooks': 'error',
+          'react/exhaustive-deps': 'warn',
+          'react/static-components': 'error',
+          'react/use-memo': 'error',
+          'react/preserve-manual-memoization': 'error',
+          'react/incompatible-library': 'warn',
+          'react/immutability': 'error',
+          'react/globals': 'error',
+          'react/refs': 'error',
+          'react/set-state-in-effect': 'error',
+          'react/error-boundaries': 'error',
+          'react/purity': 'error',
+          'react/set-state-in-render': 'error',
+          'react/unsupported-syntax': 'warn',
+          // tests fake `window.location` by spreading it
+          'typescript/no-misused-spread': 'off',
+        },
+        plugins: ['react'],
+        env: {
+          browser: true,
+        },
+      },
+      {
+        files: ['src/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            {
+              paths: [
+                {
+                  name: 'cn',
+                  message: "Import `cn` from '@/lib/utils'.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        files: ['tests/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            {
+              paths: [
+                {
+                  name: 'cn',
+                  message: "Import `cn` from '@/lib/utils'.",
+                },
+                {
+                  name: 'node:timers/promises',
+                  importNames: ['setTimeout'],
+                  message:
+                    'Wait on a condition, not a duration: findBy*/waitFor/vi.waitFor, expect.poll or a web-first assertion in e2e, fake timers, or settle(ms, reason) from @/tests/fixtures/timing (e2e: ./timing) when nothing can be observed.',
+                },
+                {
+                  name: 'timers/promises',
+                  importNames: ['setTimeout'],
+                  message:
+                    'Wait on a condition, not a duration: findBy*/waitFor/vi.waitFor, expect.poll or a web-first assertion in e2e, fake timers, or settle(ms, reason) from @/tests/fixtures/timing (e2e: ./timing) when nothing can be observed.',
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        files: ['src/components/ui/**'],
+        rules: {
+          'react/only-export-components': 'off',
+        },
+        plugins: ['react'],
+      },
+      {
+        files: ['src/pages/**/*.{ts,tsx}'],
+        rules: {
+          'react/only-export-components': 'off',
+          'typescript/only-throw-error': [
+            'error',
+            {
+              allow: [
+                {
+                  from: 'lib',
+                  name: 'Response',
+                },
+              ],
+            },
+          ],
+        },
+        plugins: ['react'],
+      },
+      {
+        files: ['src/components/ui/form.tsx'],
+        rules: {
+          'react/only-export-components': [
+            'warn',
+            {
+              allowConstantExport: true,
+            },
+          ],
+        },
+        plugins: ['react'],
+      },
+      {
+        files: ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'],
+        rules: {
+          'jsdoc/no-blank-blocks': [
+            'error',
+            {
+              enableFixer: false,
+            },
+          ],
+          'jsdoc/check-tag-names': [
+            'error',
+            {
+              typed: true,
+            },
+          ],
+        },
+        plugins: ['jsdoc'],
+      },
+      {
+        files: ['src/lib/utils.ts', 'src/components/ui/*.tsx'],
+        rules: { 'no-restricted-imports': 'off' },
+      },
+      {
+        files: ['src/components/ui/form.tsx'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            { paths: [{ name: 'cn', message: "Import `cn` from '@/lib/utils'." }] },
+          ],
+        },
+      },
+      {
+        files: ['tests/fixtures/timing.ts', 'e2e/timing.ts'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            { paths: [{ name: 'cn', message: "Import `cn` from '@/lib/utils'." }] },
+          ],
+        },
+      },
+    ],
+  },
+  fmt: {
+    semi: false,
+    singleQuote: true,
+    printWidth: 100,
+    tabWidth: 2,
+    trailingComma: 'es5',
+    sortPackageJson: false,
+    sortImports: {
+      groups: ['builtin', 'external', 'internal', ['parent', 'sibling', 'index'], 'unknown'],
+      internalPattern: ['@/'],
+      newlinesBetween: false,
+    },
+    sortTailwindcss: {
+      stylesheet: './src/styles/globals.css',
+      functions: ['cn', 'cva'],
+    },
+    ignorePatterns: [
+      'node_modules',
+      'dist',
+      'build',
+      'coverage',
+      'pnpm-lock.yaml',
+      // Generated by the TanStack Router plugin on every build.
+      'src/routeTree.gen.ts',
+      // The local SDD workspace: hand-wrapped briefs and reports, never committed.
+      '.superpowers/',
+      // Vendored shadcn output, upstream's to own. Keep the `*`: gitignore syntax cannot re-include a file under an excluded directory.
+      'src/components/ui/*',
+      // form.tsx is ours (hand-written, not the registry's), so it stays formatted.
+      '!src/components/ui/form.tsx',
+      // The registry snapshot `pnpm ui:drift` compares against, byte for byte.
+      'scripts/ui-registry/',
+      // StyleSeed's compiled output is hash-verified on every scan; formatting it breaks the scan.
+      '.styleseed/',
+      // The design lock is hand-wrapped prose with tables.
+      'STYLESEED.md',
+      // Generated by `npx msw init public/`; MSW owns its formatting.
+      'public/mockServiceWorker.js',
+      // Playwright output.
+      'test-results/',
+      'playwright-report/',
+      // Generated by release-please in its own layout; it would write it straight back.
+      'CHANGELOG.md',
+      '.vitest/',
+    ],
+  },
+  /**
+   * What the pre-commit hook runs on staged files (`vp staged`). The
+   * no-error-on-unmatched-pattern flags and ESLint's `--no-warn-ignored` let a
+   * commit whose staged files are all ignored pass.
+   */
+  staged: {
+    '*.{ts,tsx,js,jsx,mjs}': [
+      'vp lint --fix --no-error-on-unmatched-pattern',
+      'eslint --fix --max-warnings 0 --no-warn-ignored',
+      'vp fmt --no-error-on-unmatched-pattern',
+    ],
+    '*.{css,json,jsonc,md,html}': ['vp fmt --no-error-on-unmatched-pattern'],
+  },
+  plugins: lazyPlugins(async () => [
     tanstackRouter({
       target: 'react',
       routesDirectory: './src/pages',
@@ -52,7 +551,7 @@ export default defineConfig({
         await rm(path.resolve(import.meta.dirname, 'dist/mockServiceWorker.js'), { force: true })
       },
     },
-  ],
+  ]),
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   /** The commit, from the image's `GIT_SHA` build argument: the same value in every environment. */
   define: { __APP_RELEASE__: JSON.stringify(process.env.GIT_SHA || 'dev') },

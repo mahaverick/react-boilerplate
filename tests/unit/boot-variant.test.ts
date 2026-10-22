@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { runInNewContext } from 'node:vm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 /**
  * public/boot-variant.js: its auth path list is every page that renders the

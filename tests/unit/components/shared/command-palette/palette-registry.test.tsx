@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { StrictMode } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import {
   usePageCommands,
   usePaletteCommands,

@@ -63,7 +63,7 @@ export const dataTableFeatures = tableFeatures({
 export type DataTableFeatures = typeof dataTableFeatures
 
 /** A list's column definitions; each column's value type differs, as `createColumnHelper`'s own `columns()` types them. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- one value type per column, unknown to the array
+// oxlint-disable-next-line @typescript-eslint/no-explicit-any -- one value type per column, unknown to the array
 export type DataTableColumns<T extends RowData> = Array<ColumnDef<DataTableFeatures, T, any>>
 
 /** One built column of a list table. */

@@ -1,7 +1,7 @@
 import path from 'node:path'
 import babel from '@rolldown/plugin-babel'
 import { reactCompilerPreset } from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from 'vite-plus'
 
 export default defineConfig({
   /**

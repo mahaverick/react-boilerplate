@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { changedFieldsOf } from '@/schemas/changed-fields.schemas'
 import { tenantSettingsFormSchema, updateTenantSchema } from '@/schemas/tenant.schemas'
 

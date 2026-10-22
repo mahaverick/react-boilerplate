@@ -8,7 +8,7 @@ import {
   type AsyncRouteComponent,
 } from '@tanstack/react-router'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import * as module from '@/components/shared/pending-templates'
 import { ROUTER_DEFAULTS } from '@/router'
 

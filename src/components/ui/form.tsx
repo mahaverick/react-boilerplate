@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 /**
  * Tracks whether a `<FormError>` is mounted inside this form, so `<Form>` can
  * say something in dev when form-level errors would otherwise go unrendered.
- * Deliberately not exported: `react-refresh/only-export-components` rejects a
+ * Deliberately not exported: `react/only-export-components` rejects a
  * non-component export beside components (a re-export included), which is
  * also why `useFormField` and `FormFieldContext` live in
  * `@/hooks/use-form-field`.
@@ -240,6 +240,7 @@ export function FormField({
   return React.createElement(Field, {
     name,
     validators,
+    // oxlint-disable-next-line react/no-children-prop -- TanStack Form's Field takes a render function as children through createElement
     children: (field: AnyFieldApi) => (
       <FieldProvider name={name} field={field}>
         {children(field)}

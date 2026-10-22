@@ -26,12 +26,12 @@
   ],
   "packageRules": [
     {
-      "description": "typescript-eslint peers typescript <6.1.0; TS 7 breaks type-aware lint (see CLAUDE.md Versions)",
+      "description": "tsc 6 and typescript-eslint's parser peer <6.1.0; Oxlint's type-aware engine bundles its own TS 7",
       "matchPackageNames": ["typescript"],
       "allowedVersions": "<6.1.0"
     },
     {
-      "description": "Stay on Node 24 LTS until the planned move to Node 26 after 2026-10-28. Covers every Node version pin: the docker `node` image (Dockerfile), `.nvmrc` and `actions/setup-node`'s `node-version:` (node-version datasource, depName `node`).",
+      "description": "Stay on Node 24 LTS until the planned move to Node 26 after 2026-10-28. Covers every Node version pin: the docker `node` image (Dockerfile), `.node-version` and `actions/setup-node`'s `node-version:` (node-version datasource, depName `node`).",
       "matchDepNames": ["node"],
       "allowedVersions": "<25"
     },
@@ -47,9 +47,11 @@
         "eslint-*",
         "@eslint/*",
         "typescript-eslint",
-        "prettier",
-        "prettier-*",
-        "@ianvs/prettier-plugin-sort-imports",
+        "vite-plus",
+        "@voidzero-dev/*",
+        "oxlint",
+        "oxlint-tsgolint",
+        "oxfmt",
         "vitest",
         "@vitest/*"
       ]

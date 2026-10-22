@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import { http } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vite-plus/test'
 import { TenantSettingsCard } from '@/components/features/tenant/tenant-settings-card'
 import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient } from '@/router'

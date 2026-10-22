@@ -1,6 +1,6 @@
 import type { AxiosResponse } from 'axios'
 import { http } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { apiClient, unwrap } from '@/http/client'
 import { USER_ID } from '@/tests/fixtures/ids'
 import { server } from '@/tests/mocks/server'

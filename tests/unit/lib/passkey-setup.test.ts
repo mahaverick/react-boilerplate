@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import type { AnyRouter } from '@tanstack/react-router'
 import axios, { AxiosError, type AxiosAdapter } from 'axios'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { finishPasskeySetup, installPasskeySetupInterceptor } from '@/lib/passkey-setup'
 import { useAuthStore } from '@/states/auth.store'
 import { usePasskeySetupStore } from '@/states/passkey-setup.store'

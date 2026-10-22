@@ -5,7 +5,7 @@
  * facade's decisions to be observable.
  */
 import type { PostHog } from 'posthog-js'
-import { vi } from 'vitest'
+import { vi } from 'vite-plus/test'
 import { parseRuntimeConfig } from '@/configs/runtime-config'
 import { analyticsConfigFrom, type AnalyticsConfig } from '@/observability/telemetry/config'
 

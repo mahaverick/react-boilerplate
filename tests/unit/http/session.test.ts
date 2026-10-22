@@ -1,5 +1,5 @@
 import { delay, http, HttpResponse } from 'msw'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { ROUTES } from '@/constants/routes'
 import {
   broadcastAuthMessage,

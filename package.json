@@ -5,12 +5,12 @@
   "type": "module",
   "packageManager": "pnpm@12.4.1",
   "engines": {
-    "node": ">=24"
+    "node": "^24.11.0"
   },
   "devEngines": {
     "runtime": {
       "name": "node",
-      "version": ">=24",
+      "version": "^24.11.0",
       "onFail": "error"
     }
   },
@@ -20,19 +20,20 @@
     "email": "support@mahaverick.com"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "lint": "eslint . && prettier --check \"**/*.{ts,tsx,js,jsx,mjs,css,json,jsonc,md,html}\"",
+    "dev": "vp dev",
+    "build": "tsc -b && vp build",
+    "preview": "vp preview",
+    "check": "vp check && eslint . --max-warnings 0",
+    "lint": "vp lint && eslint . --max-warnings 0 && vp fmt --check",
     "lint:docs": "node scripts/lint-docs.mjs",
     "knip": "knip",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && pnpm typecheck:e2e",
     "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,css,json,jsonc,md,html}\"",
-    "test": "vitest --watch=false",
-    "test:coverage": "vitest --watch=false --coverage",
-    "test:watch": "vitest",
-    "prepare": "husky",
+    "format": "vp fmt",
+    "test": "vp test --watch=false",
+    "test:coverage": "vp test --watch=false --coverage",
+    "test:watch": "vp test",
+    "prepare": "vp config --hooks --no-agent",
     "test:e2e": "playwright test --project=fixtures",
     "test:e2e:live": "E2E_LIVE=1 playwright test --project=live",
     "test:e2e:nginx": "docker rm -f rb-e2e >/dev/null 2>&1; docker build -t react-boilerplate:e2e . && docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp --add-host=api:host-gateway -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=ci -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test react-boilerplate:e2e >/dev/null && for i in $(seq 1 60); do curl -sf http://localhost:8088 >/dev/null && break; sleep 0.5; done && E2E_LIVE=1 E2E_NGINX=1 playwright test --project=nginx; code=$?; docker rm -f rb-e2e >/dev/null 2>&1; exit $code",
@@ -41,7 +42,9 @@
     "capture:pages": "E2E_CAPTURE=1 E2E_LIVE=1 playwright test --project=capture",
     "check:bundle": "node scripts/check-bundle.mjs",
     "ui:drift": "node scripts/ui-drift.mjs",
-    "ui:drift:refresh": "node scripts/ui-drift.mjs --refresh"
+    "ui:drift:refresh": "node scripts/ui-drift.mjs --refresh",
+    "gate": "pnpm check && pnpm typecheck && pnpm lint:docs && pnpm ui:drift && pnpm knip && pnpm test",
+    "push": "bash scripts/push.sh"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",
@@ -66,8 +69,6 @@
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
     "@commitlint/config-conventional": "21.2.3",
-    "@eslint/js": "10.0.1",
-    "@ianvs/prettier-plugin-sort-imports": "4.7.1",
     "@playwright/test": "^1.63.0",
     "@posthog/cli": "0.18.9",
     "@rolldown/plugin-babel": "0.2.4",
@@ -85,44 +86,24 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
-    "@vitest/coverage-v8": "5.0.1",
+    "@vitest/coverage-v8": "catalog:",
     "axe-core": "4.13.0",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "10.11.0",
-    "eslint-config-prettier": "10.1.8",
     "eslint-plugin-check-file": "3.3.2",
     "eslint-plugin-jsdoc": "65.1.0",
-    "eslint-plugin-react-hooks": "7.1.1",
-    "eslint-plugin-react-refresh": "0.5.7",
     "eslint-plugin-tailwindcss": "4.4.0",
-    "globals": "17.12.0",
-    "husky": "9.1.7",
     "jest-axe": "11.0.0",
     "jsdom": "30.1.1",
     "knip": "6.39.0",
-    "lint-staged": "17.5.1",
     "msw": "2.15.0",
     "playwright": "^1.63.0",
-    "prettier": "3.9.8",
-    "prettier-plugin-tailwindcss": "0.8.1",
     "shadcn": "4.21.4",
     "tailwindcss": "4.3.3",
     "typescript": "~6.0.3",
     "typescript-eslint": "8.70.1",
-    "vite": "8.3.0",
-    "vitest": "5.0.1"
-  },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix --max-warnings 0 --no-warn-ignored",
-      "prettier --write"
-    ],
-    "*.{js,jsx,mjs}": [
-      "eslint --fix --max-warnings 0 --no-warn-ignored",
-      "prettier --write"
-    ],
-    "*.{css,json,jsonc,md,html}": [
-      "prettier --write"
-    ]
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   }
 }

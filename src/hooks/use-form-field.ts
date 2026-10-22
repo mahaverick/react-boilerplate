@@ -14,7 +14,7 @@ export const FormFieldContext = React.createContext<FormFieldContextValue | null
 
 /**
  * The enclosing field's context. It lives here with `FormFieldContext`, not in
- * `@/components/ui/form.tsx`, because `react-refresh/only-export-components`
+ * `@/components/ui/form.tsx`, because `react/only-export-components`
  * rejects a hook exported, or re-exported, beside components.
  * @throws When called outside a `<FormField>`.
  */

@@ -5,7 +5,7 @@ import {
   createRouter,
   Outlet,
 } from '@tanstack/react-router'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { identityEpoch } from '@/observability/identity-epoch'
 import {
   installRouteAnalytics,

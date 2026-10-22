@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { holdStepUpWait, isStepUpWaitHeld, STEP_UP_WAIT_LOCK } from '@/lib/step-up-presence'
 import { removeWebLocks, stubWebLocks } from '@/tests/mocks/web-locks'
 

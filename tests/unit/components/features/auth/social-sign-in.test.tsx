@@ -1,6 +1,6 @@
 import { IconBrandGithub } from '@tabler/icons-react'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { SocialSignIn } from '@/components/features/auth/social-sign-in'
 import { SOCIAL_PROVIDERS } from '@/constants/auth-providers'
 import { GOOGLE_OAUTH_PATH } from '@/constants/routes'

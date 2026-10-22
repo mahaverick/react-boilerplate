@@ -10,7 +10,7 @@ import {
 import { render, screen } from '@testing-library/react'
 import { http } from 'msw'
 import { act } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { forgetFeatureProperties } from '@/observability/flags/feature-property-names'
 import { resetFlagHooksForTests, useFeaturePropertiesSync } from '@/observability/flags/flag-hooks'
 import { ensureFlags } from '@/observability/flags/flag-query'

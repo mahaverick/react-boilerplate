@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { runInNewContext } from 'node:vm'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { parseRuntimeConfig, RUNTIME_CONFIG_KEYS } from '@/configs/runtime-config'
 import {
   renderRuntimeConfig,

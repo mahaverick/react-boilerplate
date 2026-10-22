@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { ANALYTICS_APP } from '@/observability/telemetry/config'
 import {
   confirmSignedInUser,

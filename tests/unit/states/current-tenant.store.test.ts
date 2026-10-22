@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { readRememberedTenant, useCurrentTenantStore } from '@/states/current-tenant.store'
 
 describe('current tenant store', () => {

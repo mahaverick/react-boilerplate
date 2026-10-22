@@ -1,5 +1,5 @@
 import { AxiosError, AxiosHeaders } from 'axios'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { isRoleDenied } from '@/lib/role-denied'
 
 /** An axios failure that answered `status`. */

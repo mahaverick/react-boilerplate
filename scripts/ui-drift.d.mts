@@ -9,7 +9,9 @@ export interface HunkRule {
 }
 /** One drift rule: a skip marker, a rewrite of our lines or the registry's, or a recorded hunk. */
 export type Rule =
-  { side: 'skip' } | { side: 'ours' | 'theirs'; pattern: RegExp; replacement: string } | HunkRule
+  | { side: 'skip' }
+  | { side: 'ours' | 'theirs'; pattern: RegExp; replacement: string }
+  | HunkRule
 /** A hunk's registry lines and ours. */
 export interface Change {
   ours: string[]

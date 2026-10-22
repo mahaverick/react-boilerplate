@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { formatDate, formatDateTime, fullName } from '@/lib/format'
 
 // Noon UTC: the same calendar day in every timezone a runner is likely to use.

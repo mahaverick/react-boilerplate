@@ -7,7 +7,7 @@ import {
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { InvitationInbox } from '@/components/features/invitations/invitation-parts'
 import { landJoined } from '@/components/features/invitations/land-joined'
 import { ensureSession, resetSessionForTests } from '@/http/session'

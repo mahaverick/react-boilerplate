@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const DOCS = path.join(ROOT, 'docs/pages')

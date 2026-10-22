@@ -134,8 +134,8 @@ export function viewContent(output, file) {
       continue
     }
     if (expected === null) continue
-    if (/^│ ┌/.test(line)) lines = []
-    else if (/^│ └/.test(line)) break
+    if (line.startsWith('│ ┌')) lines = []
+    else if (line.startsWith('│ └')) break
     else if (lines) {
       const content = /^│ │ ?(.*)$/.exec(line)
       if (!content) return null

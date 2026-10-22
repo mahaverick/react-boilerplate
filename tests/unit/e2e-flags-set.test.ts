@@ -3,7 +3,7 @@ import { execFile as execFileCallback } from 'node:child_process'
 import { statSync } from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vite-plus/test'
 import { startFakeFlags, type RunningFakeFlags } from '../../e2e/helpers/fake-flags.mjs'
 import { setFakeFlag } from '../../scripts/e2e-flags-set.mjs'
 

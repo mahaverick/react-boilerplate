@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import posthog, { type CaptureResult, type PostHog } from 'posthog-js'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { ANALYTICS_APP, ANALYTICS_PERSISTENCE_NAME } from '@/observability/telemetry/config'
 import { isPersistedIdentified } from '@/observability/telemetry/handoff'
 import {

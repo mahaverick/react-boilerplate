@@ -13,7 +13,7 @@ import {
 } from '@tanstack/react-router'
 import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { waitForTemplates } from '@/components/shared/pending-templates'
 import { ROUTER_DEFAULTS } from '@/router'
 import { settle } from '@/tests/fixtures/timing'

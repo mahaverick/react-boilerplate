@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { toggleValue, totalText } from '@/components/shared/data-table/data-table-model'
 import * as analytics from '@/observability/telemetry'
 import { listPage } from '@/tests/fixtures/list-page'
