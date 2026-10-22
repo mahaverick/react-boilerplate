@@ -50,9 +50,11 @@ as a route under `src/pages/_app/settings/`.
 
 ## The gate
 
-- **0 errors and 0 warnings.** Check with `pnpm exec eslint . --max-warnings 0`,
-  as CI and the pre-push hook do. `pnpm lint`'s eslint half exits 0 on warnings.
-- `pnpm lint` also runs `prettier --check`, and CI runs `pnpm lint:docs`,
+- **0 errors and 0 warnings.** `pnpm check` is the static gate: `vp check`
+  (Oxlint with type-aware rules, plus the Oxfmt check), then ESLint with
+  `--max-warnings 0` for the 17 leftover rules, which run untyped. `pnpm lint`
+  runs `vp lint`, ESLint and `vp fmt --check`; its ESLint half exits 0 on warnings.
+- CI runs `pnpm lint:docs`,
   `pnpm ui:drift`, `pnpm knip`, `pnpm typecheck`, `pnpm test:coverage` (thresholds in
   `vitest.config.ts`), `pnpm check:bundle` and the `e2e` and `docker` jobs. The scripts
   are in [README.md](README.md).
@@ -271,17 +273,21 @@ listed below.
 The directory holds vendored shadcn output. An edit there is lost the next time
 the component is added again.
 
-- **prettier skips the vendored files** (`.prettierignore`).
-- **eslint relaxes only some rules for them**: the Tailwind rules,
+- **Oxfmt skips the vendored files** (`fmt.ignorePatterns` in `vite.config.ts`).
+- **Oxlint and ESLint relax only some rules for them**: the Tailwind rules,
   `react-refresh/only-export-components`, `local/comment-style`, the JSDoc
   requirement and the `cn` import restriction. Every other rule, type-aware rules
   at error included, still applies, so a type error there fails CI. Settle a doubt
-  with `pnpm exec eslint --print-config <file>`, not by reading the config.
-- **`form.tsx` is ours**, fully linted and formatted. It is named in five places:
-  four `eslint.config.js` blocks (the block that re-enables the Tailwind and
-  `react-refresh` rules, plus the `!(form)` globs of the `cn` restriction,
-  comment-style and JSDoc blocks), and the `!` negation in `.prettierignore`. A
-  second hand-written file there goes into all five in the same change.
+  for ESLint with `pnpm exec eslint --print-config <file>`. For Oxlint, lint a
+  probe file under the glob, seeded with `import { cn as seededCn } from 'cn'`:
+  `oxlint --print-config` prints the whole config, not one file's. The
+  exemptions live in the `vite.config.ts` overrides and in `eslint.config.js`.
+- **`form.tsx` is ours**, fully linted and formatted. Find every place that
+  names it with `grep -n form.tsx vite.config.ts` and `grep -n '!(form)'
+  eslint.config.js`: the `vite.config.ts` override blocks that re-enable the
+  `react/only-export-components` and `cn` rules, the `!` negation in
+  `fmt.ignorePatterns`, and the `!(form)` globs in `eslint.config.js`. A second
+  hand-written file there goes into all of them in the same change.
 - **An edit to a vendored file is recorded, or CI fails.** `pnpm ui:drift`
   compares each file with its registry snapshot in `scripts/ui-registry/` and
   accepts only the edits in `docs/ui-local-edits.md`. On drift it prints the
@@ -336,10 +342,10 @@ the component is added again.
 
 ## Versions
 
-- **TypeScript stays below 6.1.** typescript-eslint 8.70.1 peers
-  `typescript >=4.8.4 <6.1.0`, and the type-aware rules are most of the lint
-  config. `renovate.json` holds it. Re-check that peer range before lifting the
-  hold. `@types/node` is not part of this constraint.
+- **TypeScript stays below 6.1.** `tsc` 6 and typescript-eslint 8.70.1's parser
+  peer `typescript >=4.8.4 <6.1.0`. Oxlint's type-aware engine bundles its own
+  TS 7, so it does not constrain this pin. `renovate.json` holds it. Re-check the
+  peer range before lifting the hold. `@types/node` is not part of this constraint.
 - **The pnpm version lives only in `packageManager`.** The Dockerfile and CI read
   it. pnpm records itself in `pnpm-lock.yaml` (`packageManagerDependencies`), so
   changing the field means regenerating the lockfile in the same commit, or

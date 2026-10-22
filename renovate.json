@@ -26,7 +26,7 @@
   ],
   "packageRules": [
     {
-      "description": "typescript-eslint peers typescript <6.1.0; TS 7 breaks type-aware lint (see CLAUDE.md Versions)",
+      "description": "tsc 6 and typescript-eslint's parser peer <6.1.0; Oxlint's type-aware engine bundles its own TS 7",
       "matchPackageNames": ["typescript"],
       "allowedVersions": "<6.1.0"
     },
@@ -47,9 +47,11 @@
         "eslint-*",
         "@eslint/*",
         "typescript-eslint",
-        "prettier",
-        "prettier-*",
-        "@ianvs/prettier-plugin-sort-imports",
+        "vite-plus",
+        "@voidzero-dev/*",
+        "oxlint",
+        "oxlint-tsgolint",
+        "oxfmt",
         "vitest",
         "@vitest/*"
       ]

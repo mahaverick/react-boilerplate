@@ -16,7 +16,7 @@ const CSS = readFileSync(path.join(ROOT, 'src/styles/globals.css'), 'utf8')
 /** The colours the shell paints with; each must equal globals.css's value in both themes. */
 const COLOURS = ['background', 'card', 'muted', 'border', 'sidebar', 'sidebar-border'] as const
 
-/** The inline budget, in bytes after whitespace runs are collapsed (prettier's indentation is not the budget's concern). */
+/** The inline budget, in bytes after whitespace runs are collapsed (the formatter's indentation is not the budget's concern). */
 const BUDGET_BYTES = 4096
 
 /** The text of `<style id="<id>">…</style>` in index.html. */
