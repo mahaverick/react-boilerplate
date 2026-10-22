@@ -39,3 +39,43 @@ Per job:
 | `pnpm build`                                                                   |      5.058 ± 0.013 |
 
 `bash .husky/pre-push` (eslint, prettier, typecheck, unit tests; run once, load average 27 at start): `real 116.90s`, `user 469.61s`, `sys 78.74s`.
+
+## CI after PR 1
+
+10 successful `ci.yml` runs on head ebe646a (one first run plus 9 reruns of run 39843374084). None failed.
+
+| Metric           |     Value |
+| :--------------- | --------: |
+| Median wall time |      410s |
+| p90              |     1031s |
+| Range            | 365-1062s |
+
+Three of the ten attempts (2, 9, 10) took 997-1062s. In each, `playwright install-deps chromium` in the `e2e` job took 594-662s, against about 20s in the others. That is a slow apt mirror, not the code. Without those three, the seven runs span 365-417s with a median of 397s.
+
+Per job (median of 10, min-max):
+
+| Job      |             Time |
+| :------- | ---------------: |
+| `test`   |  331s (243-388s) |
+| `e2e`    | 406s (329-1056s) |
+| `lint`   |     62s (46-66s) |
+| `docker` |     67s (54-86s) |
+
+`lint` fell from 138-142s to a 62s median. `test` is unchanged in kind (coverage still dominates); PR 2 targets it.
+
+An earlier set of attempts on head 5e8fda7 is discarded: from attempt 5 on, the `test` job failed at "Audit production dependencies" on new dompurify advisories (GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr), not on this PR. Commit ebe646a adds the override.
+
+## Local after PR 1
+
+Load average (1 min): 4.71 at the start, 30.9 at the end of the hyperfine run. `pnpm test` spawns its own workers, so the later commands ran under load; treat these as indicative. `--warmup 1 --runs 3`, mean of 3.
+
+| Command              | Mean wall time [s] | Before [s] |
+| :------------------- | -----------------: | ---------: |
+| `pnpm check`         |      15.206 ± 1.589 |          - |
+| `pnpm exec eslint .` |      10.319 ± 0.311 |     26.961 |
+| `pnpm test`          |      60.801 ± 5.845 |     61.098 |
+| `pnpm build`         |       6.829 ± 1.283 |      5.058 |
+
+`pnpm check` replaces the old eslint plus prettier pair (26.961 + 5.407 = 32.4s before). `pnpm exec eslint .` is the 17 untyped leftover rules. `pnpm build` is noisier than before because of the load.
+
+`/usr/bin/time -p pnpm gate`: real 98.88s, user 409.04s, sys 79.86s (load 30 at start). The old pre-push hook took 116.90s.
