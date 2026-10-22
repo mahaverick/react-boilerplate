@@ -11,10 +11,11 @@ WORKDIR /app
 # silence, and allowBuilds is what lets msw's postinstall run at all.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN npm i -g corepack@0.36.0 && corepack enable
-# `husky` is package.json's `prepare` script. There is no .git in the build
-# context (see .dockerignore); husky exits cleanly without one, and this makes
-# that explicit.
+# `vp config --hooks` is package.json's `prepare` script. There is no .git in
+# the build context (see .dockerignore), so it has no hooks to install; these
+# make that explicit.
 ENV HUSKY=0
+ENV VP_GIT_HOOKS=0
 
 # pnpm-workspace.yaml is copied WITH the manifest and the lockfile: it carries
 # the install settings above, so leaving it out of this layer changes what

@@ -229,7 +229,7 @@ export default tseslint.config(
           require: { FunctionDeclaration: false },
           contexts: JSDOC_CONTEXTS,
           checkConstructors: false,
-          // lint-staged runs eslint --fix, and this fixer inserts blank stubs.
+          // `vp staged` runs eslint --fix, and this fixer inserts blank stubs.
           enableFixer: false,
         },
       ],

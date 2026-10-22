@@ -81,10 +81,13 @@ When it reports something:
 
 ## Git hooks
 
-- **The hooks live in `.husky/` and must stay committed.** `prepare` generates only
-  husky's `_/` directory, so if `git ls-files .husky` is empty, no hook runs.
+- **The hooks live in `.vite-hooks/` and must stay committed.** `prepare`
+  (`vp config --hooks`) generates only the `_/` dispatcher, so if
+  `git ls-files .vite-hooks` is empty, no hook runs.
+- Existing clone? After `pnpm install`, run `git config --unset core.hooksPath && pnpm prepare` once, or no hook runs.
 - **pre-push runs no e2e.** A long pre-push hook can outlast the SSH connection and
-  drop the push. CI runs e2e.
+  drop the push. CI runs e2e. `pnpm push [git push args]` runs `pnpm gate` first,
+  then pushes with `--no-verify`.
 - **Hooks call `pnpm exec`, never `npx`.** On a fresh machine `npx` downloads the
   newest version, not the one this repo tested against.
 
@@ -275,7 +278,7 @@ the component is added again.
 
 - **Oxfmt skips the vendored files** (`fmt.ignorePatterns` in `vite.config.ts`).
 - **Oxlint and ESLint relax only some rules for them**: the Tailwind rules,
-  `react-refresh/only-export-components`, `local/comment-style`, the JSDoc
+  `react/only-export-components`, `local/comment-style`, the JSDoc
   requirement and the `cn` import restriction. Every other rule, type-aware rules
   at error included, still applies, so a type error there fails CI. Settle a doubt
   for ESLint with `pnpm exec eslint --print-config <file>`. For Oxlint, lint a

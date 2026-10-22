@@ -630,6 +630,18 @@ export default defineConfig({
       '.vitest/',
     ],
   },
+  /**
+   * What the pre-commit hook runs on staged files (`vp staged`). ESLint keeps
+   * `--no-warn-ignored` so a staged file under an ignore is not a warning.
+   */
+  staged: {
+    '*.{ts,tsx,js,jsx,mjs}': [
+      'vp lint --fix',
+      'eslint --fix --max-warnings 0 --no-warn-ignored',
+      'vp fmt',
+    ],
+    '*.{css,json,jsonc,md,html}': ['vp fmt'],
+  },
   plugins: lazyPlugins(async () => [
     tanstackRouter({
       target: 'react',

@@ -27,5 +27,6 @@ playwright-report
 scripts/ui-registry
 .github
 .husky
+.vite-hooks
 Dockerfile
 .dockerignore

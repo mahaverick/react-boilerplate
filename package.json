@@ -33,7 +33,7 @@
     "test": "vp test --watch=false",
     "test:coverage": "vp test --watch=false --coverage",
     "test:watch": "vp test",
-    "prepare": "husky",
+    "prepare": "vp config --hooks --no-agent",
     "test:e2e": "playwright test --project=fixtures",
     "test:e2e:live": "E2E_LIVE=1 playwright test --project=live",
     "test:e2e:nginx": "docker rm -f rb-e2e >/dev/null 2>&1; docker build -t react-boilerplate:e2e . && docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp --add-host=api:host-gateway -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=ci -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test react-boilerplate:e2e >/dev/null && for i in $(seq 1 60); do curl -sf http://localhost:8088 >/dev/null && break; sleep 0.5; done && E2E_LIVE=1 E2E_NGINX=1 playwright test --project=nginx; code=$?; docker rm -f rb-e2e >/dev/null 2>&1; exit $code",
@@ -42,7 +42,9 @@
     "capture:pages": "E2E_CAPTURE=1 E2E_LIVE=1 playwright test --project=capture",
     "check:bundle": "node scripts/check-bundle.mjs",
     "ui:drift": "node scripts/ui-drift.mjs",
-    "ui:drift:refresh": "node scripts/ui-drift.mjs --refresh"
+    "ui:drift:refresh": "node scripts/ui-drift.mjs --refresh",
+    "gate": "pnpm check && pnpm typecheck && pnpm lint:docs && pnpm ui:drift && pnpm knip && pnpm test",
+    "push": "bash scripts/push.sh"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",
@@ -91,11 +93,9 @@
     "eslint-plugin-check-file": "3.3.2",
     "eslint-plugin-jsdoc": "65.1.0",
     "eslint-plugin-tailwindcss": "4.4.0",
-    "husky": "9.1.7",
     "jest-axe": "11.0.0",
     "jsdom": "30.1.1",
     "knip": "6.39.0",
-    "lint-staged": "17.5.1",
     "msw": "2.15.0",
     "playwright": "^1.63.0",
     "shadcn": "4.21.4",
@@ -105,18 +105,5 @@
     "vite": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
-  },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "vp lint --fix --max-warnings 0 --no-warn-ignored",
-      "vp fmt"
-    ],
-    "*.{js,jsx,mjs}": [
-      "vp lint --fix --max-warnings 0 --no-warn-ignored",
-      "vp fmt"
-    ],
-    "*.{css,json,jsonc,md,html}": [
-      "vp fmt"
-    ]
   }
 }

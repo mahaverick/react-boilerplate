@@ -80,12 +80,14 @@ jobs:
         run: pnpm install --frozen-lockfile
         env:
           HUSKY: '0'
+          VP_GIT_HOOKS: '0'
       - id: express-install
         if: env.EXERCISE == 'none'
         working-directory: express
         run: pnpm install --frozen-lockfile
         env:
           HUSKY: '0'
+          VP_GIT_HOOKS: '0'
       # The same key as ci.yml's e2e job, so both share one browser cache.
       - id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

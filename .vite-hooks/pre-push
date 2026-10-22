@@ -1,7 +1,4 @@
 # No e2e here on purpose: a long pre-push hook can outlast the SSH connection
 # and drop the push. CI runs e2e (fixtures project) on every PR.
 set -e
-pnpm exec eslint . --max-warnings 0
-pnpm lint
-pnpm typecheck
-pnpm test
+pnpm gate
