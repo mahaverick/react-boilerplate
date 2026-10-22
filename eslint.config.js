@@ -1,12 +1,10 @@
-import js from '@eslint/js'
+/**
+ * Rules Oxlint cannot run yet (docs/lint-deferred.md). No type information: typed rules run in Oxlint.
+ */
 import tanstackRouter from '@tanstack/eslint-plugin-router'
-import prettier from 'eslint-config-prettier'
 import checkFile from 'eslint-plugin-check-file'
 import jsdoc from 'eslint-plugin-jsdoc'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
 import tailwindcss from 'eslint-plugin-tailwindcss'
-import globals from 'globals'
 import tseslint from 'typescript-eslint'
 import { commentStyleRule } from './scripts/comment-style.mjs'
 
@@ -37,6 +35,14 @@ const JSDOC_CONTEXTS = [
   'ExportNamedDeclaration[declaration.type="VariableDeclaration"]',
 ]
 
+const TAILWIND_RULES = {
+  'tailwindcss/enforces-canonical-classname': 'warn',
+  'tailwindcss/enforces-shorthand': 'warn',
+  'tailwindcss/no-contradicting-classname': 'error',
+  'tailwindcss/no-custom-classname': 'warn',
+  'tailwindcss/no-unnecessary-arbitrary-value': 'warn',
+}
+
 export default tseslint.config(
   {
     ignores: [
@@ -46,107 +52,17 @@ export default tseslint.config(
       'public/mockServiceWorker.js',
       'test-results',
       'playwright-report',
-      // The registry snapshot `pnpm ui:drift` reads: upstream's bytes, never imported.
       'scripts/ui-registry',
     ],
   },
-  js.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+  { files: ['**/*.{ts,tsx,mts,cts}'], languageOptions: { parser: tseslint.parser } },
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   {
     files: ['src/**/*.{ts,tsx}'],
-    languageOptions: {
-      globals: globals.browser,
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
-    },
-    plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
-    rules: {
-      ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
-    },
-  },
-  tailwindcss.configs.recommended,
-  {
-    files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/components/ui/**'],
+    ignores: ['src/components/ui/!(form).tsx'],
+    plugins: { tailwindcss },
     settings: { tailwindcss: { cssConfigPath: './src/styles/globals.css' } },
-    rules: { 'tailwindcss/classnames-order': 'off' },
-  },
-  {
-    /**
-     * Root-level configs get no type information (only the src/, tests/ and e2e/
-     * blocks set typed parser options), so typed rules throw on them: they are
-     * linted syntactically only, and listed by name so this block never covers
-     * a file under src/. The Tailwind rules are off because the plugin's own
-     * `files` glob matches them and, without `cssConfigPath` (set only for
-     * src/), it falls back to 'src/style.css' and throws ENOENT.
-     */
-    files: [
-      'eslint.config.js',
-      'prettier.config.js',
-      'vite.config.ts',
-      'vitest.config.ts',
-      'playwright.config.ts',
-      'commitlint.config.js',
-    ],
-    extends: [tseslint.configs.disableTypeChecked],
-    rules: {
-      'tailwindcss/classnames-order': 'off',
-      'tailwindcss/enforces-canonical-classname': 'off',
-      'tailwindcss/enforces-negative-arbitrary-values': 'off',
-      'tailwindcss/enforces-shorthand': 'off',
-      'tailwindcss/important-modifier-suffix': 'off',
-      'tailwindcss/no-custom-classname': 'off',
-      'tailwindcss/no-contradicting-classname': 'off',
-      'tailwindcss/no-unnecessary-arbitrary-value': 'off',
-    },
-  },
-  {
-    /**
-     * The pre-paint scripts: classic browser scripts served as-is from
-     * public/, outside every tsconfig, so they are linted syntactically only. The
-     * Tailwind rules are off for the reason given on the root-config block.
-     */
-    files: ['public/theme-init.js', 'public/boot-variant.js'],
-    extends: [tseslint.configs.disableTypeChecked],
-    languageOptions: { globals: globals.browser, sourceType: 'script' },
-    rules: {
-      'tailwindcss/classnames-order': 'off',
-      'tailwindcss/enforces-canonical-classname': 'off',
-      'tailwindcss/enforces-negative-arbitrary-values': 'off',
-      'tailwindcss/enforces-shorthand': 'off',
-      'tailwindcss/important-modifier-suffix': 'off',
-      'tailwindcss/no-custom-classname': 'off',
-      'tailwindcss/no-contradicting-classname': 'off',
-      'tailwindcss/no-unnecessary-arbitrary-value': 'off',
-    },
-  },
-  {
-    /** Node scripts and e2e's Node helpers sit outside every tsconfig, so they are linted syntactically only. */
-    files: ['scripts/**/*.mjs', 'scripts/**/*.d.mts', 'e2e/**/*.mjs', 'e2e/**/*.d.mts'],
-    extends: [tseslint.configs.disableTypeChecked],
-    languageOptions: { globals: globals.node },
-  },
-  {
-    /**
-     * The e2e suite and its fixture harness, with typed linting: e2e/tsconfig.json
-     * lets `projectService` find these files. The Tailwind rules are off for the
-     * reason given on the root-config block.
-     */
-    files: ['e2e/**/*.{ts,tsx}'],
-    languageOptions: {
-      globals: globals.browser,
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
-    },
-    rules: {
-      'tailwindcss/classnames-order': 'off',
-      'tailwindcss/enforces-canonical-classname': 'off',
-      'tailwindcss/enforces-negative-arbitrary-values': 'off',
-      'tailwindcss/enforces-shorthand': 'off',
-      'tailwindcss/important-modifier-suffix': 'off',
-      'tailwindcss/no-custom-classname': 'off',
-      'tailwindcss/no-contradicting-classname': 'off',
-      'tailwindcss/no-unnecessary-arbitrary-value': 'off',
-    },
+    rules: TAILWIND_RULES,
   },
   {
     /**
@@ -206,27 +122,12 @@ export default tseslint.config(
   },
   {
     /**
-     * The Vitest suite, with typed linting (tsconfig.app.json includes tests/)
-     * and the same react-hooks rules as src/, since tests render components and
-     * call hooks. The Tailwind rules are off for the reason given on the
-     * root-config block.
+     * The Vitest suite's filename rules. Its typed and react-hooks rules run in
+     * Oxlint, and the Tailwind block covers src/ only.
      */
     files: ['tests/**/*.{ts,tsx}'],
-    languageOptions: {
-      globals: globals.browser,
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
-    },
-    plugins: { 'react-hooks': reactHooks, 'check-file': checkFile },
+    plugins: { 'check-file': checkFile },
     rules: {
-      ...reactHooks.configs.recommended.rules,
-      'tailwindcss/classnames-order': 'off',
-      'tailwindcss/enforces-canonical-classname': 'off',
-      'tailwindcss/enforces-negative-arbitrary-values': 'off',
-      'tailwindcss/enforces-shorthand': 'off',
-      'tailwindcss/important-modifier-suffix': 'off',
-      'tailwindcss/no-custom-classname': 'off',
-      'tailwindcss/no-contradicting-classname': 'off',
-      'tailwindcss/no-unnecessary-arbitrary-value': 'off',
       /** `.test.`, never `.spec.`, and no `__tests__/` folders. */
       'check-file/filename-blocklist': [
         'error',
@@ -272,17 +173,6 @@ export default tseslint.config(
     },
   },
   {
-    /** One import path for the class merger in our own code; vendored shadcn files keep theirs. */
-    files: ['src/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
-    ignores: ['src/lib/utils.ts', 'src/components/ui/!(form).tsx'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        { paths: [{ name: 'cn', message: "Import `cn` from '@/lib/utils'." }] },
-      ],
-    },
-  },
-  {
     /**
      * A test waits on a condition, never on a duration (see CLAUDE.md). The two
      * timing.ts files are exempt because they implement the deliberate waits.
@@ -313,81 +203,9 @@ export default tseslint.config(
           message: NETWORKIDLE_MESSAGE,
         },
       ],
-      'no-restricted-imports': [
-        'error',
-        {
-          paths: [
-            { name: 'cn', message: "Import `cn` from '@/lib/utils'." },
-            { name: 'node:timers/promises', importNames: ['setTimeout'], message: SLEEP_MESSAGE },
-            { name: 'timers/promises', importNames: ['setTimeout'], message: SLEEP_MESSAGE },
-          ],
-        },
-      ],
     },
   },
   ...tanstackRouter.configs['flat/recommended'],
-  {
-    /**
-     * Vendored shadcn output: these rules would rewrite upstream's class strings
-     * and churn the diff on every re-add. This block must come after
-     * tailwindcss.configs.recommended, whose own `files` glob is not stopped by
-     * the `ignores` on the settings block.
-     */
-    files: ['src/components/ui/**'],
-    rules: {
-      /** Vendored components export a `cva` variants object beside the component. */
-      'react-refresh/only-export-components': 'off',
-      'tailwindcss/classnames-order': 'off',
-      'tailwindcss/enforces-canonical-classname': 'off',
-      'tailwindcss/enforces-negative-arbitrary-values': 'off',
-      'tailwindcss/enforces-shorthand': 'off',
-      'tailwindcss/important-modifier-suffix': 'off',
-      'tailwindcss/no-arbitrary-value': 'off',
-      'tailwindcss/no-contradicting-classname': 'off',
-      'tailwindcss/no-custom-classname': 'off',
-      'tailwindcss/no-unnecessary-arbitrary-value': 'off',
-    },
-  },
-  {
-    /**
-     * Route files. TanStack Router's `redirect()` returns a `Response` that a
-     * `beforeLoad` guard throws, so `only-throw-error` allows the lib `Response`
-     * type; a thrown string or plain object still errors.
-     */
-    files: ['src/pages/**/*.{ts,tsx}'],
-    rules: {
-      /** A file route exports both `Route` and its component, by the router's contract. */
-      'react-refresh/only-export-components': 'off',
-      '@typescript-eslint/only-throw-error': [
-        'error',
-        { allow: [{ from: 'lib', name: 'Response' }] },
-      ],
-    },
-  },
-  {
-    /**
-     * The one hand-written file under src/components/ui/: form.tsx (the
-     * registry one is built on react-hook-form). The rules the vendored
-     * block turns off come back on at the plugin's recommended severities;
-     * `classnames-order` stays off because prettier-plugin-tailwindcss owns
-     * ordering. `settings` is repeated because the block that sets
-     * `cssConfigPath` ignores this directory, and without it the plugin throws
-     * ENOENT on 'src/style.css'.
-     */
-    files: ['src/components/ui/form.tsx'],
-    settings: { tailwindcss: { cssConfigPath: './src/styles/globals.css' } },
-    rules: {
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
-      'tailwindcss/enforces-canonical-classname': 'warn',
-      'tailwindcss/enforces-negative-arbitrary-values': 'warn',
-      'tailwindcss/enforces-shorthand': 'warn',
-      'tailwindcss/important-modifier-suffix': 'warn',
-      'tailwindcss/no-arbitrary-value': 'off',
-      'tailwindcss/no-contradicting-classname': 'error',
-      'tailwindcss/no-custom-classname': 'warn',
-      'tailwindcss/no-unnecessary-arbitrary-value': 'warn',
-    },
-  },
   {
     /**
      * Comment style is enforced; see CLAUDE.md. The `.d.mts` files under
@@ -416,9 +234,7 @@ export default tseslint.config(
         },
       ],
       'jsdoc/require-description': ['error', { contexts: JSDOC_CONTEXTS }],
-      'jsdoc/no-blank-blocks': ['error', { enableFixer: false }],
       'jsdoc/check-param-names': ['error', { checkDestructured: false }],
-      'jsdoc/check-tag-names': ['error', { typed: true }],
       'jsdoc/no-types': 'error',
     },
   },
@@ -431,6 +247,5 @@ export default tseslint.config(
     // Vendored shadcn/Base UI output stays as upstream ships it.
     files: ['src/components/ui/!(form).tsx'],
     rules: { 'jsdoc/require-jsdoc': 'off', 'jsdoc/require-description': 'off' },
-  },
-  prettier
+  }
 )
