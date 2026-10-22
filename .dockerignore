@@ -26,7 +26,6 @@ playwright-report
 # The registry snapshot ui:drift reads; never imported.
 scripts/ui-registry
 .github
-.husky
 .vite-hooks
 Dockerfile
 .dockerignore

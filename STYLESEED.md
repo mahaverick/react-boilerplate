@@ -118,7 +118,7 @@ and verification fails without them.
 live design tokens. Do not wire `--ss-*` into components, and do not treat those files as a
 source of truth.
 
-`.prettierignore` excludes `.styleseed/` and this file. A reformat of the generated files
+`fmt.ignorePatterns` in `vite.config.ts` excludes `.styleseed/` and this file. A reformat of the generated files
 changes their hashes and turns a clean scan into an SS000 contract error.
 
 ## Skills

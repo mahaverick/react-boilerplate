@@ -31,7 +31,7 @@
       "allowedVersions": "<6.1.0"
     },
     {
-      "description": "Stay on Node 24 LTS until the planned move to Node 26 after 2026-10-28. Covers every Node version pin: the docker `node` image (Dockerfile), `.nvmrc` and `actions/setup-node`'s `node-version:` (node-version datasource, depName `node`).",
+      "description": "Stay on Node 24 LTS until the planned move to Node 26 after 2026-10-28. Covers every Node version pin: the docker `node` image (Dockerfile), `.node-version` and `actions/setup-node`'s `node-version:` (node-version datasource, depName `node`).",
       "matchDepNames": ["node"],
       "allowedVersions": "<25"
     },

@@ -52,8 +52,9 @@ as a route under `src/pages/_app/settings/`.
 
 - **0 errors and 0 warnings.** `pnpm check` is the static gate: `vp check`
   (Oxlint with type-aware rules, plus the Oxfmt check), then ESLint with
-  `--max-warnings 0` for the 17 leftover rules, which run untyped. `pnpm lint`
-  runs `vp lint`, ESLint and `vp fmt --check`; its ESLint half exits 0 on warnings.
+  `--max-warnings 0` for the 17 leftover rules, which run untyped. Oxlint fails on
+  a warning too (`denyWarnings` in `vite.config.ts`). `pnpm lint` runs `vp lint`,
+  ESLint and `vp fmt --check`, with the same zero-warning bar.
 - CI runs `pnpm lint:docs`,
   `pnpm ui:drift`, `pnpm knip`, `pnpm typecheck`, `pnpm test:coverage` (thresholds in
   `vitest.config.ts`), `pnpm check:bundle` and the `e2e` and `docker` jobs. The scripts
@@ -355,7 +356,7 @@ the component is added again.
   `--frozen-lockfile` fails.
 - **`devEngines.runtime` (`onFail: "error"`) refuses a wrong Node at install.**
 - **Renovate holds every Node pin below 25.** It covers the Docker `node` image,
-  `.nvmrc` and CI's `node-version:`. Renovate does not move `engines.node` or
+  `.node-version` and CI's `node-version:`. Renovate does not move `engines.node` or
   `devEngines.runtime.version`, so a Node major moves those by hand alongside the
   pins.
 - Renovate's schedule and automerge policy are in `renovate.json`. Majors and the

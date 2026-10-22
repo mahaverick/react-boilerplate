@@ -25,7 +25,7 @@ import type { User } from '@/types/api.types'
 
 /**
  * "Ada Lovelace", or the email when the profile carries no name yet. Not
- * exported: `react-refresh/only-export-components` fails lint under
+ * exported: `react/only-export-components` fails lint under
  * `--max-warnings 0`.
  */
 function displayName(user: User | null): string {

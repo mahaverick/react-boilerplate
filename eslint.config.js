@@ -176,8 +176,6 @@ export default tseslint.config(
     /**
      * A test waits on a condition, never on a duration (see CLAUDE.md). The two
      * timing.ts files are exempt because they implement the deliberate waits.
-     * `no-restricted-imports` repeats the `cn` entry: a later block's options
-     * replace an earlier block's, they do not merge.
      */
     files: ['tests/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
     ignores: ['tests/fixtures/timing.ts', 'e2e/timing.ts'],
