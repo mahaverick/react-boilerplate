@@ -36,7 +36,6 @@ function triggersFor(path: string): RegExp[] {
 
 describe('source paths a content blocker would drop', () => {
   it('each trigger catches a path that was once blocked or is listed', () => {
-    expect(1).toBe(2)
     const blocked = [
       '/src/observability/analytics/events.ts',
       '/src/observability/route-analytics.ts',
