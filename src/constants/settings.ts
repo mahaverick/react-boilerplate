@@ -35,7 +35,9 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
 
 /** An account settings page's path. */
 export type AccountSettingsPath =
-  '/settings/account/profile' | '/settings/account/security' | '/settings/account/notifications'
+  | '/settings/account/profile'
+  | '/settings/account/security'
+  | '/settings/account/notifications'
 
 /** A workspace settings page's path, under the tenant it acts on. */
 export type WorkspaceSettingsPath =
@@ -45,7 +47,8 @@ export type WorkspaceSettingsPath =
 
 /** One settings page: where it lives, what it is called, and its group. */
 export type SettingsSection = { label: string; description: string; Icon: TablerIcon } & (
-  { group: 'account'; to: AccountSettingsPath } | { group: 'workspace'; to: WorkspaceSettingsPath }
+  | { group: 'account'; to: AccountSettingsPath }
+  | { group: 'workspace'; to: WorkspaceSettingsPath }
 )
 
 /** Every settings page, grouped in `SETTINGS_GROUPS` order. */

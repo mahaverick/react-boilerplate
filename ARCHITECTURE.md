@@ -518,14 +518,14 @@ and the `empty` state; the rest is optional (`search`, `filters`, `toolbar`,
    `audit-action-names.ts`), not from the module that holds the labels, for
    the same reason.
 2. Write the page's options: `(request) => listQueryOptions<Row>({ key, path,
-request })` under the resource's key prefix, so a write's invalidation
+   request })` under the resource's key prefix, so a write's invalidation
    reaches every page.
 3. Write the columns with `createColumnHelper`, at module scope.
 4. Set `validateSearch: list.schema` on the route (with `search: {
-middlewares: [stripSearchParams(...)] }` when `extra` has defaults).
+   middlewares: [stripSearchParams(...)] }` when `extra` has defaults).
 5. In the page: `const list = useListSearch(def)`, `const query =
-useListQuery(list, options)`, then `<DataTable columns query label
-getRowId empty ... />`. Pass `errorMessage` when the list has load-error
+   useListQuery(list, options)`, then `<DataTable columns query label
+   getRowId empty ... />`. Pass `errorMessage` when the list has load-error
    copy of its own.
 6. Test it through `tests/unit/components/shared/data-table/list-harness.tsx`
    (`renderTestList`, `serveTestItems`, `testColumns`, `atPhoneWidth`) and

@@ -96,7 +96,7 @@ ours: s/bg-muted text-sm text-foreground/bg-muted text-sm text-muted-foreground/
 ### button.tsx
 
 - **A focusable disabled button looks disabled** (`aria-disabled:opacity-50
-aria-disabled:cursor-not-allowed`). With `focusableWhenDisabled`, Base UI drops
+  aria-disabled:cursor-not-allowed`). With `focusableWhenDisabled`, Base UI drops
   the native `disabled` attribute for `aria-disabled`, so the registry's
   `disabled:` styles never apply. No `pointer-events-none`: the button stays
   focusable and its click handler returns early. Re-apply: yes.
