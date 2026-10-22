@@ -23,6 +23,9 @@ overrides:
   # GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c: follow-redirects 1.16.0 leaks credential
   # headers across origins. Via axios. Production.
   follow-redirects@<1.16.1: ^1.16.1
+  # GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr: dompurify 3.4.16 and earlier. Via
+  # posthog-js. Production. Patched in 3.4.17.
+  dompurify@<3.4.17: ^3.4.17
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
 auditConfig:
