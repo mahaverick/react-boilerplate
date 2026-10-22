@@ -6,7 +6,7 @@ Timing record for the Vite+ migration. Tasks 8 and 12 append their "after" table
 
 - **CI:** 20 successful `pull_request` runs of `ci.yml` on origin/main 8fd4f64, median and p90 of wall time.
 - **Local:** `hyperfine --warmup 1 --runs 3`; the table shows the mean of 3 runs (hyperfine's markdown export), not the median.
-- **Machine:** Apple M1 Pro, 10 cores. Load average (1 min) was 3.15 at the idle check, 3.86 at the start of the benchmark and 29.5 at its end. Vitest and Playwright spawn their own workers, so the later commands ran under their own load plus other processes on the machine. Treat the local numbers as indicative.
+- **Machine:** Apple silicon laptop, 10 cores. Load average (1 min) was 3.15 at the idle check, 3.86 at the start of the benchmark and 29.5 at its end. Vitest and Playwright spawn their own workers, so the later commands ran under their own load plus other processes on the machine. Treat the local numbers as indicative.
 - **Exit codes:** hyperfine ran with `--ignore-failure`, so each of the five commands was re-run on its own afterwards. All five exited 0, and `pnpm build` produced `dist/` (9.6 MB).
 - **Build time:** `pnpm build` is `tsc -b && vite build`. `tsc -b` reuses its incremental cache after the first run, so the 5s mean is warm. A cold build takes longer (about 14s in the spike).
 - **Comparison:** take later "after" tables at a comparable load, or the ratios mean little.
