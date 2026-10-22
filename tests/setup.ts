@@ -70,7 +70,6 @@ declare module 'vitest' {
    * exactly: declaration merging rejects an interface whose parameters differ at all, so
    * `T` cannot be dropped even though this matcher takes no subject type.
    */
-  // oxlint-disable-next-line @typescript-eslint/no-unused-vars -- required by declaration merging, unused by this matcher's signature
   interface Matchers<R extends void | Promise<void> = void | Promise<void>, T = unknown> {
     toHaveNoViolations(): R
   }
