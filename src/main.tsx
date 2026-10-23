@@ -1,4 +1,4 @@
-/** lane4-profile-probe
+/**
  * @file The entry point. React mounts only after `router.load()` settles, so
  * index.html's static boot shell stays up until the first commit already has a
  * real match (or an error match). `createRoot().render()` clears `#root` on
