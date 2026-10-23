@@ -135,21 +135,17 @@ jobs:
           merge-multiple: true
       - run: pnpm test:merge
 
-  # Two Playwright runs.
+  # The `fixtures` Playwright project, on four workers.
   #
-  # The `fixtures` project drives the MSW harness in e2e/harness/, so it needs
-  # the dev server and nothing else — playwright.config.ts's `webServer` starts
-  # one, and `reuseExistingServer` is off under CI so it always gets a clean
-  # boot.
+  # It drives the MSW harness in e2e/harness/, so it needs the dev server and
+  # nothing else — playwright.config.ts's `webServer` starts one, and
+  # `reuseExistingServer` is off under CI so it always gets a clean boot.
+  # Each test gets its own page, so the tests run in parallel.
   #
-  # Then the `nginx` tests tagged `@no-api`, against the PRODUCTION image built
-  # here and started as it ships — read-only root, a tmpfs /tmp — with nothing
-  # listening behind /api, so every API call answers 502. They check what only
-  # the real bundle behind the real nginx.conf shows: the security headers, the
-  # enforced Content-Security-Policy, the pre-paint theme script, the
-  # run-time configuration, and posthog-js's replay under that policy with no
-  # probe value reaching a fake PostHog. The rest of `nginx` needs a live API
-  # and runs in e2e-nightly.yml, or locally with `pnpm test:e2e:nginx`.
+  # The `nginx` tests tagged `@no-api` do not run in this job: the production
+  # image has no job here yet, so CI does not run them until the `docker` job
+  # takes them over. They run in e2e-nightly.yml, or locally with
+  # `pnpm test:e2e:nginx`.
   #
   # `live`, and the `nginx` tests that need an API, are not here: they need a
   # real express-boilerplate plus postgres, redis and mailpit, and register
@@ -168,49 +164,32 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with: { node-version: 24, cache: pnpm }
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
       - run: pnpm install --frozen-lockfile
-      # The browser is ~100MB and is not in the pnpm store, so setup-node's
-      # cache does not cover it. Keyed on the lockfile: a Playwright bump
-      # changes the lockfile and must fetch a matching browser build.
+        env:
+          HUSKY: '0'
+          VP_GIT_HOOKS: '0'
+      - id: pw
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      # The browser is ~100MB and is not in the pnpm store. Keyed on the
+      # Playwright version, not the lockfile: a lockfile hash misses on every
+      # dependency bump, while a new browser build is needed only when
+      # Playwright itself moves. e2e-nightly.yml uses the same key.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-      # `--with-deps` installs the system libraries the browser needs, which a
-      # bare runner does not have. On a cache hit only those are needed; the
-      # browser binary is already there.
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      # `--with-deps` installs the system libraries Chromium needs, through
+      # apt, which is slow and sometimes stalls for minutes. ubuntu-latest
+      # already has them, so a cache hit installs nothing.
       - run: pnpm exec playwright install --with-deps chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-      - run: pnpm exec playwright install-deps chromium
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
       - run: pnpm test:e2e
-      # `api` resolves to the container's own loopback, where nothing listens.
-      # The run-time settings are what a deployment passes (plain environment
-      # variables), so the bundle under test loads posthog-js as a keyed
-      # deployment does; e2e/nginx/analytics.test.ts expects these values.
-      - name: Start the image with no API behind it
-        run: |
-          docker build -t react-boilerplate:e2e .
-          docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp \
-            --add-host=api:127.0.0.1 -e API_UPSTREAM=http://api:4040 \
-            -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=ci \
-            -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test react-boilerplate:e2e
-          for i in $(seq 1 30); do
-            curl -sf -o /dev/null http://localhost:8088/ && exit 0
-            sleep 1
-          done
-          docker logs rb-e2e
-          exit 1
-      # E2E_NGINX stops playwright.config.ts starting the dev server.
-      - run: pnpm exec playwright test --project=nginx --grep @no-api
-        env:
-          E2E_NGINX: '1'
-      - if: failure()
-        run: docker logs rb-e2e 2>&1 | tail -n 100 || true
       # Only on failure, and only for a week: the report is how you find out
       # what a red run actually saw, and it is useless once the branch moves on.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -219,8 +198,6 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
-      - if: always()
-        run: docker rm -f rb-e2e >/dev/null 2>&1 || true
 
   # The image and its nginx template, checked before deploy rather than at it —
   # a broken proxy_pass or a typo'd directive would otherwise surface there.

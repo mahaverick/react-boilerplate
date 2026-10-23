@@ -24,7 +24,7 @@ const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5173'
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.test.ts',
-  // Tests share one dev server and backend, so one test's sign-out would break another.
+  // live and nginx share one backend or container, so they run serially.
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
@@ -54,6 +54,9 @@ export default defineConfig({
     {
       name: 'fixtures',
       testMatch: 'fixtures/**/*.test.ts',
+      // The MSW harness has no shared backend, so each test gets its own page and worker.
+      fullyParallel: true,
+      workers: process.env.CI ? 4 : '50%',
       use: { ...devices['Desktop Chrome'] },
     },
     {
