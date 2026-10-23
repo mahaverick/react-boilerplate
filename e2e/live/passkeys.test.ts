@@ -30,6 +30,10 @@ test('creates a passkey, signs out and signs back in with it', async ({ page }) 
   const email = freshEmail()
   await createUser(email)
   const auth = await addVirtualAuthenticator(page)
+  // The virtual authenticator answers autofill by itself, so /login would sign in before the click; hide autofill so the button is the way in.
+  await page.addInitScript(() => {
+    PublicKeyCredential.isConditionalMediationAvailable = () => Promise.resolve(false)
+  })
 
   await logIn(page, email)
   await page.goto('/settings/account/security')
@@ -46,7 +50,9 @@ test('creates a passkey, signs out and signs back in with it', async ({ page }) 
   await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/login/)
 
+  const verify = page.waitForRequest('**/auth/passkeys/sign-in/verify')
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click()
+  await verify
   await expect(page).toHaveURL(/\/(dashboard|welcome)/, { timeout: 15_000 })
   await auth.remove()
 })
