@@ -58,7 +58,8 @@ export default defineConfig({
       testMatch: 'fixtures/**/*.test.ts',
       // The MSW harness has no shared backend, so each test gets its own page and worker.
       fullyParallel: true,
-      workers: process.env.CI ? 4 : '50%',
+      // Three workers leave a core for the dev server on a 4 vCPU runner; at four, pages stalled on "Loading" past the 5 s assertion budget.
+      workers: process.env.CI ? 3 : '50%',
       use: { ...devices['Desktop Chrome'] },
     },
     {
