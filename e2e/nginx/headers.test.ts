@@ -21,6 +21,7 @@ test(
   'pages, assets and a 404 carry every security header, and no nginx version',
   { tag: '@no-api' },
   async ({ request }) => {
+    expect('throwaway', 'proves the docker aggregate fails with nginx-e2e').toBe('green')
     const paths = [
       '/',
       '/dashboard',
