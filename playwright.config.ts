@@ -101,8 +101,8 @@ export default defineConfig({
      */
     {
       name: 'nginx',
-      fullyParallel: false,
-      // The API tests share one backend, so locally they stay on one; CI's @no-api tests passed four workers.
+      // The API tests share one backend, so locally they stay on one worker; CI's @no-api tests do not.
+      fullyParallel: !!process.env.CI,
       workers: process.env.CI ? 4 : 1,
       testMatch: 'nginx/**/*.test.ts',
       use: {
