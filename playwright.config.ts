@@ -30,7 +30,7 @@ export default defineConfig({
   workers: process.env.CI ? 4 : '50%',
   forbidOnly: !!process.env.CI,
   /** Under CI, ci.yml's e2e job uploads the html report from playwright-report/ when it fails. */
-  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
+  reporter: process.env.CI ? [['github'], ['dot'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,
     trace: 'on-first-retry',
