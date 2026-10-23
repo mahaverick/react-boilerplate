@@ -131,4 +131,4 @@ CI, head 0ae09a5 (three workers) and head 1dcb009 (four workers), three runs eac
 | 3       | 94s, 112s, 113s  | 62s, 80s, 85s        |
 | 4       | 105s, 110s, 108s | 79s, 81s, 78s        |
 
-Two red runs on the way to green were test races the bundle exposed, not harness faults. The sign-in link test asserted `/dashboard$` while the router adds `?tenant=`; the dev server's slowness hid it. Three palette tests typed while the loading field handed over to the palette and lost a key (the trace showed "crate a tenant"); they now wait for the palette dialog first.
+Two red runs on the way to green were test races the bundle exposed, not harness faults. The sign-in link test asserted `/dashboard$` while the router adds `?tenant=`; the dev server's slowness hid it. Three palette tests typed right after Ctrl+K and lost a key (the trace showed "crate a tenant"). That was an app bug, not a test fault: between the loading field leaving and the palette's input taking focus, a key landed on the page and vanished. The host now sends such keys to the query, and the tests type straight after Ctrl+K again; 440 repeated runs passed, against 3 failures in 120 before.

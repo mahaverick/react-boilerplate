@@ -47,10 +47,6 @@ test('lists a suspended tenant as disabled', async ({ page }) => {
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
   await page.keyboard.press('ControlOrMeta+k')
-  // Typing waits for the palette itself: a key pressed as the loading field hands over to it can be lost.
-  await expect(page.getByRole('dialog', { name: 'Command palette', exact: true })).toBeVisible({
-    timeout: COLD_TRANSFORM_BUDGET_MS,
-  })
   await page.keyboard.type('gamma')
   const gamma = page.getByRole('option', { name: /^Gamma Ltd/ })
   await expect(gamma).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
@@ -65,10 +61,6 @@ test('sets the theme from the keyboard alone', async ({ page }) => {
   })
   await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/)
   await page.keyboard.press('ControlOrMeta+k')
-  // Typing waits for the palette itself: a key pressed as the loading field hands over to it can be lost.
-  await expect(page.getByRole('dialog', { name: 'Command palette', exact: true })).toBeVisible({
-    timeout: COLD_TRANSFORM_BUDGET_MS,
-  })
   await page.keyboard.type('dark')
   await expect(page.getByRole('option', { name: /^Dark/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
@@ -152,10 +144,6 @@ test('Create a tenant leaves focus in the Name field of /tenants', async ({ page
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
   await page.keyboard.press('ControlOrMeta+k')
-  // Typing waits for the palette itself: a key pressed as the loading field hands over to it can be lost.
-  await expect(page.getByRole('dialog', { name: 'Command palette', exact: true })).toBeVisible({
-    timeout: COLD_TRANSFORM_BUDGET_MS,
-  })
   await page.keyboard.type('create a tenant')
   await expect(page.getByRole('option', { name: /^Create a tenant/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,

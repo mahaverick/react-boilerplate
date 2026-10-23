@@ -148,6 +148,43 @@ describe('CommandPaletteHost', () => {
       expect(useCommandPaletteStore.getState().query).toBe('acm')
     })
 
+    it('keeps keys pressed while focus is between the loading field and the palette', async () => {
+      let release: (() => void) | undefined
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
+      const user = userEvent.setup()
+      render(<CommandPaletteHost />)
+      act(() => useCommandPaletteStore.getState().setOpen(true))
+      await user.keyboard('ac')
+
+      release?.()
+      expect(await screen.findByText('The app palette')).toBeInTheDocument()
+      // The loading field is gone and the palette has not taken focus yet, so keys land on the body.
+      expect(document.body).toHaveFocus()
+      await user.keyboard('m{Backspace}me')
+      expect(useCommandPaletteStore.getState().query).toBe('acme')
+    })
+
+    it('leaves a key alone when it lands in a field or with a modifier', async () => {
+      const { CommandPaletteHost, useCommandPaletteStore } = await loadHost('loads')
+      const user = userEvent.setup()
+      render(
+        <>
+          <input aria-label="Other" />
+          <CommandPaletteHost />
+        </>
+      )
+      act(() => useCommandPaletteStore.getState().setOpen(true))
+      await screen.findByText('The app palette')
+      await user.keyboard('{Control>}a{/Control}')
+      expect(useCommandPaletteStore.getState().query).toBe('')
+      await user.click(screen.getByRole('textbox', { name: 'Other' }))
+      await user.keyboard('zz')
+      expect(useCommandPaletteStore.getState().query).toBe('')
+    })
+
     it('shows the typed text when it opens with one already in the store', async () => {
       const gate = new Promise<void>(() => {})
       const { CommandPaletteHost, useCommandPaletteStore } = await loadHost({ gate })
