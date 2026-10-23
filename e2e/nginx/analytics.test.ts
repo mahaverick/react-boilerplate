@@ -245,7 +245,7 @@ async function signOut(page: Page): Promise<void> {
 }
 
 test.describe('the run-time configuration', () => {
-  test.beforeAll(requireServedApp)
+  test.beforeEach(requireServedApp)
 
   test(
     'is the container’s environment, never cached, under the security headers',
@@ -286,7 +286,7 @@ test.describe('the run-time configuration', () => {
 })
 
 test.describe('the /api/v1/collect/ location', () => {
-  test.beforeAll(requireServedApp)
+  test.beforeEach(requireServedApp)
 
   test(
     'lets a replay batch of up to 10 MB through to the API',
@@ -327,7 +327,7 @@ test.describe('analytics against a fake PostHog', () => {
 
   let fake: FakePosthog
 
-  test.beforeAll(requireServedApp)
+  test.beforeEach(requireServedApp)
 
   test.beforeEach(async ({ page }) => {
     fake = await startFakePosthog()

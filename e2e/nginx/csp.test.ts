@@ -15,7 +15,7 @@ import {
   watchCspViolations,
 } from './csp'
 
-test.beforeAll(requireServedApp)
+test.beforeEach(requireServedApp)
 
 /**
  * Records every script chunk `page` fetches after this call that index.html
