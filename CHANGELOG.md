@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.4](https://github.com/mahaverick/react-boilerplate/compare/v4.1.3...v4.1.4) (2026-10-23)
+
+
+### Performance Improvements
+
+* **ci:** take docker off the critical path ([#150](https://github.com/mahaverick/react-boilerplate/issues/150)) ([441c5ce](https://github.com/mahaverick/react-boilerplate/commit/441c5ce5afb02e3524e74be07b0ed692c91a05cd))
+
 ## [4.1.3](https://github.com/mahaverick/react-boilerplate/compare/v4.1.2...v4.1.3) (2026-10-23)
 
 
