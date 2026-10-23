@@ -97,7 +97,7 @@ export default defineConfig({
      * Against the production image. The SSE reconnect is only observable here:
      * the Vite proxy does not propagate an upstream close, and nginx does. The
      * headers and the CSP are only real here too; those tests are tagged
-     * `@no-api`, and CI runs them with `--grep @no-api`.
+     * `@no-api`, and ci.yml's `docker` job runs them with `--grep @no-api`.
      */
     {
       name: 'nginx',

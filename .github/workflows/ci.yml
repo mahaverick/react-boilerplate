@@ -142,10 +142,8 @@ jobs:
   # `reuseExistingServer` is off under CI so it always gets a clean boot.
   # Each test gets its own page, so the tests run in parallel.
   #
-  # The `nginx` tests tagged `@no-api` do not run in this job: the production
-  # image has no job here yet, so CI does not run them until the `docker` job
-  # takes them over. They run in e2e-nightly.yml, or locally with
-  # `pnpm test:e2e:nginx`.
+  # The `nginx` tests tagged `@no-api` run in the `docker` job, against the
+  # image it builds.
   #
   # `live`, and the `nginx` tests that need an API, are not here: they need a
   # real express-boilerplate plus postgres, redis and mailpit, and register
@@ -214,8 +212,19 @@ jobs:
   # variable and no secret, as a fork or a fresh repo does, so the upload is
   # skipped; the Dockerfile itself fails if .git reaches the build context.
   #
-  # Plain `docker` rather than docker/build-push-action, so this adds no action
-  # pins to keep current. The runner ships with docker already.
+  # Then the `nginx` Playwright tests tagged `@no-api`, against that same image,
+  # started as it ships (read-only root, a tmpfs /tmp) with nothing listening
+  # behind /api, so every API call answers 502. They check what only the real
+  # bundle behind the real nginx.conf shows: the security headers, the enforced
+  # Content-Security-Policy, the pre-paint theme script, the run-time
+  # configuration, and posthog-js's replay under that policy with no probe value
+  # reaching a fake PostHog. The rest of `nginx` needs a live API and runs in
+  # e2e-nightly.yml, or locally with `pnpm test:e2e:nginx`.
+  #
+  # The build goes through buildx with a GitHub Actions layer cache, which is
+  # worth the two action pins: the dependency layers are rebuilt only when the
+  # lockfile moves, and the whole build is reused when nothing in the context
+  # changed. deploy.yml pins the same actions.
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -223,9 +232,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: docker build --build-arg GIT_SHA="$GIT_SHA" -t react-boilerplate:ci .
-        env:
-          GIT_SHA: ${{ github.sha }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: react-boilerplate:ci
+          build-args: GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=ci-image
+          cache-to: type=gha,mode=max,scope=ci-image
       # `nginx -t` inside the built image. nginx resolves `api` when it LOADS
       # the config, so the hostname has to exist for the parse to succeed —
       # the same reason running this image standalone needs `--add-host`.
@@ -280,3 +295,59 @@ jobs:
       - run: bash docker/check-image.sh react-boilerplate:ci 18080 "$GIT_SHA"
         env:
           GIT_SHA: ${{ github.sha }}
+      # The `nginx` @no-api tests, against the image just checked. Setup, install
+      # and the Playwright cache are the e2e job's; the install is needed only
+      # for the Playwright runner.
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: '0'
+          VP_GIT_HOOKS: '0'
+      - id: pw
+        run: |
+          version=$(pnpm exec playwright --version | awk '{print $2}')
+          if [ -z "$version" ]; then echo "::error::could not read the Playwright version"; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - run: pnpm exec playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      # `api` resolves to the container's own loopback, where nothing listens.
+      # The run-time settings are what a deployment passes (plain environment
+      # variables), so the bundle under test loads posthog-js as a keyed
+      # deployment does; e2e/nginx/analytics.test.ts expects these values.
+      - name: Start the image with no API behind it
+        run: |
+          docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp \
+            --add-host=api:127.0.0.1 -e API_UPSTREAM=http://api:4040 \
+            -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=ci \
+            -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test react-boilerplate:ci
+          for _ in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:8088/ && exit 0
+            sleep 1
+          done
+          docker logs rb-e2e
+          exit 1
+      # E2E_NGINX stops playwright.config.ts starting the dev server.
+      - run: pnpm exec playwright test --project=nginx --grep @no-api
+        env:
+          E2E_NGINX: '1'
+      - if: failure()
+        run: docker logs rb-e2e 2>&1 | tail -n 100 || true
+      # Only on failure, and only for a week: the report is how you find out
+      # what a red run actually saw, and it is useless once the branch moves on.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-report-nginx
+          path: playwright-report/
+          retention-days: 7
+      - if: always()
+        run: docker rm -f rb-e2e >/dev/null 2>&1 || true

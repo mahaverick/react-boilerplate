@@ -14,8 +14,9 @@ const WARM_PATHS = ['/dashboard', '/login']
  */
 export default async function globalSetup(config: FullConfig): Promise<void> {
   if (process.env.E2E_NGINX || process.env.E2E_CAPTURE) return
-  const baseURL = config.projects[0]?.use.baseURL
-  if (!baseURL) return
+  const baseURL = config.projects.find((project) => project.name === 'fixtures')?.use.baseURL
+  if (!baseURL)
+    throw new Error("globalSetup: no 'fixtures' project with a baseURL in playwright.config.ts")
   const browser = await chromium.launch()
   try {
     const page = await browser.newPage({ baseURL })
