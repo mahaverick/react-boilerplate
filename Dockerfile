@@ -60,7 +60,7 @@ RUN test ! -e .git || { echo '.git is in the build context (see .dockerignore)' 
 ARG GIT_SHA=dev
 # vite.config.ts builds hidden source maps: no sourceMappingURL in any chunk.
 # `vp build`, not `pnpm build`: the script also runs `tsc -b`, which CI's lint
-# job (`pnpm typecheck`) already gates before any image is built or promoted.
+# job (`pnpm build`) already runs before deploy.yml builds any image.
 RUN pnpm exec vp build
 # Chunk ids go into every build, uploaded or not, so a file name never holds
 # two different contents across builds. Inject must stay release-less: no
