@@ -27,7 +27,7 @@ export default defineConfig({
   testMatch: '**/*.test.ts',
   // live, contrast and capture run serially; nginx runs in parallel only in ci.yml's `docker` job (see its project).
   fullyParallel: false,
-  // The total cap. Projects set their own, lower or equal: fixtures 3, nginx 4 in `docker`, the rest 1.
+  // The total cap. Projects set their own, lower or equal: fixtures and nginx 4 in `docker`, the rest 1.
   workers: process.env.CI ? 4 : '50%',
   forbidOnly: !!process.env.CI,
   /** Under CI, ci.yml's e2e job uploads the html report from playwright-report/ when it fails. */
@@ -72,7 +72,7 @@ export default defineConfig({
       testMatch: 'fixtures/**/*.test.ts',
       // The MSW harness has no shared backend, so each test gets its own page and worker.
       fullyParallel: true,
-      // Four workers, one per vCPU on a 4 vCPU runner (trial).
+      // Four workers, one per vCPU on a 4 vCPU runner. Against the dev server, pages stalled past the 5 s assertion budget at four; against the bundle, three runs in a row passed.
       workers: process.env.CI ? 4 : '50%',
       use: { ...devices['Desktop Chrome'] },
     },

@@ -135,7 +135,7 @@ jobs:
           merge-multiple: true
       - run: pnpm test:merge
 
-  # The `fixtures` Playwright project, on three workers.
+  # The `fixtures` Playwright project, on four workers.
   #
   # It drives the MSW harness in e2e/harness/, so it needs a built preview and
   # nothing else — `pnpm test:e2e` sets E2E_BUNDLED, and playwright.config.ts's

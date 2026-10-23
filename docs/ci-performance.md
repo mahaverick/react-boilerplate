@@ -109,7 +109,7 @@ Per job (median of 10, min-max):
 
 Two settings shape `e2e`:
 
-- **Three `fixtures` workers.** At four workers on a 4 vCPU runner, pages stalled on "Loading" past the 5s assertion budget. Head bb7350d failed `e2e` in 4 of 5 attempts, with 2 to 13 fixtures tests red each time (the members, pii, passkeys and flags files). With three workers the job passed 10 of 10. The cost is about 15s: `e2e` took 170s at four workers (head 2b244ab, one run).
+- **Four `fixtures` workers.** Against the dev server, four workers on a 4 vCPU runner stalled pages on "Loading" past the 5s assertion budget, and head bb7350d failed `e2e` in 4 of 5 attempts, so the job ran three. The bundled harness (below) lifted that limit: three runs in a row passed at four workers, with the `pnpm test:e2e` step at 78-81s, against 62-85s at three. The gain is inside the noise, and the setting stays at four because the rule was to keep it when three runs passed.
 - **Traces without screenshots.** CI runs no retries, so `retain-on-failure` is the only way a failure leaves a trace. The default also records a screenshot per action for every test, which slowed `e2e`, so `screenshots: false` keeps the DOM snapshots and the network log only.
 
 Docker no longer sets the pace. The earlier ruling to split the `nginx` tests into their own job stays a next-round item, and it now pays only if `e2e` falls below `docker`'s 125s.
@@ -124,4 +124,11 @@ Docker no longer sets the pace. The earlier ruling to split the `nginx` tests in
 
 Local, 70 fixtures tests on 10 cores (five workers, as the config sets outside CI): 44-46s on the dev server, including the warm-up, and 25s on the bundle, including the build.
 
-CI numbers are in the pull request that made the change.
+CI, head 0ae09a5 (three workers) and head 1dcb009 (four workers), three runs each. The `e2e` job against the 184s median above:
+
+| Workers | `e2e` job        | `pnpm test:e2e` step |
+| :------ | :--------------- | :------------------- |
+| 3       | 94s, 112s, 113s  | 62s, 80s, 85s        |
+| 4       | 105s, 110s, 108s | 79s, 81s, 78s        |
+
+Two red runs on the way to green were test races the bundle exposed, not harness faults. The sign-in link test asserted `/dashboard$` while the router adds `?tenant=`; the dev server's slowness hid it. Three palette tests typed while the loading field handed over to the palette and lost a key (the trace showed "crate a tenant"); they now wait for the palette dialog first.
