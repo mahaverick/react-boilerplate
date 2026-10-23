@@ -180,7 +180,7 @@ test.describe('error tracking against a fake PostHog', () => {
 
   let fake: FakePosthog
 
-  test.beforeAll(requireServedApp)
+  test.beforeEach(requireServedApp)
 
   test.beforeEach(async ({ page }) => {
     fake = await startFakePosthog()

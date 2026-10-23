@@ -53,7 +53,13 @@ export async function watchCspViolations(page: Page): Promise<string[]> {
 /** Where the nginx project's container is expected to be serving. */
 const APP_ORIGIN = process.env.E2E_NGINX_ORIGIN ?? 'http://localhost:8088'
 
-/** Fails fast, with the command to run, when no container is serving. */
+/**
+ * Fails fast, with the command to run, when no container is serving. Suites
+ * register it with `beforeEach`, not `beforeAll`: under `fullyParallel`,
+ * Playwright batches a file's tests that share a `beforeAll` into one chunk
+ * per worker, which ran the three slowest analytics tests back to back on one
+ * worker while the others sat idle.
+ */
 export async function requireServedApp(): Promise<void> {
   const served = await fetch(APP_ORIGIN).catch(() => null)
   if (!served?.ok) {

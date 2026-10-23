@@ -21,8 +21,9 @@ permissions:
 
 jobs:
   # Jobs: lint (static gate, build, bundle check, audits), unit (four test
-  # shards) then test (merges the shards, enforces coverage), e2e and docker.
-  # lint, unit and e2e run in parallel; test waits on unit. Actions are pinned
+  # shards) then test (merges the shards, enforces coverage), e2e, and image
+  # then image-checks and two nginx-e2e shards then docker (requires all of
+  # them). lint, unit, e2e and image start in parallel. Actions are pinned
   # to commit SHAs, and Renovate keeps the pins current. actions/cache and
   # actions/upload-artifact need an Actions Runner of at least 2.327.1, which
   # matters only for self-hosted runners; these jobs run on ubuntu-latest.
@@ -160,8 +161,8 @@ jobs:
   # with `vp preview`. `reuseExistingServer` is off, so it always gets a clean boot.
   # Each test gets its own page, so the tests run in parallel.
   #
-  # The `nginx` tests tagged `@no-api` run in the `docker` job, against the
-  # image it builds.
+  # The `nginx` tests tagged `@no-api` run in the `nginx-e2e` shards, against
+  # the image the `image` job builds.
   #
   # `live`, and the `nginx` tests that need an API, are not here: they need a
   # real express-boilerplate plus postgres, redis and mailpit, and register
@@ -217,73 +218,79 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+          # A re-run of a failed e2e job uploads under the same name.
+          overwrite: true
 
   # The image and its nginx template, checked before deploy rather than at it —
   # a broken proxy_pass or a typo'd directive would otherwise surface there.
-  # Built, never pushed (deploy.yml does that): this job proves the image
-  # builds, the default render passes `nginx -t`, a custom API_UPSTREAM renders
-  # without touching nginx's own variables, and docker/check-image.sh passes:
-  # uid 101 on 8080, a read-only root, API_UPSTREAM validation, the security
-  # headers on pages, assets and a 404, a real 404 for a missing asset, no
-  # source map anywhere, chunk ids injected with no release id, and this
-  # commit's sha baked in as the release. It builds with no source map
-  # variable and no secret, as a fork or a fresh repo does, so the upload is
-  # skipped; the Dockerfile itself fails if .git reaches the build context.
+  # Four jobs, so the image's checks and its Playwright tests do not queue
+  # behind each other: `image` builds it and uploads it as an artifact,
+  # `image-checks` and two `nginx-e2e` shards each download it, and `docker`,
+  # the required check, fails unless all of them passed. The artifact name is
+  # fixed, so "Re-run failed jobs" on a red shard or check reuses the image the
+  # first attempt built: every attempt builds the same commit.
   #
-  # Then the `nginx` Playwright tests tagged `@no-api`, against that same image,
-  # started as it ships (read-only root, a tmpfs /tmp) with nothing listening
-  # behind /api, so every API call answers 502. They check what only the real
-  # bundle behind the real nginx.conf shows: the security headers, the enforced
-  # Content-Security-Policy, the pre-paint theme script, the run-time
-  # configuration, and posthog-js's replay under that policy with no probe value
-  # reaching a fake PostHog. The rest of `nginx` needs a live API and runs in
-  # e2e-nightly.yml, or locally with `pnpm test:e2e:nginx`.
+  # `image` builds the image (never pushed: deploy.yml does that) with no
+  # source map variable and no secret, as a fork or a fresh repo does, so the
+  # upload is skipped; the Dockerfile itself fails if .git reaches the build
+  # context.
   #
-  # The build goes through buildx with a GitHub Actions layer cache, which is
-  # worth the two action pins: the dependency layers are rebuilt only when the
-  # lockfile moves, and the whole build is reused when nothing in the context
-  # changed. deploy.yml pins the same actions.
-  docker:
+  # The build has no layer cache. On a source change, pulling the cached
+  # dependency layer (about 210 MB) from the GitHub Actions cache and
+  # extracting it took about 50 s, while `pnpm install` from the registry
+  # takes about 11 s, and exporting the cache took 12 to 44 s more. A
+  # from-scratch build is about 35 s. deploy.yml keeps its own cache.
+  image:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # The build summary and its record artifact, and removing the builder at
+      # the end, add about 9 s to a job nothing reads them in.
+      DOCKER_BUILD_SUMMARY: 'false'
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      # A cold build is about 2 minutes; the limit stops a stalled cache service from holding the job.
+        with:
+          cleanup: false
+      # The limit stops a stalled registry from holding the job. The image is
+      # written as a docker archive for the jobs that test it.
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         timeout-minutes: 5
         with:
           context: .
-          load: true
           tags: react-boilerplate:ci
           build-args: GIT_SHA=${{ github.sha }}
-          cache-from: type=gha,scope=ci-image
-          cache-to: type=gha,mode=max,scope=ci-image
-      # Playwright's setup, install and browser cache. The install is needed only
-      # for the Playwright runner.
-      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+          outputs: type=docker,dest=${{ runner.temp }}/image.tar
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
-      - run: pnpm install --frozen-lockfile
-        env:
-          HUSKY: '0'
-          VP_GIT_HOOKS: '0'
-      - id: pw
-        run: |
-          version=$(pnpm exec playwright --version | awk '{print $2}')
-          if [ -z "$version" ]; then echo "::error::could not read the Playwright version"; exit 1; fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: playwright-cache
+          name: image
+          path: ${{ runner.temp }}/image.tar
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
+  # The image's checks: the default render passes `nginx -t`, a custom
+  # API_UPSTREAM renders without touching nginx's own variables, and
+  # docker/check-image.sh passes: uid 101 on 8080, a read-only root,
+  # API_UPSTREAM validation, the security headers on pages, assets and a 404,
+  # a real 404 for a missing asset, no source map anywhere, chunk ids injected
+  # with no release id, and this commit's sha baked in as the release.
+  image-checks:
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-      - run: pnpm exec playwright install --with-deps chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: image
+          path: ${{ runner.temp }}
+      - run: docker load --input "$RUNNER_TEMP/image.tar"
       # `nginx -t` inside the built image. nginx resolves `api` when it LOADS
       # the config, so the hostname has to exist for the parse to succeed —
       # the same reason running this image standalone needs `--add-host`.
@@ -338,6 +345,55 @@ jobs:
       - run: bash docker/check-image.sh react-boilerplate:ci 18080 "$GIT_SHA"
         env:
           GIT_SHA: ${{ github.sha }}
+
+  # The `nginx` Playwright tests tagged `@no-api`, in two shards, against the
+  # image `image` built, started as it ships (read-only root, a tmpfs /tmp)
+  # with nothing listening behind /api, so every API call answers 502. They
+  # check what only the real bundle behind the real nginx.conf shows: the
+  # security headers, the enforced Content-Security-Policy, the pre-paint theme
+  # script, the run-time configuration, and posthog-js's replay under that
+  # policy with no probe value reaching a fake PostHog. The rest of `nginx`
+  # needs a live API and runs in e2e-nightly.yml, or locally with
+  # `pnpm test:e2e:nginx`.
+  nginx-e2e:
+    name: nginx-e2e (${{ matrix.shard }}/2)
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: '0'
+          VP_GIT_HOOKS: '0'
+      - id: pw
+        run: |
+          version=$(pnpm exec playwright --version | awk '{print $2}')
+          if [ -z "$version" ]; then echo "::error::could not read the Playwright version"; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - run: pnpm exec playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: image
+          path: ${{ runner.temp }}
+      - run: docker load --input "$RUNNER_TEMP/image.tar"
       # `api` resolves to the container's own loopback, where nothing listens.
       # The run-time settings are what a deployment passes (plain environment
       # variables), so the bundle under test loads posthog-js as a keyed
@@ -354,8 +410,10 @@ jobs:
           done
           docker logs rb-e2e
           exit 1
-      # E2E_NGINX stops playwright.config.ts starting the dev server.
-      - run: pnpm exec playwright test --project=nginx --grep @no-api
+      # E2E_NGINX stops playwright.config.ts starting the dev server. The
+      # shards split the tests by count, in file order: the first holds the
+      # analytics tests, whose longest test (about 32 s) bounds it.
+      - run: pnpm exec playwright test --project=nginx --grep @no-api --shard=${{ matrix.shard }}/2
         env:
           E2E_NGINX: '1'
           # errors.test.ts expects the release the image was built with.
@@ -367,8 +425,31 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: playwright-report-nginx
+          name: playwright-report-nginx-${{ matrix.shard }}
           path: playwright-report/
+          # A re-run of a failed shard replaces the first attempt's report.
+          overwrite: true
           retention-days: 7
       - if: always()
         run: docker rm -f rb-e2e >/dev/null 2>&1 || true
+
+  # The required `docker` check: green only when image, image-checks and both
+  # nginx-e2e shards passed. `always()` so a failed, cancelled or skipped part
+  # still reports here as a failure instead of a skip.
+  docker:
+    needs: [image, image-checks, nginx-e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require image, image-checks and every nginx-e2e shard
+        env:
+          IMAGE: ${{ needs.image.result }}
+          IMAGE_CHECKS: ${{ needs.image-checks.result }}
+          NGINX_E2E: ${{ needs.nginx-e2e.result }}
+        run: |
+          echo "image: $IMAGE, image-checks: $IMAGE_CHECKS, nginx-e2e: $NGINX_E2E"
+          if [ "$IMAGE" != success ] || [ "$IMAGE_CHECKS" != success ] || [ "$NGINX_E2E" != success ]; then
+            echo "A part of the docker check failed or was cancelled; see the image, image-checks and nginx-e2e jobs."
+            exit 1
+          fi

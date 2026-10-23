@@ -7,7 +7,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 import { requireServedApp, SECURITY_HEADERS } from './csp'
 
-test.beforeAll(requireServedApp)
+test.beforeEach(requireServedApp)
 
 /** The path of the entry chunk index.html names: a real, content-hashed asset. */
 async function entryChunk(request: APIRequestContext): Promise<string> {

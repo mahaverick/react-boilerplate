@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test'
 import { settle } from '../timing'
 import { flushCspReports, requireServedApp, watchCspViolations } from './csp'
 
-test.beforeAll(requireServedApp)
+test.beforeEach(requireServedApp)
 
 test(
   'the served index.html carries the shell inside #root',

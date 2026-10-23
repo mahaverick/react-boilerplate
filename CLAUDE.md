@@ -59,8 +59,10 @@ as a route under `src/pages/_app/settings/`.
   `pnpm typecheck`, `pnpm build`, `pnpm check:bundle` and the audits. Four `unit`
   jobs run `pnpm test:shard`; the `test` job runs `pnpm test:merge`, which enforces
   the coverage thresholds in `vitest.config.ts` on the merged result. The `e2e` job
-  runs alongside. The `docker` job builds the image once with a layer cache, checks
-  it, and runs the `nginx` `@no-api` Playwright tests against it. Local
+  runs alongside. The `image` job builds the image once, with no layer cache, and
+  uploads it; `image-checks` checks it, two `nginx-e2e` shards run the `nginx`
+  `@no-api` Playwright tests against it, and the `docker` job, the required
+  check, needs all of them. Local
   `pnpm test:coverage` still enforces the same
   thresholds. The scripts are in [README.md](README.md).
 
@@ -508,11 +510,11 @@ a headless user agent). An analytics e2e test uses `HUMAN_USER_AGENT` and calls
 `passPosthogBotFilter` before its first navigation (`e2e/helpers/fake-posthog.ts`).
 
 **`nginx`** runs against the production image (`pnpm test:e2e:nginx`). The `@no-api`
-tests also run in CI's `docker` job with nothing behind `/api`, on four parallel
-workers (the top-level `workers: 4` under CI is the cap). A run with `E2E_LIVE=1`
+tests also run in CI's two `nginx-e2e` shards with nothing behind `/api`, on four
+parallel workers each (the top-level `workers: 4` under CI is the cap). A run with `E2E_LIVE=1`
 (the nightly and `pnpm test:e2e:nginx`) uses one worker, because it shares a
 backend, a restarting express and a fixed-port fake PostHog. The tests that need
-a live API run there, not in the `docker` job. **Test anything that depends on noticing a dropped upstream here, not
+a live API run there, not in the `nginx-e2e` shards. **Test anything that depends on noticing a dropped upstream here, not
 against `pnpm dev`.** The Vite dev proxy never propagates an upstream close, so the
 stream reconnect path cannot be reached from a dev-server browser.
 

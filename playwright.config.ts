@@ -25,9 +25,9 @@ const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${port}`
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.test.ts',
-  // live, contrast and capture run serially; nginx runs in parallel only in ci.yml's `docker` job (see its project).
+  // live, contrast and capture run serially; nginx runs in parallel only in ci.yml's `nginx-e2e` shards (see its project).
   fullyParallel: false,
-  // The total cap. Projects set their own, lower or equal: fixtures 4 under CI, nginx 4 in the `docker` job, the rest 1.
+  // The total cap. Projects set their own, lower or equal: fixtures 4 under CI, nginx 4 in the `nginx-e2e` shards, the rest 1.
   workers: process.env.CI ? 4 : '50%',
   forbidOnly: !!process.env.CI,
   /** Under CI, ci.yml's e2e job uploads the html report from playwright-report/ when it fails. */
@@ -113,11 +113,11 @@ export default defineConfig({
      * Against the production image. The SSE reconnect is only observable here:
      * the Vite proxy does not propagate an upstream close, and nginx does. The
      * headers and the CSP are only real here too; those tests are tagged
-     * `@no-api`, and ci.yml's `docker` job runs them with `--grep @no-api`.
+     * `@no-api`, and ci.yml's `nginx-e2e` shards run them with `--grep @no-api`.
      */
     {
       name: 'nginx',
-      // Only ci.yml's `docker` job (CI, no E2E_LIVE) runs the stateless @no-api tests in parallel; a live run shares one backend and one fake PostHog port.
+      // Only ci.yml's `nginx-e2e` shards (CI, no E2E_LIVE) run the stateless @no-api tests in parallel; a live run shares one backend and one fake PostHog port.
       fullyParallel: !!process.env.CI && !process.env.E2E_LIVE,
       workers: process.env.CI && !process.env.E2E_LIVE ? 4 : 1,
       testMatch: 'nginx/**/*.test.ts',

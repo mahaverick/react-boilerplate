@@ -105,7 +105,7 @@ Per job (median of 10, min-max):
 | `lint`     |    68s (58-84s) |
 | `docker`   | 125s (107-174s) |
 
-`test` is the merge of the four shard reports and the coverage check; it fell from 331s to 25s. `e2e` is now the critical path. `docker` is warm on reruns, because the layer cache holds the install and build layers. A run that changes source rebuilds those layers: the first attempt, on a source change, took 174s, and two runs on head 88ae52d took 171-180s.
+`test` is the merge of the four shard reports and the coverage check; it fell from 331s to 25s. `e2e` is now the critical path. `docker` is warm on reruns, because the layer cache holds the install and build layers (superseded: CI's image has no layer cache since [The docker split](#the-docker-split)). A run that changes source rebuilds those layers: the first attempt, on a source change, took 174s, and two runs on head 88ae52d took 171-180s.
 
 Two settings shape `e2e`:
 
@@ -132,3 +132,31 @@ CI, head 0ae09a5 (three workers) and head 1dcb009 (four workers), three runs eac
 | 4       | 105s, 110s, 108s | 79s, 81s, 78s        |
 
 Two red runs on the way to green were test races the bundle exposed, not harness faults. The sign-in link test asserted `/dashboard$` while the router adds `?tenant=`; the dev server's slowness hid it. Three palette tests typed right after Ctrl+K and lost a key (the trace showed "crate a tenant"). That was an app bug, not a test fault: between the loading field leaving and the palette's input taking focus, a key landed on the page and vanished (when the palette was opened from a text field, the key types into that field instead, as before). The host now sends such keys to the query, and the tests type straight after Ctrl+K again; 440 repeated runs passed, against 3 failures in 120 before.
+
+## The docker split
+
+On a source change, `docker` took 185-206s while `e2e` took 92-103s. One run's profile (the 206s one):
+
+| Step                                              | Time |
+| :------------------------------------------------ | ---: |
+| Pull and extract the cached dependency layer      |  51s |
+| `COPY . .`, `vp build`, inject, nginx stage, load |  20s |
+| Export the layer cache                            |  12s |
+| Playwright setup (setup-vp, install, cache)       |  21s |
+| `nginx -t`, the render check, `check-image.sh`    |  13s |
+| `nginx` `@no-api` tests (37, four workers)        |  62s |
+| Job setup, buildx, post-job cleanup               |  27s |
+
+Three changes took it off the critical path:
+
+- **No layer cache for CI's image.** The cached dependency layer is about 210 MB. Pulling it from the Actions cache took about 30s and extracting it about 20s. A from-scratch `pnpm install` inside the build takes 11-13s, and the whole build 33-36s. Dropping the cache also drops the export, which took 12-44s. deploy.yml keeps its own cache.
+- **`image`, `image-checks` and two `nginx-e2e` shards instead of one job.** `image` builds and uploads the image as an artifact named `image` (24 MB, 2s), and nothing else. `image-checks` and the shards each have `needs: image`, download it and `docker load` it (4-10s). `docker` is now an aggregate that fails unless all of them passed, like `test` over `unit`. The fixed artifact name is what lets "Re-run failed jobs" work: a re-run shard downloads the image the first attempt built. A first version polled for the artifact so the shards could set up Playwright during the build; it finished `docker` about 25s sooner, but broke partial re-runs and leaned on the REST API, and the wall-clock did not move because `test` ends last.
+- **`beforeEach(requireServedApp)` instead of `beforeAll`.** Under `fullyParallel`, Playwright batches a file's tests that share a `beforeAll` into `ceil(n / workers)` chunks, so the three slowest analytics tests (32s, 16s and 7s) ran back to back on one worker. With one check per test, shard 1 runs in 34-39s, bounded by its 32s test, and shard 2 in 26-28s.
+
+With the polling version, four source-change runs: `docker` finished 100-105s after the run started, against `e2e` at 97-111s. Overall wall-clock was 140-163s, against 188-210s before. The `test` job sets the wall-clock now: `unit` shard 3 plus `test` ends at about 135-160s.
+
+`ARG GIT_SHA` stays where it is. On a source change, `COPY . .` invalidates every later layer anyway, and moving the release after `vp build` would change how it reaches the bundle.
+
+With `needs: image`, three source-change runs (one with a deliberately failing nginx test): `docker` finished 126-137s after the run started, `e2e` 89-106s and `test` 133-144s, so the wall-clock was 137-144s. `docker` now ends about 30s after `e2e`, level with `test`.
+
+**What to watch.** The shards split the tests by count, in file order, so shard 1 holds every heavy test in `analytics.test.ts` (34-39s, against 26-29s for shard 2). A long new test there lengthens `docker`. If `unit` plus `test` ever drops below about 130s, `docker` sets the wall-clock again.
