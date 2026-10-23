@@ -21,6 +21,7 @@ test(
   'pages, assets and a 404 carry every security header, and no nginx version',
   { tag: '@no-api' },
   async ({ request }) => {
+    expect('throwaway', 'proves a re-run of the failed shard downloads the image').toBe('green')
     const paths = [
       '/',
       '/dashboard',
