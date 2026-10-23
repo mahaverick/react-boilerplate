@@ -37,4 +37,3 @@ export const GOOGLE_OAUTH_PATH = `${API_PREFIX}/auth/google?app=${FRONTEND_APP}`
  * there. Staff management is that tenant's own Members and Invitations pages.
  */
 export const PLATFORM_TENANT_SLUG = 'platform'
-// throwaway e
