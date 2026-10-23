@@ -101,9 +101,9 @@ export default defineConfig({
      */
     {
       name: 'nginx',
-      // The API tests share one backend, so locally they stay on one worker; CI's @no-api tests do not.
-      fullyParallel: !!process.env.CI,
-      workers: process.env.CI ? 4 : 1,
+      // Only ci.yml's `docker` job (CI, no E2E_LIVE) runs the stateless @no-api tests in parallel; a live run shares one backend and one fake PostHog port.
+      fullyParallel: !!process.env.CI && !process.env.E2E_LIVE,
+      workers: process.env.CI && !process.env.E2E_LIVE ? 4 : 1,
       testMatch: 'nginx/**/*.test.ts',
       use: {
         ...devices['Desktop Chrome'],

@@ -494,8 +494,10 @@ a headless user agent). An analytics e2e test uses `HUMAN_USER_AGENT` and calls
 `passPosthogBotFilter` before its first navigation (`e2e/helpers/fake-posthog.ts`).
 
 **`nginx`** runs against the production image (`pnpm test:e2e:nginx`). The `@no-api`
-tests also run in CI with nothing behind `/api`. The rest need a live API and run
-locally. **Test anything that depends on noticing a dropped upstream here, not
+tests also run in CI's `docker` job with nothing behind `/api`, on four parallel
+workers. A run with `E2E_LIVE=1` (the nightly and `pnpm test:e2e:nginx`) uses one
+worker, because it shares a backend, a restarting express and a fixed-port fake
+PostHog. The tests that need a live API run there, not in the `docker` job. **Test anything that depends on noticing a dropped upstream here, not
 against `pnpm dev`.** The Vite dev proxy never propagates an upstream close, so the
 stream reconnect path cannot be reached from a dev-server browser.
 
