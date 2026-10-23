@@ -117,3 +117,11 @@ Docker no longer sets the pace. The earlier ruling to split the `nginx` tests in
 ## Local after PR 2
 
 `pnpm gate` takes 66.3s (`time`: user 395.9s, sys 74.4s, 709% CPU). Load average (1 min) was 2.4 at the start and 10.1 at the end. It was 98.9s after PR 1 and 116.9s for the old pre-push hook.
+
+## Bundled fixtures harness
+
+`fixtures` used to run against the Vite dev server, which sent each fresh browser context hundreds of unbundled modules, and a global-setup warm-up of 11 routes hid the cold transforms. `pnpm test:e2e` now builds the harness in development mode (`e2e/harness.vite.config.ts`, so `import.meta.env.DEV` stays true and MSW's worker stays in the bundle) and serves it with `vp preview`. The warm-up is gone. `live`, `contrast` and `capture` still use `vp dev`, because they need its `/api` proxy.
+
+Local, 70 fixtures tests on 10 cores (five workers, as the config sets outside CI): 44-46s on the dev server, including the warm-up, and 25s on the bundle, including the build.
+
+CI numbers are in the pull request that made the change.
