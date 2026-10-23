@@ -233,24 +233,16 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      # ghaction-github-runtime exports the cache service's URL and token, which
-      # a `run` step does not get, so buildx can reach the `type=gha` cache from
-      # the shell. The build runs in the background so Playwright's setup, below,
-      # overlaps it; "Wait for the image" fails the job if the build failed.
-      - uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
-      - name: Start the image build
-        run: |
-          (
-            docker buildx build --load --progress=plain \
-              -t react-boilerplate:ci --build-arg GIT_SHA="$GIT_SHA" \
-              --cache-from type=gha,scope=ci-image \
-              --cache-to type=gha,mode=max,scope=ci-image . > "$RUNNER_TEMP/build.log" 2>&1
-            echo $? > "$RUNNER_TEMP/build.status"
-          ) > /dev/null 2>&1 &
-        env:
-          GIT_SHA: ${{ github.sha }}
-      # Playwright's setup, install and browser cache, while the image builds.
-      # The install is needed only for the Playwright runner.
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: react-boilerplate:ci
+          build-args: GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=ci-image
+          cache-to: type=gha,mode=max,scope=ci-image
+      # Playwright's setup, install and browser cache. The install is needed only
+      # for the Playwright runner.
       - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
         with:
           node-version-file: .node-version
@@ -272,11 +264,6 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - run: pnpm exec playwright install --with-deps chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-      - name: Wait for the image
-        run: |
-          while [ ! -f "$RUNNER_TEMP/build.status" ]; do sleep 1; done
-          cat "$RUNNER_TEMP/build.log"
-          [ "$(cat "$RUNNER_TEMP/build.status")" = 0 ]
       # `api` resolves to the container's own loopback, where nothing listens.
       # The run-time settings are what a deployment passes (plain environment
       # variables), so the bundle under test loads posthog-js as a keyed
