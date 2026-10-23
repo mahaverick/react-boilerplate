@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.2](https://github.com/mahaverick/react-boilerplate/compare/v4.1.1...v4.1.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* **e2e:** hide passkey autofill in the live passkey spec ([#147](https://github.com/mahaverick/react-boilerplate/issues/147)) ([94d5ce6](https://github.com/mahaverick/react-boilerplate/commit/94d5ce67d95cd3c57eea00c49f90a7f702f3f23b))
+
 ## [4.1.1](https://github.com/mahaverick/react-boilerplate/compare/v4.1.0...v4.1.1) (2026-10-23)
 
 
