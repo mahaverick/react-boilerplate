@@ -174,7 +174,10 @@ jobs:
           HUSKY: '0'
           VP_GIT_HOOKS: '0'
       - id: pw
-        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: |
+          version=$(pnpm exec playwright --version | awk '{print $2}')
+          if [ -z "$version" ]; then echo "::error::could not read the Playwright version"; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       # The browser is ~100MB and is not in the pnpm store. Keyed on the
       # Playwright version, not the lockfile: a lockfile hash misses on every
       # dependency bump, while a new browser build is needed only when

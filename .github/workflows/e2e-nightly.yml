@@ -91,7 +91,10 @@ jobs:
       - id: pw
         if: env.EXERCISE == 'none'
         working-directory: app
-        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: |
+          version=$(pnpm exec playwright --version | awk '{print $2}')
+          if [ -z "$version" ]; then echo "::error::could not read the Playwright version"; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       # The same key as ci.yml's e2e job, so both share one browser cache.
       - id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

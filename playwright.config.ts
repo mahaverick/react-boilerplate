@@ -24,9 +24,10 @@ const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5173'
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.test.ts',
+  globalSetup: './e2e/global-setup.ts',
   // live and nginx share one backend or container, so they run serially.
   fullyParallel: false,
-  workers: 1,
+  workers: process.env.CI ? 4 : '50%',
   forbidOnly: !!process.env.CI,
   /** Under CI, ci.yml's e2e job uploads the html report from playwright-report/ when it fails. */
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
@@ -61,6 +62,8 @@ export default defineConfig({
     },
     {
       name: 'live',
+      fullyParallel: false,
+      workers: 1,
       testMatch: 'live/**/*.test.ts',
       use: { ...devices['Desktop Chrome'] },
     },
@@ -72,6 +75,8 @@ export default defineConfig({
      */
     {
       name: 'contrast',
+      fullyParallel: false,
+      workers: 1,
       testMatch: 'contrast/**/*.test.ts',
       use: { ...devices['Desktop Chrome'] },
     },
@@ -82,6 +87,8 @@ export default defineConfig({
      */
     {
       name: 'capture',
+      fullyParallel: false,
+      workers: 1,
       testMatch: 'capture/**/*.test.ts',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
       timeout: 30 * 60_000,
@@ -94,6 +101,8 @@ export default defineConfig({
      */
     {
       name: 'nginx',
+      fullyParallel: false,
+      workers: 1,
       testMatch: 'nginx/**/*.test.ts',
       use: {
         ...devices['Desktop Chrome'],
