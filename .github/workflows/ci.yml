@@ -336,7 +336,7 @@ jobs:
           docker logs rb-e2e
           exit 1
       # E2E_NGINX stops playwright.config.ts starting the dev server.
-      - run: pnpm exec playwright test --project=nginx --grep @no-api --workers=4 --repeat-each=3
+      - run: pnpm exec playwright test --project=nginx --grep @no-api
         env:
           E2E_NGINX: '1'
           # errors.test.ts expects the release the image was built with.
