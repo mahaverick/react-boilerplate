@@ -132,3 +132,27 @@ CI, head 0ae09a5 (three workers) and head 1dcb009 (four workers), three runs eac
 | 4       | 105s, 110s, 108s | 79s, 81s, 78s        |
 
 Two red runs on the way to green were test races the bundle exposed, not harness faults. The sign-in link test asserted `/dashboard$` while the router adds `?tenant=`; the dev server's slowness hid it. Three palette tests typed right after Ctrl+K and lost a key (the trace showed "crate a tenant"). That was an app bug, not a test fault: between the loading field leaving and the palette's input taking focus, a key landed on the page and vanished (when the palette was opened from a text field, the key types into that field instead, as before). The host now sends such keys to the query, and the tests type straight after Ctrl+K again; 440 repeated runs passed, against 3 failures in 120 before.
+
+## The docker split
+
+On a source change, `docker` took 185-206s while `e2e` took 92-103s. One run's profile (the 206s one):
+
+| Step                                              | Time |
+| :------------------------------------------------ | ---: |
+| Pull and extract the cached dependency layer      |  51s |
+| `COPY . .`, `vp build`, inject, nginx stage, load |  20s |
+| Export the layer cache                            |  12s |
+| Playwright setup (setup-vp, install, cache)       |  21s |
+| `nginx -t`, the render check, `check-image.sh`    |  13s |
+| `nginx` `@no-api` tests (37, four workers)        |  62s |
+| Job setup, buildx, post-job cleanup               |  27s |
+
+Three changes took it off the critical path:
+
+- **No layer cache for CI's image.** The cached dependency layer is about 210 MB. Pulling it from the Actions cache took about 30s and extracting it about 20s. A from-scratch `pnpm install` inside the build takes 11-13s, and the whole build 33-36s. Dropping the cache also drops the export, which took 12-44s. deploy.yml keeps its own cache.
+- **`image` and two `nginx-e2e` shards instead of one job.** `image` builds, uploads the image as an artifact (24 MB, 2s), then runs the checks. Each shard sets up Playwright while the image builds, then polls this run's artifacts for it; `needs: image` would have started that setup only after the build and the checks. Download and `docker load` take 4-10s. `docker` is now an aggregate that fails unless `image` and both shards passed, like `test` over `unit`.
+- **`beforeEach(requireServedApp)` instead of `beforeAll`.** Under `fullyParallel`, Playwright batches a file's tests that share a `beforeAll` into `ceil(n / workers)` chunks, so the three slowest analytics tests (32s, 16s and 7s) ran back to back on one worker. With one check per test, shard 1 runs in 34-39s, bounded by its 32s test, and shard 2 in 26-28s.
+
+Four source-change runs: `docker` finished 100-105s after the run started, against `e2e` at 97-111s. Overall wall-clock was 140-163s, against 188-210s before. The `test` job sets the wall-clock now: `unit` shard 3 plus `test` ends at about 135-160s.
+
+`ARG GIT_SHA` stays where it is. On a source change, `COPY . .` invalidates every later layer anyway, and moving the release after `vp build` would change how it reaches the bundle.
