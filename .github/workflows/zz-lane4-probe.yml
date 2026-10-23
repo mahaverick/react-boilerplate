@@ -1,0 +1,14 @@
+name: lane4 probe (throwaway)
+# Calls ci.yml the way deploy.yml does, to prove the nginx-e2e wait works
+# through workflow_call with the caller's permissions. Reverted after one run.
+on:
+  push:
+    branches: [perf/docker-critical-path]
+permissions:
+  contents: read
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      actions: read
