@@ -79,3 +79,41 @@ Load average (1 min): 4.71 at the start, 30.9 at the end of the hyperfine run. `
 `pnpm check` replaces the old eslint plus prettier pair (26.961 + 5.407 = 32.4s before). `pnpm exec eslint .` is the 17 untyped leftover rules. `pnpm build` is noisier than before because of the load.
 
 `/usr/bin/time -p pnpm gate`: real 98.88s, user 409.04s, sys 79.86s (load 30 at start). The old pre-push hook took 116.90s.
+
+## CI after PR 2
+
+10 successful `ci.yml` runs on head 15982b3: one first run plus 9 reruns of run 39933843052, sequential. Wall-clock is `run_started_at` to `updated_at`. All 10 passed.
+
+| Metric           |   Before | After PR 1 | After PR 2 |
+| :--------------- | -------: | ---------: | ---------: |
+| Median wall time |     356s |       410s |       189s |
+| p90              |     398s |      1031s |       233s |
+| Range            | 313-410s |  365-1062s |   151-295s |
+
+Attempt 1 waited 86s for a runner before any job started. Without it, the nine reruns span 151-226s with a median of 179s. After PR 1, the seven runs that did not hit the slow apt mirror had a median of 397s.
+
+Per job (median of 10, min-max):
+
+| Job        |            Time |
+| :--------- | --------------: |
+| `unit` 1/4 |  104s (77-112s) |
+| `unit` 2/4 |  104s (85-112s) |
+| `unit` 3/4 |  106s (75-112s) |
+| `unit` 4/4 |  102s (72-106s) |
+| `test`     |    25s (19-28s) |
+| `e2e`      | 184s (146-221s) |
+| `lint`     |    68s (58-84s) |
+| `docker`   | 125s (107-174s) |
+
+`test` is the merge of the four shard reports and the coverage check; it fell from 331s to 25s. `e2e` is now the critical path. `docker` is warm on reruns, because the layer cache holds the install and build layers. A run that changes source rebuilds those layers: the first attempt, on a source change, took 174s, and two runs on head 88ae52d took 171-180s.
+
+Two settings shape `e2e`:
+
+- **Three `fixtures` workers.** At four workers on a 4 vCPU runner, pages stalled on "Loading" past the 5s assertion budget. Head bb7350d failed `e2e` in 4 of 5 attempts, with 2 to 13 fixtures tests red each time (the members, pii, passkeys and flags files). With three workers the job passed 10 of 10. The cost is about 15s: `e2e` took 170s at four workers (head 2b244ab, one run).
+- **Traces without screenshots.** CI runs no retries, so `retain-on-failure` is the only way a failure leaves a trace. The default also records a screenshot per action for every test, which slowed `e2e`, so `screenshots: false` keeps the DOM snapshots and the network log only.
+
+Docker no longer sets the pace. The earlier ruling to split the `nginx` tests into their own job stays a next-round item, and it now pays only if `e2e` falls below `docker`'s 125s.
+
+## Local after PR 2
+
+`pnpm gate` takes 66.3s (`time`: user 395.9s, sys 74.4s, 709% CPU). Load average (1 min) was 2.4 at the start and 10.1 at the end. It was 98.9s after PR 1 and 116.9s for the old pre-push hook.
