@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.3](https://github.com/mahaverick/react-boilerplate/compare/v4.1.2...v4.1.3) (2026-10-23)
+
+
+### Performance Improvements
+
+* **e2e:** run fixtures against a bundled harness ([#145](https://github.com/mahaverick/react-boilerplate/issues/145)) ([6eea010](https://github.com/mahaverick/react-boilerplate/commit/6eea0104e39b51844f2e18f70cc95f23c12bc7d0))
+
 ## [4.1.2](https://github.com/mahaverick/react-boilerplate/compare/v4.1.1...v4.1.2) (2026-10-23)
 
 
