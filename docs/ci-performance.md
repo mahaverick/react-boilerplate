@@ -105,7 +105,7 @@ Per job (median of 10, min-max):
 | `lint`     |    68s (58-84s) |
 | `docker`   | 125s (107-174s) |
 
-`test` is the merge of the four shard reports and the coverage check; it fell from 331s to 25s. `e2e` is now the critical path. `docker` is warm on reruns, because the layer cache holds the install and build layers. A run that changes source rebuilds those layers: the first attempt, on a source change, took 174s, and two runs on head 88ae52d took 171-180s.
+`test` is the merge of the four shard reports and the coverage check; it fell from 331s to 25s. `e2e` is now the critical path. `docker` is warm on reruns, because the layer cache holds the install and build layers (superseded: CI's image has no layer cache since [The docker split](#the-docker-split)). A run that changes source rebuilds those layers: the first attempt, on a source change, took 174s, and two runs on head 88ae52d took 171-180s.
 
 Two settings shape `e2e`:
 
@@ -150,9 +150,11 @@ On a source change, `docker` took 185-206s while `e2e` took 92-103s. One run's p
 Three changes took it off the critical path:
 
 - **No layer cache for CI's image.** The cached dependency layer is about 210 MB. Pulling it from the Actions cache took about 30s and extracting it about 20s. A from-scratch `pnpm install` inside the build takes 11-13s, and the whole build 33-36s. Dropping the cache also drops the export, which took 12-44s. deploy.yml keeps its own cache.
-- **`image` and two `nginx-e2e` shards instead of one job.** `image` builds, uploads the image as an artifact (24 MB, 2s), then runs the checks. Each shard sets up Playwright while the image builds, then polls this run's artifacts for it; `needs: image` would have started that setup only after the build and the checks. Download and `docker load` take 4-10s. `docker` is now an aggregate that fails unless `image` and both shards passed, like `test` over `unit`.
+- **`image`, `image-checks` and two `nginx-e2e` shards instead of one job.** `image` builds and uploads the image as an artifact named `image` (24 MB, 2s), and nothing else. `image-checks` and the shards each have `needs: image`, download it and `docker load` it (4-10s). `docker` is now an aggregate that fails unless all of them passed, like `test` over `unit`. The fixed artifact name is what lets "Re-run failed jobs" work: a re-run shard downloads the image the first attempt built. A first version polled for the artifact so the shards could set up Playwright during the build; it finished `docker` about 25s sooner, but broke partial re-runs and leaned on the REST API, and the wall-clock did not move because `test` ends last.
 - **`beforeEach(requireServedApp)` instead of `beforeAll`.** Under `fullyParallel`, Playwright batches a file's tests that share a `beforeAll` into `ceil(n / workers)` chunks, so the three slowest analytics tests (32s, 16s and 7s) ran back to back on one worker. With one check per test, shard 1 runs in 34-39s, bounded by its 32s test, and shard 2 in 26-28s.
 
-Four source-change runs: `docker` finished 100-105s after the run started, against `e2e` at 97-111s. Overall wall-clock was 140-163s, against 188-210s before. The `test` job sets the wall-clock now: `unit` shard 3 plus `test` ends at about 135-160s.
+With the polling version, four source-change runs: `docker` finished 100-105s after the run started, against `e2e` at 97-111s. Overall wall-clock was 140-163s, against 188-210s before. The `test` job sets the wall-clock now: `unit` shard 3 plus `test` ends at about 135-160s.
 
 `ARG GIT_SHA` stays where it is. On a source change, `COPY . .` invalidates every later layer anyway, and moving the release after `vp build` would change how it reaches the bundle.
+
+**What to watch.** The shards split the tests by count, in file order, so shard 1 holds every heavy test in `analytics.test.ts` (34-39s, against 26-29s for shard 2). A long new test there lengthens `docker`. If `unit` plus `test` ever drops below about 130s, `docker` sets the wall-clock again.

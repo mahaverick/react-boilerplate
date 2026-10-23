@@ -117,7 +117,7 @@ export default defineConfig({
      */
     {
       name: 'nginx',
-      // Only ci.yml's `nginx-e2e` shards (CI, no E2E_LIVE) runs the stateless @no-api tests in parallel; a live run shares one backend and one fake PostHog port.
+      // Only ci.yml's `nginx-e2e` shards (CI, no E2E_LIVE) run the stateless @no-api tests in parallel; a live run shares one backend and one fake PostHog port.
       fullyParallel: !!process.env.CI && !process.env.E2E_LIVE,
       workers: process.env.CI && !process.env.E2E_LIVE ? 4 : 1,
       testMatch: 'nginx/**/*.test.ts',

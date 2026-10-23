@@ -60,8 +60,9 @@ as a route under `src/pages/_app/settings/`.
   jobs run `pnpm test:shard`; the `test` job runs `pnpm test:merge`, which enforces
   the coverage thresholds in `vitest.config.ts` on the merged result. The `e2e` job
   runs alongside. The `image` job builds the image once, with no layer cache, and
-  checks it; two `nginx-e2e` shards run the `nginx` `@no-api` Playwright tests
-  against it, and the `docker` job, the required check, needs all three. Local
+  uploads it; `image-checks` checks it, two `nginx-e2e` shards run the `nginx`
+  `@no-api` Playwright tests against it, and the `docker` job, the required
+  check, needs all of them. Local
   `pnpm test:coverage` still enforces the same
   thresholds. The scripts are in [README.md](README.md).
 
