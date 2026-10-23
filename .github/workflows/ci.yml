@@ -218,6 +218,8 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+          # A re-run of a failed e2e job uploads under the same name.
+          overwrite: true
 
   # The image and its nginx template, checked before deploy rather than at it —
   # a broken proxy_pass or a typo'd directive would otherwise surface there.
