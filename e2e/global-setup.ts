@@ -1,7 +1,19 @@
 import { chromium, type FullConfig } from '@playwright/test'
 
-/** Harness routes whose lazy chunks a cold dev server would otherwise transform mid-test. */
-const WARM_PATHS = ['/dashboard', '/login']
+/** Harness routes whose lazy chunks a cold dev server would otherwise transform mid-test: the ones the fixtures tests open first. */
+const WARM_PATHS = [
+  '/dashboard',
+  '/login',
+  '/auth/link?token=warm',
+  '/invitations/accept?token=warm',
+  '/tenants',
+  '/tenants/acme',
+  '/notifications',
+  '/settings/account/profile',
+  '/settings/account/security',
+  '/settings/workspace/acme/members',
+  '/settings/workspace/acme/activity',
+]
 
 /**
  * Loads the harness once before any test, so Vite has bundled its dependencies
