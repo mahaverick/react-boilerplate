@@ -243,8 +243,8 @@ jobs:
           (
             docker buildx build --load --progress=plain \
               -t react-boilerplate:ci --build-arg GIT_SHA="$GIT_SHA" \
-              --cache-from type=gha,scope=ci-image-zstd \
-              --cache-to type=gha,mode=max,compression=zstd,scope=ci-image-zstd . > "$RUNNER_TEMP/build.log" 2>&1
+              --cache-from type=gha,scope=ci-image \
+              --cache-to type=gha,mode=max,scope=ci-image . > "$RUNNER_TEMP/build.log" 2>&1
             echo $? > "$RUNNER_TEMP/build.status"
           ) > /dev/null 2>&1 &
         env:
@@ -277,6 +277,35 @@ jobs:
           while [ ! -f "$RUNNER_TEMP/build.status" ]; do sleep 1; done
           cat "$RUNNER_TEMP/build.log"
           [ "$(cat "$RUNNER_TEMP/build.status")" = 0 ]
+      # `api` resolves to the container's own loopback, where nothing listens.
+      # The run-time settings are what a deployment passes (plain environment
+      # variables), so the bundle under test loads posthog-js as a keyed
+      # deployment does; e2e/nginx/analytics.test.ts expects these values.
+      - name: Start the image with no API behind it
+        run: |
+          docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp \
+            --add-host=api:127.0.0.1 -e API_UPSTREAM=http://api:4040 \
+            -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=ci \
+            -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test react-boilerplate:ci
+          for _ in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:8088/ && exit 0
+            sleep 1
+          done
+          docker logs rb-e2e
+          exit 1
+      # The tests run in the background while the image checks below run, which
+      # is faster than one after the other. E2E_NGINX stops playwright.config.ts
+      # starting the dev server.
+      - name: Start the nginx tests
+        run: |
+          (
+            pnpm exec playwright test --project=nginx --grep @no-api
+            echo $? > "$RUNNER_TEMP/pw.status"
+          ) > "$RUNNER_TEMP/pw.log" 2>&1 &
+        env:
+          E2E_NGINX: '1'
+          # errors.test.ts expects the release the image was built with.
+          E2E_RELEASE: ${{ github.sha }}
       # `nginx -t` inside the built image. nginx resolves `api` when it LOADS
       # the config, so the hostname has to exist for the parse to succeed —
       # the same reason running this image standalone needs `--add-host`.
@@ -331,28 +360,13 @@ jobs:
       - run: bash docker/check-image.sh react-boilerplate:ci 18080 "$GIT_SHA"
         env:
           GIT_SHA: ${{ github.sha }}
-      # `api` resolves to the container's own loopback, where nothing listens.
-      # The run-time settings are what a deployment passes (plain environment
-      # variables), so the bundle under test loads posthog-js as a keyed
-      # deployment does; e2e/nginx/analytics.test.ts expects these values.
-      - name: Start the image with no API behind it
+      # Playwright was started above and has been running alongside the image
+      # checks; this fails the job if it failed.
+      - name: Wait for the nginx tests
         run: |
-          docker run -d --name rb-e2e -p 8088:8080 --read-only --tmpfs /tmp \
-            --add-host=api:127.0.0.1 -e API_UPSTREAM=http://api:4040 \
-            -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=ci \
-            -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test react-boilerplate:ci
-          for _ in $(seq 1 30); do
-            curl -sf -o /dev/null http://localhost:8088/ && exit 0
-            sleep 1
-          done
-          docker logs rb-e2e
-          exit 1
-      # E2E_NGINX stops playwright.config.ts starting the dev server.
-      - run: pnpm exec playwright test --project=nginx --grep @no-api
-        env:
-          E2E_NGINX: '1'
-          # errors.test.ts expects the release the image was built with.
-          E2E_RELEASE: ${{ github.sha }}
+          while [ ! -f "$RUNNER_TEMP/pw.status" ]; do sleep 1; done
+          cat "$RUNNER_TEMP/pw.log"
+          [ "$(cat "$RUNNER_TEMP/pw.status")" = 0 ]
       - if: failure()
         run: docker logs rb-e2e 2>&1 | tail -n 100 || true
       # Only on failure, and only for a week: the report is how you find out
