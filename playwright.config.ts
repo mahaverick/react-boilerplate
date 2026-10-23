@@ -34,9 +34,7 @@ export default defineConfig({
   use: {
     baseURL,
     // CI runs no retries, so on-first-retry would record nothing there; screenshots are off because recording them for every test slowed the run.
-    trace: process.env.CI
-      ? { mode: 'retain-on-failure', screenshots: false }
-      : 'on-first-retry',
+    trace: process.env.CI ? { mode: 'retain-on-failure', screenshots: false } : 'on-first-retry',
   },
   /**
    * Starts the dev server, reusing a running one outside CI. Skipped for the
