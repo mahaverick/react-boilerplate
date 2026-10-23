@@ -102,7 +102,10 @@ export default defineConfig({
     {
       name: 'nginx',
       fullyParallel: false,
-      workers: 1,
+      // CI runs only the @no-api tests, which share a container and no state:
+      // four workers passed three repeats of all of them. Locally the API
+      // tests share one backend, so they stay on one.
+      workers: process.env.CI ? 4 : 1,
       testMatch: 'nginx/**/*.test.ts',
       use: {
         ...devices['Desktop Chrome'],
