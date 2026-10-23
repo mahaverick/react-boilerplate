@@ -25,7 +25,7 @@ describe('Dockerfile', () => {
     'declares %s after the build and inject, so changing it re-runs only the upload and the map deletion',
     (arg) => {
       const declared = lineOf(arg)
-      expect(declared).toBeGreaterThan(lineOf('RUN pnpm build'))
+      expect(declared).toBeGreaterThan(lineOf('RUN pnpm exec vp build'))
       expect(declared).toBeGreaterThan(lineOf('    pnpm exec posthog-cli sourcemap inject'))
       expect(declared).toBeLessThan(lineOf('    sh docker/upload-sourcemaps.sh'))
       const stageEnd = LINES.findIndex(
