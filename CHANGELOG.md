@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.1](https://github.com/mahaverick/react-boilerplate/compare/v4.1.0...v4.1.1) (2026-10-23)
+
+
+### Performance Improvements
+
+* **ci:** faster tests ([#143](https://github.com/mahaverick/react-boilerplate/issues/143)) ([873028e](https://github.com/mahaverick/react-boilerplate/commit/873028ea6145357bc5ce4e395701a6783b0fedd7))
+
 ## [4.1.0](https://github.com/mahaverick/react-boilerplate/compare/v4.0.3...v4.1.0) (2026-10-21)
 
 
