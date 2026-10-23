@@ -30,6 +30,14 @@ test('creates a passkey, signs out and signs back in with it', async ({ page }) 
   const email = freshEmail()
   await createUser(email)
   const auth = await addVirtualAuthenticator(page)
+  // DEBUG (reverted before the PR): trace the passkey calls and navigations.
+  page.on('request', (r) => {
+    if (r.url().includes('/auth/'))
+      console.log('[debug] request', r.method(), new URL(r.url()).pathname)
+  })
+  page.on('framenavigated', (f) => {
+    if (f === page.mainFrame()) console.log('[debug] navigated', f.url())
+  })
 
   await logIn(page, email)
   await page.goto('/settings/account/security')
@@ -45,6 +53,7 @@ test('creates a passkey, signs out and signs back in with it', async ({ page }) 
   await page.getByRole('button', { name: /Account menu for/ }).click()
   await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/login/)
+  console.log('[debug] at /login, about to click the passkey button')
 
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click()
   await expect(page).toHaveURL(/\/(dashboard|welcome)/, { timeout: 15_000 })
