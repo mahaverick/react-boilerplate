@@ -58,8 +58,10 @@ as a route under `src/pages/_app/settings/`.
 - The `lint` job runs `pnpm check`, `pnpm lint:docs`, `pnpm ui:drift`, `pnpm knip`,
   `pnpm typecheck`, `pnpm build`, `pnpm check:bundle` and the audits. Four `unit`
   jobs run `pnpm test:shard`; the `test` job runs `pnpm test:merge`, which enforces
-  the coverage thresholds in `vitest.config.ts` on the merged result. The `e2e` and
-  `docker` jobs run alongside. Local `pnpm test:coverage` still enforces the same
+  the coverage thresholds in `vitest.config.ts` on the merged result. The `e2e` job
+  runs alongside. The `docker` job builds the image once with a layer cache, checks
+  it, and runs the `nginx` `@no-api` Playwright tests against it. Local
+  `pnpm test:coverage` still enforces the same
   thresholds. The scripts are in [README.md](README.md).
 
 ## Dead code (knip)
