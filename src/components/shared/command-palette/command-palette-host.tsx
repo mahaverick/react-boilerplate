@@ -14,6 +14,48 @@ const PALETTE_LOAD_FAILED_ID = 'palette-load-failed'
 /** How long the fallback waits, where there is no idle callback, before it fetches the palette's code. */
 const IDLE_FALLBACK_MS = 2000
 
+/**
+ * Keeps the keys pressed in the gap between the loading field and the palette.
+ * The field leaves the page when the code arrives, and the palette's input
+ * takes focus a moment later; a key pressed in between lands on the page, not
+ * in any field, and is lost. While the palette is open, a printable key or a
+ * Backspace that lands outside every field and dialog goes to the query
+ * instead, which the palette's input then shows.
+ *
+ * It cannot help when the opener was a text field. Ctrl+K works from inside a
+ * field, the loading field hands focus back to it, and a key pressed in the
+ * gap types into that field behind the modal. The hook leaves fields alone, so
+ * that case still loses the keys to the field, as it did before the hook.
+ * @param open - Whether the palette is open.
+ */
+function useKeysBetweenFields(open: boolean) {
+  useEffect(() => {
+    if (!open) return
+    /** Appends a printable key to the query, or removes its last character for Backspace. */
+    function onKeyDown(event: KeyboardEvent) {
+      // AltGr reports Ctrl and Alt together; it types characters such as @ and €, so it is not a shortcut.
+      const shortcut =
+        event.metaKey || ((event.ctrlKey || event.altKey) && !event.getModifierState('AltGraph'))
+      if (event.defaultPrevented || shortcut || event.isComposing) return
+      // `Array.from` counts code points, so an emoji is one key.
+      if (Array.from(event.key).length !== 1 && event.key !== 'Backspace') return
+      const target = event.target
+      if (
+        target instanceof Element &&
+        target.closest('input, textarea, select, [contenteditable], [role="dialog"]')
+      )
+        return
+      event.preventDefault()
+      const { query, setQuery } = useCommandPaletteStore.getState()
+      setQuery(
+        event.key === 'Backspace' ? Array.from(query).slice(0, -1).join('') : query + event.key
+      )
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open])
+}
+
 /** The palette module if a fetch anywhere has resolved; read on every render, since nothing notifies the host. */
 function usePeekedPalette(): ReturnType<typeof peekPalette> {
   // The React Compiler would cache this read; it reads module state the compiler cannot see change.
@@ -35,6 +77,7 @@ function usePeekedPalette(): ReturnType<typeof peekPalette> {
 export function CommandPaletteHost() {
   usePaletteShortcut()
   const open = useCommandPaletteStore((state) => state.open)
+  useKeysBetweenFields(open)
   const setOpen = useCommandPaletteStore((state) => state.setOpen)
   const [loadedPalette, setPalette] = useState<ComponentType | null>(
     () => peekPalette()?.CommandPalette ?? null

@@ -444,6 +444,20 @@ Playwright has five projects: `fixtures`, `live`, `contrast`, `nginx` and
   would collect the Playwright files and run them under jsdom.
 - **`e2e/` is type-linted through its own `tsconfig.json`.** It is not exempted
   like the root configs.
+- **`pnpm test:e2e` runs `fixtures` against a bundle.** It sets `E2E_BUNDLED`, so
+  the `webServer` builds `e2e/harness.vite.config.ts` in development mode and
+  serves it with `vp preview`: a few files per page instead of the dev server's
+  hundreds of modules. A bare `playwright test --project=fixtures` without
+  `E2E_BUNDLED` uses the dev server, which starts as `vp dev --force`. Without
+  `--force`, Vite trusts a stale dependency cache, finds a new import mid-run,
+  re-optimises and reloads the page. The reload drops the memory-only token and
+  lands the test on `/login`. Outside CI, a dev server that is already running is
+  reused, with whatever cache it has. A bundled run always builds and serves its
+  own copy on :5173, the port `pnpm dev` uses, so it fails with "already used"
+  while `pnpm dev` runs. Stop `pnpm dev`, or set `REACT_E2E_PORT` to a free port.
+- **A route on a chunk's URL matches both forms.** The dev server serves
+  `/src/components/features/command-palette.tsx`; the bundle serves
+  `/assets/command-palette-<hash>.js`. `e2e/fixtures/palette.test.ts` matches both.
 
 **`fixtures`** drives `e2e/harness/`: the real router and CSS, with MSW answering
 the fixtures. It needs no backend. It exists for what jsdom cannot see, because
@@ -495,9 +509,10 @@ a headless user agent). An analytics e2e test uses `HUMAN_USER_AGENT` and calls
 
 **`nginx`** runs against the production image (`pnpm test:e2e:nginx`). The `@no-api`
 tests also run in CI's `docker` job with nothing behind `/api`, on four parallel
-workers. A run with `E2E_LIVE=1` (the nightly and `pnpm test:e2e:nginx`) uses one
-worker, because it shares a backend, a restarting express and a fixed-port fake
-PostHog. The tests that need a live API run there, not in the `docker` job. **Test anything that depends on noticing a dropped upstream here, not
+workers (the top-level `workers: 4` under CI is the cap). A run with `E2E_LIVE=1`
+(the nightly and `pnpm test:e2e:nginx`) uses one worker, because it shares a
+backend, a restarting express and a fixed-port fake PostHog. The tests that need
+a live API run there, not in the `docker` job. **Test anything that depends on noticing a dropped upstream here, not
 against `pnpm dev`.** The Vite dev proxy never propagates an upstream close, so the
 stream reconnect path cannot be reached from a dev-server browser.
 

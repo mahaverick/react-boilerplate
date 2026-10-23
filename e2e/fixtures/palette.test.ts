@@ -155,8 +155,9 @@ test('Create a tenant leaves focus in the Name field of /tenants', async ({ page
   await expect(page.getByRole('textbox', { name: /^Name/ })).toBeFocused()
 })
 
-/** The palette chunk's dev-server URL, which the routes below hold or abort. */
-const CHUNK_URL = /\/src\/components\/features\/command-palette\.tsx(\?|$)/
+/** The palette chunk's URL, in the dev server or in the built harness, which the routes below hold or abort. */
+const CHUNK_URL =
+  /\/(src\/components\/features\/command-palette\.tsx|assets\/command-palette-[\w-]+\.js)(\?|$)/
 
 /** What the toast says when the palette's chunk cannot be fetched. */
 const LOAD_FAILED = 'Search didn’t load. Reload the page to use it.'

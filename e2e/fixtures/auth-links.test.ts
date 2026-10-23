@@ -78,7 +78,8 @@ test.describe('sign-in link', () => {
       harness('/auth/link', `session=none&link=ok&token=${TOKEN}&email=${HARNESS_EMAIL}`)
     )
 
-    await expect(page).toHaveURL(/\/dashboard$/)
+    // The router adds `?tenant=` once the tenant list loads; the bundle is fast enough that it is there before the first check.
+    await expect(page).toHaveURL(/\/dashboard(\?[^#]*)?$/)
     await expect(page.getByRole('heading', { level: 1, name: /^Welcome back,/ })).toBeVisible()
     expect(verifies).toEqual([{ token: TOKEN, email: HARNESS_EMAIL }])
     await expectNoOverflow(page)

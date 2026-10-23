@@ -181,7 +181,7 @@ environment variable.
 | `pnpm test`             | Vitest, single pass                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `pnpm test:coverage`    | Vitest with coverage; fails under 88/82/86/89 % (statements/branches/functions/lines). CI runs `test:shard` in four `unit` jobs, then `test:merge` in `test`                                                                                                                                                                                                                                                                                   |
 | `pnpm test:watch`       | Vitest in watch mode                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `pnpm test:e2e`         | Playwright `fixtures` project against the MSW harness; no backend needed. CI runs it                                                                                                                                                                                                                                                                                                                                                           |
+| `pnpm test:e2e`         | Playwright `fixtures` project against a bundle of the MSW harness; no backend needed. CI runs it                                                                                                                                                                                                                                                                                                                                               |
 | `pnpm test:e2e:live`    | Playwright `live` project; needs express at `E2E_API_ORIGIN` (default :4040); `flags.test.ts` also needs `E2E_FLAGS_SET_CMD` (`<cmd> <key> <value>`; `example_beta_page` on\|off, `example_cta_experiment` control\|bold at 100 % rollout)                                                                                                                                                                                                     |
 | `pnpm test:e2e:nginx`   | Builds the production image and runs the Playwright `nginx` project against it on :8088, started with the run-time settings CI uses; all but the `@no-api` tests need a live API                                                                                                                                                                                                                                                               |
 | `pnpm e2e:fake-flags`   | Fake PostHog flag definitions on 127.0.0.1:4064 (`E2E_FAKE_FLAGS_PORT`) for `live/flags.test.ts`; `scripts/e2e-flags-set.mjs <key> <value>` changes one                                                                                                                                                                                                                                                                                        |
@@ -228,11 +228,17 @@ contract's calls (`?passkeys=off|optional|required`, `?passkeyList=`,
 private keys are generated at run time. `e2e/live/passkeys.test.ts` runs the
 same flows against an express with passkeys on.
 
+`pnpm test:e2e` builds the harness in development mode and serves it with
+`vp preview`; a bare `playwright test --project=fixtures` without `E2E_BUNDLED`
+uses the dev server instead. The bundled run serves on :5173, the port `pnpm dev`
+uses, and refuses to start while `pnpm dev` holds it. Stop `pnpm dev`, or set
+`REACT_E2E_PORT` to a free port.
+
 Playwright has five projects in `e2e/`:
 
 | Project    | Command               | Runs against                                        | In CI                         |
 | ---------- | --------------------- | --------------------------------------------------- | ----------------------------- |
-| `fixtures` | `pnpm test:e2e`       | The real router and CSS, with MSW answering; no API | Yes                           |
+| `fixtures` | `pnpm test:e2e`       | A bundle of the harness, with MSW answering; no API | Yes                           |
 | `live`     | `pnpm test:e2e:live`  | A real express and its services, with `E2E_LIVE=1`  | Nightly                       |
 | `nginx`    | `pnpm test:e2e:nginx` | The production image on :8088                       | `@no-api` on PRs; all nightly |
 | `contrast` | `pnpm test:contrast`  | The harness, in both themes; no API                 | No                            |

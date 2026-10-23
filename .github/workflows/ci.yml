@@ -154,9 +154,10 @@ jobs:
 
   # The `fixtures` Playwright project, on four workers.
   #
-  # It drives the MSW harness in e2e/harness/, so it needs the dev server and
-  # nothing else — playwright.config.ts's `webServer` starts one, and
-  # `reuseExistingServer` is off under CI so it always gets a clean boot.
+  # It drives the MSW harness in e2e/harness/, so it needs a built preview and
+  # nothing else — `pnpm test:e2e` sets E2E_BUNDLED, and playwright.config.ts's
+  # `webServer` builds the harness (e2e/harness.vite.config.ts) and serves it
+  # with `vp preview`. `reuseExistingServer` is off, so it always gets a clean boot.
   # Each test gets its own page, so the tests run in parallel.
   #
   # The `nginx` tests tagged `@no-api` run in the `docker` job, against the

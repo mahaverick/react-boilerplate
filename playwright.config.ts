@@ -3,8 +3,8 @@ import { defineConfig, devices } from '@playwright/test'
 /**
  * The e2e projects.
  *
- * `fixtures` runs against the MSW harness in `e2e/harness/` and needs only the
- * dev server. It holds the rendered checks jsdom cannot make, because jsdom has
+ * `fixtures` runs against the MSW harness in `e2e/harness/` and needs only a
+ * preview of its build. It holds the rendered checks jsdom cannot make, because jsdom has
  * no layout: the member table scrolls rather than crushing, the webfont loads,
  * the empty state says something.
  *
@@ -18,15 +18,16 @@ import { defineConfig, devices } from '@playwright/test'
  * Tests are `*.test.ts`, not Playwright's default `*.spec.ts`, which
  * `check-file/filename-blocklist` rejects.
  */
-/** The origin the dev server answers on; `E2E_BASE_URL` points the run at another one. */
-const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5173'
+/** The origin the server answers on; `E2E_BASE_URL` points the run at another one. */
+const port = process.env.REACT_E2E_PORT ?? '5173'
+const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${port}`
 
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.test.ts',
-  globalSetup: './e2e/global-setup.ts',
-  // live and nginx share one backend or container, so they run serially.
+  // live, contrast and capture run serially; nginx runs in parallel only in ci.yml's `docker` job (see its project).
   fullyParallel: false,
+  // The total cap. Projects set their own, lower or equal: fixtures 4 under CI, nginx 4 in the `docker` job, the rest 1.
   workers: process.env.CI ? 4 : '50%',
   forbidOnly: !!process.env.CI,
   /** Under CI, ci.yml's e2e job uploads the html report from playwright-report/ when it fails. */
@@ -37,20 +38,33 @@ export default defineConfig({
     trace: process.env.CI ? { mode: 'retain-on-failure', screenshots: false } : 'on-first-retry',
   },
   /**
-   * Starts the dev server, reusing a running one outside CI. Skipped for the
-   * `nginx` project, which serves the production bundle from a container;
-   * `webServer` has no per-project form, so the switch is an env var.
-   * `E2E_CAPTURE` turns it off as well: the capture runs against a dev stack
-   * that is already up.
+   * Starts a server. Skipped for the `nginx` project, which serves the
+   * production bundle from a container; `webServer` has no per-project form, so
+   * the switch is an env var.
+   *
+   * `pnpm test:e2e` sets `E2E_BUNDLED` and runs `fixtures` against a build of
+   * the harness in development mode, previewed (e2e/harness.vite.config.ts): a
+   * few files per page instead of the dev server's hundreds of modules. `live`
+   * and `contrast` need the dev server and its proxy, so they start `vp dev`.
+   * A bundled run always builds and serves its own copy, so it fails with
+   * "already used" while another server holds the port: stop it, or set
+   * `REACT_E2E_PORT`. Outside CI, a dev server that is already running is
+   * reused. `E2E_CAPTURE` turns the server off as well: the capture runs
+   * against a dev stack that is already up.
    */
   webServer:
     process.env.E2E_NGINX || process.env.E2E_CAPTURE
       ? undefined
       : {
-          command: 'pnpm dev',
-          url: baseURL,
-          reuseExistingServer: !process.env.CI,
-          timeout: 60_000,
+          command: process.env.E2E_BUNDLED
+            ? `pnpm exec vp build --mode development --config e2e/harness.vite.config.ts && pnpm exec vp preview --config e2e/harness.vite.config.ts --port ${port} --strictPort`
+            : `pnpm exec vp dev --force --port ${port} --strictPort`,
+          env: { NODE_ENV: 'development' },
+          url: `${baseURL}/e2e/harness/`,
+          reuseExistingServer: !process.env.CI && !process.env.E2E_BUNDLED,
+          // Under CI the server's log goes to the job log.
+          stdout: process.env.CI ? 'pipe' : 'ignore',
+          timeout: 120_000,
         },
   projects: [
     {
@@ -58,8 +72,8 @@ export default defineConfig({
       testMatch: 'fixtures/**/*.test.ts',
       // The MSW harness has no shared backend, so each test gets its own page and worker.
       fullyParallel: true,
-      // Three workers leave a core for the dev server on a 4 vCPU runner; at four, pages stalled on "Loading" past the 5 s assertion budget.
-      workers: process.env.CI ? 3 : '50%',
+      // Four workers, one per vCPU on a 4 vCPU runner. Against the dev server, pages stalled past the 5 s assertion budget at four; against the bundle, three runs in a row passed.
+      workers: process.env.CI ? 4 : '50%',
       use: { ...devices['Desktop Chrome'] },
     },
     {
