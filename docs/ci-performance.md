@@ -157,4 +157,6 @@ With the polling version, four source-change runs: `docker` finished 100-105s af
 
 `ARG GIT_SHA` stays where it is. On a source change, `COPY . .` invalidates every later layer anyway, and moving the release after `vp build` would change how it reaches the bundle.
 
+With `needs: image`, three source-change runs (one with a deliberately failing nginx test): `docker` finished 126-137s after the run started, `e2e` 89-106s and `test` 133-144s, so the wall-clock was 137-144s. `docker` now ends about 30s after `e2e`, level with `test`.
+
 **What to watch.** The shards split the tests by count, in file order, so shard 1 holds every heavy test in `analytics.test.ts` (34-39s, against 26-29s for shard 2). A long new test there lengthens `docker`. If `unit` plus `test` ever drops below about 130s, `docker` sets the wall-clock again.
