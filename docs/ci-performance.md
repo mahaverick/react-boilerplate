@@ -112,7 +112,7 @@ Two settings shape `e2e`:
 - **Four `fixtures` workers.** Against the dev server, four workers on a 4 vCPU runner stalled pages on "Loading" past the 5s assertion budget, and head bb7350d failed `e2e` in 4 of 5 attempts, so the job ran three. The bundled harness (below) lifted that limit: three runs in a row passed at four workers, with the `pnpm test:e2e` step at 78-81s, against 62-85s at three. The gain is inside the noise, and the setting stays at four because the rule was to keep it when three runs passed.
 - **Traces without screenshots.** CI runs no retries, so `retain-on-failure` is the only way a failure leaves a trace. The default also records a screenshot per action for every test, which slowed `e2e`, so `screenshots: false` keeps the DOM snapshots and the network log only.
 
-Docker no longer sets the pace. The earlier ruling to split the `nginx` tests into their own job stays a next-round item, and it now pays only if `e2e` falls below `docker`'s 125s.
+`e2e` no longer sets the pace: with the bundled harness it runs about 103s, below `docker`, which now sets it (210s in the last run). The earlier ruling to split the `nginx` tests into their own job stays a next-round item, and it now pays, because `docker` is the longer job.
 
 ## Local after PR 2
 
@@ -120,7 +120,7 @@ Docker no longer sets the pace. The earlier ruling to split the `nginx` tests in
 
 ## Bundled fixtures harness
 
-`fixtures` used to run against the Vite dev server, which sent each fresh browser context hundreds of unbundled modules, and a global-setup warm-up of 11 routes hid the cold transforms. `pnpm test:e2e` now builds the harness in development mode (`e2e/harness.vite.config.ts`, so `import.meta.env.DEV` stays true and MSW's worker stays in the bundle) and serves it with `vp preview`. The warm-up is gone. `live`, `contrast` and `capture` still use `vp dev`, because they need its `/api` proxy.
+`fixtures` used to run against the Vite dev server, which sent each fresh browser context hundreds of unbundled modules, and a global-setup warm-up of 11 routes hid the cold transforms. `pnpm test:e2e` now builds the harness in development mode (`e2e/harness.vite.config.ts`, so `import.meta.env.DEV` stays true and MSW's worker stays in the bundle) and serves it with `vp preview`. The warm-up is gone. `live` still uses `vp dev` because it needs the `/api` proxy. `contrast` and `capture` were left on the dev server; `contrast` answers every `/api` request itself and could move to the bundle in a follow-up.
 
 Local, 70 fixtures tests on 10 cores (five workers, as the config sets outside CI): 44-46s on the dev server, including the warm-up, and 25s on the bundle, including the build.
 
@@ -131,4 +131,4 @@ CI, head 0ae09a5 (three workers) and head 1dcb009 (four workers), three runs eac
 | 3       | 94s, 112s, 113s  | 62s, 80s, 85s        |
 | 4       | 105s, 110s, 108s | 79s, 81s, 78s        |
 
-Two red runs on the way to green were test races the bundle exposed, not harness faults. The sign-in link test asserted `/dashboard$` while the router adds `?tenant=`; the dev server's slowness hid it. Three palette tests typed right after Ctrl+K and lost a key (the trace showed "crate a tenant"). That was an app bug, not a test fault: between the loading field leaving and the palette's input taking focus, a key landed on the page and vanished. The host now sends such keys to the query, and the tests type straight after Ctrl+K again; 440 repeated runs passed, against 3 failures in 120 before.
+Two red runs on the way to green were test races the bundle exposed, not harness faults. The sign-in link test asserted `/dashboard$` while the router adds `?tenant=`; the dev server's slowness hid it. Three palette tests typed right after Ctrl+K and lost a key (the trace showed "crate a tenant"). That was an app bug, not a test fault: between the loading field leaving and the palette's input taking focus, a key landed on the page and vanished (when the palette was opened from a text field, the key types into that field instead, as before). The host now sends such keys to the query, and the tests type straight after Ctrl+K again; 440 repeated runs passed, against 3 failures in 120 before.

@@ -27,7 +27,7 @@ export default defineConfig({
   testMatch: '**/*.test.ts',
   // live, contrast and capture run serially; nginx runs in parallel only in ci.yml's `docker` job (see its project).
   fullyParallel: false,
-  // The total cap. Projects set their own, lower or equal: fixtures and nginx 4 in `docker`, the rest 1.
+  // The total cap. Projects set their own, lower or equal: fixtures 4 under CI, nginx 4 in the `docker` job, the rest 1.
   workers: process.env.CI ? 4 : '50%',
   forbidOnly: !!process.env.CI,
   /** Under CI, ci.yml's e2e job uploads the html report from playwright-report/ when it fails. */
@@ -45,7 +45,7 @@ export default defineConfig({
    * `pnpm test:e2e` sets `E2E_BUNDLED` and runs `fixtures` against a build of
    * the harness in development mode, previewed (e2e/harness.vite.config.ts): a
    * few files per page instead of the dev server's hundreds of modules. `live`
-   * and `contrast` need the dev server and its proxy, so they start `pnpm dev`.
+   * and `contrast` need the dev server and its proxy, so they start `vp dev`.
    * A bundled run always builds and serves its own copy, so it fails with
    * "already used" while another server holds the port: stop it, or set
    * `REACT_E2E_PORT`. Outside CI, a dev server that is already running is

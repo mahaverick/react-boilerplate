@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
@@ -183,6 +183,87 @@ describe('CommandPaletteHost', () => {
       await user.click(screen.getByRole('textbox', { name: 'Other' }))
       await user.keyboard('zz')
       expect(useCommandPaletteStore.getState().query).toBe('')
+    })
+
+    describe('keys between the loading field and the palette', () => {
+      /** Renders the host with the palette loaded, plus the page furniture a key can land on. */
+      async function renderPage(open: boolean) {
+        const { CommandPaletteHost, useCommandPaletteStore } = await loadHost('loads')
+        render(
+          <>
+            <button type="button">Page button</button>
+            <div role="dialog" aria-label="Other dialog">
+              <button type="button">Dialog button</button>
+            </div>
+            <textarea aria-label="Notes" />
+            <CommandPaletteHost />
+          </>
+        )
+        if (open) {
+          act(() => useCommandPaletteStore.getState().setOpen(true))
+          await screen.findByText('The app palette')
+        }
+        return { store: useCommandPaletteStore }
+      }
+
+      /** Presses a key on `target`; true means nothing cancelled the browser's default. */
+      function press(target: Element, init: KeyboardEventInit & { modifierAltGraph?: boolean }) {
+        return fireEvent.keyDown(target, { bubbles: true, cancelable: true, ...init })
+      }
+
+      it('does nothing while the palette is closed, on the page or on a button', async () => {
+        const { store } = await renderPage(false)
+        const button = screen.getByRole('button', { name: 'Page button' })
+        button.focus()
+        for (const target of [document.body, button]) {
+          expect(press(target, { key: 'a' })).toBe(true)
+          expect(press(target, { key: ' ' })).toBe(true)
+          expect(press(target, { key: 'Backspace' })).toBe(true)
+        }
+        expect(store.getState().query).toBe('')
+      })
+
+      it('leaves a key in another dialog to that dialog', async () => {
+        const { store } = await renderPage(true)
+        const button = screen.getByRole('button', { name: 'Dialog button' })
+        expect(press(button, { key: 'a' })).toBe(true)
+        expect(store.getState().query).toBe('')
+      })
+
+      it('ignores a key that is part of a composition', async () => {
+        const { store } = await renderPage(true)
+        expect(press(document.body, { key: 'a', isComposing: true })).toBe(true)
+        expect(store.getState().query).toBe('')
+      })
+
+      it('leaves shortcuts, handled keys, fields and non-printable keys alone', async () => {
+        const { store } = await renderPage(true)
+        const notes = screen.getByRole('textbox', { name: 'Notes' })
+        expect(press(document.body, { key: 'a', metaKey: true })).toBe(true)
+        expect(press(document.body, { key: 'a', altKey: true })).toBe(true)
+        expect(press(document.body, { key: 'a', ctrlKey: true })).toBe(true)
+        expect(press(notes, { key: 'a' })).toBe(true)
+        for (const key of ['Enter', 'ArrowDown', 'Tab', 'Escape', 'Shift']) {
+          expect(press(document.body, { key })).toBe(true)
+        }
+        /** Another handler that claims the key before the hook sees it. */
+        const claimed = (event: KeyboardEvent) => event.preventDefault()
+        window.addEventListener('keydown', claimed, { capture: true, once: true })
+        press(document.body, { key: 'a' })
+        expect(store.getState().query).toBe('')
+      })
+
+      it('takes a plain key, AltGr characters and an emoji, and handles Backspace', async () => {
+        const { store } = await renderPage(true)
+        expect(press(document.body, { key: 'a' })).toBe(false)
+        expect(
+          press(document.body, { key: '€', ctrlKey: true, altKey: true, modifierAltGraph: true })
+        ).toBe(false)
+        expect(press(document.body, { key: '😀' })).toBe(false)
+        expect(store.getState().query).toBe('a€😀')
+        press(document.body, { key: 'Backspace' })
+        expect(store.getState().query).toBe('a€')
+      })
     })
 
     it('shows the typed text when it opens with one already in the store', async () => {

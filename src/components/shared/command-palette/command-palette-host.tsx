@@ -21,6 +21,11 @@ const IDLE_FALLBACK_MS = 2000
  * in any field, and is lost. While the palette is open, a printable key or a
  * Backspace that lands outside every field and dialog goes to the query
  * instead, which the palette's input then shows.
+ *
+ * It cannot help when the opener was a text field. Ctrl+K works from inside a
+ * field, the loading field hands focus back to it, and a key pressed in the
+ * gap types into that field behind the modal. The hook leaves fields alone, so
+ * that case still loses the keys to the field, as it did before the hook.
  * @param open - Whether the palette is open.
  */
 function useKeysBetweenFields(open: boolean) {
@@ -28,8 +33,12 @@ function useKeysBetweenFields(open: boolean) {
     if (!open) return
     /** Appends a printable key to the query, or removes its last character for Backspace. */
     function onKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return
-      if (event.isComposing || (event.key.length !== 1 && event.key !== 'Backspace')) return
+      // AltGr reports Ctrl and Alt together; it types characters such as @ and €, so it is not a shortcut.
+      const shortcut =
+        event.metaKey || ((event.ctrlKey || event.altKey) && !event.getModifierState('AltGraph'))
+      if (event.defaultPrevented || shortcut || event.isComposing) return
+      // `Array.from` counts code points, so an emoji is one key.
+      if (Array.from(event.key).length !== 1 && event.key !== 'Backspace') return
       const target = event.target
       if (
         target instanceof Element &&
@@ -38,7 +47,9 @@ function useKeysBetweenFields(open: boolean) {
         return
       event.preventDefault()
       const { query, setQuery } = useCommandPaletteStore.getState()
-      setQuery(event.key === 'Backspace' ? query.slice(0, -1) : query + event.key)
+      setQuery(
+        event.key === 'Backspace' ? Array.from(query).slice(0, -1).join('') : query + event.key
+      )
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
