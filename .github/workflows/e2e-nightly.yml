@@ -88,19 +88,23 @@ jobs:
         env:
           HUSKY: '0'
           VP_GIT_HOOKS: '0'
+      - id: pw
+        if: env.EXERCISE == 'none'
+        working-directory: app
+        run: |
+          version=$(pnpm exec playwright --version | awk '{print $2}')
+          if [ -z "$version" ]; then echo "::error::could not read the Playwright version"; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       # The same key as ci.yml's e2e job, so both share one browser cache.
       - id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: env.EXERCISE == 'none'
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('app/pnpm-lock.yaml') }}
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - id: browsers
         if: env.EXERCISE == 'none' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps chromium
-      - id: browser-deps
-        if: env.EXERCISE == 'none' && steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
       # Written here, never from a secret: every value is local and throwaway.
       # COMPOSE_PROJECT_NAME names the compose project `docker compose` finds
       # from ./express. RATE_LIMIT_SCALE gives headroom to the per-IP budgets

@@ -59,7 +59,9 @@ RUN test ! -e .git || { echo '.git is in the build context (see .dockerignore)' 
 # release), and the two before the upload say where its source maps go.
 ARG GIT_SHA=dev
 # vite.config.ts builds hidden source maps: no sourceMappingURL in any chunk.
-RUN pnpm build
+# `vp build`, not `pnpm build`: the script also runs `tsc -b`, which CI's lint
+# job (`pnpm build`) already runs before deploy.yml builds any image.
+RUN pnpm exec vp build
 # Chunk ids go into every build, uploaded or not, so a file name never holds
 # two different contents across builds. Inject must stay release-less: no
 # --release-* flags and no .git, or it calls PostHog and writes a release id
@@ -67,7 +69,7 @@ RUN pnpm build
 RUN POSTHOG_CLI_TOKEN=phx_inject_placeholder POSTHOG_CLI_ENV_ID=0 \
     pnpm exec posthog-cli sourcemap inject --directory dist
 # Declared just before the upload, so a change to where the maps go re-runs
-# only the upload and the map deletion after it, not `pnpm build` or inject:
+# only the upload and the map deletion after it, not the build or inject:
 # an ARG is part of every later RUN's cache key.
 ARG POSTHOG_SOURCEMAP_PROJECTS=
 ARG POSTHOG_CLI_HOST=https://us.posthog.com

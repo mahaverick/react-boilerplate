@@ -32,6 +32,8 @@
     "format": "vp fmt",
     "test": "vp test --watch=false",
     "test:coverage": "vp test --watch=false --coverage",
+    "test:shard": "COVERAGE_SHARD=1 vp test --watch=false --coverage --reporter=blob",
+    "test:merge": "vp test --merge-reports --coverage",
     "test:watch": "vp test",
     "prepare": "vp config --hooks --no-agent",
     "test:e2e": "playwright test --project=fixtures",

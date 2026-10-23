@@ -24,15 +24,17 @@ const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5173'
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.test.ts',
-  // Tests share one dev server and backend, so one test's sign-out would break another.
+  globalSetup: './e2e/global-setup.ts',
+  // live and nginx share one backend or container, so they run serially.
   fullyParallel: false,
-  workers: 1,
+  workers: process.env.CI ? 4 : '50%',
   forbidOnly: !!process.env.CI,
   /** Under CI, ci.yml's e2e job uploads the html report from playwright-report/ when it fails. */
-  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
+  reporter: process.env.CI ? [['github'], ['dot'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,
-    trace: 'on-first-retry',
+    // CI runs no retries, so on-first-retry would record nothing there; screenshots are off because recording them for every test slowed the run.
+    trace: process.env.CI ? { mode: 'retain-on-failure', screenshots: false } : 'on-first-retry',
   },
   /**
    * Starts the dev server, reusing a running one outside CI. Skipped for the
@@ -54,10 +56,16 @@ export default defineConfig({
     {
       name: 'fixtures',
       testMatch: 'fixtures/**/*.test.ts',
+      // The MSW harness has no shared backend, so each test gets its own page and worker.
+      fullyParallel: true,
+      // Three workers leave a core for the dev server on a 4 vCPU runner; at four, pages stalled on "Loading" past the 5 s assertion budget.
+      workers: process.env.CI ? 3 : '50%',
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'live',
+      fullyParallel: false,
+      workers: 1,
       testMatch: 'live/**/*.test.ts',
       use: { ...devices['Desktop Chrome'] },
     },
@@ -69,6 +77,8 @@ export default defineConfig({
      */
     {
       name: 'contrast',
+      fullyParallel: false,
+      workers: 1,
       testMatch: 'contrast/**/*.test.ts',
       use: { ...devices['Desktop Chrome'] },
     },
@@ -79,6 +89,8 @@ export default defineConfig({
      */
     {
       name: 'capture',
+      fullyParallel: false,
+      workers: 1,
       testMatch: 'capture/**/*.test.ts',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
       timeout: 30 * 60_000,
@@ -87,10 +99,13 @@ export default defineConfig({
      * Against the production image. The SSE reconnect is only observable here:
      * the Vite proxy does not propagate an upstream close, and nginx does. The
      * headers and the CSP are only real here too; those tests are tagged
-     * `@no-api`, and CI runs them with `--grep @no-api`.
+     * `@no-api`, and ci.yml's `docker` job runs them with `--grep @no-api`.
      */
     {
       name: 'nginx',
+      // Only ci.yml's `docker` job (CI, no E2E_LIVE) runs the stateless @no-api tests in parallel; a live run shares one backend and one fake PostHog port.
+      fullyParallel: !!process.env.CI && !process.env.E2E_LIVE,
+      workers: process.env.CI && !process.env.E2E_LIVE ? 4 : 1,
       testMatch: 'nginx/**/*.test.ts',
       use: {
         ...devices['Desktop Chrome'],
