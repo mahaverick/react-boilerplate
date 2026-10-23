@@ -55,10 +55,12 @@ as a route under `src/pages/_app/settings/`.
   `--max-warnings 0` for the 17 leftover rules, which run untyped. Oxlint fails on
   a warning too (`denyWarnings` in `vite.config.ts`). `pnpm lint` runs `vp lint`,
   ESLint and `vp fmt --check`, with the same zero-warning bar.
-- CI runs `pnpm lint:docs`,
-  `pnpm ui:drift`, `pnpm knip`, `pnpm typecheck`, `pnpm test:coverage` (thresholds in
-  `vitest.config.ts`), `pnpm check:bundle` and the `e2e` and `docker` jobs. The scripts
-  are in [README.md](README.md).
+- The `lint` job runs `pnpm check`, `pnpm lint:docs`, `pnpm ui:drift`, `pnpm knip`,
+  `pnpm typecheck`, `pnpm build`, `pnpm check:bundle` and the audits. Four `unit`
+  jobs run `pnpm test:shard`; the `test` job runs `pnpm test:merge`, which enforces
+  the coverage thresholds in `vitest.config.ts` on the merged result. The `e2e` and
+  `docker` jobs run alongside. Local `pnpm test:coverage` still enforces the same
+  thresholds. The scripts are in [README.md](README.md).
 
 ## Dead code (knip)
 
