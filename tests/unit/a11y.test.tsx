@@ -23,6 +23,7 @@ import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { usePasskeySetupStore } from '@/states/passkey-setup.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
+import { testUpgradeRequest } from '@/tests/fixtures/billing'
 import {
   AUDIT_ID_1,
   AUDIT_ID_2,
@@ -43,6 +44,7 @@ import {
   fail,
   ok,
   tenantDetail,
+  testBilling,
   TEST_INVITATION_TOKEN,
   testFlags,
   testOnboarding,
@@ -415,6 +417,17 @@ afterEach(() => {
   setViewportWidth(realInnerWidth)
 })
 
+/** Acme on Paid, monthly, renewing far ahead, paid with Ada's card: every owner action shows. */
+const ACTIVE_BILLING = testBilling({
+  state: 'active',
+  interval: 'month',
+  price: { id: 'price_month', interval: 'month', amountMinor: 99_900, currency: 'INR' },
+  trialEndsAt: null,
+  currentPeriodEnd: '2099-11-02T18:30:00.000Z',
+  payer: { userId: USER_ID, name: 'Ada Lovelace', isMember: true },
+  billingEmail: 'billing@acme.test',
+})
+
 describe('the axe gate itself', () => {
   /**
    * A stray `<p>` outside every landmark is what `region` is about. If this stops
@@ -576,6 +589,15 @@ describe('signed-in pages', () => {
       '/settings/workspace/acme/activity',
       () => screen.findByText('changed the settings (timezone)'),
     ],
+    [
+      'workspace billing in the trial',
+      '/settings/workspace/acme/billing',
+      // The plan choice, the meter and the empty invoices: the trial's whole owner page.
+      async () => {
+        await screen.findByRole('button', { name: 'Upgrade to Paid' })
+        return screen.findByText('No invoices yet.')
+      },
+    ],
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
@@ -594,6 +616,36 @@ describe('signed-in pages', () => {
     server.use(http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')))
     renderAppAt(path)
     await ready()
+    await expectNoViolations()
+  })
+
+  it('workspace billing on Paid, with invoices and a request, has no axe violations', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme/billing', () => ok(ACTIVE_BILLING, 'Billing retrieved.')),
+      http.get('/api/v1/tenants/acme/billing/invoices', () =>
+        ok(
+          listPage([
+            {
+              id: 'inv_1',
+              amountMinor: 99_900,
+              currency: 'INR',
+              status: 'paid',
+              issuedAt: '2026-10-02T18:30:00.000Z',
+              paidAt: '2026-10-02T18:31:00.000Z',
+              url: 'https://rzp.io/i/abc',
+            },
+          ]),
+          'Invoices retrieved.'
+        )
+      ),
+      http.get('/api/v1/tenants/acme/upgrade-requests', () =>
+        ok([testUpgradeRequest()], 'Upgrade requests retrieved.')
+      )
+    )
+    renderAppAt('/settings/workspace/acme/billing')
+    await screen.findByRole('table', { name: 'Invoices' })
+    await screen.findByRole('heading', { name: 'Upgrade requests' })
+    await screen.findByRole('button', { name: 'Cancel Paid' })
     await expectNoViolations()
   })
 
@@ -1116,6 +1168,19 @@ describe('open overlays', () => {
     const dialog = await screen.findByRole('alertdialog')
     // Asserted directly rather than implied by a clean axe run: this catches a dropped Title.
     expect(dialog).toHaveAccessibleName('Remove Cleo D?')
+    await expectNoViolations()
+  })
+
+  it('has no violations with the cancel-Paid dialog open, and the dialog is named', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme/billing', () => ok(ACTIVE_BILLING, 'Billing retrieved.'))
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/billing')
+    await user.click(await screen.findByRole('button', { name: 'Cancel Paid' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveAccessibleName('Cancel Paid?')
     await expectNoViolations()
   })
 

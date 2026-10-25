@@ -800,6 +800,9 @@ const worker = setupWorker(
     ok(testEntitlements(), 'Entitlements retrieved.')
   ),
   http.get('/api/v1/tenants/:slug/billing', () => ok(testBilling(), 'Billing retrieved.')),
+  // The owner's Billing page: no invoices and no upgrade requests; unmocked, these 401 and sign the harness user out.
+  http.get('/api/v1/tenants/:slug/billing/invoices', () => ok(listPage([]), 'Invoices retrieved.')),
+  http.get('/api/v1/tenants/:slug/upgrade-requests', () => ok([], 'Upgrade requests retrieved.')),
   // Every overview mounts the Getting started card, staff's included; unmocked, it 401s and signs the harness user out.
   http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
   http.get('/api/v1/tenants/acme/audit-log', () =>

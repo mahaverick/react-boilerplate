@@ -335,6 +335,9 @@ export const handlers = [
     ok(testEntitlements(), 'Entitlements retrieved.')
   ),
   http.get('/api/v1/tenants/:slug/billing', () => ok(testBilling(), 'Billing retrieved.')),
+  // The owner's Billing page: no invoices and no upgrade requests yet.
+  http.get('/api/v1/tenants/:slug/billing/invoices', () => ok(listPage([]), 'Invoices retrieved.')),
+  http.get('/api/v1/tenants/:slug/upgrade-requests', () => ok([], 'Upgrade requests retrieved.')),
   // Read for the billing banner's dates; UTC, which a test about another zone overrides.
   http.get('/api/v1/tenants/:slug/settings', ({ params }) =>
     ok(
