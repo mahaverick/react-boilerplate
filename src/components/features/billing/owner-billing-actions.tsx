@@ -56,8 +56,8 @@ function Actions({
   const running =
     flow.status === 'starting' || flow.status === 'open' || flow.status === 'confirming'
   const showMessage = (flow.status === 'error' || flow.status === 'waiting') && flow.message
-  // An upgrade handed to the webhook is paid: a second one would only be refused, and would end the wait. A card change's wait never ends, so it blocks nothing.
-  const paying = running || (flow.status === 'waiting' && action === 'upgrade')
+  // An upgrade or switch handed to the webhook is authorised: another checkout would race it and end its wait. A card change's wait never ends, so it blocks nothing.
+  const paying = running || (flow.status === 'waiting' && action !== 'card_change')
   const switching = switchArea(billing, context)
 
   /** Starts a checkout and remembers which button started it. */

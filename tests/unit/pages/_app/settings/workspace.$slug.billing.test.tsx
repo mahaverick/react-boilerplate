@@ -438,6 +438,55 @@ describe('billing page, owner actions by state', () => {
     expect(starts).toHaveLength(1)
   })
 
+  it('keeps Keep Paid disabled while a switch waits to be confirmed', async () => {
+    server.use(
+      http.post(`${BASE}/billing/interval`, () =>
+        ok(
+          {
+            purpose: 'switch',
+            keyId: 'rzp_test_key',
+            subscriptionId: 'sub_2',
+            amountMinor: 999_000,
+            currency: 'INR',
+            interval: 'year',
+            startsAt: PERIOD_END,
+            prefill: { name: 'Ada Lovelace', email: testUser.email },
+          },
+          'Switch started.',
+          201
+        )
+      ),
+      http.post(`${BASE}/billing/checkout/confirm`, () => fail('Internal server error.', 500))
+    )
+    mockTenant('owner', active())
+    const user = userEvent.setup()
+    renderBilling()
+    const card = await overview()
+    await user.click(await within(card).findByRole('button', { name: 'Switch to yearly' }))
+    await waitFor(() => expect(opened).toHaveLength(1))
+    act(() => {
+      opened[0]?.handler({
+        razorpay_payment_id: 'pay_1',
+        razorpay_subscription_id: 'sub_2',
+        razorpay_signature: 'signature',
+      })
+    })
+    expect(
+      await within(card).findByText(
+        'Payment received. We’re confirming it. This page updates when it’s done.'
+      )
+    ).toBeInTheDocument()
+
+    // A cancel lands before the webhook records the switch, so the plan choice shows.
+    act(() => {
+      queryClient.setQueryData(['tenants', 'acme', 'billing'], active({ cancelAtPeriodEnd: true }))
+    })
+
+    expect(
+      await within(card).findByRole('button', { name: 'Keep Paid after 2 November 2099' })
+    ).toBeDisabled()
+  })
+
   it('leaves Keep Paid enabled while only a card change waits', async () => {
     server.use(
       http.post(`${BASE}/billing/payment-method`, () =>
