@@ -191,6 +191,6 @@ test('Billing masks the payer, the receipts address and who asked to upgrade', a
   await page.goto(harness('/settings/workspace/acme/billing', '&billing=payer_left'))
   await expect(page.getByText(/^Receipts go to/)).toBeVisible()
   await expect(page.getByText(/asked to upgrade on/)).toHaveCount(2)
-  // The banner's payer, the Plan card's payer and address, two requesters, and the account menu.
-  await expectAllMasked(page, 7)
+  // The Plan card's payer and address, two requesters, and the account menu's name and address; Billing has no billing banner.
+  await expectAllMasked(page, 6)
 })
