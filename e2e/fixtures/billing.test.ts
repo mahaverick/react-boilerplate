@@ -94,14 +94,12 @@ test('an owner cancels Paid and keeps it to the period’s end', async ({ page }
   await expect(page.getByRole('button', { name: 'Keep Paid after 2 November 2026' })).toBeVisible()
 })
 
-test('the past-due banner’s Update card opens Checkout as a card change', async ({ page }) => {
-  // The tenant's overview: on Billing, the page's own Update card would sit beside the banner's.
-  await page.goto(harness('/tenants/acme', '&billing=past_due&razorpay=fake'))
-  await expect(
-    page.getByText(
-      'Your card payment of ₹999 failed on 20 October 2026. Update your card by 27 October 2026 to keep Paid.'
-    )
-  ).toBeVisible()
+test('past due, Billing’s one Update card opens Checkout as a card change', async ({ page }) => {
+  await page.goto(harness(BILLING, '&billing=past_due&razorpay=fake'))
+  await expect(stateLine(page)).toHaveText('Paid · Payment failed on 20 October 2026')
+  // Billing shows no billing banner, so its card button is the only one.
+  await expect(page.getByText(/Update your card by 27 October 2026/)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Update card' })).toHaveCount(1)
   await page.getByRole('button', { name: 'Update card' }).click()
 
   await expect(

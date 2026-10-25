@@ -81,15 +81,19 @@ export type LoadedTenant = NonNullable<ReturnType<typeof useTenant>['data']>
  * user reached as a member, other than the platform tenant, becomes the
  * user's remembered tenant for Settings.
  * `heading` is the panels' title element, `h2` under a layout with its own `h1`.
+ * `billingBanner: false` leaves the billing banner out, for the Billing page,
+ * which shows the same state and runs its own checkout.
  */
 export function TenantGate({
   slug,
   heading = 'h1',
+  billingBanner = true,
   skeleton,
   children,
 }: {
   slug: string
   heading?: GateHeading
+  billingBanner?: boolean
   skeleton: ReactNode
   children: (tenant: LoadedTenant) => ReactNode
 }) {
@@ -109,7 +113,7 @@ export function TenantGate({
         {detail.access === 'platform' && (
           <PlatformAccessBanner tenantName={detail.name} role={detail.role} />
         )}
-        {!detail.isPlatform && <BillingBanner slug={slug} tenant={detail} />}
+        {billingBanner && !detail.isPlatform && <BillingBanner slug={slug} tenant={detail} />}
         {children(detail)}
       </>
     )

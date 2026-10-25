@@ -497,6 +497,53 @@ describe('billing page, owner actions by state', () => {
   })
 })
 
+describe('billing page, one checkout', () => {
+  /** The overview's state line, once its dates have loaded: the banner waits on the same settings read. */
+  async function stateLineReads(line: string) {
+    const card = await overview()
+    await waitFor(() =>
+      expect(card.querySelector('[data-slot="billing-state"]')?.textContent).toBe(line)
+    )
+  }
+
+  it.each([
+    [
+      'a payment failed',
+      active({
+        state: 'past_due',
+        pastDue: { since: SINCE, graceEndsAt: '2026-10-27T09:00:00.000Z', paused: false },
+      }),
+      'Paid · Payment failed on 20 October 2026',
+    ],
+    [
+      'the payer left',
+      active({ payer: { userId: 'user-left', name: 'Grace Hopper', isMember: false } }),
+      'Paid · ₹999 per month · Renews 2 November 2099',
+    ],
+  ])('offers one card button and no billing banner when %s', async (_case, billing, line) => {
+    mockTenant('owner', billing)
+    renderBilling()
+    await stateLineReads(line)
+    expect(screen.getAllByRole('button', { name: /^(Update card|Use my card)$/ })).toHaveLength(1)
+    expect(screen.queryByText(/Update your card by|they left the workspace/)).toBeNull()
+  })
+
+  it('shows no banner Upgrade link above the plan choice as the trial ends', async () => {
+    const endsIn2Days = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
+    mockTenant('owner', testBilling({ trialEndsAt: endsIn2Days }))
+    renderBilling()
+    const card = await overview()
+    expect(await within(card).findByRole('button', { name: 'Upgrade to Paid' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(card.querySelector('[data-slot="billing-state"]')?.textContent).toMatch(
+        /^Paid trial · Ends /
+      )
+    )
+    expect(screen.queryByRole('link', { name: 'Upgrade', exact: true })).toBeNull()
+    expect(screen.queryByText(/Your Paid trial ends on/)).toBeNull()
+  })
+})
+
 describe('billing page, cancel', () => {
   it('toasts the end date though the cancel’s follow-up reads are still loading', async () => {
     server.use(
