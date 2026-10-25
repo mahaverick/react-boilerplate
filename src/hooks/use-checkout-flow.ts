@@ -247,6 +247,20 @@ export function useCheckoutFlow(slug: string) {
     [startCheckout, switchInterval, updateCard]
   )
 
+  /**
+   * The billing view as the server has it now, read before an upgrade starts:
+   * an `active` workspace makes the upgrade a resubscribe, and a stale cache
+   * could say `active` after the period ended. Falls back to the cached view
+   * when the read fails.
+   */
+  const freshBilling = useCallback(async (): Promise<TenantBilling | null | undefined> => {
+    try {
+      return await queryClient.fetchQuery({ ...tenantBillingQueryOptions(slug), staleTime: 0 })
+    } catch {
+      return queryClient.getQueryData<TenantBilling | null>(billingKeys.billing(slug))
+    }
+  }, [queryClient, slug])
+
   /** Fails the flow with `message`. */
   const failWith = useCallback((message: string) => {
     setState({ status: 'error', message })
@@ -259,7 +273,7 @@ export function useCheckoutFlow(slug: string) {
       waitingFor.current = null
       try {
         setState({ status: 'starting', message: null })
-        const before = queryClient.getQueryData<TenantBilling | null>(billingKeys.billing(slug))
+        const before = kind.purpose === 'upgrade' ? await freshBilling() : undefined
         let session: CheckoutSession
         try {
           session = await startSession(kind)
@@ -333,7 +347,7 @@ export function useCheckoutFlow(slug: string) {
         running.current = false
       }
     },
-    [confirmCheckout, failWith, finish, poll, queryClient, slug, startSession, wait]
+    [confirmCheckout, failWith, finish, freshBilling, poll, queryClient, slug, startSession, wait]
   )
 
   return { start, status: state.status, message: state.message }
