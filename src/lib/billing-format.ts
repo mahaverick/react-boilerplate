@@ -65,16 +65,15 @@ function dateInZone(date: Date, timeZone: string): string {
 }
 
 /**
- * Each invoice status in plain words. express sends `issued`, `paid`,
- * `cancelled` or `expired`, and folds Razorpay's `partially_paid` into
- * `issued`; Razorpay's own words are kept here in case one passes through.
+ * Each invoice status express sends, in plain words. express folds
+ * Razorpay's `partially_paid` into `issued`, so a partly paid invoice reads
+ * "Not paid".
  */
 const INVOICE_STATUS_LABEL: Readonly<Record<string, string>> = {
   paid: 'Paid',
   issued: 'Not paid',
   expired: 'Expired',
   cancelled: 'Cancelled',
-  partially_paid: 'Partly paid',
 }
 
 /**

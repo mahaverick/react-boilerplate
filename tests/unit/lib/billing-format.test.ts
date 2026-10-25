@@ -46,7 +46,7 @@ describe('invoiceStatusLabel', () => {
     ['issued', 'Not paid'],
     ['expired', 'Expired'],
     ['cancelled', 'Cancelled'],
-    ['partially_paid', 'Partly paid'],
+    ['partially_paid', 'Partially paid'],
     ['payment_due', 'Payment due'],
     ['draft', 'Draft'],
   ])('writes %s as %s', (status, label) => {
