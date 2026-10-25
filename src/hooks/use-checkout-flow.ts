@@ -289,28 +289,24 @@ export function useCheckoutFlow(slug: string) {
   )
 
   /**
-   * Drops an error or waiting line: the page has moved on, so the line no
-   * longer describes it. A running checkout is left alone.
+   * Drops an error line, or a card change's waiting line: the page has moved
+   * on, so the line no longer describes it. A running checkout, and an
+   * upgrade or switch waiting on the webhook, keep theirs: that payment is
+   * taken, and its wait still finishes it when the view shows the change.
    */
   const clear = useCallback(() => {
     if (running.current) return
+    if (state.status === 'waiting' && waitingFor.current?.goal !== 'confirmed') return
+    if (state.status !== 'error' && state.status !== 'waiting') return
     waitingFor.current = null
     shownFor.current = null
-    setState((current) =>
-      current.status === 'error' || current.status === 'waiting'
-        ? { status: 'idle', message: null }
-        : current
-    )
-  }, [])
+    setState({ status: 'idle', message: null })
+  }, [state.status])
 
   useEffect(() => {
-    // An upgrade or switch waits on the webhook, so a view that changes without reaching it keeps the line.
-    const stale =
-      state.status === 'error' ||
-      (state.status === 'waiting' && waitingFor.current?.goal === 'confirmed')
-    if (!stale || !billing || shownFor.current === null) return
+    if (!billing || shownFor.current === null) return
     if (subscriptionKey(billing) !== shownFor.current) clear()
-  }, [state.status, billing, clear])
+  }, [billing, clear])
 
   useEffect(() => {
     const attempt = waitingFor.current

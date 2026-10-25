@@ -916,6 +916,30 @@ describe('useCheckoutFlow, a line the page has moved past', () => {
 
     await waitFor(() => expect(result.current.status).toBe('idle'))
   })
+
+  it('keeps an upgrade’s waiting line through clear, and still finishes it', async () => {
+    serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
+    serveConfirm(() => fail('Internal server error.', 500))
+    const { result, client } = renderFlow(testBilling())
+    act(() => {
+      void result.current.start({ purpose: 'upgrade', interval: 'month' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('open'))
+    act(() => lastCheckout().options.handler(PAYLOAD))
+    await waitFor(() => expect(result.current.status).toBe('waiting'))
+
+    act(() => {
+      result.current.clear()
+    })
+    expect(result.current.status).toBe('waiting')
+    expect(result.current.message).toBe(WAITING)
+
+    act(() => {
+      client.setQueryData(billingKeys.billing('acme'), testBilling({ state: 'active' }))
+    })
+    await waitFor(() => expect(result.current.status).toBe('done'))
+    expect(track).toHaveBeenCalledWith('checkout_succeeded', { purpose: 'upgrade' })
+  })
 })
 
 /** Lets effects and pending promises run once. */
