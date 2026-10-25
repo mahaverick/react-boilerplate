@@ -116,17 +116,25 @@ export function loadRazorpay(): Promise<RazorpayConstructor> {
   return attempt
 }
 
+/** A colour no theme uses, set before the token so a token the canvas can't parse is noticed. */
+const UNPARSED_PROBE = '#010203'
+
 /**
  * The page's `--primary` token as `#rrggbb`, which Razorpay's `theme.color`
  * takes. The token is an `oklch()` value, so a 1-pixel canvas converts it.
- * @returns The colour, or `undefined` when the page has no token or no canvas.
+ * @returns The colour, or `undefined` when the page has no token, no canvas,
+ *   or a canvas that can't parse the token.
  */
 function primaryColor(): string | undefined {
   const token = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()
   if (token === '') return undefined
   const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
   if (!context) return undefined
+  // A canvas ignores a colour it can't parse and keeps the old one, which would read as black.
+  context.fillStyle = UNPARSED_PROBE
+  const probe = context.fillStyle
   context.fillStyle = token
+  if (context.fillStyle === probe) return undefined
   context.fillRect(0, 0, 1, 1)
   const [red = 0, green = 0, blue = 0] = context.getImageData(0, 0, 1, 1).data
   return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`

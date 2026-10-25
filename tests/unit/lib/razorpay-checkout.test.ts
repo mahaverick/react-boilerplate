@@ -240,19 +240,48 @@ describe('openRazorpayCheckout', () => {
 
   it('colours Checkout with --primary, converted to hex', async () => {
     document.documentElement.style.setProperty('--primary', 'oklch(0.218 0.008 223.9)')
-    const filled: string[] = []
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-      set fillStyle(value: string) {
-        filled.push(value)
-      },
-      fillRect: () => {},
-      getImageData: () => ({ data: new Uint8ClampedArray([17, 34, 51, 255]) }),
-    } as unknown as CanvasRenderingContext2D)
+    const context = fakeCanvas(() => true)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context.api)
 
     void openRazorpayCheckout(session(), 'Acme App')
     await vi.waitFor(() => expect(checkouts).toHaveLength(1))
 
-    expect(filled).toEqual(['oklch(0.218 0.008 223.9)'])
+    expect(context.filled.at(-1)).toBe('oklch(0.218 0.008 223.9)')
     expect(lastCheckout().options.theme).toEqual({ color: '#112233' })
   })
+
+  it('leaves the theme out when the canvas cannot parse --primary, rather than sending black', async () => {
+    document.documentElement.style.setProperty('--primary', 'oklch(0.218 0.008 223.9)')
+    // An old canvas ignores a colour it can't parse, as browsers before oklch() support do.
+    const context = fakeCanvas((value) => value.startsWith('#'))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context.api)
+
+    void openRazorpayCheckout(session(), 'Acme App')
+    await vi.waitFor(() => expect(checkouts).toHaveLength(1))
+
+    expect(lastCheckout().options.theme).toBeUndefined()
+  })
 })
+
+/**
+ * A 2D context whose `fillStyle` keeps a value only when `parses` accepts it,
+ * as a canvas ignores a colour it can't read, and whose pixel reads `#112233`.
+ * @param parses - Whether the fake canvas understands a colour.
+ * @returns The context, and every value assigned to `fillStyle`.
+ */
+function fakeCanvas(parses: (value: string) => boolean) {
+  const filled: string[] = []
+  let current = '#000000'
+  const api = {
+    get fillStyle() {
+      return current
+    },
+    set fillStyle(value: string) {
+      filled.push(value)
+      if (parses(value)) current = value
+    },
+    fillRect: () => {},
+    getImageData: () => ({ data: new Uint8ClampedArray([17, 34, 51, 255]) }),
+  } as unknown as CanvasRenderingContext2D
+  return { api, filled }
+}
