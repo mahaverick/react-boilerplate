@@ -326,7 +326,7 @@ describe('tenant detail', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('renders the tenant header, the role badge and only the Overview tab', async () => {
+  it('renders the tenant header, the role badge and the Overview and Insights tabs', async () => {
     mockTenant('owner')
     renderAppAt('/tenants/acme')
 
@@ -337,7 +337,7 @@ describe('tenant detail', () => {
       within(tabs)
         .getAllByRole('link')
         .map((link) => link.textContent)
-    ).toEqual(['Overview'])
+    ).toEqual(['Overview', 'Insights'])
   })
 
   it('shows the details read-only, with a link to edit them in workspace settings', async () => {

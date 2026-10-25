@@ -48,7 +48,7 @@ export const Route = createFileRoute('/_app/tenants/$slug')({
 
 /** One tenant tab. `flag` hides it while that tenant-scoped flag is off for this tenant. */
 interface TenantTab {
-  to: '/tenants/$slug' | '/tenants/$slug/beta'
+  to: '/tenants/$slug' | '/tenants/$slug/beta' | '/tenants/$slug/insights'
   label: string
   exact: boolean
   flag?: BooleanClientFlagKey
@@ -56,6 +56,7 @@ interface TenantTab {
 
 const TABS: readonly TenantTab[] = [
   { to: '/tenants/$slug', label: 'Overview', exact: true },
+  { to: '/tenants/$slug/insights', label: 'Insights', exact: false },
   { to: '/tenants/$slug/beta', label: 'Beta', exact: false, flag: 'example_beta_page' },
 ]
 

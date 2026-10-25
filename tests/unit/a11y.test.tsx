@@ -23,7 +23,7 @@ import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { usePasskeySetupStore } from '@/states/passkey-setup.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
-import { testUpgradeRequest } from '@/tests/fixtures/billing'
+import { testEntitlements, testUpgradeRequest } from '@/tests/fixtures/billing'
 import {
   AUDIT_ID_1,
   AUDIT_ID_2,
@@ -601,6 +601,11 @@ describe('signed-in pages', () => {
       'tenant beta',
       '/tenants/acme/beta',
       () => screen.findByText('Beta features are on for acme.'),
+    ],
+    [
+      'tenant insights, unlocked',
+      '/tenants/acme/insights',
+      () => screen.findByText('Members joined, last 30 days'),
     ],
     [
       'workspace activity',
@@ -1194,6 +1199,25 @@ describe('open overlays', () => {
     await expectNoViolations()
   })
 
+  it('has no violations on the locked Insights page', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme/entitlements', () =>
+        ok(
+          testEntitlements({
+            plan: { key: 'free', name: 'Free' },
+            state: 'free',
+            trialEndsAt: null,
+            features: { advanced_example: false },
+          }),
+          'Entitlements retrieved.'
+        )
+      )
+    )
+    renderAppAt('/tenants/acme/insights')
+    await screen.findByText('Included in Paid.')
+    await expectNoViolations()
+  })
+
   it('has no violations with the cancel-Paid dialog open, and the dialog is named', async () => {
     server.use(
       http.get('/api/v1/tenants/acme/billing', () => ok(ACTIVE_BILLING, 'Billing retrieved.'))
@@ -1211,7 +1235,7 @@ describe('open overlays', () => {
     // A workspace created an hour ago, in its 14-day trial, that this browser has not seen.
     const createdAt = Date.now() - 60 * 60 * 1000
     const fresh = { ...TENANT, createdAt: new Date(createdAt).toISOString() }
-    localStorage.removeItem(`billing.trial-explainer.${TENANT_ID}`)
+    localStorage.removeItem(`billing.trial-explainer.${testUser.id}.${TENANT_ID}`)
     server.use(
       http.get('/api/v1/tenants/acme', () => ok(tenantDetail(fresh, 'owner'), 'Tenant retrieved.')),
       http.get('/api/v1/tenants/acme/billing', () =>
@@ -1228,7 +1252,7 @@ describe('open overlays', () => {
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveAccessibleName('You’re on a 14-day Paid trial')
     await expectNoViolations()
-    localStorage.removeItem(`billing.trial-explainer.${TENANT_ID}`)
+    localStorage.removeItem(`billing.trial-explainer.${testUser.id}.${TENANT_ID}`)
   })
 
   it('has no violations with the trial summary open, and the dialog is named', async () => {

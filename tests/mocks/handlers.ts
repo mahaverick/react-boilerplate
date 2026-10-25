@@ -338,6 +338,10 @@ export const handlers = [
   // The owner's Billing page: no invoices and no upgrade requests yet.
   http.get('/api/v1/tenants/:slug/billing/invoices', () => ok(listPage([]), 'Invoices retrieved.')),
   http.get('/api/v1/tenants/:slug/upgrade-requests', () => ok([], 'Upgrade requests retrieved.')),
+  // The Insights page's counts; a test about a Free workspace or a 402 overrides this.
+  http.get('/api/v1/tenants/:slug/insights', () =>
+    ok({ membersJoinedLast30Days: 4, invitationsSentLast30Days: 7 }, 'Insights retrieved.')
+  ),
   // Read for the billing banner's dates; UTC, which a test about another zone overrides.
   http.get('/api/v1/tenants/:slug/settings', ({ params }) =>
     ok(

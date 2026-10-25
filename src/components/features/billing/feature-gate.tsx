@@ -13,6 +13,8 @@ interface FeatureGateProps {
   title: string
   /** One sentence on what the feature gives. */
   valueLine: string
+  /** Draw the locked card whatever the entitlements say, for a feature route that answered 402. */
+  locked?: boolean
   children: ReactNode
 }
 
@@ -20,7 +22,8 @@ interface FeatureGateProps {
  * Renders `children` when the plan includes the feature. Otherwise a locked
  * card: the title, the value line, "Included in Paid." and the viewer's
  * upgrade path. Renders nothing until the entitlements load, so the caller
- * owns any skeleton. The API still refuses the feature's own requests; this
+ * owns any skeleton. `locked` draws the card regardless, for a feature route
+ * that answered 402 while the entitlements read still said enabled. The API still refuses the feature's own requests; this
  * only decides what to draw.
  */
 export function FeatureGate({
@@ -28,11 +31,14 @@ export function FeatureGate({
   entitlementKey,
   title,
   valueLine,
+  locked = false,
   children,
 }: FeatureGateProps) {
   const { enabled } = useFeature(slug, entitlementKey)
-  if (enabled === undefined) return null
-  if (enabled) return children
+  if (!locked) {
+    if (enabled === undefined) return null
+    if (enabled) return children
+  }
   return (
     <Card>
       <CardHeader>

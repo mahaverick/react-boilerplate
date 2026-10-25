@@ -819,6 +819,10 @@ const worker = setupWorker(
   // The owner's Billing page: no invoices and no upgrade requests; unmocked, these 401 and sign the harness user out.
   http.get('/api/v1/tenants/:slug/billing/invoices', () => ok(listPage([]), 'Invoices retrieved.')),
   http.get('/api/v1/tenants/:slug/upgrade-requests', () => ok([], 'Upgrade requests retrieved.')),
+  // The Insights tab's counts, keyed by :slug; unmocked, this 401s and signs the harness user out.
+  http.get('/api/v1/tenants/:slug/insights', () =>
+    ok({ membersJoinedLast30Days: 4, invitationsSentLast30Days: 7 }, 'Insights retrieved.')
+  ),
   // Every overview mounts the Getting started card, staff's included; unmocked, it 401s and signs the harness user out.
   http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
   http.get('/api/v1/tenants/acme/audit-log', () =>
