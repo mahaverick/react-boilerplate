@@ -229,25 +229,30 @@ opens `/auth/confirm` in the browser that asked. Rules:
 
 nginx sends these on every response it answers itself (`nginx.conf`):
 
-| Header                       | Value                                                          |
-| ---------------------------- | -------------------------------------------------------------- |
-| `Content-Security-Policy`    | see below                                                      |
-| `Referrer-Policy`            | `no-referrer`                                                  |
-| `X-Content-Type-Options`     | `nosniff`                                                      |
-| `X-Frame-Options`            | `DENY`                                                         |
-| `Cross-Origin-Opener-Policy` | `same-origin`                                                  |
-| `Permissions-Policy`         | `camera=(), microphone=(), geolocation=(), payment=(), usb=()` |
+| Header                       | Value                                                                                                                         |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `Content-Security-Policy`    | see below                                                                                                                     |
+| `Referrer-Policy`            | `no-referrer`                                                                                                                 |
+| `X-Content-Type-Options`     | `nosniff`                                                                                                                     |
+| `X-Frame-Options`            | `DENY`                                                                                                                        |
+| `Cross-Origin-Opener-Policy` | `same-origin-allow-popups`                                                                                                    |
+| `Permissions-Policy`         | `camera=(), microphone=(), geolocation=(), payment=(self "https://api.razorpay.com" "https://checkout.razorpay.com"), usb=()` |
 
 The policy is enforced, not report-only:
 
-    default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
-    img-src 'self' data:; connect-src 'self'; object-src 'none';
-    base-uri 'none'; frame-ancestors 'none'; form-action 'self'
+    default-src 'self';
+    script-src 'self' https://checkout.razorpay.com https://cdn.razorpay.com;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: https://cdn.razorpay.com;
+    connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com;
+    frame-src https://api.razorpay.com https://checkout.razorpay.com;
+    object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
 
-- **`script-src 'self'` holds because no script is inline.** The pre-paint
+- **No script is inline.** The pre-paint
   scripts are the files `public/theme-init.js` and `public/boot-variant.js`,
   each loaded by a blocking `<script src>`, and `/runtime-config.js` is same-origin. Never add an
-  inline script, `'unsafe-inline'` or `'unsafe-eval'` for scripts.
+  inline script, `'unsafe-inline'` or `'unsafe-eval'` for scripts. The only
+  other script hosts are Razorpay Checkout's (below).
   `src/lib/zod-jitless.ts` turns off Zod's JIT, whose `new Function` probe
   this policy reports as a violation; it is the first import of
   `src/main.tsx` and of every source file that imports Zod as a value.
@@ -261,11 +266,29 @@ The policy is enforced, not report-only:
   govern, so the toast's and the sidebar's inline CSS variables do not need it.
   Base UI's `CSPProvider` with `disableStyleElements` would drop the first
   reason, not the second, so the keyword stays while the shell is inline.
-- **`connect-src 'self'`** holds because the API, analytics and error
+- **The app's own requests stay on `'self'`.** The API, analytics and error
   tracking are all same-origin: posthog-js sends to `/api/v1/collect` and
   loads its recorder from there, so the browser never talks to PostHog.
-  Calling another origin from the browser means widening it in `nginx.conf`
-  in the same change.
+  Calling another origin from the browser means widening the policy in
+  `nginx.conf` in the same change.
+- **Razorpay Checkout is the one third party, and its hosts are provisional.**
+  `src/lib/razorpay-checkout.ts` loads `https://checkout.razorpay.com/v1/checkout.js`
+  on demand, without an `integrity` hash because Razorpay serves it
+  unversioned, so the policy pins the host instead. The policy allows Razorpay
+  in `script-src` (`checkout.razorpay.com`, and `cdn.razorpay.com` for the
+  risk-detection script `checkout.js` loads), `frame-src` (`api.razorpay.com`,
+  `checkout.razorpay.com`), `connect-src` (`api.razorpay.com`,
+  `lumberjack.razorpay.com`) and `img-src` (`cdn.razorpay.com`). These hosts
+  are **provisional**: `e2e/nginx/razorpay-checkout.test.ts` proves only that
+  the script loads and defines `window.Razorpay` with no violation. Opening a
+  real Checkout needs a live API with Razorpay test keys, so the billing live
+  walk, which opens one, confirms the final list and records it here. A
+  missing host blocks payment only in production.
+  `Permissions-Policy` lets the two Razorpay frame hosts use `payment`, and
+  `Cross-Origin-Opener-Policy` is `same-origin-allow-popups` because UPI
+  intent and bank 3-D Secure pages open as popups, which `same-origin` would
+  cut off from the page. `Referrer-Policy` stays `no-referrer` unless the live
+  walk shows Checkout refusing it.
 - **Session replay starts no worker.** Recording `<canvas>` content would
   start a `blob:` worker, which `script-src 'self'` blocks (`worker-src`
   falls back to it). The options pin
@@ -314,7 +337,7 @@ The policy is enforced, not report-only:
   error pages.
 - The `nginx` Playwright project checks the headers and asserts zero CSP
   violations (`e2e/nginx/headers.test.ts`, `e2e/nginx/csp.test.ts`,
-  `e2e/nginx/csp-live.test.ts`), and `docker/check-image.sh` checks the
+  `e2e/nginx/csp-live.test.ts`, `e2e/nginx/razorpay-checkout.test.ts`), and `docker/check-image.sh` checks the
   built image from outside: user 101, a read-only root, each header sent
   once on proxied and unproxied responses, no source map in the image, a
   refused run-time setting that stops the container without printing its

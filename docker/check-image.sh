@@ -170,7 +170,7 @@ esac
 
 asset=$({ curl -sf "$base/" || true; } | { grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' || true; } | head -n 1)
 [ -n "$asset" ] || problem "index.html names no /assets/index-*.js entry chunk"
-csp="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+csp="default-src 'self'; script-src 'self' https://checkout.razorpay.com https://cdn.razorpay.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.razorpay.com; connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com; frame-src https://api.razorpay.com https://checkout.razorpay.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 for path in / /dashboard "$asset" /theme-init.js /boot-variant.js /runtime-config.js /assets/does-not-exist.js; do
   curl -s -D "$work/headers" -o /dev/null "$base$path"
   while IFS='|' read -r field value; do
@@ -178,11 +178,11 @@ for path in / /dashboard "$asset" /theme-init.js /boot-variant.js /runtime-confi
     [ "$got" = "$value" ] || problem "$path: $field is [$got], expected [$value]"
   done <<EOF
 Content-Security-Policy|$csp
-Permissions-Policy|camera=(), microphone=(), geolocation=(), payment=(), usb=()
+Permissions-Policy|camera=(), microphone=(), geolocation=(), payment=(self "https://api.razorpay.com" "https://checkout.razorpay.com"), usb=()
 Referrer-Policy|no-referrer
 X-Content-Type-Options|nosniff
 X-Frame-Options|DENY
-Cross-Origin-Opener-Policy|same-origin
+Cross-Origin-Opener-Policy|same-origin-allow-popups
 Server|nginx
 EOF
 done

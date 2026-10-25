@@ -8,16 +8,17 @@ import { afterPageTask } from '../timing'
 
 /** The policy `nginx.conf` sends when the response carries none of its own, character for character. */
 export const CONTENT_SECURITY_POLICY =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+  "default-src 'self'; script-src 'self' https://checkout.razorpay.com https://cdn.razorpay.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.razorpay.com; connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com; frame-src https://api.razorpay.com https://checkout.razorpay.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 
 /** Every security header `nginx.conf` sets on its server block, with the value it sends when the response carries none of its own. */
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'content-security-policy': CONTENT_SECURITY_POLICY,
-  'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+  'permissions-policy':
+    'camera=(), microphone=(), geolocation=(), payment=(self "https://api.razorpay.com" "https://checkout.razorpay.com"), usb=()',
   'referrer-policy': 'no-referrer',
   'x-content-type-options': 'nosniff',
   'x-frame-options': 'DENY',
-  'cross-origin-opener-policy': 'same-origin',
+  'cross-origin-opener-policy': 'same-origin-allow-popups',
 }
 
 /**
