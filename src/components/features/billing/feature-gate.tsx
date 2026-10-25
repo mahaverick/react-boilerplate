@@ -23,8 +23,8 @@ interface FeatureGateProps {
  * card: the title, the value line, "Included in Paid." and the viewer's
  * upgrade path. Renders nothing until the entitlements load, so the caller
  * owns any skeleton. `locked` draws the card regardless, for a feature route
- * that answered 402 while the entitlements read still said enabled. The API still refuses the feature's own requests; this
- * only decides what to draw.
+ * that answered 402 while the entitlements read still said enabled. The API
+ * still refuses the feature's own requests; this only decides what to draw.
  */
 export function FeatureGate({
   slug,

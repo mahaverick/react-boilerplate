@@ -58,9 +58,12 @@ describe('nginx.conf', () => {
       'camera=(), microphone=(), geolocation=(), payment=(self "https://api.razorpay.com" "https://checkout.razorpay.com"), usb=()',
     ],
     ['cross_origin_opener_policy', 'same-origin-allow-popups'],
-    ['referrer_policy', 'no-referrer'],
   ])('sends $%s as Razorpay Checkout needs it', (variable, value) => {
     expect(headerDefault(variable)).toBe(value)
+  })
+
+  it('keeps $referrer_policy at no-referrer, unchanged for Razorpay Checkout', () => {
+    expect(headerDefault('referrer_policy')).toBe('no-referrer')
   })
 
   it.each([CALLBACK, STREAM])(

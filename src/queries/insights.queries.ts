@@ -41,7 +41,8 @@ export function insightsQueryOptions(slug: string) {
 /**
  * Reads the insights for a tenant.
  * @param slug - The tenant.
+ * @param options - `enabled: false` asks nothing, as on a plan without the feature.
  */
-export function useTenantInsights(slug: string) {
-  return useQuery(insightsQueryOptions(slug))
+export function useTenantInsights(slug: string, { enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({ ...insightsQueryOptions(slug), enabled })
 }

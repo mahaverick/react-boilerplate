@@ -8,9 +8,10 @@ import type { ApiSuccess } from '@/types/api.types'
  *
  * The base is the relative, fixed `API_PREFIX`: the SPA is served same-origin
  * with the API (Vite's proxy in dev, nginx in prod), the only topology it
- * supports. nginx's CSP allows `connect-src 'self'` only, and the refresh
- * cookie belongs to whichever origin answers `/api` (with secure cookies and
- * no COOKIE_DOMAIN, a host-only `__Host-` cookie).
+ * supports. nginx's CSP `connect-src` names no API origin but `'self'`; any
+ * other host it lists serves a third-party script, such as a payment
+ * provider's. The refresh cookie belongs to whichever origin answers `/api`
+ * (with secure cookies and no COOKIE_DOMAIN, a host-only `__Host-` cookie).
  *
  * The 30s timeout exists because axios has none by default, so a request that
  * never answers would leave its mutation pending and its button disabled

@@ -17,6 +17,7 @@ import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
+import { useFeature } from '@/queries/billing.queries'
 import { INSIGHTS_LOCKED, useTenantInsights, type TenantInsights } from '@/queries/insights.queries'
 
 /** The Insights tab. Open to every member; the plan decides whether it shows the stats or the locked card. */
@@ -34,40 +35,28 @@ const TITLE = 'Workspace insights'
 /** The gate's value line. */
 const VALUE_LINE = 'See who joined and how many invitations went out in the last 30 days.'
 
-/** The Insights tab: the UI gate around the stats, which mount (and fetch) only when the plan includes the feature. */
+/**
+ * The Insights tab: one gate around the stats. The UI gate draws the locked
+ * card when the entitlements lack the feature, and the insights are asked for
+ * only when they include it. The API gate's 402 resolves to `INSIGHTS_LOCKED`,
+ * which draws the same card through `locked`.
+ */
 function TenantInsightsTab() {
   const { slug } = Route.useParams()
+  const { enabled } = useFeature(slug, FEATURE)
+  const insights = useTenantInsights(slug, { enabled: enabled === true })
   return (
-    <FeatureGate slug={slug} entitlementKey={FEATURE} title={TITLE} valueLine={VALUE_LINE}>
-      <InsightsStats slug={slug} />
+    <FeatureGate
+      slug={slug}
+      entitlementKey={FEATURE}
+      title={TITLE}
+      valueLine={VALUE_LINE}
+      locked={insights.data === INSIGHTS_LOCKED}
+    >
+      <QueryState query={insights} name="Insights" skeleton={<InsightsSkeleton />}>
+        {(data) => data !== INSIGHTS_LOCKED && <StatCards data={data} />}
+      </QueryState>
     </FeatureGate>
-  )
-}
-
-/**
- * The two stat cards. A 402 from the API draws the locked card, the second
- * guard, through `FeatureGate`'s `locked`.
- */
-function InsightsStats({ slug }: { slug: string }) {
-  const insights = useTenantInsights(slug)
-  return (
-    <QueryState query={insights} name="Insights" skeleton={<InsightsSkeleton />}>
-      {(data) =>
-        data === INSIGHTS_LOCKED ? (
-          <FeatureGate
-            slug={slug}
-            entitlementKey={FEATURE}
-            title={TITLE}
-            valueLine={VALUE_LINE}
-            locked
-          >
-            {null}
-          </FeatureGate>
-        ) : (
-          <StatCards data={data} />
-        )
-      }
-    </QueryState>
   )
 }
 

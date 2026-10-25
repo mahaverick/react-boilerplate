@@ -27,8 +27,11 @@ const TENANT = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
-/** Mounts a gate over the insights feature for acme, as an owner. */
-function renderGate() {
+/**
+ * Mounts a gate over the insights feature for acme, as an owner.
+ * @param locked - The gate's `locked` prop.
+ */
+function renderGate(locked?: boolean) {
   server.use(
     http.get('/api/v1/tenants/acme', () => ok(tenantDetail(TENANT, 'owner'), 'Tenant retrieved.'))
   )
@@ -41,6 +44,7 @@ function renderGate() {
           entitlementKey="advanced_example"
           title="Insights"
           valueLine="See who joined and who was invited in the last 30 days."
+          locked={locked}
         >
           <p>The insights themselves</p>
         </FeatureGate>
@@ -89,6 +93,15 @@ describe('FeatureGate', () => {
     expect(
       screen.getByText('See who joined and who was invited in the last 30 days.')
     ).toBeInTheDocument()
+    expect(screen.getByText('Included in Paid.')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Upgrade' })).toBeInTheDocument()
+    expect(screen.queryByText('The insights themselves')).toBeNull()
+  })
+
+  it('renders the locked card when `locked` is set, though the plan includes the feature', async () => {
+    renderGate(true)
+
+    expect(await screen.findByRole('heading', { name: 'Insights', level: 2 })).toBeInTheDocument()
     expect(screen.getByText('Included in Paid.')).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'Upgrade' })).toBeInTheDocument()
     expect(screen.queryByText('The insights themselves')).toBeNull()
