@@ -285,6 +285,15 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
       ],
     },
   },
+  '/settings/workspace/$slug/billing': {
+    kind: 'page',
+    area: 'settings',
+    shot: 'workspace-billing',
+    url: '/settings/workspace/{slug}/billing',
+    as: 'owner',
+    sections: [TENANT],
+    note: 'A placeholder: the billing page replaces it.',
+  },
   '/settings/workspace/$slug/': { kind: 'redirect', to: '/settings/workspace/$slug/general' },
 }
 

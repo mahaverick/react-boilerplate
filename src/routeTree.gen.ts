@@ -43,6 +43,7 @@ import { Route as AppTenantsSlugMembersRouteImport } from './pages/_app/tenants/
 import { Route as AppTenantsSlugSettingsRouteImport } from './pages/_app/tenants/$slug.settings'
 import { Route as AppSettingsWorkspaceSlugIndexRouteImport } from './pages/_app/settings/workspace.$slug.index'
 import { Route as AppSettingsWorkspaceSlugActivityRouteImport } from './pages/_app/settings/workspace.$slug.activity'
+import { Route as AppSettingsWorkspaceSlugBillingRouteImport } from './pages/_app/settings/workspace.$slug.billing'
 import { Route as AppSettingsWorkspaceSlugGeneralRouteImport } from './pages/_app/settings/workspace.$slug.general'
 import { Route as AppSettingsWorkspaceSlugMembersRouteImport } from './pages/_app/settings/workspace.$slug.members'
 
@@ -220,6 +221,12 @@ const AppSettingsWorkspaceSlugActivityRoute =
     path: '/activity',
     getParentRoute: () => AppSettingsWorkspaceSlugRoute,
   } as any)
+const AppSettingsWorkspaceSlugBillingRoute =
+  AppSettingsWorkspaceSlugBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => AppSettingsWorkspaceSlugRoute,
+  } as any)
 const AppSettingsWorkspaceSlugGeneralRoute =
   AppSettingsWorkspaceSlugGeneralRouteImport.update({
     id: '/general',
@@ -265,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/settings/account/': typeof AppSettingsAccountIndexRoute
   '/tenants/$slug/': typeof AppTenantsSlugIndexRoute
   '/settings/workspace/$slug/activity': typeof AppSettingsWorkspaceSlugActivityRoute
+  '/settings/workspace/$slug/billing': typeof AppSettingsWorkspaceSlugBillingRoute
   '/settings/workspace/$slug/general': typeof AppSettingsWorkspaceSlugGeneralRoute
   '/settings/workspace/$slug/members': typeof AppSettingsWorkspaceSlugMembersRoute
   '/settings/workspace/$slug/': typeof AppSettingsWorkspaceSlugIndexRoute
@@ -298,6 +306,7 @@ export interface FileRoutesByTo {
   '/settings/account': typeof AppSettingsAccountIndexRoute
   '/tenants/$slug': typeof AppTenantsSlugIndexRoute
   '/settings/workspace/$slug/activity': typeof AppSettingsWorkspaceSlugActivityRoute
+  '/settings/workspace/$slug/billing': typeof AppSettingsWorkspaceSlugBillingRoute
   '/settings/workspace/$slug/general': typeof AppSettingsWorkspaceSlugGeneralRoute
   '/settings/workspace/$slug/members': typeof AppSettingsWorkspaceSlugMembersRoute
   '/settings/workspace/$slug': typeof AppSettingsWorkspaceSlugIndexRoute
@@ -337,6 +346,7 @@ export interface FileRoutesById {
   '/_app/settings/account/': typeof AppSettingsAccountIndexRoute
   '/_app/tenants/$slug/': typeof AppTenantsSlugIndexRoute
   '/_app/settings/workspace/$slug/activity': typeof AppSettingsWorkspaceSlugActivityRoute
+  '/_app/settings/workspace/$slug/billing': typeof AppSettingsWorkspaceSlugBillingRoute
   '/_app/settings/workspace/$slug/general': typeof AppSettingsWorkspaceSlugGeneralRoute
   '/_app/settings/workspace/$slug/members': typeof AppSettingsWorkspaceSlugMembersRoute
   '/_app/settings/workspace/$slug/': typeof AppSettingsWorkspaceSlugIndexRoute
@@ -375,6 +385,7 @@ export interface FileRouteTypes {
     | '/settings/account/'
     | '/tenants/$slug/'
     | '/settings/workspace/$slug/activity'
+    | '/settings/workspace/$slug/billing'
     | '/settings/workspace/$slug/general'
     | '/settings/workspace/$slug/members'
     | '/settings/workspace/$slug/'
@@ -408,6 +419,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/tenants/$slug'
     | '/settings/workspace/$slug/activity'
+    | '/settings/workspace/$slug/billing'
     | '/settings/workspace/$slug/general'
     | '/settings/workspace/$slug/members'
     | '/settings/workspace/$slug'
@@ -446,6 +458,7 @@ export interface FileRouteTypes {
     | '/_app/settings/account/'
     | '/_app/tenants/$slug/'
     | '/_app/settings/workspace/$slug/activity'
+    | '/_app/settings/workspace/$slug/billing'
     | '/_app/settings/workspace/$slug/general'
     | '/_app/settings/workspace/$slug/members'
     | '/_app/settings/workspace/$slug/'
@@ -708,6 +721,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsWorkspaceSlugActivityRouteImport
       parentRoute: typeof AppSettingsWorkspaceSlugRoute
     }
+    '/_app/settings/workspace/$slug/billing': {
+      id: '/_app/settings/workspace/$slug/billing'
+      path: '/billing'
+      fullPath: '/settings/workspace/$slug/billing'
+      preLoaderRoute: typeof AppSettingsWorkspaceSlugBillingRouteImport
+      parentRoute: typeof AppSettingsWorkspaceSlugRoute
+    }
     '/_app/settings/workspace/$slug/general': {
       id: '/_app/settings/workspace/$slug/general'
       path: '/general'
@@ -727,6 +747,7 @@ declare module '@tanstack/react-router' {
 
 interface AppSettingsWorkspaceSlugRouteChildren {
   AppSettingsWorkspaceSlugActivityRoute: typeof AppSettingsWorkspaceSlugActivityRoute
+  AppSettingsWorkspaceSlugBillingRoute: typeof AppSettingsWorkspaceSlugBillingRoute
   AppSettingsWorkspaceSlugGeneralRoute: typeof AppSettingsWorkspaceSlugGeneralRoute
   AppSettingsWorkspaceSlugMembersRoute: typeof AppSettingsWorkspaceSlugMembersRoute
   AppSettingsWorkspaceSlugIndexRoute: typeof AppSettingsWorkspaceSlugIndexRoute
@@ -736,6 +757,7 @@ const AppSettingsWorkspaceSlugRouteChildren: AppSettingsWorkspaceSlugRouteChildr
   {
     AppSettingsWorkspaceSlugActivityRoute:
       AppSettingsWorkspaceSlugActivityRoute,
+    AppSettingsWorkspaceSlugBillingRoute: AppSettingsWorkspaceSlugBillingRoute,
     AppSettingsWorkspaceSlugGeneralRoute: AppSettingsWorkspaceSlugGeneralRoute,
     AppSettingsWorkspaceSlugMembersRoute: AppSettingsWorkspaceSlugMembersRoute,
     AppSettingsWorkspaceSlugIndexRoute: AppSettingsWorkspaceSlugIndexRoute,
