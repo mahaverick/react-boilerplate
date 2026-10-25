@@ -2242,17 +2242,31 @@ describe('the members limit', () => {
     expect(screen.queryByRole('meter')).toBeNull()
   })
 
-  it('answers a 402 from the invite with the plan line and reads the entitlements again', async () => {
+  it('answers a 402 from the invite with the at-limit note alone, read again from the entitlements', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me')])
-    const reads = serveMembersUsage(2)
+    // The page's count is stale (2); the server's is at the limit, as its refusal says.
+    let used = 2
+    const reads = { count: 0 }
     server.use(
-      http.post('/api/v1/tenants/acme/invitations', () =>
-        fail('This workspace is at its member limit.', 402, 'PLAN_LIMIT_REACHED', {
+      http.get('/api/v1/tenants/acme/entitlements', () => {
+        reads.count += 1
+        return ok(
+          testEntitlements({
+            plan: { key: 'free', name: 'Free' },
+            state: 'free',
+            limits: { members: { limit: 3, used, approaching: true } },
+          }),
+          'Entitlements retrieved.'
+        )
+      }),
+      http.post('/api/v1/tenants/acme/invitations', () => {
+        used = 3
+        return fail('This workspace is at its member limit.', 402, 'PLAN_LIMIT_REACHED', {
           key: 'members',
           used: 3,
           limit: 3,
         })
-      )
+      })
     )
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/members')
@@ -2261,14 +2275,32 @@ describe('the members limit', () => {
     const before = reads.count
     await user.click(screen.getByRole('button', { name: 'Invite member' }))
 
-    // Once in the form's error, once in the refreshed at-limit note.
-    await waitFor(() => {
-      expect(screen.getAllByText(AT_LIMIT).length).toBeGreaterThan(0)
-    })
-    expect(screen.queryByText('This workspace is at its member limit.')).toBeNull()
     await waitFor(() => {
       expect(reads.count).toBeGreaterThan(before)
     })
+    // The note, with its Upgrade link, says it once; the form adds no copy of it.
+    expect(await screen.findByText(AT_LIMIT)).toBeInTheDocument()
+    expect(screen.getAllByText(AT_LIMIT)).toHaveLength(1)
+    expect(screen.getByRole('link', { name: 'Upgrade' })).toBeInTheDocument()
+    expect(screen.queryByText('This workspace is at its member limit.')).toBeNull()
+    expect(screen.getByLabelText('Email')).toHaveValue('new@b.com')
+  })
+
+  it('still shows another refusal of the invite in the form', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    serveMembersUsage(2)
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('Something went wrong on our side.', 500, 'INTERNAL_ERROR')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    expect(await screen.findByText('Something went wrong on our side.')).toBeInTheDocument()
   })
 
   it('shows the server message for a 402 that has no usage', async () => {

@@ -18,7 +18,17 @@ export function membersLimitLine(used: number, limit: number, plan: string): str
 }
 
 /**
- * The members-limit line a failed invite or resend carries: a 402
+ * Whether a failed request is the plan refusing a member for the members
+ * limit: a 402 `PLAN_LIMIT_REACHED` for the `members` key, with its counts.
+ * @param error - What the request rejected with.
+ */
+export function isMembersLimitRefusal(error: unknown): boolean {
+  const refusal = planRefusalFrom(error)
+  return refusal?.kind === 'limit' && refusal.key === 'members'
+}
+
+/**
+ * The members-limit line a failed resend carries: a 402
  * `PLAN_LIMIT_REACHED` for the `members` key, with the plan's name known.
  * Any other failure is `undefined`, so the caller shows the server's message.
  * @param error - What the request rejected with.
