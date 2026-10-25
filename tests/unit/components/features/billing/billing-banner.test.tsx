@@ -231,12 +231,12 @@ describe('BillingBanner, owner actions', () => {
     vi.spyOn(checkoutFlow, 'useCheckoutFlow').mockReturnValue({
       start: vi.fn(async () => {}),
       status: 'waiting',
-      message: 'Card update received. We’re confirming it.',
+      message: 'Card received. We’re confirming it with Razorpay.',
     })
     renderBanner(serve(PAST_DUE))
 
     expect(
-      await screen.findByText('Card update received. We’re confirming it.')
+      await screen.findByText('Card received. We’re confirming it with Razorpay.')
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Update card' })).toBeEnabled()
   })

@@ -663,7 +663,7 @@ describe('useCheckoutFlow, by purpose', () => {
 
     await waitFor(() => expect(result.current.status).toBe('waiting'))
     expect(result.current.message).toBe(
-      'Card update received. We’re confirming it. This page updates when it’s done.'
+      'Card received. We’re confirming it with Razorpay. Reload this page in a minute to see it.'
     )
   })
 })

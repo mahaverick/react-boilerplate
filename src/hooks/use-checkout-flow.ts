@@ -68,9 +68,12 @@ const POLL_LIMIT_MS = 30_000
 
 const WAITING_MESSAGE = 'Payment received. We’re confirming it. This page updates when it’s done.'
 
-/** The waiting line for a card change, which takes no payment. */
+/**
+ * The waiting line for a card change, which takes no payment. Nothing in the
+ * billing view shows a new card, so the page cannot finish the wait itself.
+ */
 const CARD_WAITING_MESSAGE =
-  'Card update received. We’re confirming it. This page updates when it’s done.'
+  'Card received. We’re confirming it with Razorpay. Reload this page in a minute to see it.'
 
 const SCRIPT_MESSAGE = 'We couldn’t open the payment window. Check your connection and try again.'
 
