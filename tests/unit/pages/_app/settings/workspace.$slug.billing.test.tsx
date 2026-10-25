@@ -1024,7 +1024,7 @@ describe('billing page, invoices', () => {
     const rows = within(table).getAllByRole('row').slice(1)
     expect(rows.map((row) => row.textContent)).toEqual([
       '2 October 2026₹999PaidView',
-      '2 September 2026₹999Issued',
+      '2 September 2026₹999Not paid',
     ])
     const view = within(rows[0] as HTMLElement).getByRole('link', {
       name: 'View invoice of 2 October 2026',

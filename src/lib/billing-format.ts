@@ -63,3 +63,28 @@ function dateInZone(date: Date, timeZone: string): string {
     year: 'numeric',
   }).format(date)
 }
+
+/**
+ * Each invoice status in plain words. express sends `issued`, `paid`,
+ * `cancelled` or `expired`, and folds Razorpay's `partially_paid` into
+ * `issued`; Razorpay's own words are kept here in case one passes through.
+ */
+const INVOICE_STATUS_LABEL: Readonly<Record<string, string>> = {
+  paid: 'Paid',
+  issued: 'Not paid',
+  expired: 'Expired',
+  cancelled: 'Cancelled',
+  partially_paid: 'Partly paid',
+}
+
+/**
+ * An invoice status as the invoices table says it: "Not paid" for `issued`,
+ * and any status it does not know written out ("payment_due" → "Payment due").
+ * @param status - The status the API sent.
+ */
+export function invoiceStatusLabel(status: string): string {
+  const known = INVOICE_STATUS_LABEL[status]
+  if (known !== undefined) return known
+  const words = status.replaceAll('_', ' ').trim()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vite-plus/test'
-import { formatBillingDate, formatInr, perMonthOfYearly } from '@/lib/billing-format'
+import {
+  formatBillingDate,
+  formatInr,
+  invoiceStatusLabel,
+  perMonthOfYearly,
+} from '@/lib/billing-format'
 
 describe('formatInr', () => {
   it('formats paise as whole rupees with Indian grouping', () => {
@@ -32,5 +37,19 @@ describe('formatBillingDate', () => {
 
   it('returns an empty string for a value that is not a date', () => {
     expect(formatBillingDate('not a date', 'Asia/Kolkata')).toBe('')
+  })
+})
+
+describe('invoiceStatusLabel', () => {
+  it.each([
+    ['paid', 'Paid'],
+    ['issued', 'Not paid'],
+    ['expired', 'Expired'],
+    ['cancelled', 'Cancelled'],
+    ['partially_paid', 'Partly paid'],
+    ['payment_due', 'Payment due'],
+    ['draft', 'Draft'],
+  ])('writes %s as %s', (status, label) => {
+    expect(invoiceStatusLabel(status)).toBe(label)
   })
 })

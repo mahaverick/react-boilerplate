@@ -12,17 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { formatBillingDate, formatInr } from '@/lib/billing-format'
+import { formatBillingDate, formatInr, invoiceStatusLabel } from '@/lib/billing-format'
 import { invoicesQueryOptions } from '@/queries/billing.queries'
-import type { InvoiceView } from '@/types/billing.types'
-
-/** Each invoice status as the table says it. */
-const STATUS_LABEL: Record<InvoiceView['status'], string> = {
-  issued: 'Issued',
-  paid: 'Paid',
-  cancelled: 'Cancelled',
-  expired: 'Expired',
-}
 
 /**
  * The invoice's link when it is an `https:` URL, else `null`. Razorpay sends
@@ -80,7 +71,7 @@ export function InvoicesCard({ slug, timeZone }: { slug: string; timeZone: strin
                   <TableRow key={invoice.id}>
                     <TableCell>{date(invoice.issuedAt)}</TableCell>
                     <TableCell>{formatInr(invoice.amountMinor)}</TableCell>
-                    <TableCell>{STATUS_LABEL[invoice.status]}</TableCell>
+                    <TableCell>{invoiceStatusLabel(invoice.status)}</TableCell>
                     <TableCell>
                       {href !== null && (
                         <a
