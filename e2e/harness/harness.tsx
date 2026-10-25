@@ -780,13 +780,26 @@ const worker = setupWorker(
       'Signed in.'
     )
   }),
-  http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
-  // Billing defaults: a Paid trial with 9 days left and 2 of unlimited members; unmocked, these 401 and sign the harness user out.
+  // Acme's settings; any other tenant's are the defaults in UTC, which the billing banner dates by.
+  http.get('/api/v1/tenants/:slug/settings', ({ params }) =>
+    ok(
+      params.slug === 'acme'
+        ? SETTINGS
+        : {
+            ...SETTINGS,
+            tenantId: `harness-${String(params.slug)}`,
+            timezone: 'UTC',
+            metadata: null,
+          },
+      'Settings retrieved.'
+    )
+  ),
+  // Billing defaults for every tenant: a Paid trial with 9 days left and 2 of unlimited members; unmocked, these 401 and sign the harness user out.
   http.get('/api/v1/plans', () => ok(testPlans, 'Plans retrieved.')),
-  http.get('/api/v1/tenants/acme/entitlements', () =>
+  http.get('/api/v1/tenants/:slug/entitlements', () =>
     ok(testEntitlements(), 'Entitlements retrieved.')
   ),
-  http.get('/api/v1/tenants/acme/billing', () => ok(testBilling(), 'Billing retrieved.')),
+  http.get('/api/v1/tenants/:slug/billing', () => ok(testBilling(), 'Billing retrieved.')),
   // Every overview mounts the Getting started card, staff's included; unmocked, it 401s and signs the harness user out.
   http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
   http.get('/api/v1/tenants/acme/audit-log', () =>
