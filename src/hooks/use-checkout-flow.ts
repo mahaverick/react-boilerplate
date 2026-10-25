@@ -163,10 +163,11 @@ function pause(ms: number): Promise<void> {
  */
 export function useCheckoutFlow(slug: string) {
   const queryClient = useQueryClient()
-  const startCheckout = useStartCheckout(slug)
-  const switchInterval = useSwitchInterval(slug)
-  const updateCard = useUpdateCard(slug)
-  const confirmCheckout = useConfirmCheckout(slug)
+  // `mutateAsync` is stable across renders, unlike the mutation objects, so `start` is too.
+  const { mutateAsync: startCheckout } = useStartCheckout(slug)
+  const { mutateAsync: switchInterval } = useSwitchInterval(slug)
+  const { mutateAsync: updateCard } = useUpdateCard(slug)
+  const { mutateAsync: confirmCheckout } = useConfirmCheckout(slug)
   // Watches the view the page fetches, so an SSE refetch can finish a waiting checkout.
   const { data: billing } = useQuery({ ...tenantBillingQueryOptions(slug), enabled: false })
   const [state, setState] = useState<FlowState>({ status: 'idle', message: null })
@@ -238,9 +239,9 @@ export function useCheckoutFlow(slug: string) {
   /** Starts the checkout on the API: the start, switch or card-change write. */
   const startSession = useCallback(
     (kind: CheckoutKind): Promise<CheckoutSession> => {
-      if (kind.purpose === 'card_change') return updateCard.mutateAsync()
-      if (kind.purpose === 'switch') return switchInterval.mutateAsync({ interval: kind.interval })
-      return startCheckout.mutateAsync({ interval: kind.interval })
+      if (kind.purpose === 'card_change') return updateCard()
+      if (kind.purpose === 'switch') return switchInterval({ interval: kind.interval })
+      return startCheckout({ interval: kind.interval })
     },
     [startCheckout, switchInterval, updateCard]
   )
@@ -301,7 +302,7 @@ export function useCheckoutFlow(slug: string) {
         setState({ status: 'confirming', message: null })
         let confirmed: TenantBilling
         try {
-          confirmed = await confirmCheckout.mutateAsync(answer)
+          confirmed = await confirmCheckout(answer)
         } catch (error) {
           if (leavesItToTheWebhook(error)) {
             wait(attempt)

@@ -584,3 +584,14 @@ describe('useCheckoutFlow, failures before the confirm', () => {
     expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'start_failed' })
   })
 })
+
+describe('useCheckoutFlow, identity', () => {
+  it('keeps `start` the same function across renders', () => {
+    const { result, rerender } = renderFlow()
+    const first = result.current.start
+
+    rerender()
+
+    expect(result.current.start).toBe(first)
+  })
+})
