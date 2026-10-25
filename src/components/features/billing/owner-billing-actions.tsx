@@ -73,6 +73,7 @@ function Actions({
               billing={billing}
               plans={data}
               date={context.date}
+              now={context.now}
               busy={running && action === 'upgrade'}
               disabled={running}
               onUpgrade={(interval) => {

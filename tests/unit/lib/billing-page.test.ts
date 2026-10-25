@@ -8,6 +8,7 @@ import {
   intervalPriceLine,
   showsPlanChoice,
   switchArea,
+  upgradeLabel,
   yearlySaving,
 } from '@/lib/billing-page'
 import { testBilling } from '@/tests/fixtures/billing'
@@ -170,6 +171,31 @@ describe('showsPlanChoice', () => {
     ['past due', active({ state: 'past_due' }), false],
   ])('%s → %s', (_case, billing, shown) => {
     expect(showsPlanChoice(billing)).toBe(shown)
+  })
+})
+
+describe('upgradeLabel', () => {
+  it.each([
+    ['in the trial', testBilling(), 'Upgrade to Paid'],
+    ['on Free', testBilling({ state: 'free' }), 'Upgrade to Paid'],
+    [
+      'cancelling, before the period ends',
+      active({ cancelAtPeriodEnd: true }),
+      'Keep Paid after 2 November 2026',
+    ],
+    // The cancel buffer: still active for 3 days after the period, and Paid again charges now.
+    [
+      'cancelling, after the period ended',
+      active({ cancelAtPeriodEnd: true, currentPeriodEnd: PAST }),
+      'Upgrade to Paid',
+    ],
+    [
+      'cancelling with no period end',
+      active({ cancelAtPeriodEnd: true, currentPeriodEnd: null }),
+      'Upgrade to Paid',
+    ],
+  ])('%s → %s', (_case, billing, label) => {
+    expect(upgradeLabel(billing, context)).toBe(label)
   })
 })
 

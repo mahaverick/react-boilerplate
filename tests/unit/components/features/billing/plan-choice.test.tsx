@@ -24,6 +24,7 @@ function renderChoice(props: Partial<Parameters<typeof PlanChoice>[0]> = {}) {
       billing={testBilling({ trialEndsAt: TRIAL_END })}
       plans={testPlans}
       date={(iso) => formatBillingDate(iso, 'UTC')}
+      now={new Date()}
       onUpgrade={onUpgrade}
       busy={false}
       disabled={false}
@@ -76,6 +77,7 @@ describe('PlanChoice', () => {
         billing={testBilling()}
         plans={plansWith([])}
         date={(iso) => iso}
+        now={new Date()}
         onUpgrade={vi.fn()}
         busy={false}
         disabled={false}
@@ -99,5 +101,20 @@ describe('PlanChoice', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Yearly' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByText(/We’ll hold ₹5/)).toBeNull()
+  })
+
+  it('offers a plain upgrade once a cancelled period has ended', () => {
+    renderChoice({
+      billing: testBilling({
+        state: 'active',
+        interval: 'month',
+        trialEndsAt: null,
+        currentPeriodEnd: '2026-10-21T18:30:00.000Z',
+        cancelAtPeriodEnd: true,
+      }),
+      now: new Date('2026-10-23T10:00:00.000Z'),
+    })
+    expect(screen.getByRole('button', { name: 'Upgrade to Paid' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Keep Paid after/ })).toBeNull()
   })
 })

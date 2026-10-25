@@ -171,6 +171,27 @@ export function showsPlanChoice(billing: TenantBilling): boolean {
 }
 
 /**
+ * The plan choice's button. While Paid is cancelling and its period has not
+ * ended, Paid again starts after it; past the period's end (the cancel
+ * buffer) Paid again charges now, so it reads as an upgrade.
+ * @param billing - The billing view.
+ * @param context - The clock and the date format.
+ * @returns For example "Keep Paid after 2 November 2026", or "Upgrade to Paid".
+ */
+export function upgradeLabel(
+  billing: TenantBilling,
+  context: Pick<BillingLineContext, 'now' | 'date'>
+): string {
+  const periodEnd = billing.currentPeriodEnd
+  const keeps =
+    billing.state === 'active' &&
+    billing.cancelAtPeriodEnd &&
+    periodEnd !== null &&
+    new Date(periodEnd).getTime() > context.now.getTime()
+  return keeps ? `Keep Paid after ${context.date(periodEnd)}` : 'Upgrade to Paid'
+}
+
+/**
  * Whether there is a subscription to put a new card on or to cancel: Paid,
  * active or past due, and not already ending with nothing after it. A
  * scheduled switch cancels the current subscription at its end, so the next

@@ -267,8 +267,8 @@ describe('useCheckoutFlow, confirming', () => {
 
     await waitFor(() => expect(result.current.status).toBe('done'))
     expect(bodies).toEqual([PAYLOAD])
-    // The fresh read before the start, and no poll after the confirm.
-    expect(reads.count).toBe(1)
+    // No poll after the confirm.
+    expect(reads.count).toBe(0)
     expect(track).toHaveBeenCalledWith('checkout_succeeded', { purpose: 'upgrade' })
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
@@ -295,7 +295,7 @@ describe('useCheckoutFlow, confirming', () => {
   it('polls billing every 2 seconds until the workspace is active', async () => {
     serveStart('/checkout', () => ok(session({ startsAt: STARTS_AT }), 'Checkout started.', 201))
     serveConfirm(() => ok(testBilling(), 'Checkout confirmed.'))
-    const reads = serveBilling(testBilling(), testBilling(), testBilling({ state: 'active' }))
+    const reads = serveBilling(testBilling(), testBilling({ state: 'active' }))
     const { result } = renderFlow(testBilling())
     act(() => {
       void result.current.start({ purpose: 'upgrade', interval: 'month' })
@@ -306,14 +306,14 @@ describe('useCheckoutFlow, confirming', () => {
     act(() => lastCheckout().options.handler(PAYLOAD))
     await flush()
     expect(result.current.status).toBe('confirming')
-    expect(reads.count).toBe(1)
+    expect(reads.count).toBe(0)
 
     await act(() => vi.advanceTimersByTimeAsync(2_000))
-    expect(reads.count).toBe(2)
+    expect(reads.count).toBe(1)
     expect(result.current.status).toBe('confirming')
 
     await act(() => vi.advanceTimersByTimeAsync(2_000))
-    expect(reads.count).toBe(3)
+    expect(reads.count).toBe(2)
     expect(result.current.status).toBe('done')
     expect(track).toHaveBeenCalledWith('checkout_succeeded', { purpose: 'upgrade' })
   })
@@ -336,8 +336,8 @@ describe('useCheckoutFlow, confirming', () => {
     await act(() => vi.advanceTimersByTimeAsync(2_000))
     expect(result.current.status).toBe('waiting')
     expect(result.current.message).toBe(WAITING)
-    // The fresh read before the start, then one every 2 seconds for 30 seconds.
-    expect(reads.count).toBe(16)
+    // One read every 2 seconds for 30 seconds.
+    expect(reads.count).toBe(15)
     expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'confirm_failed' })
     expect(toast.success).not.toHaveBeenCalled()
   })
@@ -557,24 +557,65 @@ describe('useCheckoutFlow, by purpose', () => {
     )
   })
 
-  it('decides from a fresh read, not the cache: a cached cancelling view that is now free is an upgrade', async () => {
+  it('finishes Paid again in the cancel buffer, where the confirm adopts a charge-now checkout', async () => {
+    // Past the period's end the API charges now and sets no next subscription.
+    const PERIOD_ENDED = '2026-10-21T18:30:00.000Z'
     serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
-    const reads = serveBilling(testBilling({ state: 'free', trialEndsAt: null }))
-    serveConfirm(() => ok(testBilling({ state: 'active' }), 'Checkout confirmed.'))
-    const { result } = renderFlow(
-      testBilling({ state: 'active', cancelAtPeriodEnd: true, currentPeriodEnd: STARTS_AT })
+    serveConfirm(() =>
+      ok(
+        testBilling({
+          state: 'active',
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: '2026-11-21T18:30:00.000Z',
+          nextSwitch: null,
+        }),
+        'Checkout confirmed.'
+      )
     )
+    const buffered = testBilling({
+      state: 'active',
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: PERIOD_ENDED,
+    })
+    const reads = serveBilling(buffered)
+    const { result } = renderFlow(buffered)
     act(() => {
       void result.current.start({ purpose: 'upgrade', interval: 'month' })
     })
     await waitFor(() => expect(result.current.status).toBe('open'))
-    expect(reads.count).toBe(1)
 
     act(() => lastCheckout().options.handler(PAYLOAD))
 
-    // As a resubscribe it would wait for a next subscription that never comes.
     await waitFor(() => expect(result.current.status).toBe('done'))
+    expect(reads.count).toBe(0)
+    expect(track).toHaveBeenCalledWith('checkout_succeeded', { purpose: 'upgrade' })
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('You’re on Paid.'))
+  })
+
+  it('keeps polling an upgrade while the workspace still reads as cancelling', async () => {
+    serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
+    const cancelling = testBilling({
+      state: 'active',
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: STARTS_AT,
+    })
+    serveConfirm(() => ok(cancelling, 'Checkout confirmed.'))
+    const reads = serveBilling(cancelling, testBilling({ state: 'active' }))
+    const { result } = renderFlow(cancelling)
+    act(() => {
+      void result.current.start({ purpose: 'upgrade', interval: 'month' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('open'))
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+
+    act(() => lastCheckout().options.handler(PAYLOAD))
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(reads.count).toBe(1)
+    expect(result.current.status).toBe('confirming')
+
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(reads.count).toBe(2)
+    expect(result.current.status).toBe('done')
   })
 
   it('finishes a card change on the confirm’s answer, without polling', async () => {

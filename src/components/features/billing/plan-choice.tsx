@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { BusyButton } from '@/components/shared/busy-button'
 import { Button } from '@/components/ui/button'
 import { formatInr } from '@/lib/billing-format'
-import { intervalPriceLine } from '@/lib/billing-page'
+import { intervalPriceLine, upgradeLabel } from '@/lib/billing-page'
 import { track } from '@/observability/telemetry'
 import type { BillingInterval, PlansResponse, TenantBilling } from '@/types/billing.types'
 
@@ -12,6 +12,8 @@ interface PlanChoiceProps {
   plans: PlansResponse
   /** Formats a billing date in the tenant's time zone. */
   date: (iso: string) => string
+  /** The moment the page reads as now. */
+  now: Date
   /** Starts the checkout for the chosen interval. */
   onUpgrade: (interval: BillingInterval) => void
   /** True while this checkout opens or confirms. */
@@ -28,9 +30,17 @@ const INTERVAL_LABEL: Record<BillingInterval, string> = { month: 'Monthly', year
  * price from `GET /plans` (the yearly one with its saving), the GST line when
  * the business is GST-registered, and the button. In the trial, a note says
  * what the card is charged and when. While Paid is cancelling, the button
- * keeps Paid after the period instead.
+ * keeps Paid after the period instead, until the period ends (`upgradeLabel`).
  */
-export function PlanChoice({ billing, plans, date, onUpgrade, busy, disabled }: PlanChoiceProps) {
+export function PlanChoice({
+  billing,
+  plans,
+  date,
+  now,
+  onUpgrade,
+  busy,
+  disabled,
+}: PlanChoiceProps) {
   const prices = plans.plans.find((plan) => plan.key === 'paid')?.prices ?? []
   /** Paid's price for an interval in paise, or `null` when it has none. */
   const priceOf = (interval: BillingInterval) =>
@@ -42,9 +52,7 @@ export function PlanChoice({ billing, plans, date, onUpgrade, busy, disabled }: 
 
   const amount = priceOf(interval)
   const priceLine = intervalPriceLine(interval, priceOf('month'), priceOf('year'))
-  const periodEnd =
-    billing.state === 'active' && billing.cancelAtPeriodEnd ? billing.currentPeriodEnd : null
-  const label = periodEnd === null ? 'Upgrade to Paid' : `Keep Paid after ${date(periodEnd)}`
+  const label = upgradeLabel(billing, { now, date })
 
   return (
     <div className="grid gap-3">

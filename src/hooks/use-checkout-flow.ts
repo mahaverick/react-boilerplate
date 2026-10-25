@@ -14,7 +14,6 @@ import {
 import { toast } from '@/lib/toast'
 import { track } from '@/observability/telemetry'
 import {
-  billingKeys,
   invalidateBilling,
   tenantBillingQueryOptions,
   useConfirmCheckout,
@@ -42,11 +41,12 @@ export type CheckoutStatus =
   | 'error'
 
 /**
- * What tells the flow the change took: the workspace became `active` (an
- * upgrade from Free or the trial), a next subscription is set (a switch, or
- * Paid again while cancelling), or the confirm answered (a card change).
+ * What tells the flow the change took: Paid that no longer ends, or a next
+ * subscription after the current one (an upgrade, from Free, the trial or a
+ * cancelling Paid); a next subscription (a switch); or the confirm's answer
+ * (a card change).
  */
-type Goal = 'active' | 'next_subscription' | 'confirmed'
+type Goal = 'paid' | 'next_subscription' | 'confirmed'
 
 /** A checkout the API has started, and how the flow knows it took. */
 interface Attempt {
@@ -80,9 +80,21 @@ const SCRIPT_MESSAGE = 'We couldn’t open the payment window. Check your connec
  * @param billing - The view to check.
  */
 function reached(goal: Goal, billing: TenantBilling): boolean {
-  if (goal === 'active') return billing.state === 'active'
+  // Read from the view, not from what the flow saw before: a cancelling Paid past its period end charges now and never sets a next subscription.
+  if (goal === 'paid') {
+    return billing.nextSwitch !== null || (billing.state === 'active' && !billing.cancelAtPeriodEnd)
+  }
   if (goal === 'next_subscription') return billing.nextSwitch !== null
   return true
+}
+
+/**
+ * What finishes each checkout.
+ * @param purpose - The session's purpose.
+ */
+function goalOf(purpose: CheckoutSession['purpose']): Goal {
+  if (purpose === 'card_change') return 'confirmed'
+  return purpose === 'switch' ? 'next_subscription' : 'paid'
 }
 
 /**
@@ -115,23 +127,26 @@ function paymentFailedMessage(description: string): string {
 }
 
 /**
- * The success toast for a finished checkout.
- * @param attempt - The checkout and what finished it.
+ * The success toast for a finished checkout, worded from the view that
+ * finished it: a next subscription means Paid continues after the current
+ * one; otherwise the upgrade is Paid now, charged now or at the session's start.
+ * @param attempt - The checkout.
  * @param billing - The billing view that showed it finished.
  * @param timeZone - The tenant's time zone, for the dates.
  */
 function successMessage(attempt: Attempt, billing: TenantBilling, timeZone: string): string {
-  const { session, goal } = attempt
-  const startsAt = billing.nextSwitch?.startsAt ?? session.startsAt
+  const { session } = attempt
+  const next = billing.nextSwitch
   if (session.purpose === 'card_change') return 'Card updated.'
   if (session.purpose === 'switch') {
-    const interval = INTERVAL_ADJECTIVE[billing.nextSwitch?.interval ?? session.interval]
+    const startsAt = next?.startsAt ?? session.startsAt
+    const interval = INTERVAL_ADJECTIVE[next?.interval ?? session.interval]
     return startsAt === null
       ? `Switch to ${interval} billing is scheduled.`
       : `Switch to ${interval} billing starts on ${formatBillingDate(startsAt, timeZone)}.`
   }
-  if (goal === 'next_subscription' && startsAt !== null) {
-    return `Paid continues after ${formatBillingDate(startsAt, timeZone)}.`
+  if (next !== null) {
+    return `Paid continues after ${formatBillingDate(next.startsAt, timeZone)}.`
   }
   if (session.startsAt === null) return 'You’re on Paid.'
   return `You’re on Paid. Your first charge of ${formatInr(session.amountMinor)} is on ${formatBillingDate(session.startsAt, timeZone)}.`
@@ -261,20 +276,6 @@ export function useCheckoutFlow(slug: string) {
     [startCheckout, switchInterval, updateCard]
   )
 
-  /**
-   * The billing view as the server has it now, read before an upgrade starts:
-   * an `active` workspace makes the upgrade a resubscribe, and a stale cache
-   * could say `active` after the period ended. Falls back to the cached view
-   * when the read fails.
-   */
-  const freshBilling = useCallback(async (): Promise<TenantBilling | null | undefined> => {
-    try {
-      return await queryClient.fetchQuery({ ...tenantBillingQueryOptions(slug), staleTime: 0 })
-    } catch {
-      return queryClient.getQueryData<TenantBilling | null>(billingKeys.billing(slug))
-    }
-  }, [queryClient, slug])
-
   /** Fails the flow with `message`. */
   const failWith = useCallback((message: string) => {
     setState({ status: 'error', message })
@@ -287,7 +288,6 @@ export function useCheckoutFlow(slug: string) {
       waitingFor.current = null
       try {
         setState({ status: 'starting', message: null })
-        const before = kind.purpose === 'upgrade' ? await freshBilling() : undefined
         let session: CheckoutSession
         try {
           session = await startSession(kind)
@@ -297,12 +297,7 @@ export function useCheckoutFlow(slug: string) {
           failWith(messageFrom(error))
           return
         }
-        const goal: Goal =
-          session.purpose === 'card_change'
-            ? 'confirmed'
-            : session.purpose === 'switch' || before?.state === 'active'
-              ? 'next_subscription'
-              : 'active'
+        const goal = goalOf(session.purpose)
         const attempt: Attempt = { session, goal }
 
         let answer: Awaited<ReturnType<typeof openRazorpayCheckout>>
@@ -361,7 +356,7 @@ export function useCheckoutFlow(slug: string) {
         running.current = false
       }
     },
-    [confirmCheckout, failWith, finish, freshBilling, poll, queryClient, slug, startSession, wait]
+    [confirmCheckout, failWith, finish, poll, queryClient, slug, startSession, wait]
   )
 
   return { start, status: state.status, message: state.message }
