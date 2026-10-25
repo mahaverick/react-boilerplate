@@ -51,6 +51,32 @@ function active(overrides: Parameters<typeof testBilling>[0] = {}) {
 }
 
 describe('billingStateLine in the cancel buffer', () => {
+  /** The same clock, dated in India's time zone (UTC+5:30). */
+  const ist = { ...context, date: (iso: string) => formatBillingDate(iso, 'Asia/Kolkata') }
+
+  it('counts the 3 days from the end in the tenant’s zone, across its midnight', () => {
+    // 20:00 UTC on 24 October is 01:30 on 25 October in Kolkata; the buffer ends 01:30 on 28 October there.
+    expect(
+      billingStateLine(
+        active({ cancelAtPeriodEnd: true, currentPeriodEnd: '2026-10-24T20:00:00.000Z' }),
+        ist
+      )
+    ).toBe('Paid · Period ended 25 October 2026. Moves to Free on 28 October 2026.')
+  })
+
+  it('reads “Ends” until the period’s last moment and “Period ended” just after', () => {
+    const end = '2026-10-25T10:00:00.000Z'
+    const billing = active({ cancelAtPeriodEnd: true, currentPeriodEnd: end })
+    /** The IST context with the clock `ms` from the period's end. */
+    const at = (ms: number) => ({ ...ist, now: new Date(Date.parse(end) + ms) })
+    expect(billingStateLine(billing, at(-1))).toBe(
+      'Paid · Ends 25 October 2026. You won’t be charged again.'
+    )
+    expect(billingStateLine(billing, at(1))).toBe(
+      'Paid · Period ended 25 October 2026. Moves to Free on 28 October 2026.'
+    )
+  })
+
   it('says the period ended and when the workspace moves to Free, not that it ends on a past date', () => {
     expect(
       // A day before NOW, so inside express's 3-day buffer.
