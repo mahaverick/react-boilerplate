@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test'
 import { countOf, nounFor } from '@/lib/plural'
+import { testPlans } from '@/tests/fixtures/billing'
 
 describe('countOf', () => {
   it.each([
@@ -23,4 +24,18 @@ describe('nounFor', () => {
     expect(nounFor(3, 'members')).toBe('members')
     expect(nounFor(1, 'members')).toBe('member')
   })
+})
+
+describe('the catalog’s limit labels', () => {
+  /** Each limit key's singular, checked by hand; a new limit key fails until it is added here. */
+  const SINGULAR: Record<string, string> = { members: 'member' }
+
+  it.each(testPlans.catalog.filter((entry) => entry.kind === 'limit'))(
+    'counts $key as a regular plural',
+    ({ key, label }) => {
+      expect(Object.keys(SINGULAR)).toContain(key)
+      expect(countOf(1, label.toLowerCase())).toBe(`1 ${SINGULAR[key] ?? ''}`)
+      expect(countOf(2, label.toLowerCase())).toBe(`2 ${label.toLowerCase()}`)
+    }
+  )
 })

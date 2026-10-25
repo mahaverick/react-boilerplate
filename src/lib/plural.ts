@@ -1,6 +1,13 @@
 /**
  * @file Counted nouns from a plural label, such as the catalog's "Members".
  * The catalog serves one plural label per limit, so the singular is derived.
+ *
+ * Contract: a label passed here is a regular English plural whose last word
+ * is the counted noun ("Members", "Seats"). Irregular plurals ("people",
+ * "data", "analyses"), -es words outside x/ss/ch/sh ("statuses") and labels
+ * with words after the noun ("API calls per month") come out wrong. Such a
+ * label needs a singular served by the catalog, not a rule here; the guard
+ * test over the catalog's limit labels fails when one is added unchecked.
  */
 
 /**
