@@ -1207,6 +1207,47 @@ describe('open overlays', () => {
     await expectNoViolations()
   })
 
+  it('has no violations with the trial explainer open, and the dialog is named', async () => {
+    // A workspace created an hour ago, in its 14-day trial, that this browser has not seen.
+    const createdAt = Date.now() - 60 * 60 * 1000
+    const fresh = { ...TENANT, createdAt: new Date(createdAt).toISOString() }
+    localStorage.removeItem(`billing.trial-explainer.${TENANT_ID}`)
+    server.use(
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(fresh, 'owner'), 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/billing', () =>
+        ok(
+          testBilling({
+            trialEndsAt: new Date(createdAt + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          }),
+          'Billing retrieved.'
+        )
+      )
+    )
+    renderAppAt('/tenants/acme')
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveAccessibleName('You’re on a 14-day Paid trial')
+    await expectNoViolations()
+    localStorage.removeItem(`billing.trial-explainer.${TENANT_ID}`)
+  })
+
+  it('has no violations with the trial summary open, and the dialog is named', async () => {
+    const trialEndsAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    server.use(
+      http.get('/api/v1/tenants/acme/billing', () =>
+        ok(testBilling({ state: 'free', trialEndsAt }), 'Billing retrieved.')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+    await user.click(await screen.findByRole('button', { name: 'See what changed' }))
+
+    const dialog = await screen.findByRole('dialog', { name: /^Your trial ended on / })
+    await within(dialog).findByText('Insights (Paid only)')
+    await within(dialog).findByRole('link', { name: 'Upgrade' })
+    await expectNoViolations()
+  })
+
   it('has no violations with the confirm-it’s-you dialog open, and the dialog is named', async () => {
     server.use(
       http.post('/api/v1/tenants/acme/invitations', () =>

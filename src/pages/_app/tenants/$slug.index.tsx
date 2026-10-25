@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { TrialExplainerDialog } from '@/components/features/billing/trial-explainer-dialog'
 import { GettingStartedCard } from '@/components/features/tenant/getting-started-card'
 import { TenantDetails } from '@/components/features/tenant/tenant-overview-card'
 import { DetailTabPending } from '@/components/shared/pending-templates'
@@ -16,8 +17,10 @@ export const Route = createFileRoute('/_app/tenants/$slug/')({
 
 /**
  * The overview tab: the Getting started checklist, then the tenant's details,
- * read-only, with a link to edit them in Settings › Workspace. With no tenant
- * data the layout has already rendered its not-found panel.
+ * read-only, with a link to edit them in Settings › Workspace. A workspace
+ * created in the last day, in its Paid trial, also opens the trial explainer
+ * once; welcome lands a new workspace here. With no tenant data the layout has
+ * already rendered its not-found panel.
  */
 function TenantOverviewTab() {
   const { slug } = Route.useParams()
@@ -26,6 +29,7 @@ function TenantOverviewTab() {
   if (!tenant.data) return null
   return (
     <div className="grid gap-4">
+      <TrialExplainerDialog key={tenant.data.id} slug={slug} tenant={tenant.data} />
       {role && access && <GettingStartedCard slug={slug} role={role} access={access} />}
       <Card>
         <CardHeader>

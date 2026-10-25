@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
+import { TrialSummaryDialog } from '@/components/features/billing/trial-summary-dialog'
 import { UpgradeAction } from '@/components/features/billing/upgrade-action'
 import { BusyButton } from '@/components/shared/busy-button'
 import { Note, type NoteTone } from '@/components/shared/note'
@@ -132,7 +133,8 @@ function lineFor(kind: BillingBannerKind, context: LineContext): ReactNode {
  * a failed or paused payment, a payer who left, or the trial's progress
  * (`pickBillingBanner` picks one). An owner with member access reads the owner
  * line and gets its button; members, and staff through platform access, read
- * the member line with no button. Renders nothing for the platform tenant,
+ * the member line with no button. The trial-ended banner also offers everyone
+ * "See what changed", which opens the trial summary. Renders nothing for the platform tenant,
  * while billing or the tenant's time zone loads, or when there is nothing to say.
  */
 export function BillingBanner({ slug, tenant }: { slug: string; tenant: TenantDetail }) {
@@ -171,6 +173,12 @@ export function BillingBanner({ slug, tenant }: { slug: string; tenant: TenantDe
           <>
             <span>{line}</span>
             {kind === 'trial_ending' && <UpgradeAction slug={slug} surface="banner" />}
+            {kind === 'trial_ended' && (
+              <TrialSummaryDialog
+                slug={slug}
+                trialEndedOn={formatBillingDate(billing.trialEndsAt ?? '', timeZone)}
+              />
+            )}
             {kind === 'trial_ended' && isMember && <DismissTrialEnded slug={slug} />}
           </>
         )}

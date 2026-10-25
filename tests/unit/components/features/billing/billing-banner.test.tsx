@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { BillingBanner } from '@/components/features/billing/billing-banner'
 import type { MembershipRole } from '@/constants/roles'
 import * as checkoutFlow from '@/hooks/use-checkout-flow'
+import { formatBillingDate } from '@/lib/billing-format'
 import { toast } from '@/lib/toast'
 import * as analytics from '@/observability/telemetry'
 import { PII_CLASS_NAME } from '@/observability/telemetry'
@@ -410,6 +411,24 @@ describe('BillingBanner, trial ended', () => {
     expect(await screen.findByRole('button', { name: 'Dismiss' })).toBeEnabled()
     expect(screen.getByText(/^Your trial ended on /)).toBeInTheDocument()
     expect(track).not.toHaveBeenCalledWith('banner_dismissed', { banner: 'trial_ended' })
+  })
+
+  it('opens the trial summary from “See what changed”, dated in the tenant’s time zone', async () => {
+    const user = userEvent.setup()
+    // 20:00 UTC yesterday is already today in Kolkata, so a UTC date would name the wrong day.
+    const ended = new Date(Date.now() - DAY_MS)
+    ended.setUTCHours(20, 0, 0, 0)
+    const iso = ended.toISOString()
+    renderBanner(serve({ state: 'free', trialEndsAt: iso }, 'viewer'))
+
+    await user.click(await screen.findByRole('button', { name: 'See what changed' }))
+
+    expect(
+      await screen.findByRole('dialog', {
+        name: `Your trial ended on ${formatBillingDate(iso, 'Asia/Kolkata')}`,
+      })
+    ).toBeInTheDocument()
+    expect(formatBillingDate(iso, 'Asia/Kolkata')).not.toBe(formatBillingDate(iso, 'UTC'))
   })
 
   it('gives staff on platform access no Dismiss', async () => {
