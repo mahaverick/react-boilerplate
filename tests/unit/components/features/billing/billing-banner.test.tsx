@@ -11,6 +11,7 @@ import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { BillingBanner } from '@/components/features/billing/billing-banner'
 import type { MembershipRole } from '@/constants/roles'
+import * as checkoutFlow from '@/hooks/use-checkout-flow'
 import { toast } from '@/lib/toast'
 import * as analytics from '@/observability/telemetry'
 import { PII_CLASS_NAME } from '@/observability/telemetry'
@@ -190,6 +191,53 @@ describe('BillingBanner, past due', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
   })
+
+  it('tells a member that Paid ends unless an owner resumes payments', async () => {
+    const paused = { ...PAST_DUE.pastDue!, paused: true }
+    renderBanner(serve({ ...PAST_DUE, pastDue: paused }, 'editor'))
+
+    expect(
+      await screen.findByText('Paid ends on 9 November 2026 unless an owner resumes payments.')
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+})
+
+describe('BillingBanner, owner actions', () => {
+  it('replaces “Update card” with a line when payments are off', async () => {
+    renderBanner(serve({ ...PAST_DUE, paymentsEnabled: false }))
+
+    expect(await screen.findByText('Payments aren’t set up yet.')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('replaces “Use my card” with a line when payments are off', async () => {
+    renderBanner(
+      serve({
+        state: 'active',
+        currentPeriodEnd: '2026-11-01T18:30:00.000Z',
+        payer: { userId: 'user-2', name: 'Priya Shah', isMember: false },
+        paymentsEnabled: false,
+      })
+    )
+
+    expect(await screen.findByText('Payments aren’t set up yet.')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('shows the checkout flow’s message while it waits', async () => {
+    vi.spyOn(checkoutFlow, 'useCheckoutFlow').mockReturnValue({
+      start: vi.fn(async () => {}),
+      status: 'waiting',
+      message: 'Card update received. We’re confirming it.',
+    })
+    renderBanner(serve(PAST_DUE))
+
+    expect(
+      await screen.findByText('Card update received. We’re confirming it.')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Update card' })).toBeEnabled()
+  })
 })
 
 describe('BillingBanner, payer left', () => {
@@ -209,6 +257,16 @@ describe('BillingBanner, payer left', () => {
       'Billing uses Priya Shah’s card, and they left the workspace. Add your card by 2 November 2026 to keep Paid.'
     )
     expect(screen.getByRole('button', { name: 'Use my card' })).toBeInTheDocument()
+  })
+
+  it('names no one when the payer’s name is empty', async () => {
+    renderBanner(serve({ ...PAYER_LEFT, payer: { userId: 'user-2', name: '', isMember: false } }))
+
+    expect(
+      await screen.findByText(
+        'Billing uses the card of a former member, who left the workspace. Add your card by 2 November 2026 to keep Paid.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('tells a member that Paid ends unless an owner adds a card', async () => {
@@ -285,27 +343,29 @@ describe('BillingBanner, trial ended', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Dismiss' }))
 
-    await waitFor(() => expect(bodies).toEqual([{ banner: 'trial_ended' }]))
+    await waitFor(() => expect(screen.queryByText(/^Your trial ended on /)).toBeNull())
+    expect(bodies).toEqual([{ banner: 'trial_ended' }])
     expect(track).toHaveBeenCalledWith('banner_dismissed', { banner: 'trial_ended' })
-    expect(screen.queryByText(/^Your trial ended on /)).toBeNull()
   })
 
-  it('stays hidden and toasts nothing when the dismissal fails', async () => {
+  it('keeps the banner and shows the server’s message when the dismissal fails', async () => {
+    const track = vi.spyOn(analytics, 'track')
     const user = userEvent.setup()
-    let posted = false
     server.use(
-      http.post('/api/v1/tenants/acme/banner-dismissals', () => {
-        posted = true
-        return fail('Too many requests. Try again in a minute.', 429, 'RATE_LIMITED')
-      })
+      http.post('/api/v1/tenants/acme/banner-dismissals', () =>
+        fail('Too many requests. Try again in a minute.', 429, 'RATE_LIMITED')
+      )
     )
     renderBanner(serve({ state: 'free', trialEndsAt: trialEndsAt() }))
 
     await user.click(await screen.findByRole('button', { name: 'Dismiss' }))
 
-    await waitFor(() => expect(posted).toBe(true))
-    expect(screen.queryByText(/^Your trial ended on /)).toBeNull()
-    expect(toast.error).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Too many requests. Try again in a minute.')
+    )
+    expect(await screen.findByRole('button', { name: 'Dismiss' })).toBeEnabled()
+    expect(screen.getByText(/^Your trial ended on /)).toBeInTheDocument()
+    expect(track).not.toHaveBeenCalledWith('banner_dismissed', { banner: 'trial_ended' })
   })
 
   it('gives staff on platform access no Dismiss', async () => {

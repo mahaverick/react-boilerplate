@@ -77,8 +77,9 @@ export type LoadedTenant = NonNullable<ReturnType<typeof useTenant>['data']>
  * tenant loads; the load-error panel when the read fails; for a 404 (`null`)
  * the suspended or not-found panel, which the tenant list decides; otherwise
  * the platform-access banner when staff reached it by platform access, the
- * billing banner on a customer tenant, then the page. A loaded tenant the user reached as a member, other than the
- * platform tenant, becomes the user's remembered tenant for Settings.
+ * billing banner on a customer tenant, then the page. A loaded tenant the
+ * user reached as a member, other than the platform tenant, becomes the
+ * user's remembered tenant for Settings.
  * `heading` is the panels' title element, `h2` under a layout with its own `h1`.
  */
 export function TenantGate({

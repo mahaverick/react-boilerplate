@@ -4,13 +4,14 @@ import { UpgradeAction } from '@/components/features/billing/upgrade-action'
 import { BusyButton } from '@/components/shared/busy-button'
 import { Note, type NoteTone } from '@/components/shared/note'
 import { Pii } from '@/components/shared/pii'
-import { Button } from '@/components/ui/button'
 import { useCheckoutFlow } from '@/hooks/use-checkout-flow'
 import { useNow } from '@/hooks/use-now'
+import { messageFrom } from '@/lib/api-error'
 import { pickBillingBanner, trialDaysLeft, type BillingBannerKind } from '@/lib/billing-banner'
 import { formatBillingDate, formatInr } from '@/lib/billing-format'
+import { toast } from '@/lib/toast'
 import { track } from '@/observability/telemetry'
-import { useDismissBanner, useTenantBilling } from '@/queries/billing.queries'
+import { billingKeys, useDismissBanner, useTenantBilling } from '@/queries/billing.queries'
 import { tenantSettingsQueryOptions } from '@/queries/tenant-forms.queries'
 import type { TenantDetail } from '@/queries/tenant.queries'
 import type { TenantBilling } from '@/types/billing.types'
@@ -27,14 +28,6 @@ const TONES: Record<BillingBannerKind, NoteTone> = {
 
 /** The line an owner sees in place of a card button while payments are off. */
 const PAYMENTS_OFF = 'Payments aren’t set up yet.'
-
-/**
- * The trial-ended banners the viewer dismissed in this session, by tenant.
- * Kept in the query cache, outside the tenant keys, so a failed dismissal
- * still hides the banner on every page until sign-out clears the cache.
- * @param slug - The tenant.
- */
-const hiddenKey = (slug: string) => ['billing-banner-hidden', slug] as const
 
 /** What the banner's sentence needs besides the billing view. */
 interface LineContext {
@@ -89,7 +82,7 @@ function pausedLine({ billing, isOwner, date }: LineContext): string {
 
 /**
  * The payer-left sentence, with the payer's name masked for analytics. An
- * empty name reads "an owner".
+ * empty name reads "a former member".
  * @param context - The billing view, the viewer and the date format.
  */
 function payerLeftLine({ billing, isOwner, date }: LineContext): ReactNode {
@@ -100,10 +93,13 @@ function payerLeftLine({ billing, isOwner, date }: LineContext): ReactNode {
       : `Paid ends on ${periodEnd} unless an owner adds a card.`
   }
   const name = billing.payer?.name ?? ''
+  const addCard = `Add your card${periodEnd === null ? '' : ` by ${periodEnd}`} to keep Paid.`
+  if (name === '') {
+    return `Billing uses the card of a former member, who left the workspace. ${addCard}`
+  }
   return (
     <span>
-      Billing uses {name === '' ? 'an owner' : <Pii>{name}</Pii>}’s card, and they left the
-      workspace. Add your card{periodEnd === null ? '' : ` by ${periodEnd}`} to keep Paid.
+      Billing uses <Pii>{name}</Pii>’s card, and they left the workspace. {addCard}
     </span>
   )
 }
@@ -143,13 +139,6 @@ function lineFor(kind: BillingBannerKind, context: LineContext): ReactNode {
 export function BillingBanner({ slug, tenant }: { slug: string; tenant: TenantDetail }) {
   const { data: billing } = useTenantBilling(slug)
   const now = useNow()
-  const queryClient = useQueryClient()
-  const { data: dismissed } = useQuery({
-    queryKey: hiddenKey(slug),
-    queryFn: () => false,
-    initialData: false,
-    staleTime: Infinity,
-  })
   const kind =
     tenant.isPlatform || !billing
       ? null
@@ -161,9 +150,7 @@ export function BillingBanner({ slug, tenant }: { slug: string; tenant: TenantDe
     enabled: kind !== null,
   })
 
-  if (kind === null || !billing || (kind === 'trial_ended' && dismissed) || settings.isPending) {
-    return null
-  }
+  if (kind === null || !billing || settings.isPending) return null
   const timeZone = settings.data?.timezone ?? 'UTC'
   const isMember = tenant.access === 'member'
   const isOwner = isMember && tenant.role === 'owner'
@@ -185,12 +172,7 @@ export function BillingBanner({ slug, tenant }: { slug: string; tenant: TenantDe
           <>
             <span>{line}</span>
             {kind === 'trial_ending' && <UpgradeAction slug={slug} surface="banner" />}
-            {kind === 'trial_ended' && isMember && (
-              <DismissTrialEnded
-                slug={slug}
-                onDismiss={() => queryClient.setQueryData(hiddenKey(slug), true)}
-              />
-            )}
+            {kind === 'trial_ended' && isMember && <DismissTrialEnded slug={slug} />}
           </>
         )}
       </div>
@@ -239,24 +221,38 @@ function CardChange({
 }
 
 /**
- * "Dismiss" on the trial-ended banner. It hides the banner at once and posts
- * the dismissal, which refetches billing when it settles. A failed post keeps
- * the banner hidden for the session and toasts nothing: the banner is a
- * reminder, and it returns after the next sign-in.
+ * "Dismiss" on the trial-ended banner. It posts the dismissal; the billing
+ * view's `dismissedBanners` is the only record of it, so on success the
+ * cached view gains `trial_ended` (the refetch the dismissal triggers says the
+ * same) and the banner goes. A refusal keeps the banner and toasts the
+ * server's message.
  */
-function DismissTrialEnded({ slug, onDismiss }: { slug: string; onDismiss: () => void }) {
+function DismissTrialEnded({ slug }: { slug: string }) {
+  const queryClient = useQueryClient()
   const dismiss = useDismissBanner(slug)
   return (
-    <Button
+    <BusyButton
       variant="ghost"
       size="sm"
-      onClick={() => {
-        track('banner_dismissed', { banner: 'trial_ended' })
-        dismiss.mutate('trial_ended')
-        onDismiss()
-      }}
+      busy={dismiss.isPending}
+      busyLabel="Dismissing…"
+      onClick={() =>
+        dismiss.mutate('trial_ended', {
+          onSuccess: () => {
+            track('banner_dismissed', { banner: 'trial_ended' })
+            queryClient.setQueryData<TenantBilling | null>(billingKeys.billing(slug), (view) =>
+              view && !view.dismissedBanners.includes('trial_ended')
+                ? { ...view, dismissedBanners: [...view.dismissedBanners, 'trial_ended'] }
+                : view
+            )
+          },
+          onError: (error) => {
+            toast.error(messageFrom(error))
+          },
+        })
+      }
     >
       Dismiss
-    </Button>
+    </BusyButton>
   )
 }

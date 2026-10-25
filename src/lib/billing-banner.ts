@@ -36,20 +36,9 @@ export function trialDaysLeft(trialEndsAt: string, now: Date): number {
 }
 
 /**
- * Whether the account that pays left the workspace while Paid still runs on
- * its card: active or past due. A payer whose account is gone (`null`) is not
- * one who left.
- * @param billing - The tenant's billing view.
- */
-function payerLeft(billing: TenantBilling): boolean {
-  if (billing.payer === null || billing.payer.isMember) return false
-  return billing.state === 'active' || billing.state === 'past_due'
-}
-
-/**
  * The one billing banner to show, by priority: a failed payment (`past_due`,
- * or `paused` in the UPI app); then a payer who left (`payer_left`, while the
- * workspace is active or past due); then a trial ending within 3 days; then a
+ * or `paused` in the UPI app); then a payer who left while the workspace is
+ * active (`payer_left`; past due outranks it, so it is checked for active only); then a trial ending within 3 days; then a
  * running trial, except in the tenant's first 24 hours; then a trial that
  * ended in the last 14 days and that the viewer has not dismissed.
  * @param billing - The tenant's billing view.
@@ -64,7 +53,10 @@ export function pickBillingBanner(
 ): BillingBannerKind | null {
   const nowMs = now.getTime()
   if (billing.state === 'past_due') return billing.pastDue?.paused ? 'paused' : 'past_due'
-  if (payerLeft(billing)) return 'payer_left'
+  // A payer whose account is gone (`null`) is not one who left.
+  if (billing.state === 'active' && billing.payer !== null && !billing.payer.isMember) {
+    return 'payer_left'
+  }
   if (billing.state === 'trialing' && billing.trialEndsAt !== null) {
     if (Date.parse(billing.trialEndsAt) - nowMs <= TRIAL_ENDING_MS) return 'trial_ending'
     return nowMs - Date.parse(tenantCreatedAt) > QUIET_FIRST_MS ? 'trial_running' : null
