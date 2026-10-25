@@ -61,9 +61,20 @@ import { build } from 'vite'
  * in the entry, and the app shell's lazy setup-screen wrapper (with its
  * preload map names) in the `_app` chunk. They must load with the entry to catch
  * the first 403 PASSKEY_SETUP_REQUIRED, so they cannot be lazy: 589,476 B (with the lazy-chunk error boundary),
- * rounded up to 589,500 B.
+ * rounded up to 589,500 B. Billing (P2) measured 589,247 B before it. Its pages, Razorpay Checkout,
+ * billing queries and types, the banner, the plan dialogs, insights and the notification link stay
+ * lazy; pricing's pending template goes through `pending-templates` like every other route's, and
+ * the plan-refusal reader, the billing error codes and the entitlement analytics key sit in lazy
+ * modules of their own. What it adds to the entry cannot be lazy: the route options and route-tree
+ * entries of `/pricing`, Billing and Insights, which the router needs to match a URL; the member
+ * writes' entitlements refetch in `tenant.queries`, the guard's module, so a seat meter never shows a
+ * stale count; the page helpers `infiniteQueryBehavior` exports to the lazy invoices list, rendered
+ * in the shared Query chunk; and Zod 4.6.7, the patched release the production audit requires
+ * (595 B of the chunk): 592,481 B, rounded up to 592,500 B. The live walk's fixes then split the
+ * count wording into a lazy `plural` chunk shared by the members and billing pages, and the entry's
+ * preload map names it (44 B): 592,525 B, rounded up to 593,000 B.
  */
-const ENTRY_BUDGET_BYTES = 589_500
+const ENTRY_BUDGET_BYTES = 593_000
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

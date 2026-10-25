@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { API_PREFIX } from '@/constants/routes'
 import { ensureSession, isAuthVerdict, redirectToLogin } from '@/http/session'
 import { parseSseStream } from '@/http/sse'
+import { invalidateBilling } from '@/queries/billing.queries'
 import { notificationKeys } from '@/queries/notification.queries'
 import { useAuthStore } from '@/states/auth.store'
 import { usePasskeySetupStore } from '@/states/passkey-setup.store'
@@ -58,6 +59,32 @@ function parseRetryAfter(value: string | null): number | null {
 const NOTIFICATION_EVENT = 'notification'
 
 /**
+ * The event name the API writes when a tenant's plan or entitlements change
+ * (`event: entitlements_changed\ndata: {"tenantId","slug"}`). The frame has no
+ * `id:` line and is never replayed, so it is not a notification: it moves no
+ * backoff and no `Last-Event-ID`.
+ */
+const ENTITLEMENTS_EVENT = 'entitlements_changed'
+
+/** The cached tenant query suffixes that mark a tenant as one whose billing a reconnect must refetch. */
+const BILLING_KEY_PARTS = new Set(['entitlements', 'billing', 'upgrade-requests'])
+
+/**
+ * Reads the slug off an `entitlements_changed` frame's data.
+ * @param data - The frame's raw `data:` text.
+ * @returns The slug, or null when the data is not JSON or has no string slug.
+ */
+function parseEntitlementsSlug(data: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(data)
+    if (typeof parsed !== 'object' || parsed === null || !('slug' in parsed)) return null
+    return typeof parsed.slug === 'string' && parsed.slug !== '' ? parsed.slug : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Keep the notification list in step with the server's SSE stream, for as
  * long as there is a session.
  *
@@ -109,6 +136,21 @@ export function useNotificationStream(): void {
     /** Marks the cached notification list stale so it refetches. */
     const refetchList = () => {
       void queryClient.invalidateQueries({ queryKey: notificationKeys.list })
+    }
+
+    /**
+     * Refetches the billing keys of every tenant in the cache. Frames carry no id and are
+     * never replayed, so a change made while the stream was down is only caught here.
+     */
+    const refetchCachedBilling = () => {
+      const slugs = new Set<string>()
+      for (const { queryKey } of queryClient.getQueryCache().getAll()) {
+        const [root, slug, part] = queryKey
+        if (root === 'tenants' && typeof slug === 'string' && !slug.startsWith('_')) {
+          if (typeof part === 'string' && BILLING_KEY_PARTS.has(part)) slugs.add(slug)
+        }
+      }
+      for (const slug of slugs) void invalidateBilling(queryClient, slug)
     }
 
     /** Handles one notification frame: the stream is healthy, so the backoff resets and the list refetches. */
@@ -194,10 +236,15 @@ export function useNotificationStream(): void {
             )
           }
           refetchList()
+          refetchCachedBilling()
 
           for await (const event of parseSseStream(response.body)) {
             if (event.id) lastEventId.current = event.id
             if (event.event === NOTIFICATION_EVENT) onNotification()
+            else if (event.event === ENTITLEMENTS_EVENT) {
+              const slug = parseEntitlementsSlug(event.data)
+              if (slug) void invalidateBilling(queryClient, slug)
+            }
           }
           if (!cancelled) scheduleReconnect(token)
         } catch (error) {

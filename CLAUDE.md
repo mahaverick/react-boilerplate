@@ -215,7 +215,9 @@ The mechanism is in
 The reasons are in [CSP and headers](SECURITY.md#csp-and-headers) and
 [Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
 
-- **No inline script, ever.** The CSP is `script-src 'self'`. A new origin for
+- **No inline script, ever, and never `'unsafe-eval'`.** The CSP is
+  `script-src 'self'` plus the Razorpay Checkout hosts listed in
+  [CSP and headers](SECURITY.md#csp-and-headers). A new origin for
   scripts, styles, images, fonts or `fetch` means changing the policy in
   `nginx.conf` in the same commit.
 - **`src/lib/zod-jitless.ts` is the first import** in `main.tsx`, `tests/setup.ts`,

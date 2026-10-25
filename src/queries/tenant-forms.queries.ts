@@ -3,7 +3,13 @@
  * renaming it, and its settings. `tenant.queries` is in the first-visit chunk
  * through `_app`'s guard, so these stay apart and load with their pages.
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { apiClient, unwrap } from '@/http/client'
 import {
   invalidateTenantList,
@@ -41,15 +47,33 @@ export function useUpdateTenant(slug: string) {
   })
 }
 
-/** A tenant's settings. Anyone who can open the tenant may read them; saving is limited to owners and admins. */
-export function useTenantSettings(slug: string) {
-  return useQuery({
+/** `GET /tenants/:slug/settings`. Anyone who can open the tenant may read them, staff through platform access included. */
+export function tenantSettingsQueryOptions(slug: string) {
+  return queryOptions({
     queryKey: tenantKeys.settings(slug),
     queryFn: async ({ signal }) =>
       unwrap(
         await apiClient.get<ApiSuccess<TenantSettings>>(`/tenants/${slug}/settings`, { signal })
       ),
   })
+}
+
+/**
+ * The tenant's time zone, in which the server dates its billing messages, or
+ * UTC when the settings cannot be read, as on the server.
+ * @param queryClient - The app's query client, which may hold the settings already.
+ * @param slug - The tenant.
+ */
+export async function billingTimeZone(queryClient: QueryClient, slug: string): Promise<string> {
+  return queryClient.ensureQueryData({ ...tenantSettingsQueryOptions(slug), retry: false }).then(
+    (settings) => settings.timezone,
+    () => 'UTC'
+  )
+}
+
+/** A tenant's settings. Anyone who can open the tenant may read them; saving is limited to owners and admins. */
+export function useTenantSettings(slug: string) {
+  return useQuery(tenantSettingsQueryOptions(slug))
 }
 
 /** Saves the fields of a tenant's settings it is given, then refetches the settings. */

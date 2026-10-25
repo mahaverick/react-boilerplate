@@ -469,8 +469,8 @@ to `API_UPSTREAM`, so the browser only ever calls the origin that served the
 page. A split-origin deployment, with the SPA on one host calling the API on
 another, is not supported. The API sends CORS headers for other frontends, but
 this app depends on same-origin: its API client uses relative URLs, its
-Content-Security-Policy allows `connect-src 'self'` only, and the refresh cookie
-is set on whichever origin answers `/api`.
+Content-Security-Policy's `connect-src` allows `'self'` and Razorpay's hosts
+only, and the refresh cookie is set on whichever origin answers `/api`.
 
 ## Releases
 

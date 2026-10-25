@@ -950,6 +950,27 @@ describe('accept page, signed in', () => {
   })
 })
 
+describe('accept page, a full workspace', () => {
+  it('shows the server message on a 402 and offers Try again', async () => {
+    signIn()
+    mockTenantRoute()
+    const accepts = serveAccept(() =>
+      fail(
+        'This workspace is full. Ask an owner to upgrade, then try again.',
+        402,
+        'PLAN_LIMIT_REACHED'
+      )
+    )
+    renderAt(ACCEPT_PATH)
+
+    expect(
+      await screen.findByText('This workspace is full. Ask an owner to upgrade, then try again.')
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible()
+    expect(accepts).toHaveLength(1)
+  })
+})
+
 describe('posts the invitation token exactly once under StrictMode', () => {
   it('posts the invitation token exactly once under StrictMode (signed out, verify)', async () => {
     arriveSignedOut()

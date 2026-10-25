@@ -1,0 +1,136 @@
+import { useState } from 'react'
+import { CancelPaidDialog } from '@/components/features/billing/cancel-paid-dialog'
+import { PlanChoice } from '@/components/features/billing/plan-choice'
+import { BusyButton } from '@/components/shared/busy-button'
+import { QueryState } from '@/components/shared/query-state'
+import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
+import { useCheckoutFlow, type CheckoutKind } from '@/hooks/use-checkout-flow'
+import {
+  canChangeSubscription,
+  PAYMENTS_OFF,
+  showsPlanChoice,
+  switchArea,
+  type BillingLineContext,
+} from '@/lib/billing-page'
+import { usePlans } from '@/queries/billing.queries'
+import type { TenantBilling } from '@/types/billing.types'
+
+/** Which checkout a click started, so only its button shows the spinner. */
+type CheckoutAction = CheckoutKind['purpose']
+
+/**
+ * What an owner with member access may do on Billing in this state: take
+ * Paid (or keep it after a cancel), switch the interval, put on a new card,
+ * or cancel. All of them run through one checkout flow, whose message shows
+ * while it waits or fails. An error, or a card change's wait, goes once a
+ * cancel is confirmed or the subscription changes; an upgrade or switch wait
+ * stays until the webhook lands, and keeps every other checkout disabled. With payments off, one line replaces them all,
+ * since the API refuses every write then.
+ */
+export function OwnerBillingActions({
+  slug,
+  billing,
+  context,
+}: {
+  slug: string
+  billing: TenantBilling
+  context: BillingLineContext
+}) {
+  if (!billing.paymentsEnabled) {
+    return <p className="text-sm text-muted-foreground">{PAYMENTS_OFF}</p>
+  }
+  return <Actions slug={slug} billing={billing} context={context} />
+}
+
+/** The actions themselves, mounted only while payments are on so the flow runs only then. */
+function Actions({
+  slug,
+  billing,
+  context,
+}: {
+  slug: string
+  billing: TenantBilling
+  context: BillingLineContext
+}) {
+  const flow = useCheckoutFlow(slug)
+  const plans = usePlans()
+  const [action, setAction] = useState<CheckoutAction | null>(null)
+  const running =
+    flow.status === 'starting' || flow.status === 'open' || flow.status === 'confirming'
+  const showMessage = (flow.status === 'error' || flow.status === 'waiting') && flow.message
+  // An upgrade or switch handed to the webhook is authorised: another checkout would race it and end its wait. A card change's wait never ends, so it blocks nothing.
+  const paying = running || (flow.status === 'waiting' && action !== 'card_change')
+  const switching = switchArea(billing, context)
+
+  /** Starts a checkout and remembers which button started it. */
+  const start = (kind: CheckoutKind) => {
+    setAction(kind.purpose)
+    void flow.start(kind)
+  }
+
+  return (
+    <div className="grid gap-4">
+      {showsPlanChoice(billing) && (
+        <QueryState query={plans} name="Plans" skeleton={<CardRowsSkeleton rows={2} />}>
+          {(data) => (
+            <PlanChoice
+              billing={billing}
+              plans={data}
+              date={context.date}
+              now={context.now}
+              busy={running && action === 'upgrade'}
+              disabled={paying}
+              onUpgrade={(interval) => {
+                start({ purpose: 'upgrade', interval })
+              }}
+            />
+          )}
+        </QueryState>
+      )}
+      {switching?.kind === 'line' && <p className="text-sm">{switching.text}</p>}
+      {(switching?.kind === 'button' || canChangeSubscription(billing)) && (
+        <div className="flex flex-wrap gap-2">
+          {switching?.kind === 'button' && (
+            <BusyButton
+              variant="outline"
+              busy={running && action === 'switch'}
+              busyLabel="Opening…"
+              disabled={paying}
+              onClick={() => {
+                start({ purpose: 'switch', interval: switching.interval })
+              }}
+            >
+              {switching.label}
+            </BusyButton>
+          )}
+          {canChangeSubscription(billing) && (
+            <>
+              <BusyButton
+                variant="outline"
+                busy={running && action === 'card_change'}
+                busyLabel="Opening…"
+                disabled={paying}
+                onClick={() => {
+                  start({ purpose: 'card_change' })
+                }}
+              >
+                Update card
+              </BusyButton>
+              <CancelPaidDialog
+                slug={slug}
+                billing={billing}
+                context={context}
+                disabled={running}
+                onConfirm={flow.clear}
+              />
+            </>
+          )}
+        </div>
+      )}
+      {/* Mounted while empty, so a screen reader announces the message when it appears. */}
+      <p role="status" className="text-sm empty:hidden">
+        {showMessage ? flow.message : null}
+      </p>
+    </div>
+  )
+}

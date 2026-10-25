@@ -1,6 +1,6 @@
 # Tenants
 
-The tenant list (`/tenants/`), a tenant's overview (`/tenants/$slug/`) and beta page, and the tenant paths that redirect to workspace settings. Back to the [route map](README.md#route-map).
+The tenant list (`/tenants/`), a tenant's overview (`/tenants/$slug/`), insights and beta pages, and the tenant paths that redirect to workspace settings. Back to the [route map](README.md#route-map).
 
 ## Layout
 
@@ -12,7 +12,7 @@ The tenant list (`/tenants/`), a tenant's overview (`/tenants/$slug/`) and beta 
 | While it loads  | The flags read holds the route (the boot shell on a cold load, `pendingComponent: DetailPending` after 300 ms on a navigation); then `TenantGate` shows the detail template (`PageSkeleton variant="detail"`) under the app shell until the tenant lands, and again while a tenant that answered 404 waits for the tenant list.                                                                                                                                |
 | Gate panels     | `TenantGate` (`src/components/features/tenant/tenant-gate.tsx`), each an `EmptyState` titled `h1` here: **Tenant not available** ("We couldn’t open /{slug}. It doesn’t exist, or you aren’t a member." and Back to your tenants) for a 404; **Tenant suspended** for a suspended tenant of yours (told apart through the tenant list); a `LoadError` when the detail is missing and the list failed.                                                          |
 | Load failed     | Any other failure of the detail read: `TenantGate`'s `QueryState` shows one `LoadError`, "We couldn’t load this tenant because the request failed. Try again.", whose Try again refetches the tenant. It replaces the header and tabs as well as the page.                                                                                                                                                                                                     |
-| Header and tabs | The tenant's name as the `h1`, the caller's role `Badge`, `/{slug}`, then a `nav` "Tenant sections" of link tabs: Overview, and Beta while `example_beta_page` is on for this tenant. A `PlatformAccessBanner` sits above when staff reached the tenant through platform access.                                                                                                                                                                               |
+| Header and tabs | The tenant's name as the `h1`, the caller's role `Badge`, `/{slug}`, then a `nav` "Tenant sections" of link tabs: Overview, Insights, and Beta while `example_beta_page` is on for this tenant. A `PlatformAccessBanner` sits above when staff reached the tenant through platform access.                                                                                                                                                                     |
 | Breadcrumbs     | Tenants › {slug} › {tab}. The tenant crumb is the slug, not the name, because static data resolves before any fetch.                                                                                                                                                                                                                                                                                                                                           |
 
 A navigation from the list to a tenant whose detail is held shows the breadcrumb Tenants › {slug} › Overview over the detail template (heading, tabs and two cards) under the app shell ([shot](img/tenants/tenant-overview--nav-route.jpg)), then the whole page at once.
@@ -85,6 +85,23 @@ The default shot is full-page: the sidebar is fixed to the viewport, so below 90
 | An editor (a member, `canManageTenant` false): Getting started without Dismiss; a linked step (Open settings) and a tenant-scoped manual step read "An owner or admin can do this" in place of their action, while a member-scoped manual step keeps Mark done. A dismissed checklist shows nothing (the owner gets the undo). The Details card is the same. |
 
 Findings: [F-tenants-1](findings.md#f-tenants-1), [F-tenants-2](findings.md#f-tenants-2), [F-tenants-3](findings.md#f-tenants-3), [F-tenants-5](findings.md#f-tenants-5)
+
+### `/tenants/$slug/insights` — Insights
+
+No screenshots yet. The next `pnpm capture:pages` run takes them: the default, loading and error shots, and `tenant-insights--state-locked.jpg`, the locked card with the entitlements read stubbed to Free.
+
+|                     |                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose             | The reference plan-gated page: workspace counts for the last 30 days, included in Paid (`advanced_example`). Copy it to gate another page.                                                                                                                                                                       |
+| File                | `src/pages/_app/tenants/$slug.insights.tsx`                                                                                                                                                                                                                                                                      |
+| Guard and redirects | `_app`, the [layout](#layout). No route guard: the page shows the locked card in place of its content when the plan lacks the feature.                                                                                                                                                                           |
+| Layout              | `AppLayout` › tenant layout                                                                                                                                                                                                                                                                                      |
+| Data                | started by the layout: `GET /tenants/:slug`. `GET /tenants/:slug/entitlements` (`['tenants', slug, 'entitlements']`) decides the UI gate. Only with the feature on: `GET /tenants/:slug/insights` (`['tenants', slug, 'insights']`, no retry), which answers 402 `PLAN_FEATURE_REQUIRED` when the plan lacks it. |
+| Sections            | Included: "Workspace insights" with two stat cards, "Members joined, last 30 days" and "Invitations sent, last 30 days". Locked: a card "Workspace insights" with the value line, "Included in Paid." and the viewer's upgrade path (`UpgradeAction`).                                                           |
+| Components          | `FeatureGate`, `QueryState`, `Card`, `Skeleton`, `CardRowsSkeleton`, `LoadError`, `UpgradeAction`                                                                                                                                                                                                                |
+| Transitions         | the tabs; Upgrade → `/settings/workspace/$slug/billing`, or Request upgrade for a non-owner                                                                                                                                                                                                                      |
+
+Both guards draw the same locked card: the UI gate from the entitlements, and the API's 402 when the entitlements read was stale. The insights query resolves a 402 to a sentinel rather than rejecting.
 
 ### `/tenants/$slug/beta` — Beta
 

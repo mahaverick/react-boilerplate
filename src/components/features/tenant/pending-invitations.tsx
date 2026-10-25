@@ -28,6 +28,7 @@ import { useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { codeFrom, retryAfterSecondsFrom } from '@/lib/api-error'
 import { formatTimeLeft } from '@/lib/countdown'
 import { formatDate } from '@/lib/format'
+import { isMembersLimitRefusal, NOT_SENT_AT_LIMIT } from '@/lib/members-limit'
 import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
 import { analyticsKey } from '@/observability/telemetry'
@@ -158,7 +159,7 @@ function ResendInvitationButton({
                 const wait = retryAfterSecondsFrom(error)
                 if (wait !== null) setLocalUntil(Date.now() + wait * 1_000)
               }
-              toast.error(actionFailure(error))
+              toast.error(isMembersLimitRefusal(error) ? NOT_SENT_AT_LIMIT : actionFailure(error))
             }
           )
       }}

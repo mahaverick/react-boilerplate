@@ -179,3 +179,18 @@ test('the passkeys list and both dialogs mask a passkey’s name and its button 
   await expect(page.getByRole('alertdialog').getByText('Pii Probe’s phone')).toBeVisible()
   await expectAllMasked(page, 4)
 })
+
+test('the payer-left banner masks the payer who left', async ({ page }) => {
+  await page.goto(harness('/tenants/acme', '&billing=payer_left'))
+  await expect(page.getByText(/’s card, and they left the workspace\./)).toBeVisible()
+  // The banner's payer, and the account menu's name and address.
+  await expectAllMasked(page, 3)
+})
+
+test('Billing masks the payer, the receipts address and who asked to upgrade', async ({ page }) => {
+  await page.goto(harness('/settings/workspace/acme/billing', '&billing=payer_left'))
+  await expect(page.getByText(/^Receipts go to/)).toBeVisible()
+  await expect(page.getByText(/asked to upgrade on/)).toHaveCount(2)
+  // The banner's payer, the Plan card's payer and address, two requesters, and the account menu.
+  await expectAllMasked(page, 7)
+})

@@ -20,6 +20,7 @@ describe('settingsActiveSection', () => {
   it('matches a workspace section for any tenant slug', () => {
     expect(settingsActiveSection('/settings/workspace/acme/members')?.label).toBe('Members')
     expect(settingsActiveSection('/settings/workspace/beta-inc/activity')?.label).toBe('Activity')
+    expect(settingsActiveSection('/settings/workspace/beta-inc/billing')?.label).toBe('Billing')
   })
 
   it('does not match a prefix that is not a whole segment', () => {
@@ -51,6 +52,7 @@ describe('settings config', () => {
       'Notifications',
       'General',
       'Members',
+      'Billing',
       'Activity',
     ])
   })

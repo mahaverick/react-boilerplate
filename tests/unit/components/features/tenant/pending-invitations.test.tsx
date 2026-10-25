@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { StepUpProvider } from '@/components/features/step-up/step-up-provider'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
 import { toast } from '@/lib/toast'
+import { testEntitlements } from '@/tests/fixtures/billing'
 import { listPage } from '@/tests/fixtures/list-page'
 import { fail, INVITATION_SENT_MESSAGE, ok, testInvitation } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -276,5 +277,52 @@ describe('PendingInvitations resend countdown', () => {
     expect(
       await screen.findByRole('button', { name: 'Resend in 10 min, invitation to invitee@b.com' })
     ).toHaveAttribute('aria-disabled', 'true')
+  })
+})
+
+describe('PendingInvitations resend refused for the members limit', () => {
+  it('toasts the short not-sent line over the server message, leaving the counts to the note', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    serveInvitation(null)
+    server.use(
+      http.get('/api/v1/tenants/acme/entitlements', () =>
+        ok(
+          testEntitlements({
+            plan: { key: 'free', name: 'Free' },
+            limits: { members: { limit: 3, used: 5, approaching: true } },
+          }),
+          'Entitlements retrieved.'
+        )
+      )
+    )
+    serveResend(() =>
+      fail('This workspace is at its member limit.', 402, 'PLAN_LIMIT_REACHED', {
+        key: 'members',
+        used: 5,
+        limit: 3,
+      })
+    )
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(await screen.findByRole('button', { name: READY }))
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('Not sent. You’re at the members limit.')
+    })
+  })
+
+  it('toasts the server message when the 402 carries no usage', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    serveInvitation(null)
+    serveResend(() => fail('Upgrade to add more members.', 402, 'PLAN_LIMIT_REACHED'))
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(await screen.findByRole('button', { name: READY }))
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('Upgrade to add more members.')
+    })
   })
 })

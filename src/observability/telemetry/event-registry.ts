@@ -5,6 +5,8 @@
  * string is how a name, an address or a search term ends up in an event.
  */
 
+import type { UpgradeSurface } from '@/types/billing.types'
+
 declare const analyticsKeyBrand: unique symbol
 
 /** A fixed, code-defined key (`onboarding_open_settings`), never user input. */
@@ -60,15 +62,57 @@ export interface BrowserEventProps {
   sign_in_completed: { method: 'link' | 'google' | 'passkey' }
   /** The person dismissed the browser's passkey prompt, or it timed out, or the browser refused a prompt that opened without a click: in which ceremony, never which passkey. */
   passkey_prompt_cancelled: { ceremony: 'sign_in' | 'create' | 'confirm' }
+  /** The public pricing page was shown, to a signed-in visitor or not. */
+  pricing_viewed: { signed_in: boolean }
+  /** The billing page was shown. */
+  billing_page_viewed: Record<never, never>
+  /** An upgrade prompt was shown, on which surface and for which entitlement. */
+  upgrade_prompt_viewed: { surface: UpgradeSurface; key?: AnalyticsKey }
+  /** An upgrade button was clicked, on which surface and for which entitlement. */
+  upgrade_clicked: { surface: UpgradeSurface; key?: AnalyticsKey }
+  /** The monthly or yearly toggle was chosen. */
+  interval_selected: { interval: 'month' | 'year' }
+  /** Razorpay Checkout opened, for which interval and purpose. */
+  checkout_opened: {
+    interval: 'month' | 'year'
+    purpose: 'upgrade' | 'switch' | 'card_change'
+  }
+  /** Razorpay Checkout was closed without paying. */
+  checkout_dismissed: { purpose: 'upgrade' | 'switch' | 'card_change' }
+  /** A checkout step failed, and which. `confirm_failed` is the server refusing a taken payment's confirm. */
+  checkout_failed: {
+    failure_code: 'script_blocked' | 'payment_failed' | 'confirm_failed' | 'start_failed'
+  }
+  /** A payment was taken but not confirmed yet, so the flow waits for the webhook; `checkout_succeeded` follows if the page sees it land. */
+  checkout_pending: { purpose: 'upgrade' | 'switch' | 'card_change' }
+  /** A checkout finished and the API confirmed it. */
+  checkout_succeeded: { purpose: 'upgrade' | 'switch' | 'card_change' }
+  /** The cancel dialog was opened. */
+  cancel_started: Record<never, never>
+  /** Cancelling Paid was confirmed. */
+  cancel_confirmed: Record<never, never>
+  /** The trial explainer was shown. */
+  trial_explainer_viewed: Record<never, never>
+  /** The trial summary was shown. */
+  trial_summary_viewed: Record<never, never>
+  /** A banner was dismissed. */
+  banner_dismissed: { banner: 'trial_ended' }
+  /** A member asked the owners to upgrade, from which surface and for which entitlement. */
+  upgrade_requested_ui: { surface: UpgradeSurface; key?: AnalyticsKey }
 }
 
 /** A registered event name. */
 export type BrowserEvent = keyof BrowserEventProps
 
-/** The property keys, across the registry, whose type admits any string. */
+/**
+ * The property keys, across the registry, whose type admits any string. The `-?`
+ * reads an optional property by its declared type, so an optional `key?` does not
+ * leave `undefined` in the union (which would fail the `never` check) and a free
+ * string behind `?` is still caught.
+ */
 type FreeStringProperties<R> = {
   [E in keyof R]: {
-    [P in keyof R[E]]: string extends R[E][P] ? `${E & string}.${P & string}` : never
+    [P in keyof R[E]]-?: string extends R[E][P] ? `${E & string}.${P & string}` : never
   }[keyof R[E]]
 }[keyof R]
 

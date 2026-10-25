@@ -44,9 +44,29 @@ export type RouteCapture =
        * `Seed.sessions`. `note` goes into that shot's record.
        */
       roleDenied?: { as: string; note?: string }
+      /** Named variants of the default shot: `<shot>--state-<name>.jpg`. */
+      states?: readonly CaptureState[]
       /** Shown in the report next to the shots, for the doc writer. */
       note?: string
     }
+
+/**
+ * One named variant of a page's default shot, such as the billing page in its
+ * past-due state: the page as another session or at another URL, with some
+ * responses stubbed.
+ */
+export interface CaptureState {
+  /** The file-name suffix: `past-due` makes `<shot>--state-past-due.jpg`. */
+  name: string
+  /** Which seeded session opens it; the page's `as` when absent. */
+  as?: string
+  /** The URL to open, with `{name}` placeholders; the page's `url` when absent. */
+  url?: string
+  /** Responses replaced by canned successes; none when absent. */
+  stubs?: readonly Stub[]
+  /** Goes into the shot's record, for the doc writer. */
+  note?: string
+}
 
 /** The accounts and ids a run uses. */
 export interface Seed {
@@ -62,7 +82,15 @@ export type LoadingUi = 'skeleton' | 'spinner' | 'shell' | 'none'
 /** One screenshot and what was seen while taking it. */
 export interface ShotRecord {
   route: string
-  state: 'default' | 'loading' | 'error' | 'empty' | 'dark' | 'mobile' | 'role-denied'
+  state:
+    | 'default'
+    | 'loading'
+    | 'error'
+    | 'empty'
+    | 'dark'
+    | 'mobile'
+    | 'role-denied'
+    | `state-${string}`
   /** Path under docs/pages/, e.g. `img/tenants/tenants--loading.jpg`. */
   file: string
   requestedUrl: string
@@ -72,7 +100,7 @@ export interface ShotRecord {
   loadingUi?: LoadingUi
   /** Whether a `role=alert` element appeared within 10 s. */
   errorUi?: 'alert' | 'none'
-  /** The manifest's `roleDenied.note`, on a role-denied shot. */
+  /** The manifest's `roleDenied.note` or `states[].note`, on those shots. */
   note?: string
   /** Milliseconds from navigation to the shot. */
   ms: number

@@ -13,6 +13,7 @@ var BOOT_AUTH_PATHS = [
   '/auth/callback',
   '/auth/confirm',
   '/welcome',
+  '/pricing',
   '/invitations/accept',
   '/invitations/confirm',
   '/no-access',

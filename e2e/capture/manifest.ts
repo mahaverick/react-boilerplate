@@ -4,7 +4,8 @@
  * listed here. Endpoints are relative to /api/v1 (see endpoint.ts).
  */
 import type { FileRoutesByFullPath } from '@/routeTree.gen'
-import type { NavigationCapture, RouteCapture, Section } from './types'
+import { billingState, type BillingStateName } from '../../tests/fixtures/billing'
+import type { CaptureState, NavigationCapture, RouteCapture, Section } from './types'
 
 /**
  * The tenant read. Its flags are not held with it: the boot waits up to 10 s
@@ -20,6 +21,24 @@ const TENANT: Section = {
 const EMPTY_PAGE = {
   items: [],
   page: { nextCursor: null, prevCursor: null, hasNext: false, hasPrev: false, limit: 20 },
+}
+
+/**
+ * The billing page in one billing state: the harness's views of that state
+ * (`tests/fixtures/billing.ts`) stubbed over the seeded tenant's own.
+ * @param name - The state, which also names the shot.
+ * @param note - What the shot shows, for the doc writer.
+ */
+function billingCapture(name: BillingStateName, note: string): CaptureState {
+  const { billing, entitlements } = billingState(name)
+  return {
+    name: name.replaceAll('_', '-'),
+    stubs: [
+      { endpoint: 'GET /tenants/:slug/billing', data: billing },
+      { endpoint: 'GET /tenants/:slug/entitlements', data: entitlements },
+    ],
+    note,
+  }
 }
 
 /** Each route's capture, keyed by its full path. */
@@ -89,6 +108,24 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     note: '"Check your inbox" (after Email me a sign-in link) needs a click, which the capture does not make; take that frame by hand in the final walk.',
   },
   '/register': { kind: 'redirect', to: '/login?notice=sign-in-link' },
+  '/pricing': {
+    kind: 'page',
+    area: 'auth',
+    shot: 'pricing',
+    url: '/pricing',
+    as: 'anonymous',
+    responsive: true,
+    sections: [{ name: 'Plans', endpoints: ['GET /plans'] }],
+    states: [
+      {
+        name: 'owner',
+        as: 'owner',
+        url: '/pricing?tenant={slug}',
+        note: 'The owner of ?tenant: "Upgrade" to that workspace’s Billing.',
+      },
+    ],
+    note: 'Signed out: "Start free" and the trial line.',
+  },
   '/auth/callback': {
     kind: 'redirect',
     to: '/welcome for a new account (new=1), else the safe redirect or /dashboard when signed in, else /login?error=google_auth_failed (in an effect)',
@@ -203,6 +240,31 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     sections: [TENANT, { name: 'Beta', endpoints: ['GET /tenants/:slug/beta'] }],
     note: 'Gated by the example_beta_page flag; with the flag off this is the not-found screen.',
   },
+  '/tenants/$slug/insights': {
+    kind: 'page',
+    area: 'tenants',
+    shot: 'tenant-insights',
+    url: '/tenants/{slug}/insights',
+    as: 'owner',
+    sections: [
+      TENANT,
+      { name: 'Entitlements', endpoints: ['GET /tenants/:slug/entitlements'] },
+      { name: 'Insights', endpoints: ['GET /tenants/:slug/insights'] },
+    ],
+    states: [
+      {
+        name: 'locked',
+        stubs: [
+          {
+            endpoint: 'GET /tenants/:slug/entitlements',
+            data: billingState('free').entitlements,
+          },
+        ],
+        note: 'On Free: the locked card with "Included in Paid." and Upgrade; no insights read.',
+      },
+    ],
+    note: 'Gated by the advanced_example feature; on Free this is the locked card and the insights read is not made.',
+  },
   '/tenants/$slug/members': { kind: 'redirect', to: '/settings/workspace/$slug/members' },
   '/tenants/$slug/settings': { kind: 'redirect', to: '/settings/workspace/$slug/general' },
   '/settings/account/': { kind: 'redirect', to: '/settings/account/profile' },
@@ -284,6 +346,49 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
         { endpoint: 'GET /tenants/:slug/invitations', data: EMPTY_PAGE },
       ],
     },
+  },
+  '/settings/workspace/$slug/billing': {
+    kind: 'page',
+    area: 'settings',
+    shot: 'workspace-billing',
+    url: '/settings/workspace/{slug}/billing',
+    as: 'owner',
+    roleDenied: {
+      as: 'member',
+      note: 'An editor: "Only owners can change billing." and the Plan card; no actions, no invoices or upgrade requests read.',
+    },
+    sections: [
+      TENANT,
+      { name: 'Plan', endpoints: ['GET /tenants/:slug/billing', 'GET /tenants/:slug/settings'] },
+      { name: 'Usage', endpoints: ['GET /tenants/:slug/entitlements', 'GET /plans'] },
+      { name: 'Upgrade requests', endpoints: ['GET /tenants/:slug/upgrade-requests'] },
+      { name: 'Invoices', endpoints: ['GET /tenants/:slug/billing/invoices'] },
+    ],
+    empty: {
+      stubs: [
+        { endpoint: 'GET /tenants/:slug/billing/invoices', data: EMPTY_PAGE },
+        { endpoint: 'GET /tenants/:slug/upgrade-requests', data: [] },
+      ],
+    },
+    states: [
+      billingCapture(
+        'trialing',
+        'The Paid trial: "Paid trial · Ends {date}", the ₹5 hold line and Upgrade to Paid.'
+      ),
+      billingCapture(
+        'free_over',
+        'Free with 5 of 3 members: the meter over its limit and Upgrade to Paid.'
+      ),
+      billingCapture(
+        'active',
+        '"Paid · ₹999 per month · Renews 2 November 2026", Switch to yearly, Update card, Cancel Paid.'
+      ),
+      billingCapture(
+        'past_due',
+        'A failed payment: the banner and "Paid · Payment failed on 20 October 2026".'
+      ),
+    ],
+    note: 'The invoices read runs only while payments are on (paymentsEnabled).',
   },
   '/settings/workspace/$slug/': { kind: 'redirect', to: '/settings/workspace/$slug/general' },
 }

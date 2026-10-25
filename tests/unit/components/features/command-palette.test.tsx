@@ -190,6 +190,7 @@ describe('CommandPalette', () => {
     ['Go to', '/dashboard', '', 'Notification settings', 'open_page'],
     ['Go to', '/notifications?tenant=acme', '', 'General', 'open_page'],
     ['Go to', '/notifications?tenant=acme', '', 'Members', 'open_page'],
+    ['Go to', '/notifications?tenant=acme', '', 'Billing', 'open_page'],
     ['Go to', '/notifications?tenant=acme', '', 'Activity', 'open_page'],
     ['Recent', '/notifications?tenant=acme', '', 'Beta Inc', 'open_recent'],
     ['This page', '/tenants/acme', '', 'Copy tenant ID', 'copy_id'],

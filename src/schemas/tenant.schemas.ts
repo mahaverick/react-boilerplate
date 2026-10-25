@@ -22,8 +22,9 @@ const MAX_TENANT_LOCALE_LENGTH = 10
 /**
  * Slugs no tenant may register, mirroring the API's `RESERVED_SLUGS`
  * (tenant.constants.ts): route segments under `/tenants/:slug/...`,
- * misleading public identifiers, strings that read as other values, and
- * `platform`, the staff tenant's slug.
+ * misleading public identifiers, strings that read as other values,
+ * `platform`, the staff tenant's slug, and the billing paths `pricing`,
+ * `checkout` and `upgrade`.
  */
 const RESERVED_SLUGS = [
   'admin',
@@ -78,6 +79,9 @@ const RESERVED_SLUGS = [
   'dev',
   'localhost',
   'platform',
+  'pricing',
+  'checkout',
+  'upgrade',
 ] as const
 
 /** A Set, because the tuple's `.includes` rejects a plain `string` argument. */

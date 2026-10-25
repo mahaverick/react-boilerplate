@@ -23,6 +23,7 @@ import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { usePasskeySetupStore } from '@/states/passkey-setup.store'
 import { useSidebarStore } from '@/states/sidebar.store'
 import { useThemeStore } from '@/states/theme.store'
+import { testEntitlements, testUpgradeRequest } from '@/tests/fixtures/billing'
 import {
   AUDIT_ID_1,
   AUDIT_ID_2,
@@ -43,6 +44,7 @@ import {
   fail,
   ok,
   tenantDetail,
+  testBilling,
   TEST_INVITATION_TOKEN,
   testFlags,
   testOnboarding,
@@ -119,6 +121,16 @@ const NOTIFICATIONS = [
     readAt: '2026-01-02T10:00:00.000Z',
     createdAt: '2026-01-02T08:00:00.000Z',
   },
+  {
+    id: '00000000-0000-4000-8000-0000000000b1',
+    userId: USER_ID,
+    type: 'billing_payment_failed',
+    title: 'Your payment of ₹999 failed',
+    body: 'Update your card to keep Paid.',
+    metadata: { tenantId: TENANT_ID, slug: 'acme' },
+    readAt: null,
+    createdAt: '2026-01-02T07:00:00.000Z',
+  },
 ]
 
 /** One pending invitation, so the members page's third card has a row to grade. */
@@ -156,6 +168,12 @@ const AUDIT_ENTRIES: AuditEntry[] = [
 const PREFERENCES = [
   { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
   { notificationType: 'maintenance_mode_changed', emailEnabled: true, inAppEnabled: false },
+  { notificationType: 'billing_trial_ending', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_payment_failed', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_payer_left', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_upgrade_requested', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_paid_cancelled', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'workspace_full', emailEnabled: true, inAppEnabled: true },
 ]
 
 /**
@@ -415,6 +433,17 @@ afterEach(() => {
   setViewportWidth(realInnerWidth)
 })
 
+/** Acme on Paid, monthly, renewing far ahead, paid with Ada's card: every owner action shows. */
+const ACTIVE_BILLING = testBilling({
+  state: 'active',
+  interval: 'month',
+  price: { id: 'price_month', interval: 'month', amountMinor: 99_900, currency: 'INR' },
+  trialEndsAt: null,
+  currentPeriodEnd: '2099-11-02T18:30:00.000Z',
+  payer: { userId: USER_ID, name: 'Ada Lovelace', isMember: true },
+  billingEmail: 'billing@acme.test',
+})
+
 describe('the axe gate itself', () => {
   /**
    * A stray `<p>` outside every landmark is what `region` is about. If this stops
@@ -475,6 +504,8 @@ describe('signed-out pages', () => {
       '/invitations/accept',
       () => screen.findByRole('heading', { name: 'This link is incomplete' }),
     ],
+    // The plans, Start free and the questions: the whole signed-out pricing page.
+    ['pricing', '/pricing', () => screen.findByRole('link', { name: 'Start free' })],
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
@@ -572,9 +603,28 @@ describe('signed-in pages', () => {
       () => screen.findByText('Beta features are on for acme.'),
     ],
     [
+      'tenant insights, unlocked',
+      '/tenants/acme/insights',
+      () => screen.findByText('Members joined, last 30 days'),
+    ],
+    [
       'workspace activity',
       '/settings/workspace/acme/activity',
       () => screen.findByText('changed the settings (timezone)'),
+    ],
+    [
+      'pricing as the current tenant’s owner',
+      '/pricing?tenant=acme',
+      () => screen.findByRole('link', { name: 'Upgrade' }),
+    ],
+    [
+      'workspace billing in the trial',
+      '/settings/workspace/acme/billing',
+      // The plan choice, the meter and the empty invoices: the trial's whole owner page.
+      async () => {
+        await screen.findByRole('button', { name: 'Upgrade to Paid' })
+        return screen.findByText('No invoices yet.')
+      },
     ],
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
@@ -594,6 +644,36 @@ describe('signed-in pages', () => {
     server.use(http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')))
     renderAppAt(path)
     await ready()
+    await expectNoViolations()
+  })
+
+  it('workspace billing on Paid, with invoices and a request, has no axe violations', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme/billing', () => ok(ACTIVE_BILLING, 'Billing retrieved.')),
+      http.get('/api/v1/tenants/acme/billing/invoices', () =>
+        ok(
+          listPage([
+            {
+              id: 'inv_1',
+              amountMinor: 99_900,
+              currency: 'INR',
+              status: 'paid',
+              issuedAt: '2026-10-02T18:30:00.000Z',
+              paidAt: '2026-10-02T18:31:00.000Z',
+              url: 'https://rzp.io/i/abc',
+            },
+          ]),
+          'Invoices retrieved.'
+        )
+      ),
+      http.get('/api/v1/tenants/acme/upgrade-requests', () =>
+        ok([testUpgradeRequest()], 'Upgrade requests retrieved.')
+      )
+    )
+    renderAppAt('/settings/workspace/acme/billing')
+    await screen.findByRole('table', { name: 'Invoices' })
+    await screen.findByRole('heading', { name: 'Upgrade requests' })
+    await screen.findByRole('button', { name: 'Cancel Paid' })
     await expectNoViolations()
   })
 
@@ -1116,6 +1196,79 @@ describe('open overlays', () => {
     const dialog = await screen.findByRole('alertdialog')
     // Asserted directly rather than implied by a clean axe run: this catches a dropped Title.
     expect(dialog).toHaveAccessibleName('Remove Cleo D?')
+    await expectNoViolations()
+  })
+
+  it('has no violations on the locked Insights page', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme/entitlements', () =>
+        ok(
+          testEntitlements({
+            plan: { key: 'free', name: 'Free' },
+            state: 'free',
+            trialEndsAt: null,
+            features: { advanced_example: false },
+          }),
+          'Entitlements retrieved.'
+        )
+      )
+    )
+    renderAppAt('/tenants/acme/insights')
+    await screen.findByText('Included in Paid.')
+    await expectNoViolations()
+  })
+
+  it('has no violations with the cancel-Paid dialog open, and the dialog is named', async () => {
+    server.use(
+      http.get('/api/v1/tenants/acme/billing', () => ok(ACTIVE_BILLING, 'Billing retrieved.'))
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/billing')
+    await user.click(await screen.findByRole('button', { name: 'Cancel Paid' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveAccessibleName('Cancel Paid?')
+    await expectNoViolations()
+  })
+
+  it('has no violations with the trial explainer open, and the dialog is named', async () => {
+    // A workspace created an hour ago, in its 14-day trial, that this browser has not seen.
+    const createdAt = Date.now() - 60 * 60 * 1000
+    const fresh = { ...TENANT, createdAt: new Date(createdAt).toISOString() }
+    localStorage.removeItem(`billing.trial-explainer.${testUser.id}.${TENANT_ID}`)
+    server.use(
+      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(fresh, 'owner'), 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme/billing', () =>
+        ok(
+          testBilling({
+            trialEndsAt: new Date(createdAt + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          }),
+          'Billing retrieved.'
+        )
+      )
+    )
+    renderAppAt('/tenants/acme')
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveAccessibleName('You’re on a 14-day Paid trial')
+    await expectNoViolations()
+    localStorage.removeItem(`billing.trial-explainer.${testUser.id}.${TENANT_ID}`)
+  })
+
+  it('has no violations with the trial summary open, and the dialog is named', async () => {
+    const trialEndsAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    server.use(
+      http.get('/api/v1/tenants/acme/billing', () =>
+        ok(testBilling({ state: 'free', trialEndsAt }), 'Billing retrieved.')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/tenants/acme')
+    await user.click(await screen.findByRole('button', { name: 'See what changed' }))
+
+    const dialog = await screen.findByRole('dialog', { name: /^Your trial ended on / })
+    await within(dialog).findByText('Insights (Paid only)')
+    await within(dialog).findByRole('link', { name: 'Upgrade' })
     await expectNoViolations()
   })
 

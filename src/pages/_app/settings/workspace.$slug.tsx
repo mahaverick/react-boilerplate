@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router'
 import { startTenantRoute } from '@/components/features/tenant/start-tenant-route'
 import { TenantGate } from '@/components/features/tenant/tenant-gate'
 import { PageSkeleton } from '@/components/shared/page-skeleton'
@@ -26,12 +26,22 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug')({
 
 /**
  * The gate, whose panels title themselves `h2` under the settings layout's
- * `h1`, then a line naming the tenant, then the page.
+ * `h1`, then a line naming the tenant, then the page. On Billing the billing
+ * banner keeps its sentence (a grace deadline, a paused mandate, a payer who
+ * left) but not its card button or Upgrade link: the page has its own, and a
+ * second checkout flow beside it could run at the same time.
  */
 function WorkspaceSettingsLayout() {
   const { slug } = Route.useParams()
+  const onBilling =
+    useMatch({ from: '/_app/settings/workspace/$slug/billing', shouldThrow: false }) !== undefined
   return (
-    <TenantGate slug={slug} heading="h2" skeleton={<PageSkeleton variant="settings" nested />}>
+    <TenantGate
+      slug={slug}
+      heading="h2"
+      billingBannerActions={!onBilling}
+      skeleton={<PageSkeleton variant="settings" nested />}
+    >
       {(tenant) => (
         <div className="grid gap-4">
           <p className="text-sm text-muted-foreground">

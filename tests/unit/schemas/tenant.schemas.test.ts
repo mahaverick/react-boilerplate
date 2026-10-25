@@ -38,6 +38,12 @@ describe('slugSchema', () => {
     }
   })
 
+  it('rejects the billing paths the API reserves: pricing, checkout and upgrade', () => {
+    for (const reserved of ['pricing', 'checkout', 'upgrade']) {
+      expect(slugSchema.safeParse(reserved).success).toBe(false)
+    }
+  })
+
   it('rejects underscores, spaces and other punctuation', () => {
     for (const bad of ['acme_corp', 'acme corp', 'acme.corp', 'acme/corp']) {
       expect(slugSchema.safeParse(bad).success).toBe(false)

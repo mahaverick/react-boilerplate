@@ -18,6 +18,8 @@ export interface ApiErrorBody {
   code?: string
   /** Field-level validator detail: a message array per invalid field, plus `formErrors` for an issue that names no single field. */
   errors?: Record<string, string[]>
+  /** Structured detail for a refusal, e.g. `{ key, used, limit }` on a 402 `PLAN_LIMIT_REACHED`. */
+  details?: Record<string, unknown>
   requestId: string
 }
 

@@ -21,7 +21,7 @@ import { useAuthStore } from '@/states/auth.store'
 import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
-import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, tenantDetail, testBilling, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantAccess } from '@/types/api.types'
 
@@ -117,6 +117,33 @@ describe('workspace settings', () => {
       expect(router.state.location.pathname).toBe('/settings/workspace/acme/general')
     )
     expect(await screen.findByRole('heading', { level: 1, name: 'General' })).toBeInTheDocument()
+  })
+
+  it('keeps the billing banner and its card button on the other workspace pages', async () => {
+    mockTenant('owner')
+    server.use(
+      http.get('/api/v1/tenants/acme/billing', () =>
+        ok(
+          testBilling({
+            state: 'past_due',
+            interval: 'month',
+            trialEndsAt: null,
+            currentPeriodEnd: '2099-11-02T18:30:00.000Z',
+            pastDue: {
+              since: '2026-10-20T09:00:00.000Z',
+              graceEndsAt: '2026-10-27T09:00:00.000Z',
+              paused: false,
+            },
+          }),
+          'Billing retrieved.'
+        )
+      )
+    )
+    renderAppAt('/settings/workspace/acme/general')
+    expect(await screen.findByRole('button', { name: 'Update card' })).toBeInTheDocument()
+    expect(
+      screen.getByText(/Update your card by 27 October 2026 to keep Paid\./)
+    ).toBeInTheDocument()
   })
 
   it('shows the edit form and no banner to an owner', async () => {

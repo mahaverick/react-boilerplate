@@ -7,6 +7,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { createColumnHelper } from '@tanstack/react-table'
 import { createContext, useContext, useRef, useState } from 'react'
+import { MembersLimitNote } from '@/components/features/billing/members-limit-note'
+import { UsageMeter } from '@/components/features/billing/usage-meter'
 import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
 import { InviteMemberForm } from '@/components/features/tenant/invite-member-form'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
@@ -56,6 +58,7 @@ import { fullName } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
 import { analyticsKey } from '@/observability/telemetry'
+import { useLimit } from '@/queries/billing.queries'
 import {
   dropTenantCache,
   isMemberNotFound,
@@ -637,6 +640,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
     retry,
   } = useMyRole(slug)
   const isStaffView = access === 'platform'
+  const membersUsage = useLimit(slug, 'members')
   // Only an owner can act on an owner row (remove, demote or leave as one), so only an owner needs the count.
   const owners = useQuery({
     ...ownersQueryOptions(slug),
@@ -682,6 +686,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
             </h2>
           </CardTitle>
           <CardDescription>Everyone with access to this tenant.</CardDescription>
+          {membersUsage && <UsageMeter label="Members" usage={membersUsage} />}
           {isStaffView && myRole && canManageTenant(myRole) && (
             <p className="text-sm text-muted-foreground">{STAFF_VIEW}</p>
           )}
@@ -747,7 +752,8 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
                 Someone with an account gets a sign-in link to confirm.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="grid gap-4">
+              <MembersLimitNote slug={slug} />
               <InviteMemberForm slug={slug} myRole={myRole} />
             </CardContent>
           </Card>

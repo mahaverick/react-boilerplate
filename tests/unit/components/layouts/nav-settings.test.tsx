@@ -89,6 +89,7 @@ describe('NavSettings', () => {
       'Notifications',
       'General',
       'Members',
+      'Billing',
       'Activity',
     ])
     expect(within(nav).getByRole('link', { name: 'Back to app' })).toHaveAttribute(
@@ -163,7 +164,7 @@ describe('NavSettings', () => {
     renderNavAt('/settings/account/profile')
 
     const nav = await screen.findByRole('navigation', { name: 'Settings' })
-    for (const name of ['General', 'Members', 'Activity']) {
+    for (const name of ['General', 'Members', 'Billing', 'Activity']) {
       expect(within(nav).queryByRole('link', { name })).not.toBeInTheDocument()
       expect(within(nav).getByRole('button', { name })).toHaveAttribute('aria-disabled', 'true')
     }
@@ -178,7 +179,7 @@ describe('NavSettings', () => {
     const nav = await screen.findByRole('navigation', { name: 'Settings' })
     const hint = within(nav).getByText('Choose a tenant first.')
     expect(hint.id).not.toBe('')
-    for (const name of ['General', 'Members', 'Activity']) {
+    for (const name of ['General', 'Members', 'Billing', 'Activity']) {
       const item = within(nav).getByRole('button', { name })
       expect(item).toHaveAttribute('aria-describedby', hint.id)
       expect(item).toHaveAccessibleDescription('Choose a tenant first.')

@@ -14,6 +14,7 @@ import { Route as SplatRouteImport } from './pages/$'
 import { Route as AppRouteImport } from './pages/_app'
 import { Route as AuthRouteImport } from './pages/_auth'
 import { Route as ForgotPasswordRouteImport } from './pages/forgot-password'
+import { Route as PricingRouteImport } from './pages/pricing'
 import { Route as RegisterRouteImport } from './pages/register'
 import { Route as ResetPasswordRouteImport } from './pages/reset-password'
 import { Route as VerifyEmailRouteImport } from './pages/verify-email'
@@ -39,10 +40,12 @@ import { Route as AppSettingsWorkspaceSlugRouteImport } from './pages/_app/setti
 import { Route as AppTenantsSlugIndexRouteImport } from './pages/_app/tenants/$slug.index'
 import { Route as AppTenantsSlugActivityRouteImport } from './pages/_app/tenants/$slug.activity'
 import { Route as AppTenantsSlugBetaRouteImport } from './pages/_app/tenants/$slug.beta'
+import { Route as AppTenantsSlugInsightsRouteImport } from './pages/_app/tenants/$slug.insights'
 import { Route as AppTenantsSlugMembersRouteImport } from './pages/_app/tenants/$slug.members'
 import { Route as AppTenantsSlugSettingsRouteImport } from './pages/_app/tenants/$slug.settings'
 import { Route as AppSettingsWorkspaceSlugIndexRouteImport } from './pages/_app/settings/workspace.$slug.index'
 import { Route as AppSettingsWorkspaceSlugActivityRouteImport } from './pages/_app/settings/workspace.$slug.activity'
+import { Route as AppSettingsWorkspaceSlugBillingRouteImport } from './pages/_app/settings/workspace.$slug.billing'
 import { Route as AppSettingsWorkspaceSlugGeneralRouteImport } from './pages/_app/settings/workspace.$slug.general'
 import { Route as AppSettingsWorkspaceSlugMembersRouteImport } from './pages/_app/settings/workspace.$slug.members'
 
@@ -67,6 +70,11 @@ const AuthRoute = AuthRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -198,6 +206,11 @@ const AppTenantsSlugBetaRoute = AppTenantsSlugBetaRouteImport.update({
   path: '/beta',
   getParentRoute: () => AppTenantsSlugRoute,
 } as any)
+const AppTenantsSlugInsightsRoute = AppTenantsSlugInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => AppTenantsSlugRoute,
+} as any)
 const AppTenantsSlugMembersRoute = AppTenantsSlugMembersRouteImport.update({
   id: '/members',
   path: '/members',
@@ -220,6 +233,12 @@ const AppSettingsWorkspaceSlugActivityRoute =
     path: '/activity',
     getParentRoute: () => AppSettingsWorkspaceSlugRoute,
   } as any)
+const AppSettingsWorkspaceSlugBillingRoute =
+  AppSettingsWorkspaceSlugBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => AppSettingsWorkspaceSlugRoute,
+  } as any)
 const AppSettingsWorkspaceSlugGeneralRoute =
   AppSettingsWorkspaceSlugGeneralRouteImport.update({
     id: '/general',
@@ -237,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
@@ -260,11 +280,13 @@ export interface FileRoutesByFullPath {
   '/settings/workspace/$slug': typeof AppSettingsWorkspaceSlugRouteWithChildren
   '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
+  '/tenants/$slug/insights': typeof AppTenantsSlugInsightsRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
   '/settings/account/': typeof AppSettingsAccountIndexRoute
   '/tenants/$slug/': typeof AppTenantsSlugIndexRoute
   '/settings/workspace/$slug/activity': typeof AppSettingsWorkspaceSlugActivityRoute
+  '/settings/workspace/$slug/billing': typeof AppSettingsWorkspaceSlugBillingRoute
   '/settings/workspace/$slug/general': typeof AppSettingsWorkspaceSlugGeneralRoute
   '/settings/workspace/$slug/members': typeof AppSettingsWorkspaceSlugMembersRoute
   '/settings/workspace/$slug/': typeof AppSettingsWorkspaceSlugIndexRoute
@@ -273,6 +295,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
@@ -293,11 +316,13 @@ export interface FileRoutesByTo {
   '/settings/account/security': typeof AppSettingsAccountSecurityRoute
   '/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
+  '/tenants/$slug/insights': typeof AppTenantsSlugInsightsRoute
   '/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
   '/settings/account': typeof AppSettingsAccountIndexRoute
   '/tenants/$slug': typeof AppTenantsSlugIndexRoute
   '/settings/workspace/$slug/activity': typeof AppSettingsWorkspaceSlugActivityRoute
+  '/settings/workspace/$slug/billing': typeof AppSettingsWorkspaceSlugBillingRoute
   '/settings/workspace/$slug/general': typeof AppSettingsWorkspaceSlugGeneralRoute
   '/settings/workspace/$slug/members': typeof AppSettingsWorkspaceSlugMembersRoute
   '/settings/workspace/$slug': typeof AppSettingsWorkspaceSlugIndexRoute
@@ -309,6 +334,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
+  '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
@@ -332,11 +358,13 @@ export interface FileRoutesById {
   '/_app/settings/workspace/$slug': typeof AppSettingsWorkspaceSlugRouteWithChildren
   '/_app/tenants/$slug/activity': typeof AppTenantsSlugActivityRoute
   '/_app/tenants/$slug/beta': typeof AppTenantsSlugBetaRoute
+  '/_app/tenants/$slug/insights': typeof AppTenantsSlugInsightsRoute
   '/_app/tenants/$slug/members': typeof AppTenantsSlugMembersRoute
   '/_app/tenants/$slug/settings': typeof AppTenantsSlugSettingsRoute
   '/_app/settings/account/': typeof AppSettingsAccountIndexRoute
   '/_app/tenants/$slug/': typeof AppTenantsSlugIndexRoute
   '/_app/settings/workspace/$slug/activity': typeof AppSettingsWorkspaceSlugActivityRoute
+  '/_app/settings/workspace/$slug/billing': typeof AppSettingsWorkspaceSlugBillingRoute
   '/_app/settings/workspace/$slug/general': typeof AppSettingsWorkspaceSlugGeneralRoute
   '/_app/settings/workspace/$slug/members': typeof AppSettingsWorkspaceSlugMembersRoute
   '/_app/settings/workspace/$slug/': typeof AppSettingsWorkspaceSlugIndexRoute
@@ -347,6 +375,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/forgot-password'
+    | '/pricing'
     | '/register'
     | '/reset-password'
     | '/verify-email'
@@ -370,11 +399,13 @@ export interface FileRouteTypes {
     | '/settings/workspace/$slug'
     | '/tenants/$slug/activity'
     | '/tenants/$slug/beta'
+    | '/tenants/$slug/insights'
     | '/tenants/$slug/members'
     | '/tenants/$slug/settings'
     | '/settings/account/'
     | '/tenants/$slug/'
     | '/settings/workspace/$slug/activity'
+    | '/settings/workspace/$slug/billing'
     | '/settings/workspace/$slug/general'
     | '/settings/workspace/$slug/members'
     | '/settings/workspace/$slug/'
@@ -383,6 +414,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/forgot-password'
+    | '/pricing'
     | '/register'
     | '/reset-password'
     | '/verify-email'
@@ -403,11 +435,13 @@ export interface FileRouteTypes {
     | '/settings/account/security'
     | '/tenants/$slug/activity'
     | '/tenants/$slug/beta'
+    | '/tenants/$slug/insights'
     | '/tenants/$slug/members'
     | '/tenants/$slug/settings'
     | '/settings/account'
     | '/tenants/$slug'
     | '/settings/workspace/$slug/activity'
+    | '/settings/workspace/$slug/billing'
     | '/settings/workspace/$slug/general'
     | '/settings/workspace/$slug/members'
     | '/settings/workspace/$slug'
@@ -418,6 +452,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/_auth'
     | '/forgot-password'
+    | '/pricing'
     | '/register'
     | '/reset-password'
     | '/verify-email'
@@ -441,11 +476,13 @@ export interface FileRouteTypes {
     | '/_app/settings/workspace/$slug'
     | '/_app/tenants/$slug/activity'
     | '/_app/tenants/$slug/beta'
+    | '/_app/tenants/$slug/insights'
     | '/_app/tenants/$slug/members'
     | '/_app/tenants/$slug/settings'
     | '/_app/settings/account/'
     | '/_app/tenants/$slug/'
     | '/_app/settings/workspace/$slug/activity'
+    | '/_app/settings/workspace/$slug/billing'
     | '/_app/settings/workspace/$slug/general'
     | '/_app/settings/workspace/$slug/members'
     | '/_app/settings/workspace/$slug/'
@@ -457,6 +494,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
@@ -503,6 +541,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -680,6 +725,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTenantsSlugBetaRouteImport
       parentRoute: typeof AppTenantsSlugRoute
     }
+    '/_app/tenants/$slug/insights': {
+      id: '/_app/tenants/$slug/insights'
+      path: '/insights'
+      fullPath: '/tenants/$slug/insights'
+      preLoaderRoute: typeof AppTenantsSlugInsightsRouteImport
+      parentRoute: typeof AppTenantsSlugRoute
+    }
     '/_app/tenants/$slug/members': {
       id: '/_app/tenants/$slug/members'
       path: '/members'
@@ -708,6 +760,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsWorkspaceSlugActivityRouteImport
       parentRoute: typeof AppSettingsWorkspaceSlugRoute
     }
+    '/_app/settings/workspace/$slug/billing': {
+      id: '/_app/settings/workspace/$slug/billing'
+      path: '/billing'
+      fullPath: '/settings/workspace/$slug/billing'
+      preLoaderRoute: typeof AppSettingsWorkspaceSlugBillingRouteImport
+      parentRoute: typeof AppSettingsWorkspaceSlugRoute
+    }
     '/_app/settings/workspace/$slug/general': {
       id: '/_app/settings/workspace/$slug/general'
       path: '/general'
@@ -727,6 +786,7 @@ declare module '@tanstack/react-router' {
 
 interface AppSettingsWorkspaceSlugRouteChildren {
   AppSettingsWorkspaceSlugActivityRoute: typeof AppSettingsWorkspaceSlugActivityRoute
+  AppSettingsWorkspaceSlugBillingRoute: typeof AppSettingsWorkspaceSlugBillingRoute
   AppSettingsWorkspaceSlugGeneralRoute: typeof AppSettingsWorkspaceSlugGeneralRoute
   AppSettingsWorkspaceSlugMembersRoute: typeof AppSettingsWorkspaceSlugMembersRoute
   AppSettingsWorkspaceSlugIndexRoute: typeof AppSettingsWorkspaceSlugIndexRoute
@@ -736,6 +796,7 @@ const AppSettingsWorkspaceSlugRouteChildren: AppSettingsWorkspaceSlugRouteChildr
   {
     AppSettingsWorkspaceSlugActivityRoute:
       AppSettingsWorkspaceSlugActivityRoute,
+    AppSettingsWorkspaceSlugBillingRoute: AppSettingsWorkspaceSlugBillingRoute,
     AppSettingsWorkspaceSlugGeneralRoute: AppSettingsWorkspaceSlugGeneralRoute,
     AppSettingsWorkspaceSlugMembersRoute: AppSettingsWorkspaceSlugMembersRoute,
     AppSettingsWorkspaceSlugIndexRoute: AppSettingsWorkspaceSlugIndexRoute,
@@ -771,6 +832,7 @@ const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
 interface AppTenantsSlugRouteChildren {
   AppTenantsSlugActivityRoute: typeof AppTenantsSlugActivityRoute
   AppTenantsSlugBetaRoute: typeof AppTenantsSlugBetaRoute
+  AppTenantsSlugInsightsRoute: typeof AppTenantsSlugInsightsRoute
   AppTenantsSlugMembersRoute: typeof AppTenantsSlugMembersRoute
   AppTenantsSlugSettingsRoute: typeof AppTenantsSlugSettingsRoute
   AppTenantsSlugIndexRoute: typeof AppTenantsSlugIndexRoute
@@ -779,6 +841,7 @@ interface AppTenantsSlugRouteChildren {
 const AppTenantsSlugRouteChildren: AppTenantsSlugRouteChildren = {
   AppTenantsSlugActivityRoute: AppTenantsSlugActivityRoute,
   AppTenantsSlugBetaRoute: AppTenantsSlugBetaRoute,
+  AppTenantsSlugInsightsRoute: AppTenantsSlugInsightsRoute,
   AppTenantsSlugMembersRoute: AppTenantsSlugMembersRoute,
   AppTenantsSlugSettingsRoute: AppTenantsSlugSettingsRoute,
   AppTenantsSlugIndexRoute: AppTenantsSlugIndexRoute,
@@ -824,6 +887,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,

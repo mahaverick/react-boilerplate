@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import type { MembershipRole } from '@/constants/roles'
 import type { ClientFlagValues } from '@/observability/flags/flag-types'
+import { testBilling, testEntitlements, testPlans } from '@/tests/fixtures/billing'
 import { INVITATION_ID, USER_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
 import type {
@@ -11,6 +12,8 @@ import type {
   TenantOnboarding,
   User,
 } from '@/types/api.types'
+
+export { testBilling, testEntitlements, testPlans } from '@/tests/fixtures/billing'
 
 /** The signed-in user every authenticated test runs as; `GET /profile` answers with it. */
 export const testUser: User = {
@@ -142,11 +145,21 @@ export function ok<T>(data: T, message = 'OK', statusCode = 200) {
   return HttpResponse.json({ success: true, message, statusCode, data }, { status: statusCode })
 }
 
-/** A failed API envelope with a fixed `requestId`, for a test that needs the server to refuse. */
-export function fail(message: string, statusCode: number, code?: string) {
+/**
+ * A failed API envelope with a fixed `requestId`, for a test that needs the server to refuse.
+ * `details` is the envelope's structured detail (a 402's `{ key, used, limit }`); `headers`
+ * are response headers, such as `Retry-After`.
+ */
+export function fail(
+  message: string,
+  statusCode: number,
+  code?: string,
+  details?: Record<string, unknown>,
+  headers?: Record<string, string>
+) {
   return HttpResponse.json(
-    { success: false, message, statusCode, code, requestId: 'test-request-id' },
-    { status: statusCode }
+    { success: false, message, statusCode, code, details, requestId: 'test-request-id' },
+    { status: statusCode, headers }
   )
 }
 
@@ -313,6 +326,35 @@ export const handlers = [
   http.post('/api/v1/tenants/:slug/flags/exposures', () => new HttpResponse(null, { status: 204 })),
   // Tenant audit log, empty. A test about activity overrides it.
   http.get('/api/v1/tenants/:slug/audit-log', () => ok(listPage([]), 'Audit log retrieved.')),
+  /**
+   * Billing: the public plans, and a workspace in its Paid trial with 9 days left and 2 of
+   * unlimited members. A test about another plan or state overrides these.
+   */
+  http.get('/api/v1/plans', () => ok(testPlans, 'Plans retrieved.')),
+  http.get('/api/v1/tenants/:slug/entitlements', () =>
+    ok(testEntitlements(), 'Entitlements retrieved.')
+  ),
+  http.get('/api/v1/tenants/:slug/billing', () => ok(testBilling(), 'Billing retrieved.')),
+  // The owner's Billing page: no invoices and no upgrade requests yet.
+  http.get('/api/v1/tenants/:slug/billing/invoices', () => ok(listPage([]), 'Invoices retrieved.')),
+  http.get('/api/v1/tenants/:slug/upgrade-requests', () => ok([], 'Upgrade requests retrieved.')),
+  // The Insights page's counts; a test about a Free workspace or a 402 overrides this.
+  http.get('/api/v1/tenants/:slug/insights', () =>
+    ok({ membersJoinedLast30Days: 4, invitationsSentLast30Days: 7 }, 'Insights retrieved.')
+  ),
+  // Read for the billing banner's dates; UTC, which a test about another zone overrides.
+  http.get('/api/v1/tenants/:slug/settings', ({ params }) =>
+    ok(
+      {
+        tenantId: `tenant-${String(params.slug)}`,
+        timezone: 'UTC',
+        locale: 'en-US',
+        metadata: null,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      'Settings retrieved.'
+    )
+  ),
   // Read by the root route on every mount; no maintenance, which a test about maintenance overrides.
   http.get('/api/v1/status/maintenance', () =>
     ok({ mode: 'off', message: null, since: null }, 'Maintenance status retrieved.')

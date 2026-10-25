@@ -13,8 +13,25 @@ import { setupWorker } from 'msw/browser'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@/styles/globals.css'
+import type { RazorpayOptions } from '@/lib/razorpay-checkout'
 import { queryClient, router } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
+import type {
+  BillingInterval,
+  CheckoutSession,
+  TenantBilling,
+  TenantEntitlements,
+  UpgradeSurface,
+} from '@/types/billing.types'
+import {
+  BILLING_STATES,
+  billingState,
+  membersUsage,
+  testEntitlements,
+  testPlans,
+  testUpgradeRequest,
+  type BillingStateName,
+} from '../../tests/fixtures/billing'
 import {
   AUDIT_ID_1,
   AUDIT_ID_2,
@@ -116,6 +133,16 @@ const NOTIFICATIONS = [
     readAt: '2026-01-02T10:00:00.000Z',
     createdAt: '2026-01-02T08:00:00.000Z',
   },
+  {
+    id: '00000000-0000-4000-8000-0000000000b1',
+    userId: USER_ID,
+    type: 'billing_payment_failed',
+    title: 'Your payment of ₹999 failed',
+    body: 'Update your card to keep Paid.',
+    metadata: { tenantId: TENANT_ID, slug: 'acme' },
+    readAt: null,
+    createdAt: '2026-01-02T07:00:00.000Z',
+  },
 ]
 
 /** The tenant owner as the audit log names them. */
@@ -124,6 +151,12 @@ const AUDIT_ACTOR = { id: USER_ID, name: 'A B', email: 'a@b.com' }
 const PREFERENCES = [
   { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
   { notificationType: 'maintenance_mode_changed', emailEnabled: true, inAppEnabled: false },
+  { notificationType: 'billing_trial_ending', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_payment_failed', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_payer_left', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_upgrade_requested', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_paid_cancelled', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'workspace_full', emailEnabled: true, inAppEnabled: true },
 ]
 
 /**
@@ -301,9 +334,9 @@ const confirmMode = params.get('confirm') ?? 'ok'
 
 /**
  * `?state=` picks what the members endpoint answers: `loaded` (the default),
- * `empty`, `error`, `loading` or `soleowner`. `viewer` or `admin` makes the
- * harness user that role in `acme`, with Cleo D its owner, so their own row
- * offers Leave. `suspended` lists the tenant as suspended and 404s its detail,
+ * `empty`, `error`, `loading` or `soleowner`. `viewer`, `editor` or `admin`
+ * makes the harness user that role in `acme`, with Cleo D its owner, so their
+ * own row offers Leave. `suspended` lists the tenant as suspended and 404s its detail,
  * as the API does.
  */
 const state = new URLSearchParams(location.search).get('state') ?? 'loaded'
@@ -333,8 +366,8 @@ const MORE_TENANTS = manyTenants
 
 const SOLE_OWNER = [MEMBERS[0]]
 
-/** The harness user's role in `acme` for `?state=viewer|admin`; Cleo D is then the owner. */
-const selfRole = state === 'viewer' || state === 'admin' ? state : null
+/** The harness user's role in `acme` for `?state=viewer|editor|admin`; Cleo D is then the owner. */
+const selfRole = state === 'viewer' || state === 'editor' || state === 'admin' ? state : null
 const NON_OWNER_MEMBERS = MEMBERS.map((entry, index) => ({
   ...entry,
   membership: { ...entry.membership, role: index === 0 ? (selfRole ?? 'owner') : 'owner' },
@@ -636,6 +669,302 @@ const passkeyHandlers = [
   }),
 ]
 
+/**
+ * `?billing=` picks the billing state every tenant reads (`trialing`, the
+ * default: a Paid trial with 9 days left), from `BILLING_STATES` in
+ * `tests/fixtures/billing.ts`. `payments_off` also turns payments off in
+ * `GET /plans`. `?members=N` sets how many members the members limit counts.
+ * The billing writes change the state the next reads answer, as express does,
+ * so a flow can be followed to its end. Under `?pii=probe` the payer, the
+ * payer who left and the billing email are the probe's, and two probe members
+ * have asked to upgrade.
+ */
+const billingParam = params.get('billing') ?? 'trialing'
+const billingName: BillingStateName = BILLING_STATES.includes(billingParam as BillingStateName)
+  ? (billingParam as BillingStateName)
+  : 'trialing'
+const piiProbe = params.get('pii') === 'probe'
+const billingFixture = billingState(
+  billingName,
+  piiProbe
+    ? { payerName: 'Pii Probe', formerPayerName: 'Pii Probe', billingEmail: PROBE_EMAIL }
+    : undefined
+)
+let billingView: TenantBilling = billingFixture.billing
+let entitlementsView: TenantEntitlements = billingFixture.entitlements
+const membersParam = params.get('members')
+if (membersParam !== null && /^\d+$/.test(membersParam)) {
+  const members = entitlementsView.limits.members ?? membersUsage(0, null)
+  entitlementsView = {
+    ...entitlementsView,
+    limits: {
+      ...entitlementsView.limits,
+      members: membersUsage(Number(membersParam), members.limit),
+    },
+  }
+}
+const PLANS = { ...testPlans, paymentsEnabled: billingFixture.paymentsEnabled }
+const UPGRADE_REQUESTS = piiProbe
+  ? [
+      testUpgradeRequest({ requestedBy: { userId: USER_ID_2, name: 'Pii Probe' } }),
+      testUpgradeRequest({
+        id: 'upgrade-request-2',
+        requestedBy: { userId: USER_ID, name: 'Pii Probe' },
+        createdAt: '2026-10-21T09:00:00.000Z',
+      }),
+    ]
+  : []
+
+/** The period end a Paid subscription started in the harness runs to: "25 November 2026". */
+const NEW_PERIOD_END = '2026-11-25T10:00:00.000Z'
+
+/** The checkout the last start, switch or card-change write opened, which the confirm completes. */
+let pendingCheckout: CheckoutSession | null = null
+
+/**
+ * A checkout session as express answers it. The first charge is deferred to
+ * the trial's end for an upgrade during the trial, and to the period's end for
+ * a switch or Paid again while cancelling.
+ */
+function checkoutSession(
+  purpose: CheckoutSession['purpose'],
+  interval: BillingInterval
+): CheckoutSession {
+  const price = PLANS.plans[1]!.prices.find((row) => row.interval === interval)!
+  const startsAt =
+    purpose === 'upgrade' && billingView.state === 'trialing'
+      ? billingView.trialEndsAt
+      : purpose === 'switch' || (purpose === 'upgrade' && billingView.cancelAtPeriodEnd)
+        ? billingView.currentPeriodEnd
+        : null
+  pendingCheckout = {
+    purpose,
+    keyId: 'rzp_test_harness',
+    subscriptionId: `sub_harness_${purpose}`,
+    amountMinor: price.amountMinor,
+    currency: 'INR',
+    interval,
+    startsAt,
+    prefill: { name: `${testUser.firstName} ${testUser.lastName}`, email: testUser.email },
+  }
+  return pendingCheckout
+}
+
+/** The interval a checkout write asked for, or `null` for a body the contract refuses. */
+async function intervalOf(request: Request): Promise<BillingInterval | null> {
+  const body = (await request
+    .clone()
+    .json()
+    .catch(() => null)) as { interval?: unknown } | null
+  return body?.interval === 'month' || body?.interval === 'year' ? body.interval : null
+}
+
+/** Every upgrade surface express's `UPGRADE_SURFACES` lists; the record makes a missing one a type error. */
+const UPGRADE_SURFACE_SET: Record<UpgradeSurface, true> = {
+  limit: true,
+  feature: true,
+  banner: true,
+  billing_page: true,
+  pricing: true,
+}
+
+/**
+ * A 400 when an upgrade request's body is not express's strict
+ * `{ key?, surface }`: a known surface, and a catalog key when there is one;
+ * else `null`.
+ */
+async function wrongUpgradeRequest(request: Request) {
+  const body = (await request
+    .clone()
+    .json()
+    .catch(() => null)) as Record<string, unknown> | null
+  const keys = body === null || typeof body !== 'object' ? [] : Object.keys(body)
+  const valid =
+    body !== null &&
+    keys.every((key) => key === 'key' || key === 'surface') &&
+    typeof body.surface === 'string' &&
+    Object.hasOwn(UPGRADE_SURFACE_SET, body.surface) &&
+    (!('key' in body) || testPlans.catalog.some((entry) => entry.key === body.key))
+  return valid ? null : fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
+}
+
+/** Moves the workspace onto Free, as a cancel of a past-due subscription does. */
+function moveToFree(): void {
+  const free = billingState('free')
+  billingView = { ...free.billing, paymentsEnabled: billingView.paymentsEnabled }
+  entitlementsView = free.entitlements
+}
+
+/** The confirm's effect on the view, by what the pending checkout was for. */
+function applyCheckout(session: CheckoutSession): void {
+  if (session.purpose === 'card_change') return
+  if (session.purpose === 'switch' || billingView.cancelAtPeriodEnd) {
+    billingView = {
+      ...billingView,
+      nextSwitch: { interval: session.interval, startsAt: session.startsAt ?? NEW_PERIOD_END },
+    }
+    return
+  }
+  const price = PLANS.plans[1]!.prices.find((row) => row.interval === session.interval)!
+  const trialEndsAt = billingView.state === 'trialing' ? billingView.trialEndsAt : null
+  billingView = {
+    ...billingView,
+    state: 'active',
+    plan: { key: 'paid', name: 'Paid' },
+    interval: session.interval,
+    price,
+    trialEndsAt,
+    currentPeriodEnd: trialEndsAt ?? NEW_PERIOD_END,
+    cancelAtPeriodEnd: false,
+    pastDue: null,
+    nextSwitch: null,
+    payer: {
+      userId: testUser.id,
+      name: `${testUser.firstName} ${testUser.lastName}`,
+      isMember: true,
+    },
+    billingEmail: testUser.email,
+  }
+  entitlementsView = testEntitlements({
+    state: 'active',
+    trialEndsAt,
+    currentPeriodEnd: billingView.currentPeriodEnd,
+  })
+}
+
+/** Handlers for the billing contract's tenant routes, reading and changing the state above. */
+const billingHandlers = [
+  // Every tenant reads the same state; unmocked, these 401 and sign the harness user out.
+  http.get('/api/v1/plans', () => ok(PLANS, 'Plans retrieved.')),
+  http.get('/api/v1/tenants/:slug/entitlements', () =>
+    ok(entitlementsView, 'Entitlements retrieved.')
+  ),
+  http.get('/api/v1/tenants/:slug/billing', () => ok(billingView, 'Billing retrieved.')),
+  // The owner's Billing page: no invoices; upgrade requests only under the PII probe.
+  http.get('/api/v1/tenants/:slug/billing/invoices', () => ok(listPage([]), 'Invoices retrieved.')),
+  http.get('/api/v1/tenants/:slug/upgrade-requests', () =>
+    ok(UPGRADE_REQUESTS, 'Upgrade requests retrieved.')
+  ),
+  http.post('/api/v1/tenants/:slug/upgrade-requests', async ({ request }) => {
+    const malformed = await wrongUpgradeRequest(request)
+    if (malformed) return malformed
+    return ok(
+      {
+        id: 'upgrade-request-harness',
+        createdAt: new Date().toISOString(),
+        alreadyRequested: false,
+      },
+      'Request sent.',
+      201
+    )
+  }),
+  http.post('/api/v1/tenants/:slug/banner-dismissals', async ({ request }) => {
+    const malformed = await wrongBody(request, { banner: 'trial_ended' })
+    if (malformed) return malformed
+    billingView = {
+      ...billingView,
+      dismissedBanners: [...billingView.dismissedBanners, 'trial_ended'],
+    }
+    return ok(null, 'Banner dismissed.')
+  }),
+  http.post('/api/v1/tenants/:slug/billing/checkout', async ({ request }) => {
+    const interval = await intervalOf(request)
+    if (interval === null) {
+      return fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
+    }
+    return ok(checkoutSession('upgrade', interval), 'Checkout started.')
+  }),
+  http.post('/api/v1/tenants/:slug/billing/interval', async ({ request }) => {
+    const interval = await intervalOf(request)
+    if (interval === null) {
+      return fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
+    }
+    return ok(checkoutSession('switch', interval), 'Switch started.')
+  }),
+  http.post('/api/v1/tenants/:slug/billing/payment-method', () =>
+    ok(checkoutSession('card_change', billingView.interval ?? 'month'), 'Card change started.')
+  ),
+  http.post('/api/v1/tenants/:slug/billing/checkout/confirm', async ({ request }) => {
+    const body = (await request.json()) as { razorpay_subscription_id?: unknown }
+    const session = pendingCheckout
+    if (session === null || body.razorpay_subscription_id !== session.subscriptionId) {
+      return fail(
+        'This payment doesn’t match the checkout we started. Try again.',
+        400,
+        'CHECKOUT_MISMATCH'
+      )
+    }
+    pendingCheckout = null
+    applyCheckout(session)
+    return ok(billingView, 'Checkout confirmed.')
+  }),
+  http.post('/api/v1/tenants/:slug/billing/cancel', () => {
+    if (billingView.state === 'past_due') {
+      moveToFree()
+    } else if (
+      billingView.trialEndsAt !== null &&
+      Date.parse(billingView.trialEndsAt) > Date.now()
+    ) {
+      // Before the first charge, the workspace goes back to its trial, as express's endCancelled leaves it.
+      billingView = {
+        ...billingView,
+        state: 'trialing',
+        interval: null,
+        price: null,
+        payer: null,
+        currentPeriodEnd: null,
+        nextSwitch: null,
+      }
+      entitlementsView = { ...entitlementsView, state: 'trialing', currentPeriodEnd: null }
+    } else {
+      billingView = { ...billingView, cancelAtPeriodEnd: true, nextSwitch: null }
+      entitlementsView = { ...entitlementsView, cancelAtPeriodEnd: true }
+    }
+    return ok(billingView, 'Paid cancelled.')
+  }),
+]
+
+/** The Checkout options that are callbacks, which the fake leaves out of what it records. */
+const CALLBACKS = new Set(['handler', 'modal'])
+
+/**
+ * `?razorpay=fake` installs a `window.Razorpay` in place of Razorpay's
+ * script: `open()` records its options on `window.razorpayFakeOpened` and
+ * hands the handler a fixed payment for the session's subscription at once,
+ * as a successful Checkout does. Without it, Checkout loads Razorpay's real
+ * script.
+ */
+if (params.get('razorpay') === 'fake') {
+  const opened: Record<string, unknown>[] = []
+  Object.assign(window, { razorpayFakeOpened: opened })
+  window.Razorpay = class FakeRazorpay {
+    readonly #options: RazorpayOptions
+
+    constructor(options: RazorpayOptions) {
+      this.#options = options
+    }
+
+    /** The fake never fails a payment, so its listeners never run. */
+    on(): void {}
+
+    /** Records the options and completes the payment. */
+    open(): void {
+      opened.push(
+        Object.fromEntries(
+          Object.entries(this.#options).filter(([option]) => !CALLBACKS.has(option))
+        )
+      )
+      queueMicrotask(() => {
+        this.#options.handler({
+          razorpay_payment_id: 'pay_harness',
+          razorpay_subscription_id: this.#options.subscription_id,
+          razorpay_signature: 'harness-signature',
+        })
+      })
+    }
+  }
+}
+
 const worker = setupWorker(
   ...sectionHandlers,
   ...passkeyHandlers,
@@ -779,7 +1108,25 @@ const worker = setupWorker(
       'Signed in.'
     )
   }),
-  http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
+  // Acme's settings; any other tenant's are the defaults in UTC, which the billing banner dates by.
+  http.get('/api/v1/tenants/:slug/settings', ({ params }) =>
+    ok(
+      params.slug === 'acme'
+        ? SETTINGS
+        : {
+            ...SETTINGS,
+            tenantId: `harness-${String(params.slug)}`,
+            timezone: 'UTC',
+            metadata: null,
+          },
+      'Settings retrieved.'
+    )
+  ),
+  ...billingHandlers,
+  // The Insights tab's counts, keyed by :slug; unmocked, this 401s and signs the harness user out.
+  http.get('/api/v1/tenants/:slug/insights', () =>
+    ok({ membersJoinedLast30Days: 4, invitationsSentLast30Days: 7 }, 'Insights retrieved.')
+  ),
   // Every overview mounts the Getting started card, staff's included; unmocked, it 401s and signs the harness user out.
   http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
   http.get('/api/v1/tenants/acme/audit-log', () =>

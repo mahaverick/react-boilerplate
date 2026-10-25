@@ -7,6 +7,7 @@ import {
   IconActivity,
   IconBell,
   IconBuilding,
+  IconCreditCard,
   IconShieldLock,
   IconUser,
   IconUsers,
@@ -43,6 +44,7 @@ export type AccountSettingsPath =
 export type WorkspaceSettingsPath =
   | '/settings/workspace/$slug/general'
   | '/settings/workspace/$slug/members'
+  | '/settings/workspace/$slug/billing'
   | '/settings/workspace/$slug/activity'
 
 /** One settings page: where it lives, what it is called, and its group. */
@@ -87,6 +89,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     label: 'Members',
     description: 'Members, roles and pending invitations.',
     Icon: IconUsers,
+  },
+  {
+    group: 'workspace',
+    to: '/settings/workspace/$slug/billing',
+    label: 'Billing',
+    description: 'Plan, usage, card and invoices.',
+    Icon: IconCreditCard,
   },
   {
     group: 'workspace',
