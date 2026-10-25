@@ -47,6 +47,7 @@ const BILLING_URL = '/api/v1/tenants/acme/billing'
 const PAST_DUE: Partial<TenantBilling> = {
   state: 'past_due',
   interval: 'month',
+  trialEndsAt: null,
   price: { id: 'price-month', interval: 'month', amountMinor: 99900, currency: 'INR' },
   pastDue: {
     since: '2026-11-01T20:00:00.000Z',
@@ -230,6 +231,7 @@ describe('BillingBanner, owner actions', () => {
   it('shows the checkout flow’s message while it waits', async () => {
     vi.spyOn(checkoutFlow, 'useCheckoutFlow').mockReturnValue({
       start: vi.fn(async () => {}),
+      clear: vi.fn(),
       status: 'waiting',
       message: 'Card received. We’re confirming it with Razorpay.',
     })

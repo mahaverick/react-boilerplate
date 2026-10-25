@@ -77,6 +77,26 @@ const CARD_WAITING_MESSAGE = 'Card received. We’re confirming it with Razorpay
 const SCRIPT_MESSAGE = 'We couldn’t open the payment window. Check your connection and try again.'
 
 /**
+ * What a billing view says about the subscription, as one comparable string:
+ * the state, the plan, the interval, the dates and the payment trouble. A
+ * dismissed banner or a new payer does not change it.
+ * @param billing - The view, or nothing while it is unread.
+ */
+function subscriptionKey(billing: TenantBilling | null | undefined): string {
+  if (!billing) return ''
+  return JSON.stringify([
+    billing.state,
+    billing.plan.key,
+    billing.interval,
+    billing.trialEndsAt,
+    billing.currentPeriodEnd,
+    billing.cancelAtPeriodEnd,
+    billing.nextSwitch,
+    billing.pastDue,
+  ])
+}
+
+/**
  * Whether a billing view shows the change took.
  * @param goal - What the flow waits for.
  * @param billing - The view to check.
@@ -177,8 +197,11 @@ function successMessage(attempt: Attempt, billing: TenantBilling, timeZone: stri
  * server could not answer, or a change that does not show in time, leaves the
  * flow `waiting`: the webhook still lands, and the flow finishes when the
  * billing view shows it. Refusals set `message` to the server's sentence.
+ * An error line, or a card change's waiting line, clears itself once the
+ * billing view's subscription changes (a cancel, a move to Free, a webhook),
+ * and `clear` drops it when another billing action starts.
  * @param slug - The tenant.
- * @returns `start`, the `status`, and the line to show for `waiting` and `error`.
+ * @returns `start`, `clear`, the `status`, and the line to show for `waiting` and `error`.
  */
 export function useCheckoutFlow(slug: string) {
   const queryClient = useQueryClient()
@@ -194,6 +217,14 @@ export function useCheckoutFlow(slug: string) {
   const running = useRef(false)
   const mounted = useRef(true)
   const pending = useRef<{ timer: ReturnType<typeof setTimeout>; resolve: () => void } | null>(null)
+  // The subscription the error or card-change waiting line was written against.
+  const shownFor = useRef<string | null>(null)
+
+  /** The subscription as the cached billing view says it now. */
+  const currentKey = useCallback(
+    () => subscriptionKey(queryClient.getQueryData(tenantBillingQueryOptions(slug).queryKey)),
+    [queryClient, slug]
+  )
 
   useEffect(() => {
     mounted.current = true
@@ -244,14 +275,42 @@ export function useCheckoutFlow(slug: string) {
    * by the billing view. Tracked as pending, not failed: the payment is taken,
    * and `finish` tracks the success if the view shows it.
    */
-  const wait = useCallback((attempt: Attempt) => {
-    waitingFor.current = attempt
-    track('checkout_pending', { purpose: attempt.session.purpose })
-    setState({
-      status: 'waiting',
-      message: attempt.session.purpose === 'card_change' ? CARD_WAITING_MESSAGE : WAITING_MESSAGE,
-    })
+  const wait = useCallback(
+    (attempt: Attempt) => {
+      waitingFor.current = attempt
+      shownFor.current = currentKey()
+      track('checkout_pending', { purpose: attempt.session.purpose })
+      setState({
+        status: 'waiting',
+        message: attempt.session.purpose === 'card_change' ? CARD_WAITING_MESSAGE : WAITING_MESSAGE,
+      })
+    },
+    [currentKey]
+  )
+
+  /**
+   * Drops an error or waiting line: the page has moved on, so the line no
+   * longer describes it. A running checkout is left alone.
+   */
+  const clear = useCallback(() => {
+    if (running.current) return
+    waitingFor.current = null
+    shownFor.current = null
+    setState((current) =>
+      current.status === 'error' || current.status === 'waiting'
+        ? { status: 'idle', message: null }
+        : current
+    )
   }, [])
+
+  useEffect(() => {
+    // An upgrade or switch waits on the webhook, so a view that changes without reaching it keeps the line.
+    const stale =
+      state.status === 'error' ||
+      (state.status === 'waiting' && waitingFor.current?.goal === 'confirmed')
+    if (!stale || !billing || shownFor.current === null) return
+    if (subscriptionKey(billing) !== shownFor.current) clear()
+  }, [state.status, billing, clear])
 
   useEffect(() => {
     const attempt = waitingFor.current
@@ -298,16 +357,21 @@ export function useCheckoutFlow(slug: string) {
     [startCheckout, switchInterval, updateCard]
   )
 
-  /** Fails the flow with `message`. */
-  const failWith = useCallback((message: string) => {
-    setState({ status: 'error', message })
-  }, [])
+  /** Fails the flow with `message`, written against the subscription as it stands. */
+  const failWith = useCallback(
+    (message: string) => {
+      shownFor.current = currentKey()
+      setState({ status: 'error', message })
+    },
+    [currentKey]
+  )
 
   const start = useCallback(
     async (kind: CheckoutKind): Promise<void> => {
       if (running.current) return
       running.current = true
       waitingFor.current = null
+      shownFor.current = null
       try {
         setState({ status: 'starting', message: null })
         let session: CheckoutSession
@@ -381,5 +445,5 @@ export function useCheckoutFlow(slug: string) {
     [confirmCheckout, failWith, finish, poll, queryClient, slug, startSession, wait]
   )
 
-  return { start, status: state.status, message: state.message }
+  return { start, clear, status: state.status, message: state.message }
 }

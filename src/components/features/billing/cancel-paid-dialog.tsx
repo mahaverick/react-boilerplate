@@ -26,6 +26,8 @@ interface CancelPaidDialogProps {
   context: Pick<BillingLineContext, 'now' | 'date'>
   /** True while another billing action runs. */
   disabled: boolean
+  /** Called as the owner confirms, so a line from an earlier action goes. */
+  onConfirm: () => void
 }
 
 /**
@@ -35,7 +37,13 @@ interface CancelPaidDialogProps {
  * reads the state the cancel returned. A refusal toasts the server's message
  * and refetches billing.
  */
-export function CancelPaidDialog({ slug, billing, context, disabled }: CancelPaidDialogProps) {
+export function CancelPaidDialog({
+  slug,
+  billing,
+  context,
+  disabled,
+  onConfirm,
+}: CancelPaidDialogProps) {
   const queryClient = useQueryClient()
   const [isOpen, setIsOpen] = useState(false)
   // Hook-level: the cancel usually unmounts this dialog before the mutation settles.
@@ -73,6 +81,7 @@ export function CancelPaidDialog({ slug, billing, context, disabled }: CancelPai
             disabled={cancel.isPending}
             onClick={() => {
               track('cancel_confirmed')
+              onConfirm()
               // A promise, not per-call `mutate` callbacks, which TanStack drops once this dialog unmounts.
               void cancel.mutateAsync().catch((error: unknown) => {
                 setIsOpen(false)

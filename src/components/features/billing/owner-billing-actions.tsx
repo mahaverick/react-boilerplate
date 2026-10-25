@@ -22,7 +22,8 @@ type CheckoutAction = CheckoutKind['purpose']
  * What an owner with member access may do on Billing in this state: take
  * Paid (or keep it after a cancel), switch the interval, put on a new card,
  * or cancel. All of them run through one checkout flow, whose message shows
- * while it waits or fails. With payments off, one line replaces them all,
+ * while it waits or fails, and goes once a cancel is confirmed or the
+ * subscription changes. With payments off, one line replaces them all,
  * since the API refuses every write then.
  */
 export function OwnerBillingActions({
@@ -119,6 +120,7 @@ function Actions({
                 billing={billing}
                 context={context}
                 disabled={running}
+                onConfirm={flow.clear}
               />
             </>
           )}

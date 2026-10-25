@@ -838,3 +838,89 @@ describe('useCheckoutFlow, identity', () => {
     expect(result.current.start).toBe(first)
   })
 })
+
+describe('useCheckoutFlow, a line the page has moved past', () => {
+  /** Fails a card change on Razorpay's side, leaving the error line up. */
+  async function failedCardChange(before: TenantBilling) {
+    serveStart('/payment-method', () => ok(session({ purpose: 'card_change' }), 'Started.', 201))
+    const flow = renderFlow(before)
+    act(() => {
+      void flow.result.current.start({ purpose: 'card_change' })
+    })
+    await waitFor(() => expect(flow.result.current.status).toBe('open'))
+    act(() => lastCheckout().failed?.({ error: { description: 'Your card was declined.' } }))
+    act(() => lastCheckout().options.modal.ondismiss())
+    await waitFor(() => expect(flow.result.current.status).toBe('error'))
+    return flow
+  }
+
+  const PAST_DUE = testBilling({
+    state: 'past_due',
+    plan: { key: 'paid', name: 'Paid' },
+    pastDue: { since: STARTS_AT, graceEndsAt: null, paused: false },
+  })
+
+  it('drops the error line once the workspace moves to Free', async () => {
+    const { result, client } = await failedCardChange(PAST_DUE)
+
+    act(() => {
+      client.setQueryData(
+        billingKeys.billing('acme'),
+        testBilling({ state: 'free', plan: { key: 'free', name: 'Free' }, trialEndsAt: null })
+      )
+    })
+
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(result.current.message).toBeNull()
+  })
+
+  it('keeps the error line through a refetch that changes nothing about the subscription', async () => {
+    const { result, client } = await failedCardChange(PAST_DUE)
+
+    act(() => {
+      client.setQueryData(billingKeys.billing('acme'), { ...PAST_DUE, dismissedBanners: ['x'] })
+    })
+
+    await flushMicrotasks()
+    expect(result.current.status).toBe('error')
+  })
+
+  it('drops the error line when another billing action starts', async () => {
+    const { result } = await failedCardChange(PAST_DUE)
+
+    act(() => {
+      result.current.clear()
+    })
+
+    expect(result.current.status).toBe('idle')
+    expect(result.current.message).toBeNull()
+  })
+
+  it('drops a card change’s waiting line once the subscription changes', async () => {
+    serveStart('/payment-method', () => ok(session({ purpose: 'card_change' }), 'Started.', 201))
+    serveConfirm(() => fail('Internal server error.', 500))
+    const { result, client } = renderFlow(PAST_DUE)
+    act(() => {
+      void result.current.start({ purpose: 'card_change' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('open'))
+    act(() => lastCheckout().options.handler(PAYLOAD))
+    await waitFor(() => expect(result.current.status).toBe('waiting'))
+
+    act(() => {
+      client.setQueryData(
+        billingKeys.billing('acme'),
+        testBilling({ state: 'free', plan: { key: 'free', name: 'Free' }, trialEndsAt: null })
+      )
+    })
+
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+  })
+})
+
+/** Lets effects and pending promises run once. */
+async function flushMicrotasks() {
+  await act(async () => {
+    await Promise.resolve()
+  })
+}

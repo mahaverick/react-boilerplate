@@ -546,6 +546,51 @@ describe('billing page, owner actions by state', () => {
     ).toBeEnabled()
   })
 
+  it('drops a card change’s waiting line when the owner confirms a cancel', async () => {
+    server.use(
+      http.post(`${BASE}/billing/payment-method`, () =>
+        ok(
+          {
+            purpose: 'card_change',
+            keyId: 'rzp_test_key',
+            subscriptionId: 'sub_1',
+            amountMinor: 99_900,
+            currency: 'INR',
+            interval: 'month',
+            startsAt: null,
+            prefill: { name: 'Ada Lovelace', email: testUser.email },
+          },
+          'Card change started.',
+          201
+        )
+      ),
+      http.post(`${BASE}/billing/checkout/confirm`, () => fail('Internal server error.', 500)),
+      // The cancel is refused, so the view stays as it was: only the confirm drops the line.
+      http.post(`${BASE}/billing/cancel`, () => fail('Internal server error.', 500))
+    )
+    mockTenant('owner', active())
+    const user = userEvent.setup()
+    renderBilling()
+    const card = await overview()
+    await user.click(await within(card).findByRole('button', { name: 'Update card' }))
+    await waitFor(() => expect(opened).toHaveLength(1))
+    act(() => {
+      opened[0]?.handler({
+        razorpay_payment_id: 'pay_1',
+        razorpay_subscription_id: 'sub_1',
+        razorpay_signature: 'signature',
+      })
+    })
+    const line = 'Card received. We’re confirming it with Razorpay.'
+    expect(await within(card).findByText(line)).toBeInTheDocument()
+
+    await user.click(within(card).getByRole('button', { name: 'Cancel Paid' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Cancel Paid?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel Paid' }))
+
+    await waitFor(() => expect(within(card).queryByText(line)).toBeNull())
+  })
+
   it('says GST is included only when the business is registered', async () => {
     mockTenant('owner')
     renderBilling()
