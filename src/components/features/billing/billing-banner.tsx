@@ -10,6 +10,7 @@ import { useNow } from '@/hooks/use-now'
 import { messageFrom } from '@/lib/api-error'
 import { pickBillingBanner, trialDaysLeft, type BillingBannerKind } from '@/lib/billing-banner'
 import { formatBillingDate, formatInr } from '@/lib/billing-format'
+import { PAYMENTS_OFF } from '@/lib/billing-page'
 import { toast } from '@/lib/toast'
 import { useDismissBanner, useTenantBilling } from '@/queries/billing.queries'
 import { tenantSettingsQueryOptions } from '@/queries/tenant-forms.queries'
@@ -25,9 +26,6 @@ const TONES: Record<BillingBannerKind, NoteTone> = {
   trial_running: 'passive',
   trial_ended: 'info',
 }
-
-/** The line an owner sees in place of a card button while payments are off. */
-const PAYMENTS_OFF = 'Payments aren’t set up yet.'
 
 /** What the banner's sentence needs besides the billing view. */
 interface LineContext {

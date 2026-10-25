@@ -10,6 +10,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { useCurrentTenantSlug } from '@/hooks/use-current-tenant-slug'
+import { PAYMENTS_OFF } from '@/lib/billing-page'
 import { tenantSearchSchema } from '@/lib/current-tenant'
 import { track } from '@/observability/telemetry'
 import { usePlans } from '@/queries/billing.queries'
@@ -54,7 +55,7 @@ function SignedInAction({ paymentsEnabled }: { paymentsEnabled: boolean }) {
         Upgrade
       </Link>
     ) : (
-      <p className="text-sm text-muted-foreground">Payments aren’t set up yet.</p>
+      <p className="text-sm text-muted-foreground">{PAYMENTS_OFF}</p>
     )
   }
   return (

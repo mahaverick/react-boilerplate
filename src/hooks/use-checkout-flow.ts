@@ -1,9 +1,10 @@
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME } from '@/constants/app'
 import { messageFrom, statusFrom } from '@/lib/api-error'
 import { formatBillingDate, formatInr } from '@/lib/billing-format'
+import { INTERVAL_ADJECTIVE } from '@/lib/billing-page'
 import {
   CheckoutPaymentError,
   CheckoutScriptError,
@@ -21,7 +22,7 @@ import {
   useSwitchInterval,
   useUpdateCard,
 } from '@/queries/billing.queries'
-import { tenantSettingsQueryOptions } from '@/queries/tenant-forms.queries'
+import { billingTimeZone } from '@/queries/tenant-forms.queries'
 import type { ApiErrorBody } from '@/types/api.types'
 import type { BillingInterval, CheckoutSession, TenantBilling } from '@/types/billing.types'
 
@@ -73,9 +74,6 @@ const CARD_WAITING_MESSAGE =
 
 const SCRIPT_MESSAGE = 'We couldn’t open the payment window. Check your connection and try again.'
 
-/** The interval as the switch toast says it. */
-const INTERVAL_ADJECTIVE: Record<BillingInterval, string> = { month: 'monthly', year: 'yearly' }
-
 /**
  * Whether a billing view shows the change took.
  * @param goal - What the flow waits for.
@@ -114,19 +112,6 @@ function paymentFailedMessage(description: string): string {
   return reason === ''
     ? 'Your payment didn’t go through. Try again or use another card.'
     : `Your payment didn’t go through: ${reason}. Try again or use another card.`
-}
-
-/**
- * The tenant's time zone, as the server dates its billing messages, or UTC
- * when the settings cannot be read.
- * @param queryClient - The app's query client, which may hold the settings already.
- * @param slug - The tenant.
- */
-async function billingTimeZone(queryClient: QueryClient, slug: string): Promise<string> {
-  return queryClient.ensureQueryData({ ...tenantSettingsQueryOptions(slug), retry: false }).then(
-    (settings) => settings.timezone,
-    () => 'UTC'
-  )
 }
 
 /**

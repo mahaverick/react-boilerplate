@@ -15,8 +15,14 @@ export interface BillingLineContext {
   priceFor: (interval: BillingInterval) => number | null
 }
 
+/** The line an owner sees in place of every pay button while payments are off. */
+export const PAYMENTS_OFF = 'Payments aren’t set up yet.'
+
 /** The interval as an adjective: "monthly", "yearly". */
-const INTERVAL_ADJECTIVE: Record<BillingInterval, string> = { month: 'monthly', year: 'yearly' }
+export const INTERVAL_ADJECTIVE: Record<BillingInterval, string> = {
+  month: 'monthly',
+  year: 'yearly',
+}
 
 /** The other interval. */
 const OTHER_INTERVAL: Record<BillingInterval, BillingInterval> = { month: 'year', year: 'month' }

@@ -11,7 +11,7 @@ import { track, type AnalyticsKey } from '@/observability/telemetry'
 // Not re-exported from the telemetry index: the index is byte for byte apex's, and this helper belongs to this app's registry.
 import { entitlementAnalyticsKey } from '@/observability/telemetry/event-registry'
 import { invalidateBilling, useRequestUpgrade } from '@/queries/billing.queries'
-import { tenantSettingsQueryOptions } from '@/queries/tenant-forms.queries'
+import { billingTimeZone } from '@/queries/tenant-forms.queries'
 import { useMyRole } from '@/queries/tenant.queries'
 import { ALREADY_PAID } from '@/types/api.types'
 import type { UpgradeRequestResult, UpgradeSurface } from '@/types/billing.types'
@@ -176,11 +176,6 @@ async function alreadyAskedMessage(
   slug: string,
   result: UpgradeRequestResult
 ): Promise<string> {
-  const timeZone = await queryClient
-    .ensureQueryData({ ...tenantSettingsQueryOptions(slug), retry: false })
-    .then(
-      (settings) => settings.timezone,
-      () => 'UTC'
-    )
+  const timeZone = await billingTimeZone(queryClient, slug)
   return `You already asked on ${formatBillingDate(result.createdAt, timeZone)}. Owners were told.`
 }

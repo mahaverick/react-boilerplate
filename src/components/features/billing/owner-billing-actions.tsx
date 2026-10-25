@@ -7,15 +7,13 @@ import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { useCheckoutFlow, type CheckoutKind } from '@/hooks/use-checkout-flow'
 import {
   canChangeSubscription,
+  PAYMENTS_OFF,
   showsPlanChoice,
   switchArea,
   type BillingLineContext,
 } from '@/lib/billing-page'
 import { usePlans } from '@/queries/billing.queries'
 import type { TenantBilling } from '@/types/billing.types'
-
-/** The line an owner sees in place of every billing write while payments are off. */
-const PAYMENTS_OFF = 'Payments aren’t set up yet.'
 
 /** Which checkout a click started, so only its button shows the spinner. */
 type CheckoutAction = CheckoutKind['purpose']
