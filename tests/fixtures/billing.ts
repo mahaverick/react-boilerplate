@@ -148,9 +148,11 @@ export const BILLING_STATES = [
 export type BillingStateName = (typeof BILLING_STATES)[number]
 
 /**
- * The current period's end in the Paid states: "2 November 2026" in the
- * harness tenant's Europe/London and in UTC. Fixed, unlike the trial's end,
- * because nothing in those states compares it with the clock.
+ * The current period's end in the Paid states: "2 November 2026" in every
+ * time zone from UTC−10 to UTC+13, since 10:00 UTC is midnight at UTC−10 and
+ * 23:00 at UTC+13; the harness tenant's Europe/London is one of them. Fixed,
+ * unlike the trial's end, because nothing in those states compares it with
+ * the clock.
  */
 const PERIOD_END = '2026-11-02T10:00:00.000Z'
 
