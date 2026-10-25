@@ -50,6 +50,18 @@ function active(overrides: Parameters<typeof testBilling>[0] = {}) {
   })
 }
 
+describe('billingStateLine in the cancel buffer', () => {
+  it('says the period ended and when the workspace moves to Free, not that it ends on a past date', () => {
+    expect(
+      // A day before NOW, so inside express's 3-day buffer.
+      billingStateLine(
+        active({ cancelAtPeriodEnd: true, currentPeriodEnd: '2026-10-24T09:00:00.000Z' }),
+        context
+      )
+    ).toBe('Paid · Period ended 24 October 2026. Moves to Free on 27 October 2026.')
+  })
+})
+
 describe('billingStateLine', () => {
   it.each([
     ['trialing', testBilling({ trialEndsAt: TRIAL_END }), 'Paid trial · Ends 5 November 2026'],

@@ -24,6 +24,13 @@ export const INTERVAL_ADJECTIVE: Record<BillingInterval, string> = {
   year: 'yearly',
 }
 
+/**
+ * How long a cancelled Paid stays on after its period ends, as express's
+ * `CANCEL_BUFFER_DAYS` (early card debits, late UPI) before the workspace
+ * reads as Free.
+ */
+const CANCEL_BUFFER_MS = 3 * 24 * 60 * 60 * 1000
+
 /** The other interval. */
 const OTHER_INTERVAL: Record<BillingInterval, BillingInterval> = { month: 'year', year: 'month' }
 
@@ -52,15 +59,24 @@ function amountPer(amountMinor: number | null, interval: BillingInterval): strin
 
 /**
  * The active state's line, past the next-subscription and first-charge cases.
+ * A cancelled period that has ended reads as ended, with the day the
+ * workspace moves to Free, never as ending on a past date.
  * @param billing - An active billing view with no next subscription.
- * @param date - Formats a billing date.
+ * @param context - The clock and the date format.
  */
-function activeLine(billing: TenantBilling, date: (iso: string) => string): string {
+function activeLine(
+  billing: TenantBilling,
+  { date, now }: Pick<BillingLineContext, 'now' | 'date'>
+): string {
   const periodEnd = billing.currentPeriodEnd === null ? null : date(billing.currentPeriodEnd)
   if (billing.cancelAtPeriodEnd) {
-    return periodEnd === null
-      ? 'Paid · Ends soon. You won’t be charged again.'
-      : `Paid · Ends ${periodEnd}. You won’t be charged again.`
+    if (billing.currentPeriodEnd === null || periodEnd === null) {
+      return 'Paid · Ends soon. You won’t be charged again.'
+    }
+    const endsAt = new Date(billing.currentPeriodEnd).getTime()
+    if (endsAt > now.getTime()) return `Paid · Ends ${periodEnd}. You won’t be charged again.`
+    const free = date(new Date(endsAt + CANCEL_BUFFER_MS).toISOString())
+    return `Paid · Period ended ${periodEnd}. Moves to Free on ${free}.`
   }
   const parts = ['Paid']
   const price =
@@ -108,7 +124,7 @@ export function billingStateLine(billing: TenantBilling, context: BillingLineCon
         const amount = billing.price === null ? '' : ` of ${formatInr(billing.price.amountMinor)}`
         return `Paid · First charge${amount} on ${date(billing.trialEndsAt)}`
       }
-      return activeLine(billing, date)
+      return activeLine(billing, { date, now })
     }
   }
 }
