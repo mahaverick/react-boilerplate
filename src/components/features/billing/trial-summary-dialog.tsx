@@ -22,16 +22,23 @@ interface TrialSummaryDialogProps {
   slug: string
   /** The trial's end, already written in the tenant's time zone ("2 November 2026"). */
   trialEndedOn: string
+  /** `false` on Billing, which has its own way onto Paid: the footer offers Close only. */
+  upgrade?: boolean
 }
 
 /**
  * "See what changed" on the trial-ended banner, and the dialog it opens: what
  * the move to Free changes for this workspace (`trialSummary`), or that
  * nothing does, then Upgrade for an owner or Request upgrade for any other
- * member (nothing for staff), and Close. The entitlements and plans are read
- * only while the dialog is open. Opening it tracks `trial_summary_viewed`.
+ * member (nothing for staff), and Close. With `upgrade={false}` only Close. The
+ * entitlements and plans are read only while the dialog is open. Opening it
+ * tracks `trial_summary_viewed`.
  */
-export function TrialSummaryDialog({ slug, trialEndedOn }: TrialSummaryDialogProps) {
+export function TrialSummaryDialog({
+  slug,
+  trialEndedOn,
+  upgrade = true,
+}: TrialSummaryDialogProps) {
   const [isOpen, setIsOpen] = useState(false)
   return (
     <Dialog
@@ -51,7 +58,7 @@ export function TrialSummaryDialog({ slug, trialEndedOn }: TrialSummaryDialogPro
         {isOpen && <SummaryBody slug={slug} />}
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Close</DialogClose>
-          <UpgradeAction slug={slug} surface="banner" size="default" />
+          {upgrade && <UpgradeAction slug={slug} surface="banner" size="default" />}
         </DialogFooter>
       </DialogContent>
     </Dialog>

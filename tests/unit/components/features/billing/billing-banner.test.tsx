@@ -5,7 +5,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -461,8 +461,15 @@ describe('BillingBanner, without actions (on Billing)', () => {
       serve({ state: 'free', trialEndsAt: new Date(Date.now() - DAY_MS).toISOString() }),
       false
     )
-    expect(await screen.findByRole('button', { name: 'See what changed' })).toBeInTheDocument()
+    const user = userEvent.setup()
+    const trigger = await screen.findByRole('button', { name: 'See what changed' })
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument()
+    await user.click(trigger)
+    const dialog = await screen.findByRole('dialog', { name: /^Your trial ended on / })
+    // The summary's lines load after the role; once they show, the footer has rendered its last.
+    await within(dialog).findByText(/^On Free, these change:$|^Nothing changes for you on Free\.$/)
+    expect(within(dialog).queryByRole('link', { name: 'Upgrade' })).toBeNull()
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument()
   })
 })
 

@@ -135,8 +135,9 @@ function lineFor(kind: BillingBannerKind, context: LineContext): ReactNode {
  * "See what changed", which opens the trial summary. Renders nothing for the platform tenant,
  * while billing or the tenant's time zone loads, or when there is nothing to say.
  * `actions={false}`, on Billing, keeps every sentence (and the trial summary and
- * dismiss) but drops the card button and the Upgrade link: the page has its own,
- * and a second checkout flow beside the page's could run at the same time.
+ * dismiss) but drops the card button and the Upgrade link, the trial summary's
+ * included: the page has its own, and a second checkout flow beside the page's
+ * could run at the same time.
  */
 export function BillingBanner({
   slug,
@@ -186,6 +187,7 @@ export function BillingBanner({
               <TrialSummaryDialog
                 slug={slug}
                 trialEndedOn={formatBillingDate(billing.trialEndsAt ?? '', timeZone)}
+                upgrade={actions}
               />
             )}
             {kind === 'trial_ended' && isMember && <DismissTrialEnded slug={slug} />}

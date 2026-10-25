@@ -51,11 +51,13 @@ function serve(role: MembershipRole = 'owner', access: TenantAccess = 'member') 
 }
 
 /** Mounts the summary's button for acme on a router of its own. */
-function renderSummary() {
+function renderSummary(upgrade = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createRouter({
     routeTree: createRootRoute({
-      component: () => <TrialSummaryDialog slug="acme" trialEndedOn="2 November 2026" />,
+      component: () => (
+        <TrialSummaryDialog slug="acme" trialEndedOn="2 November 2026" upgrade={upgrade} />
+      ),
     }),
     history: createMemoryHistory({ initialEntries: ['/'] }),
   })
@@ -112,6 +114,18 @@ describe('TrialSummaryDialog', () => {
     // The footer's Upgrade loads after the lines; its mount is the last render that could track again.
     await within(dialog).findByRole('link', { name: 'Upgrade' })
     expect(track.mock.calls.filter(([event]) => event === 'trial_summary_viewed')).toHaveLength(1)
+  })
+
+  it('offers Close only with upgrade={false}, as on Billing, and tracks no upgrade prompt', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    serve()
+    renderSummary(false)
+
+    const { dialog } = await open('5 members (Free allows 3)')
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('link', { name: 'Upgrade' })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Request upgrade' })).toBeNull()
+    expect(track).not.toHaveBeenCalledWith('upgrade_prompt_viewed', expect.anything())
   })
 
   it('offers a member “Request upgrade”', async () => {
