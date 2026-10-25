@@ -661,6 +661,35 @@ describe('billing page, who sees what', () => {
     expect(invoices.count).toBe(0)
     expect(requests.count).toBe(0)
   })
+
+  it.each([
+    ['trialing', testBilling({ trialEndsAt: TRIAL_END }), 'Paid trial · Ends 5 November 2099'],
+    [
+      'past due',
+      active({ state: 'past_due', pastDue: { since: SINCE, graceEndsAt: null, paused: false } }),
+      'Paid · Payment failed on 20 October 2026',
+    ],
+    [
+      'free',
+      testBilling({ state: 'free', plan: { key: 'free', name: 'Free' }, trialEndsAt: null }),
+      'Free',
+    ],
+  ])('shows staff a %s workspace with no owner action', async (_case, billing, line) => {
+    const invoices = countGets(`${BASE}/billing/invoices`, () => ok(listPage([])))
+    const requests = countGets(`${BASE}/upgrade-requests`, () => ok([]))
+    mockTenant('owner', billing, 'platform')
+    renderBilling()
+    const card = await overview()
+    await waitFor(() =>
+      expect(card.querySelector('[data-slot="billing-state"]')?.textContent).toBe(line)
+    )
+    expect(within(card).queryAllByRole('button')).toEqual([])
+    expect(within(card).queryAllByRole('link')).toEqual([])
+    expect(screen.queryByText('Payments aren’t set up yet.')).toBeNull()
+    expect(screen.queryByText('Only owners can change billing.')).toBeNull()
+    expect(invoices.count).toBe(0)
+    expect(requests.count).toBe(0)
+  })
 })
 
 describe('billing page, invoices', () => {
