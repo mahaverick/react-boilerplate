@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vite-plus/test'
 import { useCheckoutFlow } from '@/hooks/use-checkout-flow'
+import { apiClient } from '@/http/client'
 import { resetSessionForTests } from '@/http/session'
 import type { RazorpayOptions } from '@/lib/razorpay-checkout'
 import { toast } from '@/lib/toast'
@@ -345,6 +346,16 @@ describe('useCheckoutFlow, confirming', () => {
     ],
     ['read-only maintenance', () => fail('Maintenance.', 503, READ_ONLY_MODE)],
     ['a network failure', () => HttpResponse.error()],
+    ['a 429', () => fail('Too many requests. Try again in a minute.', 429, 'RATE_LIMITED')],
+    ['a 408', () => fail('The request timed out.', 408)],
+    [
+      'a 4xx with no message',
+      () => HttpResponse.json({ success: false, statusCode: 409 }, { status: 409 }),
+    ],
+    [
+      'a 200 with no data',
+      () => HttpResponse.json({ success: true, message: 'OK', statusCode: 200 }),
+    ],
   ])('waits with the exact message when the confirm meets %s', async (_case, answer) => {
     serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
     serveConfirm(answer)
@@ -359,6 +370,29 @@ describe('useCheckoutFlow, confirming', () => {
     await waitFor(() => expect(result.current.status).toBe('waiting'))
     expect(result.current.message).toBe(WAITING)
     expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'confirm_failed' })
+    expect(track).not.toHaveBeenCalledWith('checkout_failed', { failure_code: 'start_failed' })
+  })
+
+  it('waits, and never reports a start failure, when the confirm rejects with a non-HTTP error', async () => {
+    serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
+    const post = apiClient.post.bind(apiClient)
+    vi.spyOn(apiClient, 'post').mockImplementation((url, ...rest) =>
+      url.endsWith('/checkout/confirm')
+        ? Promise.reject(new Error('The signed-in account changed.'))
+        : post(url, ...rest)
+    )
+    const { result } = renderFlow(testBilling())
+    act(() => {
+      void result.current.start({ purpose: 'upgrade', interval: 'month' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('open'))
+
+    act(() => lastCheckout().options.handler(PAYLOAD))
+
+    await waitFor(() => expect(result.current.status).toBe('waiting'))
+    expect(result.current.message).toBe(WAITING)
+    expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'confirm_failed' })
+    expect(track).not.toHaveBeenCalledWith('checkout_failed', { failure_code: 'start_failed' })
   })
 
   it('finishes a waiting checkout when billing later shows the workspace active', async () => {

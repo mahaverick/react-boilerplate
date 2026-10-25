@@ -2,7 +2,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { isAxiosError } from 'axios'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME } from '@/constants/app'
-import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
+import { messageFrom, statusFrom } from '@/lib/api-error'
 import { formatBillingDate, formatInr } from '@/lib/billing-format'
 import {
   CheckoutPaymentError,
@@ -22,7 +22,7 @@ import {
   useUpdateCard,
 } from '@/queries/billing.queries'
 import { tenantSettingsQueryOptions } from '@/queries/tenant-forms.queries'
-import { READ_ONLY_MODE } from '@/types/api.types'
+import type { ApiErrorBody } from '@/types/api.types'
 import type { BillingInterval, CheckoutSession, TenantBilling } from '@/types/billing.types'
 
 /** What the owner asked for: Paid (or Paid again), the other interval, or a new card. */
@@ -84,14 +84,20 @@ function reached(goal: Goal, billing: TenantBilling): boolean {
 }
 
 /**
- * What a confirm failure means: a network failure, a 5xx or read-only
- * maintenance leave the payment to the webhook, so the flow waits; any other
- * refusal is the checkout's fault and ends it.
+ * Whether a confirm failure is the server refusing this checkout: a 4xx other
+ * than 408 and 429 that carries the server's sentence. The payment is taken by
+ * then, so anything else (no response, a 5xx, a timeout, a rate limit, a
+ * malformed answer, a non-HTTP throw) leaves it to the webhook and the flow waits.
  * @param error - The confirm's rejection.
  */
-function leavesItToTheWebhook(error: unknown): boolean {
+function refusedByTheServer(error: unknown): boolean {
+  if (!isAxiosError(error)) return false
   const status = statusFrom(error)
-  return status === undefined || status >= 500 || codeFrom(error) === READ_ONLY_MODE
+  if (status === undefined || status < 400 || status >= 500 || status === 408 || status === 429) {
+    return false
+  }
+  const body = error.response?.data as ApiErrorBody | undefined
+  return typeof body?.message === 'string' && body.message !== ''
 }
 
 /**
@@ -189,9 +195,13 @@ export function useCheckoutFlow(slug: string) {
       waitingFor.current = null
       track('checkout_succeeded', { purpose: attempt.session.purpose })
       setState({ status: 'done', message: null })
-      void billingTimeZone(queryClient, slug).then((timeZone) => {
-        toast.success(successMessage(attempt, confirmed, timeZone))
-      })
+      void billingTimeZone(queryClient, slug)
+        .then((timeZone) => {
+          toast.success(successMessage(attempt, confirmed, timeZone))
+        })
+        .catch(() => {
+          // The change is confirmed and `status` says so; a toast that cannot be worded is dropped.
+        })
     },
     [queryClient, slug]
   )
@@ -315,32 +325,32 @@ export function useCheckoutFlow(slug: string) {
           return
         }
 
+        // The handler fired, so the payment is taken: from here, only a server refusal is an error.
         setState({ status: 'confirming', message: null })
-        let confirmed: TenantBilling
         try {
-          confirmed = await confirmCheckout(answer)
-        } catch (error) {
-          // Not an HTTP failure, so not the payment's: the outer catch ends the flow in `error`.
-          if (!isAxiosError(error)) throw error
-          if (leavesItToTheWebhook(error)) {
-            wait(attempt)
+          let confirmed: TenantBilling
+          try {
+            confirmed = await confirmCheckout(answer)
+          } catch (error) {
+            if (!refusedByTheServer(error)) throw error
+            track('checkout_failed', { failure_code: 'confirm_failed' })
+            void invalidateBilling(queryClient, slug)
+            failWith(messageFrom(error))
             return
           }
-          track('checkout_failed', { failure_code: 'confirm_failed' })
-          void invalidateBilling(queryClient, slug)
-          failWith(messageFrom(error))
-          return
+          if (reached(goal, confirmed)) {
+            finish(attempt, confirmed)
+            return
+          }
+          const latest = await poll(goal)
+          if (!mounted.current) return
+          if (latest) finish(attempt, latest)
+          else wait(attempt)
+        } catch {
+          wait(attempt)
         }
-        if (reached(goal, confirmed)) {
-          finish(attempt, confirmed)
-          return
-        }
-        const latest = await poll(goal)
-        if (!mounted.current) return
-        if (latest) finish(attempt, latest)
-        else wait(attempt)
       } catch {
-        // Anything else, such as Razorpay's constructor refusing an option: `start` never rejects.
+        // A throw before Razorpay's handler, such as its constructor refusing an option: `start` never rejects.
         track('checkout_failed', { failure_code: 'start_failed' })
         failWith(SCRIPT_MESSAGE)
       } finally {
