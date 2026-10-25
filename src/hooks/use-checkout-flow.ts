@@ -221,10 +221,14 @@ export function useCheckoutFlow(slug: string) {
     [queryClient, slug]
   )
 
-  /** Hands the attempt over to the webhook: no error tone, and finished later by the billing view. */
+  /**
+   * Hands the attempt over to the webhook: no error tone, and finished later
+   * by the billing view. Tracked as pending, not failed: the payment is taken,
+   * and `finish` tracks the success if the view shows it.
+   */
   const wait = useCallback((attempt: Attempt) => {
     waitingFor.current = attempt
-    track('checkout_failed', { failure_code: 'confirm_failed' })
+    track('checkout_pending')
     setState({
       status: 'waiting',
       message: attempt.session.purpose === 'card_change' ? CARD_WAITING_MESSAGE : WAITING_MESSAGE,

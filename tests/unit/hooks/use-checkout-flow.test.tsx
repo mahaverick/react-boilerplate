@@ -338,7 +338,8 @@ describe('useCheckoutFlow, confirming', () => {
     expect(result.current.message).toBe(WAITING)
     // One read every 2 seconds for 30 seconds.
     expect(reads.count).toBe(15)
-    expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'confirm_failed' })
+    expect(track).toHaveBeenCalledWith('checkout_pending')
+    expect(track).not.toHaveBeenCalledWith('checkout_failed', expect.anything())
     expect(toast.success).not.toHaveBeenCalled()
   })
 
@@ -373,8 +374,8 @@ describe('useCheckoutFlow, confirming', () => {
 
     await waitFor(() => expect(result.current.status).toBe('waiting'))
     expect(result.current.message).toBe(WAITING)
-    expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'confirm_failed' })
-    expect(track).not.toHaveBeenCalledWith('checkout_failed', { failure_code: 'start_failed' })
+    expect(track).toHaveBeenCalledWith('checkout_pending')
+    expect(track).not.toHaveBeenCalledWith('checkout_failed', expect.anything())
   })
 
   it('waits, and never reports a start failure, when the confirm rejects with a non-HTTP error', async () => {
@@ -395,8 +396,8 @@ describe('useCheckoutFlow, confirming', () => {
 
     await waitFor(() => expect(result.current.status).toBe('waiting'))
     expect(result.current.message).toBe(WAITING)
-    expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'confirm_failed' })
-    expect(track).not.toHaveBeenCalledWith('checkout_failed', { failure_code: 'start_failed' })
+    expect(track).toHaveBeenCalledWith('checkout_pending')
+    expect(track).not.toHaveBeenCalledWith('checkout_failed', expect.anything())
   })
 
   it('stops polling and leaves no timer when the page unmounts mid-poll', async () => {
@@ -425,6 +426,7 @@ describe('useCheckoutFlow, confirming', () => {
     expect(reads.count).toBe(readsBefore)
     expect(track).not.toHaveBeenCalledWith('checkout_succeeded', expect.anything())
     expect(track).not.toHaveBeenCalledWith('checkout_failed', expect.anything())
+    expect(track).not.toHaveBeenCalledWith('checkout_pending')
   })
 
   it('finishes a waiting checkout when billing later shows the workspace active', async () => {
@@ -444,7 +446,10 @@ describe('useCheckoutFlow, confirming', () => {
 
     await waitFor(() => expect(result.current.status).toBe('done'))
     expect(result.current.message).toBeNull()
+    // One checkout, counted once as pending and once as succeeded, never as failed.
+    expect(track).toHaveBeenCalledWith('checkout_pending')
     expect(track).toHaveBeenCalledWith('checkout_succeeded', { purpose: 'upgrade' })
+    expect(track).not.toHaveBeenCalledWith('checkout_failed', expect.anything())
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('You’re on Paid.'))
   })
 
@@ -465,6 +470,7 @@ describe('useCheckoutFlow, confirming', () => {
     expect(result.current.message).toBe(MESSAGE)
     expect(invalidate).toHaveBeenCalledWith({ queryKey: billingKeys.billing('acme') })
     expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'confirm_failed' })
+    expect(track).not.toHaveBeenCalledWith('checkout_pending')
   })
 })
 

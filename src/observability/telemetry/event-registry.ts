@@ -79,10 +79,12 @@ export interface BrowserEventProps {
   }
   /** Razorpay Checkout was closed without paying. */
   checkout_dismissed: { purpose: 'upgrade' | 'switch' | 'card_change' }
-  /** A checkout step failed, and which. */
+  /** A checkout step failed, and which. `confirm_failed` is the server refusing a taken payment's confirm. */
   checkout_failed: {
     failure_code: 'script_blocked' | 'payment_failed' | 'confirm_failed' | 'start_failed'
   }
+  /** A payment was taken but not confirmed yet, so the flow waits for the webhook; `checkout_succeeded` follows if the page sees it land. */
+  checkout_pending: Record<never, never>
   /** A checkout finished and the API confirmed it. */
   checkout_succeeded: { purpose: 'upgrade' | 'switch' | 'card_change' }
   /** The cancel dialog was opened. */
