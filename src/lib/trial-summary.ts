@@ -2,6 +2,7 @@
  * @file What changes when a Paid trial ends and the workspace moves to Free.
  * Pure: the entitlements, both plans and the catalog come in as arguments.
  */
+import { countOf } from '@/lib/plural'
 import type {
   EntitlementCatalogEntry,
   EntitlementValue,
@@ -23,9 +24,10 @@ export interface TrialSummaryLine {
 /**
  * The lines of the trial-end summary, in catalog order. A limit is listed
  * when the workspace uses more than Free allows: "5 members (Free allows 3)",
- * the catalog label in lower case. A feature is listed when Paid has it and
- * Free does not: "Insights (Paid only)". The API keeps no per-feature use, so
- * every Paid-only feature is listed, whether or not the workspace used it.
+ * the catalog label in lower case, singular for one ("1 member"). A feature
+ * is listed when Paid has it and Free does not: "Insights (Paid only)". The
+ * API keeps no per-feature use, so every Paid-only feature is listed, whether
+ * or not the workspace used it.
  * Once the effective plan is Free, a feature still on or a limit above Free's
  * comes from a staff grant and does not change, so it is left out. An empty
  * list means nothing changes.
@@ -53,7 +55,7 @@ export function trialSummary(
         lines.push({
           key,
           label,
-          line: `${usage.used} ${label.toLowerCase()} (Free allows ${free})`,
+          line: `${countOf(usage.used, label.toLowerCase())} (Free allows ${free})`,
         })
       }
       continue

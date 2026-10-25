@@ -1,4 +1,5 @@
 import { planRefusalFrom } from '@/lib/plan-refusal'
+import { nounFor } from '@/lib/plural'
 
 /**
  * The line for a workspace that has reached or passed its members limit.
@@ -9,10 +10,11 @@ import { planRefusalFrom } from '@/lib/plan-refusal'
  * @param plan - The plan's name, such as "Free".
  */
 export function membersLimitLine(used: number, limit: number, plan: string): string {
+  const members = nounFor(limit, 'members')
   if (used > limit) {
-    return `${String(used)} of ${String(limit)} members on ${plan}. Upgrade to add more, or remove ${String(used - limit)}.`
+    return `${String(used)} of ${String(limit)} ${members} on ${plan}. Upgrade to add more, or remove ${String(used - limit)}.`
   }
-  return `You've used ${String(limit)} of ${String(limit)} members on ${plan}. Upgrade to add more.`
+  return `You've used ${String(limit)} of ${String(limit)} ${members} on ${plan}. Upgrade to add more.`
 }
 
 /**

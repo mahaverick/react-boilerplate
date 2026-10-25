@@ -50,4 +50,25 @@ describe('UsageMeter', () => {
     expect(screen.getByText('7 members · No limit')).toBeInTheDocument()
     expect(screen.queryByRole('meter')).toBeNull()
   })
+
+  it('says “1 member” for one member on a plan with no limit', () => {
+    render(<UsageMeter label="Members" usage={{ limit: null, used: 1, approaching: false }} />)
+
+    expect(screen.getByText('1 member · No limit')).toBeInTheDocument()
+  })
+
+  it('makes the noun agree with the limit, not the count', () => {
+    const { unmount } = render(
+      <UsageMeter label="Members" usage={{ limit: 3, used: 1, approaching: false }} />
+    )
+    expect(screen.getByText('1 of 3 members')).toBeInTheDocument()
+    unmount()
+
+    render(<UsageMeter label="Members" usage={{ limit: 1, used: 1, approaching: false }} />)
+    expect(screen.getByText('1 of 1 member')).toBeInTheDocument()
+    expect(screen.getByRole('meter', { name: 'Members' })).toHaveAttribute(
+      'aria-valuetext',
+      '1 of 1 member'
+    )
+  })
 })

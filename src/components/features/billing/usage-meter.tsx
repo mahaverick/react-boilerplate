@@ -1,3 +1,4 @@
+import { countOf, nounFor } from '@/lib/plural'
 import { cn } from '@/lib/utils'
 import type { LimitUsage } from '@/types/billing.types'
 
@@ -24,10 +25,11 @@ function toneOf(usage: LimitUsage & { limit: number }): MeterTone {
 
 /**
  * One limit's use: "3 of 3 members" over a bar, or "7 members · No limit"
- * and no bar when the plan has none. The bar is a `role="meter"` named by
- * `label`, with the sentence as its value text. Over the limit, the bar stays
- * full and `aria-valuenow` stops at the maximum, as a meter's value must, while
- * the text and value text keep the true count.
+ * and no bar when the plan has none. The noun follows the number before it:
+ * "1 member · No limit", "1 of 3 members", "1 of 1 member". The bar is a
+ * `role="meter"` named by `label`, with the sentence as its value text. Over
+ * the limit, the bar stays full and `aria-valuenow` stops at the maximum, as a
+ * meter's value must, while the text and value text keep the true count.
  * @param props.label - The catalog label, such as "Members".
  * @param props.usage - The limit's use, from the entitlements.
  */
@@ -35,12 +37,12 @@ export function UsageMeter({ label, usage }: { label: string; usage: LimitUsage 
   const noun = label.toLowerCase()
   if (usage.limit === null) {
     return (
-      <p className="text-sm text-muted-foreground">{`${String(usage.used)} ${noun} · No limit`}</p>
+      <p className="text-sm text-muted-foreground">{`${countOf(usage.used, noun)} · No limit`}</p>
     )
   }
   const limited = { ...usage, limit: usage.limit }
   const tone = toneOf(limited)
-  const text = `${String(usage.used)} of ${String(usage.limit)} ${noun}`
+  const text = `${String(usage.used)} of ${String(usage.limit)} ${nounFor(usage.limit, noun)}`
   const percent = usage.limit > 0 ? Math.min(100, (usage.used / usage.limit) * 100) : 100
   return (
     <div className="grid gap-1.5">

@@ -30,6 +30,16 @@ describe('trialSummary', () => {
     ])
   })
 
+  it('says “1 member” when Free allows none', () => {
+    const free = { entitlements: { members: 0, advanced_example: true } }
+    const trialing = testEntitlements({
+      limits: { members: { limit: null, used: 1, approaching: false } },
+    })
+    expect(trialSummary(trialing, free, PAID, testPlans.catalog)).toEqual([
+      { key: 'members', label: 'Members', line: '1 member (Free allows 0)' },
+    ])
+  })
+
   it('shows only the Paid-only feature line when usage fits Free', () => {
     expect(trialSummary(afterTrial(3), FREE, PAID, testPlans.catalog)).toEqual([
       { key: 'advanced_example', label: 'Insights', line: 'Insights (Paid only)' },
