@@ -438,6 +438,53 @@ describe('billing page, owner actions by state', () => {
     expect(starts).toHaveLength(1)
   })
 
+  it('leaves Keep Paid enabled while only a card change waits', async () => {
+    server.use(
+      http.post(`${BASE}/billing/payment-method`, () =>
+        ok(
+          {
+            purpose: 'card_change',
+            keyId: 'rzp_test_key',
+            subscriptionId: 'sub_1',
+            amountMinor: 99_900,
+            currency: 'INR',
+            interval: 'month',
+            startsAt: null,
+            prefill: { name: 'Ada Lovelace', email: testUser.email },
+          },
+          'Card change started.',
+          201
+        )
+      ),
+      http.post(`${BASE}/billing/checkout/confirm`, () => fail('Internal server error.', 500))
+    )
+    mockTenant('owner', active())
+    const user = userEvent.setup()
+    renderBilling()
+    const card = await overview()
+    await user.click(await within(card).findByRole('button', { name: 'Update card' }))
+    await waitFor(() => expect(opened).toHaveLength(1))
+    act(() => {
+      opened[0]?.handler({
+        razorpay_payment_id: 'pay_1',
+        razorpay_subscription_id: 'sub_1',
+        razorpay_signature: 'signature',
+      })
+    })
+    expect(
+      await within(card).findByText('Card received. We’re confirming it with Razorpay.')
+    ).toBeInTheDocument()
+
+    // The owner then cancels in another tab, and the view arrives over the stream.
+    act(() => {
+      queryClient.setQueryData(['tenants', 'acme', 'billing'], active({ cancelAtPeriodEnd: true }))
+    })
+
+    expect(
+      await within(card).findByRole('button', { name: 'Keep Paid after 2 November 2099' })
+    ).toBeEnabled()
+  })
+
   it('says GST is included only when the business is registered', async () => {
     mockTenant('owner')
     renderBilling()
