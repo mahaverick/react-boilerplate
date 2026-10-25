@@ -76,7 +76,7 @@ export function BillingOverviewCard({
   )
 }
 
-/** The plan's name, its state line, the payer and the receipts address. */
+/** The plan's name, its state line (none on Free), the payer and the receipts address. */
 function PlanSummary({
   billing,
   context,
@@ -85,12 +85,15 @@ function PlanSummary({
   context: BillingLineContext
 }) {
   const payer = billing.payer
+  const stateLine = billingStateLine(billing, context)
   return (
     <div className="grid gap-1">
       <p className="text-lg font-semibold">{billing.plan.name}</p>
-      <p data-slot="billing-state" className="text-sm text-muted-foreground">
-        {billingStateLine(billing, context)}
-      </p>
+      {stateLine !== null && (
+        <p data-slot="billing-state" className="text-sm text-muted-foreground">
+          {stateLine}
+        </p>
+      )}
       {payer !== null &&
         (payer.name === '' ? (
           <p className="text-sm text-muted-foreground">Paid with an owner’s card.</p>

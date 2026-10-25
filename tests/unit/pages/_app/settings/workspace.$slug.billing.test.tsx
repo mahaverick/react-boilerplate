@@ -211,7 +211,7 @@ describe('billing page, overview', () => {
     [
       'free',
       testBilling({ state: 'free', plan: { key: 'free', name: 'Free' }, trialEndsAt: null }),
-      'Free',
+      undefined,
     ],
     ['active monthly', active(), 'Paid · ₹999 per month · Renews 2 November 2099'],
     [
@@ -247,6 +247,18 @@ describe('billing page, overview', () => {
     await waitFor(() =>
       expect(card.querySelector('[data-slot="billing-state"]')?.textContent).toBe(line)
     )
+  })
+
+  it('names Free once, with no state line under it', async () => {
+    mockTenant(
+      'owner',
+      testBilling({ state: 'free', plan: { key: 'free', name: 'Free' }, trialEndsAt: null })
+    )
+    renderBilling()
+    const card = await overview()
+    await within(card).findByText('Free', { exact: true })
+    expect(within(card).getAllByText('Free', { exact: true })).toHaveLength(1)
+    expect(card.querySelector('[data-slot="billing-state"]')).toBeNull()
   })
 
   it('dates in the tenant’s time zone', async () => {
@@ -885,7 +897,7 @@ describe('billing page, who sees what', () => {
     [
       'free',
       testBilling({ state: 'free', plan: { key: 'free', name: 'Free' }, trialEndsAt: null }),
-      'Free',
+      undefined,
     ],
   ])('shows staff a %s workspace with no owner action', async (_case, billing, line) => {
     const invoices = countGets(`${BASE}/billing/invoices`, () => ok(listPage([])))

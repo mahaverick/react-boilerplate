@@ -94,7 +94,7 @@ describe('billingStateLine', () => {
     [
       'free',
       testBilling({ state: 'free', plan: { key: 'free', name: 'Free' }, trialEndsAt: null }),
-      'Free',
+      null,
     ],
     ['active monthly', active(), 'Paid · ₹999 per month · Renews 2 November 2026'],
     [

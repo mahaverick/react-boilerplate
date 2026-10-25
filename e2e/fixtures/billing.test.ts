@@ -40,7 +40,7 @@ test('a full Free workspace warns on the members page, and the owner’s Upgrade
 
   await page.getByRole('link', { name: 'Upgrade', exact: true }).click()
   await expect(page).toHaveURL(/\/settings\/workspace\/acme\/billing(\?|$)/)
-  await expect(stateLine(page)).toHaveText('Free')
+  await expect(stateLine(page)).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Upgrade to Paid' })).toBeVisible()
 })
 
@@ -91,7 +91,7 @@ test('an owner on Free upgrades through Checkout and reads the new state line', 
   page,
 }) => {
   await page.goto(harness(BILLING, '&billing=free&razorpay=fake'))
-  await expect(stateLine(page)).toHaveText('Free')
+  await expect(stateLine(page)).toHaveCount(0)
   await page.getByRole('button', { name: 'Upgrade to Paid' }).click()
 
   await expect(page.getByText('You’re on Paid.', { exact: true })).toBeVisible()

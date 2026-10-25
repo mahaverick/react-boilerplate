@@ -93,13 +93,17 @@ function activeLine(
  * retired one; a next subscription's comes from the plans.
  * @param billing - The billing view.
  * @param context - The clock, the date format and the plan prices.
- * @returns For example "Paid · ₹999 per month · Renews 2 November 2026".
+ * @returns For example "Paid · ₹999 per month · Renews 2 November 2026", or
+ *   `null` on Free, where the plan's name above says it all.
  */
-export function billingStateLine(billing: TenantBilling, context: BillingLineContext): string {
+export function billingStateLine(
+  billing: TenantBilling,
+  context: BillingLineContext
+): string | null {
   const { date, now, priceFor } = context
   switch (billing.state) {
     case 'free':
-      return 'Free'
+      return null
     case 'trialing':
       return billing.trialEndsAt === null
         ? 'Paid trial'
