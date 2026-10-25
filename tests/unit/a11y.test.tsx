@@ -121,6 +121,16 @@ const NOTIFICATIONS = [
     readAt: '2026-01-02T10:00:00.000Z',
     createdAt: '2026-01-02T08:00:00.000Z',
   },
+  {
+    id: '00000000-0000-4000-8000-0000000000b1',
+    userId: USER_ID,
+    type: 'billing_payment_failed',
+    title: 'Your payment of ₹999 failed',
+    body: 'Update your card to keep Paid.',
+    metadata: { tenantId: TENANT_ID, slug: 'acme' },
+    readAt: null,
+    createdAt: '2026-01-02T07:00:00.000Z',
+  },
 ]
 
 /** One pending invitation, so the members page's third card has a row to grade. */
@@ -158,6 +168,12 @@ const AUDIT_ENTRIES: AuditEntry[] = [
 const PREFERENCES = [
   { notificationType: 'tenant_invitation', emailEnabled: true, inAppEnabled: true },
   { notificationType: 'maintenance_mode_changed', emailEnabled: true, inAppEnabled: false },
+  { notificationType: 'billing_trial_ending', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_payment_failed', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_payer_left', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_upgrade_requested', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'billing_paid_cancelled', emailEnabled: true, inAppEnabled: true },
+  { notificationType: 'workspace_full', emailEnabled: true, inAppEnabled: true },
 ]
 
 /**

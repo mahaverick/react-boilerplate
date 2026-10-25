@@ -19,6 +19,7 @@ import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { useFocusAfter } from '@/hooks/use-focus-after'
 import { formatDateTime } from '@/lib/format'
+import { notificationLink } from '@/lib/notification-link'
 import { humanizeNotificationType } from '@/lib/notification-type'
 import { cn } from '@/lib/utils'
 import { notificationsList } from '@/queries/notification-list.queries'
@@ -93,6 +94,7 @@ function NotificationRow({
   const markRead = useMarkRead()
   const remove = useDeleteNotification()
   const isUnread = notification.readAt === null
+  const link = notificationLink(notification)
 
   return (
     <Item
@@ -117,6 +119,17 @@ function NotificationRow({
           {humanizeNotificationType(notification.type)} &middot;{' '}
           {receivedAt(notification.createdAt)}
         </ItemDescription>
+        {link && (
+          <div>
+            <Link
+              to={link.to as never}
+              params={link.params as never}
+              className="text-sm underline underline-offset-4"
+            >
+              {link.label}
+            </Link>
+          </div>
+        )}
       </ItemContent>
       <ItemActions>
         {isUnread && (

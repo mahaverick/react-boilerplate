@@ -80,6 +80,32 @@ describe('notifications page', () => {
     expect(screen.queryByText('You have no notifications.')).not.toBeInTheDocument()
   })
 
+  it('links a billing notice to the workspace billing page', async () => {
+    const billingRow: Notification = {
+      ...unreadRow,
+      type: 'billing_payment_failed',
+      title: 'Your payment of ₹999 failed',
+      body: 'Update your card.',
+      metadata: { tenantId: 't1', slug: 'acme' },
+    }
+    server.use(
+      http.get('/api/v1/notifications', () =>
+        ok(listPage([billingRow], {}, { count: 1, capped: false }), 'Notifications retrieved.')
+      )
+    )
+    renderNotifications()
+
+    const link = await screen.findByRole('link', { name: 'Open Billing' })
+    expect(link).toHaveAttribute('href', '/settings/workspace/acme/billing')
+    expect(screen.getByText(/Payment failed/)).toBeInTheDocument()
+  })
+
+  it('shows no link on a notice without a destination', async () => {
+    renderNotifications()
+    await screen.findByText('You are invited to Acme')
+    expect(screen.queryByRole('link', { name: /^Open / })).not.toBeInTheDocument()
+  })
+
   it('shows the inbox as cards at every width, with a search box and paging', async () => {
     renderNotifications()
     const cards = await screen.findByRole('list', { name: 'Notifications' })

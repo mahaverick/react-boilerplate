@@ -100,10 +100,71 @@ describe('notification settings page', () => {
     expect(await within(main).findByText('Tenant invitation')).toBeInTheDocument()
     expect(within(main).getByText('Email: On')).toBeInTheDocument()
     expect(
-      within(main).getByText(/email for these notifications cannot be turned off/i)
+      within(main).getByText(/where a notification sends email, you cannot turn it off/i)
     ).toBeInTheDocument()
     expect(within(main).getAllByRole('switch')).toHaveLength(1)
     expect(within(main).getByRole('switch', { name: /Tenant invitation/ })).not.toBeChecked()
+  })
+
+  it('shows Email: On for a billing type and Email: None for the in-app-only workspace_full', async () => {
+    server.use(
+      http.get('/api/v1/notifications/preferences', () =>
+        ok(
+          {
+            preferences: [
+              {
+                notificationType: 'billing_payment_failed',
+                emailEnabled: true,
+                inAppEnabled: true,
+              },
+              { notificationType: 'workspace_full', emailEnabled: true, inAppEnabled: true },
+            ],
+          },
+          'Notification preferences retrieved.'
+        )
+      )
+    )
+    renderPreferences()
+
+    const main = await screen.findByRole('main')
+    expect(await within(main).findByText('Payment failed')).toBeInTheDocument()
+    const rows = within(
+      within(main).getByText('Payment failed').closest('[role="list"]') as HTMLElement
+    ).getAllByRole('listitem')
+    expect(within(rows[0]!).getByText('Email: On')).toBeInTheDocument()
+    expect(within(rows[1]!).getByText('Email: None')).toBeInTheDocument()
+  })
+
+  it('keeps the stored email value when workspace_full flips its in-app switch', async () => {
+    const user = userEvent.setup()
+    let body: unknown
+    server.use(
+      http.get('/api/v1/notifications/preferences', () =>
+        ok(
+          {
+            preferences: [
+              { notificationType: 'workspace_full', emailEnabled: false, inAppEnabled: true },
+            ],
+          },
+          'Notification preferences retrieved.'
+        )
+      ),
+      http.put('/api/v1/notifications/preferences', async ({ request }) => {
+        body = await request.json()
+        return ok({ preferences: [] }, 'Notification preferences updated.')
+      })
+    )
+    renderPreferences()
+
+    await user.click(await screen.findByRole('switch', { name: /Workspace full/ }))
+
+    await waitFor(() =>
+      expect(body).toEqual({
+        preferences: [
+          { notificationType: 'workspace_full', emailEnabled: false, inAppEnabled: false },
+        ],
+      })
+    )
   })
 
   it('PUTs the whole entry with emailEnabled true and updates the row', async () => {
