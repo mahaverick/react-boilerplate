@@ -318,7 +318,8 @@ export function useRequestUpgrade(slug: string) {
 }
 
 /**
- * Hides a banner for the caller. Refetches the billing view on settle, which
+ * Hides a banner for the caller. On settle it invalidates all four billing
+ * keys (entitlements, billing view, invoices, upgrade requests); the view
  * carries `dismissedBanners`, so a refusal also shows the server's state.
  * @param slug - The tenant.
  */

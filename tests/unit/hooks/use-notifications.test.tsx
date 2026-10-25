@@ -634,4 +634,120 @@ describe('useNotificationStream', () => {
     renderHook(() => useNotificationStream(), { wrapper })
     expect(MockFetchStream.instances).toHaveLength(0)
   })
+
+  describe('entitlements_changed', () => {
+    const entitlementsKey = ['tenants', 'acme', 'entitlements'] as const
+    const billingKey = ['tenants', 'acme', 'billing'] as const
+
+    /** Seeds the three keys a billing change moves, plus the notification list, and waits out the connect's own refetch. */
+    async function seed(): Promise<void> {
+      client.setQueryData(entitlementsKey, { seeded: true })
+      client.setQueryData(billingKey, { seeded: true })
+      client.setQueryData(notificationsListOptions({}).queryKey, listPage([]))
+      renderHook(() => useNotificationStream(), { wrapper })
+      await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+      await waitFor(() =>
+        expect(client.getQueryState(notificationsListOptions({}).queryKey)?.isInvalidated).toBe(
+          true
+        )
+      )
+      // The connect invalidates the cached tenant's keys too (ruling 18); reset so the frame's effect stands alone.
+      client.setQueryData(entitlementsKey, { seeded: true })
+      client.setQueryData(billingKey, { seeded: true })
+      client.setQueryData(notificationsListOptions({}).queryKey, listPage([]))
+    }
+
+    it('invalidates the tenant billing keys and leaves notifications alone', async () => {
+      await seed()
+      const invalidate = vi.spyOn(client, 'invalidateQueries')
+
+      act(() =>
+        latest().dispatch({
+          event: 'entitlements_changed',
+          data: JSON.stringify({ tenantId: 'id-1', slug: 'acme' }),
+        })
+      )
+
+      await waitFor(() => {
+        const keys = invalidate.mock.calls.map((call) => call[0]?.queryKey)
+        expect(keys).toContainEqual(entitlementsKey)
+        expect(keys).toContainEqual(billingKey)
+      })
+      expect(invalidate.mock.calls.some((call) => call[0]?.queryKey?.[0] === 'notifications')).toBe(
+        false
+      )
+      expect(client.getQueryState(notificationsListOptions({}).queryKey)?.isInvalidated).toBe(false)
+    })
+
+    it('ignores malformed data and handles later frames', async () => {
+      await seed()
+      const invalidate = vi.spyOn(client, 'invalidateQueries')
+
+      act(() => latest().dispatch({ event: 'entitlements_changed', data: '{nope' }))
+      act(() =>
+        latest().dispatch({ event: 'entitlements_changed', data: JSON.stringify({ slug: 7 }) })
+      )
+      act(() =>
+        latest().dispatch({
+          event: 'entitlements_changed',
+          data: JSON.stringify({ tenantId: 'id-1', slug: 'acme' }),
+        })
+      )
+
+      await waitFor(() => expect(invalidate).toHaveBeenCalled())
+      // Only the valid frame invalidated: the four billing keys of acme, nothing else.
+      expect(invalidate.mock.calls).toHaveLength(4)
+    })
+
+    it('does not reset the reconnect backoff', async () => {
+      await seed()
+      latest().fail()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+      await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+      act(() =>
+        latest().dispatch({
+          event: 'entitlements_changed',
+          data: JSON.stringify({ tenantId: 'id-1', slug: 'acme' }),
+        })
+      )
+      latest().fail()
+      // Backoff is now 2 s; a reset would reconnect after 1 s.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+      expect(MockFetchStream.instances).toHaveLength(2)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+      await waitFor(() => expect(MockFetchStream.instances).toHaveLength(3))
+    })
+
+    it('invalidates every cached tenant on each accepted connect, and no id is tracked', async () => {
+      client.setQueryData(['tenants', 'acme', 'entitlements'], { seeded: true })
+      client.setQueryData(['tenants', 'globex', 'billing'], { seeded: true })
+      renderHook(() => useNotificationStream(), { wrapper })
+      await waitFor(() => expect(MockFetchStream.instances).toHaveLength(1))
+      await waitFor(() => {
+        expect(client.getQueryState(['tenants', 'acme', 'entitlements'])?.isInvalidated).toBe(true)
+        expect(client.getQueryState(['tenants', 'globex', 'billing'])?.isInvalidated).toBe(true)
+      })
+
+      // A frame with no id, then a drop: the reconnect refetches again and sends no Last-Event-ID.
+      act(() =>
+        latest().dispatch({ event: 'entitlements_changed', data: '{"tenantId":"x","slug":"acme"}' })
+      )
+      client.setQueryData(['tenants', 'globex', 'billing'], { seeded: true })
+      latest().fail()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+      await waitFor(() => expect(MockFetchStream.instances).toHaveLength(2))
+      expect('Last-Event-ID' in latest().headers).toBe(false)
+      await waitFor(() =>
+        expect(client.getQueryState(['tenants', 'globex', 'billing'])?.isInvalidated).toBe(true)
+      )
+    })
+  })
 })
