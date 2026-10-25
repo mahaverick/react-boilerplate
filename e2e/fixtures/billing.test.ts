@@ -154,8 +154,12 @@ test('cancelling before the first charge goes back to the trial with no period e
 test('past due, Billing’s one Update card opens Checkout as a card change', async ({ page }) => {
   await page.goto(harness(BILLING, '&billing=past_due&razorpay=fake'))
   await expect(stateLine(page)).toHaveText('Paid · Payment failed on 20 October 2026')
-  // Billing shows no billing banner, so its card button is the only one.
-  await expect(page.getByText(/Update your card by 27 October 2026/)).toHaveCount(0)
+  // Billing keeps the banner's sentence, with its grace deadline, but not its card button.
+  await expect(
+    page.getByText(
+      'Your card payment of ₹999 failed on 20 October 2026. Update your card by 27 October 2026 to keep Paid.'
+    )
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: 'Update card' })).toHaveCount(1)
   await page.getByRole('button', { name: 'Update card' }).click()
 

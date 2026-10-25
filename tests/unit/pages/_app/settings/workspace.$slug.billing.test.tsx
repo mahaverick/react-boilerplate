@@ -571,33 +571,46 @@ describe('billing page, one checkout', () => {
         pastDue: { since: SINCE, graceEndsAt: '2026-10-27T09:00:00.000Z', paused: false },
       }),
       'Paid · Payment failed on 20 October 2026',
+      'Your card payment of ₹999 failed on 20 October 2026. Update your card by 27 October 2026 to keep Paid.',
+    ],
+    [
+      'payments are paused',
+      active({
+        state: 'past_due',
+        pastDue: { since: SINCE, graceEndsAt: '2026-10-27T09:00:00.000Z', paused: true },
+      }),
+      'Paid · Payments paused on 20 October 2026',
+      'Payments are paused in your UPI app. Resume them there by 27 October 2026 to keep Paid.',
     ],
     [
       'the payer left',
       active({ payer: { userId: 'user-left', name: 'Grace Hopper', isMember: false } }),
       'Paid · ₹999 per month · Renews 2 November 2099',
+      'Billing uses Grace Hopper’s card, and they left the workspace. Add your card by 2 November 2099 to keep Paid.',
     ],
-  ])('offers one card button and no billing banner when %s', async (_case, billing, line) => {
-    mockTenant('owner', billing)
-    renderBilling()
-    await stateLineReads(line)
-    expect(screen.getAllByRole('button', { name: /^(Update card|Use my card)$/ })).toHaveLength(1)
-    expect(screen.queryByText(/Update your card by|they left the workspace/)).toBeNull()
-  })
+  ])(
+    'keeps the banner’s sentence but offers one card button when %s',
+    async (_case, billing, line, sentence) => {
+      mockTenant('owner', billing)
+      renderBilling()
+      await stateLineReads(line)
+      // The payer-left sentence nests the masked name in a span of its own, so both spans match.
+      const banner = await screen.findAllByText(
+        (_content, element) => element?.textContent === sentence && element.tagName === 'SPAN'
+      )
+      expect(banner.length).toBeGreaterThan(0)
+      expect(screen.getAllByRole('button', { name: /^(Update card|Use my card)$/ })).toHaveLength(1)
+    }
+  )
 
-  it('shows no banner Upgrade link above the plan choice as the trial ends', async () => {
+  it('keeps the trial-ending sentence but no banner Upgrade link above the plan choice', async () => {
     const endsIn2Days = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
     mockTenant('owner', testBilling({ trialEndsAt: endsIn2Days }))
     renderBilling()
     const card = await overview()
     expect(await within(card).findByRole('button', { name: 'Upgrade to Paid' })).toBeInTheDocument()
-    await waitFor(() =>
-      expect(card.querySelector('[data-slot="billing-state"]')?.textContent).toMatch(
-        /^Paid trial · Ends /
-      )
-    )
+    expect(await screen.findByText(/^Your Paid trial ends on /)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^Upgrade$/ })).toBeNull()
-    expect(screen.queryByText(/Your Paid trial ends on/)).toBeNull()
   })
 })
 

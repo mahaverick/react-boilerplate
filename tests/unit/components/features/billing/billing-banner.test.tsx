@@ -81,12 +81,12 @@ function serve(
   return detail
 }
 
-/** Mounts the banner for acme on a router of its own. */
-function renderBanner(tenant: TenantDetail) {
+/** Mounts the banner for acme on a router of its own; `actions: false` is Billing's sentence-only banner. */
+function renderBanner(tenant: TenantDetail, actions = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createRouter({
     routeTree: createRootRoute({
-      component: () => <BillingBanner slug="acme" tenant={tenant} />,
+      component: () => <BillingBanner slug="acme" tenant={tenant} actions={actions} />,
     }),
     history: createMemoryHistory({ initialEntries: ['/'] }),
   })
@@ -436,6 +436,33 @@ describe('BillingBanner, trial ended', () => {
 
     expect(await screen.findByText(/^Your trial ended on /)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
+  })
+})
+
+describe('BillingBanner, without actions (on Billing)', () => {
+  it('keeps the past-due sentence but offers no card button', async () => {
+    renderBanner(serve(PAST_DUE), false)
+    expect(
+      await screen.findByText(
+        'Your card payment of ₹999 failed on 2 November 2026. Update your card by 9 November 2026 to keep Paid.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('keeps the trial-ending sentence but no Upgrade link', async () => {
+    renderBanner(serve({ trialEndsAt: new Date(Date.now() + 2 * DAY_MS).toISOString() }), false)
+    expect(await screen.findByText(/^Your Paid trial ends on /)).toBeInTheDocument()
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('keeps the trial summary and Dismiss after the trial ended', async () => {
+    renderBanner(
+      serve({ state: 'free', trialEndsAt: new Date(Date.now() - DAY_MS).toISOString() }),
+      false
+    )
+    expect(await screen.findByRole('button', { name: 'See what changed' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument()
   })
 })
 

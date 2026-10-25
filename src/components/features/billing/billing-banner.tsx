@@ -134,8 +134,19 @@ function lineFor(kind: BillingBannerKind, context: LineContext): ReactNode {
  * the member line with no button. The trial-ended banner also offers everyone
  * "See what changed", which opens the trial summary. Renders nothing for the platform tenant,
  * while billing or the tenant's time zone loads, or when there is nothing to say.
+ * `actions={false}`, on Billing, keeps every sentence (and the trial summary and
+ * dismiss) but drops the card button and the Upgrade link: the page has its own,
+ * and a second checkout flow beside the page's could run at the same time.
  */
-export function BillingBanner({ slug, tenant }: { slug: string; tenant: TenantDetail }) {
+export function BillingBanner({
+  slug,
+  tenant,
+  actions = true,
+}: {
+  slug: string
+  tenant: TenantDetail
+  actions?: boolean
+}) {
   const { data: billing } = useTenantBilling(slug)
   const now = useNow()
   const kind =
@@ -163,14 +174,14 @@ export function BillingBanner({ slug, tenant }: { slug: string; tenant: TenantDe
   return (
     <Note tone={TONES[kind]} className="mb-6">
       <div className="flex flex-wrap items-center gap-3">
-        {kind === 'past_due' && isOwner ? (
+        {actions && kind === 'past_due' && isOwner ? (
           <CardChange slug={slug} label="Update card" line={line} billing={billing} />
-        ) : kind === 'payer_left' && isOwner ? (
+        ) : actions && kind === 'payer_left' && isOwner ? (
           <CardChange slug={slug} label="Use my card" line={line} billing={billing} />
         ) : (
           <>
             <span>{line}</span>
-            {kind === 'trial_ending' && <UpgradeAction slug={slug} surface="banner" />}
+            {actions && kind === 'trial_ending' && <UpgradeAction slug={slug} surface="banner" />}
             {kind === 'trial_ended' && (
               <TrialSummaryDialog
                 slug={slug}

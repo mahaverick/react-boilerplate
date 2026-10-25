@@ -26,9 +26,10 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug')({
 
 /**
  * The gate, whose panels title themselves `h2` under the settings layout's
- * `h1`, then a line naming the tenant, then the page. Billing has no billing
- * banner: the page shows the same state, and a second checkout beside its own
- * could run at the same time.
+ * `h1`, then a line naming the tenant, then the page. On Billing the billing
+ * banner keeps its sentence (a grace deadline, a paused mandate, a payer who
+ * left) but not its card button or Upgrade link: the page has its own, and a
+ * second checkout flow beside it could run at the same time.
  */
 function WorkspaceSettingsLayout() {
   const { slug } = Route.useParams()
@@ -38,7 +39,7 @@ function WorkspaceSettingsLayout() {
     <TenantGate
       slug={slug}
       heading="h2"
-      billingBanner={!onBilling}
+      billingBannerActions={!onBilling}
       skeleton={<PageSkeleton variant="settings" nested />}
     >
       {(tenant) => (
