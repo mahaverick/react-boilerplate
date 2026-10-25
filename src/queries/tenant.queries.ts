@@ -120,6 +120,24 @@ export const tenantKeys = {
   invitations: (slug: string) => ['tenants', slug, 'invitations'] as const,
   /** Under the tenant prefix, so a self-removal or an invitation accept drops it with the rest. */
   onboarding: (slug: string) => ['tenants', slug, 'onboarding'] as const,
+  /**
+   * What the plan allows and how much is in use (`billingKeys.entitlements`).
+   * Here rather than in `billing.queries.ts` so the seat-changing writes below
+   * refetch it without importing that module back.
+   */
+  entitlements: (slug: string) => ['tenants', slug, 'entitlements'] as const,
+}
+
+/**
+ * Refetches a tenant's entitlements after a write that may have changed its
+ * seat count: an invitation holds a seat while pending, so an invite, resend,
+ * revoke or removal moves the members usage, and a refusal means the usage
+ * the page holds is stale.
+ * @param queryClient - The app's query client.
+ * @param slug - The tenant.
+ */
+function refetchSeats(queryClient: QueryClient, slug: string): Promise<void> {
+  return queryClient.invalidateQueries({ queryKey: tenantKeys.entitlements(slug) })
 }
 
 /** Whether the user may work in a listed tenant: not the platform tenant, and not suspended. */
@@ -390,6 +408,7 @@ export function useInviteMember(slug: string) {
      * is stale; either invite completes the invite-a-teammate onboarding step.
      */
     onSettled: async (_data, error) => {
+      await refetchSeats(queryClient, slug)
       if (error && codeFrom(error) !== INVITATION_CONFLICT) return
       await queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) })
       await queryClient.invalidateQueries({ queryKey: tenantKeys.onboarding(slug) })
@@ -408,7 +427,10 @@ export function useResendInvitation(slug: string) {
         )
       ),
     /** Settled, not success: a 404 means the row is no longer pending, so the list is stale. */
-    onSettled: () => queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) }),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) })
+      await refetchSeats(queryClient, slug)
+    },
   })
 }
 
@@ -421,7 +443,10 @@ export function useRevokeInvitation(slug: string) {
         await apiClient.delete<ApiSuccess<null>>(`/tenants/${slug}/invitations/${invitationId}`)
       ),
     /** Settled, not success: a 404 means the row is no longer pending, so the list is stale. */
-    onSettled: () => queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) }),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: tenantKeys.invitations(slug) })
+      await refetchSeats(queryClient, slug)
+    },
   })
 }
 
@@ -527,6 +552,7 @@ export function useRemoveMember(slug: string) {
         await queryClient.invalidateQueries({ queryKey: tenantKeys.members(slug) })
       }
     },
+    onSettled: () => refetchSeats(queryClient, slug),
   })
 }
 

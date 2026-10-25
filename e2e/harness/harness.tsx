@@ -15,6 +15,7 @@ import { createRoot } from 'react-dom/client'
 import '@/styles/globals.css'
 import { queryClient, router } from '@/router'
 import { useAuthStore } from '@/states/auth.store'
+import { testBilling, testEntitlements, testPlans } from '../../tests/fixtures/billing'
 import {
   AUDIT_ID_1,
   AUDIT_ID_2,
@@ -780,6 +781,12 @@ const worker = setupWorker(
     )
   }),
   http.get('/api/v1/tenants/acme/settings', () => ok(SETTINGS, 'Settings retrieved.')),
+  // Billing defaults: a Paid trial with 9 days left and 2 of unlimited members; unmocked, these 401 and sign the harness user out.
+  http.get('/api/v1/plans', () => ok(testPlans, 'Plans retrieved.')),
+  http.get('/api/v1/tenants/acme/entitlements', () =>
+    ok(testEntitlements(), 'Entitlements retrieved.')
+  ),
+  http.get('/api/v1/tenants/acme/billing', () => ok(testBilling(), 'Billing retrieved.')),
   // Every overview mounts the Getting started card, staff's included; unmocked, it 401s and signs the harness user out.
   http.get('/api/v1/tenants/acme/onboarding', () => ok(ONBOARDING, 'Onboarding retrieved.')),
   http.get('/api/v1/tenants/acme/audit-log', () =>

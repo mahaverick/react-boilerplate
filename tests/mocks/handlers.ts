@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import type { MembershipRole } from '@/constants/roles'
 import type { ClientFlagValues } from '@/observability/flags/flag-types'
+import { testBilling, testEntitlements, testPlans } from '@/tests/fixtures/billing'
 import { INVITATION_ID, USER_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
 import type {
@@ -11,6 +12,8 @@ import type {
   TenantOnboarding,
   User,
 } from '@/types/api.types'
+
+export { testBilling, testEntitlements, testPlans } from '@/tests/fixtures/billing'
 
 /** The signed-in user every authenticated test runs as; `GET /profile` answers with it. */
 export const testUser: User = {
@@ -323,6 +326,15 @@ export const handlers = [
   http.post('/api/v1/tenants/:slug/flags/exposures', () => new HttpResponse(null, { status: 204 })),
   // Tenant audit log, empty. A test about activity overrides it.
   http.get('/api/v1/tenants/:slug/audit-log', () => ok(listPage([]), 'Audit log retrieved.')),
+  /**
+   * Billing: the public plans, and a workspace in its Paid trial with 9 days left and 2 of
+   * unlimited members. A test about another plan or state overrides these.
+   */
+  http.get('/api/v1/plans', () => ok(testPlans, 'Plans retrieved.')),
+  http.get('/api/v1/tenants/:slug/entitlements', () =>
+    ok(testEntitlements(), 'Entitlements retrieved.')
+  ),
+  http.get('/api/v1/tenants/:slug/billing', () => ok(testBilling(), 'Billing retrieved.')),
   // Read by the root route on every mount; no maintenance, which a test about maintenance overrides.
   http.get('/api/v1/status/maintenance', () =>
     ok({ mode: 'off', message: null, since: null }, 'Maintenance status retrieved.')
