@@ -70,9 +70,11 @@ import { build } from 'vite'
  * writes' entitlements refetch in `tenant.queries`, the guard's module, so a seat meter never shows a
  * stale count; the page helpers `infiniteQueryBehavior` exports to the lazy invoices list, rendered
  * in the shared Query chunk; and Zod 4.6.7, the patched release the production audit requires
- * (595 B of the chunk): 592,481 B, rounded up to 592,500 B.
+ * (595 B of the chunk): 592,481 B, rounded up to 592,500 B. The live walk's fixes then split the
+ * count wording into a lazy `plural` chunk shared by the members and billing pages, and the entry's
+ * preload map names it (44 B): 592,525 B, rounded up to 593,000 B.
  */
-const ENTRY_BUDGET_BYTES = 592_500
+const ENTRY_BUDGET_BYTES = 593_000
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module
