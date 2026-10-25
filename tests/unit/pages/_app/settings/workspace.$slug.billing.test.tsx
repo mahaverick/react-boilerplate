@@ -17,7 +17,15 @@ import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { testUpgradeRequest } from '@/tests/fixtures/billing'
 import { TENANT_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
-import { fail, ok, tenantDetail, testBilling, testPlans, testUser } from '@/tests/mocks/handlers'
+import {
+  fail,
+  ok,
+  tenantDetail,
+  testBilling,
+  testEntitlements,
+  testPlans,
+  testUser,
+} from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import { SWITCH_TOO_CLOSE_TO_RENEWAL, type TenantAccess } from '@/types/api.types'
 import type { InvoiceView, PriceView, TenantBilling } from '@/types/billing.types'
@@ -490,6 +498,36 @@ describe('billing page, owner actions by state', () => {
 })
 
 describe('billing page, cancel', () => {
+  it('toasts the end date though the cancel’s follow-up reads are still loading', async () => {
+    server.use(
+      http.post(`${BASE}/billing/cancel`, () =>
+        ok(active({ cancelAtPeriodEnd: true }), 'Cancelled.')
+      )
+    )
+    mockTenant('owner', active())
+    const user = userEvent.setup()
+    renderBilling()
+    const card = await overview()
+    await user.click(await within(card).findByRole('button', { name: 'Cancel Paid' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Cancel Paid?' })
+
+    // The refetches the cancel starts hang until released, as on a slow network: the dialog unmounts first.
+    /** Lets the held request answer; replaced below. */
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    server.use(
+      http.get(`${BASE}/entitlements`, async () => {
+        await held
+        return ok(testEntitlements(), 'Entitlements retrieved.')
+      })
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel Paid' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Paid ends on 2 November 2099.'))
+    release()
+  })
+
   it('confirms in one step, cancels, and toasts the end date', async () => {
     let cancels = 0
     server.use(

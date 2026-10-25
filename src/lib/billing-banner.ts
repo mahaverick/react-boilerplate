@@ -38,8 +38,9 @@ export function trialDaysLeft(trialEndsAt: string, now: Date): number {
 /**
  * The one billing banner to show, by priority: a failed payment (`past_due`,
  * or `paused` in the UPI app); then a payer who left while the workspace is
- * active (`payer_left`; past due outranks it, so it is checked for active only); then a trial ending within 3 days; then a
- * running trial, except in the tenant's first 24 hours; then a trial that
+ * active (`payer_left`; past due outranks it, so it is checked for active
+ * only); then a trial ending within 3 days; then a running trial, except in
+ * the tenant's first 24 hours; then a trial that
  * ended in the last 14 days and that the viewer has not dismissed.
  * @param billing - The tenant's billing view.
  * @param now - The current moment.

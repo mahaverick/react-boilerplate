@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, QueryObserver } from '@tanstack/react-query'
 import {
   createMemoryHistory,
   createRootRoute,
@@ -15,8 +15,9 @@ import * as checkoutFlow from '@/hooks/use-checkout-flow'
 import { toast } from '@/lib/toast'
 import * as analytics from '@/observability/telemetry'
 import { PII_CLASS_NAME } from '@/observability/telemetry'
+import { entitlementsQueryOptions } from '@/queries/billing.queries'
 import type { TenantDetail } from '@/queries/tenant.queries'
-import { testBilling } from '@/tests/fixtures/billing'
+import { testBilling, testEntitlements } from '@/tests/fixtures/billing'
 import { TENANT_ID } from '@/tests/fixtures/ids'
 import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail } from '@/tests/mocks/handlers'
@@ -346,6 +347,49 @@ describe('BillingBanner, trial ended', () => {
     await waitFor(() => expect(screen.queryByText(/^Your trial ended on /)).toBeNull())
     expect(bodies).toEqual([{ banner: 'trial_ended' }])
     expect(track).toHaveBeenCalledWith('banner_dismissed', { banner: 'trial_ended' })
+  })
+
+  it('tracks the dismissal though the banner is gone before the follow-up reads finish', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    const user = userEvent.setup()
+    const client = renderBanner(serve({ state: 'free', trialEndsAt: trialEndsAt() }))
+    // Most tenant pages watch the entitlements too (meters, gates), so the dismissal's invalidation waits on them.
+    const entitlements = new QueryObserver(client, entitlementsQueryOptions('acme'))
+    const unsubscribe = entitlements.subscribe(() => {})
+    await waitFor(() => expect(entitlements.getCurrentResult().isSuccess).toBe(true))
+    await screen.findByRole('button', { name: 'Dismiss' })
+
+    // The billing refetch says dismissed, so the banner unmounts; the entitlements refetch hangs, as on a slow network.
+    /** Lets the held request answer; replaced below. */
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    server.use(
+      http.post('/api/v1/tenants/acme/banner-dismissals', () => ok(null, 'Banner dismissed.')),
+      http.get(BILLING_URL, () =>
+        ok(
+          testBilling({
+            state: 'free',
+            trialEndsAt: trialEndsAt(),
+            dismissedBanners: ['trial_ended'],
+          }),
+          'Billing retrieved.'
+        )
+      ),
+      http.get('/api/v1/tenants/acme/entitlements', async () => {
+        await held
+        return ok(testEntitlements(), 'Entitlements retrieved.')
+      })
+    )
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+    await waitFor(() => expect(screen.queryByText(/^Your trial ended on /)).toBeNull())
+    release()
+
+    await waitFor(() =>
+      expect(track).toHaveBeenCalledWith('banner_dismissed', { banner: 'trial_ended' })
+    )
+    unsubscribe()
   })
 
   it('keeps the banner and shows the server’s message when the dismissal fails', async () => {

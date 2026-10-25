@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { UpgradeAction } from '@/components/features/billing/upgrade-action'
 import { BusyButton } from '@/components/shared/busy-button'
@@ -10,8 +10,7 @@ import { messageFrom } from '@/lib/api-error'
 import { pickBillingBanner, trialDaysLeft, type BillingBannerKind } from '@/lib/billing-banner'
 import { formatBillingDate, formatInr } from '@/lib/billing-format'
 import { toast } from '@/lib/toast'
-import { track } from '@/observability/telemetry'
-import { billingKeys, useDismissBanner, useTenantBilling } from '@/queries/billing.queries'
+import { useDismissBanner, useTenantBilling } from '@/queries/billing.queries'
 import { tenantSettingsQueryOptions } from '@/queries/tenant-forms.queries'
 import type { TenantDetail } from '@/queries/tenant.queries'
 import type { TenantBilling } from '@/types/billing.types'
@@ -221,14 +220,12 @@ function CardChange({
 }
 
 /**
- * "Dismiss" on the trial-ended banner. It posts the dismissal; the billing
- * view's `dismissedBanners` is the only record of it, so on success the
- * cached view gains `trial_ended` (the refetch the dismissal triggers says the
- * same) and the banner goes. A refusal keeps the banner and toasts the
- * server's message.
+ * "Dismiss" on the trial-ended banner. It posts the dismissal; on success
+ * `useDismissBanner` tracks it and adds `trial_ended` to the cached view's
+ * `dismissedBanners` (the refetch the dismissal triggers says the same), and
+ * the banner goes. A refusal keeps the banner and toasts the server's message.
  */
 function DismissTrialEnded({ slug }: { slug: string }) {
-  const queryClient = useQueryClient()
   const dismiss = useDismissBanner(slug)
   return (
     <BusyButton
@@ -236,21 +233,12 @@ function DismissTrialEnded({ slug }: { slug: string }) {
       size="sm"
       busy={dismiss.isPending}
       busyLabel="Dismissing…"
-      onClick={() =>
-        dismiss.mutate('trial_ended', {
-          onSuccess: () => {
-            track('banner_dismissed', { banner: 'trial_ended' })
-            queryClient.setQueryData<TenantBilling | null>(billingKeys.billing(slug), (view) =>
-              view && !view.dismissedBanners.includes('trial_ended')
-                ? { ...view, dismissedBanners: [...view.dismissedBanners, 'trial_ended'] }
-                : view
-            )
-          },
-          onError: (error) => {
-            toast.error(messageFrom(error))
-          },
+      onClick={() => {
+        // A promise, not per-call `mutate` callbacks, which TanStack drops if the banner unmounts first.
+        void dismiss.mutateAsync('trial_ended').catch((error: unknown) => {
+          toast.error(messageFrom(error))
         })
-      }
+      }}
     >
       Dismiss
     </BusyButton>

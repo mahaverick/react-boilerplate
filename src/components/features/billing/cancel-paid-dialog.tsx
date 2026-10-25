@@ -37,8 +37,14 @@ interface CancelPaidDialogProps {
  */
 export function CancelPaidDialog({ slug, billing, context, disabled }: CancelPaidDialogProps) {
   const queryClient = useQueryClient()
-  const cancel = useCancelPaid(slug)
   const [isOpen, setIsOpen] = useState(false)
+  // Hook-level: the cancel usually unmounts this dialog before the mutation settles.
+  const cancel = useCancelPaid(slug, {
+    onCancelled: (result) => {
+      setIsOpen(false)
+      toast.success(cancelToast(result, context))
+    },
+  })
 
   return (
     <AlertDialog
@@ -67,17 +73,11 @@ export function CancelPaidDialog({ slug, billing, context, disabled }: CancelPai
             disabled={cancel.isPending}
             onClick={() => {
               track('cancel_confirmed')
-              cancel.mutate(undefined, {
-                onSuccess: (result) => {
-                  toast.success(cancelToast(result, context))
-                },
-                onError: (error) => {
-                  toast.error(messageFrom(error))
-                  void invalidateBilling(queryClient, slug)
-                },
-                onSettled: () => {
-                  setIsOpen(false)
-                },
+              // A promise, not per-call `mutate` callbacks, which TanStack drops once this dialog unmounts.
+              void cancel.mutateAsync().catch((error: unknown) => {
+                setIsOpen(false)
+                toast.error(messageFrom(error))
+                void invalidateBilling(queryClient, slug)
               })
             }}
           >

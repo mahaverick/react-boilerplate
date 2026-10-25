@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query'
 import { apiClient, unwrap } from '@/http/client'
 import { statusFrom } from '@/lib/api-error'
+import { track } from '@/observability/telemetry'
 import { tenantKeys, useTenant } from '@/queries/tenant.queries'
 import type { ApiSuccess } from '@/types/api.types'
 import type {
@@ -284,19 +285,33 @@ export function useConfirmCheckout(slug: string) {
   })
 }
 
+/** What the cancel's caller hears when it lands. */
+interface CancelPaidOptions {
+  /**
+   * Called with the cancel's answer as soon as the server gives it, before the
+   * refetches it starts. Hook-level, so it runs even when the caller has
+   * unmounted by then, which per-call `mutate` callbacks do not.
+   */
+  onCancelled?: (billing: TenantBilling) => void
+}
+
 /**
  * Cancels Paid at the period's end, or a subscription that has not charged
  * yet. The answer is stored as the billing view, and the entitlements refetch.
  * @param slug - The tenant.
+ * @param options - `onCancelled`, for the caller's confirmation.
  */
-export function useCancelPaid(slug: string) {
+export function useCancelPaid(slug: string, { onCancelled }: CancelPaidOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async () =>
       unwrap(
         await apiClient.post<ApiSuccess<TenantBilling>>(`/tenants/${slug}/billing/cancel`, {})
       ),
-    onSuccess: (billing) => storeBilling(queryClient, slug, billing),
+    onSuccess: (billing) => {
+      onCancelled?.(billing)
+      return storeBilling(queryClient, slug, billing)
+    },
   })
 }
 
@@ -318,9 +333,13 @@ export function useRequestUpgrade(slug: string) {
 }
 
 /**
- * Hides a banner for the caller. On settle it invalidates all four billing
- * keys (entitlements, billing view, invoices, upgrade requests); the view
- * carries `dismissedBanners`, so a refusal also shows the server's state.
+ * Hides a banner for the caller. On success it tracks the dismissal and adds
+ * the banner to the cached view's `dismissedBanners`, the only record of it,
+ * here rather than in the caller: the banner can unmount before the mutation
+ * settles, and per-call `mutate` callbacks are dropped then. On settle it
+ * invalidates all four billing keys (entitlements, billing view, invoices,
+ * upgrade requests); the view carries `dismissedBanners`, so a refusal also
+ * shows the server's state.
  * @param slug - The tenant.
  */
 export function useDismissBanner(slug: string) {
@@ -330,6 +349,14 @@ export function useDismissBanner(slug: string) {
       unwrap(
         await apiClient.post<ApiSuccess<null>>(`/tenants/${slug}/banner-dismissals`, { banner })
       ),
+    onSuccess: (_data, banner) => {
+      track('banner_dismissed', { banner })
+      queryClient.setQueryData<TenantBilling | null>(billingKeys.billing(slug), (view) =>
+        view && !view.dismissedBanners.includes(banner)
+          ? { ...view, dismissedBanners: [...view.dismissedBanners, banner] }
+          : view
+      )
+    },
     onSettled: () => invalidateBilling(queryClient, slug),
   })
 }

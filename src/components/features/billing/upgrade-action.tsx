@@ -120,26 +120,33 @@ function RequestUpgrade({
     )
   }
 
-  /** Posts the request with the raw catalog key, which the API validates; analytics gets the fixed key. */
+  /**
+   * Posts the request with the raw catalog key, which the API validates;
+   * analytics gets the fixed key. A promise, not per-call `mutate` callbacks:
+   * TanStack drops those if the prompt unmounts while the request is in
+   * flight, and the toast and the event must still follow.
+   */
   const ask = () => {
-    request.mutate(entitlementKey === undefined ? { surface } : { key: entitlementKey, surface }, {
-      onSuccess: (result) => {
-        setIsRequested(true)
-        focus.focusAfter('requested')
-        if (!result.alreadyRequested) {
-          track('upgrade_requested_ui', eventProps)
-          toast.success(REQUEST_SENT)
-          return
+    void request
+      .mutateAsync(entitlementKey === undefined ? { surface } : { key: entitlementKey, surface })
+      .then(
+        (result) => {
+          setIsRequested(true)
+          focus.focusAfter('requested')
+          if (!result.alreadyRequested) {
+            track('upgrade_requested_ui', eventProps)
+            toast.success(REQUEST_SENT)
+            return
+          }
+          void alreadyAskedMessage(queryClient, slug, result).then((message) => {
+            toast.success(message)
+          })
+        },
+        (error: unknown) => {
+          toast.error(messageFrom(error))
+          if (codeFrom(error) === ALREADY_PAID) void invalidateBilling(queryClient, slug)
         }
-        void alreadyAskedMessage(queryClient, slug, result).then((message) => {
-          toast.success(message)
-        })
-      },
-      onError: (error) => {
-        toast.error(messageFrom(error))
-        if (codeFrom(error) === ALREADY_PAID) void invalidateBilling(queryClient, slug)
-      },
-    })
+      )
   }
 
   return (

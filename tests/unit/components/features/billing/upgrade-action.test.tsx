@@ -111,6 +111,42 @@ describe('UpgradeAction for an owner', () => {
 })
 
 describe('UpgradeAction for a member who is not an owner', () => {
+  it('still confirms and tracks a request whose prompt unmounted before the answer', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    serveRole('editor')
+    /** Lets the held request answer; replaced below. */
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    server.use(
+      http.post(REQUESTS_URL, async () => {
+        await held
+        return ok(
+          { id: 'r1', createdAt: '2026-10-20T09:00:00.000Z', alreadyRequested: false },
+          'Requested.',
+          201
+        )
+      })
+    )
+    const user = userEvent.setup()
+    renderAction()
+    await user.click(await screen.findByRole('button', { name: 'Request upgrade' }))
+    // The prompt goes, as when a refetch opens a gate or the member navigates away, while the request is in flight.
+    cleanup()
+    release()
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Request sent. Owners will see it in their notifications.'
+      )
+    )
+    expect(track).toHaveBeenCalledWith('upgrade_requested_ui', {
+      surface: 'limit',
+      key: analyticsKey('members'),
+    })
+  })
+
   it('asks the owners, says so, and becomes “Requested”', async () => {
     const track = vi.spyOn(analytics, 'track')
     serveRole('editor')
