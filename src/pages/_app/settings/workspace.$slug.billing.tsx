@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, useParams } from '@tanstack/react-router'
+import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { BillingOverviewCard } from '@/components/features/billing/billing-overview-card'
 import { InvoicesCard } from '@/components/features/billing/invoices-card'
@@ -10,6 +10,7 @@ import { SettingsRouteError } from '@/components/features/route-error'
 import { Note } from '@/components/shared/note'
 import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
+import { ROUTES } from '@/constants/routes'
 import { useNow } from '@/hooks/use-now'
 import { formatBillingDate } from '@/lib/billing-format'
 import type { BillingLineContext } from '@/lib/billing-page'
@@ -56,7 +57,9 @@ function WorkspaceBilling() {
 }
 
 /**
- * The page for a customer workspace. Everyone sees the plan card. An owner
+ * The page for a customer workspace. Everyone sees the plan card and a link
+ * to the pricing page, which names this workspace so its owner can come back
+ * to upgrade. An owner
  * with member access also gets its actions, the upgrade requests and, while
  * payments are on, the invoices. Other members read that only owners change
  * billing, with a way to ask on Free. Staff through platform access read the
@@ -100,6 +103,15 @@ function BillingPage({ slug, tenant }: { slug: string; tenant: TenantDetail }) {
           )
         }
       </BillingOverviewCard>
+      <p className="text-sm">
+        <Link
+          to={ROUTES.pricing}
+          search={{ tenant: slug }}
+          className="font-medium underline-offset-4 hover:underline"
+        >
+          Compare plans
+        </Link>
+      </p>
       {isOwner && <UpgradeRequestsCard slug={slug} timeZone={timeZone} />}
       {isOwner && billing.data?.paymentsEnabled === true && (
         <InvoicesCard slug={slug} timeZone={timeZone} />

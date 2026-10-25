@@ -309,6 +309,16 @@ describe('billing page, overview', () => {
     expect(within(card).getByText('billing@acme.test')).toHaveClass(PII_CLASS_NAME)
   })
 
+  it('links to the plans on the pricing page, naming this workspace', async () => {
+    mockTenant('owner', active())
+    renderBilling()
+    await overview()
+    expect(screen.getByRole('link', { name: 'Compare plans' })).toHaveAttribute(
+      'href',
+      '/pricing?tenant=acme'
+    )
+  })
+
   it('says the platform workspace has no billing, and asks for none', async () => {
     const reads = countGets(`/api/v1/tenants/platform/billing`, () => ok(testBilling()))
     server.use(
