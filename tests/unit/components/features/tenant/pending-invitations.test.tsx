@@ -281,7 +281,7 @@ describe('PendingInvitations resend countdown', () => {
 })
 
 describe('PendingInvitations resend refused for the members limit', () => {
-  it('toasts the plan line over the server message, naming the plan', async () => {
+  it('toasts the short not-sent line over the server message, leaving the counts to the note', async () => {
     const toastError = vi.spyOn(toast, 'error')
     serveInvitation(null)
     server.use(
@@ -308,9 +308,7 @@ describe('PendingInvitations resend refused for the members limit', () => {
     await user.click(await screen.findByRole('button', { name: READY }))
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith(
-        '5 of 3 members on Free. Upgrade to add more, or remove 2.'
-      )
+      expect(toastError).toHaveBeenCalledWith('Not sent. You’re at the members limit.')
     })
   })
 

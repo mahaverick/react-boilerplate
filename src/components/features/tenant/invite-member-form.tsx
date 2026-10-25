@@ -29,7 +29,7 @@ import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { STEP_UP_WAITING_LABEL, useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { codeFrom, messageFrom } from '@/lib/api-error'
-import { isMembersLimitRefusal } from '@/lib/members-limit'
+import { isMembersLimitRefusal, NOT_SENT_AT_LIMIT } from '@/lib/members-limit'
 import { isReauthRequired, stepUpRefusal } from '@/lib/step-up'
 import { toast } from '@/lib/toast'
 import { useInviteMember } from '@/queries/tenant.queries'
@@ -47,10 +47,11 @@ const RACED =
  *
  * `already_member` goes on the email field alone, and `invitation_conflict`
  * at form level (the list refetches, so the winning invite shows below). A
- * 402 for the members limit shows nothing here: the mutation refetches the
- * entitlements, which now read at the limit, so `MembersLimitNote` above the
- * form says it once, with the upgrade path. Any other refusal shows the
- * server's message at form level.
+ * 402 for the members limit says only "Not sent." at form level, an alert,
+ * so the click always gets an answer even when the note above was already
+ * up; the mutation refetches the entitlements, and `MembersLimitNote` gives
+ * the counts and the upgrade path. Any other refusal shows the server's
+ * message at form level.
  * The role select clears its own server error, since Base UI's selection does
  * not bubble a change event to the form; `FormControl`'s id lands on the
  * visible trigger, so the label points at something a pointer can reach.
@@ -88,8 +89,10 @@ export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: Membe
           serverErrors.setFormErrors([RACED])
           return
         }
-        // The members limit is said once, by the at-limit note above the form.
-        if (isMembersLimitRefusal(error)) return
+        if (isMembersLimitRefusal(error)) {
+          serverErrors.setFormErrors([NOT_SENT_AT_LIMIT])
+          return
+        }
         if (isReauthRequired(error)) {
           serverErrors.setFormErrors([stepUpRefusal(error)])
           return

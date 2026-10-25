@@ -2189,6 +2189,7 @@ describe('the members limit', () => {
   }
 
   const AT_LIMIT = "You've used 3 of 3 members on Free. Upgrade to add more."
+  const NOT_SENT = 'Not sent. You’re at the members limit.'
 
   it('shows the meter in the Members card, with no note below the limit', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me')])
@@ -2242,7 +2243,7 @@ describe('the members limit', () => {
     expect(screen.queryByRole('meter')).toBeNull()
   })
 
-  it('answers a 402 from the invite with the at-limit note alone, read again from the entitlements', async () => {
+  it('answers a 402 from the invite with a short form line, the counts left to the refetched note', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me')])
     // The page's count is stale (2); the server's is at the limit, as its refusal says.
     let used = 2
@@ -2278,10 +2279,11 @@ describe('the members limit', () => {
     await waitFor(() => {
       expect(reads.count).toBeGreaterThan(before)
     })
-    // The note, with its Upgrade link, says it once; the form adds no copy of it.
+    // The note, with its Upgrade link, says the counts once; the form says only that it was not sent.
     expect(await screen.findByText(AT_LIMIT)).toBeInTheDocument()
     expect(screen.getAllByText(AT_LIMIT)).toHaveLength(1)
     expect(screen.getByRole('link', { name: 'Upgrade' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(NOT_SENT)
     expect(screen.queryByText('This workspace is at its member limit.')).toBeNull()
     expect(screen.getByLabelText('Email')).toHaveValue('new@b.com')
   })
@@ -2303,6 +2305,52 @@ describe('the members limit', () => {
     expect(await screen.findByText('Something went wrong on our side.')).toBeInTheDocument()
   })
 
+  it('says the invite was not sent when the note was already up before the click', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    serveMembersUsage(3)
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('This workspace is at its member limit.', 402, 'PLAN_LIMIT_REACHED', {
+          key: 'members',
+          used: 3,
+          limit: 3,
+        })
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+    expect(await screen.findByText(AT_LIMIT)).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    // The note does not change, so the form's alert is what tells the owner the click did something.
+    expect(await screen.findByRole('alert')).toHaveTextContent(NOT_SENT)
+    expect(screen.getAllByText(AT_LIMIT)).toHaveLength(1)
+  })
+
+  it('shows the server message for a 402 on another limit', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    serveMembersUsage(2)
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('This workspace has used all its projects.', 402, 'PLAN_LIMIT_REACHED', {
+          key: 'projects',
+          used: 5,
+          limit: 5,
+        })
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    expect(await screen.findByText('This workspace has used all its projects.')).toBeInTheDocument()
+    expect(screen.queryByText(NOT_SENT)).toBeNull()
+  })
+
   it('shows the server message for a 402 that has no usage', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me')])
     serveMembersUsage(2)
@@ -2320,7 +2368,7 @@ describe('the members limit', () => {
     expect(await screen.findByText('Upgrade to add more members.')).toBeInTheDocument()
   })
 
-  it('toasts the plan line when a resend is refused for the limit', async () => {
+  it('toasts the short line, not the note’s counts, when a resend is refused for the limit', async () => {
     const toastError = vi.spyOn(toast, 'error')
     mockTenant('owner', [member(ME, 'owner', 'Me')])
     serveMembersUsage(3)
@@ -2344,7 +2392,7 @@ describe('the members limit', () => {
     )
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith(AT_LIMIT)
+      expect(toastError).toHaveBeenCalledWith(NOT_SENT)
     })
   })
 
