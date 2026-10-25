@@ -279,8 +279,9 @@ The policy is enforced, not report-only:
   risk-detection script `checkout.js` loads), `frame-src` (`api.razorpay.com`,
   `checkout.razorpay.com`), `connect-src` (`api.razorpay.com`,
   `lumberjack.razorpay.com`) and `img-src` (`cdn.razorpay.com`). These hosts
-  are **provisional**: `e2e/nginx/razorpay-checkout.test.ts` proves only that
-  the script loads and defines `window.Razorpay` with no violation. Opening a
+  are **provisional**: `e2e/nginx/razorpay-checkout.test.ts`, which needs
+  Razorpay's servers and so runs only in live nginx runs (`E2E_LIVE=1`), proves
+  only that the script loads and defines `window.Razorpay` with no violation. Opening a
   real Checkout needs a live API with Razorpay test keys, so the billing live
   walk, which opens one, confirms the final list and records it here. A
   missing host blocks payment only in production.
