@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vite-plus/test'
 import {
   analyticsKey,
+  entitlementAnalyticsKey,
   REGISTRY_HAS_NO_FREE_STRINGS,
   type AnalyticsKey,
   type BrowserEvent,
@@ -49,6 +50,21 @@ describe('the browser event registry', () => {
       | 'sign_in_link_requested'
       | 'sign_in_completed'
       | 'passkey_prompt_cancelled'
+      | 'pricing_viewed'
+      | 'billing_page_viewed'
+      | 'upgrade_prompt_viewed'
+      | 'upgrade_clicked'
+      | 'interval_selected'
+      | 'checkout_opened'
+      | 'checkout_dismissed'
+      | 'checkout_failed'
+      | 'checkout_succeeded'
+      | 'cancel_started'
+      | 'cancel_confirmed'
+      | 'trial_explainer_viewed'
+      | 'trial_summary_viewed'
+      | 'banner_dismissed'
+      | 'upgrade_requested_ui'
     >()
     expect(REGISTRY_HAS_NO_FREE_STRINGS).toBe(true)
   })
@@ -130,5 +146,22 @@ describe('the browser event registry', () => {
       track('onboarding_checklist_opened', { required_done: 1 })
     }
     expect(typeof calls).toBe('function')
+  })
+
+  it('types the billing events and maps entitlement keys', () => {
+    track('upgrade_clicked', { surface: 'limit', key: entitlementAnalyticsKey('members') })
+    track('upgrade_prompt_viewed', { surface: 'feature' })
+    track('checkout_opened', { interval: 'year', purpose: 'switch' })
+    track('checkout_failed', { failure_code: 'script_blocked' })
+    track('cancel_started')
+    // @ts-expect-error not an upgrade surface
+    track('upgrade_clicked', { surface: 'nope' })
+    // @ts-expect-error a free string is not an analytics key
+    track('upgrade_clicked', { surface: 'limit', key: 'members' })
+    // @ts-expect-error not a failure code
+    track('checkout_failed', { failure_code: 'other' })
+    expect(entitlementAnalyticsKey('members')).toBe('members')
+    expect(entitlementAnalyticsKey('advanced_example')).toBe('advanced_example')
+    expect(entitlementAnalyticsKey('someone@example.test')).toBe('other')
   })
 })
