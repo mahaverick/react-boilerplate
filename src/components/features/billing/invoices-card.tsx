@@ -25,9 +25,24 @@ const STATUS_LABEL: Record<InvoiceView['status'], string> = {
 }
 
 /**
+ * The invoice's link when it is an `https:` URL, else `null`. Razorpay sends
+ * the URL through express; a scheme check keeps any other value, such as a
+ * `javascript:` one, out of an `href`.
+ * @param url - The invoice's `url`, as the API sent it.
+ */
+function httpsUrl(url: string | null): string | null {
+  if (url === null) return null
+  try {
+    return new URL(url).protocol === 'https:' ? url : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Billing's "Invoices" card, for an owner with member access while payments
- * are on: date, amount, status and, where Razorpay gave one, a link that opens
- * the invoice in a new tab. Pages are read one cursor at a time; "Show more"
+ * are on: date, amount, status and, where Razorpay gave an `https:` one, a link
+ * that opens the invoice in a new tab. Pages are read one cursor at a time; "Show more"
  * adds the next under the ones shown, and a billing change starts over from
  * the first. Mount it only for that owner: the API refuses everyone else and
  * answers 404 while payments are off.
@@ -59,26 +74,29 @@ export function InvoicesCard({ slug, timeZone }: { slug: string; timeZone: strin
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((invoice) => (
-                <TableRow key={invoice.id}>
-                  <TableCell>{date(invoice.issuedAt)}</TableCell>
-                  <TableCell>{formatInr(invoice.amountMinor)}</TableCell>
-                  <TableCell>{STATUS_LABEL[invoice.status]}</TableCell>
-                  <TableCell>
-                    {invoice.url !== null && (
-                      <a
-                        href={invoice.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`View invoice of ${date(invoice.issuedAt)}`}
-                        className="text-sm font-medium underline-offset-4 hover:underline"
-                      >
-                        View
-                      </a>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {rows.map((invoice) => {
+                const href = httpsUrl(invoice.url)
+                return (
+                  <TableRow key={invoice.id}>
+                    <TableCell>{date(invoice.issuedAt)}</TableCell>
+                    <TableCell>{formatInr(invoice.amountMinor)}</TableCell>
+                    <TableCell>{STATUS_LABEL[invoice.status]}</TableCell>
+                    <TableCell>
+                      {href !== null && (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`View invoice of ${date(invoice.issuedAt)}`}
+                          className="text-sm font-medium underline-offset-4 hover:underline"
+                        >
+                          View
+                        </a>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         )}

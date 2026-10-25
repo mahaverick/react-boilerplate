@@ -64,6 +64,39 @@ describe('InvoicesCard', () => {
     )
     expect(screen.queryByRole('link')).toBeNull()
   })
+
+  it('links only an https invoice URL', async () => {
+    const urls = [
+      'https://rzp.io/i/abc',
+      'http://rzp.io/i/plain',
+      'javascript:alert(1)',
+      'not a url',
+      null,
+    ]
+    server.use(
+      http.get(`${BASE}/billing/invoices`, () =>
+        ok(
+          listPage(
+            urls.map((url, index) => ({
+              id: `inv_${String(index)}`,
+              amountMinor: 99_900,
+              currency: 'INR' as const,
+              status: 'paid' as const,
+              issuedAt: `2026-0${String(index + 1)}-02T09:00:00.000Z`,
+              paidAt: null,
+              url,
+            }))
+          ),
+          'Invoices retrieved.'
+        )
+      )
+    )
+    renderWithClient(<InvoicesCard slug="acme" timeZone="UTC" />)
+    await screen.findByRole('table', { name: 'Invoices' })
+    const links = screen.getAllByRole('link')
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute('href', 'https://rzp.io/i/abc')
+  })
 })
 
 describe('UpgradeRequestsCard', () => {
