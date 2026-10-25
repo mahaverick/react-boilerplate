@@ -487,7 +487,7 @@ describe('billing page, owner actions by state', () => {
     expect(starts).toHaveLength(1)
   })
 
-  it('keeps Keep Paid disabled while a switch waits to be confirmed', async () => {
+  it('keeps Keep Paid, Switch and Update card disabled while a switch waits to be confirmed', async () => {
     server.use(
       http.post(`${BASE}/billing/interval`, () =>
         ok(
@@ -525,6 +525,9 @@ describe('billing page, owner actions by state', () => {
         'Payment received. We’re confirming it. This page updates when it’s done.'
       )
     ).toBeInTheDocument()
+    // A second checkout would end the switch's wait, so neither starts one.
+    expect(within(card).getByRole('button', { name: 'Switch to yearly' })).toBeDisabled()
+    expect(within(card).getByRole('button', { name: 'Update card' })).toBeDisabled()
 
     // A cancel lands before the webhook records the switch, so the plan choice shows.
     act(() => {
@@ -536,7 +539,7 @@ describe('billing page, owner actions by state', () => {
     ).toBeDisabled()
   })
 
-  it('leaves Keep Paid enabled while only a card change waits', async () => {
+  it('leaves Keep Paid, Switch and Update card enabled while only a card change waits', async () => {
     server.use(
       http.post(`${BASE}/billing/payment-method`, () =>
         ok(
@@ -572,6 +575,9 @@ describe('billing page, owner actions by state', () => {
     expect(
       await within(card).findByText('Card received. We’re confirming it with Razorpay.')
     ).toBeInTheDocument()
+
+    expect(within(card).getByRole('button', { name: 'Switch to yearly' })).toBeEnabled()
+    expect(within(card).getByRole('button', { name: 'Update card' })).toBeEnabled()
 
     // The owner then cancels in another tab, and the view arrives over the stream.
     act(() => {
