@@ -56,6 +56,8 @@ function Actions({
   const running =
     flow.status === 'starting' || flow.status === 'open' || flow.status === 'confirming'
   const showMessage = (flow.status === 'error' || flow.status === 'waiting') && flow.message
+  // A payment handed to the webhook is taken: a second upgrade would only be refused, and would end the wait.
+  const paying = running || flow.status === 'waiting'
   const switching = switchArea(billing, context)
 
   /** Starts a checkout and remembers which button started it. */
@@ -75,7 +77,7 @@ function Actions({
               date={context.date}
               now={context.now}
               busy={running && action === 'upgrade'}
-              disabled={running}
+              disabled={paying}
               onUpgrade={(interval) => {
                 start({ purpose: 'upgrade', interval })
               }}

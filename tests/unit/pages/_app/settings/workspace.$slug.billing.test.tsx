@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vite-plus/test'
@@ -379,6 +379,52 @@ describe('billing page, owner actions by state', () => {
 
     await user.click(within(card).getByRole('button', { name: 'Upgrade to Paid' }))
     await waitFor(() => expect(bodies).toEqual([{ interval: 'year' }]))
+  })
+
+  it('keeps Upgrade to Paid disabled while a taken payment waits to be confirmed', async () => {
+    const starts: unknown[] = []
+    server.use(
+      http.post(`${BASE}/billing/checkout`, async ({ request }) => {
+        starts.push(await request.json())
+        return ok(
+          {
+            purpose: 'upgrade',
+            keyId: 'rzp_test_key',
+            subscriptionId: 'sub_1',
+            amountMinor: 99_900,
+            currency: 'INR',
+            interval: 'month',
+            startsAt: null,
+            prefill: { name: 'Ada Lovelace', email: testUser.email },
+          },
+          'Checkout started.',
+          201
+        )
+      }),
+      http.post(`${BASE}/billing/checkout/confirm`, () => fail('Internal server error.', 500))
+    )
+    mockTenant('owner')
+    const user = userEvent.setup()
+    renderBilling()
+    const card = await overview()
+    await user.click(await within(card).findByRole('button', { name: 'Upgrade to Paid' }))
+    await waitFor(() => expect(opened).toHaveLength(1))
+
+    act(() => {
+      opened[0]?.handler({
+        razorpay_payment_id: 'pay_1',
+        razorpay_subscription_id: 'sub_1',
+        razorpay_signature: 'signature',
+      })
+    })
+
+    expect(
+      await within(card).findByText(
+        'Payment received. We’re confirming it. This page updates when it’s done.'
+      )
+    ).toBeInTheDocument()
+    expect(within(card).getByRole('button', { name: 'Upgrade to Paid' })).toBeDisabled()
+    expect(starts).toHaveLength(1)
   })
 
   it('says GST is included only when the business is registered', async () => {
