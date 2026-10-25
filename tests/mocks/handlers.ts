@@ -335,6 +335,19 @@ export const handlers = [
     ok(testEntitlements(), 'Entitlements retrieved.')
   ),
   http.get('/api/v1/tenants/:slug/billing', () => ok(testBilling(), 'Billing retrieved.')),
+  // Read for the billing banner's dates; UTC, which a test about another zone overrides.
+  http.get('/api/v1/tenants/:slug/settings', ({ params }) =>
+    ok(
+      {
+        tenantId: `tenant-${String(params.slug)}`,
+        timezone: 'UTC',
+        locale: 'en-US',
+        metadata: null,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      'Settings retrieved.'
+    )
+  ),
   // Read by the root route on every mount; no maintenance, which a test about maintenance overrides.
   http.get('/api/v1/status/maintenance', () =>
     ok({ mode: 'off', message: null, since: null }, 'Maintenance status retrieved.')
