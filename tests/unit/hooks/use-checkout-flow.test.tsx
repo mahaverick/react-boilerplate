@@ -553,6 +553,29 @@ describe('useCheckoutFlow, failures before the confirm', () => {
     expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'payment_failed' })
   })
 
+  it('never rejects: an unexpected throw while opening Checkout ends in an error', async () => {
+    window.Razorpay = class {
+      /** Throws as Razorpay does on an option it refuses. */
+      constructor() {
+        throw new TypeError('Invalid option')
+      }
+    } as unknown as typeof window.Razorpay
+    serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
+    const { result } = renderFlow()
+
+    let outcome: Promise<void> = Promise.resolve()
+    act(() => {
+      outcome = result.current.start({ purpose: 'upgrade', interval: 'month' })
+    })
+
+    await expect(outcome).resolves.toBeUndefined()
+    await waitFor(() => expect(result.current.status).toBe('error'))
+    expect(result.current.message).toBe(
+      'We couldn’t open the payment window. Check your connection and try again.'
+    )
+    expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'start_failed' })
+  })
+
   it('shows the server’s message, refetches billing and tracks a start failure on SUBSCRIPTION_EXISTS', async () => {
     const MESSAGE = 'We already have your payment. Refresh Billing to see Paid.'
     serveStart('/checkout', () => fail(MESSAGE, 409, SUBSCRIPTION_EXISTS))

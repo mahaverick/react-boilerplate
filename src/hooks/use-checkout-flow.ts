@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME } from '@/constants/app'
 import { codeFrom, messageFrom, statusFrom } from '@/lib/api-error'
@@ -304,6 +305,8 @@ export function useCheckoutFlow(slug: string) {
         try {
           confirmed = await confirmCheckout(answer)
         } catch (error) {
+          // Not an HTTP failure, so not the payment's: the outer catch ends the flow in `error`.
+          if (!isAxiosError(error)) throw error
           if (leavesItToTheWebhook(error)) {
             wait(attempt)
             return
@@ -321,6 +324,10 @@ export function useCheckoutFlow(slug: string) {
         if (!mounted.current) return
         if (latest) finish(attempt, latest)
         else wait(attempt)
+      } catch {
+        // Anything else, such as Razorpay's constructor refusing an option: `start` never rejects.
+        track('checkout_failed', { failure_code: 'start_failed' })
+        failWith(SCRIPT_MESSAGE)
       } finally {
         running.current = false
       }
