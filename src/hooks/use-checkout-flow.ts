@@ -130,6 +130,22 @@ function paymentFailedMessage(description: string): string {
 }
 
 /**
+ * The card-change toast, with what happens next while a payment is still due.
+ * Razorpay retries a failed payment until it halts the subscription
+ * (`graceEndsAt` unset), so the next try uses the new card. A halted one
+ * restarts on the new card without charging the missed payment. A UPI pause
+ * is lifted in the UPI app, which a card does not change.
+ * @param billing - The view the confirm answered.
+ */
+function cardChangeMessage(billing: TenantBilling): string {
+  const pastDue = billing.pastDue
+  if (billing.state !== 'past_due' || pastDue === null || pastDue.paused) return 'Card updated.'
+  return pastDue.graceEndsAt === null
+    ? 'Card updated. Razorpay will retry the payment with it.'
+    : 'Card updated. Razorpay restarts your subscription with it.'
+}
+
+/**
  * The success toast for a finished checkout, worded from the view that
  * finished it: a next subscription means Paid continues after the current
  * one; otherwise the upgrade is Paid now, charged now or at the session's start.
@@ -140,7 +156,7 @@ function paymentFailedMessage(description: string): string {
 function successMessage(attempt: Attempt, billing: TenantBilling, timeZone: string): string {
   const { session } = attempt
   const next = billing.nextSwitch
-  if (session.purpose === 'card_change') return 'Card updated.'
+  if (session.purpose === 'card_change') return cardChangeMessage(billing)
   if (session.purpose === 'switch') {
     const startsAt = next?.startsAt ?? session.startsAt
     const interval = INTERVAL_ADJECTIVE[next?.interval ?? session.interval]

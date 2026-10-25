@@ -627,16 +627,10 @@ describe('useCheckoutFlow, by purpose', () => {
   it('finishes a card change on the confirm’s answer, without polling', async () => {
     serveStart('/payment-method', () => ok(session({ purpose: 'card_change' }), 'Started.', 201))
     serveConfirm(() =>
-      ok(
-        testBilling({
-          state: 'past_due',
-          pastDue: { since: STARTS_AT, graceEndsAt: null, paused: false },
-        }),
-        'Checkout confirmed.'
-      )
+      ok(testBilling({ state: 'active', interval: 'month' }), 'Checkout confirmed.')
     )
     const reads = serveBilling(testBilling())
-    const { result } = renderFlow(testBilling({ state: 'past_due' }))
+    const { result } = renderFlow(testBilling({ state: 'active' }))
     act(() => {
       void result.current.start({ purpose: 'card_change' })
     })
@@ -648,6 +642,36 @@ describe('useCheckoutFlow, by purpose', () => {
     expect(reads.count).toBe(0)
     expect(track).toHaveBeenCalledWith('checkout_succeeded', { purpose: 'card_change' })
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Card updated.'))
+  })
+
+  it.each([
+    [
+      'Razorpay still retrying',
+      { since: STARTS_AT, graceEndsAt: null, paused: false },
+      'Card updated. Razorpay will retry the payment with it.',
+    ],
+    [
+      'the subscription halted',
+      { since: STARTS_AT, graceEndsAt: '2026-11-08T18:30:00.000Z', paused: false },
+      'Card updated. Razorpay restarts your subscription with it.',
+    ],
+    [
+      'payments paused in a UPI app',
+      { since: STARTS_AT, graceEndsAt: '2026-11-08T18:30:00.000Z', paused: true },
+      'Card updated.',
+    ],
+  ])('says what happens next to a failed payment, with %s', async (_case, pastDue, message) => {
+    serveStart('/payment-method', () => ok(session({ purpose: 'card_change' }), 'Started.', 201))
+    serveConfirm(() => ok(testBilling({ state: 'past_due', pastDue }), 'Checkout confirmed.'))
+    const { result } = renderFlow(testBilling({ state: 'past_due', pastDue }))
+    act(() => {
+      void result.current.start({ purpose: 'card_change' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('open'))
+
+    act(() => lastCheckout().options.handler(PAYLOAD))
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(message))
   })
 
   it('says the card update is being confirmed, not a payment, when a card change waits', async () => {

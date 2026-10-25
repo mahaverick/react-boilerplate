@@ -104,7 +104,11 @@ test('the past-due banner’s Update card opens Checkout as a card change', asyn
   ).toBeVisible()
   await page.getByRole('button', { name: 'Update card' }).click()
 
-  await expect(page.getByText('Card updated.', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('Card updated. Razorpay restarts your subscription with it.', {
+      exact: true,
+    })
+  ).toBeVisible()
   const opened = await checkoutsOpened(page)
   expect(opened).toHaveLength(1)
   expect(opened[0]).toMatchObject({
