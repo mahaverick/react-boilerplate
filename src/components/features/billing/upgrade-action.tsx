@@ -6,14 +6,13 @@ import { buttonVariants } from '@/components/ui/button'
 import { useFocusAfter } from '@/hooks/use-focus-after'
 import { codeFrom, messageFrom } from '@/lib/api-error'
 import { formatBillingDate } from '@/lib/billing-format'
+import { entitlementAnalyticsKey } from '@/lib/entitlement-key'
 import { toast } from '@/lib/toast'
 import { track, type AnalyticsKey } from '@/observability/telemetry'
-// Not re-exported from the telemetry index: the index is byte for byte apex's, and this helper belongs to this app's registry.
-import { entitlementAnalyticsKey } from '@/observability/telemetry/event-registry'
 import { invalidateBilling, useRequestUpgrade } from '@/queries/billing.queries'
 import { billingTimeZone } from '@/queries/tenant-forms.queries'
 import { useMyRole } from '@/queries/tenant.queries'
-import { ALREADY_PAID } from '@/types/api.types'
+import { ALREADY_PAID } from '@/types/billing.types'
 import type { UpgradeRequestResult, UpgradeSurface } from '@/types/billing.types'
 
 /** Where an upgrade prompt sits and what it is for. */

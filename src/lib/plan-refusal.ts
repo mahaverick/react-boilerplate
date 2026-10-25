@@ -1,5 +1,22 @@
-import { detailsFrom, codeFrom, statusFrom } from '@/lib/api-error'
-import { PLAN_FEATURE_REQUIRED, PLAN_LIMIT_REACHED } from '@/types/api.types'
+import { isAxiosError } from 'axios'
+import { codeFrom, statusFrom } from '@/lib/api-error'
+import type { ApiErrorBody } from '@/types/api.types'
+import { PLAN_FEATURE_REQUIRED, PLAN_LIMIT_REACHED } from '@/types/billing.types'
+
+/**
+ * The envelope's `details` object (such as `{ key, used, limit }` on a plan
+ * refusal), or `undefined` when the failure carried none, or one that is not
+ * a plain object. Here rather than in `api-error.ts`, which is in the
+ * first-visit JS and byte for byte apex's; only plan refusals read it.
+ * @param error - A failed request's rejection.
+ */
+function detailsFrom(error: unknown): Record<string, unknown> | undefined {
+  if (!isAxiosError(error)) return undefined
+  const details: unknown = (error.response?.data as ApiErrorBody | undefined)?.details
+  return typeof details === 'object' && details !== null && !Array.isArray(details)
+    ? (details as Record<string, unknown>)
+    : undefined
+}
 
 /** A plan refusing a write: a limit the workspace has reached, or a feature its plan lacks. */
 export type PlanRefusal =

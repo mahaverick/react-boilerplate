@@ -101,23 +101,6 @@ export interface BrowserEventProps {
   upgrade_requested_ui: { surface: UpgradeSurface; key?: AnalyticsKey }
 }
 
-/**
- * Maps an entitlement catalog key to an `AnalyticsKey`. A key the registry does
- * not know becomes `other`, so a new catalog key never sends free text.
- * @param key - The catalog key, such as `members`.
- * @returns The fixed analytics key.
- */
-export function entitlementAnalyticsKey(key: string): AnalyticsKey {
-  switch (key) {
-    case 'members':
-      return analyticsKey('members')
-    case 'advanced_example':
-      return analyticsKey('advanced_example')
-    default:
-      return analyticsKey('other')
-  }
-}
-
 /** A registered event name. */
 export type BrowserEvent = keyof BrowserEventProps
 

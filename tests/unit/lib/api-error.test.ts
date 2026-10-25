@@ -2,7 +2,6 @@ import { AxiosError, AxiosHeaders } from 'axios'
 import { describe, expect, it } from 'vite-plus/test'
 import {
   codeFrom,
-  detailsFrom,
   fieldErrorsFrom,
   formErrorsFrom,
   messageFrom,
@@ -180,26 +179,4 @@ describe('retryAfterSecondsFrom', () => {
       expect(retryAfterSecondsFrom(errorWithHeaders({ 'retry-after': value }))).toBeNull()
     }
   )
-})
-
-describe('detailsFrom', () => {
-  it('reads details from an error body', () => {
-    const error = axiosErrorWith({
-      success: false,
-      message: 'Your workspace is full.',
-      statusCode: 402,
-      code: 'PLAN_LIMIT_REACHED',
-      details: { key: 'members', used: 3, limit: 3 },
-      requestId: 'req-2',
-    })
-    expect(detailsFrom(error)).toEqual({ key: 'members', used: 3, limit: 3 })
-  })
-
-  it('returns undefined details for a body without them, a non-object, or a non-axios error', () => {
-    const bare = { success: false, message: 'Nope.', statusCode: 402, requestId: 'req-3' } as const
-    expect(detailsFrom(axiosErrorWith(bare))).toBeUndefined()
-    expect(detailsFrom(axiosErrorWith({ ...bare, details: 'x' as never }))).toBeUndefined()
-    expect(detailsFrom(axiosErrorWith({ ...bare, details: [1] as never }))).toBeUndefined()
-    expect(detailsFrom(new Error('x'))).toBeUndefined()
-  })
 })

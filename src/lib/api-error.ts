@@ -46,21 +46,6 @@ export function codeFrom(error: unknown): string | undefined {
   return undefined
 }
 
-/**
- * The envelope's `details` object (such as `{ key, used, limit }` on a plan
- * refusal), or `undefined` when the failure carried none, or one that is not
- * a plain object.
- */
-export function detailsFrom(error: unknown): Record<string, unknown> | undefined {
-  if (error instanceof AxiosError) {
-    const details: unknown = (error.response?.data as ApiErrorBody | undefined)?.details
-    if (typeof details === 'object' && details !== null && !Array.isArray(details)) {
-      return details as Record<string, unknown>
-    }
-  }
-  return undefined
-}
-
 /** The one HTTP-date form servers send, such as `Sun, 06 Nov 1994 08:49:37 GMT`. */
 const IMF_FIXDATE = /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/
 

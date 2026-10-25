@@ -27,7 +27,8 @@ import {
   testUser,
 } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
-import { SWITCH_TOO_CLOSE_TO_RENEWAL, type TenantAccess } from '@/types/api.types'
+import { type TenantAccess } from '@/types/api.types'
+import { SWITCH_TOO_CLOSE_TO_RENEWAL } from '@/types/billing.types'
 import type { InvoiceView, PriceView, TenantBilling } from '@/types/billing.types'
 
 const PATH = '/settings/workspace/acme/billing'

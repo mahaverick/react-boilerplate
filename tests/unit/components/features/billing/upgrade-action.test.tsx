@@ -19,7 +19,8 @@ import { TENANT_ID } from '@/tests/fixtures/ids'
 import { settle } from '@/tests/fixtures/timing'
 import { fail, ok, tenantDetail } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
-import { ALREADY_PAID, type TenantAccess } from '@/types/api.types'
+import { type TenantAccess } from '@/types/api.types'
+import { ALREADY_PAID } from '@/types/billing.types'
 import type { UpgradeSurface } from '@/types/billing.types'
 
 const TENANT = {

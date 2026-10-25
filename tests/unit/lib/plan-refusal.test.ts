@@ -56,4 +56,15 @@ describe('planRefusalFrom', () => {
     expect(planRefusalFrom(refused(402, 'PLAN_FEATURE_REQUIRED', { key: 5 }))).toBeUndefined()
     expect(planRefusalFrom(refused(402, 'PLAN_LIMIT_REACHED', 'members'))).toBeUndefined()
   })
+
+  it('ignores details that are not a plain object, and an error that is not an HTTP one', () => {
+    expect(
+      planRefusalFrom(refused(402, 'PLAN_FEATURE_REQUIRED', 'advanced_example'))
+    ).toBeUndefined()
+    expect(
+      planRefusalFrom(refused(402, 'PLAN_FEATURE_REQUIRED', ['advanced_example']))
+    ).toBeUndefined()
+    expect(planRefusalFrom(refused(402, 'PLAN_FEATURE_REQUIRED'))).toBeUndefined()
+    expect(planRefusalFrom(new Error('Refused.'))).toBeUndefined()
+  })
 })

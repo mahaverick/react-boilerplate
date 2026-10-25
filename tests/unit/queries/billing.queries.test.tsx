@@ -47,7 +47,7 @@ import {
   testUser,
 } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
-import { PLAN_LIMIT_REACHED } from '@/types/api.types'
+import { PLAN_LIMIT_REACHED } from '@/types/billing.types'
 import type { CheckoutSession, InvoiceView } from '@/types/billing.types'
 
 /** The `acme` tenant row `GET /tenants/acme` answers with. */

@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vite-plus/test'
+import { entitlementAnalyticsKey } from '@/lib/entitlement-key'
 import {
   analyticsKey,
-  entitlementAnalyticsKey,
   REGISTRY_HAS_NO_FREE_STRINGS,
   type AnalyticsKey,
   type BrowserEvent,

@@ -14,13 +14,13 @@ import { useAuthStore } from '@/states/auth.store'
 import { TENANT_ID } from '@/tests/fixtures/ids'
 import { fail, ok, testBilling, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
+import { READ_ONLY_MODE } from '@/types/api.types'
 import {
   BILLING_BUSY,
   CHECKOUT_MISMATCH,
   PAYMENT_PROVIDER_UNAVAILABLE,
-  READ_ONLY_MODE,
   SUBSCRIPTION_EXISTS,
-} from '@/types/api.types'
+} from '@/types/billing.types'
 import type { CheckoutConfirm, CheckoutSession, TenantBilling } from '@/types/billing.types'
 
 const BASE = '/api/v1/tenants/acme/billing'
