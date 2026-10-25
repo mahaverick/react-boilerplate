@@ -25,6 +25,7 @@ import {
   useTenantBilling,
   useUpdateCard,
 } from '@/queries/billing.queries'
+import { INSIGHTS_LOCKED, insightsKey } from '@/queries/insights.queries'
 import {
   tenantKeys,
   useInviteMember,
@@ -286,7 +287,7 @@ describe('billing reads', () => {
 })
 
 describe('invalidateBilling', () => {
-  it('marks entitlements, billing, invoices and upgrade requests stale', async () => {
+  it('marks entitlements, billing, invoices, upgrade requests and insights stale', async () => {
     client.setQueryData(billingKeys.entitlements('acme'), testEntitlements())
     client.setQueryData(billingKeys.billing('acme'), testBilling())
     client.setQueryData(billingKeys.invoices('acme'), {
@@ -294,6 +295,7 @@ describe('invalidateBilling', () => {
       pageParams: [null, 'c2'],
     })
     client.setQueryData(billingKeys.upgradeRequests('acme'), [])
+    client.setQueryData(insightsKey('acme'), INSIGHTS_LOCKED)
     client.setQueryData(billingKeys.plans, testPlans)
     await invalidateBilling(client, 'acme')
     expect(client.getQueryState(billingKeys.entitlements('acme'))?.isInvalidated).toBe(true)
@@ -305,6 +307,8 @@ describe('invalidateBilling', () => {
       pageParams: [null],
     })
     expect(client.getQueryState(billingKeys.upgradeRequests('acme'))?.isInvalidated).toBe(true)
+    // A 402 cached as locked would otherwise keep Insights locked after an upgrade.
+    expect(client.getQueryState(insightsKey('acme'))?.isInvalidated).toBe(true)
     expect(client.getQueryState(billingKeys.plans)?.isInvalidated).toBe(false)
   })
 })

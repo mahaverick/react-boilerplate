@@ -10,6 +10,7 @@ import {
 import { apiClient, unwrap } from '@/http/client'
 import { statusFrom } from '@/lib/api-error'
 import { track } from '@/observability/telemetry'
+import { insightsKey } from '@/queries/insights.queries'
 import { tenantKeys, useTenant } from '@/queries/tenant.queries'
 import type { ApiSuccess } from '@/types/api.types'
 import type {
@@ -199,7 +200,8 @@ export function upgradeRequestsQueryOptions(slug: string, { enabled = true }: En
 
 /**
  * Refetches everything a billing change moves: entitlements, the billing view,
- * invoices (from the first page only) and upgrade requests. The public plans stay.
+ * invoices (from the first page only), upgrade requests and the Paid-only
+ * insights read, which may have cached a 402 as `locked`. The public plans stay.
  * @param queryClient - The app's query client.
  * @param slug - The tenant.
  */
@@ -210,6 +212,7 @@ export async function invalidateBilling(queryClient: QueryClient, slug: string):
     queryClient.invalidateQueries({ queryKey: billingKeys.billing(slug) }),
     queryClient.invalidateQueries({ queryKey: billingKeys.invoices(slug) }),
     queryClient.invalidateQueries({ queryKey: billingKeys.upgradeRequests(slug) }),
+    queryClient.invalidateQueries({ queryKey: insightsKey(slug) }),
   ])
 }
 
@@ -357,9 +360,8 @@ export function useRequestUpgrade(slug: string) {
  * the banner to the cached view's `dismissedBanners`, the only record of it,
  * here rather than in the caller: the banner can unmount before the mutation
  * settles, and per-call `mutate` callbacks are dropped then. On settle it
- * invalidates all four billing keys (entitlements, billing view, invoices,
- * upgrade requests); the view carries `dismissedBanners`, so a refusal also
- * shows the server's state.
+ * runs `invalidateBilling`; the view carries `dismissedBanners`, so a refusal
+ * also shows the server's state.
  * @param slug - The tenant.
  */
 export function useDismissBanner(slug: string) {

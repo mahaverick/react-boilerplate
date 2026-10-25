@@ -10,6 +10,15 @@ export interface TenantInsights {
   invitationsSentLast30Days: number
 }
 
+/**
+ * The insights read's key, under the tenant's detail key. `invalidateBilling`
+ * refetches it: a gated read cached as `locked` must not outlive an upgrade.
+ * @param slug - The tenant.
+ */
+export function insightsKey(slug: string) {
+  return [...tenantKeys.detail(slug), 'insights'] as const
+}
+
 /** What the insights read resolves to when the plan lacks the feature: the API answered 402. */
 export const INSIGHTS_LOCKED = 'locked'
 
@@ -23,7 +32,7 @@ export const INSIGHTS_LOCKED = 'locked'
  */
 export function insightsQueryOptions(slug: string) {
   return queryOptions({
-    queryKey: [...tenantKeys.detail(slug), 'insights'] as const,
+    queryKey: insightsKey(slug),
     retry: false,
     queryFn: async ({ signal }): Promise<TenantInsights | typeof INSIGHTS_LOCKED> => {
       try {

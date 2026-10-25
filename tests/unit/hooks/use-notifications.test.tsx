@@ -695,8 +695,8 @@ describe('useNotificationStream', () => {
       )
 
       await waitFor(() => expect(invalidate).toHaveBeenCalled())
-      // Only the valid frame invalidated: the four billing keys of acme, nothing else.
-      expect(invalidate.mock.calls).toHaveLength(4)
+      // Only the valid frame invalidated: the five billing keys of acme (insights included), nothing else.
+      expect(invalidate.mock.calls).toHaveLength(5)
     })
 
     it('does not reset the reconnect backoff', async () => {
