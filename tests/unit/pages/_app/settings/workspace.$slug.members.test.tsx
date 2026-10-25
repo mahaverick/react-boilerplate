@@ -17,6 +17,7 @@ import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
+import { testEntitlements } from '@/tests/fixtures/billing'
 import {
   INVITATION_ID,
   INVITATION_ID_2,
@@ -2153,5 +2154,185 @@ describe('the members list', () => {
         expect(router.state.location.search).toEqual({ sort: 'email', invitationsCursor: 'xyz' })
       )
     })
+  })
+})
+
+describe('the members limit', () => {
+  beforeEach(() => {
+    resetSessionForTests()
+    queryClient.clear()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      isBootstrapped: true,
+    })
+  })
+
+  /** Serves Free-plan entitlements with `used` of `limit` members; the count of reads is returned. */
+  function serveMembersUsage(used: number, limit: number | null = 3) {
+    const reads = { count: 0 }
+    server.use(
+      http.get('/api/v1/tenants/acme/entitlements', () => {
+        reads.count += 1
+        return ok(
+          testEntitlements({
+            plan: { key: 'free', name: 'Free' },
+            state: 'free',
+            limits: { members: { limit, used, approaching: limit !== null && used >= limit - 1 } },
+          }),
+          'Entitlements retrieved.'
+        )
+      })
+    )
+    return reads
+  }
+
+  const AT_LIMIT = "You've used 3 of 3 members on Free. Upgrade to add more."
+
+  it('shows the meter in the Members card, with no note below the limit', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    serveMembersUsage(2)
+    renderAppAt('/settings/workspace/acme/members')
+
+    expect(await screen.findByRole('meter', { name: 'Members' })).toHaveAttribute(
+      'aria-valuetext',
+      '2 of 3 members'
+    )
+    expect(screen.queryByText(AT_LIMIT)).toBeNull()
+  })
+
+  it('warns an owner at the limit, with an Upgrade link, and keeps the form enabled', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    serveMembersUsage(3)
+    renderAppAt('/settings/workspace/acme/members')
+
+    expect(await screen.findByText(AT_LIMIT)).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Upgrade' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Invite member' })).toBeEnabled()
+    expect(screen.getByLabelText('Email')).toBeEnabled()
+  })
+
+  it('offers an admin at the limit Request upgrade, not a link', async () => {
+    mockTenant('admin', [member(ME, 'admin', 'Me')])
+    serveMembersUsage(3)
+    renderAppAt('/settings/workspace/acme/members')
+
+    expect(await screen.findByText(AT_LIMIT)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Request upgrade' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Upgrade' })).toBeNull()
+  })
+
+  it('says how many to remove when over the limit', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    serveMembersUsage(5)
+    renderAppAt('/settings/workspace/acme/members')
+
+    expect(
+      await screen.findByText('5 of 3 members on Free. Upgrade to add more, or remove 2.')
+    ).toBeInTheDocument()
+  })
+
+  it('shows no note and an unlimited meter on a plan with no limit', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    serveMembersUsage(7, null)
+    renderAppAt('/settings/workspace/acme/members')
+
+    expect(await screen.findByText('7 members · No limit')).toBeInTheDocument()
+    expect(screen.queryByRole('meter')).toBeNull()
+  })
+
+  it('answers a 402 from the invite with the plan line and reads the entitlements again', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    const reads = serveMembersUsage(2)
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('This workspace is at its member limit.', 402, 'PLAN_LIMIT_REACHED', {
+          key: 'members',
+          used: 3,
+          limit: 3,
+        })
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    const before = reads.count
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    // Once in the form's error, once in the refreshed at-limit note.
+    await waitFor(() => {
+      expect(screen.getAllByText(AT_LIMIT).length).toBeGreaterThan(0)
+    })
+    expect(screen.queryByText('This workspace is at its member limit.')).toBeNull()
+    await waitFor(() => {
+      expect(reads.count).toBeGreaterThan(before)
+    })
+  })
+
+  it('shows the server message for a 402 that has no usage', async () => {
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    serveMembersUsage(2)
+    server.use(
+      http.post('/api/v1/tenants/acme/invitations', () =>
+        fail('Upgrade to add more members.', 402, 'PLAN_LIMIT_REACHED')
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.type(await screen.findByLabelText('Email'), 'new@b.com')
+    await user.click(screen.getByRole('button', { name: 'Invite member' }))
+
+    expect(await screen.findByText('Upgrade to add more members.')).toBeInTheDocument()
+  })
+
+  it('toasts the plan line when a resend is refused for the limit', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    mockTenant('owner', [member(ME, 'owner', 'Me')])
+    serveMembersUsage(3)
+    server.use(
+      http.get('/api/v1/tenants/acme/invitations', () =>
+        ok(listPage([testInvitation]), 'Invitations retrieved.')
+      ),
+      http.post('/api/v1/tenants/acme/invitations/:id/resend', () =>
+        fail('This workspace is at its member limit.', 402, 'PLAN_LIMIT_REACHED', {
+          key: 'members',
+          used: 3,
+          limit: 3,
+        })
+      )
+    )
+    const user = userEvent.setup()
+    renderAppAt('/settings/workspace/acme/members')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Resend, invitation to invitee@b.com' })
+    )
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(AT_LIMIT)
+    })
+  })
+
+  it('shows staff the meter but no action', async () => {
+    server.use(
+      http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.')),
+      http.get('/api/v1/tenants/acme', () =>
+        ok(tenantDetail(TENANT, 'owner', 'platform'), 'Tenant retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/members', () =>
+        ok(listPage([member(USER_ID_4, 'owner', 'Otto')]), 'Members retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/invitations', () => ok(listPage([]), 'Invitations retrieved.'))
+    )
+    serveMembersUsage(3)
+    renderAppAt('/settings/workspace/acme/members')
+
+    expect(await screen.findByRole('meter', { name: 'Members' })).toBeInTheDocument()
+    expect(screen.queryByText(AT_LIMIT)).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Upgrade' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Request upgrade' })).toBeNull()
   })
 })

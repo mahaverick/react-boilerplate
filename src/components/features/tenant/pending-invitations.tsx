@@ -28,9 +28,11 @@ import { useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { codeFrom, retryAfterSecondsFrom } from '@/lib/api-error'
 import { formatTimeLeft } from '@/lib/countdown'
 import { formatDate } from '@/lib/format'
+import { membersRefusalLine } from '@/lib/members-limit'
 import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
 import { analyticsKey } from '@/observability/telemetry'
+import { useEntitlements } from '@/queries/billing.queries'
 import { inviterName } from '@/queries/invitation.queries'
 import {
   invitationsList,
@@ -113,6 +115,7 @@ function ResendInvitationButton({
   reasonId?: string
 }) {
   const resend = useResendInvitation(slug)
+  const planName = useEntitlements(slug).data?.plan.name
   const stepUp = useStepUp()
   const stepping = useStepUpWaiting()
   const [localUntil, setLocalUntil] = useState<number | null>(null)
@@ -158,7 +161,7 @@ function ResendInvitationButton({
                 const wait = retryAfterSecondsFrom(error)
                 if (wait !== null) setLocalUntil(Date.now() + wait * 1_000)
               }
-              toast.error(actionFailure(error))
+              toast.error(membersRefusalLine(error, planName) ?? actionFailure(error))
             }
           )
       }}

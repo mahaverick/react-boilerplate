@@ -29,8 +29,10 @@ import { fieldValue } from '@/hooks/use-form-field'
 import { useServerErrors } from '@/hooks/use-server-errors'
 import { STEP_UP_WAITING_LABEL, useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { codeFrom, messageFrom } from '@/lib/api-error'
+import { membersRefusalLine } from '@/lib/members-limit'
 import { isReauthRequired, stepUpRefusal } from '@/lib/step-up'
 import { toast } from '@/lib/toast'
+import { useEntitlements } from '@/queries/billing.queries'
 import { useInviteMember } from '@/queries/tenant.queries'
 import { inviteMemberSchema } from '@/schemas/tenant.schemas'
 import { ALREADY_MEMBER, INVITATION_CONFLICT } from '@/types/api.types'
@@ -52,6 +54,7 @@ const RACED =
  */
 export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: MembershipRole }) {
   const inviteMember = useInviteMember(slug)
+  const planName = useEntitlements(slug).data?.plan.name
   const stepUp = useStepUp()
   const waiting = useStepUpWaiting()
   const serverErrors = useServerErrors()
@@ -81,6 +84,12 @@ export function InviteMemberForm({ slug, myRole }: { slug: string; myRole: Membe
         }
         if (code === INVITATION_CONFLICT) {
           serverErrors.setFormErrors([RACED])
+          return
+        }
+        // A 402 for the members limit gets the plan's counts; any other refusal shows the server's message below.
+        const limitLine = membersRefusalLine(error, planName)
+        if (limitLine !== undefined) {
+          serverErrors.setFormErrors([limitLine])
           return
         }
         if (isReauthRequired(error)) {
