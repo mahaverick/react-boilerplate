@@ -26,7 +26,8 @@ function toneOf(usage: LimitUsage & { limit: number }): MeterTone {
  * One limit's use: "3 of 3 members" over a bar, or "7 members · No limit"
  * and no bar when the plan has none. The bar is a `role="meter"` named by
  * `label`, with the sentence as its value text. Over the limit, the bar stays
- * full and the count stays true.
+ * full and `aria-valuenow` stops at the maximum, as a meter's value must, while
+ * the text and value text keep the true count.
  * @param props.label - The catalog label, such as "Members".
  * @param props.usage - The limit's use, from the entitlements.
  */
@@ -49,7 +50,7 @@ export function UsageMeter({ label, usage }: { label: string; usage: LimitUsage 
         aria-label={label}
         aria-valuemin={0}
         aria-valuemax={usage.limit}
-        aria-valuenow={usage.used}
+        aria-valuenow={Math.min(usage.used, usage.limit)}
         aria-valuetext={text}
         data-tone={tone}
         className="h-2 w-full overflow-hidden rounded-full bg-muted"

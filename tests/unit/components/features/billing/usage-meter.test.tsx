@@ -36,7 +36,10 @@ describe('UsageMeter', () => {
 
     expect(screen.getByText('5 of 3 members')).toBeInTheDocument()
     const meter = screen.getByRole('meter', { name: 'Members' })
-    expect(meter).toHaveAttribute('aria-valuenow', '5')
+    // A meter's value never passes its maximum; the value text carries the real count.
+    expect(meter).toHaveAttribute('aria-valuenow', '3')
+    expect(meter).toHaveAttribute('aria-valuemax', '3')
+    expect(meter).toHaveAttribute('aria-valuetext', '5 of 3 members')
     expect(meter).toHaveAttribute('data-tone', 'full')
     expect(meter.querySelector<HTMLElement>('[data-slot="meter-fill"]')?.style.width).toBe('100%')
   })
