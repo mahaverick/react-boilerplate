@@ -70,10 +70,9 @@ const WAITING_MESSAGE = 'Payment received. We’re confirming it. This page upda
 
 /**
  * The waiting line for a card change, which takes no payment. Nothing in the
- * billing view shows a new card, so the page cannot finish the wait itself.
+ * billing view shows a new card, so it promises no change on the page.
  */
-const CARD_WAITING_MESSAGE =
-  'Card received. We’re confirming it with Razorpay. Reload this page in a minute to see it.'
+const CARD_WAITING_MESSAGE = 'Card received. We’re confirming it with Razorpay.'
 
 const SCRIPT_MESSAGE = 'We couldn’t open the payment window. Check your connection and try again.'
 

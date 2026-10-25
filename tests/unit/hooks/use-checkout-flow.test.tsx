@@ -686,9 +686,7 @@ describe('useCheckoutFlow, by purpose', () => {
     act(() => lastCheckout().options.handler(PAYLOAD))
 
     await waitFor(() => expect(result.current.status).toBe('waiting'))
-    expect(result.current.message).toBe(
-      'Card received. We’re confirming it with Razorpay. Reload this page in a minute to see it.'
-    )
+    expect(result.current.message).toBe('Card received. We’re confirming it with Razorpay.')
   })
 })
 
