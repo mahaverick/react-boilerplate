@@ -126,7 +126,7 @@ describe('UpgradeAction for a member who is not an owner', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Request upgrade' }))
 
-    await screen.findByText('Requested')
+    expect(await screen.findByText('Requested')).toHaveFocus()
     expect(bodies).toEqual([{ key: 'members', surface: 'limit' }])
     expect(toast.success).toHaveBeenCalledWith(
       'Request sent. Owners will see it in their notifications.'

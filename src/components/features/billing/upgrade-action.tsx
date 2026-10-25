@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { BusyButton } from '@/components/shared/busy-button'
 import { buttonVariants } from '@/components/ui/button'
+import { useFocusAfter } from '@/hooks/use-focus-after'
 import { codeFrom, messageFrom } from '@/lib/api-error'
 import { formatBillingDate } from '@/lib/billing-format'
 import { toast } from '@/lib/toast'
@@ -104,14 +105,27 @@ function RequestUpgrade({
   const queryClient = useQueryClient()
   const request = useRequestUpgrade(slug)
   const [isRequested, setIsRequested] = useState(false)
+  // The button unmounts on success; without this, keyboard focus drops to <body>.
+  const focus = useFocusAfter<'requested'>()
 
-  if (isRequested) return <span className="text-sm text-muted-foreground">Requested</span>
+  if (isRequested) {
+    return (
+      <span
+        ref={focus.target('requested')}
+        tabIndex={-1}
+        className="text-sm text-muted-foreground outline-none"
+      >
+        Requested
+      </span>
+    )
+  }
 
   /** Posts the request with the raw catalog key, which the API validates; analytics gets the fixed key. */
   const ask = () => {
     request.mutate(entitlementKey === undefined ? { surface } : { key: entitlementKey, surface }, {
       onSuccess: (result) => {
         setIsRequested(true)
+        focus.focusAfter('requested')
         if (!result.alreadyRequested) {
           track('upgrade_requested_ui', eventProps)
           toast.success(REQUEST_SENT)
