@@ -149,16 +149,6 @@ function successMessage(attempt: Attempt, billing: TenantBilling, timeZone: stri
 }
 
 /**
- * Waits on the clock between billing reads.
- * @param ms - How long.
- */
-function pause(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
-
-/**
  * Razorpay Checkout from the click to a confirmed change: starts the checkout
  * on the API, opens Checkout, hands its answer to the confirm, and rereads
  * billing every 2 seconds, for up to 30, until the change shows. A confirm the
@@ -181,13 +171,34 @@ export function useCheckoutFlow(slug: string) {
   const waitingFor = useRef<Attempt | null>(null)
   const running = useRef(false)
   const mounted = useRef(true)
+  const pending = useRef<{ timer: ReturnType<typeof setTimeout>; resolve: () => void } | null>(null)
 
   useEffect(() => {
     mounted.current = true
     return () => {
       mounted.current = false
+      // Ends the poll's pause at once, so an unmounted flow leaves no timer behind.
+      const paused = pending.current
+      pending.current = null
+      if (paused) {
+        clearTimeout(paused.timer)
+        paused.resolve()
+      }
     }
   }, [])
+
+  /** Waits on the clock between billing reads; an unmount ends the wait early. */
+  const pause = useCallback(
+    (ms: number) =>
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          pending.current = null
+          resolve()
+        }, ms)
+        pending.current = { timer, resolve }
+      }),
+    []
+  )
 
   /** Ends the flow on a confirmed change: tracks it, then toasts it with dates in the tenant's zone. */
   const finish = useCallback(
@@ -229,7 +240,8 @@ export function useCheckoutFlow(slug: string) {
   const poll = useCallback(
     async (goal: Goal): Promise<TenantBilling | null> => {
       const deadline = Date.now() + POLL_LIMIT_MS
-      while (Date.now() < deadline) {
+      // A read can settle after an unmount; the mounted check keeps it from starting another pause.
+      while (mounted.current && Date.now() < deadline) {
         await pause(POLL_INTERVAL_MS)
         if (!mounted.current) return null
         try {
@@ -244,7 +256,7 @@ export function useCheckoutFlow(slug: string) {
       }
       return null
     },
-    [queryClient, slug]
+    [pause, queryClient, slug]
   )
 
   /** Starts the checkout on the API: the start, switch or card-change write. */

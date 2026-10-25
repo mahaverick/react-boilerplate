@@ -131,7 +131,11 @@ function serveBilling(...views: TenantBilling[]) {
 /** Mounts the hook for acme; `before` seeds the billing view the page already holds. */
 function renderFlow(before?: TenantBilling) {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    // No garbage-collection timers, so a test can count the flow's own timers.
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity },
+      mutations: { retry: false, gcTime: Infinity },
+    },
   })
   if (before) client.setQueryData(billingKeys.billing('acme'), before)
   /** Provides the test's query client. */
@@ -393,6 +397,34 @@ describe('useCheckoutFlow, confirming', () => {
     expect(result.current.message).toBe(WAITING)
     expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'confirm_failed' })
     expect(track).not.toHaveBeenCalledWith('checkout_failed', { failure_code: 'start_failed' })
+  })
+
+  it('stops polling and leaves no timer when the page unmounts mid-poll', async () => {
+    serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
+    serveConfirm(() => ok(testBilling(), 'Checkout confirmed.'))
+    const reads = serveBilling(testBilling())
+    const { result, unmount } = renderFlow(testBilling())
+    act(() => {
+      void result.current.start({ purpose: 'upgrade', interval: 'month' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('open'))
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    act(() => lastCheckout().options.handler(PAYLOAD))
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.status).toBe('confirming')
+    const readsBefore = reads.count
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+
+    unmount()
+    // Short timers of the test harness run out within a second; a pause left behind would still wait.
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+
+    // The client keeps no garbage-collection timers (see `renderFlow`), so a timer left is the poll's.
+    expect(vi.getTimerCount()).toBe(0)
+    await act(() => vi.advanceTimersByTimeAsync(4_000))
+    expect(reads.count).toBe(readsBefore)
+    expect(track).not.toHaveBeenCalledWith('checkout_succeeded', expect.anything())
+    expect(track).not.toHaveBeenCalledWith('checkout_failed', expect.anything())
   })
 
   it('finishes a waiting checkout when billing later shows the workspace active', async () => {
