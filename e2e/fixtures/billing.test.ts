@@ -172,6 +172,28 @@ test('past due, Billing’s one Update card opens Checkout as a card change', as
   })
 })
 
+test('the past-due banner’s Update card opens Checkout as a card change', async ({ page }) => {
+  await page.goto(harness('/tenants/acme', '&billing=past_due&razorpay=fake'))
+  await expect(
+    page.getByText(
+      'Your card payment of ₹999 failed on 20 October 2026. Update your card by 27 October 2026 to keep Paid.'
+    )
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Update card' }).click()
+
+  await expect(
+    page.getByText('Card updated. Razorpay restarts your subscription with it.', {
+      exact: true,
+    })
+  ).toBeVisible()
+  const opened = await checkoutsOpened(page)
+  expect(opened).toHaveLength(1)
+  expect(opened[0]).toMatchObject({
+    subscription_id: 'sub_harness_card_change',
+    subscription_card_change: 1,
+  })
+})
+
 test('with payments off, Billing and Pricing say so instead of offering to pay', async ({
   page,
 }) => {
