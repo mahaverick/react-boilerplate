@@ -91,6 +91,7 @@ test('an owner on Free upgrades through Checkout and reads the new state line', 
   page,
 }) => {
   await page.goto(harness(BILLING, '&billing=free&razorpay=fake'))
+  await expect(page.getByRole('button', { name: 'Upgrade to Paid' })).toBeVisible()
   await expect(stateLine(page)).toHaveCount(0)
   await page.getByRole('button', { name: 'Upgrade to Paid' }).click()
 
@@ -216,7 +217,10 @@ test.describe('accessibility', () => {
   for (const state of ['trialing', 'free', 'active', 'past_due'] as const) {
     test(`Billing in the ${state} state is axe-clean`, async ({ page }) => {
       await page.goto(harness(BILLING, `&billing=${state}`))
-      await expect(stateLine(page)).toBeVisible()
+      // Free has no state line; its Upgrade button says the view has loaded.
+      await expect(
+        state === 'free' ? page.getByRole('button', { name: 'Upgrade to Paid' }) : stateLine(page)
+      ).toBeVisible()
       await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
       const results = await runAxe(page)
       expect(results.violations).toEqual([])
