@@ -291,8 +291,24 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     shot: 'workspace-billing',
     url: '/settings/workspace/{slug}/billing',
     as: 'owner',
-    sections: [TENANT],
-    note: 'A placeholder: the billing page replaces it.',
+    roleDenied: {
+      as: 'member',
+      note: 'An editor: "Only owners can change billing." and the Plan card; no actions, no invoices or upgrade requests read.',
+    },
+    sections: [
+      TENANT,
+      { name: 'Plan', endpoints: ['GET /tenants/:slug/billing', 'GET /tenants/:slug/settings'] },
+      { name: 'Usage', endpoints: ['GET /tenants/:slug/entitlements', 'GET /plans'] },
+      { name: 'Upgrade requests', endpoints: ['GET /tenants/:slug/upgrade-requests'] },
+      { name: 'Invoices', endpoints: ['GET /tenants/:slug/billing/invoices'] },
+    ],
+    empty: {
+      stubs: [
+        { endpoint: 'GET /tenants/:slug/billing/invoices', data: EMPTY_PAGE },
+        { endpoint: 'GET /tenants/:slug/upgrade-requests', data: [] },
+      ],
+    },
+    note: 'The invoices read runs only while payments are on (paymentsEnabled).',
   },
   '/settings/workspace/$slug/': { kind: 'redirect', to: '/settings/workspace/$slug/general' },
 }
