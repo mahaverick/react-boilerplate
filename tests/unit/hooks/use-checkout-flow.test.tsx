@@ -536,7 +536,28 @@ describe('useCheckoutFlow, failures before the confirm', () => {
     expect(track).not.toHaveBeenCalledWith('checkout_opened', expect.anything())
   })
 
-  it('names Razorpay’s reason when the payment fails', async () => {
+  it('keeps Checkout open on a failed payment, tracking each failure once', async () => {
+    serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
+    const { result } = renderFlow()
+    act(() => {
+      void result.current.start({ purpose: 'upgrade', interval: 'month' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('open'))
+
+    act(() => lastCheckout().failed?.({ error: { description: 'Bank unavailable' } }))
+    act(() => lastCheckout().failed?.({ error: { description: 'Your card was declined.' } }))
+
+    expect(result.current.status).toBe('open')
+    expect(result.current.message).toBeNull()
+    const failures = (track.mock.calls as unknown[][]).filter(
+      (call) =>
+        call[0] === 'checkout_failed' &&
+        (call[1] as { failure_code: string }).failure_code === 'payment_failed'
+    )
+    expect(failures).toHaveLength(2)
+  })
+
+  it('names Razorpay’s last reason when Checkout closes after a failed payment', async () => {
     serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
     const { result } = renderFlow()
     act(() => {
@@ -545,12 +566,30 @@ describe('useCheckoutFlow, failures before the confirm', () => {
     await waitFor(() => expect(result.current.status).toBe('open'))
 
     act(() => lastCheckout().failed?.({ error: { description: 'Your card was declined.' } }))
+    act(() => lastCheckout().options.modal.ondismiss())
 
     await waitFor(() => expect(result.current.status).toBe('error'))
     expect(result.current.message).toBe(
       'Your payment didn’t go through: Your card was declined. Try again or use another card.'
     )
-    expect(track).toHaveBeenCalledWith('checkout_failed', { failure_code: 'payment_failed' })
+    expect(track).not.toHaveBeenCalledWith('checkout_dismissed', expect.anything())
+  })
+
+  it('confirms a payment that succeeds in the same Checkout after a failed try', async () => {
+    serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
+    const bodies = serveConfirm(() => ok(testBilling({ state: 'active' }), 'Checkout confirmed.'))
+    const { result } = renderFlow()
+    act(() => {
+      void result.current.start({ purpose: 'upgrade', interval: 'month' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('open'))
+
+    act(() => lastCheckout().failed?.({ error: { description: 'Your card was declined.' } }))
+    act(() => lastCheckout().options.handler(PAYLOAD))
+
+    await waitFor(() => expect(result.current.status).toBe('done'))
+    expect(bodies).toEqual([PAYLOAD])
+    expect(track).toHaveBeenCalledWith('checkout_succeeded', { purpose: 'upgrade' })
   })
 
   it('never rejects: an unexpected throw while opening Checkout ends in an error', async () => {

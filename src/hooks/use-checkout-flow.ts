@@ -282,10 +282,11 @@ export function useCheckoutFlow(slug: string) {
           await loadRazorpay()
           track('checkout_opened', { interval: session.interval, purpose: session.purpose })
           setState({ status: 'open', message: null })
-          answer = await openRazorpayCheckout(session, APP_NAME)
+          answer = await openRazorpayCheckout(session, APP_NAME, () => {
+            track('checkout_failed', { failure_code: 'payment_failed' })
+          })
         } catch (error) {
           if (error instanceof CheckoutPaymentError) {
-            track('checkout_failed', { failure_code: 'payment_failed' })
             failWith(paymentFailedMessage(error.description))
             return
           }

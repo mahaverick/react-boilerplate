@@ -33,7 +33,6 @@ export interface RazorpayOptions {
 /** A Checkout instance: the modal and its events. */
 interface RazorpayInstance {
   open(): void
-  close(): void
   on(event: 'payment.failed', listener: (response: RazorpayPaymentFailure) => void): void
 }
 
@@ -135,22 +134,27 @@ function primaryColor(): string | undefined {
 
 /**
  * Opens Razorpay Checkout for a session the API started. A failed payment
- * closes the modal, so the page and the modal agree that this attempt ended.
+ * leaves the modal open, so the person can retry there: each failure goes to
+ * `onPaymentFailed`, and a later success still resolves.
  * @param session - The API's checkout session.
  * @param appName - The name Checkout shows at its top.
+ * @param onPaymentFailed - Called with Razorpay's reason (possibly empty) on each failed try.
  * @returns Checkout's answer to hand to the confirm call, or `'dismissed'`
- *   when the modal closed without a payment.
+ *   when the modal closed with no payment tried.
  * @throws {CheckoutScriptError} When the script does not load.
- * @throws {CheckoutPaymentError} When Razorpay refuses the payment.
+ * @throws {CheckoutPaymentError} When the modal closed after a failed try,
+ *   with the last failure's reason.
  */
 export async function openRazorpayCheckout(
   session: CheckoutSession,
-  appName: string
+  appName: string,
+  onPaymentFailed?: (description: string) => void
 ): Promise<CheckoutConfirm | 'dismissed'> {
   const Razorpay = await loadRazorpay()
   return new Promise((resolve, reject) => {
     let settled = false
-    /** Runs `outcome` only for the first of the handler, the dismissal and the failure. */
+    let lastFailure: string | null = null
+    /** Runs `outcome` only for the first of the handler and the dismissal. */
     const once = (outcome: () => void) => {
       if (settled) return
       settled = true
@@ -164,14 +168,19 @@ export async function openRazorpayCheckout(
       prefill: session.prefill,
       ...(session.purpose === 'card_change' ? { subscription_card_change: 1 as const } : {}),
       handler: (response) => once(() => resolve(response)),
-      modal: { ondismiss: () => once(() => resolve('dismissed')) },
+      modal: {
+        ondismiss: () =>
+          once(() => {
+            if (lastFailure === null) resolve('dismissed')
+            else reject(new CheckoutPaymentError(lastFailure))
+          }),
+      },
       ...(color === undefined ? {} : { theme: { color } }),
     })
     checkout.on('payment.failed', (response) => {
-      once(() => {
-        checkout.close()
-        reject(new CheckoutPaymentError(response.error.description ?? ''))
-      })
+      if (settled) return
+      lastFailure = response.error.description ?? ''
+      onPaymentFailed?.(lastFailure)
     })
     checkout.open()
   })

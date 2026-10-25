@@ -188,19 +188,48 @@ describe('openRazorpayCheckout', () => {
     await expect(result).resolves.toBe('dismissed')
   })
 
-  it('closes the modal and rejects with Razorpay’s description when the payment fails', async () => {
+  it('keeps the modal open on a failed payment and reports each failure', async () => {
+    const failures: string[] = []
+    const result = openRazorpayCheckout(session(), 'Acme App', (description) =>
+      failures.push(description)
+    )
+    await vi.waitFor(() => expect(checkouts).toHaveLength(1))
+    const checkout = lastCheckout()
+
+    checkout.failed?.({ error: { description: 'Your card was declined' } })
+    checkout.failed?.({ error: {} })
+
+    expect(failures).toEqual(['Your card was declined', ''])
+    expect(checkout.closed).toBe(false)
+    let outcome: unknown = 'pending'
+    void result.then((value) => (outcome = value))
+    await Promise.resolve()
+    expect(outcome).toBe('pending')
+  })
+
+  it('resolves the payload when a payment succeeds after a failed try in the same modal', async () => {
     const result = openRazorpayCheckout(session(), 'Acme App')
     await vi.waitFor(() => expect(checkouts).toHaveLength(1))
     const checkout = lastCheckout()
 
     checkout.failed?.({ error: { description: 'Your card was declined' } })
-    // The close Razorpay reports back must not turn the failure into a dismissal.
+    checkout.options.handler(PAYLOAD)
+
+    await expect(result).resolves.toEqual(PAYLOAD)
+  })
+
+  it('rejects with the last failure’s description when the modal closes after a failed payment', async () => {
+    const result = openRazorpayCheckout(session(), 'Acme App')
+    await vi.waitFor(() => expect(checkouts).toHaveLength(1))
+    const checkout = lastCheckout()
+
+    checkout.failed?.({ error: { description: 'Bank unavailable' } })
+    checkout.failed?.({ error: { description: 'Your card was declined' } })
     checkout.options.modal.ondismiss()
 
     const error = await result.catch((reason: unknown) => reason)
     expect(error).toBeInstanceOf(CheckoutPaymentError)
     expect((error as CheckoutPaymentError).description).toBe('Your card was declined')
-    expect(checkout.closed).toBe(true)
   })
 
   it('leaves the theme out when the page has no --primary token', async () => {
