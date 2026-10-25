@@ -504,6 +504,8 @@ describe('signed-out pages', () => {
       '/invitations/accept',
       () => screen.findByRole('heading', { name: 'This link is incomplete' }),
     ],
+    // The plans, Start free and the questions: the whole signed-out pricing page.
+    ['pricing', '/pricing', () => screen.findByRole('link', { name: 'Start free' })],
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
@@ -604,6 +606,11 @@ describe('signed-in pages', () => {
       'workspace activity',
       '/settings/workspace/acme/activity',
       () => screen.findByText('changed the settings (timezone)'),
+    ],
+    [
+      'pricing as the current tenant’s owner',
+      '/pricing?tenant=acme',
+      () => screen.findByRole('link', { name: 'Upgrade' }),
     ],
     [
       'workspace billing in the trial',

@@ -117,8 +117,8 @@ function capitalise(word: string): string {
 
 /**
  * An interval's price line on the plan choice. The yearly line adds what it
- * comes to a month and the saving against twelve months: in months when it is
- * a whole number of them, otherwise in rupees, and none when there is none.
+ * comes to a month and the saving against twelve months (`yearlySaving`),
+ * when there is one.
  * @param interval - The interval shown.
  * @param monthlyMinor - The monthly price in paise, or `null` when there is none.
  * @param yearlyMinor - The yearly price in paise, or `null` when there is none.
@@ -132,18 +132,26 @@ export function intervalPriceLine(
   if (interval === 'month') return amountPer(monthlyMinor, 'month')
   if (yearlyMinor === null) return null
   const parts = [`${formatInr(yearlyMinor)} per year`, `${perMonthOfYearly(yearlyMinor)} a month`]
-  if (monthlyMinor !== null && monthlyMinor > 0) {
-    const saving = 12 * monthlyMinor - yearlyMinor
-    if (saving > 0) {
-      const months = saving / monthlyMinor
-      parts.push(
-        Number.isInteger(months)
-          ? `${String(months)} ${months === 1 ? 'month' : 'months'} free`
-          : `Save ${formatInr(saving)}`
-      )
-    }
-  }
+  const saving = yearlySaving(monthlyMinor, yearlyMinor)
+  if (saving !== null) parts.push(saving)
   return parts.join(' · ')
+}
+
+/**
+ * What a year costs less than twelve months: in months when it is a whole
+ * number of them, otherwise in rupees.
+ * @param monthlyMinor - The monthly price in paise, or `null` when there is none.
+ * @param yearlyMinor - The yearly price in paise.
+ * @returns For example "2 months free" or "Save ₹1,988"; `null` when there is no saving.
+ */
+export function yearlySaving(monthlyMinor: number | null, yearlyMinor: number): string | null {
+  if (monthlyMinor === null || monthlyMinor <= 0) return null
+  const saving = 12 * monthlyMinor - yearlyMinor
+  if (saving <= 0) return null
+  const months = saving / monthlyMinor
+  return Number.isInteger(months)
+    ? `${String(months)} ${months === 1 ? 'month' : 'months'} free`
+    : `Save ${formatInr(saving)}`
 }
 
 /**

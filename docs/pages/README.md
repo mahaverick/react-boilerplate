@@ -4,17 +4,17 @@ This folder is the inventory of every route in the app: what each page is for, w
 
 The shots come from `vite dev`, so the TanStack Router and Query devtools buttons show in the bottom-right corner of some of them. Those buttons are dev-only (`src/components/dev/devtools.tsx`) and are not part of any page. The default shots are full-page, so the sticky sidebar ends at the viewport's height (900 px) with blank space below it; that is a capture artifact, not the page.
 
-| Area                                 | Covers                                                                                                                              |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| [boot.md](boot.md)                   | The cold load, from `index.html` to the first page, frame by frame                                                                  |
-| [auth.md](auth.md)                   | Sign-in by emailed link or Google, the link page, the first-tenant step, invitation landing and confirm, the retired password paths |
-| [system.md](system.md)               | The root redirect and the not-found page                                                                                            |
-| [dashboard.md](dashboard.md)         | The signed-in landing page                                                                                                          |
-| [tenants.md](tenants.md)             | The tenant list, a tenant's overview and its beta page                                                                              |
-| [settings.md](settings.md)           | Account and workspace settings                                                                                                      |
-| [notifications.md](notifications.md) | The notifications page and the bell                                                                                                 |
-| [palette.md](palette.md)             | The ⌘K command palette, a shell feature with no route                                                                               |
-| [findings.md](findings.md)           | Every problem found, with its evidence and the work that fixes it                                                                   |
+| Area                                 | Covers                                                                                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [boot.md](boot.md)                   | The cold load, from `index.html` to the first page, frame by frame                                                                                           |
+| [auth.md](auth.md)                   | Sign-in by emailed link or Google, the link page, the first-tenant step, invitation landing and confirm, the retired password paths, the public pricing page |
+| [system.md](system.md)               | The root redirect and the not-found page                                                                                                                     |
+| [dashboard.md](dashboard.md)         | The signed-in landing page                                                                                                                                   |
+| [tenants.md](tenants.md)             | The tenant list, a tenant's overview and its beta page                                                                                                       |
+| [settings.md](settings.md)           | Account and workspace settings                                                                                                                               |
+| [notifications.md](notifications.md) | The notifications page and the bell                                                                                                                          |
+| [palette.md](palette.md)             | The ⌘K command palette, a shell feature with no route                                                                                                        |
+| [findings.md](findings.md)           | Every problem found, with its evidence and the work that fixes it                                                                                            |
 
 ## Route map
 
@@ -33,6 +33,7 @@ Every full path of the route tree (`FileRoutesByFullPath` in `src/routeTree.gen.
 | `/auth/link`                         | page                                                                                                   | `src/pages/auth/link.tsx`                              | none (top level)                              | started: `POST /auth/link/verify` when signed out (once per load); on the dead link `POST /auth/link/request`; on switch account `POST /auth/logout`                                                                                         | [auth.md](auth.md)                                                               |
 | `/auth/confirm`                      | page                                                                                                   | `src/pages/auth/confirm.tsx`                           | none (top level)                              | started: `POST /auth/step-up/link/verify` (bearer, `{ token }`) when signed in (once per load; Try again posts again)                                                                                                                        | [auth.md](auth.md#authconfirm--confirm-its-you)                                  |
 | `/welcome`                           | page                                                                                                   | `src/pages/welcome.tsx`                                | own: signed out → `/login?redirect=/welcome`  | started: `GET /tenants` (a tenant → `/dashboard`); on submit `POST /tenants`; on sign-out `POST /auth/logout`                                                                                                                                | [auth.md](auth.md#welcome--create-your-workspace)                                |
+| `/pricing`                           | page                                                                                                   | `src/pages/pricing.tsx`                                | none (top level)                              | started: `GET /plans` (60 s fresh); signed in: `GET /tenants`                                                                                                                                                                                | [auth.md](auth.md#pricing--plans)                                                |
 | `/invitations/accept`                | page                                                                                                   | `src/pages/invitations/accept.tsx`                     | none (top level)                              | started: `POST /invitations/preview`; then once per load `POST /invitations/verify` (signed out) or `POST /invitations/accept` (signed in as the invitee); on Continue `POST /auth/logout`; on the dead invitation `POST /auth/link/request` | [auth.md](auth.md#invitationsaccept--accept-an-invitation)                       |
 | `/invitations/confirm`               | page                                                                                                   | `src/pages/invitations/confirm.tsx`                    | none (top level)                              | started: `POST /invitations/confirm` when signed out or signed in as the link's address (once per load); on the dead link `POST /auth/link/request`; on switch account `POST /auth/logout`                                                   | [auth.md](auth.md)                                                               |
 | `/dashboard`                         | page                                                                                                   | `src/pages/_app/dashboard.tsx`                         | `_app`: signed out → `/login?redirect=`       | awaited by `_app`: `GET /flags` (10 s cap); read after mount by `TenantSearchGuard`: `GET /tenants`                                                                                                                                          | [dashboard.md](dashboard.md#dashboard--dashboard)                                |
@@ -77,6 +78,8 @@ flowchart LR
   callback -->|new account| welcome
   callback --> dash
   retired["/register, /forgot-password, /reset-password, /verify-email"] --> login
+  pricing["/pricing"] -->|Start free| login
+  pricing -->|Upgrade, owner of ?tenant| billing
 
   invite["/invitations/accept?token="] -->|new address, one click| overview
   invite -->|existing account or staff| inviteInbox["Check your inbox"]

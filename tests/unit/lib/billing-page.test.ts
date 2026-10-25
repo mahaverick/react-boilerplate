@@ -8,6 +8,7 @@ import {
   intervalPriceLine,
   showsPlanChoice,
   switchArea,
+  yearlySaving,
 } from '@/lib/billing-page'
 import { testBilling } from '@/tests/fixtures/billing'
 import type { PriceView } from '@/types/billing.types'
@@ -269,5 +270,25 @@ describe('cancelToast', () => {
     expect(cancelToast(active({ cancelAtPeriodEnd: true }), context)).toBe(
       'Paid ends on 2 November 2026.'
     )
+  })
+})
+
+describe('yearlySaving', () => {
+  it('counts whole months', () => {
+    expect(yearlySaving(99_900, 999_000)).toBe('2 months free')
+  })
+
+  it('says one month in the singular', () => {
+    expect(yearlySaving(100_000, 1_100_000)).toBe('1 month free')
+  })
+
+  it('counts rupees when it is not whole months', () => {
+    expect(yearlySaving(99_900, 1_000_000)).toBe('Save ₹1,988')
+  })
+
+  it('is null when there is no saving or no monthly price', () => {
+    expect(yearlySaving(99_900, 1_198_800)).toBeNull()
+    expect(yearlySaving(null, 999_000)).toBeNull()
+    expect(yearlySaving(0, 999_000)).toBeNull()
   })
 })

@@ -89,6 +89,16 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     note: '"Check your inbox" (after Email me a sign-in link) needs a click, which the capture does not make; take that frame by hand in the final walk.',
   },
   '/register': { kind: 'redirect', to: '/login?notice=sign-in-link' },
+  '/pricing': {
+    kind: 'page',
+    area: 'auth',
+    shot: 'pricing',
+    url: '/pricing',
+    as: 'anonymous',
+    responsive: true,
+    sections: [{ name: 'Plans', endpoints: ['GET /plans'] }],
+    note: 'Signed out: "Start free". The owner’s "Upgrade" needs a signed-in session and `?tenant={slug}`.',
+  },
   '/auth/callback': {
     kind: 'redirect',
     to: '/welcome for a new account (new=1), else the safe redirect or /dashboard when signed in, else /login?error=google_auth_failed (in an effect)',
