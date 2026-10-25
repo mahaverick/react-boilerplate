@@ -211,6 +211,17 @@ export function upgradeLabel(
 }
 
 /**
+ * Whether a Paid subscription is live: active (cancelling included) or past
+ * due (paused included). Only then do the payer and the receipts address
+ * describe anything; the view keeps both after a move to Free, and an
+ * abandoned checkout in the trial can set them.
+ * @param billing - The billing view.
+ */
+export function hasLiveSubscription(billing: TenantBilling): boolean {
+  return billing.state === 'active' || billing.state === 'past_due'
+}
+
+/**
  * Whether there is a subscription to put a new card on or to cancel: Paid,
  * active or past due, and not already ending with nothing after it. A
  * scheduled switch cancels the current subscription at its end, so the next
@@ -218,7 +229,7 @@ export function upgradeLabel(
  * @param billing - The billing view.
  */
 export function canChangeSubscription(billing: TenantBilling): boolean {
-  if (billing.state !== 'active' && billing.state !== 'past_due') return false
+  if (!hasLiveSubscription(billing)) return false
   return !billing.cancelAtPeriodEnd || billing.nextSwitch !== null
 }
 

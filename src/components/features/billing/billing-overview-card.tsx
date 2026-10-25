@@ -6,7 +6,7 @@ import { Pii } from '@/components/shared/pii'
 import { QueryState } from '@/components/shared/query-state'
 import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { billingStateLine, type BillingLineContext } from '@/lib/billing-page'
+import { billingStateLine, hasLiveSubscription, type BillingLineContext } from '@/lib/billing-page'
 import { useEntitlements, usePlans } from '@/queries/billing.queries'
 import type { EntitlementCatalogEntry, TenantBilling } from '@/types/billing.types'
 
@@ -76,7 +76,10 @@ export function BillingOverviewCard({
   )
 }
 
-/** The plan's name, its state line (none on Free), the payer and the receipts address. */
+/**
+ * The plan's name, its state line (none on Free), and, while Paid is live,
+ * the payer and the receipts address.
+ */
 function PlanSummary({
   billing,
   context,
@@ -84,7 +87,10 @@ function PlanSummary({
   billing: TenantBilling
   context: BillingLineContext
 }) {
-  const payer = billing.payer
+  // Free and the trial pay nothing, so a payer left from an earlier subscription is not shown.
+  const live = hasLiveSubscription(billing)
+  const payer = live ? billing.payer : null
+  const billingEmail = live ? billing.billingEmail : null
   const stateLine = billingStateLine(billing, context)
   return (
     <div className="grid gap-1">
@@ -102,9 +108,9 @@ function PlanSummary({
             Paid with <Pii>{payer.name}</Pii>’s card.
           </p>
         ))}
-      {billing.billingEmail !== null && (
+      {billingEmail !== null && (
         <p className="text-sm text-muted-foreground">
-          Receipts go to <Pii>{billing.billingEmail}</Pii>.
+          Receipts go to <Pii>{billingEmail}</Pii>.
         </p>
       )}
     </div>

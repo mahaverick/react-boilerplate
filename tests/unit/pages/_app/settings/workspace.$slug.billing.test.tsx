@@ -261,6 +261,43 @@ describe('billing page, overview', () => {
     expect(card.querySelector('[data-slot="billing-state"]')).toBeNull()
   })
 
+  it.each([
+    ['active', active()],
+    ['cancelling', active({ cancelAtPeriodEnd: true })],
+    [
+      'past due',
+      active({ state: 'past_due', pastDue: { since: SINCE, graceEndsAt: null, paused: false } }),
+    ],
+    [
+      'paused',
+      active({ state: 'past_due', pastDue: { since: SINCE, graceEndsAt: null, paused: true } }),
+    ],
+  ])('names the payer and the receipts address while Paid is %s', async (_case, billing) => {
+    mockTenant('owner', billing)
+    renderBilling()
+    const card = await overview()
+    expect(await within(card).findByText(/^Receipts go to/)).toBeInTheDocument()
+    expect(within(card).getByText(/^Paid with/)).toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      'Free, after a cancelled subscription',
+      active({ state: 'free', plan: { key: 'free', name: 'Free' }, interval: null, price: null }),
+    ],
+    [
+      'the trial, after an abandoned checkout',
+      active({ state: 'trialing', trialEndsAt: TRIAL_END }),
+    ],
+  ])('names no payer or receipts address on %s', async (_case, billing) => {
+    mockTenant('owner', billing)
+    renderBilling()
+    const card = await overview()
+    await within(card).findAllByText(billing.plan.name, { exact: true })
+    expect(within(card).queryByText(/Receipts go to/)).toBeNull()
+    expect(within(card).queryByText(/^Paid with/)).toBeNull()
+  })
+
   it('dates in the tenant’s time zone', async () => {
     mockTenant('owner', active())
     server.use(
