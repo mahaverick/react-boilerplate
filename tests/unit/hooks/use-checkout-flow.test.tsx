@@ -602,6 +602,23 @@ describe('useCheckoutFlow, by purpose', () => {
     expect(track).toHaveBeenCalledWith('checkout_succeeded', { purpose: 'card_change' })
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Card updated.'))
   })
+
+  it('says the card update is being confirmed, not a payment, when a card change waits', async () => {
+    serveStart('/payment-method', () => ok(session({ purpose: 'card_change' }), 'Started.', 201))
+    serveConfirm(() => fail('Internal server error.', 500))
+    const { result } = renderFlow(testBilling({ state: 'past_due' }))
+    act(() => {
+      void result.current.start({ purpose: 'card_change' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('open'))
+
+    act(() => lastCheckout().options.handler(PAYLOAD))
+
+    await waitFor(() => expect(result.current.status).toBe('waiting'))
+    expect(result.current.message).toBe(
+      'Card update received. We’re confirming it. This page updates when it’s done.'
+    )
+  })
 })
 
 describe('useCheckoutFlow, failures before the confirm', () => {

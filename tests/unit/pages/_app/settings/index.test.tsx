@@ -102,7 +102,7 @@ describe('settings landing page', () => {
     const workspace = await screen.findByRole('region', { name: 'Workspace' })
     const hint = within(workspace).getByText('Choose a tenant first.')
     expect(hint.id).not.toBe('')
-    for (const label of ['General', 'Members', 'Activity']) {
+    for (const label of ['General', 'Members', 'Billing', 'Activity']) {
       const row = within(workspace).getByText(label).closest('[role="listitem"]')?.firstElementChild
       expect(row).toHaveAttribute('aria-describedby', hint.id)
       expect(row).not.toHaveAttribute('aria-disabled')

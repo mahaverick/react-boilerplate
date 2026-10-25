@@ -67,6 +67,10 @@ const POLL_LIMIT_MS = 30_000
 
 const WAITING_MESSAGE = 'Payment received. We’re confirming it. This page updates when it’s done.'
 
+/** The waiting line for a card change, which takes no payment. */
+const CARD_WAITING_MESSAGE =
+  'Card update received. We’re confirming it. This page updates when it’s done.'
+
 const SCRIPT_MESSAGE = 'We couldn’t open the payment window. Check your connection and try again.'
 
 /** The interval as the switch toast says it. */
@@ -221,7 +225,10 @@ export function useCheckoutFlow(slug: string) {
   const wait = useCallback((attempt: Attempt) => {
     waitingFor.current = attempt
     track('checkout_failed', { failure_code: 'confirm_failed' })
-    setState({ status: 'waiting', message: WAITING_MESSAGE })
+    setState({
+      status: 'waiting',
+      message: attempt.session.purpose === 'card_change' ? CARD_WAITING_MESSAGE : WAITING_MESSAGE,
+    })
   }, [])
 
   useEffect(() => {
