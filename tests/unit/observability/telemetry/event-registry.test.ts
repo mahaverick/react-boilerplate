@@ -154,7 +154,7 @@ describe('the browser event registry', () => {
     track('upgrade_prompt_viewed', { surface: 'feature' })
     track('checkout_opened', { interval: 'year', purpose: 'switch' })
     track('checkout_failed', { failure_code: 'script_blocked' })
-    track('checkout_pending')
+    track('checkout_pending', { purpose: 'card_change' })
     track('cancel_started')
     // @ts-expect-error not an upgrade surface
     track('upgrade_clicked', { surface: 'nope' })
@@ -163,7 +163,11 @@ describe('the browser event registry', () => {
     // @ts-expect-error not a failure code
     track('checkout_failed', { failure_code: 'other' })
     // @ts-expect-error a pending checkout carries no failure code
-    track('checkout_pending', { failure_code: 'confirm_failed' })
+    track('checkout_pending', { purpose: 'upgrade', failure_code: 'confirm_failed' })
+    // @ts-expect-error not a checkout purpose
+    track('checkout_pending', { purpose: 'other' })
+    // @ts-expect-error the purpose is required
+    track('checkout_pending')
     expect(entitlementAnalyticsKey('members')).toBe('members')
     expect(entitlementAnalyticsKey('advanced_example')).toBe('advanced_example')
     expect(entitlementAnalyticsKey('someone@example.test')).toBe('other')

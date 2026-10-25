@@ -246,7 +246,7 @@ export function useCheckoutFlow(slug: string) {
    */
   const wait = useCallback((attempt: Attempt) => {
     waitingFor.current = attempt
-    track('checkout_pending')
+    track('checkout_pending', { purpose: attempt.session.purpose })
     setState({
       status: 'waiting',
       message: attempt.session.purpose === 'card_change' ? CARD_WAITING_MESSAGE : WAITING_MESSAGE,

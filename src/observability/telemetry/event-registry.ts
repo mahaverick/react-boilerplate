@@ -84,7 +84,7 @@ export interface BrowserEventProps {
     failure_code: 'script_blocked' | 'payment_failed' | 'confirm_failed' | 'start_failed'
   }
   /** A payment was taken but not confirmed yet, so the flow waits for the webhook; `checkout_succeeded` follows if the page sees it land. */
-  checkout_pending: Record<never, never>
+  checkout_pending: { purpose: 'upgrade' | 'switch' | 'card_change' }
   /** A checkout finished and the API confirmed it. */
   checkout_succeeded: { purpose: 'upgrade' | 'switch' | 'card_change' }
   /** The cancel dialog was opened. */
