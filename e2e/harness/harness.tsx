@@ -21,6 +21,7 @@ import type {
   CheckoutSession,
   TenantBilling,
   TenantEntitlements,
+  UpgradeSurface,
 } from '@/types/billing.types'
 import {
   BILLING_STATES,
@@ -758,6 +759,35 @@ async function intervalOf(request: Request): Promise<BillingInterval | null> {
   return body?.interval === 'month' || body?.interval === 'year' ? body.interval : null
 }
 
+/** Every upgrade surface express's `UPGRADE_SURFACES` lists; the record makes a missing one a type error. */
+const UPGRADE_SURFACE_SET: Record<UpgradeSurface, true> = {
+  limit: true,
+  feature: true,
+  banner: true,
+  billing_page: true,
+  pricing: true,
+}
+
+/**
+ * A 400 when an upgrade request's body is not express's strict
+ * `{ key?, surface }`: a known surface, and a catalog key when there is one;
+ * else `null`.
+ */
+async function wrongUpgradeRequest(request: Request) {
+  const body = (await request
+    .clone()
+    .json()
+    .catch(() => null)) as Record<string, unknown> | null
+  const keys = body === null || typeof body !== 'object' ? [] : Object.keys(body)
+  const valid =
+    body !== null &&
+    keys.every((key) => key === 'key' || key === 'surface') &&
+    typeof body.surface === 'string' &&
+    Object.hasOwn(UPGRADE_SURFACE_SET, body.surface) &&
+    (!('key' in body) || testPlans.catalog.some((entry) => entry.key === body.key))
+  return valid ? null : fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
+}
+
 /** Moves the workspace onto Free, as a cancel of a past-due subscription does. */
 function moveToFree(): void {
   const free = billingState('free')
@@ -815,8 +845,10 @@ const billingHandlers = [
   http.get('/api/v1/tenants/:slug/upgrade-requests', () =>
     ok(UPGRADE_REQUESTS, 'Upgrade requests retrieved.')
   ),
-  http.post('/api/v1/tenants/:slug/upgrade-requests', () =>
-    ok(
+  http.post('/api/v1/tenants/:slug/upgrade-requests', async ({ request }) => {
+    const malformed = await wrongUpgradeRequest(request)
+    if (malformed) return malformed
+    return ok(
       {
         id: 'upgrade-request-harness',
         createdAt: new Date().toISOString(),
@@ -825,7 +857,7 @@ const billingHandlers = [
       'Request sent.',
       201
     )
-  ),
+  }),
   http.post('/api/v1/tenants/:slug/banner-dismissals', async ({ request }) => {
     const malformed = await wrongBody(request, { banner: 'trial_ended' })
     if (malformed) return malformed
@@ -873,9 +905,17 @@ const billingHandlers = [
       billingView.trialEndsAt !== null &&
       Date.parse(billingView.trialEndsAt) > Date.now()
     ) {
-      // Before the first charge, the workspace goes back to its trial.
-      billingView = { ...billingView, state: 'trialing', interval: null, price: null, payer: null }
-      entitlementsView = { ...entitlementsView, state: 'trialing' }
+      // Before the first charge, the workspace goes back to its trial, as express's endCancelled leaves it.
+      billingView = {
+        ...billingView,
+        state: 'trialing',
+        interval: null,
+        price: null,
+        payer: null,
+        currentPeriodEnd: null,
+        nextSwitch: null,
+      }
+      entitlementsView = { ...entitlementsView, state: 'trialing', currentPeriodEnd: null }
     } else {
       billingView = { ...billingView, cancelAtPeriodEnd: true, nextSwitch: null }
       entitlementsView = { ...entitlementsView, cancelAtPeriodEnd: true }

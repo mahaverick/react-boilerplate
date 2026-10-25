@@ -61,6 +61,32 @@ test('an editor asks the owners to upgrade from Billing', async ({ page }) => {
   await expect(page.getByText('Requested', { exact: true })).toBeVisible()
 })
 
+test('the harness refuses an upgrade request body express would refuse', async ({ page }) => {
+  await page.goto(harness(BILLING, '&state=editor&billing=free'))
+  await expect(page.getByRole('button', { name: 'Request upgrade' })).toBeVisible()
+  const statuses = await page.evaluate(async () => {
+    const bodies = [
+      {},
+      { surface: 'nowhere' },
+      { surface: 'limit', key: 'seats' },
+      { surface: 'limit', key: 'members', note: 'extra' },
+      { surface: 'limit', key: 'members' },
+      { surface: 'billing_page' },
+    ]
+    const answers = []
+    for (const body of bodies) {
+      const response = await fetch('/api/v1/tenants/acme/upgrade-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      answers.push(response.status)
+    }
+    return answers
+  })
+  expect(statuses).toEqual([400, 400, 400, 400, 201, 201])
+})
+
 test('an owner on Free upgrades through Checkout and reads the new state line', async ({
   page,
 }) => {
@@ -92,6 +118,37 @@ test('an owner cancels Paid and keeps it to the period’s end', async ({ page }
     'Paid · Ends 2 November 2026. You won’t be charged again.'
   )
   await expect(page.getByRole('button', { name: 'Keep Paid after 2 November 2026' })).toBeVisible()
+})
+
+test('cancelling before the first charge goes back to the trial with no period end', async ({
+  page,
+}) => {
+  await page.goto(harness(BILLING, '&razorpay=fake'))
+  await expect(stateLine(page)).toContainText('Paid trial · Ends')
+  await page.getByRole('button', { name: 'Upgrade to Paid' }).click()
+  await expect(stateLine(page)).toContainText('Paid · First charge of ₹999 on')
+
+  await page.getByRole('button', { name: 'Cancel Paid' }).click()
+  const dialog = page.getByRole('alertdialog', { name: 'Cancel Paid?' })
+  await dialog.getByRole('button', { name: 'Cancel Paid' }).click()
+  await expect(stateLine(page)).toContainText('Paid trial · Ends')
+
+  const views = await page.evaluate(async () => {
+    /** The `data` of a GET the harness answers. */
+    const read = async (path: string) =>
+      ((await (await fetch(path)).json()) as { data: Record<string, unknown> }).data
+    return {
+      billing: await read('/api/v1/tenants/acme/billing'),
+      entitlements: await read('/api/v1/tenants/acme/entitlements'),
+    }
+  })
+  expect(views.billing).toMatchObject({
+    state: 'trialing',
+    price: null,
+    currentPeriodEnd: null,
+    nextSwitch: null,
+  })
+  expect(views.entitlements).toMatchObject({ state: 'trialing', currentPeriodEnd: null })
 })
 
 test('past due, Billing’s one Update card opens Checkout as a card change', async ({ page }) => {
