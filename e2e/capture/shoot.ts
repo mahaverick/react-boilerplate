@@ -101,7 +101,7 @@ async function shootOne(
       path: path.join(DOCS_DIR, file),
       type: 'jpeg',
       quality: 70,
-      fullPage: state === 'default' || state === 'role-denied',
+      fullPage: state === 'default' || state === 'role-denied' || state.startsWith('state-'),
     })
     if (limited) throw limitedError()
     return {
@@ -200,6 +200,18 @@ export async function shootRoute(
   if (roleDenied) {
     const denied = await shoot(contextsFor(roleDenied.as).default, 'role-denied', url, [], settled)
     records.push(roleDenied.note === undefined ? denied : { ...denied, note: roleDenied.note })
+  }
+
+  for (const variant of capture.states ?? []) {
+    const stubs = variant.stubs ?? []
+    const shot = await shoot(
+      contextsFor(variant.as ?? capture.as).default,
+      `state-${variant.name}`,
+      variant.url === undefined ? url : fillUrl(variant.url, seed),
+      stubs.length === 0 ? [] : [{ action: 'stub', stubs }],
+      settled
+    )
+    records.push(variant.note === undefined ? shot : { ...shot, note: variant.note })
   }
   return records
 }

@@ -1,5 +1,5 @@
-import { createRequire } from 'node:module'
 import type { Page } from '@playwright/test'
+import { runAxe } from '../helpers/axe'
 import { expect, test } from '../hermetic'
 
 /**
@@ -8,16 +8,8 @@ import { expect, test } from '../hermetic'
  * keyboard-scrollable and axe-clean, which jsdom (no layout) cannot show.
  */
 
-const AXE_PATH = createRequire(import.meta.url).resolve('axe-core/axe.min.js')
-
 /** A cold Vite transform of the palette's chunk; the contrast suite allows the same. */
 const COLD_TRANSFORM_BUDGET_MS = 20_000
-
-/** The slice of axe's run result this file reads. */
-type AxeRun = {
-  violations: { id: string; nodes: { target: string[] }[] }[]
-  passes: { id: string }[]
-}
 
 test('switches tenant from the keyboard alone', async ({ page }) => {
   await page.goto('/e2e/harness/?path=/notifications&tenants=many')
@@ -89,21 +81,7 @@ test('an overflowing palette list stays keyboard-scrollable and axe-clean', asyn
     .toBeGreaterThan(0)
   await expect(viewport).toHaveAttribute('tabindex', '0')
 
-  await page.addScriptTag({ path: AXE_PATH })
-  const results = await page.evaluate(async () => {
-    const axe = (
-      window as unknown as { axe: { run: (ctx: Element, opts: unknown) => Promise<AxeRun> } }
-    ).axe
-    const run = await axe.run(document.querySelector('[role="dialog"]')!, {
-      resultTypes: ['violations'],
-    })
-    return {
-      violations: run.violations.map(
-        (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`
-      ),
-      passes: run.passes.map((p) => p.id),
-    }
-  })
+  const results = await runAxe(page, '[role="dialog"]')
   expect(results.violations).toEqual([])
   // Not vacuous: axe really evaluated a region that scrolls.
   expect(results.passes).toContain('scrollable-region-focusable')

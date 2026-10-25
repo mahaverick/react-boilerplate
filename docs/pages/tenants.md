@@ -88,7 +88,7 @@ Findings: [F-tenants-1](findings.md#f-tenants-1), [F-tenants-2](findings.md#f-te
 
 ### `/tenants/$slug/insights` — Insights
 
-No screenshots yet: `pnpm capture:pages` takes them once a stack with billing runs.
+No screenshots yet. The next `pnpm capture:pages` run takes them: the default, loading and error shots, and `tenant-insights--state-locked.jpg`, the locked card with the entitlements read stubbed to Free.
 
 |                     |                                                                                                                                                                                                                                                                                                                  |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
