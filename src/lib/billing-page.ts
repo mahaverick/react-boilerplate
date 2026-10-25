@@ -68,16 +68,15 @@ function activeLine(
   billing: TenantBilling,
   { date, now }: Pick<BillingLineContext, 'now' | 'date'>
 ): string {
-  const periodEnd = billing.currentPeriodEnd === null ? null : date(billing.currentPeriodEnd)
+  const end = billing.currentPeriodEnd
   if (billing.cancelAtPeriodEnd) {
-    if (billing.currentPeriodEnd === null || periodEnd === null) {
-      return 'Paid · Ends soon. You won’t be charged again.'
-    }
-    const endsAt = new Date(billing.currentPeriodEnd).getTime()
-    if (endsAt > now.getTime()) return `Paid · Ends ${periodEnd}. You won’t be charged again.`
+    if (end === null) return 'Paid · Ends soon. You won’t be charged again.'
+    const endsAt = new Date(end).getTime()
+    if (endsAt > now.getTime()) return `Paid · Ends ${date(end)}. You won’t be charged again.`
     const free = date(new Date(endsAt + CANCEL_BUFFER_MS).toISOString())
-    return `Paid · Period ended ${periodEnd}. Moves to Free on ${free}.`
+    return `Paid · Period ended ${date(end)}. Moves to Free on ${free}.`
   }
+  const periodEnd = end === null ? null : date(end)
   const parts = ['Paid']
   const price =
     billing.price === null ? null : amountPer(billing.price.amountMinor, billing.price.interval)
