@@ -13,17 +13,18 @@ import { TrialExplainerDialog } from '@/components/features/billing/trial-explai
 import type { MembershipRole } from '@/constants/roles'
 import * as analytics from '@/observability/telemetry'
 import type { TenantDetail } from '@/queries/tenant.queries'
+import { useAuthStore } from '@/states/auth.store'
 import { testBilling } from '@/tests/fixtures/billing'
-import { TENANT_ID } from '@/tests/fixtures/ids'
+import { TENANT_ID, USER_ID, USER_ID_2 } from '@/tests/fixtures/ids'
 import { settle } from '@/tests/fixtures/timing'
-import { ok, tenantDetail } from '@/tests/mocks/handlers'
+import { ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 import type { TenantAccess } from '@/types/api.types'
 import type { TenantBilling } from '@/types/billing.types'
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
-const KEY = `billing.trial-explainer.${TENANT_ID}`
+const KEY = `billing.trial-explainer.${USER_ID}.${TENANT_ID}`
 
 /**
  * A tenant's creation and its 14-day trial's end.
@@ -120,14 +121,28 @@ async function settled(client: QueryClient) {
   )
 }
 
+/**
+ * Signs a user in, as `_app`'s guard would have.
+ * @param id - The user's id; `testUser`'s by default.
+ */
+function signInAs(id = USER_ID) {
+  useAuthStore.setState({
+    accessToken: 'token',
+    user: { ...testUser, id },
+    isAuthenticated: true,
+  })
+}
+
 beforeEach(() => {
   localStorage.clear()
+  signInAs()
 })
 
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   localStorage.clear()
+  useAuthStore.setState({ accessToken: null, user: null, isAuthenticated: false })
 })
 
 describe('TrialExplainerDialog', () => {
@@ -152,6 +167,32 @@ describe('TrialExplainerDialog', () => {
 
     const second = renderExplainer(tenant)
     await settled(second.client)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('still explains the trial to a second user on the same browser', async () => {
+    const user = userEvent.setup()
+    const { createdAt, trialEndsAt } = newTenant()
+    const tenant = serve(createdAt, { state: 'trialing', trialEndsAt })
+    const first = renderExplainer(tenant)
+    await user.click(await screen.findByRole('button', { name: 'Got it' }))
+    await waitFor(() => expect(localStorage.getItem(KEY)).not.toBeNull())
+    first.unmount()
+
+    signInAs(USER_ID_2)
+    renderExplainer(tenant)
+
+    expect(
+      await screen.findByRole('dialog', { name: 'You’re on a 14-day Paid trial' })
+    ).toBeInTheDocument()
+  })
+
+  it('shows nothing when there is no signed-in user id', async () => {
+    useAuthStore.setState({ accessToken: null, user: null, isAuthenticated: false })
+    const { createdAt, trialEndsAt } = newTenant()
+    const { client } = renderExplainer(serve(createdAt, { state: 'trialing', trialEndsAt }))
+
+    await settled(client)
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 

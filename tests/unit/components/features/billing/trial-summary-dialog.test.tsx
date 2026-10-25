@@ -103,6 +103,17 @@ describe('TrialSummaryDialog', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
+  it('tracks trial_summary_viewed exactly once per opening', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    serve()
+    renderSummary()
+
+    const { dialog } = await open('5 members (Free allows 3)')
+    // The footer's Upgrade loads after the lines; its mount is the last render that could track again.
+    await within(dialog).findByRole('link', { name: 'Upgrade' })
+    expect(track.mock.calls.filter(([event]) => event === 'trial_summary_viewed')).toHaveLength(1)
+  })
+
   it('offers a member “Request upgrade”', async () => {
     serve('editor')
     renderSummary()
