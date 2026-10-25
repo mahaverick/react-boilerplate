@@ -9,6 +9,13 @@ const BILLING_TYPES: ReadonlySet<string> = new Set([
   'billing_paid_cancelled',
 ])
 
+/** A router link target for a notification; `to` is a route the router knows, so a rename fails the type check. */
+export interface NotificationLink {
+  to: '/settings/workspace/$slug/billing' | '/settings/workspace/$slug/members'
+  params: { slug: string }
+  label: 'Open Billing' | 'Open Members'
+}
+
 /**
  * Where a notification leads: a router link target, or null for a notification
  * with no destination. Billing notices open Billing and `workspace_full` opens
@@ -17,9 +24,7 @@ const BILLING_TYPES: ReadonlySet<string> = new Set([
  * is static; the slug is never shown.
  * @param notification - The notification to link from.
  */
-export function notificationLink(
-  notification: Notification
-): { to: string; params: { slug: string }; label: string } | null {
+export function notificationLink(notification: Notification): NotificationLink | null {
   const slug = notification.metadata?.slug
   if (typeof slug !== 'string' || slug === '' || slug.startsWith('_')) return null
   if (BILLING_TYPES.has(notification.type)) {

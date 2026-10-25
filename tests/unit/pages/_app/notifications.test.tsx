@@ -97,7 +97,7 @@ describe('notifications page', () => {
 
     const link = await screen.findByRole('link', { name: 'Open Billing' })
     expect(link).toHaveAttribute('href', '/settings/workspace/acme/billing')
-    expect(screen.getByText(/Payment failed/)).toBeInTheDocument()
+    expect(screen.getByText(/^Payment failed ·/)).toBeInTheDocument()
   })
 
   it('shows no link on a notice without a destination', async () => {

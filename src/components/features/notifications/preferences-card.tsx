@@ -27,9 +27,9 @@ const IN_APP_ONLY_TYPES: ReadonlySet<string> = new Set(['workspace_full'])
  * false` is a 400), so it reads "On"; an in-app-only type reads "None". The
  * in-app copy is a switch; each flip PUTs the whole entry, with `emailEnabled:
  * true` for an email type and the stored value for an in-app-only one, which
- * the flip must not change. While the request is pending the switch is disabled and
- * shows the requested state; on failure it falls back to the stored value and a
- * toast carries the API's message. The matrix is refetched when the request
+ * the flip must not change. While the request is pending the switch is
+ * disabled and shows the requested state; on failure it falls back to the
+ * stored value and a toast carries the API's message. The matrix is refetched when the request
  * settles, so the row always ends on what the server holds.
  */
 function PreferenceRow({ preference }: { preference: NotificationPreference }) {

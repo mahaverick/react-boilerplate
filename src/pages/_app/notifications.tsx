@@ -122,8 +122,8 @@ function NotificationRow({
         {link && (
           <div>
             <Link
-              to={link.to as never}
-              params={link.params as never}
+              to={link.to}
+              params={link.params}
               className="text-sm underline underline-offset-4"
             >
               {link.label}
