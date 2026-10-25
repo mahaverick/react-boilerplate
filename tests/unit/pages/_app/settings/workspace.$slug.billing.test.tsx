@@ -585,7 +585,7 @@ describe('billing page, one checkout', () => {
         /^Paid trial · Ends /
       )
     )
-    expect(screen.queryByRole('link', { name: 'Upgrade', exact: true })).toBeNull()
+    expect(screen.queryByRole('link', { name: /^Upgrade$/ })).toBeNull()
     expect(screen.queryByText(/Your Paid trial ends on/)).toBeNull()
   })
 })
@@ -866,6 +866,54 @@ describe('billing page, invoices', () => {
     expect(screen.getByText('2 October 2026')).toBeInTheDocument()
     expect(cursors).toEqual([null, 'next-1'])
     expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
+  })
+
+  it('starts over from the first page after a billing change, never resending an old cursor', async () => {
+    const cursors: (string | null)[] = []
+    let scope = 1
+    server.use(
+      http.get(`${BASE}/billing/invoices`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor')
+        cursors.push(cursor)
+        // Express binds a cursor to the subscriptions it pages; a change makes the old one invalid.
+        if (cursor !== null && cursor !== `next-${String(scope)}`) {
+          return fail(
+            'This page link is out of date. Go back to the first page.',
+            400,
+            'CURSOR_INVALID'
+          )
+        }
+        return cursor === null
+          ? ok(
+              listPage([invoice()], { hasNext: true, nextCursor: `next-${String(scope)}` }),
+              'Invoices retrieved.'
+            )
+          : ok(
+              listPage([invoice({ id: 'inv_2', issuedAt: '2026-09-02T18:30:00.000Z' })]),
+              'Invoices retrieved.'
+            )
+      }),
+      http.post(`${BASE}/billing/cancel`, () => {
+        scope = 2
+        return ok(active({ cancelAtPeriodEnd: true }), 'Cancelled.')
+      })
+    )
+    mockTenant('owner', active())
+    const user = userEvent.setup()
+    renderBilling()
+    await user.click(await screen.findByRole('button', { name: 'Show more' }))
+    expect(await screen.findByText('2 September 2026')).toBeInTheDocument()
+    expect(cursors).toEqual([null, 'next-1'])
+
+    await user.click(screen.getByRole('button', { name: 'Cancel Paid' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Cancel Paid?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel Paid' }))
+
+    await waitFor(() => expect(cursors).toEqual([null, 'next-1', null]))
+    await waitFor(() => expect(screen.queryByText('2 September 2026')).toBeNull())
+    expect(screen.getByText('2 October 2026')).toBeInTheDocument()
+    expect(screen.queryByText('Invoices didn’t load. Try again.')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeEnabled()
   })
 })
 

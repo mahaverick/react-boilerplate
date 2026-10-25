@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { http } from 'msw'
 import type { ReactNode } from 'react'
@@ -234,22 +234,30 @@ describe('billing reads', () => {
 
   it('reads invoices with the cursor, and asks nothing while disabled', async () => {
     const cursors: (string | null)[] = []
-    server.use(
-      http.get('/api/v1/tenants/acme/billing/invoices', ({ request }) => {
-        cursors.push(new URL(request.url).searchParams.get('cursor'))
-        return ok(listPage([INVOICE]), 'Invoices retrieved.')
-      })
-    )
     const disabled = renderHook(
-      () => useQuery(invoicesQueryOptions('acme', undefined, { enabled: false })),
+      () => useInfiniteQuery(invoicesQueryOptions('acme', { enabled: false })),
       { wrapper }
     )
     expect(disabled.result.current.fetchStatus).toBe('idle')
+    disabled.unmount()
 
-    const first = renderHook(() => useQuery(invoicesQueryOptions('acme')), { wrapper })
-    await waitFor(() => expect(first.result.current.data?.items).toEqual([INVOICE]))
-    const next = renderHook(() => useQuery(invoicesQueryOptions('acme', 'c2')), { wrapper })
-    await waitFor(() => expect(next.result.current.isSuccess).toBe(true))
+    server.use(
+      http.get('/api/v1/tenants/acme/billing/invoices', ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor')
+        cursors.push(cursor)
+        return ok(
+          cursor === null ? listPage([INVOICE], { hasNext: true, nextCursor: 'c2' }) : listPage([]),
+          'Invoices retrieved.'
+        )
+      })
+    )
+    const { result } = renderHook(() => useInfiniteQuery(invoicesQueryOptions('acme')), {
+      wrapper,
+    })
+    await waitFor(() => expect(result.current.data?.pages[0]?.items).toEqual([INVOICE]))
+    expect(result.current.hasNextPage).toBe(true)
+    await act(() => result.current.fetchNextPage())
+    await waitFor(() => expect(result.current.hasNextPage).toBe(false))
     expect(cursors).toEqual([null, 'c2'])
   })
 
@@ -281,13 +289,21 @@ describe('invalidateBilling', () => {
   it('marks entitlements, billing, invoices and upgrade requests stale', async () => {
     client.setQueryData(billingKeys.entitlements('acme'), testEntitlements())
     client.setQueryData(billingKeys.billing('acme'), testBilling())
-    client.setQueryData([...billingKeys.invoices('acme'), null], listPage([INVOICE]))
+    client.setQueryData(billingKeys.invoices('acme'), {
+      pages: [listPage([INVOICE], { hasNext: true, nextCursor: 'c2' }), listPage([INVOICE])],
+      pageParams: [null, 'c2'],
+    })
     client.setQueryData(billingKeys.upgradeRequests('acme'), [])
     client.setQueryData(billingKeys.plans, testPlans)
     await invalidateBilling(client, 'acme')
     expect(client.getQueryState(billingKeys.entitlements('acme'))?.isInvalidated).toBe(true)
     expect(client.getQueryState(billingKeys.billing('acme'))?.isInvalidated).toBe(true)
-    expect(client.getQueryState([...billingKeys.invoices('acme'), null])?.isInvalidated).toBe(true)
+    expect(client.getQueryState(billingKeys.invoices('acme'))?.isInvalidated).toBe(true)
+    // A later page's cursor is bound to the subscriptions before the change, so only the first page stays.
+    expect(client.getQueryData(billingKeys.invoices('acme'))).toEqual({
+      pages: [listPage([INVOICE], { hasNext: true, nextCursor: 'c2' })],
+      pageParams: [null],
+    })
     expect(client.getQueryState(billingKeys.upgradeRequests('acme'))?.isInvalidated).toBe(true)
     expect(client.getQueryState(billingKeys.plans)?.isInvalidated).toBe(false)
   })

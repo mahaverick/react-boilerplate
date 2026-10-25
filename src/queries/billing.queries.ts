@@ -1,8 +1,10 @@
 import {
+  infiniteQueryOptions,
   queryOptions,
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiClient, unwrap } from '@/http/client'
@@ -136,28 +138,44 @@ interface EnabledOption {
 }
 
 /**
- * One page of `GET /tenants/:slug/billing/invoices`, newest first. Owner only;
- * a 404 when payments are off.
+ * `GET /tenants/:slug/billing/invoices`, newest first, one cursor page at a
+ * time. Owner only; a 404 when payments are off. An infinite query, so a
+ * refetch reads every page again from the first, each with the cursor the
+ * page before it just gave: express binds a cursor to the subscriptions it
+ * pages through, and refuses an old one after they change.
  * @param slug - The tenant.
- * @param cursor - The page to read; the first when absent.
  * @param options - `enabled: false` asks nothing.
  */
-export function invoicesQueryOptions(
-  slug: string,
-  cursor?: string,
-  { enabled = true }: EnabledOption = {}
-) {
-  return queryOptions({
-    queryKey: [...billingKeys.invoices(slug), cursor ?? null] as const,
-    queryFn: async ({ signal }) =>
+export function invoicesQueryOptions(slug: string, { enabled = true }: EnabledOption = {}) {
+  return infiniteQueryOptions({
+    queryKey: billingKeys.invoices(slug),
+    queryFn: async ({ pageParam, signal }) =>
       unwrap(
         await apiClient.get<ApiSuccess<ListPage<InvoiceView>>>(
           `/tenants/${slug}/billing/invoices`,
-          { params: cursor === undefined ? {} : { cursor }, signal }
+          { params: pageParam === null ? {} : { cursor: pageParam }, signal }
         )
       ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => (last.page.hasNext ? last.page.nextCursor : null),
     enabled,
   })
+}
+
+/**
+ * Keeps only the first page of the cached invoices, so the refetch a billing
+ * change starts reads page one alone and "Show more" starts over.
+ * @param queryClient - The app's query client.
+ * @param slug - The tenant.
+ */
+function keepFirstInvoicePage(queryClient: QueryClient, slug: string): void {
+  queryClient.setQueryData<InfiniteData<ListPage<InvoiceView>, string | null>>(
+    billingKeys.invoices(slug),
+    (data) =>
+      data && data.pages.length > 1
+        ? { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
+        : data
+  )
 }
 
 /**
@@ -181,11 +199,12 @@ export function upgradeRequestsQueryOptions(slug: string, { enabled = true }: En
 
 /**
  * Refetches everything a billing change moves: entitlements, the billing view,
- * invoices and upgrade requests. The public plans stay.
+ * invoices (from the first page only) and upgrade requests. The public plans stay.
  * @param queryClient - The app's query client.
  * @param slug - The tenant.
  */
 export async function invalidateBilling(queryClient: QueryClient, slug: string): Promise<void> {
+  keepFirstInvoicePage(queryClient, slug)
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: billingKeys.entitlements(slug) }),
     queryClient.invalidateQueries({ queryKey: billingKeys.billing(slug) }),
@@ -207,6 +226,7 @@ async function storeBilling(
   billing: TenantBilling
 ): Promise<void> {
   queryClient.setQueryData(billingKeys.billing(slug), billing)
+  keepFirstInvoicePage(queryClient, slug)
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: billingKeys.entitlements(slug) }),
     queryClient.invalidateQueries({ queryKey: billingKeys.invoices(slug) }),

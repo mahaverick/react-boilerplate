@@ -1,5 +1,4 @@
-import { useQueries } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { LoadError } from '@/components/features/load-error'
 import { EmptyState } from '@/components/shared/empty-state'
 import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
@@ -29,24 +28,20 @@ const STATUS_LABEL: Record<InvoiceView['status'], string> = {
  * Billing's "Invoices" card, for an owner with member access while payments
  * are on: date, amount, status and, where Razorpay gave one, a link that opens
  * the invoice in a new tab. Pages are read one cursor at a time; "Show more"
- * adds the next under the ones shown. Mount it only for that owner: the API
- * refuses everyone else and answers 404 while payments are off.
+ * adds the next under the ones shown, and a billing change starts over from
+ * the first. Mount it only for that owner: the API refuses everyone else and
+ * answers 404 while payments are off.
  */
 export function InvoicesCard({ slug, timeZone }: { slug: string; timeZone: string }) {
-  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined])
-  const pages = useQueries({
-    queries: cursors.map((cursor) => ({ ...invoicesQueryOptions(slug, cursor), retry: false })),
-  })
-  const first = pages[0]
-  const last = pages.at(-1)
-  const rows = pages.flatMap((page) => page.data?.items ?? [])
-  const failed = pages.find((page) => page.isError)
+  const invoices = useInfiniteQuery({ ...invoicesQueryOptions(slug), retry: false })
+  const rows = invoices.data?.pages.flatMap((page) => page.items) ?? []
+  const failed = invoices.isError
   /** A billing date in the tenant's zone. */
   const date = (iso: string) => formatBillingDate(iso, timeZone)
 
   let body
-  if (first?.data === undefined && failed === undefined) body = <CardRowsSkeleton rows={3} />
-  else if (rows.length === 0 && failed === undefined) {
+  if (invoices.data === undefined && !failed) body = <CardRowsSkeleton rows={3} />
+  else if (rows.length === 0 && !failed) {
     body = <EmptyState size="compact" title="No invoices yet." />
   } else {
     body = (
@@ -87,30 +82,27 @@ export function InvoicesCard({ slug, timeZone }: { slug: string; timeZone: strin
             </TableBody>
           </Table>
         )}
-        {failed !== undefined && (
+        {failed && (
           <LoadError
             message="Invoices didn’t load. Try again."
-            onRetry={() => void failed.refetch()}
+            onRetry={() =>
+              void (invoices.isFetchNextPageError ? invoices.fetchNextPage() : invoices.refetch())
+            }
           />
         )}
-        {last?.data?.page.hasNext === true && last.data.page.nextCursor !== null && (
+        {invoices.hasNextPage && !invoices.isFetchNextPageError && (
           <div>
             <Button
               variant="outline"
               size="sm"
-              disabled={last.isPending}
-              onClick={() => {
-                const next = last.data?.page.nextCursor
-                if (next) setCursors((shown) => [...shown, next])
-              }}
+              disabled={invoices.isFetchingNextPage}
+              onClick={() => void invoices.fetchNextPage()}
             >
               Show more
             </Button>
           </div>
         )}
-        {last !== undefined && last.isPending && cursors.length > 1 && (
-          <CardRowsSkeleton rows={1} />
-        )}
+        {invoices.isFetchingNextPage && <CardRowsSkeleton rows={1} />}
       </>
     )
   }
