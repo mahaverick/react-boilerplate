@@ -18,6 +18,8 @@ export interface ApiErrorBody {
   code?: string
   /** Field-level validator detail: a message array per invalid field, plus `formErrors` for an issue that names no single field. */
   errors?: Record<string, string[]>
+  /** Structured detail for a refusal, e.g. `{ key, used, limit }` on a 402 `PLAN_LIMIT_REACHED`. */
+  details?: Record<string, unknown>
   requestId: string
 }
 
@@ -50,6 +52,39 @@ export const ACCESS_TOKEN_EXPIRED = 'ACCESS_TOKEN_EXPIRED'
  * "Confirm it’s you" (`@/hooks/use-step-up`) and retries the write once.
  */
 export const REAUTH_REQUIRED = 'REAUTH_REQUIRED'
+
+/** `code` on the 402 for a write the plan's limit refuses. `details` is `{ key, used, limit }`, and absent when an invitee's join is refused. */
+export const PLAN_LIMIT_REACHED = 'PLAN_LIMIT_REACHED'
+
+/** `code` on the 402 for a feature the plan does not include. `details` is `{ key }`. */
+export const PLAN_FEATURE_REQUIRED = 'PLAN_FEATURE_REQUIRED'
+
+/** `code` on the 409 for a checkout while a live subscription exists. */
+export const SUBSCRIPTION_EXISTS = 'SUBSCRIPTION_EXISTS'
+
+/** `code` on the 409 for a cancel, interval switch or card change when the workspace has no subscription. */
+export const NO_SUBSCRIPTION = 'NO_SUBSCRIPTION'
+
+/** `code` on the 409 for a switch to the interval the workspace is already on. */
+export const SAME_INTERVAL = 'SAME_INTERVAL'
+
+/** `code` on the 400 when a checkout confirm's ids or signature do not match this workspace's stored checkout. */
+export const CHECKOUT_MISMATCH = 'CHECKOUT_MISMATCH'
+
+/** `code` on the 409 for an upgrade request on a workspace that is already Paid and not cancelling. */
+export const ALREADY_PAID = 'ALREADY_PAID'
+
+/** `code` on the 409 for an interval switch before the first Paid charge, when both subscriptions would charge. */
+export const SWITCH_BEFORE_FIRST_CHARGE = 'SWITCH_BEFORE_FIRST_CHARGE'
+
+/** `code` on the 409 for an interval switch too close to the current renewal, which would double-charge. */
+export const SWITCH_TOO_CLOSE_TO_RENEWAL = 'SWITCH_TOO_CLOSE_TO_RENEWAL'
+
+/** `code` on the 503 or 502 when the payment provider could not complete a billing write. */
+export const PAYMENT_PROVIDER_UNAVAILABLE = 'PAYMENT_PROVIDER_UNAVAILABLE'
+
+/** `code` on the 503 when the billing row kept changing during a write. Retry after `Retry-After`. */
+export const BILLING_BUSY = 'BILLING_BUSY'
 
 /** The maintenance modes express enforces, mildest first. */
 const MAINTENANCE_MODES = ['off', 'read_only', 'full'] as const

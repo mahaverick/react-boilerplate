@@ -142,11 +142,21 @@ export function ok<T>(data: T, message = 'OK', statusCode = 200) {
   return HttpResponse.json({ success: true, message, statusCode, data }, { status: statusCode })
 }
 
-/** A failed API envelope with a fixed `requestId`, for a test that needs the server to refuse. */
-export function fail(message: string, statusCode: number, code?: string) {
+/**
+ * A failed API envelope with a fixed `requestId`, for a test that needs the server to refuse.
+ * `details` is the envelope's structured detail (a 402's `{ key, used, limit }`); `headers`
+ * are response headers, such as `Retry-After`.
+ */
+export function fail(
+  message: string,
+  statusCode: number,
+  code?: string,
+  details?: Record<string, unknown>,
+  headers?: Record<string, string>
+) {
   return HttpResponse.json(
-    { success: false, message, statusCode, code, requestId: 'test-request-id' },
-    { status: statusCode }
+    { success: false, message, statusCode, code, details, requestId: 'test-request-id' },
+    { status: statusCode, headers }
   )
 }
 
