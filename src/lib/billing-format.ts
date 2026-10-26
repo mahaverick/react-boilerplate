@@ -11,22 +11,34 @@ const INR = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 })
 
+/** Rupees and paise with Indian digit grouping: `₹999.50`, `₹1.05`. */
+const INR_WITH_PAISE = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
 /**
- * An amount in rupees, rounded to the rupee.
+ * An amount in rupees: whole rupees with no decimals, any other amount with
+ * exactly two. express takes any whole number of paise as a price, so
+ * rounding to the rupee would show a price nobody is charged.
  * @param amountMinor - The amount in paise, as the API sends it.
- * @returns For example `₹999` for 99900.
+ * @returns For example `₹999` for 99900, or `₹999.50` for 99950.
  */
 export function formatInr(amountMinor: number): string {
-  return INR.format(amountMinor / 100)
+  const format = amountMinor % 100 === 0 ? INR : INR_WITH_PAISE
+  return format.format(amountMinor / 100)
 }
 
 /**
- * What a yearly price comes to each month, rounded to the rupee.
+ * What a yearly price comes to each month, rounded to the rupee. It is a
+ * guide beside the yearly price, not an amount anyone is charged.
  * @param amountMinor - The yearly amount in paise.
  * @returns For example `₹833` for 999000.
  */
 export function perMonthOfYearly(amountMinor: number): string {
-  return formatInr(amountMinor / 12)
+  return formatInr(Math.round(amountMinor / 1200) * 100)
 }
 
 /**

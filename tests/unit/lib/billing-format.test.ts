@@ -12,11 +12,23 @@ describe('formatInr', () => {
     expect(formatInr(999_000)).toBe('₹9,990')
     expect(formatInr(10_000_000)).toBe('₹1,00,000')
   })
+
+  it.each([
+    [100_000, '₹1,000'],
+    [99_950, '₹999.50'],
+    [100, '₹1'],
+    [10_000_000, '₹1,00,000'],
+    [105, '₹1.05'],
+  ])('writes %i paise as %s: no decimals for whole rupees, else two', (paise, text) => {
+    expect(formatInr(paise)).toBe(text)
+  })
 })
 
 describe('perMonthOfYearly', () => {
   it('divides a yearly price by 12, rounded to the rupee', () => {
     expect(perMonthOfYearly(999_000)).toBe('₹833')
+    expect(perMonthOfYearly(1_000_000)).toBe('₹833')
+    expect(perMonthOfYearly(1_100_000)).toBe('₹917')
   })
 })
 
