@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.1](https://github.com/mahaverick/react-boilerplate/compare/v4.2.0...v4.2.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **billing:** show paise when a price is not whole rupees ([#155](https://github.com/mahaverick/react-boilerplate/issues/155)) ([9211445](https://github.com/mahaverick/react-boilerplate/commit/9211445599710b1f91addd868a35269c76a213e7))
+
 ## [4.2.0](https://github.com/mahaverick/react-boilerplate/compare/v4.1.4...v4.2.0) (2026-10-25)
 
 
