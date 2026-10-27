@@ -9,6 +9,7 @@ describe('gstinProblem', () => {
     ['29ABCDE1234F1ZX', 'checksum'],
     ['25ABCDE1234F1Z4', 'state'],
     ['99ABCDE1234F1ZP', 'state'],
+    ['99ABCDE1234F1ZX', 'state'],
     ['29ABCDE1234F1Z', 'shape'],
     ['29ABCDE1234F0ZW', 'shape'],
   ])('gstinProblem(%s) is %s', (gstin, problem) => expect(gstinProblem(gstin)).toBe(problem))
