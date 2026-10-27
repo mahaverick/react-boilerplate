@@ -198,6 +198,9 @@ test('Billing masks the payer, the receipts address and who asked to upgrade', a
 test('Billing masks the tax details’ legal name and address', async ({ page }) => {
   await page.goto(harness('/settings/workspace/acme/billing', '&billing=active&tax=read_only'))
   await expect(page.getByText('Pii Probe Traders')).toBeVisible()
-  // The legal name, the address lines (one element), and the account menu's name and address.
-  await expectAllMasked(page, 3)
+  await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
+  // Nine: legal name, address line 1, city, Plan payer and receipts address, two requesters, menu name and address.
+  const scan = await scanProbes(page)
+  expect(scan.unmasked, 'probe text outside .ph-sensitive.ph-mask').toEqual([])
+  expect(scan.masked).toBe(9)
 })

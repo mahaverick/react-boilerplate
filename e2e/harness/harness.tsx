@@ -825,6 +825,7 @@ async function saveTaxDetails(request: Request) {
     return fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
   }
   const { version, ...sent } = body
+  // The conflict applies only to stored details: with none (`tax=empty`) it never fires.
   if (taxConflictPending && taxDetailsRow !== null) {
     taxConflictPending = false
     taxDetailsRow = { ...taxDetailsRow, city: 'Mysuru', version: taxDetailsRow.version + 1 }
