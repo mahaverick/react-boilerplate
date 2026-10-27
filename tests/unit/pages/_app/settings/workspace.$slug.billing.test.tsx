@@ -121,6 +121,9 @@ function invoice(overrides: Partial<InvoiceView> = {}): InvoiceView {
     issuedAt: '2026-10-02T18:30:00.000Z',
     paidAt: '2026-10-02T18:31:00.000Z',
     url: 'https://rzp.io/i/abc',
+    taxDocument: null,
+    creditNotes: [],
+    taxStatus: 'not_applicable',
     ...overrides,
   }
 }

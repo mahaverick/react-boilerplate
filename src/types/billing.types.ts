@@ -1,3 +1,5 @@
+import type { TaxDocumentRef, TaxStatus } from '@/types/tax.types'
+
 /**
  * The billing API contract (docs/2026-10-24-billing-api-contract.md), as the
  * server sends it. Money is integer minor units (paise) plus `currency`;
@@ -103,6 +105,10 @@ export interface TenantBilling {
   /** Owner only. */
   billingEmail: string | null
   paymentsEnabled: boolean
+  /** GST registration is on: the editable Tax details card shows only then. */
+  taxDocumentsEnabled: boolean
+  /** Owner only: the workspace has at least one tax document. */
+  hasTaxDocuments: boolean
   dismissedBanners: string[]
 }
 
@@ -136,6 +142,11 @@ export interface InvoiceView {
   issuedAt: string
   paidAt: string | null
   url: string | null
+  /** The tax invoice for this row's payment. */
+  taxDocument: TaxDocumentRef | null
+  /** Its credit notes, oldest first. */
+  creditNotes: TaxDocumentRef[]
+  taxStatus: TaxStatus
 }
 
 /** `POST /upgrade-requests`. */

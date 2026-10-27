@@ -105,6 +105,8 @@ export function testBilling(overrides: Partial<TenantBilling> = {}): TenantBilli
     payer: null,
     billingEmail: null,
     paymentsEnabled: true,
+    taxDocumentsEnabled: false,
+    hasTaxDocuments: false,
     dismissedBanners: [],
     ...overrides,
   }

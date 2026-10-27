@@ -85,6 +85,9 @@ const INVOICE: InvoiceView = {
   issuedAt: '2026-10-01T00:00:00.000Z',
   paidAt: '2026-10-01T00:05:00.000Z',
   url: 'https://rzp.io/i/inv_1',
+  taxDocument: null,
+  creditNotes: [],
+  taxStatus: 'not_applicable',
 }
 
 let client: QueryClient
