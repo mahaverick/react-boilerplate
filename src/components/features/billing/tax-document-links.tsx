@@ -26,12 +26,12 @@ export function TaxDocumentLinks({ slug, invoice }: { slug: string; invoice: Inv
         />
       ))}
       {invoice.taxStatus === 'held' && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm whitespace-normal text-muted-foreground">
           Tax invoice held. We issue invoices for Special Economic Zone units by hand.
         </p>
       )}
       {invoice.taxStatus === 'pending' && (
-        <p className="text-sm text-muted-foreground">Tax invoice on its way</p>
+        <p className="text-sm whitespace-normal text-muted-foreground">Tax invoice on its way</p>
       )}
     </div>
   )

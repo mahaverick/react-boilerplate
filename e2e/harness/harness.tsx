@@ -13,8 +13,18 @@ import { setupWorker } from 'msw/browser'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@/styles/globals.css'
+import { stateOf } from '@/lib/gst'
 import type { RazorpayOptions } from '@/lib/razorpay-checkout'
 import { queryClient, router } from '@/router'
+import {
+  LEGAL_NAME_REQUIRED_MESSAGE,
+  STATE_REQUIRED_MESSAGE,
+  TAX_DETAILS_SAVED_MESSAGE,
+  taxDetailsFieldsSchema,
+  taxDetailsRuleIssues,
+  valuesFrom,
+  type TaxDetailsValues,
+} from '@/schemas/tax-details.schemas'
 import { useAuthStore } from '@/states/auth.store'
 import type {
   BillingInterval,
@@ -23,6 +33,12 @@ import type {
   TenantEntitlements,
   UpgradeSurface,
 } from '@/types/billing.types'
+import {
+  TAX_DETAILS_VERSION_CONFLICT,
+  TAX_DOCUMENT_NOT_FOUND,
+  TAX_DOCUMENTS_DISABLED,
+  type TaxDetails,
+} from '@/types/tax.types'
 import {
   BILLING_STATES,
   billingState,
@@ -51,6 +67,7 @@ import {
   USER_ID_2,
 } from '../../tests/fixtures/ids'
 import { listPage } from '../../tests/fixtures/list-page'
+import { TAX_DOCUMENTS, TAX_INVOICES, testTaxDetails } from '../../tests/fixtures/tax'
 import { USER_HANDLE } from '../../tests/fixtures/user-handle'
 
 const TENANT = {
@@ -715,6 +732,176 @@ const UPGRADE_REQUESTS = piiProbe
     ]
   : []
 
+/**
+ * `?tax=` picks how the tax routes answer: `off` (the default, and any unknown
+ * value): both flags false and every tax route a 404 `tax_documents_disabled`.
+ * `on`: registered, with stored details, documents and invoice rows carrying
+ * them. `empty`: registered, with no details, documents or invoices yet.
+ * `read_only`: registration off with documents, so reads answer and the save
+ * is refused. `&tax_conflict=1` makes the first save a version conflict, as if
+ * another tab had saved city `Mysuru` first. Under `?pii=probe` the details
+ * carry the probe's name and address.
+ */
+type TaxMode = 'off' | 'on' | 'empty' | 'read_only'
+
+/** Every `?tax=` value the harness knows. */
+const TAX_MODES: readonly TaxMode[] = ['off', 'on', 'empty', 'read_only']
+const taxParam = params.get('tax') ?? 'off'
+const taxMode: TaxMode = TAX_MODES.includes(taxParam as TaxMode) ? (taxParam as TaxMode) : 'off'
+billingView = {
+  ...billingView,
+  taxDocumentsEnabled: taxMode === 'on' || taxMode === 'empty',
+  hasTaxDocuments: taxMode === 'on' || taxMode === 'read_only',
+}
+/** The invoice rows Billing lists: the tax fixtures' wherever documents exist, else none. */
+const INVOICES = taxMode === 'on' || taxMode === 'read_only' ? TAX_INVOICES : []
+/** The workspace's tax documents. */
+const DOCUMENTS = taxMode === 'empty' ? [] : TAX_DOCUMENTS
+/** The stored tax details, which a save replaces at the next version. */
+let taxDetailsRow: TaxDetails | null =
+  taxMode === 'empty'
+    ? null
+    : testTaxDetails(
+        piiProbe
+          ? {
+              legalName: 'Pii Probe Traders',
+              addressLine1: 'pii-probe 12 MG Road',
+              city: 'Pii Probe City',
+            }
+          : {}
+      )
+/** Whether the next save meets another tab's save first. */
+let taxConflictPending = params.get('tax_conflict') === '1'
+
+/** express's 404 for a tax read while tax documents are off and none exist. */
+const TAX_READ_DISABLED = 'Tax documents are off, and this workspace has none to download.'
+/** express's 404 for a tax write while registration is off. */
+const TAX_WRITE_DISABLED =
+  "Tax documents are off, so tax details and credit notes can't change. Issued documents stay available to download."
+/** express's 409 for a save with a stale version. */
+const TAX_CONFLICT =
+  'Someone changed these tax details since you opened them. Reload to see them, then save again.'
+
+/** What a first save merges onto: a row with nothing stored. */
+const EMPTY_TAX_VALUES: TaxDetailsValues = {
+  gstin: null,
+  legalName: '',
+  addressLine1: null,
+  addressLine2: null,
+  city: null,
+  pincode: null,
+  stateCode: '',
+  isSez: false,
+}
+
+/** The tax read's refusal while tax documents are off, or `null` when reads answer. */
+function taxReadRefused() {
+  return taxMode === 'off' ? fail(TAX_READ_DISABLED, 404, TAX_DOCUMENTS_DISABLED) : null
+}
+
+/** A 400 in the house validation envelope, with `errors` keyed by field. */
+function invalid(errors: Record<string, string[]>) {
+  return fail('Check the highlighted fields, then try again.', 400, 'VALIDATION_ERROR', undefined, {
+    errors,
+  })
+}
+
+/**
+ * The tax details save, as express answers it: a stale `version` is a 409;
+ * each sent field is checked on its own, then the sent fields are laid over
+ * the stored row (an empty one on the first save) and the cross-field rules
+ * run for the fields sent. Any issue is a 400 with `errors`; otherwise the
+ * merged details are stored at the next version and answered.
+ */
+async function saveTaxDetails(request: Request) {
+  if (taxMode === 'off' || taxMode === 'read_only') {
+    return fail(TAX_WRITE_DISABLED, 404, TAX_DOCUMENTS_DISABLED)
+  }
+  const body = (await request
+    .clone()
+    .json()
+    .catch(() => null)) as Record<string, unknown> | null
+  if (body === null || typeof body !== 'object' || Array.isArray(body) || !('version' in body)) {
+    return fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
+  }
+  const { version, ...sent } = body
+  if (taxConflictPending && taxDetailsRow !== null) {
+    taxConflictPending = false
+    taxDetailsRow = { ...taxDetailsRow, city: 'Mysuru', version: taxDetailsRow.version + 1 }
+    return fail(TAX_CONFLICT, 409, TAX_DETAILS_VERSION_CONFLICT)
+  }
+  if (version !== (taxDetailsRow?.version ?? null)) {
+    return fail(TAX_CONFLICT, 409, TAX_DETAILS_VERSION_CONFLICT)
+  }
+
+  const shape = taxDetailsFieldsSchema.shape
+  const errors: Record<string, string[]> = {}
+  const parsed: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(sent)) {
+    if (!Object.hasOwn(shape, key)) {
+      return fail('Request body does not match the contract.', 400, 'VALIDATION_ERROR')
+    }
+    const result = shape[key as keyof typeof shape].safeParse(value === null ? '' : value)
+    if (result.success) parsed[key] = result.data
+    else errors[key] = result.error.issues.map((issue) => issue.message)
+  }
+  if (Object.keys(errors).length > 0) return invalid(errors)
+
+  const merged: TaxDetailsValues = {
+    ...(taxDetailsRow === null ? EMPTY_TAX_VALUES : valuesFrom(taxDetailsRow)),
+    ...(parsed as Partial<TaxDetailsValues>),
+  }
+  // A first save that leaves out the legal name or the state has nothing to merge them from.
+  if (merged.legalName === '') errors.legalName = [LEGAL_NAME_REQUIRED_MESSAGE]
+  if (merged.stateCode === '') errors.stateCode = [STATE_REQUIRED_MESSAGE]
+  const sentKeys = new Set(Object.keys(parsed) as Array<keyof TaxDetailsValues>)
+  for (const { path, message } of taxDetailsRuleIssues(merged, sentKeys)) {
+    errors[path] = [...(errors[path] ?? []), message]
+  }
+  if (Object.keys(errors).length > 0) return invalid(errors)
+
+  const { stateCode, ...rest } = merged
+  taxDetailsRow = {
+    ...rest,
+    state: stateOf(stateCode)!,
+    version: (taxDetailsRow?.version ?? 0) + 1,
+    updatedAt: new Date().toISOString(),
+  }
+  return ok(taxDetailsRow, TAX_DETAILS_SAVED_MESSAGE)
+}
+
+/** Handlers for the owner's tax routes, reading and changing the state above. */
+const taxHandlers = [
+  http.get(
+    '/api/v1/tenants/:slug/billing/tax-details',
+    () => taxReadRefused() ?? ok(taxDetailsRow, 'Tax details retrieved.')
+  ),
+  http.patch('/api/v1/tenants/:slug/billing/tax-details', ({ request }) => saveTaxDetails(request)),
+  http.get(
+    '/api/v1/tenants/:slug/billing/tax-documents',
+    () => taxReadRefused() ?? ok(listPage(DOCUMENTS), 'Tax documents retrieved.')
+  ),
+  http.get('/api/v1/tenants/:slug/billing/tax-documents/:id/pdf', ({ params: route }) => {
+    const refused = taxReadRefused()
+    if (refused) return refused
+    const document = DOCUMENTS.find((row) => row.id === route.id)
+    if (document === undefined) {
+      return fail(
+        'This workspace has no tax document with that ID. Reload the page to see its documents.',
+        404,
+        TAX_DOCUMENT_NOT_FOUND
+      )
+    }
+    return new Response('%PDF-1.4\n%%EOF\n', {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${document.number.replaceAll('/', '-')}.pdf"`,
+        'Cache-Control': 'private, no-store',
+      },
+    })
+  }),
+]
+
 /** The period end a Paid subscription started in the harness runs to: "25 November 2026". */
 const NEW_PERIOD_END = '2026-11-25T10:00:00.000Z'
 
@@ -791,7 +978,12 @@ async function wrongUpgradeRequest(request: Request) {
 /** Moves the workspace onto Free, as a cancel of a past-due subscription does. */
 function moveToFree(): void {
   const free = billingState('free')
-  billingView = { ...free.billing, paymentsEnabled: billingView.paymentsEnabled }
+  billingView = {
+    ...free.billing,
+    paymentsEnabled: billingView.paymentsEnabled,
+    taxDocumentsEnabled: billingView.taxDocumentsEnabled,
+    hasTaxDocuments: billingView.hasTaxDocuments,
+  }
   entitlementsView = free.entitlements
 }
 
@@ -840,8 +1032,11 @@ const billingHandlers = [
     ok(entitlementsView, 'Entitlements retrieved.')
   ),
   http.get('/api/v1/tenants/:slug/billing', () => ok(billingView, 'Billing retrieved.')),
-  // The owner's Billing page: no invoices; upgrade requests only under the PII probe.
-  http.get('/api/v1/tenants/:slug/billing/invoices', () => ok(listPage([]), 'Invoices retrieved.')),
+  // The owner's Billing page: invoices only where tax documents exist; upgrade requests only under the PII probe.
+  http.get('/api/v1/tenants/:slug/billing/invoices', () =>
+    ok(listPage(INVOICES), 'Invoices retrieved.')
+  ),
+  ...taxHandlers,
   http.get('/api/v1/tenants/:slug/upgrade-requests', () =>
     ok(UPGRADE_REQUESTS, 'Upgrade requests retrieved.')
   ),
