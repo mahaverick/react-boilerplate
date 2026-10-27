@@ -1,7 +1,7 @@
 import { apiClient } from '@/http/client'
 
-/** A name safe to hand to `<a download>`: no path, no spaces, at most 100 characters. */
-const SAFE_FILENAME = /^[A-Za-z0-9._-]{1,100}$/
+/** A name safe to hand to `<a download>`: no path, no spaces, at most 100 characters, not only dots. */
+const SAFE_FILENAME = /^(?!\.+$)[A-Za-z0-9._-]{1,100}$/
 
 /**
  * The `filename="…"` of a Content-Disposition header, or `fallback` when the

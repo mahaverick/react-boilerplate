@@ -3,7 +3,7 @@
  * the Bearer token (a plain `<a href>` would carry no token). Shared with apex.
  */
 import { http, HttpResponse } from 'msw'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vite-plus/test'
 import { codeFrom } from '@/lib/api-error'
 import { documentFilename, downloadFile, filenameFrom } from '@/lib/download-file'
 import { fail } from '@/tests/mocks/handlers'
@@ -22,14 +22,19 @@ const pdf = (disposition?: string) =>
   })
 
 describe('downloadFile', () => {
-  let createObjectURL: ReturnType<typeof vi.fn>
-  let revokeObjectURL: ReturnType<typeof vi.fn>
+  let createObjectURL: MockInstance<typeof URL.createObjectURL>
+  let revokeObjectURL: MockInstance<typeof URL.revokeObjectURL>
   let clicked: HTMLAnchorElement[]
 
   beforeEach(() => {
-    createObjectURL = vi.fn(() => 'blob:probe')
-    revokeObjectURL = vi.fn()
-    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }))
+    // jsdom ships neither method, so give spyOn something to wrap; restoreAllMocks puts the originals back.
+    for (const name of ['createObjectURL', 'revokeObjectURL']) {
+      if (!(name in URL)) {
+        Object.defineProperty(URL, name, { value: () => '', configurable: true, writable: true })
+      }
+    }
+    createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:probe')
+    revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     clicked = []
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
       this: HTMLAnchorElement
@@ -40,7 +45,6 @@ describe('downloadFile', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it('saves under the name the API sends, resolves it and revokes the URL', async () => {
@@ -77,6 +81,15 @@ describe('downloadFile', () => {
     expect(await downloadFile(PATH, 'fallback.pdf')).toEqual({ filename: 'fallback.pdf' })
   })
 
+  it('revokes the URL and propagates the error when the click throws', async () => {
+    server.use(http.get(URL_PATH, () => pdf('attachment; filename="a.pdf"')))
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {
+      throw new Error('click blocked')
+    })
+    await expect(downloadFile(PATH, 'fallback.pdf')).rejects.toThrow('click blocked')
+    await vi.waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:probe'))
+  })
+
   it('rejects with the decoded error and clicks nothing on a 404', async () => {
     server.use(http.get(URL_PATH, () => fail('Not found', 404, 'tax_document_not_found')))
     const error = await downloadFile(PATH, 'fallback.pdf').then(
@@ -102,6 +115,10 @@ describe('filenameFrom', () => {
     'attachment; filename="../x.pdf"',
   ])('falls back for %j', (value) => {
     expect(filenameFrom(value, 'f.pdf')).toBe('f.pdf')
+  })
+
+  it.each(['.', '..', '...'])('falls back for the dot-only name %j', (name) => {
+    expect(filenameFrom(`attachment; filename="${name}"`, 'f.pdf')).toBe('f.pdf')
   })
 
   it('falls back for a name over 100 characters', () => {
