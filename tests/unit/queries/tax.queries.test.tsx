@@ -254,7 +254,7 @@ describe('useSaveTaxDetails', () => {
       await expect(result.current.mutateAsync({ version: 3, city: 'Mysuru' })).rejects.toThrow()
     })
     await waitFor(() => expect(reads.billing).toBe(2))
-    await settle(50, 'a refetch that must not happen has no event to wait on')
+    await waitFor(() => expect(client.isFetching()).toBe(0))
     expect(reads).toEqual({ billing: 2, details: 1, invoices: 1 })
     billing.unmount()
     details.unmount()
@@ -263,21 +263,24 @@ describe('useSaveTaxDetails', () => {
 })
 
 describe('downloadTaxDocument', () => {
+  const defined: string[] = []
+
+  beforeEach(() => {
+    // jsdom ships neither method, so give spyOn something to wrap; afterEach removes what was added.
+    for (const name of ['createObjectURL', 'revokeObjectURL']) {
+      if (!(name in URL)) {
+        Object.defineProperty(URL, name, { value: () => '', configurable: true, writable: true })
+        defined.push(name)
+      }
+    }
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    for (const name of defined.splice(0)) Reflect.deleteProperty(URL, name)
+  })
+
   it('requests the pdf for the document and tracks nothing', async () => {
-    if (!('createObjectURL' in URL)) {
-      Object.defineProperty(URL, 'createObjectURL', {
-        value: () => '',
-        configurable: true,
-        writable: true,
-      })
-    }
-    if (!('revokeObjectURL' in URL)) {
-      Object.defineProperty(URL, 'revokeObjectURL', {
-        value: () => undefined,
-        configurable: true,
-        writable: true,
-      })
-    }
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:probe')
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     const clicked: HTMLAnchorElement[] = []
