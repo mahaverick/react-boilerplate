@@ -145,6 +145,7 @@ function TaxDetailsForm({
       },
     },
     onSubmit: async ({ value }) => {
+      setConflict(false)
       let patch: TaxDetailsPatch
       if (source === null) {
         const parsed = taxDetailsFieldsSchema.safeParse(value)
@@ -396,12 +397,12 @@ function TaxDetailsForm({
 /** The stored details as text, for a workspace whose tax documents are off. */
 function TaxDetailsSummary({ details }: { details: TaxDetails | null }) {
   if (details === null) return <EmptyState size="compact" title="No tax details on file." />
-  const address = [
-    details.addressLine1,
-    details.addressLine2,
-    details.city,
-    details.pincode,
-  ].filter((line): line is string => line !== null)
+  const address = (['addressLine1', 'addressLine2', 'city', 'pincode'] as const).flatMap(
+    (field) => {
+      const line = details[field]
+      return line === null ? [] : [{ field, line }]
+    }
+  )
   return (
     <dl className="grid gap-4">
       <div className="grid gap-1">
@@ -418,8 +419,8 @@ function TaxDetailsSummary({ details }: { details: TaxDetails | null }) {
           <dd>None</dd>
         ) : (
           <Pii as="dd">
-            {address.map((line) => (
-              <span key={line} className="block">
+            {address.map(({ field, line }) => (
+              <span key={field} className="block">
                 {line}
               </span>
             ))}

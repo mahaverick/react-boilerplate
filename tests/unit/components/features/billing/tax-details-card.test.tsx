@@ -281,12 +281,19 @@ describe('TaxDetailsCard, editable', () => {
     await user.clear(city)
     await user.type(city, 'Mysuru')
     await user.click(saveButton())
-    expect(await screen.findByText(SEZ_NEEDS_GSTIN_MESSAGE)).toBeInTheDocument()
+    const message = await screen.findByText(SEZ_NEEDS_GSTIN_MESSAGE)
 
     const sez = screen.getByRole('checkbox', { name: 'Special Economic Zone (SEZ) unit' })
+    // The visible control carries the error wiring, not Base UI's hidden input.
+    expect(sez.tagName).toBe('SPAN')
+    expect(sez).toHaveAttribute('aria-invalid', 'true')
+    expect(sez.getAttribute('aria-describedby')).toBe(message.id)
+    expect(sez).toHaveAccessibleDescription(SEZ_NEEDS_GSTIN_MESSAGE)
+
     await user.click(sez)
     expect(sez).toHaveAttribute('aria-checked', 'true')
     expect(screen.queryByText(SEZ_NEEDS_GSTIN_MESSAGE)).not.toBeInTheDocument()
+    expect(sez).toHaveAttribute('aria-invalid', 'false')
   })
 
   it('puts a server error on PIN code under PIN code', async () => {
@@ -405,6 +412,34 @@ describe('TaxDetailsCard, editable', () => {
     await user.click(saveButton())
     await waitFor(() => expect(bodies).toHaveLength(2))
     expect(bodies[1]).toEqual({ version: 4, pincode: '580020' })
+  })
+
+  it('drops Reload with its message when the owner saves again', async () => {
+    serveDetails(testTaxDetails())
+    let calls = 0
+    capturePatches(() => {
+      calls += 1
+      return calls === 1
+        ? fail(CONFLICT_MESSAGE, 409, TAX_DETAILS_VERSION_CONFLICT)
+        : invalid({ pincode: [PINCODE_MESSAGE] })
+    })
+    const user = userEvent.setup()
+    renderCard()
+
+    const city = await screen.findByRole('textbox', { name: 'City' })
+    await user.clear(city)
+    await user.type(city, 'Mysuru')
+    await user.click(saveButton())
+    await screen.findByRole('button', { name: 'Reload' })
+
+    await user.click(saveButton())
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'PIN code' })).toHaveAccessibleDescription(
+        PINCODE_MESSAGE
+      )
+    )
+    expect(screen.queryByText(CONFLICT_MESSAGE)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument()
   })
 
   it('says the details didn’t load when Reload’s refetch fails', async () => {
@@ -544,6 +579,9 @@ describe('TaxDetailsCard, read-only', () => {
     expect(within(list as HTMLElement).getByText('No')).toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save tax details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('reads None for a missing GSTIN and address, and Yes for an SEZ unit', async () => {
