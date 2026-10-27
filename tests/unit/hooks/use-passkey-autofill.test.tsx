@@ -1,12 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { StrictMode, type ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { usePasskeyAutofill } from '@/hooks/use-passkey-autofill'
+import { toast } from '@/lib/toast'
 import { passkeyKeys } from '@/queries/passkey.queries'
 import { settle } from '@/tests/fixtures/timing'
-import { ok, testUser } from '@/tests/mocks/handlers'
+import { fail, ok, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
 const webauthn = vi.hoisted(() => ({ support: vi.fn(), request: vi.fn(), cancel: vi.fn() }))
@@ -43,6 +44,10 @@ describe('usePasskeyAutofill', () => {
         ok({ user: testUser, accessToken: 't', isNewUser: false, redirect: null }, 'Signed in.')
       )
     )
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('asks for nothing while disabled, and checks no support', async () => {
@@ -138,6 +143,55 @@ describe('usePasskeyAutofill', () => {
     await waitFor(() => expect(live).toBeGreaterThan(0))
     await settle(50, 'let a stray second live ceremony show up')
     expect(live).toBe(1)
+  })
+
+  it('stays quiet when the browser refuses the background request as not supported', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    // Headless Chrome with no authenticator answers a conditional request this way.
+    webauthn.request.mockRejectedValue(
+      new DOMException('Resident credentials are not supported.', 'NotSupportedError')
+    )
+    renderHook(() => usePasskeyAutofill({ enabled: true, onSignedIn: vi.fn() }), { wrapper })
+
+    await waitFor(() => expect(webauthn.request).toHaveBeenCalledTimes(1))
+    await settle(50, 'a toast that never comes has no event')
+    expect(toastError).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet when the options request fails or never reaches the server', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    let posts = 0
+    server.use(
+      http.post('/api/v1/auth/passkeys/sign-in/options', () => {
+        posts += 1
+        return posts === 1 ? fail('The server failed.', 500) : HttpResponse.error()
+      })
+    )
+    const { rerender } = renderHook(
+      ({ restartKey }) => usePasskeyAutofill({ enabled: true, onSignedIn: vi.fn(), restartKey }),
+      { wrapper, initialProps: { restartKey: 0 } }
+    )
+    await waitFor(() => expect(posts).toBe(1))
+    rerender({ restartKey: 1 })
+    await waitFor(() => expect(posts).toBe(2))
+
+    await settle(50, 'a toast that never comes has no event')
+    expect(toastError).not.toHaveBeenCalled()
+    expect(webauthn.request).not.toHaveBeenCalled()
+  })
+
+  it('toasts the server refusing a passkey the person picked', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    webauthn.request.mockResolvedValue({ id: 'cred' })
+    server.use(
+      http.post('/api/v1/auth/passkeys/sign-in/verify', () =>
+        fail('This passkey can’t sign in here.', 403, 'PASSKEY_NO_ACCESS')
+      )
+    )
+    renderHook(() => usePasskeyAutofill({ enabled: true, onSignedIn: vi.fn() }), { wrapper })
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith('This passkey can’t sign in here.'))
+    expect(webauthn.request).toHaveBeenCalledTimes(1)
   })
 
   it('posts one sign-in options request under StrictMode', async () => {

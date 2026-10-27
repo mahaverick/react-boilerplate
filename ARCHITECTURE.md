@@ -683,8 +683,12 @@ Passkeys section and makes no other passkey request.
 - **Sign-in.** `/login` shows "Sign in with a passkey" when the mode is not
   `off` and the browser supports WebAuthn, and starts a conditional (autofill)
   request on the email field (`use-passkey-autofill.ts`). Clicking the button,
-  sending a link or leaving the page cancels that request first. A stale autofill
-  pick (`PASSKEY_VERIFICATION_FAILED`) restarts autofill once, quietly.
+  sending a link or leaving the page cancels that request first. Nobody asked
+  for that request, so a failure before a pick (the options request, or the
+  browser refusing it, as headless Chrome does with `NotSupportedError`) ends
+  quietly; the button reports its own. A stale autofill pick
+  (`PASSKEY_VERIFICATION_FAILED`) restarts autofill once, quietly, and any
+  other refusal of a picked passkey toasts.
 - **Settings.** Settings › Security shows the Passkeys section
   (`passkeys-section.tsx`, `passkey-dialogs.tsx`) between Sign-in methods and
   Other sessions: list, Create, Rename and Delete. Create and Delete run through
