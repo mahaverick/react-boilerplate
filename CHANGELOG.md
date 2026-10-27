@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.2](https://github.com/mahaverick/react-boilerplate/compare/v4.2.1...v4.2.2) (2026-10-27)
+
+
+### Bug Fixes
+
+* **auth:** keep a failed passkey autofill quiet until a passkey is picked ([#158](https://github.com/mahaverick/react-boilerplate/issues/158)) ([a57e207](https://github.com/mahaverick/react-boilerplate/commit/a57e207e5a72510ee3ef35e836c4c0eb61af56af))
+
 ## [4.2.1](https://github.com/mahaverick/react-boilerplate/compare/v4.2.0...v4.2.1) (2026-10-26)
 
 
