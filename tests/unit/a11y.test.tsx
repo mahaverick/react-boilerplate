@@ -679,9 +679,9 @@ describe('signed-in pages', () => {
   })
 
   it.each([
-    ['billing with tax details', true, 'button', 'Save tax details'],
-    ['billing with read-only tax details', false, 'heading', 'Tax details'],
-  ] as const)('%s has no axe violations', async (_name, enabled, role, name) => {
+    ['billing with tax details', true],
+    ['billing with read-only tax details', false],
+  ] as const)('%s has no axe violations', async (_name, enabled) => {
     server.use(
       http.get('/api/v1/tenants/acme/billing', () =>
         ok(
@@ -705,7 +705,10 @@ describe('signed-in pages', () => {
       )
     )
     renderAppAt('/settings/workspace/acme/billing')
-    await screen.findByRole(role, { name })
+    // Content only the loaded card renders: the form's button, or the summary's SEZ term.
+    if (enabled) await screen.findByRole('button', { name: 'Save tax details' })
+    else await screen.findByText('SEZ unit')
+    await screen.findByRole('columnheader', { name: 'Tax documents' })
     await screen.findByRole('heading', { level: 2, name: 'Tax documents' })
     await screen.findByRole('button', { name: 'Credit note CN/26-27/00003' })
     await expectNoViolations()
