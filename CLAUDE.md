@@ -350,7 +350,9 @@ the component is added again.
 - **`<Form>` clears a server error only on a native change event.** A Base UI
   `Select` emits none, so its change handler calls `serverErrors.clearField()`
   itself, as `src/components/features/tenant/invite-member-form.tsx` does. Base
-  UI's `Checkbox` is unverified: check it before relying on either answer.
+  UI's `Checkbox` toggle sends a native change from its hidden input, which
+  reaches `<Form onChange>` (measured in jsdom and in real Chromium,
+  2026-10-28); a change handler may still call `clearField` for clarity.
 
 ## Versions
 

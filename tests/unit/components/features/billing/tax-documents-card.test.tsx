@@ -98,7 +98,9 @@ describe('TaxDocumentsCard', () => {
     renderWithClient(<TaxDocumentsCard slug="acme" />)
     expect(await screen.findByText('No tax documents yet.')).toBeInTheDocument()
     expect(
-      screen.getByText('We issue a tax invoice for each charge paid from the GST start date.')
+      screen.getByText(
+        'We issue a tax invoice for each charge paid from the Goods and Services Tax (GST) start date.'
+      )
     ).toBeInTheDocument()
   })
 

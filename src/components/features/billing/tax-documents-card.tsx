@@ -57,7 +57,7 @@ export function TaxDocumentsCard({ slug }: { slug: string }) {
       <EmptyState
         size="compact"
         title="No tax documents yet."
-        description="We issue a tax invoice for each charge paid from the GST start date."
+        description="We issue a tax invoice for each charge paid from the Goods and Services Tax (GST) start date."
       />
     )
   } else {

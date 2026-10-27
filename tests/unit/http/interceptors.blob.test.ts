@@ -1,8 +1,7 @@
 /**
  * @file Covers `decodeBlobErrorBody`, the first response interceptor. A request
- * made with `responseType: 'blob'` gets its error body as a Blob, so the 401
- * handling could not read `code` and every expired token signed the user out.
- * The decoder parses a JSON Blob body in place, so the later interceptors and
+ * made with `responseType: 'blob'` gets its error body as a Blob. The decoder
+ * parses a JSON Blob body in place, so the later interceptors and
  * `codeFrom` / `messageFrom` see what a JSON request would.
  *
  * jsdom behaviour: with MSW answering a 404 JSON body to

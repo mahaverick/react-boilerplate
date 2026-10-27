@@ -22,10 +22,21 @@ import {
   taxDetailsFieldsSchema,
   taxDetailsRuleIssues,
   valuesFrom,
+  type TaxDetails,
   type TaxDetailsForm,
   type TaxDetailsValues,
 } from '@/schemas/tax-details.schemas'
-import { testTaxDetails } from '@/tests/fixtures/tax'
+
+const STORED: TaxDetails = {
+  gstin: '29ABCDE1234F1ZW',
+  legalName: 'Acme Traders Private Limited',
+  addressLine1: '12 MG Road',
+  addressLine2: null,
+  city: 'Bengaluru',
+  pincode: '560001',
+  state: { code: '29', name: 'Karnataka' },
+  isSez: false,
+}
 
 const FORM: TaxDetailsForm = {
   gstin: '',
@@ -232,7 +243,7 @@ describe('taxDetailsRuleIssues', () => {
 
 describe('valuesFrom and taxDetailsForm', () => {
   it('maps a stored row without validating it', () => {
-    const stored = testTaxDetails({ gstin: '29ABCDE1234F1ZX' })
+    const stored = { ...STORED, gstin: '29ABCDE1234F1ZX' }
     expect(valuesFrom(stored)).toEqual({
       gstin: '29ABCDE1234F1ZX',
       legalName: stored.legalName,
@@ -259,7 +270,7 @@ describe('valuesFrom and taxDetailsForm', () => {
   })
 
   it('round-trips a stored row through the schema', () => {
-    const stored = testTaxDetails()
+    const stored = STORED
     expect(taxDetailsFieldsSchema.parse(taxDetailsForm(stored))).toEqual(valuesFrom(stored))
   })
 })

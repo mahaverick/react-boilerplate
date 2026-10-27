@@ -25,6 +25,8 @@ describe('downloadFile', () => {
   let createObjectURL: MockInstance<typeof URL.createObjectURL>
   let revokeObjectURL: MockInstance<typeof URL.revokeObjectURL>
   let clicked: HTMLAnchorElement[]
+  let attachedOnClick: boolean[]
+  let revokers: Array<() => void>
 
   beforeEach(() => {
     // jsdom ships neither method, so give spyOn something to wrap; restoreAllMocks puts the originals back.
@@ -36,10 +38,26 @@ describe('downloadFile', () => {
     createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:probe')
     revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     clicked = []
+    attachedOnClick = []
+    revokers = []
+    // Hold the 1 s revoke timer so a test fires it by hand, with no real wait and no fake timers touching MSW.
+    const realSetTimeout = globalThis.setTimeout
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+      handler: () => void,
+      delay?: number,
+      ...args: unknown[]
+    ) => {
+      if (delay === 1000) {
+        revokers.push(handler)
+        return 0
+      }
+      return realSetTimeout(handler, delay, ...args)
+    }) as typeof setTimeout)
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
       this: HTMLAnchorElement
     ) {
       clicked.push(this)
+      attachedOnClick.push(document.body.contains(this))
     })
   })
 
@@ -54,7 +72,12 @@ describe('downloadFile', () => {
     expect(clicked).toHaveLength(1)
     expect(clicked[0]?.download).toBe('INV-26-27-00001.pdf')
     expect(clicked[0]?.href).toBe('blob:probe')
-    await vi.waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:probe'))
+    expect(attachedOnClick).toEqual([true])
+    expect(document.body.contains(clicked[0] ?? null)).toBe(false)
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+    expect(revokers).toHaveLength(1)
+    revokers[0]?.()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:probe')
   })
 
   it('sends options.params in the query string', async () => {
@@ -87,7 +110,10 @@ describe('downloadFile', () => {
       throw new Error('click blocked')
     })
     await expect(downloadFile(PATH, 'fallback.pdf')).rejects.toThrow('click blocked')
-    await vi.waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:probe'))
+    expect(document.body.querySelector('a[download]')).toBeNull()
+    expect(revokers).toHaveLength(1)
+    revokers[0]?.()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:probe')
   })
 
   it('rejects with the decoded error and clicks nothing on a 404', async () => {

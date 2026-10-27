@@ -1,6 +1,6 @@
 /**
- * The GST tax document contract (docs/2026-10-27-gst-api-contract.md §2 and
- * §4), owner shapes only, as the server sends them. Money is integer paise;
+ * The GST tax document contract (the tax-document and tax-details shapes),
+ * owner shapes only, as the server sends them. Money is integer paise;
  * timestamps are ISO 8601 UTC strings.
  */
 
@@ -10,7 +10,7 @@ export type TaxDocumentType = 'invoice' | 'credit_note'
 /** Intra-state supply charges CGST 9% + SGST 9%; inter-state charges IGST 18%. */
 export type SupplyKind = 'intra' | 'inter'
 
-/** Where a paid invoice row stands on its tax invoice (contract §7). */
+/** Where a paid invoice row stands on its tax invoice. */
 export type TaxStatus = 'issued' | 'held' | 'pending' | 'not_applicable'
 
 /** A state or territory. `code` is two digits, such as `'29'`. */

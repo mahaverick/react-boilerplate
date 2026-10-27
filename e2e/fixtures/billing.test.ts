@@ -449,4 +449,11 @@ test.describe('tax documents', () => {
     await header.evaluate((cell) => window.scrollBy(0, cell.getBoundingClientRect().top - 100))
     await expect(header).toBeInViewport({ ratio: 1 })
   })
+
+  test('at 390px the read-only tax summary does not scroll the page sideways', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(harness(BILLING, '&billing=active&tax=read_only'))
+    await expect(documentsTable(page)).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  })
 })

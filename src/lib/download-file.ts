@@ -43,10 +43,15 @@ export async function downloadFile(
     const link = document.createElement('a')
     link.href = url
     link.download = filename
-    link.click()
+    document.body.appendChild(link)
+    try {
+      link.click()
+    } finally {
+      link.remove()
+    }
   } finally {
-    // The click starts the save on this task; revoking on the next one keeps the URL alive until then.
-    setTimeout(() => URL.revokeObjectURL(url), 0)
+    // Safari and Firefox start the download asynchronously and fail if the URL is revoked at once.
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
   return { filename }
 }

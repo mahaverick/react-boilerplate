@@ -95,7 +95,7 @@ function stateLabel(code: string): string {
  * from the server's details. The State select clears its own server error,
  * since Base UI's Select raises no native change. The SEZ checkbox's toggle
  * does reach `<Form onChange>` (a native change on its hidden input, measured
- * under jsdom), and it clears its own error as well, so the rule holds either way.
+ * in jsdom and real Chromium), and it clears its own error as well, so the rule holds either way.
  */
 function TaxDetailsForm({
   slug,
@@ -407,18 +407,26 @@ function TaxDetailsSummary({ details }: { details: TaxDetails | null }) {
     <dl className="grid gap-4">
       <div className="grid gap-1">
         <dt className="text-sm text-muted-foreground">GSTIN</dt>
-        {details.gstin === null ? <dd>None</dd> : <Pii as="dd">{details.gstin}</Pii>}
+        {details.gstin === null ? (
+          <dd>None</dd>
+        ) : (
+          <Pii as="dd" className="wrap-break-word">
+            {details.gstin}
+          </Pii>
+        )}
       </div>
       <div className="grid gap-1">
         <dt className="text-sm text-muted-foreground">Legal name</dt>
-        <Pii as="dd">{details.legalName}</Pii>
+        <Pii as="dd" className="wrap-break-word">
+          {details.legalName}
+        </Pii>
       </div>
       <div className="grid gap-1">
         <dt className="text-sm text-muted-foreground">Address</dt>
         {address.length === 0 ? (
           <dd>None</dd>
         ) : (
-          <Pii as="dd">
+          <Pii as="dd" className="wrap-break-word">
             {address.map(({ field, line }) => (
               <span key={field} className="block">
                 {line}

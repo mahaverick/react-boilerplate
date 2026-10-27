@@ -313,10 +313,10 @@ export function FormLabel({ className, ...props }: React.ComponentProps<typeof L
  *   which carries the `name`) and the id lands on the VISIBLE
  *   `button[role="combobox"]`. Measured, and asserted by a
  *   unit test that renders a Select inside `FormControl`.
- * - Base UI **Checkbox**: unmeasured, since nothing in this project wires a
- *   Checkbox into a form. If the id lands on the HIDDEN input rather than the
- *   visible `role="checkbox"` element, the label points at a control nobody
- *   can click, so measure it before relying on it.
+ * - Base UI **Checkbox**: the id lands on the visible `role="checkbox"` span,
+ *   and a toggle sends a native change from its hidden input, which reaches
+ *   `<Form onChange>` (measured in jsdom and in real Chromium, 2026-10-28). A
+ *   change handler may still call `clearField` for clarity.
  *
  * Separately, see `<Form>` above for which controls the server-error CLEARING
  * rule reaches: a Base UI Select's change does not bubble, so such a control
