@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vite-plus/test'
 import { TaxDocumentsCard } from '@/components/features/billing/tax-documents-card'
 import { resetSessionForTests } from '@/http/session'
 import { billingKeys } from '@/queries/billing.queries'
+import { taxKeys } from '@/queries/tax.queries'
 import { useAuthStore } from '@/states/auth.store'
 import { listPage } from '@/tests/fixtures/list-page'
 import { TAX_DOCUMENTS } from '@/tests/fixtures/tax'
@@ -48,6 +49,16 @@ describe('TaxDocumentsCard', () => {
     expect(row).not.toBeNull()
     expect(within(row as HTMLElement).getByText('INV/26-27/00004')).toBeInTheDocument()
     expect(row).toHaveTextContent('₹999')
+    const invoiceRow = (
+      await screen.findByRole('button', { name: 'Tax invoice INV/26-27/00003' })
+    ).closest('tr')
+    const cells = within(invoiceRow as HTMLElement).getAllByRole('cell')
+    expect(cells.map((cell) => cell.textContent)).toEqual([
+      'Tax invoice INV/26-27/00003',
+      '27 September 2026',
+      '₹999',
+      '',
+    ])
   })
 
   it('dates a document in India Standard Time', async () => {
@@ -96,19 +107,24 @@ describe('TaxDocumentsCard', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     // A cached billing view for the effect's invalidation to mark.
     client.setQueryData(billingKeys.billing('acme'), {})
+    // Siblings under the billing prefix: only the exact billing key may be invalidated.
+    client.setQueryData(taxKeys.details('acme'), null)
+    client.setQueryData([...billingKeys.billing('acme'), 'invoices'], {})
     const { container } = render(
       <QueryClientProvider client={client}>
         <TaxDocumentsCard slug="acme" />
       </QueryClientProvider>
     )
     await waitFor(() =>
-      expect(client.getQueryState(['tenants', 'acme', 'billing', 'tax-documents'])?.status).toBe(
-        'error'
-      )
+      expect(client.getQueryState(taxKeys.documents('acme'))?.status).toBe('error')
     )
     expect(container).toBeEmptyDOMElement()
     expect(screen.queryByRole('heading', { name: 'Tax documents' })).toBeNull()
     expect(client.getQueryState(billingKeys.billing('acme'))?.isInvalidated).toBe(true)
+    expect(client.getQueryState(taxKeys.details('acme'))?.isInvalidated).toBe(false)
+    expect(client.getQueryState([...billingKeys.billing('acme'), 'invoices'])?.isInvalidated).toBe(
+      false
+    )
   })
 
   it('offers a retry on any other failure', async () => {
