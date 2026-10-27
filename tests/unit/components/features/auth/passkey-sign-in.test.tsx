@@ -98,6 +98,39 @@ describe('PasskeySignInButton', () => {
     expect(onSignedIn).not.toHaveBeenCalled()
   })
 
+  it('toasts a clicked request the browser refuses as not supported', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    webauthn.request.mockRejectedValue(
+      new DOMException('Resident credentials are not supported.', 'NotSupportedError')
+    )
+    renderButton()
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Sign in with a passkey' }))
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        'We couldn’t complete that. Refresh the page, then try again.'
+      )
+    )
+  })
+
+  it('toasts a clicked request whose options fail', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    server.use(
+      http.post('/api/v1/auth/passkeys/sign-in/options', () => fail('The server failed.', 500))
+    )
+    renderButton()
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Sign in with a passkey' }))
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith('The server failed.'))
+    expect(webauthn.request).not.toHaveBeenCalled()
+  })
+
   it('toasts a 429 with its wait and reports the prompt as settled', async () => {
     const toastError = vi.spyOn(toast, 'error')
     webauthn.request.mockResolvedValue({ id: 'cred' })
