@@ -114,7 +114,7 @@ function BillingPage({ slug, tenant }: { slug: string; tenant: TenantDetail }) {
       </p>
       {isOwner && <UpgradeRequestsCard slug={slug} timeZone={timeZone} />}
       {isOwner && billing.data?.paymentsEnabled === true && (
-        <InvoicesCard slug={slug} timeZone={timeZone} />
+        <InvoicesCard slug={slug} timeZone={timeZone} showTax={false} />
       )}
     </div>
   )

@@ -1,4 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { TaxDocumentLinks } from '@/components/features/billing/tax-document-links'
 import { LoadError } from '@/components/features/load-error'
 import { EmptyState } from '@/components/shared/empty-state'
 import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
@@ -35,10 +36,19 @@ function httpsUrl(url: string | null): string | null {
  * are on: date, amount, status and, where Razorpay gave an `https:` one, a link
  * that opens the invoice in a new tab. Pages are read one cursor at a time; "Show more"
  * adds the next under the ones shown, and a billing change starts over from
- * the first. Mount it only for that owner: the API refuses everyone else and
+ * the first. With `showTax`, each row also lists its tax invoice and credit
+ * notes. Mount it only for that owner: the API refuses everyone else and
  * answers 404 while payments are off.
  */
-export function InvoicesCard({ slug, timeZone }: { slug: string; timeZone: string }) {
+export function InvoicesCard({
+  slug,
+  timeZone,
+  showTax,
+}: {
+  slug: string
+  timeZone: string
+  showTax: boolean
+}) {
   const invoices = useInfiniteQuery({ ...invoicesQueryOptions(slug), retry: false })
   const rows = invoices.data?.pages.flatMap((page) => page.items) ?? []
   const failed = invoices.isError
@@ -62,6 +72,7 @@ export function InvoicesCard({ slug, timeZone }: { slug: string; timeZone: strin
                 <TableHead>
                   <span className="sr-only">Invoice</span>
                 </TableHead>
+                {showTax && <TableHead>Tax documents</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -85,6 +96,11 @@ export function InvoicesCard({ slug, timeZone }: { slug: string; timeZone: strin
                         </a>
                       )}
                     </TableCell>
+                    {showTax && (
+                      <TableCell>
+                        <TaxDocumentLinks slug={slug} invoice={invoice} />
+                      </TableCell>
+                    )}
                   </TableRow>
                 )
               })}
