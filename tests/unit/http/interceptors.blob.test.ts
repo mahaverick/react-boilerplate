@@ -72,8 +72,9 @@ describe('decodeBlobErrorBody', () => {
     useAuthStore.getState().login('tok', testUser)
     server.use(http.get(URL_PATH, () => fail('Bad token', 401, 'INVALID_TOKEN')))
 
-    await expect(getBlob()).rejects.toBeDefined()
+    const error = await getBlob().catch((e: unknown) => e)
 
+    expect(codeFrom(error)).toBe('INVALID_TOKEN')
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
   })
 
@@ -118,6 +119,7 @@ describe('decodeBlobErrorBody', () => {
     const error = (await getBlob().catch((e: unknown) => e)) as { response: { data: unknown } }
 
     expect(error.response.data).toBeInstanceOf(Blob)
+    expect(await (error.response.data as Blob).text()).toBe('{not json')
   })
 
   it('leaves a successful blob response alone', async () => {

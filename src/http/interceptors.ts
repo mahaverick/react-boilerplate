@@ -40,7 +40,7 @@ declare module 'axios' {
  * promises. Axios parses JSON silently: a 200 carrying an empty body or an
  * HTML page (a poisoned cache entry, a misrouted proxy response) resolves with
  * `response.data` as a raw string, and `unwrap()` then yields `undefined` far
- * from the request. Registered as the second response interceptor, so
+ * from the request. Registered as the third response interceptor, after the blob decoder and the 401 handling, so
  * silent-refresh replays pass through it too. A responseType other than
  * `json` opts out, and an empty body under a non-JSON content-type passes as
  * a no-content response.
