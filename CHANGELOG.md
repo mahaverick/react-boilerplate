@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.3](https://github.com/mahaverick/react-boilerplate/compare/v4.2.2...v4.2.3) (2026-10-27)
+
+
+### Bug Fixes
+
+* **auth:** tell a picked autofill passkey by the ceremony, not the failing URL ([#160](https://github.com/mahaverick/react-boilerplate/issues/160)) ([511776e](https://github.com/mahaverick/react-boilerplate/commit/511776ec17bba7aecb278d6a859da916e4fdb397))
+
 ## [4.2.2](https://github.com/mahaverick/react-boilerplate/compare/v4.2.1...v4.2.2) (2026-10-27)
 
 
