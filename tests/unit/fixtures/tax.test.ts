@@ -45,4 +45,15 @@ describe('tax fixtures', () => {
       expect(a.taxableMinor + a.cgstMinor + a.sgstMinor + a.igstMinor).toBe(a.totalMinor)
     }
   })
+
+  it('the default handlers answer null tax details and an empty tax documents page', async () => {
+    const details = await fetch(`${location.origin}/api/v1/tenants/acme/billing/tax-details`)
+    expect(((await details.json()) as { data: unknown }).data).toBeNull()
+    const documents = await fetch(`${location.origin}/api/v1/tenants/acme/billing/tax-documents`)
+    const body = (await documents.json()) as {
+      data: { items: unknown[]; page: { hasNext: boolean } }
+    }
+    expect(body.data.items).toEqual([])
+    expect(body.data.page.hasNext).toBe(false)
+  })
 })

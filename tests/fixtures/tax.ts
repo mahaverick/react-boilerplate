@@ -80,7 +80,7 @@ export const TAX_INVOICES: InvoiceView[] = [
   }),
 ]
 
-/** An intra-state ₹999 document's amounts (GC§6): taxable 84661, CGST 7619, SGST 7620. */
+/** An intra-state ₹999 document's amounts (the contract's worked example): taxable 84661, CGST 7619, SGST 7620. */
 const FULL_AMOUNTS = {
   totalMinor: 99_900,
   taxableMinor: 84_661,
@@ -91,11 +91,13 @@ const FULL_AMOUNTS = {
 } as const
 
 /**
- * A tax document with intra-state Karnataka defaults.
- * @param overrides - Fields to replace.
+ * A tax document with intra-state Karnataka defaults; its type follows the number's prefix.
+ * @param overrides - Fields to replace; `id` and `number` are required.
  * @returns The document.
  */
-function doc(overrides: Partial<TaxDocumentView> & Pick<TaxDocumentView, 'id' | 'number'>) {
+function doc(
+  overrides: Partial<TaxDocumentView> & Pick<TaxDocumentView, 'id' | 'number'>
+): TaxDocumentView {
   const isCreditNote = overrides.number.startsWith('CN/')
   return {
     type: isCreditNote ? 'credit_note' : 'invoice',
@@ -113,13 +115,13 @@ function doc(overrides: Partial<TaxDocumentView> & Pick<TaxDocumentView, 'id' | 
     paymentId: null,
     refundId: null,
     ...overrides,
-  } satisfies TaxDocumentView
+  }
 }
 
 /**
  * `GET /billing/tax-documents`, newest first. The first note credits a
  * refunded duplicate charge's invoice, which has no row in `TAX_INVOICES`.
- * The two notes on `INV/26-27/00002` are GC§6's refunds of 50000 and 49900.
+ * The two notes on `INV/26-27/00002` are the contract's worked-example refunds of 50000 and 49900.
  */
 export const TAX_DOCUMENTS: TaxDocumentView[] = [
   doc({
