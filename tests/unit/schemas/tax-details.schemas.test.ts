@@ -68,7 +68,7 @@ const MERGED: TaxDetailsValues = {
   isSez: false,
 }
 
-describe('GC 3.1 messages', () => {
+describe('validation messages', () => {
   it('copies the contract word for word', () => {
     expect(LEGAL_NAME_REQUIRED_MESSAGE).toBe('Enter the legal name to print on your tax invoices.')
     expect(maxLengthMessage(100)).toBe('Use 100 characters or fewer.')
@@ -102,9 +102,8 @@ describe('GC 3.1 messages', () => {
 
   it('keeps TAX_TEXT_PATTERN free of raw non-ASCII characters', () => {
     const source = readFileSync('src/schemas/tax-details.schemas.ts', 'utf8')
-    const line = source.split('\n').find((l) => l.includes('export const TAX_TEXT_PATTERN'))
-    expect(line).toBeDefined()
-    expect([...(line ?? '')].every((char) => char.charCodeAt(0) < 128)).toBe(true)
+    expect(source).toContain('export const TAX_TEXT_PATTERN')
+    expect([...source].every((char) => char.charCodeAt(0) < 128)).toBe(true)
   })
 })
 
@@ -197,9 +196,19 @@ describe('taxDetailsRuleIssues', () => {
     expect(taxDetailsRuleIssues(MERGED, new Set(['city']))).toEqual([])
   })
 
-  it('skips the state match for a stored GSTIN with a retired state code', () => {
+  it('flags a stored GSTIN with a retired state code only when gstin or stateCode changed', () => {
     const merged = { ...MERGED, gstin: '25ABCDE1234F1Z4' }
-    expect(taxDetailsRuleIssues(merged, new Set(['stateCode']))).toEqual([])
+    expect(taxDetailsRuleIssues(merged, new Set(['stateCode']))).toEqual([
+      { path: 'gstin', message: GSTIN_STATE_CODE_MESSAGE },
+    ])
+    expect(taxDetailsRuleIssues(merged, new Set(['city']))).toEqual([])
+  })
+
+  it('flags a missing address line when only the city changed', () => {
+    const merged = { ...MERGED, stateCode: '27', addressLine1: null }
+    expect(taxDetailsRuleIssues(merged, new Set(['city']))).toEqual([
+      { path: 'addressLine1', message: ADDRESS_REQUIRED_MESSAGE },
+    ])
   })
 
   it('needs address fields with a GSTIN', () => {

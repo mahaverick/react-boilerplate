@@ -1,7 +1,7 @@
 // Shared with apex byte for byte. Import nothing app-specific here.
 /**
  * @file The tax-details form schema, copying the API's validation strings from
- * the GST contract (section 3.1) word for word. The schema holds per-field rules
+ * the contract's validation messages word for word. The schema holds per-field rules
  * only, because `changedFieldsOf` skips object-level refinements; the
  * cross-field rules are `taxDetailsRuleIssues`, run on the merged values.
  */
@@ -68,6 +68,16 @@ export const TAX_DETAILS_SAVED_MESSAGE =
 
 const MAX_LINE_LENGTH = 100
 const MAX_CITY_LENGTH = 60
+const GSTIN_REQUIRED_FIELDS = [
+  ['addressLine1', ADDRESS_REQUIRED_MESSAGE],
+  ['city', CITY_REQUIRED_MESSAGE],
+  ['pincode', PINCODE_REQUIRED_MESSAGE],
+] as const
+const GSTIN_PROBLEM_MESSAGES = {
+  shape: GSTIN_SHAPE_MESSAGE,
+  state: GSTIN_STATE_CODE_MESSAGE,
+  checksum: GSTIN_CHECKSUM_MESSAGE,
+}
 const PINCODE_PATTERN = /^[1-9][0-9]{5}$/
 
 /**
@@ -128,12 +138,7 @@ export const taxDetailsFieldsSchema = z.object({
     if (value === '') return null
     const problem = gstinProblem(value)
     if (problem === null) return value
-    const messages = {
-      shape: GSTIN_SHAPE_MESSAGE,
-      state: GSTIN_STATE_CODE_MESSAGE,
-      checksum: GSTIN_CHECKSUM_MESSAGE,
-    }
-    ctx.addIssue({ code: 'custom', message: messages[problem] })
+    ctx.addIssue({ code: 'custom', message: GSTIN_PROBLEM_MESSAGES[problem] })
     return z.NEVER
   }),
   legalName: optionalText(MAX_LINE_LENGTH).transform((value, ctx): string => {
@@ -170,9 +175,13 @@ export const taxDetailsFieldsSchema = z.object({
 export type TaxDetailsForm = z.input<typeof taxDetailsFieldsSchema>
 
 /**
- * Applies the three cross-field rules to the merged values. A rule runs only
- * when the save changed one of its fields, so a stored value that breaks a rule
- * never blocks an unrelated correction. On the first save pass every field.
+ * Applies the three cross-field rules to the merged values, as express does. A
+ * rule runs only when the save changed one of its fields, so a stored value that
+ * breaks a rule never blocks an unrelated correction. On the first save pass
+ * every field. With a GSTIN: when gstin or stateCode changed, a prefix that is
+ * no selectable state is flagged on gstin, and a state that differs from the
+ * chosen one on stateCode; when gstin, addressLine1, city or pincode changed,
+ * every missing one of addressLine1, city and pincode is flagged.
  * @param merged - The stored values with the changed fields laid over them.
  * @param changed - The fields this save sends.
  * @returns One issue per broken rule, on the field to show it under.
@@ -189,18 +198,15 @@ export function taxDetailsRuleIssues(
 
   if (gstin !== null && touched('gstin', 'stateCode')) {
     const gstinState = stateOf(gstin.slice(0, 2))
-    if (gstinState !== undefined && gstinState.code !== merged.stateCode) {
+    if (gstinState === undefined) {
+      issues.push({ path: 'gstin', message: GSTIN_STATE_CODE_MESSAGE })
+    } else if (gstinState.code !== merged.stateCode) {
       issues.push({ path: 'stateCode', message: gstinStateMismatchMessage(gstinState.name) })
     }
   }
-  if (gstin !== null) {
-    const required = [
-      ['addressLine1', ADDRESS_REQUIRED_MESSAGE],
-      ['city', CITY_REQUIRED_MESSAGE],
-      ['pincode', PINCODE_REQUIRED_MESSAGE],
-    ] as const
-    for (const [field, message] of required) {
-      if (merged[field] === null && touched('gstin', field)) issues.push({ path: field, message })
+  if (gstin !== null && touched('gstin', 'addressLine1', 'city', 'pincode')) {
+    for (const [field, message] of GSTIN_REQUIRED_FIELDS) {
+      if (merged[field] === null) issues.push({ path: field, message })
     }
   }
   if (merged.isSez && gstin === null && touched('isSez', 'gstin')) {
