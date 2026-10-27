@@ -112,8 +112,10 @@ export function usePasskeySupport(enabled: boolean): { create: boolean; autofill
  * `PASSKEY_UNKNOWN` signals the credential to the browser first, so it stops
  * offering it; `PASSKEY_NO_ACCESS` sends no signal, because that passkey is
  * valid and a signal could delete it.
+ * @param hooks - Optional hooks into the ceremony.
+ * @param hooks.onPicked - Called once the browser hands back a passkey the person picked, before the verify.
  */
-export function usePasskeySignIn() {
+export function usePasskeySignIn({ onPicked }: { onPicked?: () => void } = {}) {
   const queryClient = useQueryClient()
   const { data: config } = usePasskeyConfig()
   return useMutation({
@@ -127,6 +129,7 @@ export function usePasskeySignIn() {
         )
       )
       const response = await requestPasskey(options, mode, since)
+      onPicked?.()
       try {
         return unwrap(
           await apiClient.post<ApiSuccess<PasskeySignIn>>(

@@ -194,6 +194,26 @@ describe('usePasskeyAutofill', () => {
     expect(webauthn.request).toHaveBeenCalledTimes(1)
   })
 
+  it('toasts a malformed sign-in answer after a pick', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    webauthn.request.mockResolvedValue({ id: 'cred' })
+    // A 200 with no user: making it the session throws a TypeError after the verify.
+    server.use(
+      http.post('/api/v1/auth/passkeys/sign-in/verify', () =>
+        ok({ accessToken: 't' }, 'Signed in.')
+      )
+    )
+    const onSignedIn = vi.fn()
+    renderHook(() => usePasskeyAutofill({ enabled: true, onSignedIn }), { wrapper })
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        'We couldn’t complete that. Refresh the page, then try again.'
+      )
+    )
+    expect(onSignedIn).not.toHaveBeenCalled()
+  })
+
   it('posts one sign-in options request under StrictMode', async () => {
     let posts = 0
     server.use(
