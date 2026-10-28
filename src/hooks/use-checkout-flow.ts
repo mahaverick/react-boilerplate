@@ -137,10 +137,21 @@ function refusedByTheServer(error: unknown): boolean {
 }
 
 /**
+ * Razorpay's reason when the person skipped the texted code that saves the
+ * card: "Payment failed. Please login." Its classic Checkout, used while a
+ * payment is due, will not pay without a saved card.
+ */
+const CARD_NOT_SAVED = /please log ?in/i
+
+const CARD_NOT_SAVED_MESSAGE =
+  'Razorpay didn’t save your card, so nothing was charged. Try again and enter the code Razorpay texts to your phone.'
+
+/**
  * The failed-payment line, with Razorpay's reason when it gave one.
  * @param description - Razorpay's `error.description`, possibly empty.
  */
 function paymentFailedMessage(description: string): string {
+  if (CARD_NOT_SAVED.test(description)) return CARD_NOT_SAVED_MESSAGE
   // Razorpay's reasons usually end in a full stop; the sentence adds its own.
   const reason = description.trim().replace(/\.+$/, '')
   return reason === ''

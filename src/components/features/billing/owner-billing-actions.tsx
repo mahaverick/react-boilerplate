@@ -6,7 +6,9 @@ import { QueryState } from '@/components/shared/query-state'
 import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { useCheckoutFlow, type CheckoutKind } from '@/hooks/use-checkout-flow'
 import {
+  CARD_CODE_HINT,
   canChangeSubscription,
+  cardChangeNeedsCode,
   PAYMENTS_OFF,
   showsPlanChoice,
   switchArea,
@@ -126,6 +128,9 @@ function Actions({
             </>
           )}
         </div>
+      )}
+      {canChangeSubscription(billing) && cardChangeNeedsCode(billing) && (
+        <p className="text-sm text-muted-foreground">{CARD_CODE_HINT}</p>
       )}
       {/* Mounted while empty, so a screen reader announces the message when it appears. */}
       <p role="status" className="text-sm empty:hidden">

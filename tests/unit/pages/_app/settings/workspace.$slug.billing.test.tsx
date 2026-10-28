@@ -659,6 +659,11 @@ describe('billing page, owner actions by state', () => {
     expect(within(card).getByRole('button', { name: 'Update card' })).toBeInTheDocument()
     expect(within(card).getByRole('button', { name: 'Cancel Paid' })).toBeInTheDocument()
     expect(within(card).queryByRole('button', { name: 'Upgrade to Paid' })).toBeNull()
+    expect(
+      within(card).queryByText(
+        'Razorpay texts a code to your phone to save the new card. Enter it to finish.'
+      )
+    ).toBeNull()
   })
 
   it('offers Paid again after the period while cancelling, and no cancel', async () => {
@@ -710,6 +715,11 @@ describe('billing page, owner actions by state', () => {
     expect(await within(card).findByRole('button', { name: 'Update card' })).toBeInTheDocument()
     expect(within(card).getByRole('button', { name: 'Cancel Paid' })).toBeInTheDocument()
     expect(within(card).queryByRole('button', { name: /^Switch to/ })).toBeNull()
+    expect(
+      within(card).getByText(
+        'Razorpay texts a code to your phone to save the new card. Enter it to finish.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('shows the server’s message when the switch is refused', async () => {

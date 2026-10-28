@@ -756,6 +756,25 @@ describe('useCheckoutFlow, failures before the confirm', () => {
     expect(track).not.toHaveBeenCalledWith('checkout_dismissed', expect.anything())
   })
 
+  it('asks for Razorpay’s texted code when Checkout failed because the card was not saved', async () => {
+    serveStart('/payment-method', () =>
+      ok(session({ purpose: 'card_change' }), 'Card change started.')
+    )
+    const { result } = renderFlow()
+    act(() => {
+      void result.current.start({ purpose: 'card_change' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('open'))
+
+    act(() => lastCheckout().failed?.({ error: { description: 'Payment failed. Please login.' } }))
+    act(() => lastCheckout().options.modal.ondismiss())
+
+    await waitFor(() => expect(result.current.status).toBe('error'))
+    expect(result.current.message).toBe(
+      'Razorpay didn’t save your card, so nothing was charged. Try again and enter the code Razorpay texts to your phone.'
+    )
+  })
+
   it('confirms a payment that succeeds in the same Checkout after a failed try', async () => {
     serveStart('/checkout', () => ok(session(), 'Checkout started.', 201))
     const bodies = serveConfirm(() => ok(testBilling({ state: 'active' }), 'Checkout confirmed.'))

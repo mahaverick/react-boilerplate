@@ -5,6 +5,7 @@ import {
   cancelBody,
   cancelToast,
   canChangeSubscription,
+  cardChangeNeedsCode,
   intervalPriceLine,
   showsPlanChoice,
   switchArea,
@@ -251,6 +252,19 @@ describe('canChangeSubscription (Update card and Cancel Paid)', () => {
     ],
   ])('%s → %s', (_case, billing, shown) => {
     expect(canChangeSubscription(billing)).toBe(shown)
+  })
+})
+
+describe('cardChangeNeedsCode (the texted-code hint)', () => {
+  /** A failed card payment, or a UPI mandate paused by the payer. */
+  const pastDue = (paused: boolean) => ({ since: PAST, graceEndsAt: null, paused })
+  it.each([
+    ['active', active(), false],
+    ['past due on a card', active({ state: 'past_due', pastDue: pastDue(false) }), true],
+    ['past due with no failure details', active({ state: 'past_due', pastDue: null }), true],
+    ['paused in the UPI app', active({ state: 'past_due', pastDue: pastDue(true) }), false],
+  ])('%s → %s', (_case, billing, shown) => {
+    expect(cardChangeNeedsCode(billing)).toBe(shown)
   })
 })
 
