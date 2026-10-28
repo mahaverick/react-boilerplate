@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.1](https://github.com/mahaverick/react-boilerplate/compare/v4.3.0...v4.3.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **billing:** explain Razorpay's texted code on a card change ([#164](https://github.com/mahaverick/react-boilerplate/issues/164)) ([4cbb692](https://github.com/mahaverick/react-boilerplate/commit/4cbb692d9e5429eeb44f9b70015fe51598daedda))
+
 ## [4.3.0](https://github.com/mahaverick/react-boilerplate/compare/v4.2.3...v4.3.0) (2026-10-28)
 
 
