@@ -249,3 +249,211 @@ test.describe('accessibility', () => {
     expect(overflows).toBe(false)
   })
 })
+
+/**
+ * `?tax=` picks how the harness answers the tax routes: `off` (the default),
+ * `on`, `empty` (no details or documents yet) and `read_only` (registration
+ * off with documents). `&tax_conflict=1` makes the first save a version conflict.
+ */
+test.describe('tax documents', () => {
+  const SAVED = 'Tax details saved. They apply to invoices issued from now on.'
+  const CONFLICT =
+    'Someone changed these tax details since you opened them. Reload to see them, then save again.'
+
+  /** A pattern matching `text` anywhere, for an accessible description that also holds a hint. */
+  function containing(text: string): RegExp {
+    return new RegExp(text.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`))
+  }
+
+  /** Opens the State select and picks `name`. */
+  async function chooseState(page: Page, name: string) {
+    await page.getByRole('combobox', { name: 'State' }).click()
+    await page.getByRole('option', { name, exact: true }).click()
+  }
+
+  /** The invoices table. */
+  function invoicesTable(page: Page) {
+    return page.getByRole('table', { name: 'Invoices' })
+  }
+
+  /** The Tax documents card's table. */
+  function documentsTable(page: Page) {
+    return page.getByRole('table', { name: 'Tax documents' })
+  }
+
+  /** Clicks `button` and returns the file name the browser was asked to save. */
+  async function downloadedName(page: Page, button: ReturnType<Page['getByRole']>) {
+    const [download] = await Promise.all([page.waitForEvent('download'), button.click()])
+    return download.suggestedFilename()
+  }
+
+  test('with tax documents off, nothing about tax renders', async ({ page }) => {
+    await page.goto(harness(BILLING, '&billing=active&tax=off'))
+    await expect(stateLine(page)).toBeVisible()
+    // The invoices card answering is the barrier: the tax card would sit above it.
+    await expect(page.getByText('No invoices yet.')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Tax details' })).toHaveCount(0)
+    await expect(page.getByRole('columnheader', { name: 'Tax documents' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Tax documents' })).toHaveCount(0)
+  })
+
+  test('a first save checks the state, the GSTIN and their match on Save', async ({ page }) => {
+    await page.goto(harness(BILLING, '&billing=active&tax=empty'))
+    const gstin = page.getByRole('textbox', { name: 'GSTIN (optional)' })
+    const state = page.getByRole('combobox', { name: 'State' })
+    const save = page.getByRole('button', { name: 'Save tax details' })
+    await page.getByRole('textbox', { name: 'Legal name' }).fill('Acme Traders Private Limited')
+    await page.getByRole('textbox', { name: 'Address line 1' }).fill('12 MG Road')
+    await page.getByRole('textbox', { name: 'City' }).fill('Bengaluru')
+    await page.getByRole('textbox', { name: 'PIN code' }).fill('560001')
+
+    await save.click()
+    await expect(state).toHaveAccessibleDescription(
+      containing(
+        'Choose the state of your billing address. It sets the tax split on your invoices.'
+      )
+    )
+
+    await gstin.fill('29abcde1234f1zx')
+    await chooseState(page, 'Karnataka (29)')
+    await save.click()
+    await expect(gstin).toHaveAccessibleDescription(
+      containing(
+        "This GSTIN's last character doesn't match the rest. Check it against your registration certificate."
+      )
+    )
+
+    await gstin.fill('29ABCDE1234F1ZW')
+    await chooseState(page, 'Maharashtra (27)')
+    await save.click()
+    await expect(state).toHaveAccessibleDescription(
+      containing('This GSTIN is registered in Karnataka. Choose Karnataka as the state.')
+    )
+
+    await chooseState(page, 'Karnataka (29)')
+    await save.click()
+    await expect(page.getByText(SAVED, { exact: true })).toBeVisible()
+  })
+
+  test('the invoice rows and the Tax documents card download each document', async ({ page }) => {
+    await page.goto(harness(BILLING, '&billing=active&tax=on'))
+    const invoices = invoicesTable(page)
+    await expect(
+      invoices.getByText(
+        'Tax invoice held. We issue invoices for Special Economic Zone units by hand.'
+      )
+    ).toBeVisible()
+    await expect(invoices.getByText('Tax invoice on its way', { exact: true })).toBeVisible()
+
+    expect(
+      await downloadedName(
+        page,
+        invoices.getByRole('button', { name: 'Credit note CN/26-27/00001' })
+      )
+    ).toBe('CN-26-27-00001.pdf')
+
+    // A refunded duplicate charge has no invoice row: only the card reaches its credit note.
+    await expect(invoices.getByRole('button', { name: 'Credit note CN/26-27/00003' })).toHaveCount(
+      0
+    )
+    expect(
+      await downloadedName(
+        page,
+        documentsTable(page).getByRole('button', { name: 'Credit note CN/26-27/00003' })
+      )
+    ).toBe('CN-26-27-00003.pdf')
+  })
+
+  test('a save sends only the changed field with the version', async ({ page }) => {
+    await page.goto(harness(BILLING, '&billing=active&tax=on'))
+    const city = page.getByRole('textbox', { name: 'City' })
+    await expect(city).toHaveValue('Bengaluru')
+    await city.fill('Mysuru')
+    const [request] = await Promise.all([
+      page.waitForRequest(
+        (sent) => sent.method() === 'PATCH' && sent.url().endsWith('/billing/tax-details')
+      ),
+      page.getByRole('button', { name: 'Save tax details' }).click(),
+    ])
+    expect(request.postDataJSON()).toEqual({ version: 3, city: 'Mysuru' })
+    await expect(page.getByText(SAVED, { exact: true })).toBeVisible()
+  })
+
+  test('a save after someone else’s offers Reload, which shows theirs', async ({ page }) => {
+    await page.goto(harness(BILLING, '&billing=active&tax=on&tax_conflict=1'))
+    const city = page.getByRole('textbox', { name: 'City' })
+    const save = page.getByRole('button', { name: 'Save tax details' })
+    await expect(city).toHaveValue('Bengaluru')
+    await city.fill('Hubballi')
+    await save.click()
+    await expect(page.getByText(CONFLICT, { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Reload' }).click()
+    await expect(city).toHaveValue('Mysuru')
+    await expect(page.getByRole('button', { name: 'Reload' })).toHaveCount(0)
+
+    await city.fill('Hubballi')
+    await save.click()
+    await expect(page.getByText(SAVED, { exact: true })).toBeVisible()
+  })
+
+  test('registration off with documents: read-only details, documents still download', async ({
+    page,
+  }) => {
+    await page.goto(harness(BILLING, '&billing=active&tax=read_only'))
+    await expect(page.getByRole('heading', { name: 'Tax details' })).toBeVisible()
+    await expect(page.getByText('Acme Traders Private Limited')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save tax details' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Tax documents' })).toBeVisible()
+    await expect(documentsTable(page)).toBeVisible()
+
+    expect(
+      await downloadedName(
+        page,
+        invoicesTable(page).getByRole('button', { name: 'Tax invoice INV/26-27/00003' })
+      )
+    ).toBe('INV-26-27-00003.pdf')
+  })
+
+  for (const tax of ['on', 'read_only'] as const) {
+    test(`Billing with tax=${tax} is axe-clean`, async ({ page }) => {
+      await page.goto(harness(BILLING, `&billing=active&tax=${tax}`))
+      await expect(page.getByRole('heading', { name: 'Tax details' })).toBeVisible()
+      await expect(documentsTable(page)).toBeVisible()
+      await expect(invoicesTable(page)).toBeVisible()
+      await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
+      const results = await runAxe(page)
+      expect(results.violations).toEqual([])
+      expect(results.passes).toEqual(
+        expect.arrayContaining(['landmark-one-main', 'page-has-heading-one'])
+      )
+    })
+  }
+
+  test('at 390px the page does not scroll sideways, and the invoices table scrolls to its tax column', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(harness(BILLING, '&billing=active&tax=on'))
+    const invoices = invoicesTable(page)
+    await expect(invoices.getByText('Tax invoice on its way', { exact: true })).toBeVisible()
+    await expect(documentsTable(page)).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+
+    const header = invoices.getByRole('columnheader', { name: 'Tax documents' })
+    await page
+      .locator('[data-slot="table-container"]')
+      .filter({ has: invoices })
+      .evaluate((wrapper) => wrapper.scrollTo({ left: wrapper.scrollWidth }))
+    // Only the page scrolls down to it: a horizontal scrollIntoView would do the wrapper's job for it.
+    await header.evaluate((cell) => window.scrollBy(0, cell.getBoundingClientRect().top - 100))
+    await expect(header).toBeInViewport({ ratio: 1 })
+  })
+
+  test('at 390px the read-only tax summary does not scroll the page sideways', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(harness(BILLING, '&billing=active&tax=read_only'))
+    await expect(documentsTable(page)).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  })
+})

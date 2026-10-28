@@ -56,7 +56,7 @@ describe('InvoicesCard', () => {
       })
     )
     const user = userEvent.setup()
-    renderWithClient(<InvoicesCard slug="acme" timeZone="Asia/Kolkata" />)
+    renderWithClient(<InvoicesCard slug="acme" timeZone="Asia/Kolkata" showTax={false} />)
     expect(await screen.findByText('Invoices didn’t load. Try again.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('table', { name: 'Invoices' })).toHaveTextContent(
@@ -91,7 +91,7 @@ describe('InvoicesCard', () => {
         )
       )
     )
-    renderWithClient(<InvoicesCard slug="acme" timeZone="UTC" />)
+    renderWithClient(<InvoicesCard slug="acme" timeZone="UTC" showTax={false} />)
     await screen.findByRole('table', { name: 'Invoices' })
     const links = screen.getAllByRole('link')
     expect(links).toHaveLength(1)

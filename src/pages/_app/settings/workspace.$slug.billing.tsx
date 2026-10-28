@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react'
 import { BillingOverviewCard } from '@/components/features/billing/billing-overview-card'
 import { InvoicesCard } from '@/components/features/billing/invoices-card'
 import { OwnerBillingActions } from '@/components/features/billing/owner-billing-actions'
+import { TaxDetailsCard } from '@/components/features/billing/tax-details-card'
+import { TaxDocumentsCard } from '@/components/features/billing/tax-documents-card'
 import { UpgradeAction } from '@/components/features/billing/upgrade-action'
 import { UpgradeRequestsCard } from '@/components/features/billing/upgrade-requests-card'
 import { SettingsRouteError } from '@/components/features/route-error'
@@ -61,7 +63,8 @@ function WorkspaceBilling() {
  * to the pricing page, which names this workspace so its owner can come back
  * to upgrade. An owner
  * with member access also gets its actions, the upgrade requests and, while
- * payments are on, the invoices. Other members read that only owners change
+ * payments are on, the invoices, and while tax documents are on or exist,
+ * the tax details and tax documents. Other members read that only owners change
  * billing, with a way to ask on Free. Staff through platform access read the
  * plan card only.
  */
@@ -74,6 +77,11 @@ function BillingPage({ slug, tenant }: { slug: string; tenant: TenantDetail }) {
   const timeZone = settings.data?.timezone ?? 'UTC'
   const isMember = tenant.access === 'member'
   const isOwner = isMember && tenant.role === 'owner'
+  // Tax documents show while they are on or exist, to an owner only; nothing else asks for them.
+  const tax = billing.data
+    ? { enabled: billing.data.taxDocumentsEnabled, has: billing.data.hasTaxDocuments }
+    : null
+  const showTax = isOwner && tax !== null && (tax.enabled || tax.has)
   const paidPrices = plans.data?.plans.find((plan) => plan.key === 'paid')?.prices ?? []
   const context: BillingLineContext = {
     now: new Date(now),
@@ -112,10 +120,12 @@ function BillingPage({ slug, tenant }: { slug: string; tenant: TenantDetail }) {
           Compare plans
         </Link>
       </p>
+      {showTax && <TaxDetailsCard slug={slug} editable={tax.enabled} />}
       {isOwner && <UpgradeRequestsCard slug={slug} timeZone={timeZone} />}
       {isOwner && billing.data?.paymentsEnabled === true && (
-        <InvoicesCard slug={slug} timeZone={timeZone} />
+        <InvoicesCard slug={slug} timeZone={timeZone} showTax={showTax} />
       )}
+      {showTax && <TaxDocumentsCard slug={slug} />}
     </div>
   )
 }

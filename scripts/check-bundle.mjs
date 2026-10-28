@@ -72,9 +72,11 @@ import { build } from 'vite'
  * in the shared Query chunk; and Zod 4.6.7, the patched release the production audit requires
  * (595 B of the chunk): 592,481 B, rounded up to 592,500 B. The live walk's fixes then split the
  * count wording into a lazy `plural` chunk shared by the members and billing pages, and the entry's
- * preload map names it (44 B): 592,525 B, rounded up to 593,000 B.
+ * preload map names it (44 B): 592,525 B, rounded up to 593,000 B. 2026-10-28: 593,000 -> 593,322. The GST tax
+ * forms add Zod schemas that grow the shared `zod-jitless` chunk (491 B) and a little route-tree
+ * code to the entry (78 B), and the tax cards, queries and types sit in the billing page's chunk.
  */
-const ENTRY_BUDGET_BYTES = 593_000
+const ENTRY_BUDGET_BYTES = 593_322
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

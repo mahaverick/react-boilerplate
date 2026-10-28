@@ -5,6 +5,8 @@
  */
 import type { FileRoutesByFullPath } from '@/routeTree.gen'
 import { billingState, type BillingStateName } from '../../tests/fixtures/billing'
+import { listPage } from '../../tests/fixtures/list-page'
+import { TAX_DOCUMENTS, TAX_INVOICES, testTaxDetails } from '../../tests/fixtures/tax'
 import type { CaptureState, NavigationCapture, RouteCapture, Section } from './types'
 
 /**
@@ -36,6 +38,33 @@ function billingCapture(name: BillingStateName, note: string): CaptureState {
     stubs: [
       { endpoint: 'GET /tenants/:slug/billing', data: billing },
       { endpoint: 'GET /tenants/:slug/entitlements', data: entitlements },
+    ],
+    note,
+  }
+}
+
+/**
+ * The billing page with tax documents, Paid and active: the billing view's tax
+ * flags, the stored tax details, the documents list and invoice rows that
+ * carry them, all from the harness's `?tax=` fixtures (`tests/fixtures/tax.ts`).
+ * @param name - The shot's state name.
+ * @param note - What the shot shows, for the doc writer.
+ * @param overrides - The billing view's tax flags.
+ */
+function taxCapture(
+  name: string,
+  note: string,
+  overrides: { taxDocumentsEnabled: boolean; hasTaxDocuments: boolean }
+): CaptureState {
+  const { billing, entitlements } = billingState('active')
+  return {
+    name,
+    stubs: [
+      { endpoint: 'GET /tenants/:slug/billing', data: { ...billing, ...overrides } },
+      { endpoint: 'GET /tenants/:slug/entitlements', data: entitlements },
+      { endpoint: 'GET /tenants/:slug/billing/tax-details', data: testTaxDetails() },
+      { endpoint: 'GET /tenants/:slug/billing/tax-documents', data: listPage(TAX_DOCUMENTS) },
+      { endpoint: 'GET /tenants/:slug/billing/invoices', data: listPage(TAX_INVOICES) },
     ],
     note,
   }
@@ -386,6 +415,16 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
       billingCapture(
         'past_due',
         'A failed payment: the banner and "Paid · Payment failed on 20 October 2026".'
+      ),
+      taxCapture(
+        'tax-on',
+        'The Tax details card with a GSTIN, the Tax documents card, and invoice rows with a tax invoice, two credit notes, a held charge and one on its way.',
+        { taxDocumentsEnabled: true, hasTaxDocuments: true }
+      ),
+      taxCapture(
+        'tax-read-only',
+        'Registration off with documents: the read-only Tax details and the document buttons.',
+        { taxDocumentsEnabled: false, hasTaxDocuments: true }
       ),
     ],
     note: 'The invoices read runs only while payments are on (paymentsEnabled).',

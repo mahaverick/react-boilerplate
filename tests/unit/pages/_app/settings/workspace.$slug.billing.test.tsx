@@ -17,6 +17,7 @@ import { useCurrentTenantStore } from '@/states/current-tenant.store'
 import { testUpgradeRequest } from '@/tests/fixtures/billing'
 import { TENANT_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
+import { TAX_DOCUMENTS, TAX_INVOICES, testTaxDetails } from '@/tests/fixtures/tax'
 import {
   fail,
   ok,
@@ -121,6 +122,9 @@ function invoice(overrides: Partial<InvoiceView> = {}): InvoiceView {
     issuedAt: '2026-10-02T18:30:00.000Z',
     paidAt: '2026-10-02T18:31:00.000Z',
     url: 'https://rzp.io/i/abc',
+    taxDocument: null,
+    creditNotes: [],
+    taxStatus: 'not_applicable',
     ...overrides,
   }
 }
@@ -1171,5 +1175,99 @@ describe('billing page, upgrade requests', () => {
     await overview()
     await screen.findByText('No invoices yet.')
     expect(screen.queryByRole('heading', { name: 'Upgrade requests' })).toBeNull()
+  })
+})
+
+describe('billing page, tax documents', () => {
+  /** Serves the tax reads and counts the requests to each. */
+  function serveTax() {
+    const details = countGets(`${BASE}/billing/tax-details`, () => ok(testTaxDetails()))
+    const documents = countGets(`${BASE}/billing/tax-documents`, () =>
+      ok(listPage(TAX_DOCUMENTS), 'Retrieved.')
+    )
+    return { details, documents }
+  }
+
+  it('shows an owner nothing and asks nothing while both flags are false', async () => {
+    const { details, documents } = serveTax()
+    server.use(http.get(`${BASE}/billing/invoices`, () => ok(listPage([invoice()]))))
+    mockTenant('owner', active({ paymentsEnabled: true }))
+    renderBilling()
+    await screen.findByRole('table', { name: 'Invoices' })
+    expect(screen.queryByRole('heading', { name: 'Tax details' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Tax documents' })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Tax documents' })).toBeNull()
+    expect(details.count).toBe(0)
+    expect(documents.count).toBe(0)
+  })
+
+  it('shows an owner the editable card, the Tax documents card and the column when on', async () => {
+    const { details } = serveTax()
+    server.use(http.get(`${BASE}/billing/invoices`, () => ok(listPage(TAX_INVOICES))))
+    mockTenant(
+      'owner',
+      active({ paymentsEnabled: true, taxDocumentsEnabled: true, hasTaxDocuments: true })
+    )
+    renderBilling()
+    expect(await screen.findByRole('button', { name: 'Save tax details' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Tax documents' })).toBeVisible()
+    expect(await screen.findByRole('columnheader', { name: 'Tax documents' })).toBeVisible()
+    expect(details.count).toBeGreaterThan(0)
+  })
+
+  it('shows an owner no tax card and asks nothing with both flags and payments off', async () => {
+    const { details, documents } = serveTax()
+    const invoices = countGets(`${BASE}/billing/invoices`, () => ok(listPage([])))
+    mockTenant('owner', active({ paymentsEnabled: false }))
+    renderBilling()
+    const card = await overview()
+    await within(card).findByText('Paid · ₹999 per month · Renews 2 November 2099')
+    expect(screen.queryByRole('heading', { name: 'Tax details' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Tax documents' })).toBeNull()
+    expect(details.count).toBe(0)
+    expect(documents.count).toBe(0)
+    expect(invoices.count).toBe(0)
+  })
+
+  it('shows the Tax documents card with payments off', async () => {
+    const invoices = countGets(`${BASE}/billing/invoices`, () => ok(listPage([])))
+    const { documents } = serveTax()
+    mockTenant('owner', active({ paymentsEnabled: false, hasTaxDocuments: true }))
+    renderBilling()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Tax documents' })).toBeVisible()
+    await screen.findByRole('button', { name: 'Tax invoice INV/26-27/00003' })
+    expect(screen.queryByRole('heading', { name: 'Invoices' })).toBeNull()
+    expect(invoices.count).toBe(0)
+    expect(documents.count).toBeGreaterThan(0)
+  })
+
+  it('shows a read-only card, with document buttons, when off but documents exist', async () => {
+    serveTax()
+    server.use(http.get(`${BASE}/billing/invoices`, () => ok(listPage(TAX_INVOICES))))
+    mockTenant('owner', active({ paymentsEnabled: true, hasTaxDocuments: true }))
+    renderBilling()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Tax details' })).toBeVisible()
+    await screen.findByRole('columnheader', { name: 'Tax documents' })
+    expect(await screen.findAllByRole('button', { name: /^Tax invoice INV\// })).not.toHaveLength(0)
+    expect(screen.queryByRole('button', { name: 'Save tax details' })).toBeNull()
+  })
+
+  it.each([
+    ['an editor', 'editor', 'member'],
+    ['staff on platform access', 'owner', 'platform'],
+  ] as const)('shows %s no tax card and asks nothing', async (_name, role, access) => {
+    const { details, documents } = serveTax()
+    mockTenant(
+      role,
+      active({ paymentsEnabled: true, taxDocumentsEnabled: true, hasTaxDocuments: true }),
+      access
+    )
+    renderBilling()
+    const card = await overview()
+    await within(card).findByText('Paid · ₹999 per month · Renews 2 November 2099')
+    expect(screen.queryByRole('heading', { name: 'Tax details' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Tax documents' })).toBeNull()
+    expect(details.count).toBe(0)
+    expect(documents.count).toBe(0)
   })
 })

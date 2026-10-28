@@ -40,7 +40,7 @@ declare module 'axios' {
  * promises. Axios parses JSON silently: a 200 carrying an empty body or an
  * HTML page (a poisoned cache entry, a misrouted proxy response) resolves with
  * `response.data` as a raw string, and `unwrap()` then yields `undefined` far
- * from the request. Registered as the second response interceptor, so
+ * from the request. Registered as the third response interceptor, after the blob decoder and the 401 handling, so
  * silent-refresh replays pass through it too. A responseType other than
  * `json` opts out, and an empty body under a non-JSON content-type passes as
  * a no-content response.
@@ -68,6 +68,29 @@ function rejectMalformedJsonResponse(response: AxiosResponse): AxiosResponse {
     response.request,
     response
   )
+}
+
+/**
+ * Parses a JSON error body that arrived as a Blob. A request made with
+ * `responseType: 'blob'` gets its error body as a Blob too, so `code` and
+ * `message` are unreadable to the 401 handling and to `codeFrom`. This
+ * replaces `error.response.data` with the parsed object and rejects with the
+ * same error. Anything else (not an AxiosError, not a JSON Blob, a body that
+ * does not parse) rejects unchanged.
+ */
+async function decodeBlobErrorBody(error: unknown): Promise<never> {
+  if (error instanceof AxiosError && error.response) {
+    const data: unknown = error.response.data
+    if (data instanceof Blob && data.type.includes('json')) {
+      try {
+        const parsed: unknown = JSON.parse(await data.text())
+        error.response.data = parsed
+      } catch {
+        // Leave the Blob in place: the caller still gets the original failure.
+      }
+    }
+  }
+  throw error
 }
 
 /**
@@ -103,8 +126,12 @@ function addTraceHeaders(
 }
 
 /**
- * Installs `addTraceHeaders`, the bearer-token request interceptor, the 401 handling and
- * `rejectMalformedJsonResponse` on `client`.
+ * Installs `addTraceHeaders`, the bearer-token request interceptor, `decodeBlobErrorBody`,
+ * the 401 handling and `rejectMalformedJsonResponse` on `client`.
+ *
+ * `decodeBlobErrorBody` is registered first so the 401 handling and every
+ * interceptor after it read a blob request's JSON error body as they would a
+ * JSON request's.
  *
  * An Authorization header already on a request wins over the store's token:
  * refreshSession() sets one on its /profile call while the store still holds
@@ -132,6 +159,8 @@ export function installInterceptors(client: AxiosInstance): void {
     }
     return config
   })
+
+  client.interceptors.response.use((response) => response, decodeBlobErrorBody)
 
   client.interceptors.response.use(
     (response) => response,

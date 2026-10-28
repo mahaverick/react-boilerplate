@@ -211,6 +211,16 @@ const SURFACES = [
     url: `/e2e/harness/?path=/invitations/confirm&token=${TOKEN}&email=invitee@b.com`,
     heading: 'Join your team',
   },
+  {
+    name: 'billing (tax details)',
+    url: '/e2e/harness/?path=/settings/workspace/acme/billing&billing=active&tax=on',
+    heading: 'Tax details',
+  },
+  {
+    name: 'billing (tax details, read-only)',
+    url: '/e2e/harness/?path=/settings/workspace/acme/billing&billing=active&tax=read_only',
+    heading: 'Tax details',
+  },
 ] as const
 
 /** What `contrastOf` waits for: a heading's name, or its name and level where the name alone is not unique. */

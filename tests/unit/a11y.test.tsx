@@ -40,6 +40,7 @@ import {
   USER_ID_2,
 } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
+import { TAX_DOCUMENTS, TAX_INVOICES, testTaxDetails } from '@/tests/fixtures/tax'
 import {
   fail,
   ok,
@@ -674,6 +675,42 @@ describe('signed-in pages', () => {
     await screen.findByRole('table', { name: 'Invoices' })
     await screen.findByRole('heading', { name: 'Upgrade requests' })
     await screen.findByRole('button', { name: 'Cancel Paid' })
+    await expectNoViolations()
+  })
+
+  it.each([
+    ['billing with tax details', true],
+    ['billing with read-only tax details', false],
+  ] as const)('%s has no axe violations', async (_name, enabled) => {
+    server.use(
+      http.get('/api/v1/tenants/acme/billing', () =>
+        ok(
+          {
+            ...ACTIVE_BILLING,
+            paymentsEnabled: true,
+            taxDocumentsEnabled: enabled,
+            hasTaxDocuments: true,
+          },
+          'Billing retrieved.'
+        )
+      ),
+      http.get('/api/v1/tenants/acme/billing/invoices', () =>
+        ok(listPage(TAX_INVOICES), 'Invoices retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/billing/tax-details', () =>
+        ok(testTaxDetails(), 'Retrieved.')
+      ),
+      http.get('/api/v1/tenants/acme/billing/tax-documents', () =>
+        ok(listPage(TAX_DOCUMENTS), 'Retrieved.')
+      )
+    )
+    renderAppAt('/settings/workspace/acme/billing')
+    // Content only the loaded card renders: the form's button, or the summary's SEZ term.
+    if (enabled) await screen.findByRole('button', { name: 'Save tax details' })
+    else await screen.findByText('SEZ unit')
+    await screen.findByRole('columnheader', { name: 'Tax documents' })
+    await screen.findByRole('heading', { level: 2, name: 'Tax documents' })
+    await screen.findByRole('button', { name: 'Credit note CN/26-27/00003' })
     await expectNoViolations()
   })
 

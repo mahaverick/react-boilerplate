@@ -337,6 +337,10 @@ export const handlers = [
   http.get('/api/v1/tenants/:slug/billing', () => ok(testBilling(), 'Billing retrieved.')),
   // The owner's Billing page: no invoices and no upgrade requests yet.
   http.get('/api/v1/tenants/:slug/billing/invoices', () => ok(listPage([]), 'Invoices retrieved.')),
+  http.get('/api/v1/tenants/:slug/billing/tax-details', () => ok(null, 'Tax details retrieved.')),
+  http.get('/api/v1/tenants/:slug/billing/tax-documents', () =>
+    ok(listPage([]), 'Tax documents retrieved.')
+  ),
   http.get('/api/v1/tenants/:slug/upgrade-requests', () => ok([], 'Upgrade requests retrieved.')),
   // The Insights page's counts; a test about a Free workspace or a 402 overrides this.
   http.get('/api/v1/tenants/:slug/insights', () =>

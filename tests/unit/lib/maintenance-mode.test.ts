@@ -132,6 +132,17 @@ describe('the maintenance interceptor', () => {
     })
   })
 
+  it('reads a maintenance 503 on a blob request, whose JSON body arrives as a Blob', async () => {
+    server.use(http.get('/api/v1/widgets', () => maintenanceRefusal('MAINTENANCE_MODE', 'full')))
+    await expect(makeClient().get('/widgets', { responseType: 'blob' })).rejects.toBeDefined()
+    // The message and start come only from the decoded body.
+    expect(useMaintenanceModeStore.getState()).toMatchObject({
+      mode: 'full',
+      message: 'Back at 11:00.',
+      since: SINCE,
+    })
+  })
+
   it('never signs anyone out on a maintenance 503', async () => {
     useAuthStore.setState({
       accessToken: 'access-token',
