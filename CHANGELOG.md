@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.0](https://github.com/mahaverick/react-boilerplate/compare/v4.2.3...v4.3.0) (2026-10-28)
+
+
+### Features
+
+* **billing:** tax details and tax documents on the Billing page ([#162](https://github.com/mahaverick/react-boilerplate/issues/162)) ([e1b76b9](https://github.com/mahaverick/react-boilerplate/commit/e1b76b9822ad9a4175b80a97ed34f4a7ddbbc9ac))
+
 ## [4.2.3](https://github.com/mahaverick/react-boilerplate/compare/v4.2.2...v4.2.3) (2026-10-27)
 
 
