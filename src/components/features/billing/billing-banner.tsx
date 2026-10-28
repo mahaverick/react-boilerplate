@@ -10,7 +10,7 @@ import { useNow } from '@/hooks/use-now'
 import { messageFrom } from '@/lib/api-error'
 import { pickBillingBanner, trialDaysLeft, type BillingBannerKind } from '@/lib/billing-banner'
 import { formatBillingDate, formatInr } from '@/lib/billing-format'
-import { PAYMENTS_OFF } from '@/lib/billing-page'
+import { CARD_CODE_HINT, cardChangeNeedsCode, PAYMENTS_OFF } from '@/lib/billing-page'
 import { toast } from '@/lib/toast'
 import { useDismissBanner, useTenantBilling } from '@/queries/billing.queries'
 import { tenantSettingsQueryOptions } from '@/queries/tenant-forms.queries'
@@ -232,6 +232,9 @@ function CardChange({
         </BusyButton>
       ) : (
         <span className="text-sm text-muted-foreground">{PAYMENTS_OFF}</span>
+      )}
+      {billing.paymentsEnabled && cardChangeNeedsCode(billing) && (
+        <span className="basis-full text-sm text-muted-foreground">{CARD_CODE_HINT}</span>
       )}
       {showMessage && <span className="basis-full text-sm">{flow.message}</span>}
     </>

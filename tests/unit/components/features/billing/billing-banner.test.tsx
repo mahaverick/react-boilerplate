@@ -119,6 +119,11 @@ describe('BillingBanner, past due', () => {
       )
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Update card' })).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Razorpay texts a code to your phone to save the new card. Enter it to finish.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('shows the server’s refusal when the card change cannot start', async () => {
@@ -193,6 +198,11 @@ describe('BillingBanner, past due', () => {
       )
     ).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
+    expect(
+      screen.queryByText(
+        'Razorpay texts a code to your phone to save the new card. Enter it to finish.'
+      )
+    ).toBeNull()
   })
 
   it('tells a member that Paid ends unless an owner resumes payments', async () => {
@@ -212,6 +222,11 @@ describe('BillingBanner, owner actions', () => {
 
     expect(await screen.findByText('Payments aren’t set up yet.')).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
+    expect(
+      screen.queryByText(
+        'Razorpay texts a code to your phone to save the new card. Enter it to finish.'
+      )
+    ).toBeNull()
   })
 
   it('replaces “Use my card” with a line when payments are off', async () => {

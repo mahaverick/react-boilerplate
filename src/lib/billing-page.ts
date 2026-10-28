@@ -18,6 +18,23 @@ export interface BillingLineContext {
 /** The line an owner sees in place of every pay button while payments are off. */
 export const PAYMENTS_OFF = 'Payments aren’t set up yet.'
 
+/**
+ * The line by a card change while a card payment is due. Razorpay then charges
+ * the due amount in its classic Checkout, which saves the card only after a
+ * code it texts to the phone; skipping the code fails the change.
+ */
+export const CARD_CODE_HINT =
+  'Razorpay texts a code to your phone to save the new card. Enter it to finish.'
+
+/**
+ * Whether a card change now needs Razorpay's texted code: a card payment is
+ * due. A UPI pause is lifted in the UPI app, so it shows no hint.
+ * @param billing - The billing view.
+ */
+export function cardChangeNeedsCode(billing: TenantBilling): boolean {
+  return billing.state === 'past_due' && billing.pastDue?.paused !== true
+}
+
 /** The interval as an adjective: "monthly", "yearly". */
 export const INTERVAL_ADJECTIVE: Record<BillingInterval, string> = {
   month: 'monthly',
