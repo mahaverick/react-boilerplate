@@ -93,6 +93,9 @@ test('flag changes reach the tab, the page, the API and the exposure report', as
   await logIn(page, owner)
   await page.goto(`/tenants/${slug}`)
 
+  // A new workspace opens the trial explainer once, and while it is open the page behind it has no roles.
+  await page.getByRole('button', { name: 'Got it' }).click()
+
   // The bold variant: a filled button, reported once for the tab session, across a reload.
   await expect(page.getByRole('link', { name: 'Open settings' })).toHaveClass(/bg-primary/)
   await expect.poll(() => exposures, { timeout: 15_000 }).toEqual([{ status: 204 }])
