@@ -124,10 +124,11 @@ describe('TenantSearchGuard', () => {
     )
     renderAt('/tenants')
 
+    // The shell first: a flags read past defaultPendingMs shows its list template before this one.
+    expect(await screen.findByRole('navigation', { name: 'Tenant' })).toBeInTheDocument()
     const status = await screen.findByRole('status', { name: 'Loading' })
     expect(status).toHaveAttribute('data-variant', 'list')
     expect(status).toHaveAttribute('data-nested', 'false')
-    expect(screen.getByRole('navigation', { name: 'Tenant' })).toBeInTheDocument()
   })
 
   it('shows the dashboard template in the page slot, under the real sidebar, while the list is in flight', async () => {
@@ -143,11 +144,12 @@ describe('TenantSearchGuard', () => {
     )
     const { router } = renderAt('/dashboard')
 
+    // The shell first: a flags read past defaultPendingMs shows its list template before this one.
+    expect(await screen.findByRole('navigation', { name: 'Tenant' })).toBeInTheDocument()
     expect(await screen.findByRole('status', { name: 'Loading' })).toHaveAttribute(
       'data-variant',
       'dashboard'
     )
-    expect(screen.getByRole('navigation', { name: 'Tenant' })).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { level: 1, name: /Welcome back/ })
     ).not.toBeInTheDocument()

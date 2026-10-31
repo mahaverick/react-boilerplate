@@ -716,7 +716,8 @@ describe('accept page, Check your inbox, when another tab confirms', () => {
     await expectLandedInTenant(router)
     expect(await screen.findAllByText('You joined Acme Corp as Invitee@Acme.test.')).toHaveLength(1)
     expect(restored.refreshes).toBe(1)
-    expect(tenantListReads).toBeGreaterThan(readsBefore)
+    // The list reloads behind the tenant route's flags read, so it can follow the landing.
+    await vi.waitFor(() => expect(tenantListReads).toBeGreaterThan(readsBefore))
     expect(useAuthStore.getState().accessToken).toBe('shared-token')
     expect(verifies).toHaveLength(1)
     expect(accepts).toHaveLength(0)

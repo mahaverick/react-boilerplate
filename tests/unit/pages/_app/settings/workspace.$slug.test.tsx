@@ -104,10 +104,11 @@ describe('workspace settings', () => {
     mockTenant('owner')
     server.use(http.get('/api/v1/tenants/acme', () => new Promise<Response>(() => {})))
     renderAppAt('/settings/workspace/acme/general')
+    // The heading first: a flags read past defaultPendingMs shows the shell's list template before this one.
+    expect(await screen.findByRole('heading', { level: 1, name: 'General' })).toBeVisible()
     const template = await screen.findByRole('status', { name: 'Loading' })
     expect(template.querySelector('[data-slot="page-heading-skeleton"]')).toBeNull()
     expect(template.querySelectorAll('[data-slot="card"]')).toHaveLength(3)
-    expect(screen.getByRole('heading', { level: 1, name: 'General' })).toBeVisible()
   })
 
   it('opens General at the workspace root', async () => {

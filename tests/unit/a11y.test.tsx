@@ -855,6 +855,8 @@ describe('signed-in pages', () => {
     ])('%s has no axe violations', async (_name, path, held) => {
       server.use(http.get(held, () => new Promise<Response>(() => {})))
       renderAppAt(path)
+      // The shell first: a flags read past defaultPendingMs shows its list template, with no <main>, before this one.
+      await screen.findByRole('main')
       await screen.findByRole('status', { name: 'Loading' })
       await expectNoViolationsWhileLoading()
     })
