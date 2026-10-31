@@ -31,9 +31,9 @@
       "allowedVersions": "<6.1.0"
     },
     {
-      "description": "Stay on Node 24 LTS until the planned move to Node 26 after 2026-10-28. Covers every Node version pin: the docker `node` image (Dockerfile), `.node-version` and `actions/setup-node`'s `node-version:` (node-version datasource, depName `node`).",
+      "description": "Stay on the Node 26 LTS line until the next LTS move is made on purpose. Covers every Node version pin: the docker `node` image (Dockerfile), `.node-version` and `actions/setup-node`'s `node-version:` (node-version datasource, depName `node`).",
       "matchDepNames": ["node"],
-      "allowedVersions": "<25"
+      "allowedVersions": "<27"
     },
     {
       "description": "nginx's odd minor versions are mainline releases. Keep the unprivileged image on the stable line (even minor), which is what its stable-alpine tag tracks.",

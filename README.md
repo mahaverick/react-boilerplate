@@ -25,11 +25,11 @@ configuring, testing and shipping the app.
 
 ## Prerequisites
 
-- **Node 24 or later** and **pnpm** at the version `packageManager` in
+- **Node 26 or later** and **pnpm** at the version `packageManager` in
   `package.json` names. Install Corepack with
   `npm i -g corepack@0.36.0 && corepack enable`; pnpm then comes from
   `packageManager`. Node 25 and later do not ship Corepack, so this works on any
-  supported Node. `pnpm install` refuses a Node older than 24.
+  supported Node. `pnpm install` refuses a Node older than 26.
 - **The API running on `:4040`.** See [Getting started](#getting-started).
 - **express-boilerplate 2.0.0 or later; 4.0.0 or later is recommended.** 2.0.0 is
   the earliest tag that has every route and body this app sends: leaving a tenant
