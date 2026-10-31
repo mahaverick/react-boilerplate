@@ -365,7 +365,7 @@ the component is added again.
   changing the field means regenerating the lockfile in the same commit, or
   `--frozen-lockfile` fails.
 - **`devEngines.runtime` (`onFail: "error"`) refuses a wrong Node at install.**
-- **Renovate holds every Node pin below 25.** It covers the Docker `node` image,
+- **Renovate holds every Node pin below 27.** It covers the Docker `node` image,
   `.node-version` and CI's `node-version:`. Renovate does not move `engines.node` or
   `devEngines.runtime.version`, so a Node major moves those by hand alongside the
   pins.

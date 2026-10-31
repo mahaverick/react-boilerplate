@@ -292,10 +292,11 @@ describe('tenant detail', () => {
     mockTenant('owner')
     server.use(http.get('/api/v1/tenants/acme', () => new Promise<Response>(() => {})))
     renderAppAt('/tenants/acme')
+    // The shell first: a flags read past defaultPendingMs shows its list template before this one.
+    expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument()
     const template = await screen.findByRole('status', { name: 'Loading' })
     expect(template.querySelector('[data-slot="page-heading-skeleton"]')).not.toBeNull()
     expect(template.querySelector('[data-slot="page-tabs-skeleton"]')).not.toBeNull()
-    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 1, name: 'Acme Corp' })).not.toBeInTheDocument()
   })
 

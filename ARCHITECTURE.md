@@ -959,7 +959,7 @@ maintenance 503 never signs anyone out
 
 The `Dockerfile` has two stages.
 
-**Build stage** (`node:24-alpine`, pinned by digest):
+**Build stage** (`node:26-alpine`, pinned by digest):
 
 1. Installs Corepack, then the pnpm version named by `packageManager` in
    `package.json`, then the dependencies from the frozen lockfile.
