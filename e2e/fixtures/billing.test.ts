@@ -104,6 +104,8 @@ test('an owner on Free upgrades through Checkout and reads the new state line', 
 })
 
 test('an owner cancels Paid and keeps it to the period’s end', async ({ page }) => {
+  // The fixture's period ends at 10:00 UTC on 2 November 2026; after that the line reads "Period ended".
+  await page.clock.setFixedTime(new Date('2026-10-20T10:00:00.000Z'))
   await page.goto(harness(BILLING, '&billing=active'))
   await expect(stateLine(page)).toHaveText('Paid · ₹999 per month · Renews 2 November 2026')
 
