@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.5](https://github.com/mahaverick/react-boilerplate/compare/v1.0.4...v1.0.5) (2026-11-02)
+
+
+### Bug Fixes
+
+* **titles:** name the workspace, not its web address, in workspace page titles ([#178](https://github.com/mahaverick/react-boilerplate/issues/178)) ([e64c578](https://github.com/mahaverick/react-boilerplate/commit/e64c578209094d7bfb498151b7e17940efd45884))
+
 ## [1.0.4](https://github.com/mahaverick/react-boilerplate/compare/v1.0.3...v1.0.4) (2026-11-02)
 
 
