@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/mahaverick/react-boilerplate/compare/v1.0.2...v1.0.3) (2026-11-02)
+
+
+### Bug Fixes
+
+* **copy:** say workspace, name time zones and follow the writing guide ([#175](https://github.com/mahaverick/react-boilerplate/issues/175)) ([2d9aac1](https://github.com/mahaverick/react-boilerplate/commit/2d9aac1a23e30e28dadd0a19b94a103904fa69bd))
+
 ## [1.0.2](https://github.com/mahaverick/react-boilerplate/compare/v1.0.1...v1.0.2) (2026-11-02)
 
 
