@@ -9,12 +9,13 @@ import {
   CARD_CODE_HINT,
   canChangeSubscription,
   cardChangeNeedsCode,
-  PAYMENTS_OFF,
+  paymentsOff,
   showsPlanChoice,
   switchArea,
   type BillingLineContext,
 } from '@/lib/billing-page'
 import { usePlans } from '@/queries/billing.queries'
+import { useClientSettings } from '@/queries/client-settings.queries'
 import type { TenantBilling } from '@/types/billing.types'
 
 /** Which checkout a click started, so only its button shows the spinner. */
@@ -38,8 +39,9 @@ export function OwnerBillingActions({
   billing: TenantBilling
   context: BillingLineContext
 }) {
+  const supportEmail = useClientSettings()?.supportEmail
   if (!billing.paymentsEnabled) {
-    return <p className="text-sm text-muted-foreground">{PAYMENTS_OFF}</p>
+    return <p className="text-sm text-muted-foreground">{paymentsOff(supportEmail)}</p>
   }
   return <Actions slug={slug} billing={billing} context={context} />
 }

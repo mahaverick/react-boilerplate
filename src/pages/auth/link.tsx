@@ -21,8 +21,10 @@ import { ROUTES } from '@/constants/routes'
 import { broadcastAuthMessage } from '@/http/session'
 import { codeFrom, statusFrom } from '@/lib/api-error'
 import { safeLanding } from '@/lib/landing'
+import { linkRules } from '@/lib/link-lifetime'
 import { retryableFailureMessage } from '@/lib/retry'
 import { useLogout, useVerifySignInLink } from '@/queries/auth.queries'
+import { useClientSettings } from '@/queries/client-settings.queries'
 import { tenantsQueryOptions } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 import { READ_ONLY_MODE } from '@/types/api.types'
@@ -95,10 +97,11 @@ function DeadLink({
   const navigate = useNavigate()
   const [sentTo, setSentTo] = useState<string | null>(null)
   const landing = safeLanding(redirect) ?? undefined
+  const settings = useClientSettings()
   return (
     <LinkCard
       title={sentTo ? CHECK_INBOX_TITLE : LINK_DEAD_TITLE}
-      description={sentTo ? undefined : 'The link works once and expires in 15 minutes.'}
+      description={sentTo ? undefined : linkRules(settings?.signInLinkTtlSeconds)}
     >
       <SignInLinkForm
         sentTo={sentTo}

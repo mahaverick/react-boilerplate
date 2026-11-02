@@ -1,8 +1,8 @@
 /**
  * @file Step-up support outside React: recognising the API's `REAUTH_REQUIRED`
  * 401, telling whether a refusal is already out of date because a fresher
- * token has landed since the request went out, the emailed link's timings,
- * and reading whether a refresh brought a new confirmation.
+ * token has landed since the request went out, and reading whether a
+ * refresh brought a new confirmation.
  */
 import axios from 'axios'
 import { codeFrom, statusFrom } from '@/lib/api-error'
@@ -29,20 +29,6 @@ export function sentWithCurrentToken(error: unknown): boolean {
   const current = useAuthStore.getState().accessToken
   return typeof sent !== 'string' || current === null || sent === `Bearer ${current}`
 }
-
-/**
- * How long an emailed "Confirm it's you" link works after it is sent: 15
- * minutes, mirroring express's `STEP_UP_LINK_TTL` default (`15m`). Past it,
- * the dialog says the link expired and offers a new one.
- */
-export const STEP_UP_LINK_TTL_MS = 15 * 60_000
-
-/**
- * The shortest gap between two step-up link mails: 1 minute, mirroring
- * express's `STEP_UP_LINK_COOLDOWN` default (`1m`). A cooldown's `Retry-After`
- * subtracted from it says how long ago the waiting link went out.
- */
-export const STEP_UP_LINK_COOLDOWN_MS = 60_000
 
 /**
  * The `auth_time` claim of an access token: when its session last

@@ -20,8 +20,10 @@ import { useServerErrors } from '@/hooks/use-server-errors'
 import { useSignedInElsewhere } from '@/hooks/use-signed-in-elsewhere'
 import { messageFrom, retryAfterSecondsFrom } from '@/lib/api-error'
 import { formatClock } from '@/lib/countdown'
+import { linkRules } from '@/lib/link-lifetime'
 import { toast } from '@/lib/toast'
 import { useRequestSignInLink } from '@/queries/auth.queries'
+import { useClientSettings } from '@/queries/client-settings.queries'
 import { signInLinkRequestSchema } from '@/schemas/auth.schemas'
 
 /** How long resend waits after each link is sent, in seconds; a 429's `Retry-After` can make it longer. */
@@ -194,7 +196,8 @@ function EmailStep({
 }
 
 /**
- * "Check your inbox": where the link went, its rules, and a resend that waits
+ * "Check your inbox": where the link went, its rules (the lifetime from the
+ * client settings, left out until they load), and a resend that waits
  * out the cooldown. The clock sits outside the status line, so it is not
  * announced every second; the button stays focusable while it waits.
  */
@@ -215,12 +218,13 @@ function InboxStep({
 }) {
   const left = useCountdown(resendAt)
   const sentLineId = useId()
+  const settings = useClientSettings()
   return (
     <div className="grid gap-4 text-center text-sm">
       <p id={sentLineId} role="status">
         We sent a sign-in link to <Pii>{sentTo}</Pii>.
       </p>
-      <p className="text-muted-foreground">The link works once and expires in 15 minutes.</p>
+      <p className="text-muted-foreground">{linkRules(settings?.signInLinkTtlSeconds)}</p>
       <BusyButton
         ref={resendRef}
         // Focus lands here as the status line mounts, so the button carries the line in case the region is not announced.

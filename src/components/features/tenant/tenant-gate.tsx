@@ -5,6 +5,7 @@ import { BillingBanner } from '@/components/features/billing/billing-banner'
 import { PlatformAccessBanner } from '@/components/features/platform-access-banner'
 import { EmptyState } from '@/components/shared/empty-state'
 import { QueryState } from '@/components/shared/query-state'
+import { useClientSettings } from '@/queries/client-settings.queries'
 import { useTenant, useTenants, type TenantWithRole } from '@/queries/tenant.queries'
 import { useRememberTenant } from '@/states/current-tenant.store'
 
@@ -44,6 +45,7 @@ function TenantNotFound({ slug, heading: Heading }: { slug: string; heading: Gat
  * own memberships reach this, so it confirms nothing about other tenants.
  */
 function TenantSuspended({ name, heading: Heading }: { name: string; heading: GateHeading }) {
+  const supportEmail = useClientSettings()?.supportEmail
   return (
     <EmptyState
       icon={<IconLock aria-hidden="true" />}
@@ -51,7 +53,11 @@ function TenantSuspended({ name, heading: Heading }: { name: string; heading: Ga
       description={
         <>
           <span className="font-medium">{name}</span> is suspended, so its pages are closed.
-          <span className="mt-2 block">Contact support to restore access.</span>
+          <span className="mt-2 block">
+            {supportEmail === undefined
+              ? 'Contact support to restore access.'
+              : `Contact support at ${supportEmail} to restore access.`}
+          </span>
         </>
       }
       action={

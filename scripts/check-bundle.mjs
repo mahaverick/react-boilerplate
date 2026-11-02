@@ -85,8 +85,13 @@ import { build } from 'vite'
  * and analytics must not send it: the facade's `before_send` swaps a registered title for its
  * page-only stand-in (`sent-title.ts`, 238 B). The title hook itself stays in the lazy page
  * chunks, and the route `head`s lost their slug templates (92 B smaller than before).
+ * 2026-11-03: 593,612 -> 593,750. The client settings read
+ * (`client-settings.queries.ts`) and the lifetime wording (`link-lifetime.ts`) stay
+ * lazy, but each is a chunk of its own that the sign-in, invitation, confirm,
+ * billing and members chunks share, so the entry's preload map names both and
+ * lists them under each of those routes (138 B); no app module joined the entry.
  */
-const ENTRY_BUDGET_BYTES = 593_612
+const ENTRY_BUDGET_BYTES = 593_750
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

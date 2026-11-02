@@ -253,8 +253,8 @@ describe('/auth/confirm with an emailed link', () => {
       await screen.findByRole('heading', { level: 1, name: 'This link didn’t confirm it’s you' })
     ).toBeInTheDocument()
     expect(
-      screen.getByText(
-        'Open the link in the browser where you asked for it, within 15 minutes. For a new link, try the action again.'
+      await screen.findByText(
+        'Open the link in the browser where you asked for it, within 25 minutes. For a new link, try the action again.'
       )
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()

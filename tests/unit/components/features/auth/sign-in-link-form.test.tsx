@@ -145,6 +145,19 @@ describe('SignInLinkForm', () => {
     expect(RESEND_COOLDOWN_SECONDS).toBe(60)
   })
 
+  it('states no lifetime while the client settings cannot be read', async () => {
+    serveRequests()
+    server.use(http.get('/api/v1/status/client-settings', () => fail('Route not found.', 404)))
+    const user = userEvent.setup()
+    renderForm()
+
+    await send(user, 'ada@example.test')
+
+    await sentLine()
+    expect(await screen.findByText('The link works once.')).toBeVisible()
+    expect(screen.queryByText(/expires in/)).not.toBeInTheDocument()
+  })
+
   it('sends the trimmed, lowercased address and shows Check your inbox', async () => {
     const bodies = serveRequests()
     const user = userEvent.setup()
@@ -160,7 +173,7 @@ describe('SignInLinkForm', () => {
     expect(line).toContainElement(address)
     expect(address).toHaveClass(PII_CLASS_NAME)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(CHECK_INBOX_TITLE)
-    expect(screen.getByText('The link works once and expires in 15 minutes.')).toBeVisible()
+    expect(await screen.findByText('The link works once and expires in 20 minutes.')).toBeVisible()
     expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
     // The submit button is gone, so the resend button that took its place holds focus.
     const resend = screen.getByRole('button', { name: /^Resend in/ })

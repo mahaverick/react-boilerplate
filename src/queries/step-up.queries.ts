@@ -64,14 +64,15 @@ export function useConfirmStepUpLink() {
 /**
  * Mails a "Confirm it's you" link for this session (express
  * `POST /auth/step-up/link/request`, which takes `{ app }`). It answers 202
- * with when the next request may mail again; inside that wait, a 429
- * `STEP_UP_LINK_COOLDOWN` with `Retry-After`.
+ * with when the next request may mail again and when the mailed link expires
+ * (`expiresAt`, absent from an API older than the field); inside that wait, a
+ * 429 `STEP_UP_LINK_COOLDOWN` with `Retry-After`.
  */
 export function useRequestStepUpLink() {
   return useMutation({
     mutationFn: async () =>
       unwrap(
-        await apiClient.post<ApiSuccess<{ resendAvailableAt: string }>>(
+        await apiClient.post<ApiSuccess<{ resendAvailableAt: string; expiresAt?: string }>>(
           '/auth/step-up/link/request',
           { app: FRONTEND_APP }
         )

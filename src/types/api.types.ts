@@ -9,6 +9,18 @@ export interface ApiSuccess<T> {
   data: T
 }
 
+/**
+ * `GET /status/client-settings`: what express is configured with and the copy
+ * states: each emailed link's lifetime in whole seconds, and the support
+ * address customer mail names. Public; the same for every caller.
+ */
+export interface ClientSettings {
+  signInLinkTtlSeconds: number
+  stepUpLinkTtlSeconds: number
+  invitationTtlSeconds: number
+  supportEmail: string
+}
+
 /** The body of an error response: branch on `code` or `statusCode`, and show `message` to the person. */
 export interface ApiErrorBody {
   success: false
