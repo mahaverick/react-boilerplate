@@ -1,7 +1,7 @@
 {
   "name": "react-boilerplate",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "packageManager": "pnpm@12.16.1",
   "engines": {

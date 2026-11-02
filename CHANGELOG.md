@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/mahaverick/react-boilerplate/compare/v1.0.3...v1.0.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* **invitations:** say "Emailing a link" while a signed-out invitation verifies ([#174](https://github.com/mahaverick/react-boilerplate/issues/174)) ([e0d8627](https://github.com/mahaverick/react-boilerplate/commit/e0d862722d72535a840a26a57ad006dd145dc443))
+
 ## [1.0.3](https://github.com/mahaverick/react-boilerplate/compare/v1.0.2...v1.0.3) (2026-11-02)
 
 
