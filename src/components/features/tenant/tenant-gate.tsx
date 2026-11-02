@@ -10,7 +10,7 @@ import { useRememberTenant } from '@/states/current-tenant.store'
 
 /** Said of the request, not of the tenant: unlike `TenantNotFound`, the tenant may be fine. */
 export const TENANT_LOAD_ERROR =
-  'We couldn’t load this tenant because the request failed. Try again.'
+  'We couldn’t load this workspace because the request failed. Select Try again.'
 
 /**
  * What a 404 looks like. `GET /tenants/:slug` answers the same 404 for "no such
@@ -21,7 +21,7 @@ function TenantNotFound({ slug, heading: Heading }: { slug: string; heading: Gat
   return (
     <EmptyState
       icon={<IconBuildingOff aria-hidden="true" />}
-      title={<Heading>Tenant not available</Heading>}
+      title={<Heading>Workspace not available</Heading>}
       description={
         <>
           We couldn’t open <span className="font-medium">/{slug}</span>. It doesn’t exist, or you
@@ -30,7 +30,7 @@ function TenantNotFound({ slug, heading: Heading }: { slug: string; heading: Gat
       }
       action={
         <Link to="/tenants" className="text-sm underline underline-offset-4">
-          Back to your tenants
+          Back to your workspaces
         </Link>
       }
     />
@@ -47,7 +47,7 @@ function TenantSuspended({ name, heading: Heading }: { name: string; heading: Ga
   return (
     <EmptyState
       icon={<IconLock aria-hidden="true" />}
-      title={<Heading>Tenant suspended</Heading>}
+      title={<Heading>Workspace suspended</Heading>}
       description={
         <>
           <span className="font-medium">{name}</span> is suspended, so its pages are closed.
@@ -56,7 +56,7 @@ function TenantSuspended({ name, heading: Heading }: { name: string; heading: Ga
       }
       action={
         <Link to="/tenants" className="text-sm underline underline-offset-4">
-          Back to your tenants
+          Back to your workspaces
         </Link>
       }
     />
@@ -124,7 +124,12 @@ export function TenantGate({
   // A failed refetch with the tenant on screen is the sections' to show (`useMyRole`), not a second alert over the page.
   if (tenant.data !== undefined) return loaded(tenant.data)
   return (
-    <QueryState query={tenant} name="Tenant" errorMessage={TENANT_LOAD_ERROR} skeleton={skeleton}>
+    <QueryState
+      query={tenant}
+      name="Workspace"
+      errorMessage={TENANT_LOAD_ERROR}
+      skeleton={skeleton}
+    >
       {loaded}
     </QueryState>
   )
@@ -158,7 +163,12 @@ function MissingTenant({
   // A cached list whose refetch failed still decides: a load error above the panel would contradict it.
   if (tenants.data !== undefined) return panel(tenants.data)
   return (
-    <QueryState query={tenants} name="Tenants" errorMessage={TENANT_LOAD_ERROR} skeleton={skeleton}>
+    <QueryState
+      query={tenants}
+      name="Workspaces"
+      errorMessage={TENANT_LOAD_ERROR}
+      skeleton={skeleton}
+    >
       {panel}
     </QueryState>
   )

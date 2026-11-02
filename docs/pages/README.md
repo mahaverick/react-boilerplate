@@ -123,7 +123,7 @@ Every area file describes each route with the same block, so the docs stay compa
 | Guard and redirects | …                                                                        |
 | Layout              | `AppLayout` (sidebar)                                                    |
 | Data                | `GET /tenants` (`['tenants']`) — read after mount by `TenantSearchGuard` |
-| Sections            | Tenants list ← `GET /tenants`; Create a tenant (no request)              |
+| Sections            | Tenants list ← `GET /tenants`; Create a workspace (no request)           |
 | Components          | `Card`, `Skeleton`, `LoadError`, … ; hand-rolled: …                      |
 | Transitions         | row → `/tenants/$slug`; create → `/tenants/$slug`                        |
 

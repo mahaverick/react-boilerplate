@@ -16,7 +16,8 @@ export interface BillingLineContext {
 }
 
 /** The line an owner sees in place of every pay button while payments are off. */
-export const PAYMENTS_OFF = 'Payments aren’t set up yet.'
+export const PAYMENTS_OFF =
+  'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
 
 /**
  * The line by a card change while a card payment is due. Razorpay then charges
@@ -87,7 +88,8 @@ function activeLine(
 ): string {
   const end = billing.currentPeriodEnd
   if (billing.cancelAtPeriodEnd) {
-    if (end === null) return 'Paid · Ends soon. You won’t be charged again.'
+    if (end === null)
+      return 'Paid · Ends at the end of this billing period. You won’t be charged again.'
     const endsAt = new Date(end).getTime()
     if (endsAt > now.getTime()) return `Paid · Ends ${date(end)}. You won’t be charged again.`
     const free = date(new Date(endsAt + CANCEL_BUFFER_MS).toISOString())
@@ -127,10 +129,10 @@ export function billingStateLine(
         : `Paid trial · Ends ${date(billing.trialEndsAt)}`
     case 'past_due': {
       const pastDue = billing.pastDue
-      if (pastDue === null) return 'Paid · Payment failed'
+      if (pastDue === null) return 'Paid plan · Payment failed'
       return pastDue.paused
-        ? `Paid · Payments paused on ${date(pastDue.since)}`
-        : `Paid · Payment failed on ${date(pastDue.since)}`
+        ? `Paid plan · Payments paused on ${date(pastDue.since)}`
+        : `Paid plan · Payment failed on ${date(pastDue.since)}`
     }
     case 'active': {
       const next = billing.nextSwitch

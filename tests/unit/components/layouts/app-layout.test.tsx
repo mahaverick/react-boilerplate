@@ -133,7 +133,7 @@ describe('AppLayout', () => {
       within(main)
         .getAllByRole('link')
         .map((link) => link.textContent)
-    ).toEqual(['Dashboard', 'Tenants'])
+    ).toEqual(['Dashboard', 'Workspaces'])
     const secondary = screen.getByRole('navigation', { name: 'Secondary' })
     expect(within(secondary).getByRole('link', { name: /^Notifications/ })).toHaveAttribute(
       'href',
@@ -197,7 +197,7 @@ describe('AppLayout', () => {
     const settings = await screen.findByRole('navigation', { name: 'Settings' })
     const members = within(settings).getByRole('button', { name: 'Members' })
     expect(members).toHaveAttribute('aria-disabled', 'true')
-    expect(within(settings).getByText('Choose a tenant first.')).toBeInTheDocument()
+    expect(within(settings).getByText('Choose a workspace first.')).toBeInTheDocument()
   })
 
   it('closes the mobile drawer on every sidebar link', async () => {
@@ -205,7 +205,7 @@ describe('AppLayout', () => {
     const user = userEvent.setup()
     renderAppAt('/dashboard')
     // Main, the bottom group, a settings item, and Back to app, in the order a walk reaches them.
-    for (const name of ['Tenants', 'Settings', 'Profile', 'Back to app']) {
+    for (const name of ['Workspaces', 'Settings', 'Profile', 'Back to app']) {
       await user.click(await screen.findByRole('button', { name: 'Toggle sidebar' }))
       // Scoped to the drawer: the settings landing page links its sections too.
       const drawer = await screen.findByRole('dialog')
@@ -305,9 +305,9 @@ describe('AppLayout', () => {
       .getAllByRole('listitem')
       .map((item) => item.textContent?.trim())
       .filter((text) => text !== '')
-    expect(trail).toEqual(['Tenants', 'acme', 'Overview'])
+    expect(trail).toEqual(['Workspaces', 'acme', 'Overview'])
 
-    expect(within(breadcrumb).getByRole('link', { name: 'Tenants' })).toHaveAttribute(
+    expect(within(breadcrumb).getByRole('link', { name: 'Workspaces' })).toHaveAttribute(
       'href',
       '/tenants'
     )
@@ -358,7 +358,7 @@ describe('AppLayout', () => {
       .getAllByRole('listitem')
       .map((item) => item.textContent?.trim())
       .filter((text) => text !== '')
-    expect(trail).toEqual(['Tenants'])
+    expect(trail).toEqual(['Workspaces'])
   })
 
   /**
@@ -379,7 +379,7 @@ describe('AppLayout', () => {
       if (!node.textContent?.trim()) continue
       expect(node.parentElement?.closest('button,a')).not.toBeNull()
     }
-    expect(screen.getByRole('combobox', { name: /Switch tenant/ })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /Switch workspace/ })).toBeInTheDocument()
   })
 
   it('navigates to the profile from the account menu', async () => {

@@ -62,8 +62,8 @@ function renderShell(path = '/dashboard'): AnyRouter {
 /** Opens the switcher and waits for its popup, since the options exist only while it is open. */
 async function openSwitcher() {
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('combobox', { name: /^Switch tenant/ }))
-  await screen.findByRole('dialog', { name: 'Switch tenant' })
+  await user.click(await screen.findByRole('combobox', { name: /^Switch workspace/ }))
+  await screen.findByRole('dialog', { name: 'Switch workspace' })
   return user
 }
 
@@ -103,7 +103,7 @@ describe('TenantSwitcher', () => {
     renderShell()
     await openSwitcher()
 
-    const mine = await screen.findByRole('group', { name: 'Your tenants' })
+    const mine = await screen.findByRole('group', { name: 'Your workspaces' })
     expect(within(mine).getByRole('option', { name: 'Acme Corp' })).toBeInTheDocument()
   })
 
@@ -163,7 +163,7 @@ describe('TenantSwitcher', () => {
   })
 
   /** The list carries the platform tenant like any membership, but it is linked from the user menu instead and never switched to as a customer. */
-  it('leaves the platform tenant out of Your tenants', async () => {
+  it('leaves the platform tenant out of Your workspaces', async () => {
     signInAs('viewer')
     server.use(
       http.get('/api/v1/tenants', () =>
@@ -193,7 +193,7 @@ describe('TenantSwitcher', () => {
     expect(screen.queryByRole('option', { name: 'Platform' })).not.toBeInTheDocument()
   })
 
-  it('says No tenants yet, with no All tenants group, for staff whose only membership is the platform tenant', async () => {
+  it('says No workspaces yet, with no All tenants group, for staff whose only membership is the platform tenant', async () => {
     signInAs('viewer')
     server.use(
       http.get('/api/v1/tenants', () =>
@@ -213,7 +213,7 @@ describe('TenantSwitcher', () => {
     renderShell()
     await openSwitcher()
 
-    expect(await screen.findByText('No tenants yet')).toBeInTheDocument()
+    expect(await screen.findByText('No workspaces yet')).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'All tenants' })).not.toBeInTheDocument()
   })
 
@@ -221,8 +221,8 @@ describe('TenantSwitcher', () => {
     renderShell()
     await openSwitcher()
 
-    expect(await screen.findByText('No tenants yet')).toBeInTheDocument()
-    expect(screen.queryByText('Tenants didn’t load')).not.toBeInTheDocument()
+    expect(await screen.findByText('No workspaces yet')).toBeInTheDocument()
+    expect(screen.queryByText('Workspaces didn’t load')).not.toBeInTheDocument()
   })
 
   it('says the list is still loading when the popup opens mid-flight', async () => {
@@ -234,8 +234,8 @@ describe('TenantSwitcher', () => {
     renderShell('/tenants/acme')
     await openSwitcher()
 
-    expect(await screen.findByText('Loading tenants…')).toBeInTheDocument()
-    expect(screen.queryByText('No tenants yet')).not.toBeInTheDocument()
+    expect(await screen.findByText('Loading workspaces…')).toBeInTheDocument()
+    expect(screen.queryByText('No workspaces yet')).not.toBeInTheDocument()
   })
 
   it('says the list FAILED, not that it is empty, when the query errors', async () => {
@@ -243,16 +243,18 @@ describe('TenantSwitcher', () => {
     renderShell()
     await openSwitcher()
 
-    const popup = screen.getByRole('dialog', { name: 'Switch tenant' })
-    expect(await within(popup).findByText('Tenants didn’t load')).toBeInTheDocument()
-    expect(screen.queryByText('No tenants yet')).not.toBeInTheDocument()
+    const popup = screen.getByRole('dialog', { name: 'Switch workspace' })
+    expect(await within(popup).findByText('Workspaces didn’t load')).toBeInTheDocument()
+    expect(screen.queryByText('No workspaces yet')).not.toBeInTheDocument()
   })
 
   it('names the list as loading on the trigger while it is in flight', async () => {
     server.use(http.get('/api/v1/tenants', async () => delay('infinite')))
     renderShell('/dashboard')
     expect(
-      await screen.findByRole('combobox', { name: 'Switch tenant. Current: Loading tenants…' })
+      await screen.findByRole('combobox', {
+        name: 'Switch workspace. Current: Loading workspaces…',
+      })
     ).toBeVisible()
   })
 
@@ -280,16 +282,16 @@ describe('TenantSwitcher', () => {
     // The queryClient is `retry: 1`: the failure lands after the second attempt.
     expect(
       await screen.findByRole('combobox', {
-        name: 'Switch tenant. Current: Tenants didn’t load',
+        name: 'Switch workspace. Current: Workspaces didn’t load',
       })
     ).toBeVisible()
     const user = await openSwitcher()
     await user.click(await screen.findByRole('button', { name: 'Try again' }))
-    const popup = screen.getByRole('dialog', { name: 'Switch tenant' })
+    const popup = screen.getByRole('dialog', { name: 'Switch workspace' })
     expect(await within(popup).findByText('Acme Corp')).toBeInTheDocument()
   })
 
-  it('filters Your tenants by what is typed', async () => {
+  it('filters Your workspaces by what is typed', async () => {
     server.use(
       http.get('/api/v1/tenants', () =>
         ok(
@@ -314,7 +316,7 @@ describe('TenantSwitcher', () => {
     const user = await openSwitcher()
     await screen.findByRole('option', { name: 'Umbrella' })
 
-    await user.type(screen.getByLabelText('Search tenants'), 'umb')
+    await user.type(screen.getByLabelText('Search workspaces'), 'umb')
 
     expect(await screen.findByRole('option', { name: 'Umbrella' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Acme Corp' })).not.toBeInTheDocument()
@@ -334,16 +336,16 @@ describe('TenantSwitcher', () => {
       const user = userEvent.setup()
       renderShell()
 
-      await user.click(await screen.findByRole('combobox', { name: /^Switch tenant/ }))
+      await user.click(await screen.findByRole('combobox', { name: /^Switch workspace/ }))
       await user.keyboard('acme')
-      await screen.findByRole('dialog', { name: 'Switch tenant' })
+      await screen.findByRole('dialog', { name: 'Switch workspace' })
 
       await settle(300, 'absence has no event: the removed search was debounced 250 ms')
       expect(platformCalls).toBe(0)
       expect(screen.queryByRole('group', { name: 'All tenants' })).not.toBeInTheDocument()
-      expect(screen.getByLabelText('Search tenants')).toHaveAttribute(
+      expect(screen.getByLabelText('Search workspaces')).toHaveAttribute(
         'placeholder',
-        'Search your tenants…'
+        'Search your workspaces…'
       )
     }
   )
@@ -435,13 +437,13 @@ describe('TenantSwitcher', () => {
     const router = renderShell()
     const user = await openSwitcher()
 
-    await user.click(screen.getByRole('link', { name: 'Create a tenant' }))
+    await user.click(screen.getByRole('link', { name: 'Create a workspace' }))
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/tenants')
     })
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Switch tenant' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: 'Switch workspace' })).not.toBeInTheDocument()
     })
   })
 
@@ -465,9 +467,9 @@ describe('TenantSwitcher', () => {
     const user = await openSwitcher()
     await screen.findByRole('option', { name: 'Acme Corp' })
 
-    await user.click(screen.getByLabelText('Search tenants'))
+    await user.click(screen.getByLabelText('Search workspaces'))
     await user.tab()
-    expect(screen.getByRole('link', { name: 'Create a tenant' })).toHaveFocus()
+    expect(screen.getByRole('link', { name: 'Create a workspace' })).toHaveFocus()
     await user.keyboard('{Enter}')
 
     await waitFor(() => {
@@ -479,7 +481,7 @@ describe('TenantSwitcher', () => {
   it('draws one selector icon in the trigger, beside the tenant mark', async () => {
     renderShell()
 
-    const trigger = await screen.findByRole('combobox', { name: /^Switch tenant/ })
+    const trigger = await screen.findByRole('combobox', { name: /^Switch workspace/ })
     expect(trigger.querySelectorAll('svg')).toHaveLength(2)
   })
 
@@ -487,9 +489,9 @@ describe('TenantSwitcher', () => {
     renderShell()
 
     const trigger = await screen.findByRole('combobox', {
-      name: 'Switch tenant. Current: Choose a tenant',
+      name: 'Switch workspace. Current: Choose a workspace',
     })
-    expect(trigger).toHaveTextContent(/^Choose a tenant$/)
+    expect(trigger).toHaveTextContent(/^Choose a workspace$/)
   })
 
   it('captions an open tenant as Tenant', async () => {
@@ -511,9 +513,9 @@ describe('TenantSwitcher', () => {
     renderShell('/tenants/acme')
 
     const trigger = await screen.findByRole('combobox', {
-      name: 'Switch tenant. Current: Acme Corp',
+      name: 'Switch workspace. Current: Acme Corp',
     })
-    expect(trigger).toHaveTextContent(/^Acme CorpTenant$/)
+    expect(trigger).toHaveTextContent(/^Acme CorpWorkspace$/)
   })
 
   // Staff have no list row for a tenant reached by platform access, so the label comes from the tenant the route already loaded.
@@ -529,7 +531,7 @@ describe('TenantSwitcher', () => {
     renderShell('/tenants/globex')
 
     expect(
-      await screen.findByRole('combobox', { name: 'Switch tenant. Current: Globex' })
+      await screen.findByRole('combobox', { name: 'Switch workspace. Current: Globex' })
     ).toBeInTheDocument()
   })
 })

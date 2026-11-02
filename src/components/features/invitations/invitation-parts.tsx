@@ -119,7 +119,7 @@ export function ConfirmLinkIncomplete() {
   return (
     <InvitationCard
       title="This link is incomplete"
-      description="Part of this link is missing. Open the most recent email from us and select its link."
+      description="Part of this link is missing. Open the latest email from us and select its link."
     >
       <HomeLink />
     </InvitationCard>

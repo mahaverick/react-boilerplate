@@ -178,9 +178,11 @@ describe('/pricing', () => {
     renderAppAt('/pricing')
 
     const paid = await column('Paid')
-    expect(paid.getByText('Includes 18% GST')).toBeInTheDocument()
+    expect(paid.getByText('Includes 18% Goods and Services Tax (GST)')).toBeInTheDocument()
     expect(screen.getByText('Do prices include tax?')).toBeInTheDocument()
-    expect(screen.getByText('Yes. Prices include 18% GST.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Yes. Prices include 18% Goods and Services Tax (GST).')
+    ).toBeInTheDocument()
   })
 
   it('leaves out GST when not registered', async () => {
@@ -189,7 +191,7 @@ describe('/pricing', () => {
 
     await screen.findByRole('heading', { level: 1, name: 'Plans' })
     await column('Paid')
-    expect(screen.queryByText('Includes 18% GST')).not.toBeInTheDocument()
+    expect(screen.queryByText('Includes 18% Goods and Services Tax (GST)')).not.toBeInTheDocument()
     expect(screen.queryByText('Do prices include tax?')).not.toBeInTheDocument()
   })
 
@@ -201,7 +203,7 @@ describe('/pricing', () => {
     expect(screen.getByText('What happens when my trial ends?')).toBeInTheDocument()
     expect(
       screen.getByText(
-        'You move to Free. Nothing is deleted. Members and data stay; you can’t add more than Free allows.'
+        'You move to Free. Nothing is deleted. Members and data stay. Free allows 3 members; you can’t add more than that.'
       )
     ).toBeInTheDocument()
     expect(screen.getByText('Can I cancel any time?')).toBeInTheDocument()
@@ -212,7 +214,9 @@ describe('/pricing', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('How can I pay?')).toBeInTheDocument()
     expect(
-      screen.getByText('Cards and UPI, through Razorpay. Yearly plans are charged once a year.')
+      screen.getByText(
+        'Cards and Unified Payments Interface (UPI), through Razorpay. Yearly plans are charged once a year.'
+      )
     ).toBeInTheDocument()
   })
 
@@ -297,7 +301,11 @@ describe('/pricing', () => {
       plansWith({ paymentsEnabled: false })
       renderAppAt('/pricing?tenant=acme')
 
-      expect(await screen.findByText('Payments aren’t set up yet.')).toBeInTheDocument()
+      expect(
+        await screen.findByText(
+          'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+        )
+      ).toBeInTheDocument()
       expect(screen.queryByRole('link', { name: 'Upgrade' })).not.toBeInTheDocument()
     })
 
@@ -328,7 +336,9 @@ describe('/pricing', () => {
     server.use(http.get('/api/v1/plans', () => fail('Server error', 500)))
     renderAppAt('/pricing')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Plans didn’t load. Try again.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Plans didn’t load. Select Try again.'
+    )
     expect(screen.getByRole('heading', { level: 1, name: 'Plans' })).toBeInTheDocument()
   })
 })

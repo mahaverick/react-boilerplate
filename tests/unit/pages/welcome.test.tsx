@@ -112,7 +112,7 @@ describe('/welcome', () => {
       'Create your workspace'
     )
     await user.type(screen.getByLabelText('Name'), '  New Co  ')
-    await user.type(screen.getByLabelText('Slug'), 'new-co')
+    await user.type(screen.getByLabelText('Web address'), 'new-co')
     await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
     await screen.findByRole('heading', { name: 'New Co', level: 1 })
@@ -144,7 +144,7 @@ describe('/welcome', () => {
       'Create your workspace'
     )
     await user.type(screen.getByLabelText('Name'), '  New Co  ')
-    await user.type(screen.getByLabelText('Slug'), 'new-co')
+    await user.type(screen.getByLabelText('Web address'), 'new-co')
     await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
     await screen.findByRole('heading', { name: 'New Co', level: 1 })
@@ -178,7 +178,7 @@ describe('/welcome', () => {
       'Create your workspace'
     )
     await user.type(screen.getByLabelText('Name'), 'New Co')
-    await user.type(screen.getByLabelText('Slug'), 'new-co')
+    await user.type(screen.getByLabelText('Web address'), 'new-co')
     await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
     // The barrier: the landing waits on the flags, and the refetched list, holding the tenant, has been read.
@@ -220,7 +220,7 @@ describe('/welcome', () => {
 
     await waitFor(() => expect(queryClient.getQueryState(tenantKeys.list)?.status).toBe('error'))
     await user.type(await screen.findByLabelText('Name'), 'New Co')
-    await user.type(screen.getByLabelText('Slug'), 'new-co')
+    await user.type(screen.getByLabelText('Web address'), 'new-co')
     await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
     // The barrier: the landing waits on the flags, and the refetched list, holding the tenant, is in the cache.
@@ -306,7 +306,7 @@ describe('/welcome', () => {
     const observer = new MutationObserver(() => labels.push(button.textContent))
     observer.observe(button, { childList: true, subtree: true, characterData: true })
 
-    await user.type(screen.getByLabelText('Slug'), 'acme')
+    await user.type(screen.getByLabelText('Web address'), 'acme')
     await user.click(button)
     expect(await screen.findByText('Name is required.')).toBeInTheDocument()
     observer.disconnect()
@@ -366,9 +366,11 @@ describe('/welcome', () => {
     const user = userEvent.setup()
     renderAppAt('/welcome')
 
-    const slug = await screen.findByLabelText('Slug')
+    const slug = await screen.findByLabelText('Web address')
     await user.type(slug, 'MyOrg')
-    expect(await screen.findByText(/must be lowercase letters/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/use lowercase letters, digits and hyphens/i)
+    ).toBeInTheDocument()
 
     await user.clear(slug)
     await user.type(slug, 'new-co')

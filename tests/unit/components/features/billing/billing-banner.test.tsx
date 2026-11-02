@@ -220,7 +220,11 @@ describe('BillingBanner, owner actions', () => {
   it('replaces “Update card” with a line when payments are off', async () => {
     renderBanner(serve({ ...PAST_DUE, paymentsEnabled: false }))
 
-    expect(await screen.findByText('Payments aren’t set up yet.')).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+      )
+    ).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
     expect(
       screen.queryByText(
@@ -239,7 +243,11 @@ describe('BillingBanner, owner actions', () => {
       })
     )
 
-    expect(await screen.findByText('Payments aren’t set up yet.')).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+      )
+    ).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
   })
 

@@ -1,10 +1,11 @@
 import type { DataTableFilter } from '@/components/shared/data-table/data-table-model'
+import { APP_NAME } from '@/constants/app'
 import { AUDIT_ACTION_LABELS, AUDIT_ACTIONS } from '@/constants/audit-actions'
 import type { AuditTargetType, KnownAuditTargetType } from '@/types/api.types'
 
 /** What an entry acted on, in a word. */
 export const AUDIT_TARGET_LABELS: Record<KnownAuditTargetType, string> = {
-  tenant: 'Tenant',
+  tenant: 'Workspace',
   membership: 'Membership',
   invitation: 'Invitation',
   settings: 'Settings',
@@ -43,7 +44,7 @@ export const ACCESS_FILTER: DataTableFilter = {
   name: 'access',
   label: 'Access',
   options: [
-    { value: 'platform', label: 'Staff' },
+    { value: 'platform', label: `Staff (${APP_NAME} support)` },
     { value: 'member', label: 'Member' },
     { value: 'system', label: 'System' },
   ],

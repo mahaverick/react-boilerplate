@@ -89,7 +89,7 @@ function useBreadcrumbs(): Crumb[] {
  * route tree: `/tenants` and `/tenants/$slug` are siblings, so without this
  * the trail would jump straight to `acme / Overview`.
  */
-const ANCESTOR_CRUMBS = [{ to: ROUTES.tenants, label: 'Tenants' }] as const
+const ANCESTOR_CRUMBS = [{ to: ROUTES.tenants, label: 'Workspaces' }] as const
 
 /**
  * Insert each missing ancestor immediately before the first crumb under it.

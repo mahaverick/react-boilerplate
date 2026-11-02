@@ -77,7 +77,7 @@ function ConfirmPage() {
     return (
       <ConfirmCard
         title="This link is incomplete"
-        description="Open the most recent confirmation email and use its link."
+        description="Open the latest confirmation email and use its link."
       />
     )
   }
@@ -214,7 +214,7 @@ function LinkConfirm({ token }: { token: string }) {
       )
     }
     return (
-      <ConfirmCard title="We couldn’t confirm it’s you">
+      <ConfirmCard title="Confirmation didn’t go through">
         <VerifyFailedPanel
           message={actionMessageFrom(outcome.error)}
           retrying={confirm.isPending}

@@ -89,11 +89,11 @@ export function CommandPalette() {
       ? [
           {
             id: 'copy-tenant-id',
-            label: 'Copy tenant ID',
+            label: 'Copy workspace ID (for support)',
             icon: IconCopy,
             action: ACTIONS.copy,
             timing: 'immediate',
-            run: () => copyId(currentTenant.tenant.id, 'Tenant ID copied.'),
+            run: () => copyId(currentTenant.tenant.id, 'Workspace ID copied.'),
           },
         ]
       : []
@@ -179,7 +179,7 @@ export function CommandPalette() {
 
   const groups: PaletteGroup[] = [
     { id: 'navigate', commands: [...goTo, ...sections] },
-    { id: 'tenants', label: 'Switch tenant', commands: switchable },
+    { id: 'tenants', label: 'Switch workspace', commands: switchable },
     {
       id: 'theme',
       commands: THEMES.map(({ value, label, icon }) => ({
@@ -198,9 +198,9 @@ export function CommandPalette() {
       commands: [
         {
           id: 'create-tenant',
-          label: 'Create a tenant',
+          label: 'Create a workspace',
           icon: IconPlus,
-          keywords: ['new tenant', 'add tenant'],
+          keywords: ['new workspace', 'add workspace'],
           action: ACTIONS.create,
           timing: 'afterClose',
           run: () => void navigate({ to: ROUTES.tenants, hash: 'create' }),
@@ -223,9 +223,9 @@ export function CommandPalette() {
     <CommandPaletteShell
       groups={groups}
       recentToCommand={recentToCommand}
-      inputLabel="Search pages, tenants and actions"
-      placeholder="Search pages, tenants and actions…"
-      description="Go to a page, switch tenant or run an action."
+      inputLabel="Search pages, workspaces and actions"
+      placeholder="Search pages, workspaces and actions…"
+      description="Go to a page, switch workspace or run an action."
     />
   )
 }

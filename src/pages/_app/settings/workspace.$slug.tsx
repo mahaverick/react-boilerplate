@@ -19,7 +19,7 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug')({
     handler: ({ context, params, preload }) =>
       startTenantRoute({ queryClient: context.queryClient, slug: params.slug, preload }),
   },
-  staticData: { crumb: (params) => params.slug ?? 'Tenant', crumbLink: false },
+  staticData: { crumb: (params) => params.slug ?? 'Workspace', crumbLink: false },
   component: WorkspaceSettingsLayout,
   pendingComponent: SettingsPagePending,
 })

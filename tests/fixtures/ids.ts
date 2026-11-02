@@ -13,7 +13,7 @@ export const TENANT_ID = '10000000-0000-4000-8000-000000000001'
 /** The second tenant ('Beta Inc', 'Globex') in the tenant switcher tests. */
 export const TENANT_ID_2 = '10000000-0000-4000-8000-000000000002'
 /**
- * The extra tenant ('Umbrella') that the switcher's "Your tenants" filter test lists beside Acme.
+ * The extra tenant ('Umbrella') that the switcher's "Your workspaces" filter test lists beside Acme.
  */
 export const TENANT_ID_9 = '10000000-0000-4000-8000-000000000009'
 /**

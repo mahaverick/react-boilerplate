@@ -100,7 +100,9 @@ function LoginPage() {
       footer={<TermsNote />}
     >
       {notice && sentTo === null && (
-        <Note tone="passive">Sign in with an email link or Google. Passwords no longer work.</Note>
+        <Note tone="passive">
+          Sign in with an email link or Google. This app doesn’t use passwords.
+        </Note>
       )}
       <FieldGroup className="gap-6">
         <SignInLinkForm

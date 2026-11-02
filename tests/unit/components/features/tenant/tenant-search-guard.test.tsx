@@ -125,7 +125,7 @@ describe('TenantSearchGuard', () => {
     renderAt('/tenants')
 
     // The shell first: a flags read past defaultPendingMs shows its list template before this one.
-    expect(await screen.findByRole('navigation', { name: 'Tenant' })).toBeInTheDocument()
+    expect(await screen.findByRole('navigation', { name: 'Workspace' })).toBeInTheDocument()
     const status = await screen.findByRole('status', { name: 'Loading' })
     expect(status).toHaveAttribute('data-variant', 'list')
     expect(status).toHaveAttribute('data-nested', 'false')
@@ -145,7 +145,7 @@ describe('TenantSearchGuard', () => {
     const { router } = renderAt('/dashboard')
 
     // The shell first: a flags read past defaultPendingMs shows its list template before this one.
-    expect(await screen.findByRole('navigation', { name: 'Tenant' })).toBeInTheDocument()
+    expect(await screen.findByRole('navigation', { name: 'Workspace' })).toBeInTheDocument()
     expect(await screen.findByRole('status', { name: 'Loading' })).toHaveAttribute(
       'data-variant',
       'dashboard'
@@ -171,7 +171,7 @@ describe('TenantSearchGuard', () => {
     const { router } = renderAt('/dashboard?tenant=acme')
     await expectHref(router, '/dashboard')
     expect(
-      await screen.findByRole('combobox', { name: 'Switch tenant. Current: Choose a tenant' })
+      await screen.findByRole('combobox', { name: 'Switch workspace. Current: Choose a workspace' })
     ).toBeVisible()
   })
 

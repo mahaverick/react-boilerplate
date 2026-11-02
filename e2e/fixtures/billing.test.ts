@@ -104,6 +104,8 @@ test('an owner on Free upgrades through Checkout and reads the new state line', 
 })
 
 test('an owner cancels Paid and keeps it to the period’s end', async ({ page }) => {
+  // The fixture's period ends at 10:00 UTC on 2 November 2026; after that the line reads "Period ended".
+  await page.clock.setFixedTime(new Date('2026-10-20T10:00:00.000Z'))
   await page.goto(harness(BILLING, '&billing=active'))
   await expect(stateLine(page)).toHaveText('Paid · ₹999 per month · Renews 2 November 2026')
 
@@ -154,7 +156,7 @@ test('cancelling before the first charge goes back to the trial with no period e
 
 test('past due, Billing’s one Update card opens Checkout as a card change', async ({ page }) => {
   await page.goto(harness(BILLING, '&billing=past_due&razorpay=fake'))
-  await expect(stateLine(page)).toHaveText('Paid · Payment failed on 20 October 2026')
+  await expect(stateLine(page)).toHaveText('Paid plan · Payment failed on 20 October 2026')
   // Billing keeps the banner's sentence, with its grace deadline, but not its card button.
   await expect(
     page.getByText(
@@ -204,12 +206,22 @@ test('with payments off, Billing and Pricing say so instead of offering to pay',
 }) => {
   await page.goto(harness(BILLING, '&billing=payments_off'))
   await expect(stateLine(page)).toContainText('Paid trial · Ends')
-  await expect(page.getByText('Payments aren’t set up yet.', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText(
+      'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.',
+      { exact: true }
+    )
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: 'Upgrade to Paid' })).toHaveCount(0)
 
   await page.goto(harness('/pricing?tenant=acme', '&billing=payments_off'))
   await expect(page.getByRole('heading', { level: 1, name: 'Plans' })).toBeVisible()
-  await expect(page.getByText('Payments aren’t set up yet.', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText(
+      'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.',
+      { exact: true }
+    )
+  ).toBeVisible()
   await expect(page.getByRole('link', { name: 'Upgrade', exact: true })).toHaveCount(0)
 })
 
@@ -343,7 +355,7 @@ test.describe('tax documents', () => {
         'Tax invoice held. We issue invoices for Special Economic Zone units by hand.'
       )
     ).toBeVisible()
-    await expect(invoices.getByText('Tax invoice on its way', { exact: true })).toBeVisible()
+    await expect(invoices.getByText('Tax invoice not issued yet', { exact: true })).toBeVisible()
 
     expect(
       await downloadedName(
@@ -436,7 +448,7 @@ test.describe('tax documents', () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto(harness(BILLING, '&billing=active&tax=on'))
     const invoices = invoicesTable(page)
-    await expect(invoices.getByText('Tax invoice on its way', { exact: true })).toBeVisible()
+    await expect(invoices.getByText('Tax invoice not issued yet', { exact: true })).toBeVisible()
     await expect(documentsTable(page)).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 

@@ -31,7 +31,9 @@ export function TaxDocumentLinks({ slug, invoice }: { slug: string; invoice: Inv
         </p>
       )}
       {invoice.taxStatus === 'pending' && (
-        <p className="text-sm whitespace-normal text-muted-foreground">Tax invoice on its way</p>
+        <p className="text-sm whitespace-normal text-muted-foreground">
+          Tax invoice not issued yet
+        </p>
       )}
     </div>
   )

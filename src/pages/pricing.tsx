@@ -117,7 +117,7 @@ function PricingPage() {
             <div className="flex justify-center">
               <PricingAction plans={data} signedIn={signedIn} />
             </div>
-            <PricingFaq gstRegistered={data.gstRegistered} />
+            <PricingFaq plans={data} />
           </>
         )}
       </QueryState>

@@ -1,7 +1,8 @@
 import '@/lib/zod-jitless'
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod'
-import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
+import { LoadError } from '@/components/features/load-error'
+import { ROLE_ERROR } from '@/components/features/tenant/role-error'
 import { BusyButton } from '@/components/shared/busy-button'
 import { QueryState } from '@/components/shared/query-state'
 import { FormFieldsSkeleton } from '@/components/shared/section-skeleton'
@@ -33,7 +34,7 @@ import { MAX_TENANT_METADATA_LENGTH, tenantSettingsFormSchema } from '@/schemas/
  * tenant and would never re-issue the settings request.
  */
 const SETTINGS_ERROR =
-  'We couldn’t load this tenant’s settings, so none are shown. Try again to load them.'
+  'We couldn’t load this workspace’s settings, so none are shown. Select Try again to load them.'
 
 /** `metadata` as a textarea holds it: pretty JSON, or empty for none. */
 function metadataText(metadata: Record<string, unknown> | null): string {
@@ -88,7 +89,7 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
       <FormField form={form} name="timezone">
         {(field) => (
           <FormItem>
-            <FormLabel>Timezone</FormLabel>
+            <FormLabel>Time zone</FormLabel>
             <FormControl>
               <Input
                 value={fieldValue(field.state.value)}
@@ -105,7 +106,7 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
       <FormField form={form} name="locale">
         {(field) => (
           <FormItem>
-            <FormLabel>Locale</FormLabel>
+            <FormLabel>Language and region</FormLabel>
             <FormControl>
               <Input
                 value={fieldValue(field.state.value)}
@@ -113,7 +114,10 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
                 onChange={(e) => field.handleChange(e.target.value)}
               />
             </FormControl>
-            <FormDescription>A tag such as en or en-GB. At most 10 characters.</FormDescription>
+            <FormDescription>
+              A language code, such as en, or language and region, such as en-IN. Up to 10
+              characters.
+            </FormDescription>
             <FormMessage />
           </FormItem>
         )}
@@ -122,7 +126,7 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
       <FormField form={form} name="metadata">
         {(field) => (
           <FormItem>
-            <FormLabel>Metadata</FormLabel>
+            <FormLabel>Custom data (for developers)</FormLabel>
             <FormControl>
               <Textarea
                 className="font-mono"
@@ -134,8 +138,8 @@ function SettingsForm({ slug, settings }: { slug: string; settings: TenantSettin
             </FormControl>
             <FormDescription>
               A JSON (JavaScript Object Notation) object of at most{' '}
-              {MAX_TENANT_METADATA_LENGTH.toLocaleString('en-US')} characters. Leave it empty to
-              clear it.
+              {MAX_TENANT_METADATA_LENGTH.toLocaleString('en-US')} characters. Leave empty unless
+              your integration reads it.
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -156,15 +160,15 @@ function SettingsDetails({ settings }: { settings: TenantSettings }) {
   return (
     <dl className="grid gap-4">
       <div className="grid gap-1">
-        <dt className="text-sm text-muted-foreground">Timezone</dt>
+        <dt className="text-sm text-muted-foreground">Time zone</dt>
         <dd>{settings.timezone}</dd>
       </div>
       <div className="grid gap-1">
-        <dt className="text-sm text-muted-foreground">Locale</dt>
+        <dt className="text-sm text-muted-foreground">Language and region</dt>
         <dd>{settings.locale}</dd>
       </div>
       <div className="grid gap-1">
-        <dt className="text-sm text-muted-foreground">Metadata</dt>
+        <dt className="text-sm text-muted-foreground">Custom data (for developers)</dt>
         <dd>
           {settings.metadata === null ? (
             '—'
@@ -197,8 +201,8 @@ export function TenantSettingsCard({ slug }: { slug: string }) {
         </CardTitle>
         <CardDescription>
           {role && canManageTenant(role)
-            ? 'Timezone, locale and free-form metadata for this tenant.'
-            : 'These settings are managed by the tenant’s owners and admins.'}
+            ? 'This workspace’s time zone, language and region, and custom data for developers.'
+            : 'Only this workspace’s owners and admins can change these settings.'}
         </CardDescription>
       </CardHeader>
       <CardContent>

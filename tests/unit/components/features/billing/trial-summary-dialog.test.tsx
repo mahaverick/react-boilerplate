@@ -184,7 +184,7 @@ describe('TrialSummaryDialog', () => {
     )
     renderSummary()
 
-    const { dialog, user } = await open('What changes didn’t load. Try again.')
+    const { dialog, user } = await open('What changes didn’t load. Select Try again.')
     server.use(
       http.get('/api/v1/tenants/acme/entitlements', () =>
         ok(AFTER_TRIAL, 'Entitlements retrieved.')

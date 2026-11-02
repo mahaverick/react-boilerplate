@@ -235,7 +235,7 @@ function SignInLinkPage() {
   if (failure) {
     if (statusFrom(failure.error) === 400) return <DeadLink email={email} redirect={redirect} />
     return (
-      <LinkCard title="We couldn’t sign you in">
+      <LinkCard title="Sign-in didn’t finish">
         <VerifyFailedPanel
           message={
             codeFrom(failure.error) === READ_ONLY_MODE

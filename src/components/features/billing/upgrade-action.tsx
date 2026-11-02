@@ -176,5 +176,5 @@ async function alreadyAskedMessage(
   result: UpgradeRequestResult
 ): Promise<string> {
   const timeZone = await billingTimeZone(queryClient, slug)
-  return `You already asked on ${formatBillingDate(result.createdAt, timeZone)}. Owners were told.`
+  return `You already asked on ${formatBillingDate(result.createdAt, timeZone)}. We notified this workspace’s owners.`
 }

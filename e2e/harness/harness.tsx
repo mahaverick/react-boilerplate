@@ -361,7 +361,7 @@ const state = new URLSearchParams(location.search).get('state') ?? 'loaded'
 const asStaff = new URLSearchParams(location.search).get('access') === 'platform'
 if (asStaff) testUser.platformRole = 'viewer'
 const suspended = state === 'suspended'
-/** `?tenants=many` lists Beta Inc and the suspended Gamma Ltd beside Acme, for the palette's Switch tenant. */
+/** `?tenants=many` lists Beta Inc and the suspended Gamma Ltd beside Acme, for the palette's Switch workspace. */
 const manyTenants = new URLSearchParams(location.search).get('tenants') === 'many'
 /**
  * Whether the harness user belongs to Acme yet. `?tenants=none`, and a new
@@ -1211,7 +1211,7 @@ const worker = setupWorker(
     hasTenant = true
     return ok(TENANT, 'Tenant created.', 201)
   }),
-  http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.')),
+  http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the workspace.')),
   // The members page lists pending invitations for an owner; unmocked, this 401s and signs the harness user out.
   http.get('/api/v1/tenants/acme/invitations', () =>
     ok(listPage(INVITATIONS), 'Invitations retrieved.')

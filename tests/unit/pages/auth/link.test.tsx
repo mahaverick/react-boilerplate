@@ -529,7 +529,7 @@ describe('/auth/link, signed out', () => {
     const router = renderAt(LINK_PATH)
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'We couldn’t sign you in' })
+      await screen.findByRole('heading', { level: 1, name: 'Sign-in didn’t finish' })
     ).toBeVisible()
     expect(screen.queryByText(LINK_DEAD_TITLE)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Email me a new link' })).not.toBeInTheDocument()

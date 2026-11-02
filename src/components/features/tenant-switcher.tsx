@@ -61,8 +61,8 @@ function ownTenantsMessage({
   isPending: boolean
   isEmpty: boolean
 }): string | null {
-  if (!hasData) return isPending ? 'Loading tenants…' : 'Tenants didn’t load'
-  return isEmpty ? 'No tenants yet' : null
+  if (!hasData) return isPending ? 'Loading workspaces…' : 'Workspaces didn’t load'
+  return isEmpty ? 'No workspaces yet' : null
 }
 
 /**
@@ -108,16 +108,16 @@ export function TenantSwitcher() {
     }))
   const ownMatches = own.filter((option) => matches(option, query))
   const groups: OptionGroup[] =
-    ownMatches.length > 0 ? [{ label: 'Your tenants', items: ownMatches }] : []
+    ownMatches.length > 0 ? [{ label: 'Your workspaces', items: ownMatches }] : []
 
   const openName = own.find((option) => option.slug === currentSlug)?.name ?? current.data?.name
   const label =
     openName ??
     (tenants.data !== undefined
-      ? 'Choose a tenant'
+      ? 'Choose a workspace'
       : tenants.isError
-        ? 'Tenants didn’t load'
-        : 'Loading tenants…')
+        ? 'Workspaces didn’t load'
+        : 'Loading workspaces…')
   const ownMessage = ownTenantsMessage({
     hasData: tenants.data !== undefined,
     isPending: tenants.isPending,
@@ -126,7 +126,7 @@ export function TenantSwitcher() {
   const noMatches = query.trim() !== '' && !tenants.isPending && ownMessage === null
 
   return (
-    <nav aria-label="Tenant">
+    <nav aria-label="Workspace">
       <SidebarMenu>
         <SidebarMenuItem>
           <Combobox<TenantOption>
@@ -155,7 +155,7 @@ export function TenantSwitcher() {
                 <SidebarMenuButton
                   size="lg"
                   className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
-                  aria-label={`Switch tenant. Current: ${label}`}
+                  aria-label={`Switch workspace. Current: ${label}`}
                 />
               }
             >
@@ -165,13 +165,13 @@ export function TenantSwitcher() {
               <span className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{label}</span>
                 {openName !== undefined && (
-                  <span className="truncate text-xs text-muted-foreground">Tenant</span>
+                  <span className="truncate text-xs text-muted-foreground">Workspace</span>
                 )}
               </span>
               <IconSelector aria-hidden="true" className="ml-auto size-4" />
             </ComboboxPrimitive.Trigger>
             <ComboboxContent
-              aria-label="Switch tenant"
+              aria-label="Switch workspace"
               side={isMobile ? 'bottom' : 'right'}
               align="start"
               sideOffset={4}
@@ -179,8 +179,8 @@ export function TenantSwitcher() {
             >
               <ComboboxInput
                 showTrigger={false}
-                aria-label="Search tenants"
-                placeholder="Search your tenants…"
+                aria-label="Search workspaces"
+                placeholder="Search your workspaces…"
               />
               {ownMessage && (
                 <p className="px-2 py-1.5 text-sm text-muted-foreground">{ownMessage}</p>
@@ -192,7 +192,7 @@ export function TenantSwitcher() {
                   </Button>
                 </div>
               )}
-              <ComboboxEmpty>{noMatches ? 'No tenants match your search' : null}</ComboboxEmpty>
+              <ComboboxEmpty>{noMatches ? 'No workspaces match your search' : null}</ComboboxEmpty>
               <ComboboxList>
                 {(group: OptionGroup) => (
                   <ComboboxGroup key={group.label} items={group.items}>
@@ -226,7 +226,7 @@ export function TenantSwitcher() {
                   <span className="flex size-6 items-center justify-center rounded-md border">
                     <IconPlus aria-hidden="true" className="size-4" />
                   </span>
-                  Create a tenant
+                  Create a workspace
                 </Link>
               </div>
             </ComboboxContent>

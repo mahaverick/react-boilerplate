@@ -125,7 +125,7 @@ describe('inviteMemberSchema', () => {
     })
     expect(result.success).toBe(false)
     expect(result.error?.issues.map((issue) => issue.message)).toContain(
-      'Email must have a valid domain.'
+      'Enter an email address with a full domain, such as ada@example.com.'
     )
   })
 
@@ -201,10 +201,13 @@ describe('tenant text fields: the API safeText rule', () => {
       website: 'https://acme.example/\u{2066}',
     })
     expect(issuesOf(result)).toEqual([
-      ['name', 'Name contains characters that are not allowed'],
-      ['description', 'Description contains characters that are not allowed'],
-      ['logo', 'Logo contains characters that are not allowed'],
-      ['website', 'Website contains characters that are not allowed'],
+      ['name', 'Name has a line break, tab or hidden character. Remove it.'],
+      [
+        'description',
+        'Description has a hidden character. Remove it. Line breaks and tabs are allowed.',
+      ],
+      ['logo', 'Logo has a line break, tab or hidden character. Remove it.'],
+      ['website', 'Website has a line break, tab or hidden character. Remove it.'],
     ])
   })
 
@@ -230,8 +233,8 @@ describe('tenant text fields: the API safeText rule', () => {
       website: 'https://acme.example/\u{202A}',
     })
     expect(issuesOf(result)).toEqual([
-      ['name', 'Name contains characters that are not allowed'],
-      ['website', 'Website contains characters that are not allowed'],
+      ['name', 'Name has a line break, tab or hidden character. Remove it.'],
+      ['website', 'Website has a line break, tab or hidden character. Remove it.'],
     ])
   })
 })
@@ -247,9 +250,17 @@ describe('tenant settings: timezone and locale', () => {
   }
 
   it.each([
-    ['timezone', 'Etc/\u{202E}gnp', 'Timezone contains characters that are not allowed'],
-    ['timezone', 'UTC\nX', 'Timezone contains characters that are not allowed'],
-    ['locale', 'en\u{7}', 'Locale contains characters that are not allowed'],
+    [
+      'timezone',
+      'Etc/\u{202E}gnp',
+      'Time zone has a line break, tab or hidden character. Remove it.',
+    ],
+    ['timezone', 'UTC\nX', 'Time zone has a line break, tab or hidden character. Remove it.'],
+    [
+      'locale',
+      'en\u{7}',
+      'Language and region has a line break, tab or hidden character. Remove it.',
+    ],
   ])('refuses a control or bidi character in %s', (field, value, message) => {
     for (const messages of messagesFor(field as 'timezone' | 'locale', value)) {
       expect(messages?.[0]).toBe(message)
@@ -257,13 +268,25 @@ describe('tenant settings: timezone and locale', () => {
   })
 
   it.each([
-    ['timezone', 'Not a zone', 'Timezone must be a time zone name such as Europe/Paris.'],
-    ['timezone', 'Mars/Olympus_Mons', 'Timezone must be a time zone name such as Europe/Paris.'],
-    ['timezone', '+05:30', 'Timezone must be a time zone name such as Europe/Paris.'],
-    ['locale', 'english', 'Locale must be a language tag such as en or en-US.'],
-    ['locale', 'en_GB', 'Locale must be a language tag such as en or en-US.'],
+    ['timezone', 'Not a zone', 'Time zone must be a time zone name such as Europe/Paris.'],
+    ['timezone', 'Mars/Olympus_Mons', 'Time zone must be a time zone name such as Europe/Paris.'],
+    ['timezone', '+05:30', 'Time zone must be a time zone name such as Europe/Paris.'],
+    [
+      'locale',
+      'english',
+      'Enter a language code such as en, or a language and region such as en-IN.',
+    ],
+    [
+      'locale',
+      'en_GB',
+      'Enter a language code such as en, or a language and region such as en-IN.',
+    ],
     // The tag's shape passes; Intl refuses the repeated region subtag.
-    ['locale', 'en-GB-GB', 'Locale must be a language tag such as en or en-US.'],
+    [
+      'locale',
+      'en-GB-GB',
+      'Enter a language code such as en, or a language and region such as en-IN.',
+    ],
   ])('refuses %s %j by its shape', (field, value, message) => {
     for (const messages of messagesFor(field as 'timezone' | 'locale', value)) {
       expect(messages).toEqual([message])
@@ -293,7 +316,7 @@ describe('tenant settings: metadata is bounded', () => {
   it('refuses metadata over 16 KB as JSON', () => {
     const big = JSON.stringify({ blob: 'x'.repeat(16_384) })
     expect(metadataTextSchema.safeParse(big).error?.issues[0]?.message).toBe(
-      'Metadata must be at most 16384 characters as JSON.'
+      'Custom data must be at most 16384 characters as JSON.'
     )
     expect(
       updateTenantSettingsSchema.safeParse({ metadata: { blob: 'x'.repeat(16_384) } }).success
@@ -311,7 +334,7 @@ describe('tenant settings: metadata is bounded', () => {
 
   it('refuses metadata nested more than 10 levels deep, and accepts 10', () => {
     expect(metadataTextSchema.safeParse(JSON.stringify(nested(11))).error?.issues[0]?.message).toBe(
-      'Metadata must be nested at most 10 levels deep.'
+      'Custom data must be nested at most 10 levels deep.'
     )
     expect(updateTenantSettingsSchema.safeParse({ metadata: nested(11) }).success).toBe(false)
     expect(metadataTextSchema.safeParse(JSON.stringify(nested(10))).success).toBe(true)
@@ -324,12 +347,12 @@ describe('tenant settings: metadata is bounded', () => {
       metadataTextSchema
         .safeParse(JSON.stringify(deepAndLarge))
         .error?.issues.map((issue) => issue.message)
-    ).toEqual(['Metadata must be nested at most 10 levels deep.'])
+    ).toEqual(['Custom data must be nested at most 10 levels deep.'])
   })
 
   it('refuses a NUL in a key or a string value', () => {
     expect(metadataTextSchema.safeParse('{"a\\u0000b":1}').error?.issues[0]?.message).toBe(
-      'Metadata contains characters that are not allowed'
+      'Custom data has a hidden character. Remove it. Line breaks and tabs are allowed.'
     )
     expect(updateTenantSettingsSchema.safeParse({ metadata: { a: 'x\u{0}' } }).success).toBe(false)
   })
@@ -403,7 +426,7 @@ describe('tenant logo and website: http or https URLs only', () => {
     for (const schema of [newTenantSchema, updateTenantSchema]) {
       const result = schema.safeParse({ ...base, website: 'javascript:\u{202E}' })
       expect(result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])).toEqual([
-        ['website', 'Website contains characters that are not allowed'],
+        ['website', 'Website has a line break, tab or hidden character. Remove it.'],
       ])
     }
   })

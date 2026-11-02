@@ -77,8 +77,12 @@ import { build } from 'vite'
  * code to the entry (78 B), and the tax cards, queries and types sit in the billing page's chunk.
  * 2026-11-02: 593,322 -> 593,328. The security section's step-up for revoking other sessions adds
  * two lazy chunks to its preload map in the entry (6 B); the step-up code itself stays lazy.
+ * 2026-11-02: 593,328 -> 593,466. The copy audit's customer wording ("workspace" for "tenant", the
+ * spelled-out safe-text and web-address messages, the time zone name on dates) is longer text in
+ * the entry's nav, switcher, gate and shared schema code (138 B). The zone format options sit in
+ * `format.ts`, so `relative-time.ts` stays in the lazy activity chunk.
  */
-const ENTRY_BUDGET_BYTES = 593_328
+const ENTRY_BUDGET_BYTES = 593_466
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

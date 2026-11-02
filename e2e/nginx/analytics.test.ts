@@ -477,7 +477,7 @@ test.describe('analytics against a fake PostHog', () => {
         .poll(() => tenantOf(pageviewsOf(fake, '/tenants/acme')[0]), poll)
         .toBe(STUB_TENANTS.acme.id)
 
-      await page.getByRole('combobox', { name: 'Switch tenant. Current: Acme Corp' }).click()
+      await page.getByRole('combobox', { name: 'Switch workspace. Current: Acme Corp' }).click()
       await page.getByRole('option', { name: /Globex Inc/ }).click()
       await expect(page.getByRole('heading', { name: 'Globex Inc', level: 1 })).toBeVisible()
       await expect.poll(() => pageviewsOf(fake, '/tenants/globex').length, poll).toBe(1)
@@ -700,7 +700,7 @@ test.describe('analytics end to end, through express', () => {
     await page.goto(`/settings/workspace/${slug}/activity`)
     await expect(page.getByRole('table', { name: 'Activity' })).toBeVisible()
     await page.getByRole('button', { name: 'Filter by access, Activity' }).click()
-    await page.getByRole('checkbox', { name: 'Staff' }).click()
+    await page.getByRole('checkbox', { name: 'Staff (React Boilerplate support)' }).click()
 
     // The control: the walk really was captured, replay included, and decoded.
     await replayContains(fake, 'Pending invitations')

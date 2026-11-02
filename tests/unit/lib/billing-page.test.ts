@@ -111,17 +111,17 @@ describe('billingStateLine', () => {
     [
       'past due',
       active({ state: 'past_due', pastDue: { since: PAST, graceEndsAt: null, paused: false } }),
-      'Paid · Payment failed on 20 October 2026',
+      'Paid plan · Payment failed on 20 October 2026',
     ],
     [
       'past due with no details',
       active({ state: 'past_due', pastDue: null }),
-      'Paid · Payment failed',
+      'Paid plan · Payment failed',
     ],
     [
       'paused',
       active({ state: 'past_due', pastDue: { since: PAST, graceEndsAt: null, paused: true } }),
-      'Paid · Payments paused on 20 October 2026',
+      'Paid plan · Payments paused on 20 October 2026',
     ],
     [
       'active before the first charge',

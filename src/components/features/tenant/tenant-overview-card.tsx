@@ -1,7 +1,8 @@
 import '@/lib/zod-jitless'
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod'
-import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
+import { LoadError } from '@/components/features/load-error'
+import { ROLE_ERROR } from '@/components/features/tenant/role-error'
 import { BusyButton } from '@/components/shared/busy-button'
 import { FormFieldsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -47,7 +48,7 @@ export function TenantDetails({ tenant }: { tenant: Tenant }) {
   return (
     <dl className="grid gap-4 sm:grid-cols-2">
       <DetailRow label="Name" value={tenant.name} />
-      <DetailRow label="Slug" value={tenant.slug} />
+      <DetailRow label="Web address" value={`/tenants/${tenant.slug}`} />
       <DetailRow label="Description" value={tenant.description} />
       <DetailRow label="Website" value={tenant.website} />
       <DetailRow label="Logo" value={tenant.logo} />
@@ -98,7 +99,7 @@ function EditTenantForm({ tenant }: { tenant: Tenant }) {
       try {
         await updateTenant.mutateAsync(body)
         rebase(value)
-        toast.success('Tenant updated.')
+        toast.success('Workspace updated.')
       } catch (error) {
         serverErrors.capture(error)
       }
@@ -200,8 +201,8 @@ export function TenantOverviewCard({ slug }: { slug: string }) {
         </CardTitle>
         <CardDescription>
           {role && canManageTenant(role)
-            ? 'Update this tenant. Its slug is fixed and cannot be changed.'
-            : 'These details are managed by the tenant’s owners and admins.'}
+            ? 'Update this workspace. Its web address is fixed and can’t be changed.'
+            : 'Only this workspace’s owners and admins can change these details.'}
         </CardDescription>
       </CardHeader>
       <CardContent>

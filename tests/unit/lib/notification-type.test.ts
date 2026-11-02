@@ -14,7 +14,7 @@ describe('humanizeNotificationType', () => {
   })
 
   it('falls back to the humanized type for any other type', () => {
-    expect(humanizeNotificationType('tenant_invitation')).toBe('Tenant invitation')
+    expect(humanizeNotificationType('tenant_invitation')).toBe('Workspace invitation')
     expect(humanizeNotificationType('something_new')).toBe('Something new')
   })
 })

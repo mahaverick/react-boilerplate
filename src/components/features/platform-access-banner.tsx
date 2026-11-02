@@ -19,7 +19,7 @@ export function PlatformAccessBanner({
     <Note tone="info" className="mb-6">
       You’re viewing <strong>{tenantName}</strong> as platform staff ({ROLE_LABELS[role]}).{' '}
       <Link to={ROUTES.tenants} className="font-medium underline underline-offset-4">
-        Back to your tenants
+        Back to your workspaces
       </Link>
     </Note>
   )

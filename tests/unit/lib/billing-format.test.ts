@@ -54,7 +54,7 @@ describe('formatBillingDate', () => {
 
 describe('invoiceStatusLabel', () => {
   it.each([
-    ['paid', 'Paid'],
+    ['paid', 'Payment received'],
     ['issued', 'Not paid'],
     ['expired', 'Expired'],
     ['cancelled', 'Cancelled'],

@@ -104,7 +104,7 @@ test('flag changes reach the tab, the page, the API and the exposure report', as
   await settle(3000, 'absence has no event: a second exposure batch would have been sent by now')
   expect(exposures).toHaveLength(1)
 
-  const tabs = page.getByRole('navigation', { name: 'Tenant sections' })
+  const tabs = page.getByRole('navigation', { name: 'Workspace sections' })
   await tabs.getByRole('link', { name: 'Beta' }).click()
   await expect(page.getByText(`Beta features are on for ${slug}.`)).toBeVisible()
   expect(betaReads).toEqual([200])
@@ -117,9 +117,11 @@ test('flag changes reach the tab, the page, the API and the exposure report', as
 
   // The tab list follows cached flags until they refetch, so reload before asserting it is gone.
   await page.goto(`/tenants/${slug}`)
-  await expect(page.getByRole('navigation', { name: 'Tenant sections' })).toContainText('Overview')
+  await expect(page.getByRole('navigation', { name: 'Workspace sections' })).toContainText(
+    'Overview'
+  )
   await expect(
-    page.getByRole('navigation', { name: 'Tenant sections' }).getByRole('link', { name: 'Beta' })
+    page.getByRole('navigation', { name: 'Workspace sections' }).getByRole('link', { name: 'Beta' })
   ).toHaveCount(0)
   await page.goto(`/tenants/${slug}/beta`)
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()

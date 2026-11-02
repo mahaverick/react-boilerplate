@@ -8,13 +8,27 @@ export function formatDate(iso: string, dateStyle: 'medium' | 'long'): string | 
   return new Intl.DateTimeFormat(undefined, { dateStyle }).format(date)
 }
 
-/** A date and time in the reader's own locale, or `null` when `iso` is not a date. */
+/**
+ * A date and time with the zone's short name. `dateStyle` and `timeStyle`
+ * cannot be combined with `timeZoneName`, so the parts are spelled out.
+ */
+export const DATE_TIME_WITH_ZONE: Intl.DateTimeFormatOptions = {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZoneName: 'short',
+}
+
+/**
+ * A date and time in the reader's own locale and time zone, with the zone's
+ * name ("2 Nov 2026, 3:42 pm IST"), or `null` when `iso` is not a date.
+ */
 export function formatDateTime(iso: string): string | null {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return null
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
-    date
-  )
+  return new Intl.DateTimeFormat(undefined, DATE_TIME_WITH_ZONE).format(date)
 }
 
 /** The name parts a person may have on file. */

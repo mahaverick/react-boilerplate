@@ -43,6 +43,18 @@ Staff who are members of the tenant (`access: 'member'`) keep their controls.
 tenant. The store is only the guard's fallback, so reading it shows a tenant
 the URL does not ([The current tenant in the URL](ARCHITECTURE.md#the-current-tenant-in-the-url)).
 
+## Copy
+
+- **Customers read "workspace", never "tenant", and "web address", never
+  "slug".** Routes (`/tenants/...`), identifiers, API fields and query keys keep
+  "tenant": only rendered text changes. Apex, the staff console, says "tenant",
+  so a shared file holds no copy with either word; react-only copy lives in
+  react-only files (`role-error.ts`, not the shared `load-error.tsx`).
+- `tests/unit/copy-style.test.ts`, byte for byte with apex, parses `src/` and
+  fails on a banned phrase or a sentence over 30 words. "couldn't" passes
+  only when another sentence follows it, the next step ("Select Try again to
+  load them."), as in express.
+
 ## Settings
 
 Settings pages are declared in `src/constants/settings.ts`; add a page there and

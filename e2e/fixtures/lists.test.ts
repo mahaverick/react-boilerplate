@@ -11,7 +11,7 @@ const COLD_TRANSFORM_BUDGET_MS = 20_000
 
 /** The lists, each by its harness path and the name its table or card list carries. */
 const LISTS = [
-  { path: '/tenants', name: 'Tenants' },
+  { path: '/tenants', name: 'Workspaces' },
   { path: '/settings/workspace/acme/members', name: 'Members' },
   { path: '/settings/workspace/acme/members', name: 'Pending invitations' },
   { path: '/settings/workspace/acme/activity', name: 'Activity' },

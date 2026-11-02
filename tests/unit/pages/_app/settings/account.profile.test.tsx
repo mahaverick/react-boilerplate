@@ -51,7 +51,9 @@ describe('profile settings page', () => {
     useAuthStore.setState({ user: null })
     server.use(http.get('/api/v1/profile', () => fail('Something went wrong', 500)))
     renderProfile()
-    expect(await screen.findByRole('alert')).toHaveTextContent('Profile didn’t load. Try again.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Profile didn’t load. Select Try again.'
+    )
     expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible()
   })
 
@@ -59,7 +61,9 @@ describe('profile settings page', () => {
     queryClient.setQueryData(['profile'], { ...testUser }, { updatedAt: 0 })
     server.use(http.get('/api/v1/profile', () => fail('Something went wrong', 500)))
     renderProfile()
-    expect(await screen.findByRole('alert')).toHaveTextContent('Profile didn’t load. Try again.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Profile didn’t load. Select Try again.'
+    )
     expect(screen.getByLabelText('First name')).toBeVisible()
     expect(document.querySelector('[data-slot="query-state"]')).toHaveClass('gap-3')
   })
@@ -145,7 +149,7 @@ describe('profile settings page', () => {
       expect(body).toEqual({ lastName: 'Lovelace' })
     })
     expect(
-      screen.queryByText('This field contains characters that are not allowed')
+      screen.queryByText('This field has a line break, tab or hidden character. Remove it.')
     ).not.toBeInTheDocument()
     expect(first).toHaveAttribute('aria-invalid', 'false')
   })
@@ -199,7 +203,7 @@ describe('profile settings page', () => {
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(
-      await screen.findByText('This field contains characters that are not allowed')
+      await screen.findByText('This field has a line break, tab or hidden character. Remove it.')
     ).toBeInTheDocument()
     // The message is the barrier: a refused submit never reaches onSubmit.
     expect(called).toBe(false)

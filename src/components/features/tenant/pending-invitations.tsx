@@ -27,7 +27,7 @@ import { useFocusAfter } from '@/hooks/use-focus-after'
 import { useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { codeFrom, retryAfterSecondsFrom } from '@/lib/api-error'
 import { formatTimeLeft } from '@/lib/countdown'
-import { formatDate } from '@/lib/format'
+import { formatDate, formatDateTime } from '@/lib/format'
 import { isMembersLimitRefusal, NOT_SENT_AT_LIMIT } from '@/lib/members-limit'
 import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
@@ -68,9 +68,9 @@ function actionFailure(error: unknown): string {
   return codeFrom(error) === INVITATION_NOT_FOUND ? NO_LONGER_PENDING : writeFailureMessage(error)
 }
 
-/** The expiry date, in the reader's own locale. */
+/** The expiry's date, time and time zone, in the reader's own locale: an invitation can expire within a day. */
 function expiresOn(expiresAt: string): string {
-  return formatDate(expiresAt, 'medium') ?? 'an unknown date'
+  return formatDateTime(expiresAt) ?? 'an unknown date'
 }
 
 /**

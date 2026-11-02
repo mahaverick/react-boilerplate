@@ -75,11 +75,11 @@ export function MyTenantsTable({
     <DataTable
       columns={columns}
       query={query}
-      label="Tenants"
+      label="Workspaces"
       getRowId={(entry) => entry.tenant.id}
       empty={empty}
       errorMessage={errorMessage}
-      search={{ label: 'Search tenants', placeholder: 'Search by name' }}
+      search={{ label: 'Search workspaces', placeholder: 'Search by name' }}
       filters={[ROLE_FILTER]}
     />
   )

@@ -95,13 +95,13 @@ const RESERVED = new Set<string>(RESERVED_SLUGS)
 export const slugSchema = z
   .string()
   .trim()
-  .min(MIN_SLUG_LENGTH, `Slug must be at least ${MIN_SLUG_LENGTH} characters.`)
-  .max(MAX_SLUG_LENGTH, `Slug must be at most ${MAX_SLUG_LENGTH} characters.`)
+  .min(MIN_SLUG_LENGTH, `The web address must be at least ${MIN_SLUG_LENGTH} characters.`)
+  .max(MAX_SLUG_LENGTH, `The web address must be at most ${MAX_SLUG_LENGTH} characters.`)
   .regex(
     SLUG_PATTERN,
-    'Slug must be lowercase letters, numbers and hyphens, and cannot start or end with a hyphen.'
+    'Use lowercase letters, digits and hyphens in the web address, with no hyphen at the start or end.'
   )
-  .refine((slug) => !RESERVED.has(slug), 'This slug is reserved and cannot be used.')
+  .refine((slug) => !RESERVED.has(slug), 'This web address is reserved. Choose another one.')
 
 /**
  * Which of the API's checks a field gets: `safeText` on one line or several,
@@ -150,7 +150,7 @@ function boundedText(max: number, label: string, safe?: SafeTextMode) {
   const field = multiline ? z.string().overwrite(normalizeMultilineText) : z.string()
   const bounded = field.trim().max(max, `${label} must be at most ${max} characters.`)
   if (!safe) return bounded
-  const safeField = bounded.refine(safeText({ multiline }), notAllowedMessage(label))
+  const safeField = bounded.refine(safeText({ multiline }), notAllowedMessage(label, { multiline }))
   if (safe !== 'url') return safeField
   const notHttpUrl = `${label} must be a web address that starts with http:// or https://.`
   return safeField.refine(hasNoUserinfoOrBackslash, notHttpUrl).pipe(httpUrlCheck(notHttpUrl))
@@ -223,7 +223,7 @@ export type UpdateTenantInput = z.infer<typeof updateTenantSchema>
  */
 export const inviteMemberSchema = z.object({
   email: emailSchema.refine((email) => hostnameDomain(email) !== undefined, {
-    message: 'Email must have a valid domain.',
+    message: 'Enter an email address with a full domain, such as ada@example.com.',
   }),
   role: z.enum(MEMBERSHIP_ROLES),
 })
@@ -317,16 +317,19 @@ function checkMetadataBounds(value: Record<string, unknown>, ctx: z.RefinementCt
   if (scan.depth > MAX_TENANT_METADATA_DEPTH) {
     ctx.addIssue({
       code: 'custom',
-      message: `Metadata must be nested at most ${MAX_TENANT_METADATA_DEPTH} levels deep.`,
+      message: `Custom data must be nested at most ${MAX_TENANT_METADATA_DEPTH} levels deep.`,
     })
   } else if (JSON.stringify(value).length > MAX_TENANT_METADATA_LENGTH) {
     ctx.addIssue({
       code: 'custom',
-      message: `Metadata must be at most ${MAX_TENANT_METADATA_LENGTH} characters as JSON.`,
+      message: `Custom data must be at most ${MAX_TENANT_METADATA_LENGTH} characters as JSON.`,
     })
   }
   if (scan.hasNul) {
-    ctx.addIssue({ code: 'custom', message: 'Metadata contains characters that are not allowed' })
+    ctx.addIssue({
+      code: 'custom',
+      message: notAllowedMessage('Custom data', { multiline: true }),
+    })
   }
 }
 
@@ -337,12 +340,12 @@ function timezoneText() {
     .trim()
     .max(
       MAX_TENANT_TIMEZONE_LENGTH,
-      `Timezone must be at most ${MAX_TENANT_TIMEZONE_LENGTH} characters.`
+      `Time zone must be at most ${MAX_TENANT_TIMEZONE_LENGTH} characters.`
     )
-    .refine(safeText(), notAllowedMessage('Timezone'))
+    .refine(safeText(), notAllowedMessage('Time zone'))
     .refine(
       (value) => value === '' || isTimeZoneName(value),
-      'Timezone must be a time zone name such as Europe/Paris.'
+      'Time zone must be a time zone name such as Europe/Paris.'
     )
 }
 
@@ -351,11 +354,14 @@ function localeText() {
   return z
     .string()
     .trim()
-    .max(MAX_TENANT_LOCALE_LENGTH, `Locale must be at most ${MAX_TENANT_LOCALE_LENGTH} characters.`)
-    .refine(safeText(), notAllowedMessage('Locale'))
+    .max(
+      MAX_TENANT_LOCALE_LENGTH,
+      `Language and region must be at most ${MAX_TENANT_LOCALE_LENGTH} characters.`
+    )
+    .refine(safeText(), notAllowedMessage('Language and region'))
     .refine(
       (value) => value === '' || isLocaleTag(value),
-      'Locale must be a language tag such as en or en-US.'
+      'Enter a language code such as en, or a language and region such as en-IN.'
     )
 }
 
@@ -393,11 +399,11 @@ export const metadataTextSchema = z.string().transform((text, ctx) => {
   try {
     parsed = JSON.parse(trimmed)
   } catch {
-    ctx.addIssue({ code: 'custom', message: 'Metadata must be valid JSON.' })
+    ctx.addIssue({ code: 'custom', message: 'Custom data must be valid JSON.' })
     return z.NEVER
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    ctx.addIssue({ code: 'custom', message: 'Metadata must be a JSON object.' })
+    ctx.addIssue({ code: 'custom', message: 'Custom data must be a JSON object.' })
     return z.NEVER
   }
   const metadata = parsed as Record<string, unknown>
@@ -413,7 +419,7 @@ export const metadataTextSchema = z.string().transform((text, ctx) => {
  * report "Settings updated." while keeping the old value.
  */
 export const tenantSettingsFormSchema = z.object({
-  timezone: timezoneText().refine((value) => value !== '', 'Timezone is required.'),
-  locale: localeText().refine((value) => value !== '', 'Locale is required.'),
+  timezone: timezoneText().refine((value) => value !== '', 'Time zone is required.'),
+  locale: localeText().refine((value) => value !== '', 'Language and region is required.'),
   metadata: metadataTextSchema,
 })

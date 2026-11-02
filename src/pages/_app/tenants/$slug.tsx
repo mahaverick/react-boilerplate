@@ -41,7 +41,7 @@ export const Route = createFileRoute('/_app/tenants/$slug')({
       startTenantRoute({ queryClient: context.queryClient, slug: params.slug, preload }),
   },
   head: ({ params }) => ({ meta: [{ title: pageTitle(params.slug) }] }),
-  staticData: { crumb: (params) => params.slug ?? 'Tenant' },
+  staticData: { crumb: (params) => params.slug ?? 'Workspace' },
   component: TenantLayout,
   pendingComponent: DetailPending,
 })
@@ -67,7 +67,7 @@ const TABS: readonly TenantTab[] = [
 function TenantTabs({ slug }: { slug: string }) {
   const tabs = filterByFlag(TABS, useFlagValues())
   return (
-    <nav aria-label="Tenant sections" className="border-b">
+    <nav aria-label="Workspace sections" className="border-b">
       <ul className="flex gap-1 overflow-x-auto">
         {tabs.map((tab) => (
           <li key={tab.to}>

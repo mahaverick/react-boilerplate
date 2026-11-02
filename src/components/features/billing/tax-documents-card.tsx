@@ -57,7 +57,7 @@ export function TaxDocumentsCard({ slug }: { slug: string }) {
       <EmptyState
         size="compact"
         title="No tax documents yet."
-        description="We issue a tax invoice for each charge paid from the Goods and Services Tax (GST) start date."
+        description="Each charge you pay gets a Goods and Services Tax (GST) invoice here."
       />
     )
   } else {
@@ -70,7 +70,7 @@ export function TaxDocumentsCard({ slug }: { slug: string }) {
                 <TableHead>Document</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Total</TableHead>
-                <TableHead>Reduces</TableHead>
+                <TableHead>Credits invoice</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -93,7 +93,7 @@ export function TaxDocumentsCard({ slug }: { slug: string }) {
         )}
         {failed && (
           <LoadError
-            message="Tax documents didn’t load. Try again."
+            message="Tax documents didn’t load. Select Try again."
             onRetry={() =>
               void (documents.isFetchNextPageError
                 ? documents.fetchNextPage()

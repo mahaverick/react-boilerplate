@@ -22,14 +22,16 @@ test('switches tenant from the keyboard alone', async ({ page }) => {
   await expect(palette).toBeVisible({ timeout: COLD_TRANSFORM_BUDGET_MS })
   await page.keyboard.type('beta')
   await expect(
-    palette.getByRole('group', { name: 'Switch tenant' }).getByRole('option', { name: /^Beta Inc/ })
+    palette
+      .getByRole('group', { name: 'Switch workspace' })
+      .getByRole('option', { name: /^Beta Inc/ })
   ).toBeVisible()
   await page.keyboard.press('Enter')
 
   await expect(palette).toHaveCount(0)
   await expect(page).toHaveURL(/[?&]tenant=beta(&|$)/)
   await expect(
-    page.getByRole('combobox', { name: /^Switch tenant\. Current: Beta Inc/ })
+    page.getByRole('combobox', { name: /^Switch workspace\. Current: Beta Inc/ })
   ).toBeVisible()
 })
 
@@ -116,14 +118,14 @@ test('shows the shortcut hint on the header button', async ({ page }) => {
   await expect(trigger).toHaveAttribute('aria-keyshortcuts', /^(Meta|Control)\+K$/)
 })
 
-test('Create a tenant leaves focus in the Name field of /tenants', async ({ page }) => {
+test('Create a workspace leaves focus in the Name field of /tenants', async ({ page }) => {
   await page.goto('/e2e/harness/?path=/dashboard')
   await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
   await page.keyboard.press('ControlOrMeta+k')
-  await page.keyboard.type('create a tenant')
-  await expect(page.getByRole('option', { name: /^Create a tenant/ })).toBeVisible({
+  await page.keyboard.type('create a workspace')
+  await expect(page.getByRole('option', { name: /^Create a workspace/ })).toBeVisible({
     timeout: COLD_TRANSFORM_BUDGET_MS,
   })
   await page.keyboard.press('Enter')

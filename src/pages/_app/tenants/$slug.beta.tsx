@@ -31,7 +31,7 @@ export const Route = createFileRoute('/_app/tenants/$slug/beta')({
 })
 
 /** Said when the beta route failed; a 404 there means the flag closed after the page opened. */
-const BETA_ERROR = 'We couldn’t load this tenant’s beta features. Try again to load them.'
+const BETA_ERROR = 'We couldn’t load this workspace’s beta features. Select Try again to load them.'
 
 /** Shows the beta confirmation; when the API 404s because the flag closed, re-runs the route guard. */
 function TenantBetaTab() {
@@ -58,7 +58,7 @@ function TenantBetaTab() {
             <CardTitle>
               <h2>Beta</h2>
             </CardTitle>
-            <CardDescription>Features this tenant sees before everyone else.</CardDescription>
+            <CardDescription>Features this workspace sees before everyone else.</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm">Beta features are on for {data.slug}.</p>

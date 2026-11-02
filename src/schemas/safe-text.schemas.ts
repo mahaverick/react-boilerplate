@@ -48,7 +48,14 @@ export function normalizeMultilineText<T>(value: T): T {
   return typeof value === 'string' ? (value.replaceAll('\r\n', '\n') as T) : value
 }
 
-/** The API's message for a field `safeText` rejects. */
-export function notAllowedMessage(label: string): string {
-  return `${label} contains characters that are not allowed`
+/**
+ * The API's message for a field `safeText` rejects, naming what to remove.
+ * @param label - The field's name as the form shows it.
+ * @param options - `multiline` for a field that allows line breaks and tabs.
+ * @returns The message.
+ */
+export function notAllowedMessage(label: string, options: { multiline?: boolean } = {}): string {
+  return options.multiline
+    ? `${label} has a hidden character. Remove it. Line breaks and tabs are allowed.`
+    : `${label} has a line break, tab or hidden character. Remove it.`
 }

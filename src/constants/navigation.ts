@@ -20,5 +20,5 @@ export interface NavItem extends NavMainItem {
 /** The sidebar's primary navigation. `to` is typed against the route tree, so a missing route is a type error. */
 export const NAV_ITEMS: readonly NavItem[] = [
   { to: ROUTES.dashboard, label: 'Dashboard', Icon: IconLayoutDashboard },
-  { to: ROUTES.tenants, label: 'Tenants', Icon: IconBuilding },
+  { to: ROUTES.tenants, label: 'Workspaces', Icon: IconBuilding },
 ]

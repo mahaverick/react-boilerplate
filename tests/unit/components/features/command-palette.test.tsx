@@ -125,7 +125,7 @@ describe('CommandPalette', () => {
     expect(within(button).getByText('Ctrl K')).toHaveAttribute('data-slot', 'kbd')
     await openPalette(user)
     expect(
-      screen.getByRole('combobox', { name: 'Search pages, tenants and actions' })
+      screen.getByRole('combobox', { name: 'Search pages, workspaces and actions' })
     ).toHaveFocus()
   })
 
@@ -182,7 +182,7 @@ describe('CommandPalette', () => {
 
   it.each([
     ['Go to', '/dashboard', '', 'Dashboard', 'open_page'],
-    ['Go to', '/dashboard', '', 'Tenants', 'open_page'],
+    ['Go to', '/dashboard', '', 'Workspaces', 'open_page'],
     ['Go to', '/dashboard', '', 'Notifications', 'open_page'],
     ['Go to', '/dashboard', '', 'Settings', 'open_page'],
     ['Go to', '/dashboard', '', 'Profile', 'open_page'],
@@ -193,10 +193,10 @@ describe('CommandPalette', () => {
     ['Go to', '/notifications?tenant=acme', '', 'Billing', 'open_page'],
     ['Go to', '/notifications?tenant=acme', '', 'Activity', 'open_page'],
     ['Recent', '/notifications?tenant=acme', '', 'Beta Inc', 'open_recent'],
-    ['This page', '/tenants/acme', '', 'Copy tenant ID', 'copy_id'],
-    ['Switch tenant', '/dashboard', 'beta', 'Beta Inc', 'switch_tenant'],
+    ['This page', '/tenants/acme', '', 'Copy workspace ID (for support)', 'copy_id'],
+    ['Switch workspace', '/dashboard', 'beta', 'Beta Inc', 'switch_tenant'],
     ['Theme', '/dashboard', '', 'Dark', 'set_theme'],
-    ['Account', '/dashboard', '', 'Create a tenant', 'create_tenant'],
+    ['Account', '/dashboard', '', 'Create a workspace', 'create_tenant'],
     ['Account', '/dashboard', '', 'Sign out', 'sign_out'],
   ])('sends only the fixed key for %s › %s (%s)', async (group, from, term, label, action) => {
     if (group === 'Recent')
@@ -208,7 +208,9 @@ describe('CommandPalette', () => {
     const palette = await openPalette(user)
     if (term) await user.keyboard(term)
     const list = await within(palette).findByRole('group', { name: group })
-    await user.click(await within(list).findByRole('option', { name: new RegExp(`^${label}\\b`) }))
+    await user.click(
+      await within(list).findByRole('option', { name: (name) => name.startsWith(label) })
+    )
     await waitFor(() =>
       expect(track.mock.calls.filter(([event]) => event === 'command_palette_action_run')).toEqual([
         ['command_palette_action_run', { action }],
@@ -228,7 +230,7 @@ describe('CommandPalette', () => {
         .map((option) => option.textContent)
     ).toEqual([
       'Dashboard',
-      'Tenants',
+      'Workspaces',
       'Notifications',
       'Settings',
       'Profile',
@@ -265,7 +267,7 @@ describe('CommandPalette', () => {
     const router = renderShell(from)
     const palette = await openPalette(user)
     await user.keyboard('beta')
-    const group = await within(palette).findByRole('group', { name: 'Switch tenant' })
+    const group = await within(palette).findByRole('group', { name: 'Switch workspace' })
     await user.click(within(group).getByRole('option', { name: /^Beta Inc/ }))
     await waitFor(() => expect(router.state.location.pathname).toBe(pathname))
     expect(router.state.location.search).toMatchObject(search)
@@ -276,7 +278,7 @@ describe('CommandPalette', () => {
     renderShell('/dashboard')
     const palette = await openPalette(user)
     await user.keyboard('a')
-    const group = await within(palette).findByRole('group', { name: 'Switch tenant' })
+    const group = await within(palette).findByRole('group', { name: 'Switch workspace' })
     expect(within(group).getByRole('option', { name: /^Gamma Ltd/ })).toHaveAttribute(
       'aria-disabled',
       'true'
@@ -292,7 +294,7 @@ describe('CommandPalette', () => {
       const router = renderShell('/dashboard')
       await openPalette(user)
       await user.keyboard('create')
-      await user.click(await screen.findByRole('option', { name: 'Create a tenant' }))
+      await user.click(await screen.findByRole('option', { name: 'Create a workspace' }))
       await waitFor(() =>
         expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull()
       )
@@ -311,9 +313,9 @@ describe('CommandPalette', () => {
     renderShell('/tenants/acme')
     const palette = await openPalette(user)
     const page = await within(palette).findByRole('group', { name: 'This page' })
-    await user.click(within(page).getByRole('option', { name: 'Copy tenant ID' }))
+    await user.click(within(page).getByRole('option', { name: 'Copy workspace ID (for support)' }))
     await expect(navigator.clipboard.readText()).resolves.toBe(TENANT_ID)
-    expect(await screen.findByText('Tenant ID copied.')).toBeInTheDocument()
+    expect(await screen.findByText('Workspace ID copied.')).toBeInTheDocument()
   })
 
   it('sets the theme, marking the current one', async () => {
@@ -343,7 +345,7 @@ describe('CommandPalette', () => {
     ).toEqual(['Beta Inc, beta'])
   })
 
-  it('lists a recent tenant that matches the term once, under Recent and not under Switch tenant', async () => {
+  it('lists a recent tenant that matches the term once, under Recent and not under Switch workspace', async () => {
     recordRecent(testUser.id, { kind: 'tenant', id: BETA.id, label: 'Beta' })
     const user = userEvent.setup()
     renderShell('/notifications?tenant=acme')
@@ -351,7 +353,9 @@ describe('CommandPalette', () => {
     await user.keyboard('beta')
     const recent = await within(palette).findByRole('group', { name: 'Recent' })
     expect(within(recent).getAllByRole('option')).toHaveLength(1)
-    expect(within(palette).queryByRole('group', { name: 'Switch tenant' })).not.toBeInTheDocument()
+    expect(
+      within(palette).queryByRole('group', { name: 'Switch workspace' })
+    ).not.toBeInTheDocument()
     expect(within(palette).getAllByRole('option', { name: /^Beta Inc/ })).toHaveLength(1)
   })
 })

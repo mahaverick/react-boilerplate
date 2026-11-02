@@ -63,7 +63,7 @@ test('example_beta_page on: the Beta tab opens the page, which reads the gated r
     example_cta_experiment: 'control',
   })
   await page.goto('/e2e/harness/?flags=network&path=/tenants/acme')
-  const tabs = page.getByRole('navigation', { name: 'Tenant sections' })
+  const tabs = page.getByRole('navigation', { name: 'Workspace sections' })
   await tabs.getByRole('link', { name: 'Beta' }).click()
   await expect(page.getByText('Beta features are on for acme.')).toBeVisible()
   await expect(page).toHaveURL(/\/tenants\/acme\/beta/)
@@ -79,7 +79,7 @@ test('example_beta_page off: no Beta tab, and its URL is not found without askin
     example_cta_experiment: 'control',
   })
   await page.goto('/e2e/harness/?flags=network&path=/tenants/acme')
-  const tabs = page.getByRole('navigation', { name: 'Tenant sections' })
+  const tabs = page.getByRole('navigation', { name: 'Workspace sections' })
   await expect(tabs.getByRole('link', { name: 'Overview' })).toBeVisible()
   await expect(tabs.getByRole('link', { name: 'Beta' })).toHaveCount(0)
 

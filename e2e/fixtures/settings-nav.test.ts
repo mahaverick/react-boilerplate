@@ -18,11 +18,13 @@ test('a disabled workspace item opens its tooltip on hover in icon mode, without
   await page.getByRole('button', { name: 'Toggle sidebar', exact: true }).click()
   const members = nav.getByRole('button', { name: 'Members' })
   await expect(members).toHaveAttribute('aria-disabled', 'true')
-  await expect(members).toHaveAccessibleDescription('Choose a tenant first.')
+  await expect(members).toHaveAccessibleDescription('Choose a workspace first.')
 
   const background = await members.evaluate((element) => getComputedStyle(element).backgroundColor)
   await members.hover()
-  await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText('Choose a tenant first.')
+  await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText(
+    'Choose a workspace first.'
+  )
   expect(await members.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
     background
   )
@@ -44,5 +46,5 @@ test('links the workspace items to the tenant the guard puts in the URL', async 
     'href',
     '/settings/workspace/acme/members'
   )
-  await expect(nav.getByText('Choose a tenant first.')).toHaveCount(0)
+  await expect(nav.getByText('Choose a workspace first.')).toHaveCount(0)
 })

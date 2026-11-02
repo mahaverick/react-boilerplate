@@ -628,7 +628,7 @@ describe('member mutations and the caller’s own profile', () => {
       client.setQueryData(tenantKeys.list, [])
       client.setQueryData(tenantKeys.detail('acme'), { id: TENANT_ID })
       server.use(
-        http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.'))
+        http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the workspace.'))
       )
 
       const { result } = renderHook(() => tenantQueries.useLeaveTenant('acme'), { wrapper })
@@ -691,7 +691,9 @@ describe('member mutations and the caller’s own profile', () => {
     it('refreshes the profile after leaving the platform tenant', async () => {
       signInAs(USER_ID)
       server.use(
-        http.delete('/api/v1/tenants/platform/membership', () => ok(null, 'You left the tenant.')),
+        http.delete('/api/v1/tenants/platform/membership', () =>
+          ok(null, 'You left the workspace.')
+        ),
         http.get('/api/v1/profile', () => ok({ ...testUser, platformRole: null }, 'Profile.'))
       )
       useAuthStore.setState({ user: { ...testUser, id: USER_ID, platformRole: 'viewer' } })
@@ -727,7 +729,7 @@ describe('member mutations and the caller’s own profile', () => {
     it('does not ask for the profile after leaving any other tenant', async () => {
       let profileCalls = 0
       server.use(
-        http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.')),
+        http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the workspace.')),
         http.get('/api/v1/profile', () => {
           profileCalls += 1
           return ok(testUser, 'Profile.')

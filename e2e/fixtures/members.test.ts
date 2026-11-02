@@ -27,7 +27,7 @@ test.describe('desktop', () => {
 
   test('says the list is empty instead of drawing a bare header', async ({ page }) => {
     await page.goto('/e2e/harness/?state=empty')
-    await expect(page.getByText(/no one has access to this tenant yet/i)).toBeVisible()
+    await expect(page.getByText(/no one has access to this workspace yet/i)).toBeVisible()
     await expect(page.getByRole('region', { name: 'Members' }).getByRole('table')).toHaveCount(0)
   })
 
@@ -40,7 +40,7 @@ test.describe('desktop', () => {
       page.getByRole('region', { name: 'Members' }).getByRole('button', { name: 'Try again' })
     ).toBeVisible({ timeout: 10_000 })
     // `.` rather than an apostrophe: the copy uses a typographic ’ (U+2019), and an ASCII ' silently matches nothing.
-    await expect(page.getByText(/couldn’t load this tenant.s members/i)).toBeVisible()
+    await expect(page.getByText(/couldn’t load this workspace.s members/i)).toBeVisible()
   })
 
   test('lets a viewer leave from their own row, then lands on the tenant list', async ({
@@ -53,7 +53,7 @@ test.describe('desktop', () => {
       .getByRole('button', { name: 'Leave' })
     await leave.click()
 
-    const dialog = page.getByRole('alertdialog', { name: 'Leave this tenant?' })
+    const dialog = page.getByRole('alertdialog', { name: 'Leave this workspace?' })
     await expect(dialog).toBeVisible()
     await dialog.getByRole('button', { name: 'Leave' }).click()
 
@@ -99,7 +99,7 @@ test.describe('mobile', () => {
   test('shows the whole last-owner explanation, not a clipped half of it', async ({ page }) => {
     // The sole owner is the case that renders it, and on the table path this sentence would be cut mid-way at the scroll boundary.
     await page.goto('/e2e/harness/?state=soleowner')
-    const reason = page.getByText(/a tenant must always have an owner/i)
+    const reason = page.getByText(/a workspace must always have an owner/i)
     await expect(reason).toBeVisible()
 
     const clipped = await reason.evaluate((el) => el.scrollWidth > el.clientWidth + 1)

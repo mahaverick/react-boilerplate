@@ -93,14 +93,14 @@ describe('settings landing page', () => {
   it('asks to choose a tenant when there is none, without links', async () => {
     renderAt('/settings')
     const workspace = await screen.findByRole('region', { name: 'Workspace' })
-    expect(within(workspace).getByText('Choose a tenant first.')).toBeInTheDocument()
+    expect(within(workspace).getByText('Choose a workspace first.')).toBeInTheDocument()
     expect(within(workspace).queryByRole('link')).toBeNull()
   })
 
   it('describes each unavailable workspace row with the hint, without a stray aria-disabled', async () => {
     renderAt('/settings')
     const workspace = await screen.findByRole('region', { name: 'Workspace' })
-    const hint = within(workspace).getByText('Choose a tenant first.')
+    const hint = within(workspace).getByText('Choose a workspace first.')
     expect(hint.id).not.toBe('')
     for (const label of ['General', 'Members', 'Billing', 'Activity']) {
       const row = within(workspace).getByText(label).closest('[role="listitem"]')?.firstElementChild

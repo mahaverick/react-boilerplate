@@ -30,7 +30,7 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   {
     id: 'workspace',
     label: 'Workspace',
-    description: 'The current tenant’s details, members and activity.',
+    description: 'The current workspace’s details, members and activity.',
   },
 ]
 
@@ -80,7 +80,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     group: 'workspace',
     to: '/settings/workspace/$slug/general',
     label: 'General',
-    description: 'The tenant’s details, timezone and locale.',
+    description: 'The workspace’s details, time zone, and language and region.',
     Icon: IconBuilding,
   },
   {
@@ -101,13 +101,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     group: 'workspace',
     to: '/settings/workspace/$slug/activity',
     label: 'Activity',
-    description: 'Every change made in this tenant, newest first.',
+    description: 'Every change made in this workspace, newest first.',
     Icon: IconActivity,
   },
 ]
 
 /** The landing page's subtitle, and the layout's when no section is active. */
-export const SETTINGS_DESCRIPTION = 'Manage your account and the current tenant.'
+export const SETTINGS_DESCRIPTION = 'Manage your account and the current workspace.'
 
 /**
  * Whether `pathname` (a trailing slash ignored) has exactly the segments of

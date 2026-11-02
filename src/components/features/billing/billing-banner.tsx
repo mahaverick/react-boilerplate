@@ -87,11 +87,11 @@ function payerLeftLine({ billing, isOwner, date }: LineContext): ReactNode {
   const periodEnd = billing.currentPeriodEnd === null ? null : date(billing.currentPeriodEnd)
   if (!isOwner) {
     return periodEnd === null
-      ? 'Paid ends unless an owner adds a card.'
+      ? 'Paid ends at the end of this billing period unless an owner adds a card.'
       : `Paid ends on ${periodEnd} unless an owner adds a card.`
   }
   const name = billing.payer?.name ?? ''
-  const addCard = `Add your card${periodEnd === null ? '' : ` by ${periodEnd}`} to keep Paid.`
+  const addCard = `Add your card${periodEnd === null ? ' before the end of this billing period' : ` by ${periodEnd}`} to keep Paid.`
   if (name === '') {
     return `Billing uses the card of a former member, who left the workspace. ${addCard}`
   }

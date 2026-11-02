@@ -498,7 +498,8 @@ describe('signed-out pages', () => {
     [
       'login with the note',
       '/login?notice=sign-in-link',
-      () => screen.findByText('Sign in with an email link or Google. Passwords no longer work.'),
+      () =>
+        screen.findByText('Sign in with an email link or Google. This app doesn’t use passwords.'),
     ],
     [
       'invitation accept without a token',
@@ -736,13 +737,13 @@ describe('signed-in pages', () => {
     await screen.findByRole('button', { name: 'Save changes' })
     const nav = screen.getByRole('navigation', { name: 'Settings' })
     expect(within(nav).getByRole('button', { name: 'Members' })).toHaveAccessibleDescription(
-      'Choose a tenant first.'
+      'Choose a workspace first.'
     )
     await expectNoViolations()
   })
 
   it.each([
-    ['missing', [], 'Tenant not available'],
+    ['missing', [], 'Workspace not available'],
     [
       'suspended',
       [
@@ -752,7 +753,7 @@ describe('signed-in pages', () => {
           joinedAt: '2026-01-01T00:00:00.000Z',
         },
       ],
-      'Tenant suspended',
+      'Workspace suspended',
     ],
   ])(
     'a workspace settings page for a %s tenant has one h1 and no axe violations',
@@ -806,7 +807,7 @@ describe('signed-in pages', () => {
       http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404))
     )
     renderAppAt('/tenants/acme')
-    await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
+    await screen.findByRole('heading', { name: 'Workspace suspended', level: 1 })
     await expectNoViolations()
   })
 
@@ -921,7 +922,7 @@ describe('signed-in pages', () => {
       server.use(http.get('/api/v1/tenants', () => fail('Something went wrong', 500)))
       renderAppAt('/dashboard')
       await screen.findByRole('combobox', {
-        name: 'Switch tenant. Current: Tenants didn’t load',
+        name: 'Switch workspace. Current: Workspaces didn’t load',
       })
       await expectNoViolations()
     })
@@ -1385,7 +1386,9 @@ describe('open overlays', () => {
     await screen.findByText('invitee@b.com')
 
     expect(
-      screen.getByText('You’re viewing this tenant as staff. Make changes from the staff console.')
+      screen.getByText(
+        'You’re viewing this workspace as staff. Make changes from the staff console.'
+      )
     ).toBeInTheDocument()
     await expectNoViolations()
   })
@@ -1424,10 +1427,10 @@ describe('open overlays', () => {
   /**
    * The ⌘K palette as the shell mounts it: a named `dialog`, so its portaled
    * list is exempt from `region` and it is graded at document scope. Recent
-   * (a second tenant) and This page (Copy tenant ID) show on open; a term that
-   * matches a third tenant, not a recent one, then shows Switch tenant.
+   * (a second tenant) and This page (Copy workspace ID (for support)) show on open; a term that
+   * matches a third tenant, not a recent one, then shows Switch workspace.
    */
-  it('has no violations with the command palette open, showing Recent, This page and Switch tenant', async () => {
+  it('has no violations with the command palette open, showing Recent, This page and Switch workspace', async () => {
     const BETA = { ...TENANT, id: TENANT_ID_2, name: 'Beta Inc', slug: 'beta' }
     const DELTA = { ...TENANT, id: TENANT_ID_9, name: 'Delta Co', slug: 'delta' }
     server.use(
@@ -1457,7 +1460,9 @@ describe('open overlays', () => {
     await expectNoViolations()
 
     await user.keyboard('delta')
-    expect(await within(palette).findByRole('group', { name: 'Switch tenant' })).toBeInTheDocument()
+    expect(
+      await within(palette).findByRole('group', { name: 'Switch workspace' })
+    ).toBeInTheDocument()
     await expectNoViolations()
   })
 
@@ -1506,15 +1511,15 @@ describe('open overlays', () => {
     renderAppAt('/dashboard')
     await screen.findByRole('heading', { name: /Welcome back/ })
 
-    const trigger = screen.getByRole('combobox', { name: /^Switch tenant/ })
+    const trigger = screen.getByRole('combobox', { name: /^Switch workspace/ })
     await user.click(trigger)
 
-    const popup = await screen.findByRole('dialog', { name: 'Switch tenant' })
+    const popup = await screen.findByRole('dialog', { name: 'Switch workspace' })
     const listbox = within(popup).getByRole('listbox')
     expect(within(listbox).getAllByRole('option').length).toBeGreaterThan(0)
 
     // Both `aria-controls` name a real element, so their `aria-valid-attr-value` finding (see `KNOWN_INCOMPLETE`) is axe declining to resolve a reference, not a broken one.
-    const input = screen.getByLabelText('Search tenants')
+    const input = screen.getByLabelText('Search workspaces')
     for (const element of [trigger, input]) {
       const controls = element.getAttribute('aria-controls')
       expect(controls).not.toBeNull()

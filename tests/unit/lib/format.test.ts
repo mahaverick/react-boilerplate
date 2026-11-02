@@ -23,10 +23,13 @@ describe('formatDate', () => {
 })
 
 describe('formatDateTime', () => {
-  it('formats a medium date with a short time, in the reader locale', () => {
-    expect(formatDateTime(NOON_UTC)).toBe(
-      new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
-    )
+  it('formats a date and a time with the time zone name, in the reader locale', () => {
+    const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
+      .formatToParts(date)
+      .find((part) => part.type === 'timeZoneName')?.value
+    expect(zone).toBeTruthy()
+    expect(formatDateTime(NOON_UTC)).toContain(zone)
+    expect(formatDateTime(NOON_UTC)).toContain(String(date.getFullYear()))
   })
 
   it('returns null for a value that is not a date', () => {
