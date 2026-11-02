@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/mahaverick/react-boilerplate/compare/v1.0.1...v1.0.2) (2026-11-02)
+
+
+### Bug Fixes
+
+* **auth:** follow the API's sign-in link and invitation hardening ([#171](https://github.com/mahaverick/react-boilerplate/issues/171)) ([0d3988b](https://github.com/mahaverick/react-boilerplate/commit/0d3988bc9fe835d5aa74a4ac85ca3e4da35609e5))
+
 ## [1.0.1](https://github.com/mahaverick/react-boilerplate/compare/v1.0.0...v1.0.1) (2026-10-31)
 
 
