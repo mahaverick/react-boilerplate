@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.6](https://github.com/mahaverick/react-boilerplate/compare/v1.0.5...v1.0.6) (2026-11-02)
+
+
+### Bug Fixes
+
+* **copy:** state link lifetimes and the support address from the API ([#179](https://github.com/mahaverick/react-boilerplate/issues/179)) ([c77af9f](https://github.com/mahaverick/react-boilerplate/commit/c77af9f53bf081d930defba477e20f3fbce0e258))
+
 ## [1.0.5](https://github.com/mahaverick/react-boilerplate/compare/v1.0.4...v1.0.5) (2026-11-02)
 
 
