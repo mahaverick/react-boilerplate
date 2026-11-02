@@ -188,7 +188,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
       { name: 'Verify', endpoints: ['POST /invitations/verify'] },
     ],
     empty: { url: '/invitations/accept' },
-    note: 'The invitee has an account, so the default is "Check your inbox" and the invitation stays pending; each shot mails another confirmation link, inside the cooldown or not.',
+    note: 'Signed out, the default is "Check your inbox" and the invitation stays pending; each shot mails another confirmation link, inside the cooldown or not.',
   },
   '/invitations/confirm': {
     kind: 'page',

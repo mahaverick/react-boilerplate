@@ -61,7 +61,7 @@ export function useVerifySignInLink() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ token, email }: SignInLinkVerifyInput) => {
-      // The API counts an empty or blank address as a mismatch, so a link without one sends none.
+      // The page never posts a link without an address, and the API refuses one.
       const address = email?.trim()
       return unwrap(
         await apiClient.post<ApiSuccess<LinkSignIn>>(

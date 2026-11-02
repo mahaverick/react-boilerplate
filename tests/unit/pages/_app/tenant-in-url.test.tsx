@@ -261,7 +261,7 @@ describe('?tenant on pages without $slug', () => {
     )
     serveTenants([GLOBEX])
     const { router } = renderAt(
-      `/auth/link?token=${'t'.repeat(43)}&redirect=${encodeURIComponent('/settings/account/profile?tenant=acme')}`
+      `/auth/link?token=${'t'.repeat(43)}&email=${encodeURIComponent(testUser.email)}&redirect=${encodeURIComponent('/settings/account/profile?tenant=acme')}`
     )
 
     await expectHref(router, '/settings/account/profile?tenant=globex')

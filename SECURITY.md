@@ -154,6 +154,9 @@ browser storage is readable by whoever runs the page, so:
   check, as the router does before it matches, so `/auth/%6Cink` counts as
   `/auth/link`, and a path that does not decode is refused. Each landing
   replaces the token page in history, so Back never returns to it.
+- **A sign-in link with no address is never posted.** The API compares the link's
+  `email` with its token to stop another person's link signing a visitor in, so
+  `/auth/link` treats a token with no `email` as no token at all.
 - **A token is posted once per page load.** `/auth/link` and the invitation
   pages post their token from a mutation that a ref-guarded effect fires, so
   StrictMode's second run and a re-render never spend the link twice. A
@@ -210,7 +213,7 @@ rule holds:
 ### Confirm it's you in this app
 
 Writes that need a recent sign-in (tenant invitations and members, creating
-and deleting a passkey) are refused with 401 `REAUTH_REQUIRED`. The dialog
+and deleting a passkey, signing out other sessions) are refused with 401 `REAUTH_REQUIRED`. The dialog
 confirms by passkey (`/auth/passkeys/step-up/*`) or by an emailed link that
 opens `/auth/confirm` in the browser that asked. Rules:
 

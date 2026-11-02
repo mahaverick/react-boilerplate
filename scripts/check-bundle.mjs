@@ -75,8 +75,10 @@ import { build } from 'vite'
  * preload map names it (44 B): 592,525 B, rounded up to 593,000 B. 2026-10-28: 593,000 -> 593,322. The GST tax
  * forms add Zod schemas that grow the shared `zod-jitless` chunk (491 B) and a little route-tree
  * code to the entry (78 B), and the tax cards, queries and types sit in the billing page's chunk.
+ * 2026-11-02: 593,322 -> 593,328. The security section's step-up for revoking other sessions adds
+ * two lazy chunks to its preload map in the entry (6 B); the step-up code itself stays lazy.
  */
-const ENTRY_BUDGET_BYTES = 593_322
+const ENTRY_BUDGET_BYTES = 593_328
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

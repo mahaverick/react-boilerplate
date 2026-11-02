@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { http } from 'msw'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { SecuritySection } from '@/components/features/profile/security-section'
+import { StepUpProvider } from '@/components/features/step-up/step-up-provider'
 import { ok } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
 
@@ -19,7 +20,9 @@ describe('SecuritySection when the Passkeys chunk fails to load', () => {
     )
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <SecuritySection />
+        <StepUpProvider>
+          <SecuritySection />
+        </StepUpProvider>
       </QueryClientProvider>
     )
 

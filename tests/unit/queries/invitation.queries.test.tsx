@@ -302,59 +302,6 @@ describe('invitation queries', () => {
   })
 
   describe('useVerifyInvitation', () => {
-    it('signs in and refreshes the tenant list on a verified invitation', async () => {
-      let body: unknown
-      let authorization: string | null = 'unset'
-      let profileCalls = 0
-      server.use(
-        http.post('/api/v1/invitations/verify', async ({ request }) => {
-          body = await request.json()
-          authorization = request.headers.get('authorization')
-          return ok(
-            {
-              user: testUser,
-              accessToken: 'invitation-token',
-              isNewUser: true,
-              tenant: { name: 'Acme Corp', slug: 'acme' },
-              role: 'editor',
-            },
-            'Invitation accepted.'
-          )
-        }),
-        http.get('/api/v1/profile', () => {
-          profileCalls += 1
-          return ok(testUser, 'Profile retrieved.')
-        })
-      )
-      useAuthStore.setState({
-        accessToken: null,
-        user: null,
-        isAuthenticated: false,
-        isBootstrapped: true,
-      })
-      client.setQueryData(tenantKeys.detail('acme'), null)
-      client.setQueryData(tenantKeys.list, [])
-      let signedInAtTrack: boolean | undefined
-      vi.mocked(track).mockImplementation(() => {
-        signedInAtTrack = useAuthStore.getState().isAuthenticated
-      })
-
-      const { result } = renderHook(() => useVerifyInvitation(), { wrapper })
-      result.current.mutate(TEST_INVITATION_TOKEN)
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true))
-      expect(body).toEqual({ token: TEST_INVITATION_TOKEN })
-      expect(authorization).toBeNull()
-      expect(useAuthStore.getState().user).toEqual(testUser)
-      expect(useAuthStore.getState().accessToken).toBe('invitation-token')
-      expect(track).toHaveBeenCalledWith('sign_in_completed', { method: 'link' })
-      expect(signedInAtTrack).toBe(true)
-      expect(client.getQueryState(tenantKeys.detail('acme'))).toBeUndefined()
-      expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
-      // The user arrived in the response, so the profile is not read again.
-      expect(profileCalls).toBe(0)
-    })
-
     it('does not retry a 401 or refresh the session', async () => {
       let calls = 0
       let refreshes = 0
@@ -375,29 +322,6 @@ describe('invitation queries', () => {
       await waitFor(() => expect(result.current.isError).toBe(true))
       expect(calls).toBe(1)
       expect(refreshes).toBe(0)
-    })
-
-    it('drops a different user data, recents and shared identity, and tells other tabs', async () => {
-      const other = { ...testUser, id: 'other-user-id', email: 'other@b.test' }
-      useAuthStore.getState().login('other-token', other)
-      client.setQueryData(['tenants', 'secret'], { owner: other.id })
-      localStorage.setItem(`${RECENT_KEY_PREFIX}${other.id}`, '["x"]')
-      const tab = new BroadcastChannel('auth')
-      const received: unknown[] = []
-      tab.addEventListener('message', (event: MessageEvent<unknown>) => {
-        received.push(event.data)
-      })
-
-      const { result } = renderHook(() => useVerifyInvitation(), { wrapper })
-      result.current.mutate(TEST_INVITATION_TOKEN)
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true))
-      await vi.waitFor(() => expect(received).toContainEqual({ type: 'logout' }))
-      tab.close()
-      expect(client.getQueryData(['tenants', 'secret'])).toBeUndefined()
-      expect(localStorage.getItem(`${RECENT_KEY_PREFIX}${other.id}`)).toBeNull()
-      expect(yieldSharedIdentity).toHaveBeenCalledOnce()
-      expect(useAuthStore.getState().user).toEqual(testUser)
     })
 
     it('leaves the store signed out on a 404', async () => {
@@ -426,14 +350,18 @@ describe('invitation queries', () => {
     })
 
     it('sets no session, tracks nothing and switches no one out on a 202 "Check your inbox"', async () => {
+      let body: unknown
+      let authorization: string | null = 'unset'
       server.use(
-        http.post('/api/v1/invitations/verify', () =>
-          ok(
+        http.post('/api/v1/invitations/verify', async ({ request }) => {
+          body = await request.json()
+          authorization = request.headers.get('authorization')
+          return ok(
             { confirmationSent: true, email: 'ada@example.test' },
             'Check your inbox to finish joining.',
             202
           )
-        )
+        })
       )
       const other = { ...testUser, id: 'other-user-id', email: 'other@b.test' }
       useAuthStore.getState().login('other-token', other)
@@ -445,6 +373,9 @@ describe('invitation queries', () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
       expect(result.current.data).toEqual({ confirmationSent: true, email: 'ada@example.test' })
+      expect(body).toEqual({ token: TEST_INVITATION_TOKEN })
+      // Public like the preview: a signed-in visitor's bearer token never goes with it.
+      expect(authorization).toBeNull()
       expect(useAuthStore.getState().user).toEqual(other)
       expect(useAuthStore.getState().accessToken).toBe('other-token')
       expect(client.getQueryData(['tenants', 'secret'])).toEqual({ owner: other.id })
@@ -470,7 +401,7 @@ describe('invitation queries', () => {
       return seen
     }
 
-    /** The confirm `200`: the verify shape, a session that joined the tenant. */
+    /** The confirm `200`: a session that joined the tenant. */
     const joined = () =>
       ok(
         {
@@ -485,6 +416,13 @@ describe('invitation queries', () => {
 
     it('posts the token and the trimmed address with no bearer, then signs in and refreshes the tenants', async () => {
       const seen = serveConfirm(joined)
+      let profileCalls = 0
+      server.use(
+        http.get('/api/v1/profile', () => {
+          profileCalls += 1
+          return ok(testUser, 'Profile retrieved.')
+        })
+      )
       useAuthStore.setState({
         accessToken: null,
         user: null,
@@ -511,6 +449,8 @@ describe('invitation queries', () => {
       expect(signedInAtTrack).toBe(true)
       expect(client.getQueryState(tenantKeys.detail('acme'))).toBeUndefined()
       expect(client.getQueryState(tenantKeys.list)?.isInvalidated).toBe(true)
+      // The user arrived in the response, so the profile is not read again.
+      expect(profileCalls).toBe(0)
     })
 
     it.each([
@@ -526,17 +466,27 @@ describe('invitation queries', () => {
       expect(seen[0]?.body).toEqual({ token: TEST_INVITATION_TOKEN })
     })
 
-    it('replaces a signed-in session with the one the link signed in', async () => {
+    it('replaces a different user’s session, drops their data, recents and shared identity, and tells other tabs', async () => {
       serveConfirm(joined)
       const other = { ...testUser, id: 'other-user-id', email: 'other@b.test' }
       useAuthStore.getState().login('other-token', other)
       client.setQueryData(['tenants', 'secret'], { owner: other.id })
+      localStorage.setItem(`${RECENT_KEY_PREFIX}${other.id}`, '["x"]')
+      const tab = new BroadcastChannel('auth')
+      const received: unknown[] = []
+      tab.addEventListener('message', (event: MessageEvent<unknown>) => {
+        received.push(event.data)
+      })
 
       const { result } = renderHook(() => useConfirmInvitation(), { wrapper })
       result.current.mutate({ token: TEST_INVITATION_TOKEN, email: testUser.email })
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      await vi.waitFor(() => expect(received).toContainEqual({ type: 'logout' }))
+      tab.close()
       expect(client.getQueryData(['tenants', 'secret'])).toBeUndefined()
+      expect(localStorage.getItem(`${RECENT_KEY_PREFIX}${other.id}`)).toBeNull()
+      expect(yieldSharedIdentity).toHaveBeenCalledOnce()
       expect(useAuthStore.getState().user).toEqual(testUser)
     })
 

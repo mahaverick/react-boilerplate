@@ -265,17 +265,12 @@ export const handlers = [
   http.post('/api/v1/invitations/preview', () =>
     ok(testInvitationPreview, 'Invitation retrieved.')
   ),
-  // Signed out, one click: the invitee is signed in and joined, as express's `verifyInvitation` answers.
+  // Signed out: the server mails a confirm link, as express's `verifyInvitation` answers.
   http.post('/api/v1/invitations/verify', () =>
     ok(
-      {
-        user: testUser,
-        accessToken: 'invitation-token',
-        isNewUser: false,
-        tenant: testInvitationPreview.tenant,
-        role: testInvitationPreview.role,
-      },
-      'Invitation accepted.'
+      { confirmationSent: true, email: testInvitationPreview.email },
+      'Check your inbox to finish joining.',
+      202
     )
   ),
   http.post('/api/v1/invitations/accept', () =>

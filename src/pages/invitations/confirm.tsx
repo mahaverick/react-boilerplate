@@ -27,8 +27,8 @@ import { invitationTokenSchema } from '@/schemas/invitation.schemas'
 import { useAuthStore } from '@/states/auth.store'
 
 /**
- * Where the confirmation link mailed to an existing account or a staff
- * invitee opens: `/invitations/confirm?token=…&email=…`. Top level, under
+ * Where the confirmation link mailed to every signed-out invitee opens:
+ * `/invitations/confirm?token=…&email=…`. Top level, under
  * neither `_auth` nor `_app`: the link is opened signed out and signed in
  * alike, and each guard would bounce one of them. The API mails this fixed
  * path. `.catch` treats a non-string value as none, since the router

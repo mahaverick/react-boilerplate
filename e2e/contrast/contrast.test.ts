@@ -188,7 +188,7 @@ const SURFACES = [
   },
   {
     name: 'invitation check inbox',
-    url: signedOut('/invitations/accept', `token=${TOKEN}&invite=inbox`),
+    url: signedOut('/invitations/accept', `token=${TOKEN}`),
     heading: 'Check your inbox',
     // The sign-in form's inbox has the same heading; this line is the invitation's own.
     text: 'Open it to join Acme Corp.',
