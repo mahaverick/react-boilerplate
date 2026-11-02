@@ -1,10 +1,19 @@
 # Auth
 
-The signed-out pages and the pages a mailed link opens. Back to the [route map](README.md#route-map).
+This file covers the signed-out pages and the pages that a mailed link opens. Back to the [route map](README.md#route-map).
 
-All of them render inside `AuthLayout` (`src/components/layouts/auth-layout.tsx`): a muted full-height page with one centred `AuthCard` (`src/components/layouts/auth-card.tsx`). The card has the page's `h1` and description over its content on the left, and the brand panel (app name and tagline on the primary colour) on the right; below `md` the brand panel is hidden and the card is one column. `/login` sits under the `_auth` layout route, whose `beforeLoad` sends a signed-in user to `/dashboard` (except while maintenance mode is `full`). `/auth/callback`, `/auth/confirm`, `/auth/link`, `/welcome`, `/pricing`, `/invitations/accept` and `/invitations/confirm` are top-level routes outside `_auth`, because a signed-in user opens their links too; each renders `AuthLayout` itself. `/pricing` alone uses no `AuthCard`: it draws its own `h1` over two plan cards. None of these pages awaits a request before it renders, beyond the boot's `POST /auth/refresh` ([boot.md](boot.md#what-happens)).
+In this file, API is the application programming interface (express), URL is a Uniform Resource Locator, and a bearer is the access token the app sends in the `Authorization` header.
 
-Sign-in is by emailed link or Google. There is no password, registration, password reset or email-verification page. The shots of these pages are retaken once a live express 6 stack runs (`pnpm capture:pages`); until then the pages below have no shot.
+How these pages are built:
+
+- All of them render inside `AuthLayout` (`src/components/layouts/auth-layout.tsx`): a muted full-height page with one centred `AuthCard` (`src/components/layouts/auth-card.tsx`).
+- The card has the page's `h1` and description over its content on the left, and the brand panel (app name and tagline on the primary colour) on the right. Below the `md` breakpoint (768 px) the brand panel is hidden and the card is one column.
+- `/login` sits under the `_auth` layout route. Its `beforeLoad` sends a signed-in user to `/dashboard`, except while maintenance mode is `full`.
+- `/auth/callback`, `/auth/confirm`, `/auth/link`, `/welcome`, `/pricing`, `/invitations/accept` and `/invitations/confirm` are top-level routes outside `_auth`, because a signed-in user opens their links too. Each renders `AuthLayout` itself.
+- `/pricing` alone uses no `AuthCard`: it draws its own `h1` over two plan cards.
+- None of these pages awaits a request before it renders, beyond the boot's `POST /auth/refresh` ([boot.md](boot.md#what-happens)).
+
+Sign-in is by emailed link or Google, or by passkey when the API's `PASSKEY_MODE` is not `off`: `/login` then shows a passkey button and offers passkeys in the email field's autofill (`src/pages/_auth/login.tsx`). There is no password, registration, password reset or email-verification page. The pages below have no shots in `img/`: running `pnpm capture:pages` against a live express 6 stack takes them.
 
 ### `/login` — Sign in
 
@@ -19,7 +28,14 @@ Sign-in is by emailed link or Google. There is no password, registration, passwo
 | Components          | `Form`, `FormField`, `FormError`, `Input`, `BusyButton`, `FieldGroup`, `FieldSeparator`, `Pii`, `Note`; hand-rolled: `AuthCard`'s brand panel, `TermsNote`                                                                                                                                                                                                                 |
 | Transitions         | Email me a sign-in link → Check your inbox (same URL); the mailed link → `/auth/link`; Continue with Google → the API's Google flow → `/auth/callback`; another tab that opens the link → this tab lands on `?redirect` or `/dashboard`                                                                                                                                    |
 
-**Check your inbox.** The title becomes "Check your inbox". The status line reads "We sent a sign-in link to {address}." and the next line "The link works once and expires in {minutes} minutes.", where {minutes} is `signInLinkTtlSeconds` from `GET /status/client-settings` in whole minutes (express's `SIGN_IN_LINK_TTL`), or "The link works once." while that read is loading, failed or absent. Resend waits 60 seconds after each send ("Resend in 0:42", focusable while it waits); a 429 extends the wait to its `Retry-After`. "Use a different email" returns to the form with the address kept. While this step shows, the page listens for another tab's `signed_in` and restores the shared session when it hears one.
+**Check your inbox.** This step replaces the form after a send:
+
+- The title becomes "Check your inbox".
+- The status line reads "We sent a sign-in link to {address}."
+- The next line reads "The link works once and expires in {minutes} minutes." {minutes} is `signInLinkTtlSeconds` from `GET /status/client-settings` in whole minutes (express's `SIGN_IN_LINK_TTL`). While that read is loading, failed or absent, the line reads "The link works once."
+- Resend waits 60 seconds after each send ("Resend in 0:42", focusable while it waits). A 429 extends the wait to its `Retry-After`.
+- "Use a different email" returns to the form with the address kept.
+- While this step shows, the page listens for another tab's `signed_in` and restores the shared session when it hears one.
 
 **`?error=` codes** (from the API's Google callback):
 
@@ -33,7 +49,7 @@ Sign-in is by emailed link or Google. There is no password, registration, passwo
 | `READ_ONLY_MODE`       | We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends. |
 | anything else          | Sign-in failed. Try again, or sign in with an email link.                                                                    |
 
-`READ_ONLY_MODE` arrives when read-only maintenance refuses a Google sign-in that would create an account; an existing account still signs in.
+`READ_ONLY_MODE` arrives when read-only maintenance refuses a Google sign-in that would create an account. An existing account still signs in.
 
 Findings: [F-auth-5](findings.md#f-auth-5)
 
@@ -52,30 +68,35 @@ Findings: [F-auth-5](findings.md#f-auth-5)
 The page has these states:
 
 1. **Verifying** (signed out): "Signing you in", with "Signing you in…" and the link's address, then the address the server signed in.
-2. **Dead link** (any 400, or no `?token` while signed out): "This link expired or was already used", described as the inbox step's rules line ("The link works once and expires in {minutes} minutes."), and the sign-in form prefilled with the link's address, its button "Email me a new link". The new link keeps the old one's `redirect`.
-3. **Retryable failure** (429, 503, a network error or a 5xx): "Sign-in didn’t finish", the reason (a 429 names its wait, "Too many sign-in attempts. Try again in 42 seconds."; a read-only refusal, which express sends only when the click would create the account, says "We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends.") and Try again. The link stays usable.
+2. **Dead link** (any 400, or no `?token` while signed out): "This link expired or was already used". The description is the inbox step's rules line ("The link works once and expires in {minutes} minutes."). Below it is the sign-in form, prefilled with the link's address, its button "Email me a new link". The new link keeps the old one's `redirect`.
+3. **Retryable failure** (429, 503, a network error or a 5xx): "Sign-in didn’t finish", the reason and Try again. The link stays usable. Two reasons have their own wording:
+   - A 429 names its wait: "Too many sign-in attempts. Try again in 42 seconds."
+   - A read-only refusal, which express sends only when the click would create the account, says "We can’t create new accounts during maintenance. Sign in to an account you already have, or try again when maintenance ends."
 4. **Signed in as the link's address:** goes straight on to the link's `redirect` or `/dashboard`, spending nothing.
 5. **Signed in as someone else:** "Switch account?", "You’re signed in as {current}. This link is for {target}.", Continue as {target} (signs out and reloads this URL signed out, which then verifies) and Stay signed in as {current} (→ `/dashboard`).
 
 ### `/auth/confirm` — Confirm it’s you
 
-|                     |                                                                                                                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Purpose             | Where the “Confirm it’s you” email link opens (`/auth/confirm?token=…`): confirm the signed-in session, so a write that needs a recent sign-in can run.                                    |
-| File                | `src/pages/auth/confirm.tsx`                                                                                                                                                               |
-| Guard and redirects | none (top level), because the link must open signed in and a signed-out browser must hear where it works. Drops `token` from the address bar once the outcome is final, and keeps `utm_*`. |
-| Layout              | `AuthLayout` + `AuthCard`, rendered by the page                                                                                                                                            |
-| Data                | started: `POST /auth/step-up/link/verify` (`{ token }`, with the session’s bearer) once per page load when signed in; an expired access token is refreshed once and the token posted again |
-| Components          | `AuthCard`, `SigningInStatus`, `VerifyFailedPanel` (`src/components/features/auth/link-panels.tsx`)                                                                                        |
-| Transitions         | on success the page swaps in the new access token and posts `step_up_confirmed`, so the tab that asked retries its action                                                                  |
+|                     |                                                                                                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose             | Where the “Confirm it’s you” email link opens (`/auth/confirm?token=…`): confirm the signed-in session, so a write that needs a recent sign-in can run.                                                                                     |
+| File                | `src/pages/auth/confirm.tsx`                                                                                                                                                                                                                |
+| Guard and redirects | none (top level), because the link must open signed in and a signed-out browser must hear where it works. Drops `token` from the address bar once the outcome is final, and keeps `utm_*` (the Urchin Tracking Module campaign parameters). |
+| Layout              | `AuthLayout` + `AuthCard`, rendered by the page                                                                                                                                                                                             |
+| Data                | started: `POST /auth/step-up/link/verify` (`{ token }`, with the session’s bearer) once per page load when signed in; an expired access token is refreshed once and the token posted again                                                  |
+| Components          | `AuthCard`, `SigningInStatus`, `VerifyFailedPanel` (`src/components/features/auth/link-panels.tsx`)                                                                                                                                         |
+| Transitions         | on success the page swaps in the new access token and posts `step_up_confirmed`, so the tab that asked retries its action                                                                                                                   |
 
 The page has these states:
 
 1. **Incomplete link** (no `?token`): “This link is incomplete”.
 2. **Signed out:** “Sign in to confirm”, with a Sign in link. Nothing is posted.
 3. **Confirming:** “Confirming it’s you”.
-4. **Confirmed:** “Confirmed”. If a tab is waiting, “You can close this tab.”; if none is, “Go back to React Boilerplate and try the action again.” with Go to Dashboard; where the browser cannot say, “Return to the React Boilerplate tab where you started. If you closed it, try the action again.”
-5. **Dead link** (400): “This link didn’t confirm it’s you”, described “Open the link in the browser where you asked for it, within {minutes} minutes. For a new link, try the action again.” ({minutes} from `stepUpLinkTtlSeconds`; without the “within” clause until the settings load).
+4. **Confirmed:** “Confirmed”, then one of three lines:
+   - A tab is waiting: “You can close this tab.”
+   - No tab is waiting: “Go back to React Boilerplate and try the action again.” with Go to Dashboard.
+   - The browser cannot say: “Return to the React Boilerplate tab where you started. If you closed it, try the action again.”
+5. **Dead link** (400): “This link didn’t confirm it’s you”, described “Open the link in the browser where you asked for it, within {minutes} minutes. For a new link, try the action again.” {minutes} comes from `stepUpLinkTtlSeconds`; until the settings load, the description has no “within” clause.
 6. **Session ended** (401): “Your session ended”, with a Sign in link.
 7. **Retryable failure** (anything else): “Confirmation didn’t go through”, the reason and Try again.
 
@@ -97,11 +118,11 @@ A Google failure the API detects itself never reaches this page: the API redirec
 
 ### `/register`, `/forgot-password`, `/reset-password`, `/verify-email` — retired
 
-Each redirects in `beforeLoad` to `/login?notice=sign-in-link`, dropping any `?token=`, before anything renders (`src/pages/{register,forgot-password,reset-password,verify-email}.tsx`). Old mailed links and bookmarks still reach them. The boot shell paints the auth card for them (`public/boot-variant.js`).
+Each redirects in `beforeLoad` to `/login?notice=sign-in-link`, dropping any `?token=`, before anything renders (`src/pages/{register,forgot-password,reset-password,verify-email}.tsx`). Mailed links and bookmarks to these paths reach them. The boot shell paints the auth card for them (`public/boot-variant.js`).
 
 ### `/welcome` — Create your workspace
 
-No shot yet: the capture needs a seeded session with no tenant.
+No shot: the capture needs a seeded session with no tenant.
 
 |                     |                                                                                                                                                                                                                                                                                                                                             |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -116,18 +137,32 @@ No shot yet: the capture needs a seeded session with no tenant.
 
 ### `/pricing` — Plans
 
-No shots yet. The next `pnpm capture:pages` run takes them: signed out (default, loading, error, dark and mobile), and `pricing--state-owner.jpg`, the owner of `?tenant` with "Upgrade".
+No shots in `img/`. A `pnpm capture:pages` run takes them: signed out (default, loading, error, dark and mobile), and `pricing--state-owner.jpg`, the owner of `?tenant` with "Upgrade".
 
-|                     |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose             | The public price list: Free and Paid side by side, what each allows, and the next step for the visitor.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| File                | `src/pages/pricing.tsx`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Guard and redirects | none (top level, outside `_auth` and `_app`): open signed in or out, and never redirects. `?tenant=<slug>` names the current tenant, as in the shell. `MaintenanceGate` covers it while maintenance is `full`, as every page; `GET /plans` itself is allowed in every mode.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Layout              | `AuthLayout` with its own `h1` "Plans" (no `AuthCard`), the two plan cards, the call to action and the questions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Data                | started: `GET /plans` (`['plans']`, fresh 60 s, the API's `max-age`); public, so a signed-out read carries no bearer and starts no refresh. Signed in only: `GET /tenants` (`['tenants']`) for the owner check.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Sections            | `PricingTable`: a card per plan in `sortOrder`: name, description, "₹0" for a plan with no price, else "₹999 per month" and "or ₹9,990 per year (2 months free)"; "Includes 18% Goods and Services Tax (GST)" on a priced plan when `gstRegistered`; each catalog entry as a row (a limit's number or "No limit", a feature's tick or dash, read out as "Included" or "Not included"). The call to action: signed out, "Start free" with "Try Paid free for {days} days. No card needed." when the trial is on; signed in as the owner of `?tenant`, "Upgrade", or "Payments aren’t set up for this app, so you can’t pay here yet. Contact support at {support address} to change plans." (`supportEmail` from `GET /status/client-settings`; "Contact support to change plans." while that read is loading, failed or absent) when payments are off; anyone else signed in, "Go to your workspaces". `PricingFaq`: the trial end, cancelling and paying, and the tax question only when `gstRegistered`. A failed read shows `LoadError` "Plans didn’t load. Select Try again." under the `h1`. |
-| Components          | `AuthLayout`, `QueryState`, `CardRowsSkeleton`, `PricingTable`, `PricingFaq`, `Card`, `LoadError`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Transitions         | "Start free" → `/login` (sign-in creates the account); "Upgrade" → `/settings/workspace/$slug/billing`; "Go to your workspaces" → `/tenants`. Tracks `pricing_viewed { signed_in }` once per visit.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+|                     |                                                                                                                                                                                                                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose             | The public price list: Free and Paid side by side, what each allows, and the next step for the visitor.                                                                                                                                                                     |
+| File                | `src/pages/pricing.tsx`                                                                                                                                                                                                                                                     |
+| Guard and redirects | none (top level, outside `_auth` and `_app`): open signed in or out, and never redirects. `?tenant=<slug>` names the current tenant, as in the shell. `MaintenanceGate` covers it while maintenance is `full`, as every page; `GET /plans` itself is allowed in every mode. |
+| Layout              | `AuthLayout` with its own `h1` "Plans" (no `AuthCard`), the two plan cards, the call to action and the questions                                                                                                                                                            |
+| Data                | started: `GET /plans` (`['plans']`, fresh 60 s, the API's `max-age`); public, so a signed-out read carries no bearer and starts no refresh. Signed in only: `GET /tenants` (`['tenants']`) for the owner check.                                                             |
+| Sections            | `PricingTable`, the call to action and `PricingFaq`. See [Pricing sections](#pricing-sections).                                                                                                                                                                             |
+| Components          | `AuthLayout`, `QueryState`, `CardRowsSkeleton`, `PricingTable`, `PricingFaq`, `Card`, `LoadError`                                                                                                                                                                           |
+| Transitions         | "Start free" → `/login` (sign-in creates the account); "Upgrade" → `/settings/workspace/$slug/billing`; "Go to your workspaces" → `/tenants`. Tracks `pricing_viewed { signed_in }` once per visit.                                                                         |
+
+#### Pricing sections
+
+- **`PricingTable`:** a card per plan, in `sortOrder`. Each card has:
+  - the name and description;
+  - the price: "₹0" for a plan with no price, else "₹999 per month" and "or ₹9,990 per year (2 months free)";
+  - "Includes 18% Goods and Services Tax (GST)" on a priced plan when `gstRegistered`;
+  - each catalog entry as a row: a limit's number or "No limit", a feature's tick or dash, read out as "Included" or "Not included".
+- **The call to action:**
+  - Signed out: "Start free", with "Try Paid free for {days} days. No card needed." when the trial is on.
+  - Signed in as the owner of `?tenant`: "Upgrade". When payments are off: "Payments aren’t set up for this app, so you can’t pay here yet. Contact support at {support address} to change plans." (`supportEmail` from `GET /status/client-settings`; "Contact support to change plans." while that read is loading, failed or absent).
+  - Anyone else signed in: "Go to your workspaces".
+- **`PricingFaq`:** the trial end, cancelling and paying, and the tax question only when `gstRegistered`.
+- **A failed read** shows `LoadError` "Plans didn’t load. Select Try again." under the `h1`.
 
 ### `/invitations/accept` — Accept an invitation
 
@@ -145,11 +180,16 @@ No shots yet. The next `pnpm capture:pages` run takes them: signed out (default,
 The page has these states (`AcceptInvitationPage` and `InvitationForToken`):
 
 1. **No `?token`:** "This link is incomplete", "Part of this link is missing. Open the latest invitation email and select Join.", and "Go to the home page".
-2. **Malformed token, or a 404** (revoked, expired or used): "This invitation can’t be used", described "Ask {inviter} for a new invite." when a live preview named one, else "Ask the person who invited you for a new invite." Signed in, "Go to the dashboard"; signed out, "Or sign in:" and the sign-in form, with no address and no redirect.
+2. **Malformed token, or a 404** (revoked, expired or used): "This invitation can’t be used". The description is "Ask {inviter} for a new invite." when a live preview named one, else "Ask the person who invited you for a new invite." Signed in, the page offers "Go to the dashboard"; signed out, "Or sign in:" and the sign-in form, with no address and no redirect.
 3. **Preview pending:** "Checking your invitation" over skeleton bars: a sentence, two buttons and a hint.
 4. **Preview failed otherwise:** "This invitation wasn’t checked", a `LoadError` reading "The check failed, and your invitation link is unchanged. Select Try again.", and "Go to the home page".
 5. **Joining** (signed out, or signed in as the invited address): "Joining {tenant}" and "{inviter} invited you to join {tenant} as {role}.", then "Emailing a link to {invited address}…" signed out or "Joining {tenant} as {invited address}…" signed in. The address is the preview's, never a URL parameter. Signed out, the page only emails a confirm link; the join finishes on `/invitations/confirm`.
-6. **Check your inbox** (signed out; the verify answered `202`): "We sent a link to {address}.", "Open it to join {tenant}. The link works once and expires in {minutes} minutes." (the confirmation link lasts `signInLinkTtlSeconds`; "Open it to join {tenant}. The link works once." until the settings load), Resend (waits 60 seconds; a 429 extends it), and "Go to the home page". The page listens for another tab's `signed_in` from the confirmation link, including after a failed Resend, and then lands on the tenant when the restored account is the mailed address, else on `/dashboard`.
+6. **Check your inbox** (signed out; the verify answered `202`):
+   - "We sent a link to {address}."
+   - "Open it to join {tenant}. The link works once and expires in {minutes} minutes." The confirmation link lasts `signInLinkTtlSeconds`. Until the settings load, the line reads "Open it to join {tenant}. The link works once."
+   - Resend, which waits 60 seconds; a 429 extends the wait.
+   - "Go to the home page".
+   - The page listens for another tab's `signed_in` from the confirmation link, including after a failed Resend. It then lands on the tenant when the restored account is the mailed address, else on `/dashboard`.
 7. **Retryable failure:** "You weren’t added to {tenant}", the reason and Try again.
 8. **Signed in as another address:** "Join {tenant}", the invitation sentence, "This invitation is for {invited}. You’re signed in as {current}.", Continue (signs out and reloads this page signed out, which then verifies) and Cancel (→ `/dashboard`).
 9. **Used link, signed in as the invitee:** the accept answers `alreadyMember`, and the page lands with "You’ve already joined {tenant} as {address}."
@@ -158,7 +198,7 @@ Findings: [F-auth-3](findings.md#f-auth-3), [F-auth-4](findings.md#f-auth-4)
 
 ### `/invitations/confirm` — Confirm a join
 
-No shot yet.
+No shot.
 
 |                     |                                                                                                                                                                                                                   |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -170,4 +210,12 @@ No shot yet.
 | Components          | `InvitationCard`, `SigningInStatus`, `SwitchAccountPanel`, `VerifyFailedPanel`, `ConfirmLinkDead`, `ConfirmLinkIncomplete`, `SignInLinkForm`                                                                      |
 | Transitions         | after a `200` the page posts `signed_in`, so the accept page waiting on Check your inbox lands too                                                                                                                |
 
-States: "Joining your team" while the confirm runs; "This link is incomplete" without a token or an address; "This link can’t be used" for a malformed link or a 404, described "Open your invitation email and select Join again to get a new link, or ask the person who invited you for a new invite." (signed in: "Go to the dashboard"; signed out: the sign-in form); "You weren’t added to your team" with Try again for anything else; and "Join your team" with Continue and Cancel when someone else is signed in.
+The page has these states:
+
+| State                     | What it shows                                                                                                                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The confirm runs          | "Joining your team"                                                                                                                                                                                                            |
+| No token or no address    | "This link is incomplete"                                                                                                                                                                                                      |
+| A malformed link or a 404 | "This link can’t be used", described "Open your invitation email and select Join again to get a new link, or ask the person who invited you for a new invite." Signed in: "Go to the dashboard"; signed out: the sign-in form. |
+| Anything else             | "You weren’t added to your team" with Try again                                                                                                                                                                                |
+| Someone else is signed in | "Join your team" with Continue and Cancel                                                                                                                                                                                      |

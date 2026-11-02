@@ -1,8 +1,10 @@
 # Analytics with a marketing website
 
-A product's marketing website and this app share **one PostHog project**, so a
-visit that starts on the website can continue in the app. How depends on where
-the website runs, and the two setups have opposite rules about `reset()`.
+This page is for whoever builds a product's marketing website alongside this
+app. The website and the app share **one PostHog project**, so a visit that
+starts on the website can continue in the app. How it continues depends on
+where the website runs, and the two setups have opposite rules about
+`reset()`.
 
 | Website                                                    | The visit carries over through                     | The website's rule                                          |
 | ---------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------- |
@@ -22,10 +24,10 @@ The app keeps posthog-js's default storage name (`ANALYTICS_PERSISTENCE_NAME` is
 write **one identity cookie** on the registrable domain. Use the same project
 key and leave both settings at their defaults.
 
-As posthog-js documents it, the SDK re-reads that cookie before every event and
-adopts whatever identity it holds. So while a user is signed in to the app in
-one tab, a website page in another tab that calls these SDK methods has the
-following effects:
+posthog-js documents that its software development kit (SDK) re-reads that
+cookie before every event and adopts whatever identity it holds. So while a
+user is signed in to the app in one tab, a website page in another tab that
+calls these SDK methods has these effects:
 
 - `identify(<lead id or email>)` or `alias(…)` files the user's next app events
   under the lead;
@@ -34,15 +36,21 @@ following effects:
 - `group(…)` puts the app's events in the website's group.
 
 The app defends itself in `guardEvent`
-(`src/observability/telemetry/telemetry.ts`). While a user is signed in, an
-event carrying any other distinct id is dropped, and the user is identified
-again. An event missing the app's `app`, `environment` or tenant group gets them
-back. But the dropped events are lost, a re-identify can start a new replay
-session (SDK behaviour, not something this repo controls), and a signed-out
-visitor has no identity to restore. **The website must therefore never call
-`identify`, `alias`, `reset` or `group`** while it shares the cookie. It may
-`capture` events and `register` its own properties. A lead form posts its data
-to your backend, which sets person properties server-side if it must.
+(`src/observability/telemetry/telemetry.ts`):
+
+- While a user is signed in, `guardEvent` drops an event carrying any other
+  distinct id and identifies the user again.
+- An event missing the app's `app`, `environment` or tenant group gets them
+  back.
+
+The defence has three limits. The dropped events are lost. A re-identify can
+start a new replay session (SDK behaviour, not something this repo controls).
+A signed-out visitor has no identity to restore.
+
+**The website must therefore never call `identify`, `alias`, `reset` or
+`group`** while it shares the cookie. It may `capture` events and `register`
+its own properties. A lead form posts its data to your backend, which sets
+person properties server-side if it must.
 
 ## A website on another domain: the handoff
 
@@ -54,8 +62,9 @@ The app accepts the handoff only when all of these hold, and strips both
 parameters from the address bar either way (`readHandoff` and
 `stripHandoffParams` in `src/observability/telemetry/handoff.ts`):
 
-- `ph_did` (and `ph_sid`, when present) is a UUID, the shape posthog-js mints. A
-  `ph_sid` that is not a UUID is ignored and the id is still accepted;
+- `ph_did` (and `ph_sid`, when present) is a universally unique identifier
+  (UUID), the shape posthog-js mints. A `ph_sid` that is not a UUID is ignored,
+  and the id is still accepted;
 - `document.referrer`'s origin is listed in the app's run-time
   `ANALYTICS_HANDOFF_ORIGINS` (container environment; comma-separated `https://`
   origins, e.g. `https://www.example.io`);
@@ -67,9 +76,9 @@ parameters from the address bar either way (`readHandoff` and
 - the app runs in the `opt_out` consent mode. In `required` mode nothing is
   stored before consent, so there is nothing to continue.
 
-When the visitor then signs in (a first sign-in by link or Google creates the
-account), the app's `identify` merges the
-website's anonymous history into the user.
+When the visitor then signs in, the app's `identify` merges the website's
+anonymous history into the user. A first sign-in by link or Google creates the
+account.
 
 ### What the website must do
 
@@ -82,10 +91,10 @@ website's anonymous history into the user.
    and the app ignores the link.
 3. Hand off only an **anonymous** id, and **reset after handing it off**, with
    the snippet below. Once the visitor signs in to the app, PostHog merges the
-   handed-off id into that person. The website cannot see that, and without the
-   reset it would keep the id and hand it off again for whoever uses the browser
-   next. The reset gives the website's next visitor a fresh id; this visitor's
-   journey continues in the app under the handed-off one.
+   handed-off id into that person. The website cannot see that merge. Without
+   the reset, it would keep the id and hand it off again for whoever uses the
+   browser next. The reset gives the website's next visitor a fresh id; this
+   visitor's journey continues in the app under the handed-off one.
 
 ```js
 /**
@@ -124,14 +133,23 @@ decorateAppLinks('https://app.example.com')
 
 ### What it does not protect against
 
-The handoff trusts the id in the link. A link carrying an id that PostHog has
-**already merged into a signed-in person** (a link copied out of someone else's
-browser after they signed up, or built by a website that ignored step 3) starts
-the app as that id. PostHog files the visitor's pageviews, clicks and replay
-before sign-in under that person, and when the visitor signs in it refuses to
-merge an id that is already identified, so that activity stays with the other
-person: **a stranger's activity is attributed to an identified person**, not
-just added to anonymous pageviews. The checks above narrow it: the link must be
-clicked from the allowlisted website, the app must hold nobody identified, and
-the same browser never accepts an id twice (within its last 50 handoffs). They
-do not stop a crafted link opened once in a fresh browser.
+The handoff trusts the id in the link. Take a link carrying an id that PostHog
+has **already merged into a signed-in person**: one copied out of someone
+else's browser after they signed up, or built by a website that ignored step 3.
+
+1. The link starts the app as that id.
+2. PostHog files the visitor's pageviews, clicks and replay before sign-in
+   under that person.
+3. When the visitor signs in, PostHog refuses to merge an id that is already
+   identified, so that activity stays with the other person.
+
+The result: **a stranger's activity is attributed to an identified person**,
+not just added to anonymous pageviews.
+
+The checks above narrow the risk:
+
+- the link must be clicked from the allowlisted website;
+- the app must hold nobody identified;
+- the same browser never accepts an id twice (within its last 50 handoffs).
+
+They do not stop a crafted link opened once in a fresh browser.

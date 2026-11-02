@@ -1,24 +1,63 @@
 # React pages
 
-This folder is the inventory of every route in the app: what each page is for, which file renders it, what guards it, which requests it waits on, which components it is built from, and what it looks like in its default, loading, error and empty states. The screenshots under `img/` are taken by the Playwright `capture` project in `e2e/capture/`: with the dev stack up (react on `:5173`, the API on `:4040`, Mailpit on `:8025`), run `pnpm capture:pages`, or `CAPTURE_ONLY=<areas> pnpm capture:pages` to redo some areas (for example `CAPTURE_ONLY=auth,system`). A route key in the same list, such as `CAPTURE_ONLY='/tenants/$slug/beta'` (quote it, or the shell expands `$slug`), redoes one route, for an area too large for one rate-limit window. Run it only through `pnpm capture:pages`: the script sets `E2E_CAPTURE=1`, which turns Playwright's `webServer` off, and a bare `pnpm exec playwright test --project=capture` without it starts `pnpm dev` and then skips every test. The run writes its records to `capture-records/` (gitignored, and outside `test-results/`, which Playwright empties at the start of every run, so separate runs keep each other's records): `report.json` for the page shots, `boot.json` for the boot frames and `navigation.json` for the in-app navigation shots. The boot capture's `nginx-` scenarios run against a production build and are skipped unless `E2E_NGINX_ORIGIN` points at one (for example `vite preview` of this worktree's build); `e2e/capture/navigation.test.ts` takes the in-app navigation shots (`<shot>--nav-route.jpg`, `<shot>--nav-sections.jpg`), and `e2e/capture/boot.test.ts` takes the boot frames; run both in one invocation, `pnpm capture:pages e2e/capture/boot.test.ts e2e/capture/navigation.test.ts`, to refresh them together. A 429 from the API stops the run with a message naming `CAPTURE_ONLY` and the 5-minute wait; the shot that saw the 429 may already be written under its real name, so restore it before the rerun with `git checkout -- docs/pages/img/<area>/<shot>--<state>.jpg`. The problems found are listed in [findings.md](findings.md). `tests/unit/docs-pages.test.ts` fails when a route is missing from the map below, when a screenshot is linked from no page, or when `img/` grows past 10 MiB.
+This folder is the inventory of every route in the React app. It is for developers who change a page or check how one behaves. For each route it gives:
 
-The shots come from `vite dev`, so the TanStack Router and Query devtools buttons show in the bottom-right corner of some of them. Those buttons are dev-only (`src/components/dev/devtools.tsx`) and are not part of any page. The default shots are full-page, so the sticky sidebar ends at the viewport's height (900 px) with blank space below it; that is a capture artifact, not the page.
+- what the page is for and which file renders it;
+- what guards it and which requests it waits on;
+- which components it is built from;
+- what it looks like in its default, loading, error and empty states.
 
-| Area                                 | Covers                                                                                                                                                       |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [boot.md](boot.md)                   | The cold load, from `index.html` to the first page, frame by frame                                                                                           |
-| [auth.md](auth.md)                   | Sign-in by emailed link or Google, the link page, the first-tenant step, invitation landing and confirm, the retired password paths, the public pricing page |
-| [system.md](system.md)               | The root redirect and the not-found page                                                                                                                     |
-| [dashboard.md](dashboard.md)         | The signed-in landing page                                                                                                                                   |
-| [tenants.md](tenants.md)             | The tenant list, a tenant's overview and its beta page                                                                                                       |
-| [settings.md](settings.md)           | Account and workspace settings                                                                                                                               |
-| [notifications.md](notifications.md) | The notifications page and the bell                                                                                                                          |
-| [palette.md](palette.md)             | The ⌘K command palette, a shell feature with no route                                                                                                        |
-| [findings.md](findings.md)           | Every problem found, with its evidence and the work that fixes it                                                                                            |
+The problems found are listed in [findings.md](findings.md). `tests/unit/docs-pages.test.ts` fails when a route is missing from the [route map](#route-map), when a screenshot is linked from no page, or when `img/` grows past 10 MiB (mebibytes).
+
+## Taking the screenshots
+
+The screenshots under `img/` are taken by the Playwright `capture` project in `e2e/capture/`.
+
+1. Start the dev stack: react on `:5173`, the application programming interface (API) on `:4040`, Mailpit on `:8025`.
+2. Run `pnpm capture:pages`.
+   - `CAPTURE_ONLY=<areas> pnpm capture:pages` redoes some areas, for example `CAPTURE_ONLY=auth,system`.
+   - A route key in the same list redoes one route, for an area too large for one rate-limit window: `CAPTURE_ONLY='/tenants/$slug/beta'`. Quote it, or the shell expands `$slug`.
+   - `pnpm capture:pages e2e/capture/boot.test.ts e2e/capture/navigation.test.ts` refreshes the boot frames and the in-app navigation shots together.
+
+Run it only through `pnpm capture:pages`. The script sets `E2E_CAPTURE=1`, which turns Playwright's `webServer` off. A bare `pnpm exec playwright test --project=capture` without it starts `pnpm dev` and then skips every test.
+
+The run writes its records to `capture-records/`. That folder is gitignored and outside `test-results/`, which Playwright empties at the start of every run, so separate runs keep each other's records.
+
+| Record            | Written by                       | Holds                                                                             |
+| ----------------- | -------------------------------- | --------------------------------------------------------------------------------- |
+| `report.json`     | the page shots                   | each page shot's record                                                           |
+| `boot.json`       | `e2e/capture/boot.test.ts`       | the boot frames                                                                   |
+| `navigation.json` | `e2e/capture/navigation.test.ts` | the in-app navigation shots (`<shot>--nav-route.jpg`, `<shot>--nav-sections.jpg`) |
+
+The boot capture's `nginx-` scenarios run against a production build. They are skipped unless `E2E_NGINX_ORIGIN` points at one, for example `vite preview` of this worktree's build.
+
+A 429 (Too Many Requests) from the API stops the run with a message naming `CAPTURE_ONLY` and the 5-minute wait. The shot that saw the 429 may already be written under its real name. Restore it before the rerun with `git checkout -- docs/pages/img/<area>/<shot>--<state>.jpg`.
+
+### What the shots show besides the page
+
+- The shots come from `vite dev`, so the TanStack Router and Query devtools buttons show in the bottom-right corner of some of them. Those buttons are dev-only (`src/components/dev/devtools.tsx`) and are not part of any page.
+- The default shots are full-page, so the sticky sidebar ends at the viewport's height (900 px), with blank space below it. That is a capture artifact, not the page.
+
+## Areas
+
+| Area                                 | Covers                                                                                                                                                                |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [boot.md](boot.md)                   | The cold load, from `index.html` to the first page, frame by frame                                                                                                    |
+| [auth.md](auth.md)                   | Sign-in by emailed link, Google or passkey, the link page, the first-tenant step, invitation landing and confirm, the retired password paths, the public pricing page |
+| [system.md](system.md)               | The root redirect and the not-found page                                                                                                                              |
+| [dashboard.md](dashboard.md)         | The signed-in landing page                                                                                                                                            |
+| [tenants.md](tenants.md)             | The tenant list, a tenant's overview and its beta page                                                                                                                |
+| [settings.md](settings.md)           | Account and workspace settings                                                                                                                                        |
+| [notifications.md](notifications.md) | The notifications page and the bell                                                                                                                                   |
+| [palette.md](palette.md)             | The ⌘K command palette, a shell feature with no route                                                                                                                 |
+| [findings.md](findings.md)           | Every problem found, with its evidence and the work that fixes it                                                                                                     |
 
 ## Route map
 
-Every full path of the route tree (`FileRoutesByFullPath` in `src/routeTree.gen.ts`). API paths are relative to `/api/v1`. "Awaited" requests hold the page (on a cold load, the boot shell) until they settle, at most 10 s for the flags; "started" requests run while the page renders, and the page shows its template or its sections' skeletons meanwhile.
+The table lists every full path of the route tree (`FileRoutesByFullPath` in `src/routeTree.gen.ts`). API paths are relative to `/api/v1`.
+
+- "Awaited" requests hold the page (on a cold load, the boot shell) until they settle, at most 10 s for the flags.
+- "Started" requests run while the page renders. Meanwhile the page shows its template or its sections' skeletons.
 
 | Route                                | Kind                                                                                                   | File                                                   | Guard                                                 | Data (awaited / started)                                                                                                                                                                                                                                                                                                                                    | Doc                                                                              |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -60,7 +99,7 @@ Every full path of the route tree (`FileRoutesByFullPath` in `src/routeTree.gen.
 | `/tenants/$slug/members`             | redirect → `/settings/workspace/$slug/members`                                                         | `src/pages/_app/tenants/$slug.members.tsx`             | `_app`                                                | none: redirects before it loads                                                                                                                                                                                                                                                                                                                             | [tenants.md](tenants.md#redirects)                                               |
 | `/tenants/$slug/settings`            | redirect → `/settings/workspace/$slug/general`                                                         | `src/pages/_app/tenants/$slug.settings.tsx`            | `_app`                                                | none: redirects before it loads                                                                                                                                                                                                                                                                                                                             | [tenants.md](tenants.md#redirects)                                               |
 
-Every page also sits under `__root`, whose `beforeLoad` awaits the session restore (`POST /auth/refresh`, then `GET /profile`), and whose `MaintenanceGate` starts `GET /status/maintenance`. The `_app` shell (`AppLayout`) starts `GET /notifications?limit=20` and the notifications stream for the bell. [boot.md](boot.md#what-happens) has the order.
+Every page also sits under `__root`. Its `beforeLoad` awaits the session restore (`POST /auth/refresh`, then `GET /profile`), and its `MaintenanceGate` starts `GET /status/maintenance`. The `_app` shell (`AppLayout`) starts `GET /notifications?limit=20` and the notifications stream for the bell. [boot.md](boot.md#what-happens) has the order.
 
 ## Journeys
 
@@ -109,7 +148,7 @@ flowchart LR
 
 ## Per-route block
 
-Every area file describes each route with the same block, so the docs stay comparable:
+Every area file describes each route with the same block, so the docs stay comparable. The example below shows the block; the rules after it explain each part.
 
 ```markdown
 ### `/tenants/` — Tenants
@@ -137,10 +176,10 @@ Findings: [F-tenants-1](findings.md#f-tenants-1) …
 
 - The heading is the route in backticks, an em dash, and the page's name. The name differs between routes whose paths differ only by a trailing slash, so their anchors never collide.
 - The `Data` row names each query's endpoint and its query key as the code defines it (`tenantKeys.list` is `['tenants']`), whether it is awaited or only started, and its `staleTime` when it is not the default 30 s (`src/router.tsx`). A row with mutations only says "no query".
-- The `Loading` cell's first line is the report's `loadingUi` (`skeleton`, `spinner` or `shell`, or `none`), the `Error` cell's is its `errorUi` (`alert` or `none`). The second line names what is drawn.
+- The `Loading` cell's first line is the report's `loadingUi` (`skeleton`, `spinner` or `shell`, or `none`). The `Error` cell's first line is its `errorUi` (`alert` or `none`). The second line names what is drawn.
 - A state with no shot has no column. A route with no shot at all (a redirect) has no image.
 - Dark and mobile shots go in a second table under the first, when the route has them.
 - A route with a role gate has a `Role-denied` table: what an editor (the seed's `member` session) sees instead, with its shot `img/<area>/<shot>--role-denied.jpg`.
-- A route whose manifest entry lists `states` has a `States` table: one column per state, with its shot `img/<area>/<shot>--state-<name>.jpg` and the manifest's note under it. A state stubs some responses (the billing page in its past-due state, say), or opens the page as another session or at another URL.
-- The image paths are `img/<area>/<shot>--<state>.jpg`, with the area and shot stem from `e2e/capture/manifest.ts`; the example writes them as placeholders so it links no real screenshot.
+- A route whose manifest entry lists `states` has a `States` table: one column per state, with its shot `img/<area>/<shot>--state-<name>.jpg` and the manifest's note under it. A state stubs some responses (for example, the billing page in its past-due state), or opens the page as another session or at another URL (Uniform Resource Locator).
+- The image paths are `img/<area>/<shot>--<state>.jpg`, with the area and shot stem from `e2e/capture/manifest.ts`. The example writes them as placeholders, so it links no real screenshot.
 - Findings ids are `F-<area>-<n>`, and each one has a heading in [findings.md](findings.md).

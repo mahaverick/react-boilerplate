@@ -1,39 +1,55 @@
 # Local edits to the vendored shadcn components
 
-The files in `src/components/ui/` come from the shadcn registry (style
-`base-vega`). These are the places they differ, and why. `pnpm ui:drift`, a
-step of CI's `lint` job, compares each file with its registry snapshot in
-`scripts/ui-registry/` and accepts exactly the edits listed here, through
-each section's rules.
+This file records each place where a file in `src/components/ui/` differs from
+the shadcn registry (style `base-vega`), and why. It is for anyone who edits,
+re-adds or refreshes a vendored component.
 
-The rules are fenced blocks under a `### <file>` heading (`*` for every file):
+`pnpm ui:drift`, a step of the continuous integration (CI) `lint` job, reads
+this file. It compares each vendored file with its registry snapshot in
+`scripts/ui-registry/` and accepts exactly the edits recorded here.
 
-- A `ui-drift` block holds `skip` (the file is ours, nothing to compare) or
-  line rewrites: `ours: s/<re>/<to>/` rewrites our changed lines and
-  `theirs: s/<re>/<to>/` the registry's. A changed line a rewrite turns blank,
-  or into a line the other side has in the same hunk, is explained, and so is
-  a blank line. Use them for an edit that recurs on many lines or files.
-- A `ui-drift-hunk` block records one hunk exactly: a `reason:` line, then the
-  registry's lines as `-<line>` and ours as `+<line>`, indentation included.
-  What the line rewrites leave of a hunk must equal one recorded hunk, and a
-  recorded hunk that matches nothing fails the check. On unrecorded drift the
-  check prints the block to paste; fill in the reason.
+**Re-pulling a component** (`pnpm exec shadcn add <name> --overwrite`) drops
+these edits: re-apply every one marked "re-apply: yes".
+
+## How a rule is written
+
+The rules are fenced blocks under a `### <file>` heading (`*` for every file).
+Use `###` only for a file section, such as `### tabs.tsx`: the check reads a
+one-word `###` heading as a file name.
+
+- **A `ui-drift` block** holds `skip` (the file is ours, nothing to compare)
+  or line rewrites. `ours: s/<re>/<to>/` rewrites our changed lines;
+  `theirs: s/<re>/<to>/` rewrites the registry's. A changed line is explained
+  when a rewrite turns it blank, or into a line the other side has in the same
+  hunk. A blank line is always explained. Use rewrites for an edit that recurs
+  on many lines or files.
+- **A `ui-drift-hunk` block** records one hunk exactly: a `reason:` line, then
+  the registry's lines as `-<line>` and ours as `+<line>`, indentation
+  included. What the line rewrites leave of a hunk must equal one recorded
+  hunk. A recorded hunk that matches nothing fails the check.
+- **On unrecorded drift**, the check prints the block to paste; fill in the
+  reason.
+- **A record the check cannot read** stops it with one `ui:drift:` line.
+
+## Refreshing the snapshot
 
 `pnpm ui:drift:refresh` rewrites the snapshot from the registry through the
-installed `shadcn` devDependency (it needs the network), which `package.json`
-pins exactly. The snapshot's
-`manifest.json` records that version and `components.json`'s style and icon
-library, and the check fails when either moves without a refresh; Renovate
-leaves `shadcn` bumps for a human for that reason. The registry also moves
-without a CLI release, so a refresh is a change of its own, and a PR that
-touches `scripts/ui-registry/` is reviewed as one (CODEOWNERS): review the
-snapshot's diff, then run `pnpm ui:drift`. Never edit a snapshot file by hand
-to make a vendored edit pass. A refresh writes to a `scripts/ui-registry.next-*`
-directory first; one left by an interrupted run fails the check until it is
-deleted. A record the check cannot read stops it with one `ui:drift:` line.
+installed `shadcn` devDependency, which `package.json` pins exactly. It needs
+the network.
 
-Re-pulling a component (`pnpm exec shadcn add <name> --overwrite`)
-drops these edits: re-apply every one marked "re-apply: yes".
+- **The check fails when the CLI version or the style moves without a
+  refresh.** The snapshot's `manifest.json` records the `shadcn` version and
+  `components.json`'s style and icon library. For that reason, Renovate leaves
+  `shadcn` bumps for a human.
+- **A refresh is a change of its own.** The registry also moves without a
+  command-line interface (CLI) release. A pull request (PR) that touches
+  `scripts/ui-registry/` is reviewed as a refresh (CODEOWNERS): review the
+  snapshot's diff, then run `pnpm ui:drift`.
+- **Never edit a snapshot file by hand** to make a vendored edit pass.
+- **A refresh writes to a `scripts/ui-registry.next-*` directory first.** One
+  left by an interrupted run fails the check until it is deleted.
+
+## The edits
 
 ### *
 

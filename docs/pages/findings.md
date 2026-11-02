@@ -1,8 +1,18 @@
 # Findings
 
-Each finding: where, what is wrong, evidence, and the part that fixes it.
+This file lists every problem the page inventory found in the React app. It is for developers who plan or check the fixes. Each finding gives where it is, what is wrong, the evidence, and the part of the work that fixes it.
 
-The tag names the work that fixes it: `[P2 loading]` boot and loading states, `[P3 shadcn]` the shadcn refresh, `[P4 table]` the data table, `[P5 palette]` the command palette, and `[UX]` a copy or flow change outside those.
+In this file, API is the application programming interface (express), UI is the user interface, CSS is Cascading Style Sheets, JSON is JavaScript Object Notation, URL is a Uniform Resource Locator, and #109 and similar numbers are pull requests (PRs) in this repo.
+
+The tag names the part of the work that fixes the finding:
+
+| Tag            | Part                                                                  |
+| -------------- | --------------------------------------------------------------------- |
+| `[P2 loading]` | part 2: boot and loading states                                       |
+| `[P3 shadcn]`  | part 3: the refresh onto shadcn, the component collection the UI uses |
+| `[P4 table]`   | part 4: the shared data table                                         |
+| `[P5 palette]` | part 5: the command palette                                           |
+| `[UX]`         | a user experience (UX) change to copy or flow, outside those parts    |
 
 ## Summary by part
 
@@ -36,7 +46,12 @@ The tag names the work that fixes it: `[P2 loading]` boot and loading states, `[
 
 ## All findings
 
-Each finding's text says what was found; its `Status:` line says what has changed since, with the shot and test that show it. "The walk" below is a Playwright walk of the signed-in app as a new account owning two tenants, with a layout-shift observer on every page; "the capture" is `pnpm capture:pages` and its `report.json`.
+Each finding's text says what was found, and quotes the UI copy of that time. Its `Status:` line, when it has one, gives the present state, with the shot and test that show it.
+
+Two sources recur:
+
+- **"The walk"** is a Playwright walk of the signed-in app, made for PR #108 on 15 October 2026. It ran as a newly registered account owning two tenants, with a layout-shift observer on every page.
+- **"The capture"** is `pnpm capture:pages` and its `report.json`.
 
 | Id                | Route                                              | Tag          | Finding                                                                                                                                                               | Evidence                                                                      |
 | ----------------- | -------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -83,15 +98,19 @@ Each finding's text says what was found; its `Status:` line says what has change
 
 ### F-boot-1
 
-Status: fixed. The shell's CSS is inline in `index.html`, so after the browser's own blank frame the first frame is the styled shell, in both builds ([frames](boot.md#the-first-frame)). `tests/unit/boot-shell.test.ts` ("paints only colours it copied", "sizes its boxes as border-box…") and `e2e/nginx/boot-shell.test.ts` (the styled shell with the bundle blocked, in a light and a dark colour scheme) cover it.
+Status: fixed. The shell's styles are inline in `index.html`, so after the browser's own blank frame the first frame is the styled shell, in both builds ([frames](boot.md#the-first-frame)). `tests/unit/boot-shell.test.ts` ("paints only colours it copied", "sizes its boxes as border-box…") and `e2e/nginx/boot-shell.test.ts` (the styled shell with the bundle blocked, in a light and a dark colour scheme) cover it.
 
-On every cold load under `vite dev`, the splash in `index.html` shows for about half a second as unstyled black serif "Loading…" in the top-left corner, with no spinner, before it jumps to the centred, styled splash. Its only styles are in `src/styles/globals.css`, which `vite dev` delivers through JavaScript after the module graph runs. A production build links that CSS in `<head>`, so production was not affected. Fix: give the splash styles that do not depend on the bundle.
+On every cold load under `vite dev`, the splash in `index.html` showed for about half a second as unstyled black serif "Loading…" in the top-left corner, with no spinner. Then it jumped to the centred, styled splash. Its only styles were in `src/styles/globals.css`, which `vite dev` delivers through JavaScript after the module graph runs. A production build links that CSS file in `<head>`, so production was not affected. Fix: give the splash styles that do not depend on the bundle.
 
 ### F-boot-2
 
-Status: fixed. The boot waits on the session restore and the flags only, and on the flags at most 10 s (`FLAGS_BOOT_WAIT_MS`); the tenant list is read after mount and a tenant's detail is started without being awaited ([frames](boot.md#what-happens)). `tests/unit/observability/flags/flag-query.test.ts` ("resolves to the fallbacks once FLAGS_BOOT_WAIT_MS passes with no answer…") and `tests/unit/components/features/tenant/tenant-search-guard.test.tsx` (the list template and the dashboard template in the page slot while the list is in flight) and `tests/unit/pages/_app/tenants/$slug.test.tsx` ("shows the detail template under the app shell while the tenant loads") cover it.
+Status: fixed. The boot waits on the session restore and the flags only, and on the flags at most 10 s (`FLAGS_BOOT_WAIT_MS`); the tenant list is read after mount and a tenant's detail is started without being awaited ([frames](boot.md#what-happens)). Three tests cover it:
 
-React mounts only after `router.load()` settles (`src/main.tsx`), and `router.load()` awaits the session restore, `_app`'s tenant guard (`GET /tenants`, up to 3 s), the flags, and on tenant pages `GET /tenants/:slug`. While any of these is slow, the user sees only the boot splash: no shell, no skeleton, no sign of which page is coming. The capture held each tenant page's requests: the loading shots of `/tenants/$slug/`, `/tenants/$slug/beta` and the three `/settings/workspace/$slug/…` pages all recorded `loadingUi: "splash"` in `capture-records/report.json`. Fix: mount the shell before the awaited reads finish and show route-level skeletons in place of the splash.
+- `tests/unit/observability/flags/flag-query.test.ts` ("resolves to the fallbacks once FLAGS_BOOT_WAIT_MS passes with no answer…");
+- `tests/unit/components/features/tenant/tenant-search-guard.test.tsx` (the list template and the dashboard template in the page slot while the list is in flight);
+- `tests/unit/pages/_app/tenants/$slug.test.tsx` ("shows the detail template under the app shell while the tenant loads").
+
+React mounts only after `router.load()` settles (`src/main.tsx`), and `router.load()` awaits the session restore, `_app`'s tenant guard (`GET /tenants`, up to 3 s), the flags, and on tenant pages `GET /tenants/:slug`. While any of these was slow, the user saw only the boot splash: no shell, no skeleton, no sign of which page was coming. The capture held each tenant page's requests. The loading shots of `/tenants/$slug/`, `/tenants/$slug/beta` and the three `/settings/workspace/$slug/…` pages all recorded `loadingUi: "splash"` in `capture-records/report.json`. Fix: mount the shell before the awaited reads finish and show route-level skeletons in place of the splash.
 
 ### F-auth-1
 
@@ -107,19 +126,19 @@ Status: closed, as [F-auth-1](#f-auth-1): no page renders a token. Every mailed-
 
 ### F-auth-3
 
-Status: partly fixed. The loading card is shaped like the loaded one, a sentence, two buttons and a hint as skeleton bars, so it has about the loaded card's height; its title stays "Checking your invitation", since only the preview knows the tenant's name. `tests/unit/pages/invitations/accept.test.tsx` ("holds the loaded card’s height while the preview loads…") covers the shape, not the height, which jsdom cannot measure. The shot is retaken in the final walk.
+Status: partly fixed. The loading card is shaped like the loaded one, a sentence, two buttons and a hint as skeleton bars, so it has about the loaded card's height; its title stays "Checking your invitation", since only the preview knows the tenant's name. `tests/unit/pages/invitations/accept.test.tsx` ("holds the loaded card’s height while the preview loads…") covers the shape, not the height, which jsdom cannot measure. The page has no shot in `img/`; running `pnpm capture:pages` against an express 6 stack takes it.
 
 While the preview loads, the card is titled "Checking your invitation" and holds two skeleton bars; when it lands, the card becomes "Join {tenant}" with a sentence, two buttons and a hint paragraph. The card grows from about 200 px to about 345 px tall and its title changes, so everything in it moves. Fix: a skeleton shaped like the loaded state (title line, sentence, two button-height bars).
 
 ### F-auth-4
 
-Status: fixed. The title reads "We couldn’t check this invitation" and the box says only what the title does not: "The check failed, and your invitation link is unchanged. Select Try again." `tests/unit/pages/invitations/accept.test.tsx` pins both.
+Status: fixed. The title reads "This invitation wasn’t checked" and the box says only what the title does not: "The check failed, and your invitation link is unchanged. Select Try again." `tests/unit/pages/invitations/accept.test.tsx` pins both.
 
 The preview-failure state has the title "We could not load this invitation" and, inside the card, a bordered `LoadError` box whose message starts with the same sentence. Fix: shorten the box's message to the part the title does not say, or drop the box's border inside a card.
 
 ### F-auth-5
 
-Status: fixed. The note reads "By signing in, you agree to our Terms of Service and Privacy Policy.", which fits both the link button and Google, and the registration page is gone. `tests/unit/pages/_auth/login.test.tsx` pins it.
+Status: fixed. The note reads "By signing in, you agree to our Terms of Service and Privacy Policy.", which fits both the link button and Google. There is no registration page. `tests/unit/pages/_auth/login.test.tsx` pins it.
 
 `TermsNote` under the sign-in and registration cards reads "By clicking continue, you agree to our Terms of Service and Privacy Policy." The primary buttons are "Sign in" and "Create account"; only the Google button says "Continue". Fix: word the note for the page's own button, or for any sign-in method.
 
@@ -129,13 +148,13 @@ Status: fixed. The note reads "By signing in, you agree to our Terms of Service 
 
 ### F-dashboard-1
 
-Status: fixed. While the tenant list is in flight, the page slot holds the dashboard template and the switcher reads "Loading tenants…" ([after](img/dashboard/dashboard--loading.jpg)). `tenant-search-guard.test.tsx` ("shows the dashboard template in the page slot…") and `tests/unit/components/features/tenant-switcher.test.tsx` ("names the list as loading on the trigger…") cover it.
+Status: fixed. While the tenant list is in flight, the page slot holds the dashboard template and the switcher reads "Loading workspaces…" ([after](img/dashboard/dashboard--loading.jpg)). `tenant-search-guard.test.tsx` ("shows the dashboard template in the page slot…") and `tests/unit/components/features/tenant-switcher.test.tsx` ("names the list as loading on the trigger…") cover it.
 
-`/dashboard` has no request of its own; the capture held the `_app` guard's `GET /tenants` and the bell's `GET /notifications`, and recorded `loadingUi: "none"` (5466 ms). The guard awaits the tenant list with a 3 s cap (`src/lib/tenant-guard.ts`), so the boot splash covers the first 3 s, then the page renders as if loading were done: "Choose a tenant" in the switcher, no badge on the bell ([shot](img/dashboard/dashboard--loading.jpg)). The same happens on every page without `$slug` (`/tenants/` shows "Choose a tenant" over its own skeleton, [shot](img/tenants/tenants--loading.jpg)). Fix: render the shell without waiting on the tenant list, with a skeleton in the switcher and the bell while their reads are in flight.
+`/dashboard` has no request of its own. The capture held the `_app` guard's `GET /tenants` and the bell's `GET /notifications`, and recorded `loadingUi: "none"` (5466 ms). The guard awaited the tenant list with a 3 s cap (`src/lib/tenant-guard.ts`), so the boot splash covered the first 3 s. Then the page rendered as if loading were done: "Choose a tenant" in the switcher, no badge on the bell ([shot](img/dashboard/dashboard--loading.jpg)). The same happens on every page without `$slug` (`/tenants/` shows "Choose a tenant" over its own skeleton, [shot](img/tenants/tenants--loading.jpg)). Fix: render the shell without waiting on the tenant list, with a skeleton in the switcher and the bell while their reads are in flight.
 
 ### F-dashboard-2
 
-Status: fixed. A failed tenant list reads "Tenants didn’t load" on the switcher trigger, and a failed notifications read marks the bell ([after](img/dashboard/dashboard--error.jpg)). `tenant-switcher.test.tsx` ("names the failure on the trigger…"), `tests/unit/components/features/notification-bell.test.tsx` ("marks a failed read on the bell…") and `e2e/fixtures/sections.test.ts` ("a failed tenant list shows on the switcher…") cover it.
+Status: fixed. A failed tenant list reads "Workspaces didn’t load" on the switcher trigger, and a failed notifications read marks the bell ([after](img/dashboard/dashboard--error.jpg)). `tenant-switcher.test.tsx` ("names the failure on the trigger…"), `tests/unit/components/features/notification-bell.test.tsx` ("marks a failed read on the bell…") and `e2e/fixtures/sections.test.ts` ("a failed tenant list shows on the switcher…") cover it.
 
 The capture failed `GET /tenants` and `GET /notifications` on `/dashboard` and recorded `errorUi: "none"`: the page renders normally, the switcher says "Choose a tenant", the words it uses for an account with no tenants, and the bell's badge is gone ([shot](img/dashboard/dashboard--error.jpg)). Only the bell's accessible name changes ("Notifications, count unavailable"), and the switcher's popup says "Tenants didn’t load" once opened (`ownTenantsMessage` in `src/components/features/tenant-switcher.tsx`). `/tenants/` does show a `LoadError` for the same failure, but its switcher also says "Choose a tenant" ([shot](img/tenants/tenants--error.jpg)). Fix: give the switcher trigger and the bell a visible failed state with a retry, distinct from "no tenants" and "no notifications".
 
@@ -155,7 +174,7 @@ The capture failed `GET /tenants` and `GET /notifications` on `/dashboard` and r
 
 Status: fixed. A cold load and an in-app navigation both show the detail template under the app shell while the tenant loads ([cold load](img/tenants/tenant-overview--loading.jpg), [navigation](img/tenants/tenant-overview--nav-route.jpg)). `tests/unit/pages/_app/tenants/$slug.test.tsx` ("shows the detail template under the app shell while the tenant loads") covers it.
 
-`/tenants/$slug` and `/settings/workspace/$slug` await `GET /tenants/:slug` and its flags in their loaders. On a cold load that runs inside `router.load()`, before React mounts: the capture's loading shots of `/tenants/$slug/` and `/tenants/$slug/beta` recorded `loadingUi: "splash"` ([shot](img/tenants/tenant-overview--loading.jpg)), the mechanism in [F-boot-2](#f-boot-2). On an in-app navigation the router shows `RoutePending` after 300 ms instead: in the walk, with the detail held 2.5 s, the page was one centred spinner under a breadcrumb that already read Tenants › {slug} › Overview, for about 2.3 s. `TenantGate`'s skeleton (`h-10 w-64`, `h-8`, `h-40`) is reachable only in the narrow cases [tenants.md](tenants.md#layout) lists, inferred from the code. Fix: let the layout render from the route match with a header-and-tabs skeleton while the detail loads.
+`/tenants/$slug` and `/settings/workspace/$slug` await `GET /tenants/:slug` and its flags in their loaders. On a cold load that runs inside `router.load()`, before React mounts. The capture's loading shots of `/tenants/$slug/` and `/tenants/$slug/beta` recorded `loadingUi: "splash"` ([shot](img/tenants/tenant-overview--loading.jpg)), the mechanism in [F-boot-2](#f-boot-2). On an in-app navigation the router shows `RoutePending` after 300 ms instead. In the walk, with the detail held 2.5 s, the page was one centred spinner for about 2.3 s, under a breadcrumb that already read Tenants › {slug} › Overview. `TenantGate`'s skeleton (`h-10 w-64`, `h-8`, `h-40`) is reachable only in the narrow cases [tenants.md](tenants.md#layout) lists, inferred from the code. Fix: let the layout render from the route match with a header-and-tabs skeleton while the detail loads.
 
 ### F-tenants-2
 
@@ -167,11 +186,11 @@ A failed `GET /tenants/:slug` makes `TenantGate` show the tenant `LoadError` (`T
 
 Status: fixed. The checklist holds its place with a skeleton, with Details already up, and says so in its own place when it fails. `$slug.test.tsx` ("holds the checklist’s place with a skeleton…", "says the checklist failed, in its own place…") and `e2e/fixtures/sections.test.ts` ("a held checklist read leaves the tenant’s details on screen", "a failed checklist read shows one error, in the checklist’s place") cover it. There is no after-shot: the capture holds the tenant read together with the checklist's, so [its loading shot](img/tenants/tenant-overview--loading.jpg) shows the detail template instead.
 
-`GettingStartedCard` returns `null` until `GET /tenants/:slug/onboarding` has data (`src/components/features/tenant/getting-started-card.tsx`), and has no error branch. In the walk the Details card painted first and was pushed from y 217 to y 761 when the checklist arrived about 60 ms later (layout shift 0.143, the largest on any page). With that request answering 500, the card was absent and nothing said so. Fix: a checklist-shaped skeleton while pending, and a `LoadError` in the card's place on failure.
+`GettingStartedCard` returns `null` until `GET /tenants/:slug/onboarding` has data (`src/components/features/tenant/getting-started-card.tsx`), and has no error branch. In the walk the Details card painted first. When the checklist arrived about 60 ms later, it pushed Details from y 217 to y 761 (layout shift 0.143, the largest on any page). With that request answering 500, the card was absent and nothing said so. Fix: a checklist-shaped skeleton while pending, and a `LoadError` in the card's place on failure.
 
 ### F-tenants-4
 
-Status: fixed. The empty list was first fixed in #109 and is an `EmptyState` ([after](img/tenants/tenants--empty.jpg)); the rows are now the shared `DataTable`, a table with role and join date that stacks as cards below 768 px. `tests/unit/pages/_app/tenants/index.test.tsx` (“lists tenants in a table by name, with role and join date”, “lists each tenant as a link in a row carrying its role”) and `e2e/fixtures/lists.test.ts` (“Tenants stacks as cards with no sideways scroll”) cover it.
+Status: fixed. #109 fixed the empty list, which is an `EmptyState` ([after](img/tenants/tenants--empty.jpg)). The rows are the shared `DataTable`: a table with role and join date that stacks as cards below 768 px. `tests/unit/pages/_app/tenants/index.test.tsx` (“lists tenants in a table by name, with role and join date”, “lists each tenant as a link in a row carrying its role”) and `e2e/fixtures/lists.test.ts` (“Workspaces stacks as cards with no sideways scroll”) cover it.
 
 The tenant list's empty state is `<p className="text-sm text-muted-foreground">You do not belong to any tenants yet. Create one below.</p>` ([shot](img/tenants/tenants--empty.jpg)), and the list itself is a `ul` of hand-rolled bordered link rows. Fix: shadcn's `empty` for the empty state; the rows can stay a list or move to the data table with the other lists.
 
@@ -187,7 +206,7 @@ With `example_beta_page` off, `/tenants/$slug/beta`'s `beforeLoad` throws `notFo
 
 Status: fixed. The palette lists the caller's tenants under Switch tenant and Recent, and Create a tenant ([palette.md](palette.md)). `tests/unit/components/features/command-palette.test.tsx` ("switches tenant on %s as the switcher does", "creates a tenant on /tenants#create, with the first field focused once the palette has closed") and `e2e/fixtures/palette.test.ts` ("switches tenant from the keyboard alone") cover it.
 
-Switching tenant is reachable only from the switcher at the top of the sidebar; on a phone, from inside the sidebar sheet. In the walk the switcher searched both tenants well, but there is no keyboard way in and no command palette in react at all. Creating a tenant is a link at the bottom of the switcher that goes to the tenant list page. Fix: the palette lists the user's tenants ("Switch to…") and "Create a tenant".
+Switching tenant is reachable only from the switcher at the top of the sidebar; on a phone, from inside the sidebar sheet. In the walk the switcher searched both tenants, but it had no keyboard way in, and the React app had no command palette. Creating a tenant is a link at the bottom of the switcher that goes to the tenant list page. Fix: the palette lists the user's tenants ("Switch to…") and "Create a tenant".
 
 ### F-notifications-1
 
@@ -197,13 +216,13 @@ The loading branch is three `Skeleton className="h-16 w-full"` blocks ([shot](im
 
 ### F-notifications-2
 
-Status: fixed in #109. The inbox shows an `EmptyState` ([after](img/notifications/notifications--empty.jpg)). The bell renders a compact `EmptyState` too; `tests/unit/components/features/notification-bell.test.tsx` covers it, and there is no after-shot of the bell’s empty state.
+Status: fixed in #109. The inbox shows an `EmptyState` ([after](img/notifications/notifications--empty.jpg)). The bell renders a compact `EmptyState` too. `tests/unit/components/features/notification-bell.test.tsx` covers it; there is no after-shot of the bell’s empty state.
 
 The empty inbox is a muted `p`, "You have no notifications." ([shot](img/notifications/notifications--empty.jpg)), as is the bell's "You have no notifications.". Fix: shadcn's `empty` on the page.
 
 ### F-notifications-3
 
-Status: fixed. The inbox first got a `BusyButton` Load more in #109; it now pages with Previous page and Next page like every list, and has no Load more. `tests/unit/pages/_app/notifications.test.tsx` (“shows the inbox as cards at every width, with a search box and paging”) and `tests/unit/components/shared/data-table/data-table.test.tsx` (the paging cases) cover it.
+Status: fixed. #109 gave the inbox a `BusyButton` Load more. The inbox pages with Previous page and Next page like every list, and has no Load more. `tests/unit/pages/_app/notifications.test.tsx` (“shows the inbox as cards at every width, with a search box and paging”) and `tests/unit/components/shared/data-table/data-table.test.tsx` (the paging cases) cover it.
 
 Load more is an outline `Button` whose label turns to "Loading…" while the next page is fetched (`src/pages/_app/notifications.tsx`). Fix: shadcn's `spinner` in the button, or `pagination` if the inbox moves to pages.
 
@@ -217,7 +236,7 @@ The sidebar's Notifications item (with the unread count) opens the inbox, `/noti
 
 ### F-notifications-6
 
-Status: fixed in express 6.0.0. Sign-in by link verifies the address on the click, the "Verify your email" notification type is gone, and its rows are deleted.
+Status: fixed in express 6.0.0. Sign-in by link verifies the address on the click. Express has no "Verify your email" notification type, and the release deletes its rows.
 
 The capture's owner and the walk's owner were both registered and verified before signing in, and both inboxes held an unread "Verify your email — Please verify your email address for Express Boilerplate." ([shot](img/notifications/notifications--default.jpg)). The notification is created at registration by the API and stays after the address is verified. Fix: mark it read (or delete it) on verification, in express.
 
@@ -235,7 +254,7 @@ With the tenant read failing, every workspace page shows the settings heading an
 
 ### F-settings-3
 
-Status: fixed. The password form is gone, so only the sign-in methods load, and they hold their place with a heading and two row bars above Other sessions, which renders at once. `tests/unit/components/features/profile/security-section.test.tsx` ("holds the sign-in methods’ place while they load") covers it. The shots are retaken in the final walk.
+Status: fixed. There is no password form, so only the sign-in methods load. They hold their place with a heading and two row bars above Other sessions, which renders at once. `tests/unit/components/features/profile/security-section.test.tsx` ("holds the sign-in methods’ place while they load") covers it. The page has no shot in `img/`; running `pnpm capture:pages` against an express 6 stack takes it.
 
 `SecuritySection`'s loading branch is `h-5 w-40` and `h-9`. It is replaced by "Sign-in methods", the method, "Change password" and three labelled fields with a button: in the walk Other sessions moved from y 284 to y 578 (layout shift 0.026). Fix: a skeleton shaped like the methods line and the password form.
 
@@ -249,17 +268,26 @@ Status: fixed. Four preference rows hold the place while the preferences load ([
 
 Status: partly fixed. General's Settings card is form-shaped while its settings or its role load, and its Overview card renders once the tenant has loaded, under the settings template ([after](img/settings/workspace-general--loading.jpg)). `tests/unit/components/features/tenant/tenant-settings-card.test.tsx` ("holds the form’s place while the role loads…") covers it. The members table, invitations and activity log move to the data table.
 
-On the workspace pages, once the gate has the detail: members shows 2× `h-10` and invitations 2× `h-10` for a table with a header row and a list of invitation rows (in the walk the table's arrival pushed Invite a member from y 438 to y 515.5, layout shift 0.017); activity shows `h-24` while the role resolves and 2× `h-14` for the log, with no filter row; General's Overview card shows 2× `h-9` for four fields and a button. Shapes from `tenant-members-panel.tsx`, `pending-invitations.tsx`, `activity-list.tsx`, `tenant-activity-panel.tsx` and `tenant-overview-card.tsx`; the capture's shots of these pages are the splash, so these skeletons are seen only in the walk. Fix: skeletons with the table's columns, the filter row and the form's fields.
+On the workspace pages, once the gate has the detail:
+
+- Members shows 2× `h-10`, and invitations 2× `h-10`, for a table with a header row and a list of invitation rows. In the walk the table's arrival pushed Invite a member from y 438 to y 515.5 (layout shift 0.017).
+- Activity shows `h-24` while the role resolves and 2× `h-14` for the log, with no filter row.
+- General's Overview card shows 2× `h-9` for four fields and a button.
+
+The shapes come from `tenant-members-panel.tsx`, `pending-invitations.tsx`, `activity-list.tsx`, `tenant-activity-panel.tsx` and `tenant-overview-card.tsx`. The capture's shots of these pages are the splash, so only the walk saw these skeletons. Fix: skeletons with the table's columns, the filter row and the form's fields.
 
 ### F-settings-6
 
-Status: fixed. The width cap is fixed in #109, so the Actions column is on-screen at 1440 px ([after](img/settings/workspace-members--default.jpg)). The members list is now the shared data table, which sets no minimum width, and a member with no name shows “—” in Name with the address once, in Email. `tests/unit/pages/_app/settings/workspace.$slug.members.test.tsx` (“shows a dash in Name for a member with no name…”) covers the fallback; the fit at 1440 px is checked in the after-shot the controller adds.
+Status: fixed. #109 fixed the width cap, so the Actions column is on-screen at 1440 px ([after](img/settings/workspace-members--default.jpg)). The members list is the shared data table, which sets no minimum width. A member with no name shows “—” in Name, with the address once, in Email. `tests/unit/pages/_app/settings/workspace.$slug.members.test.tsx` (“shows a dash in Name for a member with no name…”) covers the fallback. No test checks the fit at 1440 px; the after-shot shows it.
 
-The members `Table` is `min-w-2xl` inside the vendored table's `overflow-x-auto` wrapper, inside a card capped at `max-w-3xl xl:max-w-4xl`. In the walk at 1440×900 the wrapper was 848 px wide and the table 1075 px: the header cells ran Name 304–632, Email 632–920, Role 920–1287, Actions 1287–1379, and the wrapper ended at 1152. The Remove and Leave buttons sit past the card's edge, behind a sideways scroll, at the default desktop size ([shot](img/settings/workspace-members--default.jpg) shows no Actions column). The Name column falls back to the address, so a member with no name has the same address in Name and Email. Fix: in the data table, fit the columns to the card (two columns of long addresses and the last-owner note under the role select push the table past it), and show "—" or the address once when there is no name.
+The members `Table` is `min-w-2xl` inside the vendored table's `overflow-x-auto` wrapper, inside a card capped at `max-w-3xl xl:max-w-4xl`. In the walk at 1440×900 px the wrapper was 848 px wide and the table 1075 px. The header cells ran, in px from the left edge, Name 304–632, Email 632–920, Role 920–1287 and Actions 1287–1379; the wrapper ended at 1152. At the default desktop size the Remove and Leave buttons sit past the card's edge, behind a sideways scroll ([shot](img/settings/workspace-members--default.jpg) shows no Actions column). The Name column falls back to the address, so a member with no name has the same address in Name and Email. Fix: in the data table, fit the columns to the card (two columns of long addresses and the last-owner note under the role select push the table past it), and show "—" or the address once when there is no name.
 
 ### F-settings-7
 
-Status: fixed. The pending-invitations half was first fixed in #109 and is now a `DataTable` with Resend and Revoke, cards below 768 px and its own paging (`tests/unit/pages/_app/settings/workspace.$slug.members.test.tsx`, “lists each pending invitation with its role, inviter and expiry” and “stacks pending invitations as cards on a phone…”); the audit log is now a table with URL filters (`?action=`, `?actor=`, `?access=`, `?search=`) and cursor paging. `tests/unit/pages/_app/settings/workspace.$slug.activity.test.tsx` (“lists the log in a table…”, “pages with Next page, keeping the cursor in the URL”, “filters by action through ?action=…”) covers it.
+Status: fixed. #109 fixed the pending-invitations half. Both lists are tables:
+
+- Pending invitations is a `DataTable` with Resend and Revoke, cards below 768 px and its own paging. `tests/unit/pages/_app/settings/workspace.$slug.members.test.tsx` (“lists each pending invitation with its role, inviter and expiry” and “stacks pending invitations as cards on a phone…”) covers it.
+- The audit log is a table with URL filters (`?action=`, `?actor=`, `?access=`, `?search=`) and cursor paging. `tests/unit/pages/_app/settings/workspace.$slug.activity.test.tsx` (“lists the log in a table…”, “pages with Next page, keeping the cursor in the URL”, “filters by action through ?action=…”) covers it.
 
 The audit log is a `ul` of entries with two `Select` filters (sent to the API as `action`, `actorUserId`, `access`) and a "Load more activity" button ([shot](img/settings/workspace-activity--default.jpg)); pending invitations are a `ul` of bordered rows with Resend and Revoke ([shot](img/settings/workspace-members--default.jpg)). Both are tabular (actor, action, time; address, role, inviter, expiry), and Load more is hand-rolled paging. Fix: render both with shadcn's `table`, and the log's paging with `pagination`, keeping ordering, filtering and paging on the API.
 
@@ -271,7 +299,7 @@ Every empty list in settings is a muted `p`: "This account has no notification t
 
 ### F-settings-9
 
-`TenantActivityPanel` titles its card with an `sr-only` `h2`, so the first visible thing in the card is the description "What platform staff did is marked Staff." above the filters ([shot](img/settings/workspace-activity--default.jpg)). Out of context it reads like a footnote about staff, and most tenants never see a Staff badge. Fix: drop the line from the top, and explain the badge where it appears (its tooltip) or under the filters.
+`TenantActivityPanel` titles its card with an `sr-only` `h2`, so the first visible thing in the card is the description "What platform staff did is marked Staff." above the filters ([shot](img/settings/workspace-activity--default.jpg)). Out of context it reads like a footnote about staff, and a tenant whose log has no staff action never shows a Staff badge. Fix: drop the line from the top, and explain the badge where it appears (its tooltip) or under the filters.
 
 ### F-settings-10
 
@@ -283,7 +311,7 @@ On General, Timezone is a plain `Input` described "A time zone name such as Euro
 
 ### F-settings-12
 
-Status: partly fixed. The page holds two sections, "Sign-in methods" and "Other sessions", with no password form, so no label sits on a field's label. They still share one untitled card.
+Status: partly fixed. The page holds two sections, "Sign-in methods" and "Other sessions", with no password form, so no label sits on a field's label. The two sections share one untitled card.
 
 The security page is one `Card` with no title holding three sections, "Sign-in methods", "Change password" and "Other sessions", as small bold labels with no separators; "Change password" sits directly on top of the "Current password" label. Fix: one titled card per section, as Profile does with its Details card.
 
@@ -295,4 +323,4 @@ At 390 px the members list is cards ([shot](img/settings/workspace-members--mobi
 
 Status: fixed. The palette lists every settings page, the three themes and Sign out. `tests/unit/components/features/command-palette.test.tsx` ("goes to every page, and leaves out the workspace sections with no current tenant", "sets the theme, marking the current one") covers it.
 
-Settings pages are reached from the sidebar's Settings item (then the settings nav), the account menu (Profile, Notifications), or the landing page's rows; the theme is in its own header menu; Sign out is in the account menu. In the walk each took two or three clicks through a different menu, and nothing has a keyboard shortcut. Fix: the react palette lists every settings page, the three themes and Sign out.
+Settings pages are reached from the sidebar's Settings item (then the settings nav), the account menu (Profile, Notifications), or the landing page's rows; the theme is in its own header menu; Sign out is in the account menu. In the walk each took two or three clicks through a different menu, and none had a keyboard shortcut. Fix: the React palette lists every settings page, the three themes and Sign out.
