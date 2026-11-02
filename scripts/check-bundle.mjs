@@ -81,8 +81,12 @@ import { build } from 'vite'
  * spelled-out safe-text and web-address messages, the time zone name on dates) is longer text in
  * the entry's nav, switcher, gate and shared schema code (138 B). The zone format options sit in
  * `format.ts`, so `relative-time.ts` stays in the lazy activity chunk.
+ * 2026-11-02: 593,466 -> 593,612. Workspace pages put the workspace's name in the tab title,
+ * and analytics must not send it: the facade's `before_send` swaps a registered title for its
+ * page-only stand-in (`sent-title.ts`, 238 B). The title hook itself stays in the lazy page
+ * chunks, and the route `head`s lost their slug templates (92 B smaller than before).
  */
-const ENTRY_BUDGET_BYTES = 593_466
+const ENTRY_BUDGET_BYTES = 593_612
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module

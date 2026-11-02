@@ -13,6 +13,7 @@ import {
   PII_CLASS_NAME,
   type PosthogOptionsInput,
 } from '@/observability/telemetry/posthog-options'
+import { sendTitleAs } from '@/observability/telemetry/sent-title'
 import { invitationsList } from '@/queries/tenant.queries'
 
 /** A complete options input for `buildPosthogOptions`, with any field overridden. */
@@ -126,6 +127,38 @@ describe('buildPosthogOptions', () => {
       properties: { $current_url: 'https://app.example.com/x?token=probe-token&tab=a' },
     })
     expect(sent?.properties.$current_url).toBe('https://app.example.com/x?tab=a')
+  })
+
+  it('sends a page title registered with sendTitleAs as its stand-in, under either property name', () => {
+    sendTitleAs('Members · Acme Corp · React Boilerplate', 'Members · React Boilerplate')
+    const beforeSend = buildPosthogOptions(input()).before_send as (
+      event: CaptureResult | null
+    ) => CaptureResult | null
+    const view = beforeSend({
+      uuid: 'u',
+      event: '$pageview',
+      properties: { title: 'Members · Acme Corp · React Boilerplate' },
+    })
+    const leave = beforeSend({
+      uuid: 'u',
+      event: '$pageleave',
+      properties: { $title: 'Members · Acme Corp · React Boilerplate' },
+    })
+    expect(view?.properties.title).toBe('Members · React Boilerplate')
+    expect(leave?.properties.$title).toBe('Members · React Boilerplate')
+    expect(JSON.stringify([view, leave])).not.toContain('Acme Corp')
+  })
+
+  it('sends a title nothing registered as it is', () => {
+    const beforeSend = buildPosthogOptions(input()).before_send as (
+      event: CaptureResult | null
+    ) => CaptureResult | null
+    const sent = beforeSend({
+      uuid: 'u',
+      event: '$pageview',
+      properties: { title: 'Profile · React Boilerplate' },
+    })
+    expect(sent?.properties.title).toBe('Profile · React Boilerplate')
   })
 
   it('keeps the campaign keys of a mailed sign-in link and drops its token, email and redirect', () => {

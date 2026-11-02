@@ -40,7 +40,8 @@ export const Route = createFileRoute('/_app/tenants/$slug')({
     handler: ({ context, params, preload }) =>
       startTenantRoute({ queryClient: context.queryClient, slug: params.slug, preload }),
   },
-  head: ({ params }) => ({ meta: [{ title: pageTitle(params.slug) }] }),
+  // Its tabs' heads set the title (with the name, once it loads); this stands only if none matches. Never the slug.
+  head: () => ({ meta: [{ title: pageTitle('Workspace') }] }),
   staticData: { crumb: (params) => params.slug ?? 'Workspace' },
   component: TenantLayout,
   pendingComponent: DetailPending,

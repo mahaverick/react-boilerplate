@@ -369,7 +369,7 @@ test.describe('error tracking against a fake PostHog', () => {
       await expect.poll(() => exceptions(fake).length, POLL).toBe(2)
       // The barrier: a replay upload from this page, so the read below covers a known flush.
       await clickUntilReplayed(fake, crashed, `/tenants/${PROBE_EMAIL}`)
-      // Read before the synthetic title is set: replay records it and `$pageview` sends it, while the app's own titles carry at most the slug, already in the URL.
+      // Read before the synthetic title is set: replay records it and `$pageview` sends it, while the titles the app's events send carry at most the page name (`sendTitleAs` swaps out a workspace's name).
       const egress = fake.bodies()
       await page.evaluate(
         ({ email, token }) => {

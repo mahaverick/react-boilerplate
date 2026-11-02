@@ -6,11 +6,12 @@ import { TenantSettingsCard } from '@/components/features/tenant/tenant-settings
 import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
+import { useWorkspacePageTitle } from '@/hooks/use-workspace-page-title'
 import { useMyRole } from '@/queries/tenant.queries'
 
 /** Settings › Workspace › General: the tenant's details, timezone and locale. */
 export const Route = createFileRoute('/_app/settings/workspace/$slug/general')({
-  head: ({ params }) => ({ meta: [{ title: pageTitle(`General · ${params.slug}`) }] }),
+  head: () => ({ meta: [{ title: pageTitle('General') }] }),
   staticData: { crumb: 'General' },
   component: WorkspaceGeneral,
   pendingComponent: SettingsPagePending,
@@ -27,6 +28,7 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug/general')({
 function WorkspaceGeneral() {
   // Not `Route.useParams()`: this route module imports the error screen (route-error, then observability/errors), and a page chunk importing `Route` back from it makes Rolldown split the error listener out of the entry chunk (pnpm check:bundle).
   const { slug } = useParams({ from: '/_app/settings/workspace/$slug/general' })
+  useWorkspacePageTitle('General', slug)
   const { role } = useMyRole(slug)
   return (
     <div className="grid gap-4">

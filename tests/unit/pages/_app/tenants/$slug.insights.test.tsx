@@ -103,7 +103,7 @@ describe('the Insights page', () => {
     expect(await screen.findByText('4')).toBeInTheDocument()
     expect(screen.getByText('7')).toBeInTheDocument()
     expect(screen.queryByText('Included in Paid.')).toBeNull()
-    await waitFor(() => expect(document.title).toBe('Insights · acme · React Boilerplate'))
+    await waitFor(() => expect(document.title).toBe('Insights · Acme Corp · React Boilerplate'))
   })
 
   it('shows the locked card on Free, and never asks the API', async () => {

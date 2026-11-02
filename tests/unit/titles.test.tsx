@@ -7,13 +7,16 @@ import {
 } from '@tanstack/react-router'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { http } from 'msw'
+import type { CaptureResult } from 'posthog-js'
 import { beforeEach, describe, expect, it } from 'vite-plus/test'
 import { resetSessionForTests } from '@/http/session'
+import { buildPosthogOptions } from '@/observability/telemetry/posthog-options'
+import { tenantKeys, type TenantDetail } from '@/queries/tenant.queries'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/states/auth.store'
 import { usePasskeySetupStore } from '@/states/passkey-setup.store'
-import { TENANT_ID } from '@/tests/fixtures/ids'
+import { TENANT_ID, TENANT_ID_2 } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
 import { fail, ok, tenantDetail, testUser } from '@/tests/mocks/handlers'
 import { server } from '@/tests/mocks/server'
@@ -58,6 +61,20 @@ const ACME = {
   deletedAt: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+/** Does nothing: the release a gate holds until its promise has started. */
+function noop(): void {
+  // Intentionally empty.
+}
+
+/** A gate a handler can wait on, and the call that opens it. */
+function deferred() {
+  let release: () => void = noop
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  return { gate, release }
 }
 
 describe('page titles', () => {
@@ -120,8 +137,11 @@ describe('page titles', () => {
     })
   })
 
-  // The page's title, not its layouts' (`Settings · React Boilerplate`): the deepest match's head() wins when the router merges them.
-  it('puts the tenant slug in a workspace settings page title', async () => {
+  /** Signs the owner in and serves acme's detail, members and settings; `detail` replaces the detail answer. */
+  function serveAcme(
+    detail: () => Response | Promise<Response> = () =>
+      ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')
+  ) {
     useAuthStore.setState({
       accessToken: 'access-token',
       user: testUser,
@@ -129,24 +149,155 @@ describe('page titles', () => {
       isBootstrapped: true,
     })
     server.use(
-      http.get('/api/v1/tenants/acme', () => ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')),
+      http.get('/api/v1/tenants/acme', detail),
       http.get('/api/v1/tenants/acme/members', () => ok(listPage([]), 'Members retrieved.'))
     )
+  }
+
+  // The page's title, not its layouts' (`Settings · React Boilerplate`): the deepest match's head() wins when the router merges them.
+  it('puts the workspace name, not its slug, in a workspace settings page title', async () => {
+    serveAcme()
     renderAppAt('/settings/workspace/acme/members')
 
     await waitFor(() => {
-      expect(document.title).toBe('Members · acme · React Boilerplate')
+      expect(document.title).toBe('Members · Acme Corp · React Boilerplate')
     })
     expect(document.querySelectorAll('title')).toHaveLength(1)
   })
 
-  // Profile and Members · acme have their own tests above.
+  it('titles a workspace page with the page name alone until the workspace loads, never the slug', async () => {
+    const { gate: held, release: answer } = deferred()
+    serveAcme(async () => {
+      await held
+      return ok(tenantDetail(ACME, 'owner'), 'Tenant retrieved.')
+    })
+    renderAppAt('/settings/workspace/acme/members')
+
+    await waitFor(() => {
+      expect(document.title).toBe('Members · React Boilerplate')
+    })
+    answer()
+    await waitFor(() => {
+      expect(document.title).toBe('Members · Acme Corp · React Boilerplate')
+    })
+  })
+
+  it('keeps the workspace name when the reader moves to another workspace page', async () => {
+    serveAcme()
+    const router = renderAppAt('/settings/workspace/acme/members')
+    await waitFor(() => {
+      expect(document.title).toBe('Members · Acme Corp · React Boilerplate')
+    })
+
+    await act(() =>
+      router.navigate({ to: '/settings/workspace/$slug/activity', params: { slug: 'acme' } })
+    )
+
+    await waitFor(() => {
+      expect(document.title).toBe('Activity · Acme Corp · React Boilerplate')
+    })
+    expect(document.querySelectorAll('title')).toHaveLength(1)
+  })
+
+  it('keeps the workspace name out of the title analytics sends', async () => {
+    serveAcme()
+    renderAppAt('/settings/workspace/acme/members')
+    await waitFor(() => {
+      expect(document.title).toBe('Members · Acme Corp · React Boilerplate')
+    })
+
+    const beforeSend = buildPosthogOptions({
+      apiHost: 'https://app.example.com/api/v1/collect',
+      uiHost: 'https://us.posthog.com',
+      consentMode: 'opt_out',
+      urlAllowlist: [],
+      persistenceName: undefined,
+      crossSubdomainCookie: true,
+      onLoaded: noop,
+    }).before_send as (event: CaptureResult | null) => CaptureResult | null
+    const sent = beforeSend({
+      uuid: 'u',
+      event: '$pageview',
+      properties: { title: document.title },
+    })
+    expect(sent?.properties.title).toBe('Members · React Boilerplate')
+  })
+
+  it('follows a rename of the workspace', async () => {
+    serveAcme()
+    renderAppAt('/settings/workspace/acme/members')
+    await waitFor(() => {
+      expect(document.title).toBe('Members · Acme Corp · React Boilerplate')
+    })
+
+    act(() => {
+      queryClient.setQueryData(
+        tenantKeys.detail('acme'),
+        (tenant: TenantDetail | null | undefined) =>
+          tenant ? { ...tenant, name: 'Acme Labs' } : tenant
+      )
+    })
+
+    await waitFor(() => {
+      expect(document.title).toBe('Members · Acme Labs · React Boilerplate')
+    })
+  })
+
+  it('drops the previous workspace’s name while the next workspace loads', async () => {
+    serveAcme()
+    const { gate, release } = deferred()
+    server.use(
+      http.get('/api/v1/tenants/globex', async () => {
+        await gate
+        return ok(
+          tenantDetail({ ...ACME, id: TENANT_ID_2, name: 'Globex Ltd', slug: 'globex' }, 'owner'),
+          'Tenant retrieved.'
+        )
+      }),
+      http.get('/api/v1/tenants/globex/members', () => ok(listPage([]), 'Members retrieved.'))
+    )
+    const router = renderAppAt('/settings/workspace/acme/members')
+    await waitFor(() => {
+      expect(document.title).toBe('Members · Acme Corp · React Boilerplate')
+    })
+
+    await act(() =>
+      router.navigate({ to: '/settings/workspace/$slug/members', params: { slug: 'globex' } })
+    )
+
+    await waitFor(() => {
+      expect(document.title).toBe('Members · React Boilerplate')
+    })
+    release()
+    await waitFor(() => {
+      expect(document.title).toBe('Members · Globex Ltd · React Boilerplate')
+    })
+  })
+
+  it('drops the previous workspace’s name when the next workspace is not available', async () => {
+    serveAcme()
+    server.use(http.get('/api/v1/tenants/gone', () => fail('Tenant not found.', 404)))
+    const router = renderAppAt('/settings/workspace/acme/members')
+    await waitFor(() => {
+      expect(document.title).toBe('Members · Acme Corp · React Boilerplate')
+    })
+
+    await act(() =>
+      router.navigate({ to: '/settings/workspace/$slug/members', params: { slug: 'gone' } })
+    )
+
+    await screen.findByRole('heading', { name: 'Workspace not available' })
+    expect(document.title).toBe('Members · React Boilerplate')
+  })
+
+  // Profile and Members have their own tests above.
   it.each([
     ['the settings landing page', '/settings', 'Settings'],
     ['the security settings page', '/settings/account/security', 'Security'],
     ['the notification settings page', '/settings/account/notifications', 'Notifications'],
-    ['the workspace general page', '/settings/workspace/acme/general', 'General · acme'],
-    ['the workspace activity page', '/settings/workspace/acme/activity', 'Activity · acme'],
+    ['the workspace general page', '/settings/workspace/acme/general', 'General · Acme Corp'],
+    ['the workspace activity page', '/settings/workspace/acme/activity', 'Activity · Acme Corp'],
+    ['the workspace overview page', '/tenants/acme', 'Overview · Acme Corp'],
     ['the invitation confirmation page', '/invitations/confirm', 'Join your team'],
     ['the confirm-it’s-you page', '/auth/confirm', 'Confirm it’s you'],
   ])('names %s', async (_name, path, title) => {

@@ -10,6 +10,7 @@ import type {
 } from 'posthog-js'
 import type { HandoffBootstrap } from './handoff'
 import { maskReplayAttribute } from './mask-attribute'
+import { withSentTitles } from './sent-title'
 import { sanitizeEventUrls, sanitizeUrl } from './url-sanitizer'
 
 /**
@@ -86,7 +87,9 @@ export interface PosthogOptionsInput {
  * server-hashed counts. posthog-js has no `cookie_domain` option;
  * `cross_subdomain_cookie` decides the cookie's domain. `persistence_name`
  * and `cross_subdomain_cookie` decide whether this app shares its browser
- * identity with a sibling app on the same project key.
+ * identity with a sibling app on the same project key. `before_send` runs
+ * `guardEvent`, swaps any page title registered with `sendTitleAs` for its
+ * stand-in, then sanitises the URLs.
  * @param input - See `PosthogOptionsInput`.
  * @returns A partial `PostHogConfig` for `posthog.init`.
  */
@@ -123,7 +126,10 @@ export function buildPosthogOptions(input: PosthogOptionsInput): Partial<PostHog
     before_send: (event) => {
       if (event === null) return null
       const guarded = input.guardEvent ? input.guardEvent(event) : event
-      return guarded === null ? null : sanitizeEventUrls(guarded, allowlist)
+      if (guarded === null) return null
+      const properties = withSentTitles(guarded.properties ?? {})
+      const titled = properties === guarded.properties ? guarded : { ...guarded, properties }
+      return sanitizeEventUrls(titled, allowlist)
     },
     ...(input.consentMode === 'required' ? { cookieless_mode: 'on_reject' as const } : {}),
     ...(input.bootstrap ? { bootstrap: input.bootstrap } : {}),

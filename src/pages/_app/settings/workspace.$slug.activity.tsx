@@ -3,12 +3,13 @@ import { SettingsRouteError } from '@/components/features/route-error'
 import { TenantActivityPanel } from '@/components/features/tenant/tenant-activity-panel'
 import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
+import { useWorkspacePageTitle } from '@/hooks/use-workspace-page-title'
 import { tenantActivityList } from '@/queries/audit.queries'
 
 /** Settings › Workspace › Activity: the tenant's audit log, for owners and admins. */
 export const Route = createFileRoute('/_app/settings/workspace/$slug/activity')({
   validateSearch: tenantActivityList.schema,
-  head: ({ params }) => ({ meta: [{ title: pageTitle(`Activity · ${params.slug}`) }] }),
+  head: () => ({ meta: [{ title: pageTitle('Activity') }] }),
   staticData: { crumb: 'Activity' },
   component: WorkspaceActivity,
   pendingComponent: SettingsPagePending,
@@ -25,5 +26,6 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug/activity')(
 function WorkspaceActivity() {
   // Not `Route.useParams()`: this route module imports the error screen (route-error, then observability/errors), and a page chunk importing `Route` back from it makes Rolldown split the error listener out of the entry chunk (pnpm check:bundle).
   const { slug } = useParams({ from: '/_app/settings/workspace/$slug/activity' })
+  useWorkspacePageTitle('Activity', slug)
   return <TenantActivityPanel slug={slug} />
 }
