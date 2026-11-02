@@ -256,6 +256,22 @@ describe('sign out other sessions', () => {
     expect(calls).toBe(1)
   })
 
+  it('asks the user to confirm it’s them when the API wants a recent sign-in', async () => {
+    mockProviders(['email'])
+    server.use(
+      http.post('/api/v1/auth/sessions/revoke-others', () =>
+        fail("Confirm it's you to continue.", 401, 'REAUTH_REQUIRED')
+      )
+    )
+    const user = userEvent.setup()
+    renderSecurity()
+
+    const button = await (await section()).findByRole('button', { name: 'Sign out other sessions' })
+    await user.click(button)
+
+    expect(await screen.findByRole('dialog', { name: 'Confirm it’s you' })).toBeVisible()
+  })
+
   it('shows the server’s message when it is refused', async () => {
     mockProviders(['email'])
     server.use(

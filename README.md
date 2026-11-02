@@ -31,6 +31,10 @@ configuring, testing and shipping the app.
   `packageManager`. Node 25 and later do not ship Corepack, so this works on any
   supported Node. `pnpm install` refuses a Node older than 26.
 - **The API running on `:4040`.** See [Getting started](#getting-started).
+- **Deploy express first when an invitation or sign-in rule changes.** This app
+  expects `POST /invitations/verify` to answer only `202`, so it needs the express
+  release where every invitation confirms by an emailed link. Against an older API,
+  a new invitee sees "Check your inbox" with no address while a session is set.
 - **express-boilerplate 2.0.0 or later; 4.0.0 or later is recommended.** 2.0.0 is
   the earliest tag that has every route and body this app sends: leaving a tenant
   (`DELETE /tenants/:slug/membership`) and signing out other sessions

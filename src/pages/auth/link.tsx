@@ -127,8 +127,9 @@ function DeadLink({
  * person's session. Signed out, it posts the token from a ref-guarded effect,
  * so StrictMode's second run never spends the link twice; Try again posts
  * again on purpose. The link's `email` goes with the token: the server refuses
- * an address that is not the token's own, so the verifying frame can name it,
- * and once signed in the frame names the address the server confirmed.
+ * an address that is not the token's own, or none, so the verifying frame can
+ * name it, and once signed in the frame names the address the server confirmed.
+ * A link with no `email` counts as a link with no token, and is never posted.
  *
  * A 400 is the dead link, whatever its cause. Anything else (a rate limit,
  * maintenance, a network or server error) leaves the link usable, so it gets
@@ -136,9 +137,11 @@ function DeadLink({
  * page in history, so Back never returns to the token.
  */
 function SignInLinkPage() {
-  const { token, email: rawEmail, redirect } = Route.useSearch()
+  const { token: rawToken, email: rawEmail, redirect } = Route.useSearch()
   // A bare or blank `?email=` names no address: no switch target, no "This link is for", none posted.
   const email = rawEmail?.trim() || undefined
+  // Mail always carries both. Without an address the check that stops a planted link has nothing to compare, so the token is never posted.
+  const token = email ? rawToken : undefined
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const verify = useVerifySignInLink()

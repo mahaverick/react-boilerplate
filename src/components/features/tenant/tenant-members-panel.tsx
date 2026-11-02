@@ -748,8 +748,8 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
                 <h2>Invite a member</h2>
               </CardTitle>
               <CardDescription>
-                We email them an invitation that expires in 3 days. Someone new joins in one click.
-                Someone with an account gets a sign-in link to confirm.
+                We email them an invitation that expires in 3 days. After they select Join, we email
+                them a link to confirm.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">

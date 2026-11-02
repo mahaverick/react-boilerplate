@@ -82,8 +82,7 @@ flowchart LR
   pricing["/pricing"] -->|Start free| login
   pricing -->|Upgrade, owner of ?tenant| billing
 
-  invite["/invitations/accept?token="] -->|new address, one click| overview
-  invite -->|existing account or staff| inviteInbox["Check your inbox"]
+  invite["/invitations/accept?token="] --> inviteInbox["Check your inbox"]
   inviteInbox -->|link in the email| confirm["/invitations/confirm?token="]
   confirm --> overview
   invite -->|signed in as the invitee| overview

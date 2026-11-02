@@ -41,7 +41,7 @@ export async function seedCapture(): Promise<Seed> {
   await joinByConfirmation(member, await mailedToken(member, '/invitations/accept'))
   const spentConfirmation = await mailedLink(member, '/invitations/confirm', confirmSince)
 
-  // An account, so the accept page answers "Check your inbox" and every shot leaves the invitation pending.
+  // The accept page answers "Check your inbox" signed out, so every shot leaves the invitation pending.
   const newcomer = freshEmail()
   await createUser(newcomer)
   await invite(token, slug, newcomer, 'viewer')

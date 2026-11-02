@@ -334,11 +334,11 @@ const linkMode = params.get('link') ?? 'ok'
 /**
  * `?invite=` picks the invitation answers. With none, the preview is for
  * another address, so a signed-in user is asked before switching. `ok` makes
- * the preview the harness user's: signed in, the page accepts; signed out, the
- * verify signs in and joins at once. `inbox` answers the verify with the `202`
- * "Check your inbox" for the preview's address. `dead` 404s the preview, the
- * verify and the accept. `joined` 404s the preview, as for a used link, and the
- * accept answers `alreadyMember`.
+ * the preview the harness user's, so signed in, the page accepts. Signed out,
+ * the verify answers the `202` "Check your inbox" for the preview's address, as
+ * express does for every invitation; only `/invitations/confirm` signs anyone
+ * in. `dead` 404s the preview, the verify and the accept. `joined` 404s the
+ * preview, as for a used link, and the accept answers `alreadyMember`.
  */
 const inviteMode = params.get('invite')
 
@@ -1229,29 +1229,18 @@ const worker = setupWorker(
           'Invitation retrieved.'
         )
   ),
-  http.post('/api/v1/invitations/verify', () => {
-    if (inviteMode === 'dead' || inviteMode === 'joined') {
-      return fail(INVITATION_INVALID, 404, 'invitation_invalid')
-    }
-    if (inviteMode === 'inbox') {
-      return ok(
-        { confirmationSent: true, email: INVITATION_PREVIEW.email },
-        'Check your inbox to finish joining.',
-        202
-      )
-    }
-    hasRefreshCookie = true
-    return ok(
-      {
-        user: testUser,
-        accessToken: 'harness-token',
-        isNewUser: true,
-        tenant: INVITATION_PREVIEW.tenant,
-        role: INVITATION_PREVIEW.role,
-      },
-      'Invitation accepted.'
-    )
-  }),
+  http.post('/api/v1/invitations/verify', () =>
+    inviteMode === 'dead' || inviteMode === 'joined'
+      ? fail(INVITATION_INVALID, 404, 'invitation_invalid')
+      : ok(
+          {
+            confirmationSent: true,
+            email: inviteMode === 'ok' ? testUser.email : INVITATION_PREVIEW.email,
+          },
+          'Check your inbox to finish joining.',
+          202
+        )
+  ),
   http.post('/api/v1/invitations/accept', () =>
     inviteMode === 'dead'
       ? fail(INVITATION_INVALID, 404, 'invitation_invalid')

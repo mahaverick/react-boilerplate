@@ -161,13 +161,13 @@ test.describe('invitation', () => {
     await expectNoOverflow(page)
   })
 
-  test('an existing account gets Check your inbox, and Resend posts the same token again', async ({
+  test('signed out, Check your inbox names the invited address, and Resend posts the same token again', async ({
     page,
   }) => {
     const verifies = postsTo(page, '/api/v1/invitations/verify')
     // The fake clock lets the test run out the 60-second resend countdown without waiting for it.
     await page.clock.install()
-    await page.goto(harness('/invitations/accept', `session=none&invite=inbox&token=${TOKEN}`))
+    await page.goto(harness('/invitations/accept', `session=none&token=${TOKEN}`))
 
     await expect(page.getByRole('heading', { level: 1, name: 'Check your inbox' })).toBeVisible()
     await expect(page.getByText(`We sent a link to ${INVITEE_EMAIL}.`)).toBeVisible()

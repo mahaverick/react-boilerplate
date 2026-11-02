@@ -6,7 +6,9 @@ import { SectionBoundary } from '@/components/shared/section-boundary'
 import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { Item, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
+import { STEP_UP_WAITING_LABEL, useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { messageFrom } from '@/lib/api-error'
+import { isReauthRequired, stepUpRefusal } from '@/lib/step-up'
 import { toast } from '@/lib/toast'
 import { useAuthProviders, useRevokeOtherSessions } from '@/queries/auth.queries'
 import { useAuthStore } from '@/states/auth.store'
@@ -117,10 +119,13 @@ function SignInMethods({ providers }: AuthProviders) {
 
 /**
  * "Sign out other sessions": one button, confirmed by a toast with the count.
- * A failure shows the server's message.
+ * It needs a recent sign-in, so a stolen session can't lock the owner out. A
+ * failure shows the server's message.
  */
 function OtherSessions() {
   const revokeOthers = useRevokeOtherSessions()
+  const stepUp = useStepUp()
+  const stepping = useStepUpWaiting()
   const hintId = useId()
 
   return (
@@ -131,15 +136,18 @@ function OtherSessions() {
       </p>
       <div>
         <BusyButton
-          busy={revokeOthers.isPending}
-          busyLabel="Signing out…"
+          busy={revokeOthers.isPending || stepping}
+          busyLabel={stepping ? STEP_UP_WAITING_LABEL : 'Signing out…'}
           variant="outline"
           aria-describedby={hintId}
           onClick={() => {
-            revokeOthers.mutate(undefined, {
-              onSuccess: ({ revoked }) => toast.success(revokedMessage(revoked)),
-              onError: (error) => toast.error(messageFrom(error)),
-            })
+            stepUp
+              .run(() => revokeOthers.mutateAsync())
+              .then(
+                ({ revoked }) => toast.success(revokedMessage(revoked)),
+                (error: unknown) =>
+                  toast.error(isReauthRequired(error) ? stepUpRefusal(error) : messageFrom(error))
+              )
           }}
         >
           Sign out other sessions

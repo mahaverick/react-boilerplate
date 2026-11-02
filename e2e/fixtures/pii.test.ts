@@ -140,7 +140,7 @@ test('a sign-in link for another account masks both addresses', async ({ page })
 })
 
 test('the invitation’s Check your inbox masks the address it mailed', async ({ page }) => {
-  await page.goto(harness('/invitations/accept', `&session=none&invite=inbox&token=${TOKEN}`))
+  await page.goto(harness('/invitations/accept', `&session=none&token=${TOKEN}`))
   await expect(page.getByRole('heading', { level: 1, name: 'Check your inbox' })).toBeVisible()
   await expect(page.getByText('pii-probe+invitee@example.test')).toBeVisible()
   await expectAllMasked(page, 1)

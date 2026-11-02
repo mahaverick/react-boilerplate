@@ -118,7 +118,7 @@ export interface InvitationPreview {
 }
 
 /**
- * The `200` of `POST /invitations/verify` and `POST /invitations/confirm`: the
+ * The `200` of `POST /invitations/confirm`: the
  * session, whether this click created the account, and the tenant joined.
  */
 export interface InvitationSignIn {
@@ -137,9 +137,6 @@ export interface InvitationConfirmationSent {
   confirmationSent: true
   email: string
 }
-
-/** What `POST /invitations/verify` answers: joined in one click, or "Check your inbox". */
-export type InvitationVerifyResult = InvitationSignIn | InvitationConfirmationSent
 
 /** `POST /invitations/accept`: the tenant the caller is now a member of. */
 export interface AcceptedInvitation {
