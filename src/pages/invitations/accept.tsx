@@ -189,13 +189,21 @@ function SwitchInvitation({
 }
 
 /**
- * The frame while a join runs. With the preview it reads "Joining {workspace}
- * as {address}…" and names the inviter. The address is the preview's, the
- * server's record of who was invited, never a URL parameter, so a link planted
- * to sign a visitor into someone else's account names that account before it
- * lands. After a 404 preview it names nothing.
+ * The frame while a join call runs. With the preview it names the inviter and
+ * the address: a signed-out `verify` reads "Emailing a link to {address}…",
+ * because it only mails the confirm link; a signed-in `accept` reads "Joining
+ * {workspace} as {address}…". The address is the preview's, the server's record
+ * of who was invited, never a URL parameter, so a link planted to sign a
+ * visitor into someone else's account names that account before it lands.
+ * After a 404 preview it names nothing.
  */
-function JoiningFrame({ invitation }: { invitation: InvitationPreview | null }) {
+function JoiningFrame({
+  call,
+  invitation,
+}: {
+  call: JoinCall
+  invitation: InvitationPreview | null
+}) {
   if (!invitation) {
     return (
       <InvitationCard title="Checking your invitation">
@@ -209,7 +217,8 @@ function JoiningFrame({ invitation }: { invitation: InvitationPreview | null }) 
       <SigningInStatus
         label={
           <>
-            Joining {name} as <Pii>{invitation.email}</Pii>…
+            {call === 'verify' ? 'Emailing a link to' : `Joining ${name} as`}{' '}
+            <Pii>{invitation.email}</Pii>…
           </>
         }
       />
@@ -392,11 +401,11 @@ function InvitationForToken({ token }: { token: string }) {
         />
       )
     }
-    return <JoiningFrame invitation={joining.invitation} />
+    return <JoiningFrame call={joining.call} invitation={joining.invitation} />
   }
 
   // The frame the effect is about to fill, so the first paint already shows the join.
-  if (nextCall) return <JoiningFrame invitation={invitation ?? null} />
+  if (nextCall) return <JoiningFrame call={nextCall} invitation={invitation ?? null} />
 
   if (invitation && startedAs) {
     return <SwitchInvitation token={token} invitation={invitation} currentEmail={startedAs.email} />
