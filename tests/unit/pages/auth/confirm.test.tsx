@@ -236,7 +236,7 @@ describe('/auth/confirm with an emailed link', () => {
       await screen.findByRole('heading', { level: 1, name: 'This link is incomplete' })
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Open the most recent confirmation email and use its link.')
+      screen.getByText('Open the latest confirmation email and use its link.')
     ).toBeInTheDocument()
     await letStragglersLand()
     expect(calls).toEqual([])
@@ -415,7 +415,7 @@ describe('/auth/confirm with an emailed link', () => {
     renderAt(LINK_PATH)
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'We couldn’t confirm it’s you' })
+      await screen.findByRole('heading', { level: 1, name: 'Confirmation didn’t go through' })
     ).toBeInTheDocument()
     expect(screen.getByRole('alert')).not.toBeEmptyDOMElement()
     expect(received).toEqual([])

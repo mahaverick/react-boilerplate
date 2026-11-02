@@ -98,7 +98,7 @@ export function CreateTenantForm({ submitLabel, busyLabel, onCreated }: CreateTe
       <FormField form={form} name="slug" validators={{ onChange: slugSchema }}>
         {(field) => (
           <FormItem>
-            <FormLabel>Slug</FormLabel>
+            <FormLabel>Web address</FormLabel>
             <FormControl>
               <Input
                 value={fieldValue(field.state.value)}
@@ -107,9 +107,9 @@ export function CreateTenantForm({ submitLabel, busyLabel, onCreated }: CreateTe
               />
             </FormControl>
             <FormDescription>
-              Use {MIN_SLUG_LENGTH} to {MAX_SLUG_LENGTH} lowercase letters, numbers and hyphens. The
-              slug becomes the address: /tenants/your-slug. We refuse capitals rather than convert
-              them.
+              Your workspace’s address: /tenants/your-name. Use {MIN_SLUG_LENGTH} to{' '}
+              {MAX_SLUG_LENGTH} lowercase letters, digits and hyphens. Capitals are refused, not
+              converted.
             </FormDescription>
             <FormMessage />
           </FormItem>

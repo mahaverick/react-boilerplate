@@ -16,7 +16,7 @@ import {
 
 /** What the card says when the preferences query failed, as opposed to came back empty. */
 const PREFERENCES_ERROR =
-  'We couldn’t load your notification preferences, so none are shown. Try again to load them.'
+  'We couldn’t load your notification preferences, so none are shown. Select Try again to load them.'
 
 /** The types sent in-app only: they have no email, and the API lets their email flag be stored either way. */
 const IN_APP_ONLY_TYPES: ReadonlySet<string> = new Set(['workspace_full'])
@@ -47,7 +47,7 @@ function PreferenceRow({ preference }: { preference: NotificationPreference }) {
       <ItemActions className="gap-6 text-sm text-muted-foreground">
         {/* Read-only: NON_DISABLEABLE_NOTIFICATION_TYPES (API) covers every type */}
         {/* but workspace_full, so email is always on there; workspace_full sends none. */}
-        <span>Email: {inAppOnly ? 'None' : preference.emailEnabled ? 'On' : 'Off'}</span>
+        <span>Email: {inAppOnly ? 'Never sent' : preference.emailEnabled ? 'On' : 'Off'}</span>
         <div className="flex items-center gap-2">
           <span id={labelId}>
             <span className="sr-only">{label}: </span>In-app
@@ -85,8 +85,8 @@ export function PreferencesCard() {
           <h2>Preferences</h2>
         </CardTitle>
         <CardDescription>
-          How each kind of notification reaches you. Where a notification sends email, you cannot
-          turn it off. You can turn off the in-app copy.
+          How each kind of notification reaches you. Email can’t be turned off for a kind that sends
+          it; the in-app copy can.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -231,7 +231,7 @@ describe('accept page: the link itself', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Part of this link is missing. Open the most recent invitation email and select Join.'
+        'Part of this link is missing. Open the latest invitation email and select Join.'
       )
     ).toBeVisible()
     expect(previews.count).toBe(0)
@@ -289,7 +289,7 @@ describe('accept page: the link itself', () => {
       'The check failed, and your invitation link is unchanged. Select Try again.'
     )
     expect(
-      screen.getByRole('heading', { level: 1, name: 'We couldn’t check this invitation' })
+      screen.getByRole('heading', { level: 1, name: 'This invitation wasn’t checked' })
     ).toBeVisible()
     expect(screen.queryByText(DEAD_TITLE)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Go to the home page' })).toHaveAttribute('href', '/')
@@ -407,7 +407,7 @@ describe('accept page, signed out', () => {
       renderAt(ACCEPT_PATH)
 
       expect(
-        await screen.findByRole('heading', { level: 1, name: 'We couldn’t add you to Acme Corp' })
+        await screen.findByRole('heading', { level: 1, name: 'You weren’t added to Acme Corp' })
       ).toBeVisible()
       expect(screen.getByRole('alert')).toHaveTextContent(message)
       expect(screen.queryByText(DEAD_TITLE)).not.toBeInTheDocument()
@@ -574,7 +574,7 @@ describe('accept page, signed out, Check your inbox', () => {
     await user.click(screen.getByRole('button', { name: 'Resend link' }))
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'We couldn’t add you to Acme Corp' })
+      await screen.findByRole('heading', { level: 1, name: 'You weren’t added to Acme Corp' })
     ).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })).toBeVisible()
@@ -654,7 +654,7 @@ describe('accept page, Check your inbox, when another tab confirms', () => {
     await act(() => vi.advanceTimersByTimeAsync(60_000))
     await user.click(screen.getByRole('button', { name: 'Resend link' }))
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'We couldn’t add you to Acme Corp' })
+      await screen.findByRole('heading', { level: 1, name: 'You weren’t added to Acme Corp' })
     ).toBeVisible()
     vi.useRealTimers()
     const restored = shareSessionFor(MAILED)
@@ -865,7 +865,7 @@ describe('accept page, signed in', () => {
     const router = renderAt(ACCEPT_PATH)
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'We couldn’t add you to Acme Corp' })
+      await screen.findByRole('heading', { level: 1, name: 'You weren’t added to Acme Corp' })
     ).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Try again' }))
 

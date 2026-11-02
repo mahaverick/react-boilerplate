@@ -97,16 +97,16 @@ describe('notification settings page', () => {
     renderPreferences()
 
     const main = await screen.findByRole('main')
-    expect(await within(main).findByText('Tenant invitation')).toBeInTheDocument()
+    expect(await within(main).findByText('Workspace invitation')).toBeInTheDocument()
     expect(within(main).getByText('Email: On')).toBeInTheDocument()
     expect(
-      within(main).getByText(/where a notification sends email, you cannot turn it off/i)
+      within(main).getByText(/email can’t be turned off for a kind that sends it/i)
     ).toBeInTheDocument()
     expect(within(main).getAllByRole('switch')).toHaveLength(1)
-    expect(within(main).getByRole('switch', { name: /Tenant invitation/ })).not.toBeChecked()
+    expect(within(main).getByRole('switch', { name: /Workspace invitation/ })).not.toBeChecked()
   })
 
-  it('shows Email: On for a billing type and Email: None for the in-app-only workspace_full', async () => {
+  it('shows Email: On for a billing type and Email: Never sent for the in-app-only workspace_full', async () => {
     server.use(
       http.get('/api/v1/notifications/preferences', () =>
         ok(
@@ -132,7 +132,7 @@ describe('notification settings page', () => {
       within(main).getByText('Payment failed').closest('[role="list"]') as HTMLElement
     ).getAllByRole('listitem')
     expect(within(rows[0]!).getByText('Email: On')).toBeInTheDocument()
-    expect(within(rows[1]!).getByText('Email: None')).toBeInTheDocument()
+    expect(within(rows[1]!).getByText('Email: Never sent')).toBeInTheDocument()
   })
 
   it('keeps the stored email value when workspace_full flips its in-app switch', async () => {
@@ -189,13 +189,13 @@ describe('notification settings page', () => {
       })
     )
     renderPreferences()
-    const toggle = await screen.findByRole('switch', { name: /Tenant invitation/ })
+    const toggle = await screen.findByRole('switch', { name: /Workspace invitation/ })
     expect(toggle).not.toBeChecked()
 
     await user.click(toggle)
 
     await waitFor(() =>
-      expect(screen.getByRole('switch', { name: /Tenant invitation/ })).toBeChecked()
+      expect(screen.getByRole('switch', { name: /Workspace invitation/ })).toBeChecked()
     )
     expect(body).toEqual({
       preferences: [
@@ -203,7 +203,7 @@ describe('notification settings page', () => {
       ],
     })
     await waitFor(() =>
-      expect(screen.getByRole('switch', { name: /Tenant invitation/ })).not.toHaveAttribute(
+      expect(screen.getByRole('switch', { name: /Workspace invitation/ })).not.toHaveAttribute(
         'aria-disabled',
         'true'
       )
@@ -222,22 +222,22 @@ describe('notification settings page', () => {
     )
     renderPreferences()
 
-    await user.click(await screen.findByRole('switch', { name: /Tenant invitation/ }))
+    await user.click(await screen.findByRole('switch', { name: /Workspace invitation/ }))
     // The disabled state is the barrier: past it, the click and keys below land on a disabled switch.
     await waitFor(() =>
-      expect(screen.getByRole('switch', { name: /Tenant invitation/ })).toHaveAttribute(
+      expect(screen.getByRole('switch', { name: /Workspace invitation/ })).toHaveAttribute(
         'aria-disabled',
         'true'
       )
     )
-    const toggle = screen.getByRole('switch', { name: /Tenant invitation/ })
+    const toggle = screen.getByRole('switch', { name: /Workspace invitation/ })
     await user.click(toggle)
     toggle.focus()
     await user.keyboard(' ')
     await user.keyboard('{Enter}')
 
     expect(puts).toBe(1)
-    expect(screen.getByRole('switch', { name: /Tenant invitation/ })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: /Workspace invitation/ })).not.toBeChecked()
   })
 
   it('toggles from the keyboard with Space', async () => {
@@ -251,7 +251,7 @@ describe('notification settings page', () => {
       })
     )
     renderPreferences()
-    const toggle = await screen.findByRole('switch', { name: /Tenant invitation/ })
+    const toggle = await screen.findByRole('switch', { name: /Workspace invitation/ })
 
     toggle.focus()
     await user.keyboard(' ')
@@ -278,10 +278,10 @@ describe('notification settings page', () => {
     )
     renderPreferences()
 
-    await user.click(await screen.findByRole('switch', { name: /Tenant invitation/ }))
+    await user.click(await screen.findByRole('switch', { name: /Workspace invitation/ }))
     // Held at the gate, the row shows the requested state.
     await waitFor(() =>
-      expect(screen.getByRole('switch', { name: /Tenant invitation/ })).not.toBeChecked()
+      expect(screen.getByRole('switch', { name: /Workspace invitation/ })).not.toBeChecked()
     )
     released = true
 
@@ -289,7 +289,7 @@ describe('notification settings page', () => {
       expect(error).toHaveBeenCalledWith('This notification type does not exist.')
     )
     await waitFor(() => {
-      const toggle = screen.getByRole('switch', { name: /Tenant invitation/ })
+      const toggle = screen.getByRole('switch', { name: /Workspace invitation/ })
       expect(toggle).not.toHaveAttribute('aria-disabled', 'true')
       expect(toggle).toBeChecked()
     })
@@ -312,7 +312,7 @@ describe('notification settings page', () => {
     renderPreferences()
 
     const main = await screen.findByRole('main')
-    expect(await within(main).findByText('Tenant invitation')).toBeInTheDocument()
+    expect(await within(main).findByText('Workspace invitation')).toBeInTheDocument()
     expect(within(main).queryByText(/maintenance/i)).not.toBeInTheDocument()
   })
 

@@ -8,8 +8,8 @@ describe('updateProfileSchema', () => {
       lastName: 'Love\u{202E}',
     })
     expect(result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])).toEqual([
-      ['firstName', 'This field contains characters that are not allowed'],
-      ['lastName', 'This field contains characters that are not allowed'],
+      ['firstName', 'This field has a line break, tab or hidden character. Remove it.'],
+      ['lastName', 'This field has a line break, tab or hidden character. Remove it.'],
     ])
   })
 

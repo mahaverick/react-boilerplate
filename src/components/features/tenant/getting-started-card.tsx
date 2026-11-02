@@ -280,7 +280,7 @@ function DismissButton({ slug, focus }: { slug: string; focus: CardFocus }) {
         <AlertDialogHeader>
           <AlertDialogTitle>Dismiss getting started?</AlertDialogTitle>
           <AlertDialogDescription>
-            The checklist is hidden for everyone in this tenant. An owner can show it again from
+            The checklist is hidden for everyone in this workspace. An owner can show it again from
             this page.
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -318,7 +318,7 @@ function ShowGettingStarted({ slug, focus }: { slug: string; focus: CardFocus })
       aria-label="Getting started"
       className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"
     >
-      <p className="text-sm text-muted-foreground">Getting started is hidden for this tenant.</p>
+      <p className="text-sm text-muted-foreground">Getting started is hidden for this workspace.</p>
       <Button
         variant="outline"
         size="sm"

@@ -97,7 +97,7 @@ test.describe('sign-in link', () => {
     await expectNoOverflow(page)
 
     await page.getByRole('textbox', { name: 'Name' }).fill('Acme Corp')
-    await page.getByRole('textbox', { name: 'Slug' }).fill('acme')
+    await page.getByRole('textbox', { name: 'Web address' }).fill('acme')
     await page.getByRole('button', { name: 'Create workspace' }).click()
 
     await expect(page.getByText('Acme Corp created.')).toBeVisible()
@@ -130,7 +130,7 @@ test.describe('sign-in link', () => {
     )
 
     await expect(
-      page.getByRole('heading', { level: 1, name: 'We couldn’t sign you in' })
+      page.getByRole('heading', { level: 1, name: 'Sign-in didn’t finish' })
     ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveCount(0)
@@ -228,7 +228,7 @@ test.describe('invitation', () => {
     )
 
     await expect(
-      page.getByRole('heading', { level: 1, name: 'We couldn’t add you to your team' })
+      page.getByRole('heading', { level: 1, name: 'You weren’t added to your team' })
     ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
     await expectNoOverflow(page)

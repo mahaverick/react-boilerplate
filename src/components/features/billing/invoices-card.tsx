@@ -109,7 +109,7 @@ export function InvoicesCard({
         )}
         {failed && (
           <LoadError
-            message="Invoices didn’t load. Try again."
+            message="Invoices didn’t load. Select Try again."
             onRetry={() =>
               void (invoices.isFetchNextPageError ? invoices.fetchNextPage() : invoices.refetch())
             }

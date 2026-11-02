@@ -207,7 +207,7 @@ describe('confirm page: the link itself', () => {
     expect(await screen.findByRole('heading', { level: 1, name: INCOMPLETE_TITLE })).toBeVisible()
     expect(
       screen.getByText(
-        'Part of this link is missing. Open the most recent email from us and select its link.'
+        'Part of this link is missing. Open the latest email from us and select its link.'
       )
     ).toBeVisible()
     expect(screen.getByRole('link', { name: 'Go to the home page' })).toHaveAttribute('href', '/')
@@ -326,7 +326,7 @@ describe('confirm page, signed out', () => {
         await vi.waitFor(() => expect(heard).toContainEqual({ type: 'signed_in' }))
         expect(await screen.findByText(JOINED)).toBeInTheDocument()
       } else {
-        await screen.findByRole('heading', { level: 1, name: /can’t be used|couldn’t add you/ })
+        await screen.findByRole('heading', { level: 1, name: /can’t be used|weren’t added/ })
         // A message that is not sent has no event to wait on.
         await act(() => settle(50, 'an unsent broadcast has no event to wait on'))
         expect(heard).not.toContainEqual({ type: 'signed_in' })
@@ -422,7 +422,7 @@ describe('confirm page, signed out', () => {
     const router = renderAt(CONFIRM_PATH)
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'We couldn’t add you to your team' })
+      await screen.findByRole('heading', { level: 1, name: 'You weren’t added to your team' })
     ).toBeVisible()
     expect(screen.getByRole('alert')).toHaveTextContent(message)
     expect(screen.queryByText(DEAD_TITLE)).not.toBeInTheDocument()

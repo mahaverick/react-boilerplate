@@ -100,7 +100,9 @@ function PlanColumn({
             </p>
           ))}
           {gstRegistered && plan.prices.length > 0 && (
-            <p className="text-sm text-muted-foreground">Includes 18% GST</p>
+            <p className="text-sm text-muted-foreground">
+              Includes 18% Goods and Services Tax (GST)
+            </p>
           )}
         </div>
         <ul className="grid gap-2 border-t pt-4 text-sm">

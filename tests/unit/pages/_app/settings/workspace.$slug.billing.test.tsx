@@ -226,12 +226,12 @@ describe('billing page, overview', () => {
     [
       'past due',
       active({ state: 'past_due', pastDue: { since: SINCE, graceEndsAt: null, paused: false } }),
-      'Paid · Payment failed on 20 October 2026',
+      'Paid plan · Payment failed on 20 October 2026',
     ],
     [
       'paused',
       active({ state: 'past_due', pastDue: { since: SINCE, graceEndsAt: null, paused: true } }),
-      'Paid · Payments paused on 20 October 2026',
+      'Paid plan · Payments paused on 20 October 2026',
     ],
     [
       'active before the first charge',
@@ -281,7 +281,7 @@ describe('billing page, overview', () => {
     renderBilling()
     const card = await overview()
     expect(await within(card).findByText(/^Receipts go to/)).toBeInTheDocument()
-    expect(within(card).getByText(/^Paid with/)).toBeInTheDocument()
+    expect(within(card).getByText(/^Billed to/)).toBeInTheDocument()
   })
 
   it.each([
@@ -299,7 +299,7 @@ describe('billing page, overview', () => {
     const card = await overview()
     await within(card).findAllByText(billing.plan.name, { exact: true })
     expect(within(card).queryByText(/Receipts go to/)).toBeNull()
-    expect(within(card).queryByText(/^Paid with/)).toBeNull()
+    expect(within(card).queryByText(/^Billed to/)).toBeNull()
   })
 
   it('dates in the tenant’s time zone', async () => {
@@ -643,10 +643,12 @@ describe('billing page, owner actions by state', () => {
     renderBilling()
     const card = await overview()
     await within(card).findByRole('button', { name: 'Upgrade to Paid' })
-    expect(within(card).queryByText('Includes 18% GST')).toBeNull()
+    expect(within(card).queryByText('Includes 18% Goods and Services Tax (GST)')).toBeNull()
 
     queryClient.setQueryData(['plans'], { ...testPlans, gstRegistered: true })
-    expect(await within(card).findByText('Includes 18% GST')).toBeInTheDocument()
+    expect(
+      await within(card).findByText('Includes 18% Goods and Services Tax (GST)')
+    ).toBeInTheDocument()
   })
 
   it('offers the switch, a new card and cancel on an active subscription', async () => {
@@ -747,7 +749,11 @@ describe('billing page, owner actions by state', () => {
     mockTenant('owner', active({ paymentsEnabled: false }))
     renderBilling()
     const card = await overview()
-    expect(await within(card).findByText('Payments aren’t set up yet.')).toBeInTheDocument()
+    expect(
+      await within(card).findByText(
+        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+      )
+    ).toBeInTheDocument()
     for (const name of ['Switch to yearly', 'Update card', 'Cancel Paid', 'Upgrade to Paid']) {
       expect(within(card).queryByRole('button', { name })).toBeNull()
     }
@@ -759,7 +765,11 @@ describe('billing page, owner actions by state', () => {
     mockTenant('owner', testBilling({ trialEndsAt: TRIAL_END, paymentsEnabled: false }))
     renderBilling()
     const card = await overview()
-    expect(await within(card).findByText('Payments aren’t set up yet.')).toBeInTheDocument()
+    expect(
+      await within(card).findByText(
+        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+      )
+    ).toBeInTheDocument()
     expect(within(card).queryByRole('button', { name: 'Upgrade to Paid' })).toBeNull()
   })
 })
@@ -780,7 +790,7 @@ describe('billing page, one checkout', () => {
         state: 'past_due',
         pastDue: { since: SINCE, graceEndsAt: '2026-10-27T09:00:00.000Z', paused: false },
       }),
-      'Paid · Payment failed on 20 October 2026',
+      'Paid plan · Payment failed on 20 October 2026',
       'Your card payment of ₹999 failed on 20 October 2026. Update your card by 27 October 2026 to keep Paid.',
     ],
     [
@@ -789,7 +799,7 @@ describe('billing page, one checkout', () => {
         state: 'past_due',
         pastDue: { since: SINCE, graceEndsAt: '2026-10-27T09:00:00.000Z', paused: true },
       }),
-      'Paid · Payments paused on 20 October 2026',
+      'Paid plan · Payments paused on 20 October 2026',
       'Payments are paused in your UPI app. Resume them there by 27 October 2026 to keep Paid.',
     ],
     [
@@ -994,7 +1004,7 @@ describe('billing page, who sees what', () => {
     [
       'past due',
       active({ state: 'past_due', pastDue: { since: SINCE, graceEndsAt: null, paused: false } }),
-      'Paid · Payment failed on 20 October 2026',
+      'Paid plan · Payment failed on 20 October 2026',
     ],
     [
       'free',
@@ -1012,7 +1022,11 @@ describe('billing page, who sees what', () => {
     )
     expect(within(card).queryAllByRole('button')).toEqual([])
     expect(within(card).queryAllByRole('link')).toEqual([])
-    expect(screen.queryByText('Payments aren’t set up yet.')).toBeNull()
+    expect(
+      screen.queryByText(
+        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+      )
+    ).toBeNull()
     expect(screen.queryByText('Only owners can change billing.')).toBeNull()
     expect(invoices.count).toBe(0)
     expect(requests.count).toBe(0)
@@ -1043,7 +1057,7 @@ describe('billing page, invoices', () => {
     const table = await screen.findByRole('table', { name: 'Invoices' })
     const rows = within(table).getAllByRole('row').slice(1)
     expect(rows.map((row) => row.textContent)).toEqual([
-      '2 October 2026₹999PaidView',
+      '2 October 2026₹999Payment receivedView',
       '2 September 2026₹999Not paid',
     ])
     const view = within(rows[0] as HTMLElement).getByRole('link', {
@@ -1146,7 +1160,7 @@ describe('billing page, invoices', () => {
     await waitFor(() => expect(cursors).toEqual([null, 'next-1', null]))
     await waitFor(() => expect(screen.queryByText('2 September 2026')).toBeNull())
     expect(screen.getByText('2 October 2026')).toBeInTheDocument()
-    expect(screen.queryByText('Invoices didn’t load. Try again.')).toBeNull()
+    expect(screen.queryByText('Invoices didn’t load. Select Try again.')).toBeNull()
     expect(screen.getByRole('button', { name: 'Show more' })).toBeEnabled()
   })
 })

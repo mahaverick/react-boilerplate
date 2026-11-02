@@ -205,7 +205,7 @@ describe('UpgradeAction for a member who is not an owner', () => {
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith(
-        'You already asked on 2 November 2026. Owners were told.'
+        'You already asked on 2 November 2026. We notified this workspace’s owners.'
       )
     })
     await screen.findByText('Requested')
@@ -229,7 +229,7 @@ describe('UpgradeAction for a member who is not an owner', () => {
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith(
-        'You already asked on 1 November 2026. Owners were told.'
+        'You already asked on 1 November 2026. We notified this workspace’s owners.'
       )
     })
   })

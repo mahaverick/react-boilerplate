@@ -11,7 +11,7 @@ import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import type { MembershipRole } from '@/constants/roles'
 import { resetSessionForTests } from '@/http/session'
-import { formatDate } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { tenantKeys } from '@/queries/tenant.queries'
 import { queryClient, ROUTER_DEFAULTS } from '@/router'
@@ -300,9 +300,9 @@ describe('members page permissions', () => {
     expect(me.getByRole('button', { name: 'Leave' })).toBeDisabled()
     // Once per row, not once per disabled control: Leave points at the role cell's copy through aria-describedby instead of repeating the sentence.
     expect(
-      me.getAllByText('A tenant must always have an owner. Add another owner first.')
+      me.getAllByText('A workspace must always have an owner. Add another owner first.')
     ).toHaveLength(1)
-    const reason = me.getByText('A tenant must always have an owner. Add another owner first.')
+    const reason = me.getByText('A workspace must always have an owner. Add another owner first.')
     expect(me.getByRole('button', { name: 'Leave' })).toHaveAttribute('aria-describedby', reason.id)
     expect(me.getByRole('combobox', { name: 'Role for Me X' })).toHaveAttribute(
       'aria-describedby',
@@ -352,7 +352,7 @@ describe('members page permissions', () => {
     mockTenant('owner', [])
     renderAppAt('/settings/workspace/acme/members')
 
-    expect(await screen.findByText(/no one has access to this tenant yet/i)).toBeInTheDocument()
+    expect(await screen.findByText(/no one has access to this workspace yet/i)).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
@@ -377,7 +377,7 @@ describe('members page permissions', () => {
     mockTenant('viewer', [])
     renderAppAt('/settings/workspace/acme/members')
 
-    expect(await screen.findByText(/no one has access to this tenant yet/i)).toBeInTheDocument()
+    expect(await screen.findByText(/no one has access to this workspace yet/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Invite someone' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
   })
@@ -476,7 +476,7 @@ describe('members page permissions', () => {
     const alert = await within(await screen.findByRole('region', { name: 'Members' })).findByRole(
       'alert'
     )
-    expect(alert).toHaveTextContent(/couldn’t load this tenant’s members/i)
+    expect(alert).toHaveTextContent(/couldn’t load this workspace’s members/i)
     expect(screen.queryByText(/couldn’t load your role/i)).not.toBeInTheDocument()
 
     await waitFor(() => {
@@ -506,7 +506,7 @@ describe('members page permissions', () => {
     renderAppAt('/settings/workspace/acme/members')
     const members = await screen.findByRole('region', { name: 'Members' })
     expect(await within(members).findByRole('alert')).toHaveTextContent(
-      /couldn’t load this tenant’s members/i
+      /couldn’t load this workspace’s members/i
     )
 
     detailFails = true
@@ -516,7 +516,7 @@ describe('members page permissions', () => {
 
     // Without a role the list's controls cannot be decided, so the role failure stands alone and its retry is the one that can fix the page.
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/couldn’t load your role in this tenant/i)
+    expect(alert).toHaveTextContent(/couldn’t load your role in this workspace/i)
     expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Members' })).not.toBeInTheDocument()
   })
@@ -781,7 +781,7 @@ describe('inviting, and the pending invitations', () => {
     expect(first.getByText('Editor')).toBeInTheDocument()
     expect(first.getByText('A B')).toHaveClass('ph-sensitive', 'ph-mask')
     expect(first.getByText(/^by/)).toHaveTextContent('by A B')
-    expect(first.getByText(formatDate(testInvitation.expiresAt, 'medium')!)).toBeInTheDocument()
+    expect(first.getByText(formatDateTime(testInvitation.expiresAt)!)).toBeInTheDocument()
     // An inviter whose account is gone is `null` and must not crash the row.
     const second = within(within(table).getByText('old@b.com').closest('tr')!)
     expect(second.getByText(/^by/)).toHaveTextContent('by A teammate')
@@ -1123,7 +1123,7 @@ describe('the remove and leave dialogs', () => {
 
     await user.click((await rowFor('Ada')).getByRole('button', { name: 'Remove' }))
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
-      'Ada X will lose access to this tenant immediately. Pending invitations they sent are revoked.'
+      'Ada X will lose access to this workspace immediately. Pending invitations they sent are revoked.'
     )
   })
 
@@ -1134,7 +1134,7 @@ describe('the remove and leave dialogs', () => {
 
     await user.click((await rowFor('Ada')).getByRole('button', { name: 'Remove' }))
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
-      'Ada X loses staff access immediately. Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there. If their address is on an auto-join domain, they rejoin as a viewer at their next sign-in.'
+      'Ada X loses staff access immediately. Pending invitations they sent here are revoked, and so are any they sent in other workspaces for a role they can no longer grant there. If their address is on an auto-join domain, they rejoin as a viewer at their next sign-in.'
     )
   })
 
@@ -1156,7 +1156,7 @@ describe('the remove and leave dialogs', () => {
 
     await user.click(await enabledLeave())
     expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
-      'You lose staff access immediately. An owner or admin will have to invite you back, unless your address is on an auto-join domain: then you rejoin as a viewer at your next sign-in. Pending invitations you sent here are revoked, and so are any you sent in other tenants for a role you can no longer grant there.'
+      'You lose staff access immediately. An owner or admin will have to invite you back, unless your address is on an auto-join domain: then you rejoin as a viewer at your next sign-in. Pending invitations you sent here are revoked, and so are any you sent in other workspaces for a role you can no longer grant there.'
     )
   })
 
@@ -1168,7 +1168,7 @@ describe('the remove and leave dialogs', () => {
       server.use(
         http.delete('/api/v1/tenants/acme/membership', () => {
           left += 1
-          return ok(null, 'You left the tenant.')
+          return ok(null, 'You left the workspace.')
         }),
         http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants retrieved.'))
       )
@@ -1177,9 +1177,9 @@ describe('the remove and leave dialogs', () => {
 
       await user.click(await enabledLeave())
       const dialog = await screen.findByRole('alertdialog')
-      expect(dialog).toHaveAccessibleName('Leave this tenant?')
+      expect(dialog).toHaveAccessibleName('Leave this workspace?')
       expect(dialog).toHaveAccessibleDescription(
-        'You will lose access to this tenant immediately. An owner or admin will have to invite you back.'
+        'You will lose access to this workspace immediately. An owner or admin will have to invite you back.'
       )
       await user.click(within(dialog).getByRole('button', { name: 'Leave' }))
 
@@ -1198,7 +1198,7 @@ describe('the remove and leave dialogs', () => {
 
       await user.click(await enabledLeave())
       expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
-        'You will lose access to this tenant immediately. An owner or admin will have to invite you back. Pending invitations you sent are revoked.'
+        'You will lose access to this workspace immediately. An owner or admin will have to invite you back. Pending invitations you sent are revoked.'
       )
     }
   )
@@ -1215,7 +1215,7 @@ describe('the remove and leave dialogs', () => {
       http.delete('/api/v1/tenants/acme/membership', async () => {
         left += 1
         await held
-        return ok(null, 'You left the tenant.')
+        return ok(null, 'You left the workspace.')
       })
     )
     const user = userEvent.setup()
@@ -1247,7 +1247,7 @@ describe('the remove and leave dialogs', () => {
     server.use(
       http.delete('/api/v1/tenants/acme/membership', () => {
         hasLeft = true
-        return ok(null, 'You left the tenant.')
+        return ok(null, 'You left the workspace.')
       })
     )
     server.events.on('request:start', record)
@@ -1305,7 +1305,7 @@ describe('the remove and leave dialogs', () => {
       expect((await rowFor('Me')).getByRole('button', { name: 'Leave' })).toBeDisabled()
     )
     expect((await rowFor('Me')).getByRole('button', { name: 'Leave' })).toHaveAccessibleDescription(
-      'A tenant must always have an owner. Add another owner first.'
+      'A workspace must always have an owner. Add another owner first.'
     )
   })
 
@@ -1360,7 +1360,7 @@ describe('the remove and leave dialogs', () => {
 })
 
 describe('a member who is already gone', () => {
-  const GONE = 'That member is no longer in this tenant. We refreshed the list.'
+  const GONE = 'That member is no longer in this workspace. We refreshed the list.'
 
   beforeEach(() => {
     resetSessionForTests()
@@ -1543,7 +1543,7 @@ describe('the last owner, counted as the API counts', () => {
 })
 
 describe('a customer tenant reached through platform access', () => {
-  const STAFF_VIEW = 'You’re viewing this tenant as staff. Make changes from the staff console.'
+  const STAFF_VIEW = 'You’re viewing this workspace as staff. Make changes from the staff console.'
 
   beforeEach(() => {
     resetSessionForTests()
@@ -1909,7 +1909,7 @@ describe('keyboard focus after a row action succeeds', () => {
   it('does not move focus to the Members heading when you leave the tenant', async () => {
     mockTenant('owner', [member(ME, 'owner', 'Me'), member(USER_ID_3, 'owner', 'Vic')])
     server.use(
-      http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the tenant.'))
+      http.delete('/api/v1/tenants/acme/membership', () => ok(null, 'You left the workspace.'))
     )
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/members')
@@ -1925,7 +1925,7 @@ describe('keyboard focus after a row action succeeds', () => {
 })
 
 /** The last-owner explanation. */
-const LAST_OWNER_TEXT = 'A tenant must always have an owner. Add another owner first.'
+const LAST_OWNER_TEXT = 'A workspace must always have an owner. Add another owner first.'
 
 describe('the members list', () => {
   beforeEach(() => {

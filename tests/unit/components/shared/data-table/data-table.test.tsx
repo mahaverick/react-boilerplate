@@ -127,7 +127,7 @@ describe('DataTable states', () => {
       await client.refetchQueries({ queryKey: ['test-items'] })
     })
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Items didn’t refresh, so the rows shown may be out of date. Try again.'
+      'Items didn’t refresh, so the rows shown may be out of date. Select Try again.'
     )
     expect(screen.queryByText(/none are listed/)).not.toBeInTheDocument()
     expect(screen.getByText('Item 01')).toBeInTheDocument()

@@ -42,8 +42,8 @@ describe('AUDIT_ACTIONS', () => {
 
 describe('auditSentence', () => {
   it.each([
-    ['tenant.created', { name: 'Acme Corp', slug: 'acme' }, 'created the tenant “Acme Corp”'],
-    ['tenant.updated', { changed: ['name', 'website'] }, 'updated the tenant (name, website)'],
+    ['tenant.created', { name: 'Acme Corp', slug: 'acme' }, 'created the workspace “Acme Corp”'],
+    ['tenant.updated', { changed: ['name', 'website'] }, 'updated the workspace (name, website)'],
     ['tenant.settings_updated', { changed: ['timezone'] }, 'changed the settings (timezone)'],
     [
       'member.role_changed',
@@ -55,8 +55,8 @@ describe('auditSentence', () => {
       { userId: USER_ID_2, role: 'editor', self: false },
       'removed a member (Editor)',
     ],
-    ['member.removed', { userId: USER_ID_2, role: 'editor', self: true }, 'left the tenant'],
-    ['member.left', { role: 'editor' }, 'left the tenant'],
+    ['member.removed', { userId: USER_ID_2, role: 'editor', self: true }, 'left the workspace'],
+    ['member.left', { role: 'editor' }, 'left the workspace'],
     [
       'invitation.created',
       { role: 'viewer', emailDomain: 'example.com' },
@@ -90,7 +90,7 @@ describe('auditSentence', () => {
     [
       'tenant.accessed_by_platform',
       { platformRole: 'viewer' },
-      'opened this tenant as platform staff (Viewer)',
+      'opened this workspace as React Boilerplate support staff (Viewer)',
     ],
     ['onboarding.dismissed', {}, 'hid the getting started checklist'],
     ['onboarding.undismissed', {}, 'showed the getting started checklist again'],
@@ -131,7 +131,7 @@ describe('auditSentence', () => {
       'changed a member’s role from an unknown role to an unknown role'
     )
     expect(auditSentence({ action: 'tenant.updated', metadata: { changed: 'name' } })).toBe(
-      'updated the tenant'
+      'updated the workspace'
     )
     expect(auditSentence({ action: 'tenant.archived', metadata: {} })).toBe(
       'performed tenant archived'

@@ -60,9 +60,9 @@ export function AnalyticsSection({
         />
       </div>
       <p id={descriptionId} className="text-sm text-muted-foreground">
-        Which pages you visit and what you click, with names and addresses masked, so we can improve
-        this app. Turning it off stops this in your browser; the actions you take are still recorded
-        on our servers.
+        Which pages you visit and what you click, with names and email addresses masked, so we can
+        improve this app. Turning it off stops this in your browser; the actions you take are still
+        recorded on our servers.
       </p>
     </section>
   )

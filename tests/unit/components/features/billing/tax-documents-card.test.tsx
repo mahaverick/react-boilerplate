@@ -98,9 +98,7 @@ describe('TaxDocumentsCard', () => {
     renderWithClient(<TaxDocumentsCard slug="acme" />)
     expect(await screen.findByText('No tax documents yet.')).toBeInTheDocument()
     expect(
-      screen.getByText(
-        'We issue a tax invoice for each charge paid from the Goods and Services Tax (GST) start date.'
-      )
+      screen.getByText('Each charge you pay gets a Goods and Services Tax (GST) invoice here.')
     ).toBeInTheDocument()
   })
 
@@ -132,7 +130,9 @@ describe('TaxDocumentsCard', () => {
   it('offers a retry on any other failure', async () => {
     server.use(http.get(URL_PATH, () => fail('Server error.', 500)))
     renderWithClient(<TaxDocumentsCard slug="acme" />)
-    expect(await screen.findByText('Tax documents didn’t load. Try again.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Tax documents didn’t load. Select Try again.')
+    ).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Tax documents' })).toBeInTheDocument()
   })
 })

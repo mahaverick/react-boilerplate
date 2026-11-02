@@ -220,7 +220,7 @@ describe('workspace settings', () => {
   it('leaves the tenant home with only Overview and flagged tabs', async () => {
     mockTenant('owner')
     renderAppAt('/tenants/acme')
-    const tabs = await screen.findByRole('navigation', { name: 'Tenant sections' })
+    const tabs = await screen.findByRole('navigation', { name: 'Workspace sections' })
     expect(tabs).toHaveTextContent('Overview')
     expect(tabs).not.toHaveTextContent('Members')
     expect(tabs).not.toHaveTextContent('Settings')
@@ -252,7 +252,7 @@ describe('workspace general settings', () => {
     server.use(
       http.patch('/api/v1/tenants/acme', async ({ request }) => {
         patched = await request.json()
-        return ok({ ...TENANT, name: 'Acme Ltd' }, 'Tenant updated.')
+        return ok({ ...TENANT, name: 'Acme Ltd' }, 'Workspace updated.')
       })
     )
     const user = userEvent.setup()
@@ -262,7 +262,7 @@ describe('workspace general settings', () => {
     await user.clear(name)
     await user.type(name, 'Acme Ltd')
     // `slug` is absent from updateTenantSchema: the API refuses to rename.
-    expect(screen.queryByLabelText('Slug')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Web address')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() => {
@@ -277,7 +277,7 @@ describe('workspace general settings', () => {
     server.use(
       http.patch('/api/v1/tenants/acme', async ({ request }) => {
         patched = (await request.json()) as Record<string, unknown>
-        return ok({ ...TENANT, description: null }, 'Tenant updated.')
+        return ok({ ...TENANT, description: null }, 'Workspace updated.')
       })
     )
     const user = userEvent.setup()
@@ -298,15 +298,15 @@ describe('workspace general settings', () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/general')
 
-    const metadata = await screen.findByLabelText('Metadata')
+    const metadata = await screen.findByLabelText('Custom data (for developers)')
     expect(screen.getByText(/^A JSON \(JavaScript Object Notation\) object/)).toHaveTextContent(
-      'A JSON (JavaScript Object Notation) object of at most 16,384 characters. Leave it empty to clear it.'
+      'A JSON (JavaScript Object Notation) object of at most 16,384 characters. Leave empty unless your integration reads it.'
     )
     await user.clear(metadata)
     await user.type(metadata, '{{oops')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
 
-    expect(await screen.findByText('Metadata must be valid JSON.')).toBeInTheDocument()
+    expect(await screen.findByText('Custom data must be valid JSON.')).toBeInTheDocument()
   })
 
   it('shows a refused tenant edit once, in the form, with no toast', async () => {
@@ -332,7 +332,7 @@ describe('workspace general settings', () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/general')
 
-    await user.type(await screen.findByLabelText('Locale'), '-GB')
+    await user.type(await screen.findByLabelText('Language and region'), '-GB')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
 
     const message = await screen.findByText('Something broke.')
@@ -365,7 +365,7 @@ describe('workspace general settings', () => {
     server.use(
       http.patch('/api/v1/tenants/acme', async ({ request }) => {
         patched = await request.json()
-        return ok({ ...TENANT, name: 'Acme Ltd' }, 'Tenant updated.')
+        return ok({ ...TENANT, name: 'Acme Ltd' }, 'Workspace updated.')
       })
     )
     const user = userEvent.setup()
@@ -398,7 +398,7 @@ describe('workspace general settings', () => {
       ),
       http.patch('/api/v1/tenants/acme', async ({ request }) => {
         patched = await request.json()
-        return ok({ ...served, name: 'Acme Ltd' }, 'Tenant updated.')
+        return ok({ ...served, name: 'Acme Ltd' }, 'Workspace updated.')
       })
     )
     const user = userEvent.setup()
@@ -422,7 +422,7 @@ describe('workspace general settings', () => {
     server.use(
       http.patch('/api/v1/tenants/acme', () => {
         patches += 1
-        return ok(TENANT, 'Tenant updated.')
+        return ok(TENANT, 'Workspace updated.')
       })
     )
     const user = userEvent.setup()
@@ -439,7 +439,11 @@ describe('workspace general settings', () => {
       await screen.findByText('Logo must be a web address that starts with http:// or https://.')
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Logo URL')).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.queryByText('Description contains characters that are not allowed')).toBeNull()
+    expect(
+      screen.queryByText(
+        'Description has a hidden character. Remove it. Line breaks and tabs are allowed.'
+      )
+    ).toBeNull()
     // The message is the barrier: a refused submit never reaches onSubmit.
     expect(patches).toBe(0)
   })
@@ -456,8 +460,8 @@ describe('workspace general settings', () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/general')
 
-    const metadata = await screen.findByLabelText('Metadata')
-    expect(screen.getByLabelText('Timezone')).toHaveValue('Mars/Olympus_Mons')
+    const metadata = await screen.findByLabelText('Custom data (for developers)')
+    expect(screen.getByLabelText('Time zone')).toHaveValue('Mars/Olympus_Mons')
     await user.clear(metadata)
     await user.type(metadata, '{{"tier":"max"}')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
@@ -481,11 +485,11 @@ describe('workspace general settings', () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/general')
 
-    const timezone = await screen.findByLabelText('Timezone')
+    const timezone = await screen.findByLabelText('Time zone')
     await user.type(timezone, 'X')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
     expect(
-      await screen.findByText('Timezone must be a time zone name such as Europe/Paris.')
+      await screen.findByText('Time zone must be a time zone name such as Europe/Paris.')
     ).toBeInTheDocument()
     expect(patched).toBeNull()
 
@@ -493,7 +497,7 @@ describe('workspace general settings', () => {
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
     await waitFor(() => {
       expect(
-        screen.queryByText('Timezone must be a time zone name such as Europe/Paris.')
+        screen.queryByText('Time zone must be a time zone name such as Europe/Paris.')
       ).not.toBeInTheDocument()
     })
     expect(await screen.findByRole('alert')).toHaveTextContent('Change a field before saving.')
@@ -512,7 +516,7 @@ describe('workspace general settings', () => {
     server.use(
       http.patch('/api/v1/tenants/acme', () => {
         patches += 1
-        return ok(TENANT, 'Tenant updated.')
+        return ok(TENANT, 'Workspace updated.')
       })
     )
     const user = userEvent.setup()
@@ -542,7 +546,7 @@ describe('workspace general settings', () => {
       ),
       http.patch('/api/v1/tenants/acme', async ({ request }) => {
         patched = await request.json()
-        return ok({ ...served, name: 'Acme Ltd' }, 'Tenant updated.')
+        return ok({ ...served, name: 'Acme Ltd' }, 'Workspace updated.')
       })
     )
     const user = userEvent.setup()
@@ -573,7 +577,7 @@ describe('workspace general settings', () => {
         bodies.push(await request.json())
         return bodies.length === 1
           ? fail('Something broke.', 500)
-          : ok({ ...TENANT, name: 'Acme Ltd' }, 'Tenant updated.')
+          : ok({ ...TENANT, name: 'Acme Ltd' }, 'Workspace updated.')
       })
     )
     const user = userEvent.setup()
@@ -598,7 +602,7 @@ describe('workspace general settings', () => {
     server.use(
       http.patch('/api/v1/tenants/acme', async ({ request }) => {
         bodies.push(await request.json())
-        return ok(TENANT, 'Tenant updated.')
+        return ok(TENANT, 'Workspace updated.')
       })
     )
     const user = userEvent.setup()
@@ -609,7 +613,7 @@ describe('workspace general settings', () => {
     await user.type(name, 'Acme Ltd')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith('Tenant updated.')
+      expect(toastSuccess).toHaveBeenCalledWith('Workspace updated.')
     })
     await user.clear(name)
     await user.type(name, 'Acme Corp')
@@ -634,7 +638,7 @@ describe('workspace general settings', () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/general')
 
-    await user.type(await screen.findByLabelText('Locale'), '-GB')
+    await user.type(await screen.findByLabelText('Language and region'), '-GB')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
     await screen.findByText('Something broke.')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
@@ -658,7 +662,7 @@ describe('workspace general settings', () => {
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/general')
 
-    const locale = await screen.findByLabelText('Locale')
+    const locale = await screen.findByLabelText('Language and region')
     await user.type(locale, '-GB')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
     await waitFor(() => {
@@ -682,7 +686,7 @@ describe('workspace general settings', () => {
       ),
       http.patch('/api/v1/tenants/acme', () => {
         patches += 1
-        return ok(served, 'Tenant updated.')
+        return ok(served, 'Workspace updated.')
       })
     )
     const user = userEvent.setup()
@@ -735,7 +739,7 @@ describe('workspace general settings', () => {
     renderAppAt('/settings/workspace/acme/general')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/couldn’t load this tenant’s settings/i)
+    expect(alert).toHaveTextContent(/couldn’t load this workspace’s settings/i)
     expect(screen.queryByText(/couldn’t load your role/i)).not.toBeInTheDocument()
 
     // Two calls because the queryClient is `retry: 1`.

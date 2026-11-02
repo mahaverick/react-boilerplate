@@ -6,6 +6,7 @@ const TYPE_LABELS: Readonly<Record<string, string>> = {
   billing_upgrade_requested: 'Upgrade request',
   billing_paid_cancelled: 'Paid cancelled',
   workspace_full: 'Workspace full',
+  tenant_invitation: 'Workspace invitation',
 }
 
 /**

@@ -66,7 +66,7 @@ test('a staff viewer opens a tenant by URL, is told so, and cannot change it', a
   await expect(page).toHaveURL(new RegExp(`/tenants/${slug}$`))
   const banner = page.getByRole('status').filter({ hasText: 'as platform staff' })
   await expect(banner).toContainText(`You’re viewing ${name} as platform staff (Viewer).`)
-  await expect(banner.getByRole('link', { name: 'Back to your tenants' })).toBeVisible()
+  await expect(banner.getByRole('link', { name: 'Back to your workspaces' })).toBeVisible()
 
   // Edit controls are absent for a viewer, not disabled: Settings › Workspace › General renders the read-only views.
   await page.getByRole('link', { name: 'Workspace settings' }).click()
@@ -76,10 +76,10 @@ test('a staff viewer opens a tenant by URL, is told so, and cannot change it', a
     page.getByText('You can view these settings. Owners and admins can change them.')
   ).toBeVisible()
   await expect(
-    page.getByText('These details are managed by the tenant’s owners and admins.')
+    page.getByText('Only this workspace’s owners and admins can change these details.')
   ).toBeVisible()
   await expect(
-    page.getByText('These settings are managed by the tenant’s owners and admins.')
+    page.getByText('Only this workspace’s owners and admins can change these settings.')
   ).toBeVisible()
   await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Save settings' })).toHaveCount(0)
@@ -102,7 +102,7 @@ test('a staff admin changes a setting, and the owner sees it in Activity marked 
   await expect(
     page.getByRole('status').filter({ hasText: 'as platform staff (Admin)' })
   ).toBeVisible()
-  const timezone = page.getByLabel('Timezone')
+  const timezone = page.getByLabel('Time zone')
   await timezone.fill('Asia/Tokyo')
   await page.getByRole('button', { name: 'Save settings' }).click()
   await expect(page.getByText('Settings updated.')).toBeVisible()
@@ -119,7 +119,7 @@ test('a staff admin changes a setting, and the owner sees it in Activity marked 
     await expect(row).toContainText('timezone')
     await expect(row.getByText('Staff', { exact: true })).toBeVisible()
 
-    const created = ownerPage.getByRole('row').filter({ hasText: 'created the tenant' })
+    const created = ownerPage.getByRole('row').filter({ hasText: 'created the workspace' })
     await expect(created).toHaveCount(1)
     await expect(created.getByText('Staff', { exact: true })).toHaveCount(0)
   } finally {

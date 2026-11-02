@@ -57,10 +57,10 @@ describe('InvoicesCard', () => {
     )
     const user = userEvent.setup()
     renderWithClient(<InvoicesCard slug="acme" timeZone="Asia/Kolkata" showTax={false} />)
-    expect(await screen.findByText('Invoices didn’t load. Try again.')).toBeInTheDocument()
+    expect(await screen.findByText('Invoices didn’t load. Select Try again.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('table', { name: 'Invoices' })).toHaveTextContent(
-      '3 November 2026₹9,990Paid'
+      '3 November 2026₹9,990Payment received'
     )
     expect(screen.queryByRole('link')).toBeNull()
   })
@@ -103,7 +103,9 @@ describe('UpgradeRequestsCard', () => {
   it('shows its card with a retry when the requests fail to load', async () => {
     server.use(http.get(`${BASE}/upgrade-requests`, () => fail('Server error.', 500)))
     renderWithClient(<UpgradeRequestsCard slug="acme" timeZone="UTC" />)
-    expect(await screen.findByText('Upgrade requests didn’t load. Try again.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Upgrade requests didn’t load. Select Try again.')
+    ).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Upgrade requests' })).toBeInTheDocument()
   })
 

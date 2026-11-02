@@ -49,7 +49,7 @@ describe('changedFieldsOf', () => {
       metadata: { tier: 'max' },
     })
     expect(issuesOf(changes.safeParse({ ...loaded, timezone: '' }))).toEqual([
-      ['timezone', 'Timezone is required.'],
+      ['timezone', 'Time zone is required.'],
     ])
   })
 })

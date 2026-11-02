@@ -60,7 +60,7 @@ const SURFACES = [
     url: '/e2e/harness/?path=/settings',
     heading: { name: 'Workspace', level: 2 },
   },
-  // No eligible tenant, so the Workspace rows render as muted text under the "Choose a tenant first." hint.
+  // No eligible tenant, so the Workspace rows render as muted text under the "Choose a workspace first." hint.
   {
     name: 'settings (no tenant)',
     url: '/e2e/harness/?path=/settings&state=suspended',
@@ -81,16 +81,16 @@ const SURFACES = [
     url: '/e2e/harness/?path=/settings/account/notifications',
     heading: 'Preferences',
   },
-  { name: 'tenants', url: '/e2e/harness/?path=/tenants', heading: 'Tenants' },
+  { name: 'tenants', url: '/e2e/harness/?path=/tenants', heading: 'Workspaces' },
   {
     name: 'tenants (suspended row)',
     url: '/e2e/harness/?path=/tenants&state=suspended',
-    heading: 'Tenants',
+    heading: 'Workspaces',
   },
   {
     name: 'tenant suspended panel',
     url: '/e2e/harness/?path=/tenants/acme&state=suspended',
-    heading: 'Tenant suspended',
+    heading: 'Workspace suspended',
   },
   {
     name: 'tenant overview (getting started)',
@@ -161,7 +161,7 @@ const SURFACES = [
   {
     name: 'link failed',
     url: signedOut('/auth/link', `token=${TOKEN}&email=a@b.com&link=readonly`),
-    heading: 'We couldn’t sign you in',
+    heading: 'Sign-in didn’t finish',
   },
   {
     name: 'welcome',
@@ -429,7 +429,7 @@ const POPUPS = [
   {
     name: 'tenant switcher',
     path: '/dashboard',
-    trigger: /^Switch tenant/,
+    trigger: /^Switch workspace/,
     triggerRole: 'combobox',
     role: 'dialog',
     itemRole: 'option',

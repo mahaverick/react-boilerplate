@@ -108,7 +108,9 @@ describe('QueryState', () => {
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValueOnce(['Ada'])
     renderSection(read)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Members didn’t load. Try again.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Members didn’t load. Select Try again.'
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('Ada')).toBeInTheDocument()
     expect(read).toHaveBeenCalledTimes(2)
@@ -143,7 +145,9 @@ describe('QueryState', () => {
     await act(async () => {
       await client.refetchQueries({ queryKey: ['section'] })
     })
-    expect(await screen.findByRole('alert')).toHaveTextContent('Members didn’t load. Try again.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Members didn’t load. Select Try again.'
+    )
     expect(wrapper(container)).not.toBeNull()
   })
 
@@ -230,7 +234,9 @@ describe('QueryState', () => {
     await act(async () => {
       await client.refetchQueries({ queryKey: ['section'] })
     })
-    expect(await screen.findByRole('alert')).toHaveTextContent('Members didn’t load. Try again.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Members didn’t load. Select Try again.'
+    )
     expect(screen.getByText('Ada')).toBeInTheDocument()
   })
 

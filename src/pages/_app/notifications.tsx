@@ -42,7 +42,7 @@ export const Route = createFileRoute('/_app/notifications')({
 
 /** What the inbox says when its query failed, as opposed to came back empty. */
 const NOTIFICATIONS_ERROR =
-  'We couldn’t load your notifications, so none are listed. Try again to load them.'
+  'We couldn’t load your notifications, so none are listed. Select Try again to load them.'
 
 const column = createColumnHelper<DataTableFeatures, Notification>()
 

@@ -70,7 +70,7 @@ describe('tenants list', () => {
 
   it('shows an empty state when the account belongs to no tenants', async () => {
     renderAppAt('/tenants')
-    expect(await screen.findByText(/do not belong to any tenants/i)).toBeInTheDocument()
+    expect(await screen.findByText(/isn’t a member of any workspace/i)).toBeInTheDocument()
   })
 
   it('scrolls to the create form and focuses its name field from the empty state', async () => {
@@ -79,7 +79,7 @@ describe('tenants list', () => {
     try {
       renderAppAt('/tenants')
 
-      await userEvent.click(await screen.findByRole('button', { name: 'Create a tenant' }))
+      await userEvent.click(await screen.findByRole('button', { name: 'Create a workspace' }))
 
       expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
       expect(screen.getByLabelText('Name')).toHaveFocus()
@@ -123,7 +123,7 @@ describe('tenants list', () => {
   it('lists tenants in a table by name, with role and join date', async () => {
     serveTwo()
     renderAppAt('/tenants')
-    const table = await screen.findByRole('table', { name: 'Tenants' })
+    const table = await screen.findByRole('table', { name: 'Workspaces' })
     expect(within(table).getByRole('columnheader', { name: /Name/ })).toHaveAttribute(
       'aria-sort',
       'ascending'
@@ -138,7 +138,7 @@ describe('tenants list', () => {
     const seen = serveTwo()
     const user = userEvent.setup()
     const router = renderAppAt('/tenants')
-    await screen.findByRole('table', { name: 'Tenants' })
+    await screen.findByRole('table', { name: 'Workspaces' })
     await user.click(screen.getByRole('button', { name: /Joined/ }))
     await waitFor(() => expect(router.state.location.search).toMatchObject({ sort: '-joined' }))
     await waitFor(() => expect(seen.at(-1)?.get('sort')).toBe('-joined'))
@@ -148,9 +148,9 @@ describe('tenants list', () => {
     const seen = serveTwo()
     const user = userEvent.setup()
     const router = renderAppAt('/tenants')
-    await screen.findByRole('table', { name: 'Tenants' })
-    await user.click(screen.getByRole('button', { name: 'Filter by role, Tenants' }))
-    const popup = await screen.findByRole('dialog', { name: 'Filter by role, Tenants' })
+    await screen.findByRole('table', { name: 'Workspaces' })
+    await user.click(screen.getByRole('button', { name: 'Filter by role, Workspaces' }))
+    const popup = await screen.findByRole('dialog', { name: 'Filter by role, Workspaces' })
     await user.click(within(popup).getByRole('checkbox', { name: 'Owner' }))
     await user.click(within(popup).getByRole('checkbox', { name: 'Viewer' }))
     await waitFor(() =>
@@ -177,7 +177,7 @@ describe('tenants list', () => {
     )
     renderAppAt('/tenants')
 
-    const table = await screen.findByRole('table', { name: 'Tenants' })
+    const table = await screen.findByRole('table', { name: 'Workspaces' })
     const link = within(table).getByRole('link', { name: /Acme Corp/ })
     expect(link).toHaveAttribute('href', '/tenants/acme')
     expect(link.closest('tr')).toHaveTextContent('Admin')
@@ -206,7 +206,7 @@ describe('tenants list', () => {
 
   /**
    * A failed load and an account that belongs to nothing both leave `data` undefined, so
-   * without this the page would answer a 500 with "You do not belong to any tenants yet.
+   * without this the page would answer a 500 with "This account isn’t a member of any workspace.
    * Create one below.", a claim about the account from a request that failed, inviting the
    * user to create a tenant they may already own.
    */
@@ -215,9 +215,9 @@ describe('tenants list', () => {
     renderAppAt('/tenants')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/couldn’t load your tenants/i)
+    expect(alert).toHaveTextContent(/couldn’t load your workspaces/i)
     expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
-    expect(screen.queryByText(/do not belong to any tenants/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/isn’t a member of any workspace/i)).not.toBeInTheDocument()
   })
 
   it('retries the list from that control, and renders it when it comes back', async () => {
@@ -251,12 +251,12 @@ describe('tenants list', () => {
 
   it('states the slug’s length and characters, and that it is fixed once created', async () => {
     renderAppAt('/tenants')
-    expect(await screen.findByText(/^Use 3 to 100 lowercase letters/)).toHaveTextContent(
-      'Use 3 to 100 lowercase letters, numbers and hyphens. The slug becomes the address: /tenants/your-slug. We refuse capitals rather than convert them.'
+    expect(await screen.findByText(/^Your workspace’s address/)).toHaveTextContent(
+      'Your workspace’s address: /tenants/your-name. Use 3 to 100 lowercase letters, digits and hyphens. Capitals are refused, not converted.'
     )
     expect(
       screen.getByText(
-        'You become its owner. You can’t change the slug after you create the tenant.'
+        'You become its owner. You can’t change the web address after you create the workspace.'
       )
     ).toBeInTheDocument()
   })
@@ -264,13 +264,13 @@ describe('tenants list', () => {
   it('never shows Creating… for a submit that fails validation', async () => {
     const user = userEvent.setup()
     renderAppAt('/tenants')
-    const button = await screen.findByRole('button', { name: 'Create tenant' })
+    const button = await screen.findByRole('button', { name: 'Create workspace' })
     // Records every label the button shows, so a one-render flash is caught too.
     const labels: string[] = []
     const observer = new MutationObserver(() => labels.push(button.textContent))
     observer.observe(button, { childList: true, subtree: true, characterData: true })
 
-    await user.type(screen.getByLabelText('Slug'), 'acme')
+    await user.type(screen.getByLabelText('Web address'), 'acme')
     await user.click(button)
     expect(await screen.findByText('Name is required.')).toBeInTheDocument()
     observer.disconnect()
@@ -311,12 +311,12 @@ describe('tenants list', () => {
     const user = userEvent.setup()
     const router = renderAppAt('/tenants')
     await user.type(await screen.findByLabelText('Name'), 'Acme Corp')
-    await user.type(screen.getByLabelText('Slug'), 'acme')
+    await user.type(screen.getByLabelText('Web address'), 'acme')
     const readsBefore = tableReads
 
-    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
+    await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
-    const table = await screen.findByRole('table', { name: 'Tenants' })
+    const table = await screen.findByRole('table', { name: 'Workspaces' })
     expect(within(table).getByRole('link', { name: /Acme Corp/ })).toBeInTheDocument()
     expect(tableReads).toBeGreaterThan(readsBefore)
     expect(success).toHaveBeenCalledWith('Acme Corp created.')
@@ -398,7 +398,7 @@ describe('a session that ends on the SSE path, while the tenant list is loading'
 
     // Until that navigation completes, the page being left says the request failed, not that this account owns nothing.
     release?.()
-    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn’t load your tenants/i)
-    expect(screen.queryByText(/do not belong to any tenants/i)).not.toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn’t load your workspaces/i)
+    expect(screen.queryByText(/isn’t a member of any workspace/i)).not.toBeInTheDocument()
   })
 })

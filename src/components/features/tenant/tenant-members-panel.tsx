@@ -9,9 +9,10 @@ import { createColumnHelper } from '@tanstack/react-table'
 import { createContext, useContext, useRef, useState } from 'react'
 import { MembersLimitNote } from '@/components/features/billing/members-limit-note'
 import { UsageMeter } from '@/components/features/billing/usage-meter'
-import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
+import { LoadError } from '@/components/features/load-error'
 import { InviteMemberForm } from '@/components/features/tenant/invite-member-form'
 import { PendingInvitations } from '@/components/features/tenant/pending-invitations'
+import { ROLE_ERROR } from '@/components/features/tenant/role-error'
 import { ROLE_FILTER } from '@/components/features/tenant/role-filter'
 import { DataTable } from '@/components/shared/data-table/data-table'
 import type { DataTableFeatures } from '@/components/shared/data-table/data-table-model'
@@ -78,7 +79,7 @@ import { useAuthStore } from '@/states/auth.store'
 
 /** What the Leave dialog says, for every role. */
 const LEAVE_WARNING =
-  'You will lose access to this tenant immediately. An owner or admin will have to invite you back.'
+  'You will lose access to this workspace immediately. An owner or admin will have to invite you back.'
 
 /**
  * What the Leave dialog says on the platform tenant. Its membership is the
@@ -93,7 +94,7 @@ const INVITATIONS_REVOKED_ON_LEAVE = 'Pending invitations you sent are revoked.'
 
 /** Added on the platform tenant for an owner or admin: leaving staff also revokes, in each other tenant, what their membership there cannot grant, or everything where they have none. */
 const PLATFORM_INVITATIONS_REVOKED_ON_LEAVE =
-  'Pending invitations you sent here are revoked, and so are any you sent in other tenants for a role you can no longer grant there.'
+  'Pending invitations you sent here are revoked, and so are any you sent in other workspaces for a role you can no longer grant there.'
 
 /** What removing a member says about the invitations they sent. */
 const INVITATIONS_REVOKED_ON_REMOVE = 'Pending invitations they sent are revoked.'
@@ -103,7 +104,7 @@ const INVITATIONS_REVOKED_ON_REMOVE = 'Pending invitations they sent are revoked
  * as leaving does, and an auto-join domain brings the address back as viewer.
  */
 const PLATFORM_INVITATIONS_REVOKED_ON_REMOVE =
-  'Pending invitations they sent here are revoked, and so are any they sent in other tenants for a role they can no longer grant there. If their address is on an auto-join domain, they rejoin as a viewer at their next sign-in.'
+  'Pending invitations they sent here are revoked, and so are any they sent in other workspaces for a role they can no longer grant there. If their address is on an auto-join domain, they rejoin as a viewer at their next sign-in.'
 
 /**
  * What the members card says to a staff owner or admin who reached a customer
@@ -111,10 +112,10 @@ const PLATFORM_INVITATIONS_REVOKED_ON_REMOVE =
  * writes here without a staff reason, which only the staff console sends. A
  * staff viewer is told nothing, since their role allows those writes nowhere.
  */
-const STAFF_VIEW = 'You’re viewing this tenant as staff. Make changes from the staff console.'
+const STAFF_VIEW = 'You’re viewing this workspace as staff. Make changes from the staff console.'
 
 /** What a role change or removal says when its target is no longer a member. */
-const MEMBER_GONE = 'That member is no longer in this tenant. We refreshed the list.'
+const MEMBER_GONE = 'That member is no longer in this workspace. We refreshed the list.'
 
 /**
  * The toast for a failed role change or removal: `MEMBER_GONE` for a target
@@ -132,17 +133,17 @@ function memberWriteFailureMessage(error: unknown): string {
  * page already holds.
  * @param tenantName - The tenant's name, when the cache has it.
  */
-const leftTenant = (tenantName: string | undefined) => `You left ${tenantName ?? 'this tenant'}.`
+const leftTenant = (tenantName: string | undefined) => `You left ${tenantName ?? 'this workspace'}.`
 
 /**
  * What a leave says when the API answers 404: the membership was already gone.
  * @param tenantName - The tenant's name, when the cache has it.
  */
 const noLongerMember = (tenantName: string | undefined) =>
-  `You’re no longer a member of ${tenantName ?? 'this tenant'}.`
+  `You’re no longer a member of ${tenantName ?? 'this workspace'}.`
 
 /** The reason the last owner's own controls are switched off. */
-const LAST_OWNER_REASON = 'A tenant must always have an owner. Add another owner first.'
+const LAST_OWNER_REASON = 'A workspace must always have an owner. Add another owner first.'
 
 /**
  * What this tab says when the member list request failed. Kept apart from
@@ -151,7 +152,7 @@ const LAST_OWNER_REASON = 'A tenant must always have an owner. Add another owner
  * again retries that request.
  */
 const MEMBERS_ERROR =
-  'We couldn’t load this tenant’s members, so none are listed. Try again to load them.'
+  'We couldn’t load this workspace’s members, so none are listed. Select Try again to load them.'
 
 /**
  * The role cell: a select when the actor may change this member's role, plain
@@ -352,7 +353,7 @@ function RemoveMemberButton({
         <AlertDialogHeader>
           <AlertDialogTitle>
             {isSelf ? (
-              'Leave this tenant?'
+              'Leave this workspace?'
             ) : (
               <>
                 Remove <Pii>{name}</Pii>?
@@ -371,7 +372,7 @@ function RemoveMemberButton({
                 <Pii>{name}</Pii>{' '}
                 {isPlatform
                   ? 'loses staff access immediately.'
-                  : 'will lose access to this tenant immediately.'}{' '}
+                  : 'will lose access to this workspace immediately.'}{' '}
                 {isPlatform
                   ? PLATFORM_INVITATIONS_REVOKED_ON_REMOVE
                   : INVITATIONS_REVOKED_ON_REMOVE}
@@ -685,7 +686,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
               Members
             </h2>
           </CardTitle>
-          <CardDescription>Everyone with access to this tenant.</CardDescription>
+          <CardDescription>Everyone with access to this workspace.</CardDescription>
           {membersUsage && <UsageMeter label="Members" usage={membersUsage} />}
           {isStaffView && myRole && canManageTenant(myRole) && (
             <p className="text-sm text-muted-foreground">{STAFF_VIEW}</p>
@@ -719,7 +720,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
                   empty={
                     <EmptyState
                       icon={<IconUsers aria-hidden="true" />}
-                      title="No one has access to this tenant yet."
+                      title="No one has access to this workspace yet."
                       description={!isStaffView ? 'Invite someone below.' : undefined}
                       action={
                         canManageTenant(panel.myRole) && !isStaffView ? (

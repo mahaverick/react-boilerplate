@@ -157,7 +157,7 @@ describe('NavSettings', () => {
     expect(members).toHaveAttribute('href', '/settings/workspace/acme/members')
     expect(members).toHaveAttribute('data-active')
     expect(within(nav).getByRole('link', { name: 'Activity' })).not.toHaveAttribute('data-active')
-    expect(within(nav).queryByText('Choose a tenant first.')).not.toBeInTheDocument()
+    expect(within(nav).queryByText('Choose a workspace first.')).not.toBeInTheDocument()
   })
 
   it('disables every workspace item, with a hint, when there is no tenant', async () => {
@@ -168,7 +168,7 @@ describe('NavSettings', () => {
       expect(within(nav).queryByRole('link', { name })).not.toBeInTheDocument()
       expect(within(nav).getByRole('button', { name })).toHaveAttribute('aria-disabled', 'true')
     }
-    expect(within(nav).getByText('Choose a tenant first.')).toBeInTheDocument()
+    expect(within(nav).getByText('Choose a workspace first.')).toBeInTheDocument()
     // Account items stay links.
     expect(within(nav).getByRole('link', { name: 'Profile' })).toBeInTheDocument()
   })
@@ -177,12 +177,12 @@ describe('NavSettings', () => {
     renderNavAt('/settings/account/profile')
 
     const nav = await screen.findByRole('navigation', { name: 'Settings' })
-    const hint = within(nav).getByText('Choose a tenant first.')
+    const hint = within(nav).getByText('Choose a workspace first.')
     expect(hint.id).not.toBe('')
     for (const name of ['General', 'Members', 'Billing', 'Activity']) {
       const item = within(nav).getByRole('button', { name })
       expect(item).toHaveAttribute('aria-describedby', hint.id)
-      expect(item).toHaveAccessibleDescription('Choose a tenant first.')
+      expect(item).toHaveAccessibleDescription('Choose a workspace first.')
     }
   })
 
@@ -210,10 +210,10 @@ describe('NavSettings', () => {
 
     await waitFor(() => {
       const tooltip = document.querySelector('[data-slot="tooltip-content"]')
-      expect(tooltip).toHaveTextContent('Choose a tenant first.')
+      expect(tooltip).toHaveTextContent('Choose a workspace first.')
     })
     // The open tooltip leaves the hint description in place.
-    expect(members).toHaveAccessibleDescription('Choose a tenant first.')
+    expect(members).toHaveAccessibleDescription('Choose a workspace first.')
   })
 
   it.each(['Back to app', 'Profile', 'Members'])(

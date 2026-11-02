@@ -500,7 +500,7 @@ describe('Getting started card', () => {
 
     const card = await findCard()
     await user.click(within(card).getByRole('link', { name: 'Open settings' }))
-    const timezone = await screen.findByLabelText('Timezone')
+    const timezone = await screen.findByLabelText('Time zone')
     await user.clear(timezone)
     await user.type(timezone, 'Europe/Paris')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))

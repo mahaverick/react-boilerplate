@@ -120,11 +120,11 @@ describe('tenant detail', () => {
 
     const seen: boolean[] = []
     const observer = new MutationObserver(() =>
-      seen.push(/you aren’t a member|Tenant not available/.test(document.body.textContent))
+      seen.push(/you aren’t a member|Workspace not available/.test(document.body.textContent))
     )
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
     try {
-      await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
+      await screen.findByRole('heading', { name: 'Workspace suspended', level: 1 })
     } finally {
       observer.disconnect()
     }
@@ -155,10 +155,10 @@ describe('tenant detail', () => {
     renderAppAt('/tenants/acme')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/couldn’t load this tenant/i)
+    expect(alert).toHaveTextContent(/couldn’t load this workspace/i)
     expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     // Not the 404 panel: the tenant may exist and merely be unreachable.
-    expect(screen.queryByText(/Tenant not available/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Workspace not available/i)).not.toBeInTheDocument()
   })
 
   it('says a suspended tenant is suspended, not that it is missing', async () => {
@@ -180,7 +180,7 @@ describe('tenant detail', () => {
     )
     renderAppAt('/tenants/acme')
     expect(
-      await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
+      await screen.findByRole('heading', { name: 'Workspace suspended', level: 1 })
     ).toBeInTheDocument()
     expect(screen.getByText('Contact support to restore access.')).toBeInTheDocument()
     expect(screen.queryByText(/you aren’t a member/)).not.toBeInTheDocument()
@@ -216,11 +216,11 @@ describe('tenant detail', () => {
 
     const seen: boolean[] = []
     const observer = new MutationObserver(() =>
-      seen.push(/you aren’t a member|Tenant not available/.test(document.body.textContent))
+      seen.push(/you aren’t a member|Workspace not available/.test(document.body.textContent))
     )
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
     try {
-      await screen.findByRole('heading', { name: 'Tenant suspended', level: 1 })
+      await screen.findByRole('heading', { name: 'Workspace suspended', level: 1 })
     } finally {
       observer.disconnect()
     }
@@ -235,9 +235,9 @@ describe('tenant detail', () => {
     renderAppAt('/tenants/acme')
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/couldn’t load this tenant/i)
+    expect(alert).toHaveTextContent(/couldn’t load this workspace/i)
     expect(screen.queryByText(/you aren’t a member/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Tenant suspended/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Workspace suspended/)).not.toBeInTheDocument()
   })
 
   it('refetches the tenant from that retry, and renders it when it returns', async () => {
@@ -281,11 +281,11 @@ describe('tenant detail', () => {
     )
     renderAppAt('/tenants/ghost')
 
-    const heading = await screen.findByRole('heading', { name: 'Tenant not available' })
+    const heading = await screen.findByRole('heading', { name: 'Workspace not available' })
     expect(heading).toBeInTheDocument()
     // The API answers the same 404 for "no such tenant" and "you are not a member", so the page must not guess between them: "you are not a member of ghost" would confirm ghost exists.
     expect(screen.queryByText(/not a member/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Back to your tenants' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to your workspaces' })).toBeInTheDocument()
   })
 
   it('shows the detail template under the app shell while the tenant loads', async () => {
@@ -314,7 +314,7 @@ describe('tenant detail', () => {
     server.use(http.get('/api/v1/tenants/acme/onboarding', () => fail('Something went wrong', 500)))
     renderAppAt('/tenants/acme')
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Getting started didn’t load. Try again.'
+      'Getting started didn’t load. Select Try again.'
     )
     expect(screen.getByRole('heading', { level: 2, name: 'Details' })).toBeVisible()
   })
@@ -333,7 +333,7 @@ describe('tenant detail', () => {
 
     expect(await screen.findByRole('heading', { name: 'Acme Corp', level: 1 })).toBeInTheDocument()
     expect(screen.getByText('Owner')).toBeInTheDocument()
-    const tabs = screen.getByRole('navigation', { name: 'Tenant sections' })
+    const tabs = screen.getByRole('navigation', { name: 'Workspace sections' })
     expect(
       within(tabs)
         .getAllByRole('link')
@@ -364,7 +364,7 @@ describe('tenant detail', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/settings/workspace/acme/general')
     })
-    expect(await screen.findByLabelText('Timezone')).toHaveValue('Europe/London')
+    expect(await screen.findByLabelText('Time zone')).toHaveValue('Europe/London')
   })
 
   it('shows a viewer the details read-only, with no form', async () => {
@@ -384,7 +384,7 @@ describe('tenant detail', () => {
     const banner = text.closest('[role="status"]')
     if (!(banner instanceof HTMLElement)) throw new Error('the banner is not a status region')
     expect(banner).toHaveTextContent('You’re viewing Acme Corp as platform staff (Viewer).')
-    expect(within(banner).getByRole('link', { name: 'Back to your tenants' })).toHaveAttribute(
+    expect(within(banner).getByRole('link', { name: 'Back to your workspaces' })).toHaveAttribute(
       'href',
       '/tenants'
     )
@@ -453,7 +453,7 @@ describe('tenant analytics group', () => {
       http.get('/api/v1/tenants/ghost', () => fail('Tenant not found', 404))
     )
     renderWithRouteAnalytics('/tenants/ghost')
-    await screen.findByRole('heading', { name: 'Tenant not available' })
+    await screen.findByRole('heading', { name: 'Workspace not available' })
     await waitFor(() => expect(clearTenantGroup).toHaveBeenCalled())
     expect(setTenantGroup).not.toHaveBeenCalled()
   })

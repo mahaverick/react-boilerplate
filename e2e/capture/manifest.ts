@@ -414,7 +414,7 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
       ),
       billingCapture(
         'past_due',
-        'A failed payment: the banner and "Paid · Payment failed on 20 October 2026".'
+        'A failed payment: the banner and "Paid plan · Payment failed on 20 October 2026".'
       ),
       taxCapture(
         'tax-on',

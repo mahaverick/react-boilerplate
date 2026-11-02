@@ -30,7 +30,11 @@ const TENANT: Tenant = {
 function renderForm(onCreated: (tenant: Tenant) => void | Promise<void> = () => {}) {
   render(
     <QueryClientProvider client={queryClient}>
-      <CreateTenantForm submitLabel="Create tenant" busyLabel="Creating…" onCreated={onCreated} />
+      <CreateTenantForm
+        submitLabel="Create workspace"
+        busyLabel="Creating…"
+        onCreated={onCreated}
+      />
     </QueryClientProvider>
   )
 }
@@ -48,16 +52,18 @@ describe('CreateTenantForm', () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.type(screen.getByLabelText('Slug'), 'MyOrg')
+    await user.type(screen.getByLabelText('Web address'), 'MyOrg')
     // The slug is a routing identifier: silently rewriting "MyOrg" to "myorg" would address a different tenant than the one typed.
-    expect(await screen.findByText(/must be lowercase letters/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/use lowercase letters, digits and hyphens/i)
+    ).toBeInTheDocument()
   })
 
   it('does not blame a field the user has not reached', async () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.type(screen.getByLabelText('Slug'), 'a')
+    await user.type(screen.getByLabelText('Web address'), 'a')
     // Live validation is scoped to the field being edited: running the whole schema on change would put "Name is required." under an untouched Name on the first slug keystroke.
     expect(screen.queryByText('Name is required.')).not.toBeInTheDocument()
     expect(await screen.findByText(/at least 3 characters/i)).toBeInTheDocument()
@@ -67,8 +73,8 @@ describe('CreateTenantForm', () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.type(screen.getByLabelText('Slug'), 'acme')
-    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
+    await user.type(screen.getByLabelText('Web address'), 'acme')
+    await user.click(screen.getByRole('button', { name: 'Create workspace' }))
     // The whole schema has the last word on submit, so an untouched field is still checked.
     expect(await screen.findByText('Name is required.')).toBeInTheDocument()
   })
@@ -77,8 +83,10 @@ describe('CreateTenantForm', () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.type(screen.getByLabelText('Slug'), 'admin')
-    expect(await screen.findByText('This slug is reserved and cannot be used.')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Web address'), 'admin')
+    expect(
+      await screen.findByText('This web address is reserved. Choose another one.')
+    ).toBeInTheDocument()
   })
 
   it('sends the parsed body', async () => {
@@ -93,8 +101,8 @@ describe('CreateTenantForm', () => {
     renderForm()
 
     await user.type(screen.getByLabelText('Name'), '  Acme Corp  ')
-    await user.type(screen.getByLabelText('Slug'), 'acme')
-    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
+    await user.type(screen.getByLabelText('Web address'), 'acme')
+    await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
     await waitFor(() => {
       expect(posted).not.toBeNull()
@@ -111,8 +119,8 @@ describe('CreateTenantForm', () => {
     renderForm(onCreated)
 
     await user.type(screen.getByLabelText('Name'), 'Acme Corp')
-    await user.type(screen.getByLabelText('Slug'), 'acme')
-    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
+    await user.type(screen.getByLabelText('Web address'), 'acme')
+    await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(TENANT))
     // The fields keep what was typed, and the button stays busy, until the caller is done with the tenant.
@@ -121,26 +129,26 @@ describe('CreateTenantForm', () => {
 
     finish?.()
     await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue(''))
-    expect(screen.getByLabelText('Slug')).toHaveValue('')
-    expect(screen.getByRole('button', { name: 'Create tenant' })).toBeEnabled()
+    expect(screen.getByLabelText('Web address')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Create workspace' })).toBeEnabled()
   })
 
   it('never shows the busy label for a submit that fails validation', async () => {
     const user = userEvent.setup()
     renderForm()
-    const button = screen.getByRole('button', { name: 'Create tenant' })
+    const button = screen.getByRole('button', { name: 'Create workspace' })
     // Records every label the button shows, so a one-render flash is caught too.
     const labels: string[] = []
     const observer = new MutationObserver(() => labels.push(button.textContent))
     observer.observe(button, { childList: true, subtree: true, characterData: true })
 
-    await user.type(screen.getByLabelText('Slug'), 'acme')
+    await user.type(screen.getByLabelText('Web address'), 'acme')
     await user.click(button)
     expect(await screen.findByText('Name is required.')).toBeInTheDocument()
     observer.disconnect()
 
     expect(labels.filter((label) => label.includes('Creating'))).toEqual([])
-    expect(button).toHaveTextContent('Create tenant')
+    expect(button).toHaveTextContent('Create workspace')
   })
 
   it('puts the server’s slug_taken under the slug field', async () => {
@@ -153,10 +161,10 @@ describe('CreateTenantForm', () => {
     renderForm()
 
     await user.type(screen.getByLabelText('Name'), 'Acme Corp')
-    await user.type(screen.getByLabelText('Slug'), 'acme')
-    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
+    await user.type(screen.getByLabelText('Web address'), 'acme')
+    await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
-    const slug = screen.getByLabelText('Slug')
+    const slug = screen.getByLabelText('Web address')
     await waitFor(() => expect(slug).toHaveAttribute('aria-invalid', 'true'))
     expect(slug).toHaveAccessibleDescription(
       expect.stringContaining('Another workspace uses this slug. Choose a different one.')
@@ -174,8 +182,8 @@ describe('CreateTenantForm', () => {
     renderForm(onCreated)
 
     await user.type(screen.getByLabelText('Name'), 'Acme Corp')
-    await user.type(screen.getByLabelText('Slug'), 'acme')
-    await user.click(screen.getByRole('button', { name: 'Create tenant' }))
+    await user.type(screen.getByLabelText('Web address'), 'acme')
+    await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
     const message = await screen.findByText('Something broke.')
     expect(message.closest('form')).not.toBeNull()

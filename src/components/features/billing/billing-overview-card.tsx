@@ -59,7 +59,8 @@ export function BillingOverviewCard({
             {(view) =>
               view === null ? (
                 <p className="text-sm text-muted-foreground">
-                  Billing isn’t available for this workspace.
+                  This workspace has no plan or invoices to show. Contact support if you expected
+                  them.
                 </p>
               ) : (
                 <>
@@ -102,10 +103,10 @@ function PlanSummary({
       )}
       {payer !== null &&
         (payer.name === '' ? (
-          <p className="text-sm text-muted-foreground">Paid with an owner’s card.</p>
+          <p className="text-sm text-muted-foreground">Billed to an owner’s card.</p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Paid with <Pii>{payer.name}</Pii>’s card.
+            Billed to <Pii>{payer.name}</Pii>’s card.
           </p>
         ))}
       {billingEmail !== null && (

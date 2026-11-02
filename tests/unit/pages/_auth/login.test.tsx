@@ -238,7 +238,9 @@ describe('login page', () => {
     renderLoginAt('/login?notice=sign-in-link')
 
     expect(
-      await screen.findByText('Sign in with an email link or Google. Passwords no longer work.')
+      await screen.findByText(
+        'Sign in with an email link or Google. This app doesn’t use passwords.'
+      )
     ).toBeInTheDocument()
   })
 
@@ -247,7 +249,7 @@ describe('login page', () => {
 
     await screen.findByRole('button', { name: 'Email me a sign-in link' })
     expect(
-      screen.queryByText('Sign in with an email link or Google. Passwords no longer work.')
+      screen.queryByText('Sign in with an email link or Google. This app doesn’t use passwords.')
     ).not.toBeInTheDocument()
     expect(router.state.location.search).not.toHaveProperty('notice', 'other')
   })

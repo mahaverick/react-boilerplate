@@ -77,7 +77,9 @@ export function PlanChoice({
         </div>
       )}
       {priceLine !== null && <p className="font-medium">{priceLine}</p>}
-      {plans.gstRegistered && <p className="text-sm text-muted-foreground">Includes 18% GST</p>}
+      {plans.gstRegistered && (
+        <p className="text-sm text-muted-foreground">Includes 18% Goods and Services Tax (GST)</p>
+      )}
       {billing.state === 'trialing' && billing.trialEndsAt !== null && amount !== null && (
         <p className="text-sm text-muted-foreground">
           {`We’ll hold ₹5 on your card now and refund it. Your first charge of ${formatInr(amount)} is on ${date(billing.trialEndsAt)}.`}

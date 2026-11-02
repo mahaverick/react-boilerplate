@@ -82,7 +82,7 @@ function dateInZone(date: Date, timeZone: string): string {
  * "Not paid".
  */
 const INVOICE_STATUS_LABEL: Readonly<Record<string, string>> = {
-  paid: 'Paid',
+  paid: 'Payment received',
   issued: 'Not paid',
   expired: 'Expired',
   cancelled: 'Cancelled',

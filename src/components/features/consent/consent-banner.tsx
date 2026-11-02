@@ -35,8 +35,8 @@ export function ConsentBanner({
     >
       {/* Capped: the floating banner keeps its text a readable line. */}
       <p className="max-w-2xl text-sm">
-        May we record how you use this app, with names and addresses masked, to improve it? If you
-        decline, we only count visits, anonymously and without cookies.
+        May we record how you use this app, with names and email addresses masked, to improve it? If
+        you decline, we only count visits, anonymously and without cookies.
       </p>
       <div className="flex gap-2">
         <Button variant="outline" onClick={denyAnalyticsConsent}>

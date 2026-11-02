@@ -112,7 +112,7 @@ function renderAt(path: string): { router: AnyRouter; history: RouterHistory; lo
 
 /** The switcher's trigger, once it names `label` as the current tenant. */
 function findSwitcher(label: string) {
-  return screen.findByRole('combobox', { name: `Switch tenant. Current: ${label}` })
+  return screen.findByRole('combobox', { name: `Switch workspace. Current: ${label}` })
 }
 
 /** Waits until the router has settled on `href`. */
@@ -193,7 +193,7 @@ describe('?tenant on pages without $slug', () => {
     )
     const labels: string[] = []
     const observer = new MutationObserver(() => {
-      const trigger = document.querySelector('[aria-label^="Switch tenant. Current:"]')
+      const trigger = document.querySelector('[aria-label^="Switch workspace. Current:"]')
       if (trigger) labels.push(trigger.getAttribute('aria-label') ?? '')
     })
     observer.observe(document.body, { subtree: true, childList: true, attributes: true })
@@ -275,7 +275,7 @@ describe('?tenant on pages without $slug', () => {
     expect(await screen.findByRole('heading', { level: 1, name: /Welcome back/ })).toBeVisible()
     await expectHref(router, '/dashboard')
     expect(loads).toEqual(['/dashboard'])
-    expect(await findSwitcher('Choose a tenant')).toBeInTheDocument()
+    expect(await findSwitcher('Choose a workspace')).toBeInTheDocument()
   })
 
   it('removes a ?tenant it cannot use when the user has no eligible tenant', async () => {
@@ -284,7 +284,7 @@ describe('?tenant on pages without $slug', () => {
 
     await expectHref(router, '/dashboard?foo=bar')
     expect(loads).toHaveLength(2)
-    expect(await findSwitcher('Choose a tenant')).toBeInTheDocument()
+    expect(await findSwitcher('Choose a workspace')).toBeInTheDocument()
   })
 
   it('renders the page without redirecting when the tenant list fails to load', async () => {

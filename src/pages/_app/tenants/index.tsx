@@ -15,8 +15,8 @@ import { myTenantsList, myTenantsListOptions } from '@/queries/tenant.queries'
 /** The caller's tenant list and the form to create another. */
 export const Route = createFileRoute('/_app/tenants/')({
   validateSearch: myTenantsList.schema,
-  staticData: { crumb: 'Tenants' },
-  head: () => ({ meta: [{ title: pageTitle('Tenants') }] }),
+  staticData: { crumb: 'Workspaces' },
+  head: () => ({ meta: [{ title: pageTitle('Workspaces') }] }),
   component: TenantsPage,
 })
 
@@ -24,7 +24,8 @@ export const Route = createFileRoute('/_app/tenants/')({
 const CREATE_FORM_ID = 'create'
 
 /** What the list says when it did not load: a claim about the request, not the account. */
-const TENANTS_ERROR = 'We couldn’t load your tenants, so none are listed. Try again to load them.'
+const TENANTS_ERROR =
+  'We couldn’t load your workspaces, so none are listed. Select Try again to load them.'
 
 /** The create card around the shared form: a new tenant is announced and the form cleared for another. */
 function CreateTenantCard({ cardRef }: { cardRef: Ref<HTMLDivElement> }) {
@@ -32,15 +33,15 @@ function CreateTenantCard({ cardRef }: { cardRef: Ref<HTMLDivElement> }) {
     <Card ref={cardRef} id={CREATE_FORM_ID}>
       <CardHeader>
         <CardTitle>
-          <h2>Create a tenant</h2>
+          <h2>Create a workspace</h2>
         </CardTitle>
         <CardDescription>
-          You become its owner. You can’t change the slug after you create the tenant.
+          You become its owner. You can’t change the web address after you create the workspace.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <CreateTenantForm
-          submitLabel="Create tenant"
+          submitLabel="Create workspace"
           busyLabel="Creating…"
           onCreated={(tenant) => {
             toast.success(`${tenant.name} created.`)
@@ -81,9 +82,9 @@ function TenantsPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            <h1>Tenants</h1>
+            <h1>Workspaces</h1>
           </CardTitle>
-          <CardDescription>Every organization this account belongs to.</CardDescription>
+          <CardDescription>Every workspace this account belongs to.</CardDescription>
         </CardHeader>
         <CardContent>
           <MyTenantsTable
@@ -92,11 +93,11 @@ function TenantsPage() {
             empty={
               <EmptyState
                 icon={<IconBuilding aria-hidden="true" />}
-                title="You do not belong to any tenants yet."
+                title="This account isn’t a member of any workspace."
                 description="Create one below."
                 action={
                   <Button variant="outline" size="sm" onClick={showCreateForm}>
-                    Create a tenant
+                    Create a workspace
                   </Button>
                 }
               />

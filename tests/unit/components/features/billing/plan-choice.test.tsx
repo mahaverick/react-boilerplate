@@ -58,7 +58,7 @@ describe('PlanChoice', () => {
 
   it('shows the GST line when the business is registered', () => {
     renderChoice({ plans: { ...testPlans, gstRegistered: true } })
-    expect(screen.getByText('Includes 18% GST')).toBeInTheDocument()
+    expect(screen.getByText('Includes 18% Goods and Services Tax (GST)')).toBeInTheDocument()
   })
 
   it('offers no toggle when only one interval has a price', () => {

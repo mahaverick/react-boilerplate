@@ -78,7 +78,9 @@ describe('TenantGate', () => {
       http.get('/api/v1/tenants', () => ok(listPage([]), 'Tenants.'))
     )
     renderGate('acme')
-    expect(await screen.findByRole('heading', { name: 'Tenant not available' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Workspace not available' })
+    ).toBeInTheDocument()
     expect(readRememberedTenant(testUser.id)).toBeNull()
   })
 
@@ -100,14 +102,14 @@ describe('TenantGate', () => {
       )
     )
     renderGate('acme')
-    expect(await screen.findByRole('heading', { name: 'Tenant suspended' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Workspace suspended' })).toBeInTheDocument()
     expect(screen.getByText('Contact support to restore access.')).toBeInTheDocument()
     expect(readRememberedTenant(testUser.id)).toBeNull()
   })
 
   it('words a failed read as the request failing, with the next step', () => {
     expect(TENANT_LOAD_ERROR).toBe(
-      'We couldn’t load this tenant because the request failed. Try again.'
+      'We couldn’t load this workspace because the request failed. Select Try again.'
     )
   })
 
@@ -119,8 +121,8 @@ describe('TenantGate', () => {
     renderGate('acme')
     expect(await screen.findByText(TENANT_LOAD_ERROR)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Try again/ })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Tenant suspended' })).toBeNull()
-    expect(screen.queryByRole('heading', { name: 'Tenant not available' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Workspace suspended' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Workspace not available' })).toBeNull()
   })
 
   it('a failed refetch with the tenant on screen shows no gate alert', async () => {
@@ -155,10 +157,12 @@ describe('TenantGate', () => {
     )
     renderGate('acme')
 
-    expect(await screen.findByRole('heading', { name: 'Tenant not available' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Workspace not available' })
+    ).toBeInTheDocument()
     // The 404 invalidated the list; once its refetch has failed, the panel still stands alone.
     await waitFor(() => expect(queryClient.getQueryState(tenantKeys.list)?.status).toBe('error'))
-    expect(screen.getByRole('heading', { name: 'Tenant not available' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Workspace not available' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 

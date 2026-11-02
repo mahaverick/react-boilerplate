@@ -71,7 +71,7 @@ describe('tax documents on invoice rows', () => {
         'Tax invoice held. We issue invoices for Special Economic Zone units by hand.'
       )
     ).toBeInTheDocument()
-    expect(screen.getAllByText('Tax invoice on its way')).toHaveLength(1)
+    expect(screen.getAllByText('Tax invoice not issued yet')).toHaveLength(1)
   })
 
   it('shows no tax text for a row that is not applicable', async () => {

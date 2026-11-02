@@ -152,7 +152,7 @@ function ConfirmForToken({ token, email }: { token: string; email: string }) {
 
   if (failure) {
     return (
-      <InvitationCard title="We couldn’t add you to your team">
+      <InvitationCard title="You weren’t added to your team">
         <VerifyFailedPanel
           message={retryableFailureMessage(failure.error, 'attempts')}
           retrying={confirm.isPending}

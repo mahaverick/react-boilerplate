@@ -83,12 +83,18 @@ describe('validation messages', () => {
   it('copies the contract word for word', () => {
     expect(LEGAL_NAME_REQUIRED_MESSAGE).toBe('Enter the legal name to print on your tax invoices.')
     expect(maxLengthMessage(100)).toBe('Use 100 characters or fewer.')
-    expect(TEXT_PATTERN_MESSAGE).toBe('Use English letters, digits and common punctuation.')
-    expect(GSTIN_SHAPE_MESSAGE).toBe('Enter the 15-character GSTIN, such as 29ABCDE1234F1ZW.')
+    expect(TEXT_PATTERN_MESSAGE).toBe(
+      'Use letters A to Z, Western European accented letters such as é, digits and keyboard punctuation. Remove other scripts and emoji.'
+    )
+    expect(GSTIN_SHAPE_MESSAGE).toBe(
+      'Enter your 15-character GST Identification Number (GSTIN), such as 29ABCDE1234F1ZW.'
+    )
     expect(GSTIN_CHECKSUM_MESSAGE).toBe(
       "This GSTIN's last character doesn't match the rest. Check it against your registration certificate."
     )
-    expect(GSTIN_STATE_CODE_MESSAGE).toBe("This GSTIN's first two digits aren't a state code.")
+    expect(GSTIN_STATE_CODE_MESSAGE).toBe(
+      "This GSTIN's first two digits aren't a state code. Check it against your registration certificate."
+    )
     expect(gstinStateMismatchMessage('Goa')).toBe(
       'This GSTIN is registered in Goa. Choose Goa as the state.'
     )
@@ -104,7 +110,9 @@ describe('validation messages', () => {
     )
     expect(STATE_UNKNOWN_MESSAGE).toBe('Choose a state from the list.')
     expect(PINCODE_MESSAGE).toBe('Enter the 6-digit PIN code.')
-    expect(SEZ_NEEDS_GSTIN_MESSAGE).toBe('An SEZ unit has a GSTIN. Enter it first.')
+    expect(SEZ_NEEDS_GSTIN_MESSAGE).toBe(
+      'A Special Economic Zone (SEZ) unit has a GSTIN. Enter it first.'
+    )
     expect(TAX_DETAILS_UNCHANGED_MESSAGE).toBe('Change at least one tax detail before saving.')
     expect(TAX_DETAILS_SAVED_MESSAGE).toBe(
       'Tax details saved. They apply to invoices issued from now on.'

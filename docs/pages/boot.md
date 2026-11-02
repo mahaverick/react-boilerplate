@@ -65,11 +65,11 @@ Dev (`signed-in-dashboard`):
 | ![](img/boot/signed-in-dashboard--05.jpg) | 962  |               | The app shell: sidebar bars, a header bar and a large block, styled, with the 255 px sidebar. Only the shimmer differs.                                                                      |
 | ![](img/boot/signed-in-dashboard--06.jpg) | 1113 |               | The app shell: sidebar bars, a header bar and a large block, styled, with the 255 px sidebar. Only the shimmer differs.                                                                      |
 | ![](img/boot/signed-in-dashboard--07.jpg) | 1227 | first-content | The app shell: sidebar bars, a header bar and a large block, styled, with the 255 px sidebar. The first frame at or after the DOM change; the compositor has not yet drawn the mounted page. |
-| ![](img/boot/signed-in-dashboard--08.jpg) | 1233 |               | The mounted app: the real sidebar and header, "Loading tenants…" in the switcher, and the dashboard template (four stat cards, two panels) in the page slot.                                 |
-| ![](img/boot/signed-in-dashboard--09.jpg) | 1261 |               | The dashboard: "Choose a tenant" in the switcher, the welcome card, the bell with a badge of 1.                                                                                              |
-| ![](img/boot/signed-in-dashboard--10.jpg) | 1616 |               | The dashboard: "Choose a tenant" in the switcher, the welcome card, the bell with a badge of 1. The TanStack devtools button (dev only) is in the corner.                                    |
-| ![](img/boot/signed-in-dashboard--11.jpg) | 1674 |               | The dashboard: "Choose a tenant" in the switcher, the welcome card, the bell with a badge of 1. The TanStack devtools buttons (dev only) are in the corner.                                  |
-| ![](img/boot/signed-in-dashboard--12.jpg) | 1795 | ready         | The dashboard: "Choose a tenant" in the switcher, the welcome card, the bell with a badge of 1. The TanStack devtools buttons (dev only) are in the corner.                                  |
+| ![](img/boot/signed-in-dashboard--08.jpg) | 1233 |               | The mounted app: the real sidebar and header, "Loading workspaces…" in the switcher, and the dashboard template (four stat cards, two panels) in the page slot.                              |
+| ![](img/boot/signed-in-dashboard--09.jpg) | 1261 |               | The dashboard: "Choose a workspace" in the switcher, the welcome card, the bell with a badge of 1.                                                                                           |
+| ![](img/boot/signed-in-dashboard--10.jpg) | 1616 |               | The dashboard: "Choose a workspace" in the switcher, the welcome card, the bell with a badge of 1. The TanStack devtools button (dev only) is in the corner.                                 |
+| ![](img/boot/signed-in-dashboard--11.jpg) | 1674 |               | The dashboard: "Choose a workspace" in the switcher, the welcome card, the bell with a badge of 1. The TanStack devtools buttons (dev only) are in the corner.                               |
+| ![](img/boot/signed-in-dashboard--12.jpg) | 1795 | ready         | The dashboard: "Choose a workspace" in the switcher, the welcome card, the bell with a badge of 1. The TanStack devtools buttons (dev only) are in the corner.                               |
 
 Production (`nginx-signed-in-dashboard`):
 
@@ -82,8 +82,8 @@ Production (`nginx-signed-in-dashboard`):
 | ![](img/boot/nginx-signed-in-dashboard--04.jpg) | 174 |               | The app shell: sidebar bars, a header bar and a large block, styled, with the 255 px sidebar. Only the shimmer differs.                                                                      |
 | ![](img/boot/nginx-signed-in-dashboard--05.jpg) | 207 |               | The app shell: sidebar bars, a header bar and a large block, styled, with the 255 px sidebar. Only the shimmer differs.                                                                      |
 | ![](img/boot/nginx-signed-in-dashboard--06.jpg) | 222 | first-content | The app shell: sidebar bars, a header bar and a large block, styled, with the 255 px sidebar. The first frame at or after the DOM change; the compositor has not yet drawn the mounted page. |
-| ![](img/boot/nginx-signed-in-dashboard--07.jpg) | 229 |               | The mounted app: the real sidebar and header, "Loading tenants…" in the switcher, and the dashboard template (four stat cards, two panels) in the page slot.                                 |
-| ![](img/boot/nginx-signed-in-dashboard--08.jpg) | 260 | ready         | The dashboard: "Choose a tenant" in the switcher, the welcome card, the bell with a badge of 1.                                                                                              |
+| ![](img/boot/nginx-signed-in-dashboard--07.jpg) | 229 |               | The mounted app: the real sidebar and header, "Loading workspaces…" in the switcher, and the dashboard template (four stat cards, two panels) in the page slot.                              |
+| ![](img/boot/nginx-signed-in-dashboard--08.jpg) | 260 | ready         | The dashboard: "Choose a workspace" in the switcher, the welcome card, the bell with a badge of 1.                                                                                           |
 
 ### Signed in, `/tenants`
 
@@ -101,12 +101,12 @@ Dev only (`signed-in-tenants`):
 | ![](img/boot/signed-in-tenants--07.jpg) | 731  |                   | The app shell: sidebar bars, a header bar and a large block, styled, with the 255 px sidebar. Only the shimmer differs.                                                                      |
 | ![](img/boot/signed-in-tenants--08.jpg) | 813  |                   | The app shell: sidebar bars, a header bar and a large block, styled, with the 255 px sidebar. Only the shimmer differs.                                                                      |
 | ![](img/boot/signed-in-tenants--09.jpg) | 831  | first-content     | The app shell: sidebar bars, a header bar and a large block, styled, with the 255 px sidebar. The first frame at or after the DOM change; the compositor has not yet drawn the mounted page. |
-| ![](img/boot/signed-in-tenants--10.jpg) | 919  |                   | The mounted app: the real sidebar and header, "Loading tenants…" in the switcher, and the list template (heading, toolbar, eight table rows) in the page slot.                               |
-| ![](img/boot/signed-in-tenants--11.jpg) | 954  |                   | The tenants page for an account with no tenants: "You do not belong to any tenants yet." and the create form.                                                                                |
-| ![](img/boot/signed-in-tenants--12.jpg) | 1191 |                   | The tenants page for an account with no tenants: "You do not belong to any tenants yet." and the create form. The TanStack devtools button (dev only) is in the corner.                      |
-| ![](img/boot/signed-in-tenants--13.jpg) | 1249 |                   | The tenants page for an account with no tenants: "You do not belong to any tenants yet." and the create form. The TanStack devtools buttons (dev only) are in the corner.                    |
-| ![](img/boot/signed-in-tenants--14.jpg) | 1331 |                   | The tenants page for an account with no tenants: "You do not belong to any tenants yet." and the create form. The TanStack devtools buttons (dev only) are in the corner.                    |
-| ![](img/boot/signed-in-tenants--15.jpg) | 1431 | ready             | The tenants page for an account with no tenants: "You do not belong to any tenants yet." and the create form. The TanStack devtools buttons (dev only) are in the corner.                    |
+| ![](img/boot/signed-in-tenants--10.jpg) | 919  |                   | The mounted app: the real sidebar and header, "Loading workspaces…" in the switcher, and the list template (heading, toolbar, eight table rows) in the page slot.                            |
+| ![](img/boot/signed-in-tenants--11.jpg) | 954  |                   | The tenants page for an account with no tenants: "This account isn’t a member of any workspace." and the create form.                                                                        |
+| ![](img/boot/signed-in-tenants--12.jpg) | 1191 |                   | The tenants page for an account with no tenants: "This account isn’t a member of any workspace." and the create form. The TanStack devtools button (dev only) is in the corner.              |
+| ![](img/boot/signed-in-tenants--13.jpg) | 1249 |                   | The tenants page for an account with no tenants: "This account isn’t a member of any workspace." and the create form. The TanStack devtools buttons (dev only) are in the corner.            |
+| ![](img/boot/signed-in-tenants--14.jpg) | 1331 |                   | The tenants page for an account with no tenants: "This account isn’t a member of any workspace." and the create form. The TanStack devtools buttons (dev only) are in the corner.            |
+| ![](img/boot/signed-in-tenants--15.jpg) | 1431 | ready             | The tenants page for an account with no tenants: "This account isn’t a member of any workspace." and the create form. The TanStack devtools buttons (dev only) are in the corner.            |
 
 These are fast loads: every request answered at once. When a request that the boot awaits is slow, the shell stays up for as long as it takes, to the 10 s cap on the flags read.
 
@@ -116,7 +116,7 @@ The shell's inline CSS paints it in both builds, so no frame of either build sho
 
 ## The handoff
 
-On `/login` the frame after the shell is the page. On an `_app` page without `$slug`, React mounts once the first load has resolved, and the first app frame is the real sidebar and header, "Loading tenants…" in the switcher, and in the page slot the pending template of the route directly under `_app` (`TenantSearchGuard`), until the tenant list lands: the dashboard template on `/dashboard`, the list template on `/tenants`, then the page replaces it. The list template shares the shell's sizes (its table block is `calc(26.5rem + 10px)`: a header row, eight rows and their borders), so the shell and the guard's hold on `/tenants` are one shape. The router's own pending templates (`defaultPendingMs`, 300 ms) show only on an in-app navigation still pending after that.
+On `/login` the frame after the shell is the page. On an `_app` page without `$slug`, React mounts once the first load has resolved, and the first app frame is the real sidebar and header, "Loading workspaces…" in the switcher, and in the page slot the pending template of the route directly under `_app` (`TenantSearchGuard`), until the tenant list lands: the dashboard template on `/dashboard`, the list template on `/tenants`, then the page replaces it. The list template shares the shell's sizes (its table block is `calc(26.5rem + 10px)`: a header row, eight rows and their borders), so the shell and the guard's hold on `/tenants` are one shape. The router's own pending templates (`defaultPendingMs`, 300 ms) show only on an in-app navigation still pending after that.
 
 ## In-app navigation
 
@@ -130,7 +130,7 @@ A cold load only shows the boot shell, so the route and section templates are sh
 - **Notifications, route template:** the settings shell stays, with the page's real heading and subtitle, and the page slot shows the nested settings template (stacked cards of field bars). The shot also shows the TanStack Router devtools button, which is dev-only.
 - **Notifications, sections:** the real heading and the card's own title with four preference bars.
 - **Security** has no navigation shots until the final walk retakes them: its sign-in methods sit on a heading bar and two row bars above the real "Other sessions" block, which needs no request.
-- **Tenant overview, route template:** the app chrome stays (sidebar, header, breadcrumb already reading Tenants, the slug and Overview), with the detail template in the page slot: heading and subtitle bars, tab bars and two cards of rows.
+- **Tenant overview, route template:** the app chrome stays (sidebar, header, breadcrumb already reading Workspaces, the slug and Overview), with the detail template in the page slot: heading and subtitle bars, tab bars and two cards of rows.
 - **Tenant overview, sections:** the same chrome and detail layout on two cards of rows, with the requests held.
 
 ## Dev and production

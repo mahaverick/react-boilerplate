@@ -76,7 +76,7 @@ function SummaryBody({ slug }: { slug: string }) {
   if (entitlements.isError || plans.isError) {
     return (
       <LoadError
-        message="What changes didn’t load. Try again."
+        message="What changes didn’t load. Select Try again."
         onRetry={() => {
           if (entitlements.isError) void entitlements.refetch()
           if (plans.isError) void plans.refetch()

@@ -38,7 +38,7 @@ describe('TenantSettingsCard', () => {
       .closest('[data-slot="card"]')
     // Three label-and-input pairs and the button bar.
     expect(card?.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(7)
-    expect(screen.queryByRole('textbox', { name: 'Timezone' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Time zone' })).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

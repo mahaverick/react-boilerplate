@@ -36,14 +36,17 @@ export interface TaxDetailsValues {
 /** A blank legal name. */
 export const LEGAL_NAME_REQUIRED_MESSAGE = 'Enter the legal name to print on your tax invoices.'
 /** A character outside the text pattern. */
-export const TEXT_PATTERN_MESSAGE = 'Use English letters, digits and common punctuation.'
+export const TEXT_PATTERN_MESSAGE =
+  'Use letters A to Z, Western European accented letters such as \u00E9, digits and keyboard punctuation. Remove other scripts and emoji.'
 /** A GSTIN of the wrong shape. */
-export const GSTIN_SHAPE_MESSAGE = 'Enter the 15-character GSTIN, such as 29ABCDE1234F1ZW.'
+export const GSTIN_SHAPE_MESSAGE =
+  'Enter your 15-character GST Identification Number (GSTIN), such as 29ABCDE1234F1ZW.'
 /** A GSTIN whose check character is wrong. */
 export const GSTIN_CHECKSUM_MESSAGE =
   "This GSTIN's last character doesn't match the rest. Check it against your registration certificate."
 /** A GSTIN whose first two digits are no state. */
-export const GSTIN_STATE_CODE_MESSAGE = "This GSTIN's first two digits aren't a state code."
+export const GSTIN_STATE_CODE_MESSAGE =
+  "This GSTIN's first two digits aren't a state code. Check it against your registration certificate."
 /** A GSTIN with no address line 1. */
 export const ADDRESS_REQUIRED_MESSAGE =
   'Enter address line 1. Invoices with a GSTIN need your registered address.'
@@ -59,7 +62,8 @@ export const STATE_UNKNOWN_MESSAGE = 'Choose a state from the list.'
 /** A malformed PIN code. */
 export const PINCODE_MESSAGE = 'Enter the 6-digit PIN code.'
 /** An SEZ unit with no GSTIN. */
-export const SEZ_NEEDS_GSTIN_MESSAGE = 'An SEZ unit has a GSTIN. Enter it first.'
+export const SEZ_NEEDS_GSTIN_MESSAGE =
+  'A Special Economic Zone (SEZ) unit has a GSTIN. Enter it first.'
 /** A save that changes nothing. */
 export const TAX_DETAILS_UNCHANGED_MESSAGE = 'Change at least one tax detail before saving.'
 /** The success message of a save. */

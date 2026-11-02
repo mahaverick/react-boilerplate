@@ -90,7 +90,8 @@ const columns = column.columns([
 ])
 
 /** The activity did not load; the reader must not read an empty table as "nothing happened". */
-const ACTIVITY_ERROR = 'We couldn’t load the activity, so none is listed. Try again to load it.'
+const ACTIVITY_ERROR =
+  'We couldn’t load the activity, so none is listed. Select Try again to load it.'
 
 /**
  * A tenant's activity, through the shared list table.

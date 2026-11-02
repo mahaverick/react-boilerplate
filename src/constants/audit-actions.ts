@@ -1,3 +1,4 @@
+import { APP_NAME } from '@/constants/app'
 import { AUDIT_ACTIONS, type AuditAction } from '@/constants/audit-action-names'
 import { MEMBERSHIP_ROLES, ROLE_LABELS, type MembershipRole } from '@/constants/roles'
 
@@ -10,8 +11,8 @@ export function isAuditAction(value: string): value is AuditAction {
 
 /** Short names, for the action filter. */
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
-  'tenant.created': 'Tenant created',
-  'tenant.updated': 'Tenant updated',
+  'tenant.created': 'Workspace created',
+  'tenant.updated': 'Workspace updated',
   'tenant.settings_updated': 'Settings changed',
   'member.role_changed': 'Role changed',
   'member.removed': 'Member removed',
@@ -22,7 +23,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'invitation.accepted': 'Invitation accepted',
   'platform.member.auto_joined': 'Staff auto-joined',
   'platform.member.granted': 'Staff role granted',
-  'tenant.accessed_by_platform': 'Staff visit',
+  'tenant.accessed_by_platform': 'Support staff visit',
   'onboarding.dismissed': 'Getting started hidden',
   'onboarding.undismissed': 'Getting started shown',
   'onboarding.step_completed': 'Onboarding step completed',
@@ -82,14 +83,14 @@ function recipients(metadata: Metadata): string {
 
 /** The sentence for each action, built from the row's metadata. */
 const SENTENCES: Record<AuditAction, (metadata: Metadata) => string> = {
-  'tenant.created': (m) => `created the tenant “${text(m, 'name') ?? 'unnamed'}”`,
-  'tenant.updated': (m) => `updated the tenant${changedFields(m)}`,
+  'tenant.created': (m) => `created the workspace “${text(m, 'name') ?? 'unnamed'}”`,
+  'tenant.updated': (m) => `updated the workspace${changedFields(m)}`,
   'tenant.settings_updated': (m) => `changed the settings${changedFields(m)}`,
   'member.role_changed': (m) =>
     `changed a member’s role from ${roleLabel(m, 'from')} to ${roleLabel(m, 'to')}`,
   'member.removed': (m) =>
-    m.self === true ? 'left the tenant' : `removed a member (${roleLabel(m, 'role')})`,
-  'member.left': () => 'left the tenant',
+    m.self === true ? 'left the workspace' : `removed a member (${roleLabel(m, 'role')})`,
+  'member.left': () => 'left the workspace',
   'invitation.created': (m) => `invited someone at ${domain(m)} as ${roleLabel(m, 'role')}`,
   'invitation.resent': (m) => `resent the invitation to someone at ${domain(m)}`,
   'invitation.revoked': (m) => `revoked the invitation to someone at ${domain(m)}`,
@@ -98,7 +99,7 @@ const SENTENCES: Record<AuditAction, (metadata: Metadata) => string> = {
     `added someone at ${domain(m)} to the platform as Viewer (auto-join)`,
   'platform.member.granted': (m) => `granted a platform member the ${roleLabel(m, 'role')} role`,
   'tenant.accessed_by_platform': (m) =>
-    `opened this tenant as platform staff (${roleLabel(m, 'platformRole')})`,
+    `opened this workspace as ${APP_NAME} support staff (${roleLabel(m, 'platformRole')})`,
   'onboarding.dismissed': () => 'hid the getting started checklist',
   'onboarding.undismissed': () => 'showed the getting started checklist again',
   'onboarding.step_completed': (m) => `marked ${stepName(m)} complete`,

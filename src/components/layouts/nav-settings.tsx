@@ -70,7 +70,7 @@ export function NavSettings({ pathname }: { pathname: string }) {
               id={hintId}
               className="px-2 pb-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden"
             >
-              Choose a tenant first.
+              Choose a workspace first.
             </p>
           )}
           <SidebarMenu>
@@ -81,7 +81,7 @@ export function NavSettings({ pathname }: { pathname: string }) {
                 return (
                   <SidebarMenuItem key={section.to}>
                     <SidebarMenuButton
-                      tooltip="Choose a tenant first."
+                      tooltip="Choose a workspace first."
                       aria-disabled="true"
                       aria-describedby={hintId}
                       className="aria-disabled:pointer-events-auto aria-disabled:cursor-not-allowed aria-disabled:hover:bg-transparent aria-disabled:hover:text-sidebar-foreground aria-disabled:active:bg-transparent aria-disabled:active:text-sidebar-foreground"

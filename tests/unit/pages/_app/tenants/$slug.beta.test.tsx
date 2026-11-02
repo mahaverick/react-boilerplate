@@ -94,7 +94,7 @@ describe('the Beta tab', () => {
   it('is in the tab bar while example_beta_page is on', async () => {
     mockTenant(true)
     renderAppAt('/tenants/acme')
-    const nav = await screen.findByRole('navigation', { name: 'Tenant sections' })
+    const nav = await screen.findByRole('navigation', { name: 'Workspace sections' })
     await waitFor(() => expect(nav).toHaveTextContent('Beta'))
     expect(screen.getByRole('link', { name: 'Beta' })).toHaveAttribute('href', '/tenants/acme/beta')
   })
@@ -102,7 +102,7 @@ describe('the Beta tab', () => {
   it('is left out while it is off', async () => {
     mockTenant(false)
     renderAppAt('/tenants/acme')
-    const nav = await screen.findByRole('navigation', { name: 'Tenant sections' })
+    const nav = await screen.findByRole('navigation', { name: 'Workspace sections' })
     expect(nav).toHaveTextContent('Overview')
     expect(screen.queryByRole('link', { name: 'Beta' })).toBeNull()
   })
@@ -159,7 +159,7 @@ describe('the Beta page', () => {
     )
     renderAppAt('/tenants/acme/beta')
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
-    const nav = screen.getByRole('navigation', { name: 'Tenant sections' })
+    const nav = screen.getByRole('navigation', { name: 'Workspace sections' })
     await waitFor(() => expect(within(nav).queryByRole('link', { name: 'Beta' })).toBeNull())
     expect(nav).toHaveTextContent('Overview')
     // The page's flags refetch must finish before jsdom is torn down, or its XHR is still in flight.
@@ -177,7 +177,9 @@ describe('the Beta page', () => {
     renderAppAt('/tenants/acme/beta')
     expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument()
     expect(
-      screen.getByText('We couldn’t load this tenant’s beta features. Try again to load them.')
+      screen.getByText(
+        'We couldn’t load this workspace’s beta features. Select Try again to load them.'
+      )
     ).toBeInTheDocument()
     // The beta query's own retry is done once its error shows.
     const betaReadsAtError = betaReads
@@ -186,7 +188,7 @@ describe('the Beta page', () => {
     expect(flagReads).toBe(2)
     expect(betaReads).toBe(betaReadsAtError)
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
-    const nav = screen.getByRole('navigation', { name: 'Tenant sections' })
+    const nav = screen.getByRole('navigation', { name: 'Workspace sections' })
     expect(within(nav).getByRole('link', { name: 'Beta' })).toBeInTheDocument()
     // No request may be in flight when jsdom is torn down.
     await waitFor(() => expect(queryClient.isFetching()).toBe(0))
@@ -293,7 +295,7 @@ describe('a tenant switch', () => {
     await act(() => router.navigate({ to: '/tenants/$slug', params: { slug: 'globex' } }))
 
     expect(await screen.findByRole('heading', { name: 'Globex' })).toBeInTheDocument()
-    expect(screen.getByRole('navigation', { name: 'Tenant sections' })).toHaveTextContent(
+    expect(screen.getByRole('navigation', { name: 'Workspace sections' })).toHaveTextContent(
       'Overview'
     )
     expect(screen.queryByRole('link', { name: 'Beta' })).toBeNull()

@@ -53,7 +53,7 @@ export function SettingsLinkList({ group }: { group: SettingsGroup }) {
       <CardContent>
         {needsTenant && (
           <p id={hintId} className="pb-2 text-sm">
-            Choose a tenant first.
+            Choose a workspace first.
           </p>
         )}
         <ItemGroup className="gap-0 divide-y has-data-[size=sm]:gap-0">

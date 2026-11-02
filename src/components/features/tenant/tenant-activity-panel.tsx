@@ -2,7 +2,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { ACCESS_FILTER, ACTION_FILTER } from '@/components/features/activity/activity-filters'
 import { ActivityTable } from '@/components/features/activity/activity-table'
-import { LoadError, ROLE_ERROR } from '@/components/features/load-error'
+import { LoadError } from '@/components/features/load-error'
+import { ROLE_ERROR } from '@/components/features/tenant/role-error'
 import { DataTableChip } from '@/components/shared/data-table/data-table-chip'
 import type { DataTableFilter } from '@/components/shared/data-table/data-table-model'
 import { useListQuery } from '@/components/shared/data-table/use-list-query'
@@ -11,6 +12,7 @@ import { EmptyState } from '@/components/shared/empty-state'
 import { Note } from '@/components/shared/note'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { APP_NAME } from '@/constants/app'
 import { canViewActivity } from '@/constants/roles'
 import { statusFrom } from '@/lib/api-error'
 import { tenantActivityList, tenantAuditListOptions } from '@/queries/audit.queries'
@@ -21,7 +23,7 @@ import { memberName, tenantKeys, useMembers, useMyRole } from '@/queries/tenant.
  * a fresh request 403s despite it passing: the two read the same to the
  * reader, a role that no longer qualifies.
  */
-const OWNERS_AND_ADMINS_MESSAGE = 'Only this tenant’s owners and admins can see its activity.'
+const OWNERS_AND_ADMINS_MESSAGE = 'Only this workspace’s owners and admins can see its activity.'
 
 /**
  * The log and its filters. Its own component so the member list behind the
@@ -85,7 +87,7 @@ function TenantActivity({ slug }: { slug: string }) {
     <ActivityTable
       query={log}
       filters={[ACTION_FILTER, actorFilter, ACCESS_FILTER]}
-      empty={<EmptyState size="compact" title="Nothing has happened in this tenant yet." />}
+      empty={<EmptyState size="compact" title="Nothing has happened in this workspace yet." />}
     />
   )
 }
@@ -109,7 +111,7 @@ export function TenantActivityPanel({ slug }: { slug: string }) {
         <CardDescription>
           {role !== undefined && !isAllowed
             ? OWNERS_AND_ADMINS_MESSAGE
-            : 'What platform staff did is marked Staff.'}
+            : `Changes made by ${APP_NAME} support staff are marked Staff.`}
         </CardDescription>
       </CardHeader>
       <CardContent>

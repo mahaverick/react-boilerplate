@@ -179,7 +179,7 @@ describe('tenant activity page', () => {
     expect(staff.getByText('sam@platform.test')).toBeInTheDocument()
     expect(staff.getByText('Staff')).toBeInTheDocument()
 
-    const created = rowFor(/created the tenant/)
+    const created = rowFor(/created the workspace/)
     expect(created.getByText('A B')).toBeInTheDocument()
     expect(created.queryByText('Staff')).not.toBeInTheDocument()
     // The machine-readable instant is on the element, whatever the words say.
@@ -191,7 +191,7 @@ describe('tenant activity page', () => {
     mockLog(() => page([CREATED]))
     renderAppAt('/settings/workspace/acme/activity')
 
-    await screen.findByText(/created the tenant/)
+    await screen.findByText(/created the workspace/)
     const time = document.querySelector(`time[datetime="${CREATED.occurredAt}"]`)
     expect(time).toHaveTextContent(absoluteTime(CREATED.occurredAt))
     expect(time).not.toHaveTextContent(/ago|just now|yesterday/)
@@ -213,7 +213,7 @@ describe('tenant activity page', () => {
     mockLog(() => page([CREATED]))
     renderAppAt('/settings/workspace/acme/activity')
 
-    expect(await screen.findByText('created the tenant “Acme Corp”')).toBeInTheDocument()
+    expect(await screen.findByText('created the workspace “Acme Corp”')).toBeInTheDocument()
   })
 
   it('says what the log holds once, in the page header, and keeps the card heading by role', async () => {
@@ -221,9 +221,13 @@ describe('tenant activity page', () => {
     mockLog(() => page([CREATED]))
     renderAppAt('/settings/workspace/acme/activity')
 
-    await screen.findByText('created the tenant “Acme Corp”')
-    expect(screen.getAllByText('Every change made in this tenant, newest first.')).toHaveLength(1)
-    expect(screen.getByText('What platform staff did is marked Staff.')).toBeInTheDocument()
+    await screen.findByText('created the workspace “Acme Corp”')
+    expect(screen.getAllByText('Every change made in this workspace, newest first.')).toHaveLength(
+      1
+    )
+    expect(
+      screen.getByText('Changes made by React Boilerplate support staff are marked Staff.')
+    ).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Activity' })).toHaveClass('sr-only')
   })
 
@@ -233,7 +237,7 @@ describe('tenant activity page', () => {
     renderAppAt('/settings/workspace/acme/activity')
 
     expect(
-      await screen.findByText('Only this tenant’s owners and admins can see its activity.')
+      await screen.findByText('Only this workspace’s owners and admins can see its activity.')
     ).toBeInTheDocument()
     expect(seen).toHaveLength(0)
   })
@@ -251,7 +255,9 @@ describe('tenant activity page', () => {
       expect(seen).toHaveLength(1)
     })
     expect(document.querySelector('[data-slot="skeleton"]')).not.toBeNull()
-    expect(screen.queryByText('Nothing has happened in this tenant yet.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Nothing has happened in this workspace yet.')
+    ).not.toBeInTheDocument()
   })
 
   it('says nothing has happened yet when the log is empty', async () => {
@@ -259,7 +265,9 @@ describe('tenant activity page', () => {
     mockLog(() => page([]))
     renderAppAt('/settings/workspace/acme/activity')
 
-    expect(await screen.findByText('Nothing has happened in this tenant yet.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Nothing has happened in this workspace yet.')
+    ).toBeInTheDocument()
   })
 
   it('states the failure, not an empty log, and retries the log', async () => {
@@ -270,7 +278,9 @@ describe('tenant activity page', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/couldn’t load the activity/i)
-    expect(screen.queryByText('Nothing has happened in this tenant yet.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Nothing has happened in this workspace yet.')
+    ).not.toBeInTheDocument()
 
     const before = seen.length
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
@@ -299,7 +309,7 @@ describe('tenant activity page', () => {
     renderAppAt('/settings/workspace/acme/activity')
     await screen.findByText(/changed the settings/)
     expect(rowFor(/changed the settings/).getByText('Settings')).toBeInTheDocument()
-    expect(rowFor(/created the tenant/).getByText('—')).toBeInTheDocument()
+    expect(rowFor(/created the workspace/).getByText('—')).toBeInTheDocument()
   })
 
   it('pages with Next page, keeping the cursor in the URL', async () => {
@@ -309,12 +319,12 @@ describe('tenant activity page', () => {
     )
     const user = userEvent.setup()
     const router = renderAppAt('/settings/workspace/acme/activity')
-    await screen.findByText(/created the tenant/)
+    await screen.findByText(/created the workspace/)
     await user.click(screen.getByRole('button', { name: 'Next page' }))
     await waitFor(() => {
       expect(router.state.location.search).toEqual({ cursor: 'c2' })
     })
-    expect(await screen.findByText('left the tenant')).toBeInTheDocument()
+    expect(await screen.findByText('left the workspace')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Load more activity' })).not.toBeInTheDocument()
   })
 
@@ -323,7 +333,7 @@ describe('tenant activity page', () => {
     const seen = mockLog(() => page([CREATED]))
     const user = userEvent.setup()
     const router = renderAppAt('/settings/workspace/acme/activity')
-    await screen.findByText(/created the tenant/)
+    await screen.findByText(/created the workspace/)
     await user.click(screen.getByRole('button', { name: 'Filter by action, Activity' }))
     const popup = await screen.findByRole('dialog', { name: 'Filter by action, Activity' })
     await user.click(within(popup).getByRole('checkbox', { name: 'Settings changed' }))
@@ -343,7 +353,7 @@ describe('tenant activity page', () => {
     mockLog(() => page([CREATED]))
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/activity')
-    await screen.findByText(/created the tenant/)
+    await screen.findByText(/created the workspace/)
     await user.click(screen.getByRole('button', { name: 'Filter by action, Activity' }))
     const popup = await screen.findByRole('dialog', { name: 'Filter by action, Activity' })
     expect(within(popup).getByRole('checkbox', { name: 'Settings changed' })).toBeInTheDocument()
@@ -359,7 +369,7 @@ describe('tenant activity page', () => {
     )
     renderAppAt('/settings/workspace/acme/activity')
     expect(await screen.findByText('performed tenant errors viewed')).toBeInTheDocument()
-    expect(screen.getByText(/created the tenant/)).toBeInTheDocument()
+    expect(screen.getByText(/created the workspace/)).toBeInTheDocument()
   })
 
   it('labels the platform-level target types, and words an unknown one rather than leaving it blank', async () => {
@@ -413,7 +423,7 @@ describe('tenant activity page', () => {
     mockTenant('owner')
     const seen = mockLog(() => page([CREATED]))
     renderAppAt('/settings/workspace/acme/activity?action=tenant.errors_viewed')
-    await screen.findByText(/created the tenant/)
+    await screen.findByText(/created the workspace/)
     expect(seen.every((url) => !url.searchParams.has('action'))).toBe(true)
     expect(screen.queryByRole('button', { name: /Remove filter: Action/ })).not.toBeInTheDocument()
   })
@@ -422,7 +432,7 @@ describe('tenant activity page', () => {
     mockTenant('owner')
     const seen = mockLog(() => page([CREATED]))
     const router = renderAppAt('/settings/workspace/acme/activity')
-    await screen.findByText(/created the tenant/)
+    await screen.findByText(/created the workspace/)
     const before = seen.length
 
     await act(() => router.navigate({ to: '/tenants/$slug', params: { slug: 'acme' } }))
@@ -430,7 +440,7 @@ describe('tenant activity page', () => {
     await act(() =>
       router.navigate({ to: '/settings/workspace/$slug/activity', params: { slug: 'acme' } })
     )
-    await screen.findByText(/created the tenant/)
+    await screen.findByText(/created the workspace/)
     await waitFor(() => {
       expect(seen.length).toBeGreaterThan(before)
     })
@@ -470,7 +480,7 @@ describe('tenant activity page', () => {
     const seen = mockLog(() => page([CREATED]))
     const user = userEvent.setup()
     const router = renderAppAt('/settings/workspace/acme/activity')
-    await screen.findByText(/created the tenant/)
+    await screen.findByText(/created the workspace/)
     await user.click(screen.getByRole('button', { name: 'Filter by actor, Activity' }))
     const popup = await screen.findByRole('dialog', { name: 'Filter by actor, Activity' })
     await user.click(await within(popup).findByRole('checkbox', { name: 'A B' }))
@@ -509,7 +519,7 @@ describe('tenant activity page', () => {
     mockLog(() => page([CREATED]))
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/activity')
-    await screen.findByText(/created the tenant/)
+    await screen.findByText(/created the workspace/)
     await user.click(screen.getByRole('button', { name: 'Filter by actor, Activity' }))
     const popup = await screen.findByRole('dialog', { name: 'Filter by actor, Activity' })
     expect(await within(popup).findByText('Actor options didn’t load.')).toBeInTheDocument()
@@ -525,7 +535,9 @@ describe('tenant activity page', () => {
     await screen.findByText(/changed the settings/)
     await user.click(screen.getByRole('button', { name: 'Filter by access, Activity' }))
     const popup = await screen.findByRole('dialog', { name: 'Filter by access, Activity' })
-    await user.click(within(popup).getByRole('checkbox', { name: 'Staff' }))
+    await user.click(
+      within(popup).getByRole('checkbox', { name: 'Staff (React Boilerplate support)' })
+    )
     await waitFor(() => {
       expect(router.state.location.search).toEqual({ access: 'platform' })
     })
@@ -541,7 +553,7 @@ describe('tenant activity page', () => {
     mockLog(() => page([CREATED]))
     const user = userEvent.setup()
     renderAppAt('/settings/workspace/acme/activity')
-    await screen.findByText(/created the tenant/)
+    await screen.findByText(/created the workspace/)
     expect(track).not.toHaveBeenCalledWith('table_filtered', expect.anything())
 
     await user.click(screen.getByRole('button', { name: 'Filter by action, Activity' }))
@@ -562,7 +574,9 @@ describe('tenant activity page', () => {
     renderAppAt('/settings/workspace/acme/activity?action=tenant.created')
 
     expect(await screen.findByText('Nothing matches these filters.')).toBeInTheDocument()
-    expect(screen.queryByText('Nothing has happened in this tenant yet.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Nothing has happened in this workspace yet.')
+    ).not.toBeInTheDocument()
   })
 
   // The route's role check passed on cached data, so a fresh 403 means the effective role changed on the server.
@@ -572,7 +586,7 @@ describe('tenant activity page', () => {
     renderAppAt('/settings/workspace/acme/activity')
 
     expect(
-      await screen.findByText('Only this tenant’s owners and admins can see its activity.')
+      await screen.findByText('Only this workspace’s owners and admins can see its activity.')
     ).toBeInTheDocument()
     expect(seen).toHaveLength(1)
   })
@@ -593,7 +607,7 @@ describe('tenant activity page', () => {
     )
     mockLog(() => fail('Forbidden', 403))
     renderAppAt('/settings/workspace/acme/activity')
-    await screen.findByText('Only this tenant’s owners and admins can see its activity.')
+    await screen.findByText('Only this workspace’s owners and admins can see its activity.')
 
     // The initial load is one request, so a second means the invalidation fired, whether or not it landed before this text appeared.
     await waitFor(() => {
