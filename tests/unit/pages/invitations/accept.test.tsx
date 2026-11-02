@@ -304,7 +304,7 @@ describe('accept page: the link itself', () => {
 describe('accept page, signed out', () => {
   beforeEach(arriveSignedOut)
 
-  it('names the workspace, the inviter and the invited address while it joins', async () => {
+  it('names the workspace, the inviter and the invited address while it emails the link', async () => {
     serveVerify(held())
     renderAt(ACCEPT_PATH)
 
@@ -312,7 +312,7 @@ describe('accept page, signed out', () => {
       await screen.findByRole('heading', { level: 1, name: 'Joining Acme Corp' })
     ).toBeVisible()
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent(`Joining Acme Corp as ${testUser.email}…`)
+    expect(status).toHaveTextContent(`Emailing a link to ${testUser.email}…`)
     expect(within(status).getByText(testUser.email)).toHaveClass('ph-sensitive', 'ph-mask')
     expect(screen.getByText(/invited you to join/)).toHaveTextContent(
       'Ada Lovelace invited you to join Acme Corp as Editor.'
@@ -320,12 +320,12 @@ describe('accept page, signed out', () => {
     expect(screen.getByText('Ada Lovelace')).toHaveClass('ph-sensitive', 'ph-mask')
   })
 
-  it('names the server’s invited address while joining, not an email in the URL', async () => {
+  it('names the server’s invited address while it emails the link, not an email in the URL', async () => {
     serveVerify(held())
     renderAt(`${ACCEPT_PATH}&email=${encodeURIComponent('mallory@evil.test')}`)
 
     const status = await screen.findByRole('status')
-    expect(status).toHaveTextContent(`Joining Acme Corp as ${testUser.email}…`)
+    expect(status).toHaveTextContent(`Emailing a link to ${testUser.email}…`)
     expect(screen.queryByText(/mallory@evil\.test/)).not.toBeInTheDocument()
   })
 
