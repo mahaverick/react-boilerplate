@@ -579,10 +579,14 @@ catches and what it misses.
   another tab's storage write late.
 - **Consent belongs to the browser, not the person.** The banner's answer
   survives sign-out, so the next person on a shared browser starts with it.
-- **Tenant slugs are not masked.** They appear in captured URL paths and in
-  the page titles page views carry. Where the PostHog project records network
-  requests in replay, the paths of tenant-scoped API calls
-  (`/tenants/:slug/…`) carry the tenant's slug.
+- **Tenant slugs are not masked.** They appear in captured URL paths. Where
+  the PostHog project records network requests in replay, the paths of
+  tenant-scoped API calls (`/tenants/:slug/…`) carry the tenant's slug.
+- **Workspace names are in the tab title, not in events.** A workspace
+  page's tab title carries the workspace's name; events send the page-only
+  title in its place (`sendTitleAs`, `src/observability/telemetry/sent-title.ts`),
+  so a page view's `title` carries at most the page name. Replay records the
+  tab title as shown, as it records the unmasked name in the page heading.
 - **Error scrubbing is regex-based** and misses free text; see
   [What it does not catch](#what-it-does-not-catch).
 

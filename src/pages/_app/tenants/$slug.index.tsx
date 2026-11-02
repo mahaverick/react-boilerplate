@@ -5,11 +5,12 @@ import { TenantDetails } from '@/components/features/tenant/tenant-overview-card
 import { DetailTabPending } from '@/components/shared/pending-templates'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { pageTitle } from '@/constants/app'
+import { useWorkspacePageTitle } from '@/hooks/use-workspace-page-title'
 import { useMyRole, useTenant } from '@/queries/tenant.queries'
 
 /** The tenant's Overview tab, its default child route. */
 export const Route = createFileRoute('/_app/tenants/$slug/')({
-  head: ({ params }) => ({ meta: [{ title: pageTitle(`Overview · ${params.slug}`) }] }),
+  head: () => ({ meta: [{ title: pageTitle('Overview') }] }),
   staticData: { crumb: 'Overview' },
   component: TenantOverviewTab,
   pendingComponent: DetailTabPending,
@@ -24,6 +25,7 @@ export const Route = createFileRoute('/_app/tenants/$slug/')({
  */
 function TenantOverviewTab() {
   const { slug } = Route.useParams()
+  useWorkspacePageTitle('Overview', slug)
   const tenant = useTenant(slug)
   const { role, access } = useMyRole(slug)
   if (!tenant.data) return null

@@ -17,12 +17,13 @@ import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
+import { useWorkspacePageTitle } from '@/hooks/use-workspace-page-title'
 import { useFeature } from '@/queries/billing.queries'
 import { INSIGHTS_LOCKED, useTenantInsights, type TenantInsights } from '@/queries/insights.queries'
 
 /** The Insights tab. Open to every member; the plan decides whether it shows the stats or the locked card. */
 export const Route = createFileRoute('/_app/tenants/$slug/insights')({
-  head: ({ params }) => ({ meta: [{ title: pageTitle(`Insights · ${params.slug}`) }] }),
+  head: () => ({ meta: [{ title: pageTitle('Insights') }] }),
   staticData: { crumb: 'Insights' },
   component: TenantInsightsTab,
   pendingComponent: DetailTabPending,
@@ -43,6 +44,7 @@ const VALUE_LINE = 'See who joined and how many invitations went out in the last
  */
 function TenantInsightsTab() {
   const { slug } = Route.useParams()
+  useWorkspacePageTitle('Insights', slug)
   const { enabled } = useFeature(slug, FEATURE)
   const insights = useTenantInsights(slug, { enabled: enabled === true })
   return (

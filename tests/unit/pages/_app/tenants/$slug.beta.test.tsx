@@ -114,7 +114,7 @@ describe('the Beta page', () => {
     renderAppAt('/tenants/acme/beta')
     expect(await screen.findByText('Beta features are on for acme.')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Beta', level: 2 })).toBeInTheDocument()
-    await waitFor(() => expect(document.title).toBe('Beta · acme · React Boilerplate'))
+    await waitFor(() => expect(document.title).toBe('Beta · Acme Corp · React Boilerplate'))
   })
 
   it('shows the section skeleton, busy, while the beta read is out', async () => {

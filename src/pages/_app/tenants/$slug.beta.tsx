@@ -7,6 +7,7 @@ import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { pageTitle } from '@/constants/app'
+import { useWorkspacePageTitle } from '@/hooks/use-workspace-page-title'
 import { statusFrom } from '@/lib/api-error'
 import { flagKeys } from '@/observability/flags/flag-query'
 import { requireClientFlag } from '@/observability/flags/require-client-flag'
@@ -24,7 +25,7 @@ export const Route = createFileRoute('/_app/tenants/$slug/beta')({
       { kind: 'tenant', slug: params.slug },
       'example_beta_page'
     ),
-  head: ({ params }) => ({ meta: [{ title: pageTitle(`Beta · ${params.slug}`) }] }),
+  head: () => ({ meta: [{ title: pageTitle('Beta') }] }),
   staticData: { crumb: 'Beta' },
   component: TenantBetaTab,
   pendingComponent: DetailTabPending,
@@ -36,6 +37,7 @@ const BETA_ERROR = 'We couldn’t load this workspace’s beta features. Select 
 /** Shows the beta confirmation; when the API 404s because the flag closed, re-runs the route guard. */
 function TenantBetaTab() {
   const { slug } = Route.useParams()
+  useWorkspacePageTitle('Beta', slug)
   const beta = useTenantBeta(slug)
   const queryClient = useQueryClient()
   const router = useRouter()

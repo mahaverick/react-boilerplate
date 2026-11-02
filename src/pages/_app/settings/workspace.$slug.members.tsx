@@ -5,12 +5,13 @@ import { TenantMembersPanel } from '@/components/features/tenant/tenant-members-
 import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 import { canManageTenant } from '@/constants/roles'
+import { useWorkspacePageTitle } from '@/hooks/use-workspace-page-title'
 import { membersList, useMyRole } from '@/queries/tenant.queries'
 
 /** Settings › Workspace › Members: the member list with role, remove and leave actions, and pending invitations. */
 export const Route = createFileRoute('/_app/settings/workspace/$slug/members')({
   validateSearch: membersList.schema,
-  head: ({ params }) => ({ meta: [{ title: pageTitle(`Members · ${params.slug}`) }] }),
+  head: () => ({ meta: [{ title: pageTitle('Members') }] }),
   staticData: { crumb: 'Members' },
   component: WorkspaceMembers,
   pendingComponent: SettingsPagePending,
@@ -27,6 +28,7 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug/members')({
 function WorkspaceMembers() {
   // Not `Route.useParams()`: this route module imports the error screen (route-error, then observability/errors), and a page chunk importing `Route` back from it makes Rolldown split the error listener out of the entry chunk (pnpm check:bundle).
   const { slug } = useParams({ from: '/_app/settings/workspace/$slug/members' })
+  useWorkspacePageTitle('Members', slug)
   const { role } = useMyRole(slug)
   return (
     <div className="grid gap-4">

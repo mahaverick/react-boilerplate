@@ -14,6 +14,7 @@ import { SettingsPagePending } from '@/components/shared/pending-templates'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { useNow } from '@/hooks/use-now'
+import { useWorkspacePageTitle } from '@/hooks/use-workspace-page-title'
 import { formatBillingDate } from '@/lib/billing-format'
 import type { BillingLineContext } from '@/lib/billing-page'
 import { track } from '@/observability/telemetry'
@@ -24,7 +25,7 @@ import type { BillingInterval } from '@/types/billing.types'
 
 /** Settings › Workspace › Billing: the plan, usage, the card, invoices and upgrade requests. */
 export const Route = createFileRoute('/_app/settings/workspace/$slug/billing')({
-  head: ({ params }) => ({ meta: [{ title: pageTitle(`Billing · ${params.slug}`) }] }),
+  head: () => ({ meta: [{ title: pageTitle('Billing') }] }),
   staticData: { crumb: 'Billing' },
   component: WorkspaceBilling,
   pendingComponent: SettingsPagePending,
@@ -41,6 +42,7 @@ export const Route = createFileRoute('/_app/settings/workspace/$slug/billing')({
 function WorkspaceBilling() {
   // Not `Route.useParams()`: this route module imports the error screen (route-error, then observability/errors), and a page chunk importing `Route` back from it makes Rolldown split the error listener out of the entry chunk (pnpm check:bundle).
   const { slug } = useParams({ from: '/_app/settings/workspace/$slug/billing' })
+  useWorkspacePageTitle('Billing', slug)
   const { data: tenant } = useTenant(slug)
   const viewed = useRef(false)
 
