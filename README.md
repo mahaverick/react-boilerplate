@@ -1,12 +1,14 @@
 # React Boilerplate
 
-A React 19 + TypeScript single-page app, built to talk to the
-`express-boilerplate` API (6.0.0 or later). People sign in by emailed link, Google or
-(when the API turns them on) a passkey; there are no passwords. Passkey routes
-need express 8.0.0 or later; an older API reads as passkeys off. Session handling, routing guards, forms, tenant
-management, a Settings area for the account and the current tenant, and a live
-notification stream are wired up, so a new project starts here rather than at
-`create-vite`.
+React Boilerplate is the starting point for a Mahaverick Labs web app: a React
+19 and TypeScript single-page app (SPA) that talks to the `express-boilerplate`
+API. This file is for a developer who runs, configures, tests or ships the app.
+
+People sign in by emailed link, by Google, or by passkey when the API turns
+passkeys on. There are no passwords. The app wires up session handling, routing
+guards, forms, tenant management, a Settings area for the account and the
+current tenant, and a live notification stream, so a new project starts here
+rather than at `create-vite`.
 
 | Concern | Choice                                                                                                |
 | ------- | ----------------------------------------------------------------------------------------------------- |
@@ -18,56 +20,153 @@ notification stream are wired up, so a new project starts here rather than at
 | UI      | Tailwind v4, shadcn components on Base UI (base-vega style, mist, Inter), Tabler icons, Base UI toast |
 | Tests   | Vitest, Testing Library, MSW, jest-axe, Playwright                                                    |
 
-How the code is organised, and why, is in [ARCHITECTURE.md](ARCHITECTURE.md).
-The threat model and the defences are in [SECURITY.md](SECURITY.md). The rules
-for changing code are in [CLAUDE.md](CLAUDE.md). This file covers running,
-configuring, testing and shipping the app.
+Other docs:
+
+- [ARCHITECTURE.md](ARCHITECTURE.md): how the code is organised, and why.
+- [SECURITY.md](SECURITY.md): the threat model and the defences.
+- [CLAUDE.md](CLAUDE.md): the rules for changing code.
 
 ## Prerequisites
 
-- **Node 26 or later** and **pnpm** at the version `packageManager` in
-  `package.json` names. Install Corepack with
-  `npm i -g corepack@0.36.0 && corepack enable`; pnpm then comes from
-  `packageManager`. Node 25 and later do not ship Corepack, so this works on any
-  supported Node. `pnpm install` refuses a Node older than 26.
+- **Node 26 or later, and pnpm at the version `packageManager` in
+  `package.json` names.** `pnpm install` refuses a Node older than 26. Node 25
+  and later ship no Corepack, so install it yourself, and pnpm then comes from
+  `packageManager`:
+
+  ```bash
+  npm i -g corepack@0.36.0 && corepack enable
+  ```
+
 - **The API running on `:4040`.** See [Getting started](#getting-started).
+- **express-boilerplate 1.0.0 or later.** Express restarted its version
+  numbers at 1.0.0 on 28 October 2026, and 1.0.0 already serves every route and
+  body this app sends: passkeys, leaving a workspace, signing out other
+  sessions, the `member_not_found` code and the `email_already_verified` 409.
+  - Use 2.1.0 or later for the client settings (`GET /status/client-settings`)
+    and the step-up link's `expiresAt`. Against an older express, the link
+    copy states no lifetime and "Contact support" names no address.
 - **Deploy express first when an invitation or sign-in rule changes.** This app
-  expects `POST /invitations/verify` to answer only `202`, so it needs the express
-  release where every invitation confirms by an emailed link. Against an older API,
-  a new invitee sees "Check your inbox" with no address while a session is set.
-- **express-boilerplate 2.0.0 or later; 4.0.0 or later is recommended.** 2.0.0 is
-  the earliest tag that has every route and body this app sends: leaving a tenant
-  (`DELETE /tenants/:slug/membership`) and signing out other sessions
-  (`POST /auth/sessions/revoke-others`) arrive in 2.0.0, and every other route it
-  calls is older. From 2.1.0 the members page reads the `member_not_found` code on
-  a role change or removal whose member is already gone, and `user.active` on the
-  platform tenant's member list; against 2.0.x it falls back to the 404's
-  `Member not found` message and treats every member as active
-  (`src/queries/tenant.queries.ts`). From 4.0.0 a second click on a used
-  verification link answers 409 `email_already_verified`, which the verify page
-  shows as done; earlier versions answer 400, which it shows as a failed link.
+  expects `POST /invitations/verify` to answer only `202`, so it needs the
+  express release in which every invitation confirms by an emailed link.
+  Against an older API, a new invitee sees "Check your inbox" with no address
+  while a session is set.
 
 ## Getting started
 
-```bash
-pnpm install
-pnpm dev
-```
+This section takes you from a fresh clone to a signed-in browser session. Pick
+one of two setups:
 
-The dev server listens on <http://localhost:5173>. No `.env` is required: the
-only `VITE_*` variables are the optional analytics settings in `.env.example`,
-which the dev server serves as `/runtime-config.js` (see
-[Run-time configuration](#run-time-configuration)).
+| Setup                                      | You install           | Runs where                           |
+| ------------------------------------------ | --------------------- | ------------------------------------ |
+| [On the host](#run-on-the-host)            | Node, pnpm and Docker | The API and this app on your machine |
+| [All in Docker](#run-everything-in-docker) | Docker and git        | API, this app and apex in containers |
+
+Both setups use an express-boilerplate checkout next to this repo, and both
+serve the app at <http://localhost:5173>.
+
+### Run on the host
+
+1. Install Node and Corepack as in [Prerequisites](#prerequisites).
+2. Clone both repos side by side:
+
+   ```bash
+   git clone git@github.com:mahaverick/express-boilerplate.git
+   git clone git@github.com:mahaverick/react-boilerplate.git
+   ```
+
+3. Start the API. express-boilerplate's README, section "Quickstart", lists the
+   blank values to fill in `.env`. Set `WEB_URL=http://localhost:5173`:
+   `/auth/refresh` refuses a browser origin that is not `WEB_URL`, `APEX_URL`
+   or in `CORS_ALLOWED_ORIGINS`.
+
+   ```bash
+   cd express-boilerplate
+   pnpm install
+   docker compose up -d --wait
+   cp .env.example .env    # then fill in the blank required values
+   pnpm db:migrate
+   pnpm dev
+   ```
+
+4. Start this app in a second terminal, from the directory that holds both
+   clones:
+
+   ```bash
+   cd react-boilerplate
+   pnpm install
+   pnpm dev
+   ```
+
+5. Open <http://localhost:5173> and ask for a sign-in link. The link arrives in
+   express's mail catcher, Mailpit, at <http://localhost:8025> by default. Open
+   the newest message and select its link.
+
+No `.env` is required here. The only `VITE_*` variables are the optional
+analytics settings in `.env.example`, which the dev server serves as
+`/runtime-config.js` (see [Run-time configuration](#run-time-configuration)).
+
+### Run everything in Docker
+
+express-boilerplate's `docker-compose.yml` has a `dev` profile that runs the
+API, this app and apex-boilerplate in containers, with each repo's source
+bind-mounted and hot reload on. Your machine needs Docker and git, not Node.
+express-boilerplate's README, section "Run everything with Docker", is the
+full reference.
+
+1. Clone the three repos side by side. Compose builds the frontends from
+   `../react-boilerplate` and `../apex-boilerplate`; set `REACT_DIR` or
+   `APEX_DIR` to use other paths.
+
+   ```bash
+   git clone git@github.com:mahaverick/express-boilerplate.git
+   git clone git@github.com:mahaverick/react-boilerplate.git
+   git clone git@github.com:mahaverick/apex-boilerplate.git
+   ```
+
+2. Create express's `.env` from `.env.example`, filled in as in express's
+   "Quickstart". Set `WEB_URL=http://localhost:5173` and
+   `APEX_URL=http://localhost:5174`. Without `.env`, compose stops with
+   "env file … not found".
+3. Stop any API or Vite dev server on the host. The profile publishes ports
+   4040, 5173 and 5174 on `127.0.0.1`.
+4. Start the stack from express-boilerplate:
+
+   ```bash
+   cd express-boilerplate
+   docker compose --profile dev up
+   ```
+
+   `api-dev` runs the migrations, then `pnpm dev` on :4040. `react-dev` runs
+   Vite on :5173 and `apex-dev` on :5174. The first run installs every
+   dependency into a named `node_modules` volume per repo; later runs reuse
+   the volumes.
+
+5. Open <http://localhost:5173> and sign in through Mailpit at
+   <http://localhost:8025>, as on the host.
+
+Stop the stack with `docker compose --profile dev down`. `down -v` also
+deletes the volumes: the `node_modules` volumes, Tempo's data and the database.
+The database is the same one a host `pnpm dev` of express uses, so `down -v`
+also empties it for the host setup.
+
+- **Edits reload as on the host.** Edit files in your react-boilerplate
+  checkout; the container sees them through the bind mount.
+- **Git hooks do not install in the container** (it sets `VP_GIT_HOOKS=0`).
+  To commit with the hooks, run `pnpm install` once on the host
+  ([Scripts](#scripts) lists the hooks).
+- **`react-dev` shares `api-dev`'s network**, so `localhost:4040` inside it is
+  the API and the Vite proxy works unchanged. If `api-dev` is recreated, run
+  `docker compose --profile dev up -d` again so the frontends rejoin it.
+
+### How the app reaches the API
 
 The dev server proxies `/api` to `http://localhost:4040` (`vite.config.ts`).
-Nothing that touches the backend works without the API: sign-in, the session
-bootstrap on page load and the notification stream all fail at once. Sign-in
-links arrive by email, so a local sign-in also needs the API's mail catcher
-(express's Mailpit, :8025 by default): open the newest message there and select
-its link. The proxy
-is not a convenience. The SPA and the API are served from one origin, which is
-the only topology this app supports (see [Deploying](#deploying)). In
-development that origin is the Vite proxy, and in the container it is nginx.
+Without the API, nothing that touches the backend works: sign-in, the session
+bootstrap on page load and the notification stream all fail at once.
+
+The proxy is not a convenience. This app supports one topology only: the SPA
+and the API served from one origin (see [Deploying](#deploying)). In
+development that origin is the Vite proxy; in the container it is nginx.
 
 ### The API prefix is fixed
 
@@ -78,19 +177,22 @@ hardcodes it too. What has to change together if it ever moves is in
 
 ## Run-time configuration
 
-One image, built once per commit, is promoted unchanged through every
-environment. No setting is a `VITE_*` value in the production bundle. Everything
-that differs between environments arrives when the container **starts**, as
-plain environment variables, wherever the container runs. Changing one means
-restarting the container, not rebuilding the image. The flow from variable to
-bundle is in
-[The container and run-time config](ARCHITECTURE.md#the-container-and-run-time-config),
-and why the values are safe to write unescaped is in
-[Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
+This section lists the settings that differ between environments and how to
+pass them.
 
-Every variable is optional. When one is unset, its default applies. An empty
-value means the default too, except `API_UPSTREAM`: the container refuses an
-empty one.
+One image, built once per commit, is promoted unchanged through every
+environment. No setting is a `VITE_*` value in the production bundle. Each
+setting arrives as a plain environment variable when the container **starts**,
+wherever it runs, so changing one means restarting the container, not
+rebuilding the image.
+
+- The flow from variable to bundle is in
+  [The container and run-time config](ARCHITECTURE.md#the-container-and-run-time-config).
+- Why the values are safe to write unescaped is in
+  [Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
+
+Every variable is optional. An unset or empty value means the default, except
+`API_UPSTREAM`: the container refuses an empty one.
 
 | Container env               | Dev `.env`                       | Pattern                                       | Default                  | Meaning                                                                                                 |
 | --------------------------- | -------------------------------- | --------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------- |
@@ -101,18 +203,19 @@ empty one.
 | `ANALYTICS_HANDOFF_ORIGINS` | `VITE_ANALYTICS_HANDOFF_ORIGINS` | comma-separated `https://` origins, no spaces | empty                    | Websites on other domains allowed to hand a visitor off ([how](docs/analytics-handoff.md)).             |
 | `APP_ENVIRONMENT`           | `VITE_APP_ENVIRONMENT`           | `[a-z][a-z0-9-]` up to 32                     | `development`            | Sent as `environment` on every browser event and exception. Set it to express's `APP_ENV` value.        |
 
-- `docker/10-runtime-config.sh` checks every value against its pattern at start.
-  An invalid one **stops the container** and names the variable, never its value,
-  so a typo fails the rollout instead of quietly switching analytics off.
-  `API_UPSTREAM` is checked by `docker/05-prepare.sh`: no path, not even a
-  trailing `/`, or the container stops with
+- `docker/10-runtime-config.sh` checks every value against its pattern at
+  start. An invalid one **stops the container** and names the variable, never
+  its value, so a typo fails the rollout instead of switching analytics off
+  unnoticed.
+- `docker/05-prepare.sh` checks `API_UPSTREAM`. A path, even a trailing `/`,
+  stops the container with
   `05-prepare.sh: API_UPSTREAM must be scheme://host[:port] with no path; the value given does not match (not shown)`.
 - `getRuntimeConfig()` (`src/configs/runtime-config.ts`) applies the patterns
   again; the consent mode fails closed
   ([how](SECURITY.md#run-time-config-injection-safety)).
 - Every value is public
-  ([why](SECURITY.md#run-time-config-injection-safety)); the PostHog key may come
-  from a secret store.
+  ([why](SECURITY.md#run-time-config-injection-safety)); the PostHog key may
+  come from a secret store.
 
 The dev server, `pnpm preview` and the unit tests read the `VITE_` names from
 `.env` (`.env.example` lists them).
@@ -162,13 +265,17 @@ volumes:
     emptyDir: {}
 ```
 
-From Google Secret Manager: sync the secret into that Kubernetes Secret with
-External Secrets or the Secret Manager CSI driver (the `secretKeyRef` stays as
-it is), or on Cloud Run map it straight to the variable
-(`--set-secrets=POSTHOG_KEY=posthog-key:latest`). The container only ever sees an
-environment variable.
+From Google Secret Manager, either sync the secret into that Kubernetes Secret
+with External Secrets or the Secret Manager CSI driver (the `secretKeyRef`
+stays as it is), or on Cloud Run map it straight to the variable
+(`--set-secrets=POSTHOG_KEY=posthog-key:latest`). Either way, the container
+sees only an environment variable.
 
 ## Scripts
+
+This section lists the package scripts and the git hooks. CI is continuous
+integration, the GitHub Actions workflows in `.github/workflows/`; a PR is a
+pull request.
 
 | Script                  | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -198,45 +305,58 @@ environment variable.
 | `pnpm push`             | Runs `pnpm gate`, then `git push --no-verify` with your arguments; nothing is pushed if the gate fails                                                                                                                                                                                                                                                                                                                                         |
 | `pnpm prepare`          | Installs the `.vite-hooks/` git hooks (`vp config --hooks`); `pnpm install` runs it                                                                                                                                                                                                                                                                                                                                                            |
 
-Git hooks live in `.vite-hooks/`: pre-commit checks staged files and their tests,
-commit-msg runs commitlint, and pre-push runs `pnpm gate`.
-Existing clone? After `pnpm install`, run `git config --unset core.hooksPath && pnpm prepare` once, or no hook runs.
+The git hooks live in `.vite-hooks/`:
+
+- pre-commit checks the staged files and their tests;
+- commit-msg runs commitlint;
+- pre-push runs `pnpm gate`.
+
+In a clone made while the hooks were husky's, run
+`git config --unset core.hooksPath && pnpm prepare` once after `pnpm install`,
+or no hook runs.
 
 CI holds the gate to **zero warnings** as well as zero errors. Run
 `pnpm check` before you push.
 
-Oxlint runs the type-aware rules. ESLint runs the 17 leftover rules without types.
-The vendored `src/components/ui/` exemptions live in the `vite.config.ts`
-overrides and in `eslint.config.js`. To check one for Oxlint, lint a probe file
-under that glob (seed it with `import { cn as seededCn } from 'cn'`), because `oxlint --print-config` prints the whole config, not a
-file's. To check one for ESLint, run `pnpm exec eslint --print-config <file>`.
+Oxlint runs the type-aware rules; ESLint runs the 17 leftover rules without
+types. The exemptions for the vendored `src/components/ui/` files live in the
+`vite.config.ts` overrides and in `eslint.config.js`. To see which rules apply
+to one file:
+
+- **ESLint:** run `pnpm exec eslint --print-config <file>`.
+- **Oxlint:** lint a probe file under that glob, seeded with
+  `import { cn as seededCn } from 'cn'`. `oxlint --print-config` prints the
+  whole config, not one file's.
 
 ## Testing
+
+This section covers the unit suite, the five Playwright projects, the nightly
+run and the variables the end-to-end (e2e) tests read.
 
 ```bash
 pnpm test
 ```
 
-Unit tests live under `tests/unit/`, mirroring `src/`. No test file lives under
-`src/`: eslint rejects one. A test for `src/http/session.ts` is
-`tests/unit/http/session.test.ts`.
+Unit tests live under `tests/unit/`, mirroring `src/`: the test for
+`src/http/session.ts` is `tests/unit/http/session.test.ts`. No test file lives
+under `src/`; ESLint rejects one.
 
-`tests/unit/a11y.test.tsx` is an **accessibility gate**: no rule is disabled to
+`tests/unit/a11y.test.tsx` is an **accessibility gate**. No rule is disabled to
 pass it, and a violation is fixed in the markup. What it covers, and why colour
 contrast is measured elsewhere, is in [CLAUDE.md](CLAUDE.md#accessibility).
 
 The `fixtures` project covers passkeys in Chrome with a virtual authenticator
-(`e2e/helpers/virtual-authenticator.ts`, over CDP): the harness answers the
-contract's calls (`?passkeys=off|optional|required`, `?passkeyList=`,
-`?stepUp=`, `?setup=1`), while the browser builds and signs the credential. The
-private keys are generated at run time. `e2e/live/passkeys.test.ts` runs the
-same flows against an express with passkeys on.
+(`e2e/helpers/virtual-authenticator.ts`, over the Chrome DevTools Protocol,
+CDP). The harness answers the contract's calls (`?passkeys=off|optional|required`,
+`?passkeyList=`, `?stepUp=`, `?setup=1`); the browser builds and signs the
+credential, with private keys generated at run time. `e2e/live/passkeys.test.ts`
+runs the same flows against an express with passkeys on.
 
 `pnpm test:e2e` builds the harness in development mode and serves it with
-`vp preview`; a bare `playwright test --project=fixtures` without `E2E_BUNDLED`
-uses the dev server instead. The bundled run serves on :5173, the port `pnpm dev`
-uses, and refuses to start while `pnpm dev` holds it. Stop `pnpm dev`, or set
-`REACT_E2E_PORT` to a free port.
+`vp preview`. A bare `playwright test --project=fixtures` without `E2E_BUNDLED`
+uses the dev server instead. The bundled run serves on :5173, the port
+`pnpm dev` uses, and refuses to start while `pnpm dev` holds it: stop
+`pnpm dev`, or set `REACT_E2E_PORT` to a free port.
 
 Playwright has five projects in `e2e/`:
 
@@ -251,29 +371,25 @@ Playwright has five projects in `e2e/`:
 The `live` and `nginx` projects read these variables (defaults in
 `playwright.config.ts` and the helpers):
 
-- `E2E_API_ORIGIN` (default `http://localhost:4040`): the express under test.
-  Tests read it, never a hardcoded `:4040`.
-- `E2E_NGINX_ORIGIN`: the image under test (default `http://localhost:8088`).
-- `E2E_FLAGS_SET_CMD`: how `live/flags.test.ts` sets a flag; the test fails
-  without it. Against the fake flags host it is the path of
-  `scripts/e2e-flags-set.mjs` (see below).
-- `E2E_API_DIR` (no default): the express checkout whose database the API under
-  test uses. `live/platform.test.ts` runs `pnpm platform:grant` there, and any
-  checkout will do, `../express-boilerplate` included. The SSE reconnect test
-  restarts `pnpm dev` there, so for it alone this must be a separate git
-  worktree, never the main checkout.
-- `E2E_MAILPIT_ORIGIN` (default `http://localhost:8025`): the Mailpit the helpers
-  read sign-in and invitation-confirm links from. Every `live` sign-in goes
-  through it.
-- `E2E_RELEASE` (default `dev`): the release `nginx/errors.test.ts` expects on each
-  error report.
-- `E2E_ALLOWED_ORIGIN` (default `http://localhost:5173`): the origin
-  `nginx/cors.test.ts` sends, which must be in the express's CORS allowlist.
+| Variable             | Default                 | What it is                                                                                                            |
+| -------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `E2E_API_ORIGIN`     | `http://localhost:4040` | The express under test. Tests read it, never a hardcoded `:4040`.                                                     |
+| `E2E_NGINX_ORIGIN`   | `http://localhost:8088` | The image under test.                                                                                                 |
+| `E2E_FLAGS_SET_CMD`  | none                    | How `live/flags.test.ts` sets a flag; the test fails without it. For the fake flags host, see below.                  |
+| `E2E_API_DIR`        | none                    | The express checkout whose database the API under test uses. See the note below the table.                            |
+| `E2E_MAILPIT_ORIGIN` | `http://localhost:8025` | The Mailpit the helpers read sign-in and invitation-confirm links from. Every `live` sign-in goes through it.         |
+| `E2E_RELEASE`        | `dev`                   | The release `nginx/errors.test.ts` expects on each error report.                                                      |
+| `E2E_ALLOWED_ORIGIN` | `http://localhost:5173` | The origin `nginx/cors.test.ts` sends, which must be in the express's cross-origin resource sharing (CORS) allowlist. |
+
+`live/platform.test.ts` runs `pnpm platform:grant` in `E2E_API_DIR`. Any
+checkout works, `../express-boilerplate` included. The SSE (server-sent events)
+reconnect test restarts `pnpm dev` there, so for that test alone
+`E2E_API_DIR` must be a separate git worktree, never the main checkout.
 
 Each `live` run signs in fresh addresses by emailed link. Express mails an
 address one link a minute and allows ten link requests per IP per fifteen
-minutes, so a full run against a local express needs `RATE_LIMIT_SCALE` set
-there, as the nightly run does. The helpers are described in
+minutes. A full run against a local express therefore needs `RATE_LIMIT_SCALE`
+set there, as the nightly run does. The helpers are described in
 [CLAUDE.md](CLAUDE.md#end-to-end-tests).
 
 The SSE reconnect test restarts an express, so it runs only by hand, behind a
@@ -283,24 +399,30 @@ are in [CLAUDE.md](CLAUDE.md#end-to-end-tests).
 ### Nightly live and nginx run
 
 `.github/workflows/e2e-nightly.yml` runs the `live` and `nginx` projects every
-night at 02:17 UTC, and on demand from the Actions tab. It checks out this repo
-into `app/` and express-boilerplate's `main` into `express/`, starts Postgres,
-Redis and Mailpit from express's compose file (project `e2e`), the fake flags
-host, and express on :4040 with `APP_ENV=local` and `RATE_LIMIT_SCALE=10` (one
-runner IP sends every request), then runs `pnpm test:e2e:live` and
-`pnpm test:e2e:nginx`. Both run even when the first fails. It needs no secrets.
+night at 02:17 UTC, and on demand from the Actions tab. It needs no secrets.
+Each run:
+
+1. checks out this repo into `app/` and express-boilerplate's `main` into
+   `express/`;
+2. starts Postgres, Redis and Mailpit from express's compose file (project
+   `e2e`), and the fake flags host;
+3. starts express on :4040 with `APP_ENV=local` and `RATE_LIMIT_SCALE=10`,
+   because one runner IP sends every request;
+4. runs `pnpm test:e2e:live` and `pnpm test:e2e:nginx`. The second runs even
+   when the first fails.
+
 The SSE reconnect test skips itself, and the opt-in analytics tests stay
 skipped.
 
 A red run on `main` opens an issue labelled `e2e-nightly`, or comments on the
 open one, with the run link, the failed steps and the express commit under
-test; the next green run closes it. A run on `main` that is cancelled by hand or
-times out counts as a failure too, and opens or comments on the issue. Each run of
-the suites uploads an `e2e-nightly` artifact, kept 7 days, with both Playwright reports,
-the test results, express's `api.log` and the fake flags host's log.
+test. The next green run closes it. A run on `main` that is cancelled by hand
+or times out also counts as a failure. Each run of the suites uploads an
+`e2e-nightly` artifact, kept 7 days, with both Playwright reports, the test
+results, express's `api.log` and the fake flags host's log.
 
 A manual run on another branch never touches issues, unless its
-`exercise_issue` input is `fail` or `pass`: then the stack and suites are
+`exercise_issue` input is `fail` or `pass`. Then the stack and suites are
 skipped, the outcome is forced to that value, and the issue step runs:
 
 ```bash
@@ -334,8 +456,8 @@ express evaluates every flag; this app only reads the values. How is in
 
 1. Add it to express's flag registry
    (`express-boilerplate/src/constants/flags.constants.ts`) with `client: true`
-   and `react` in `apps`, and run `flags:sync` there. Without both, express never
-   sends the flag to this app.
+   and `react` in `apps`, and run `flags:sync` there. Without both, express
+   never sends the flag to this app.
 2. Copy its key, kind, variants, fallback and `experiment` into
    `CLIENT_FLAGS` in `src/observability/flags/flag-keys.ts`.
 3. Copy its fallback into `TEST_FLAG_FALLBACKS` (`tests/mocks/handlers.ts`) and
@@ -351,12 +473,16 @@ API's `/api/v1/collect` proxy, never to PostHog directly. The mechanism is in
 
 `e2e/nginx/analytics.test.ts` runs against the production image started with
 the settings CI uses (`POSTHOG_KEY=phc_test_key_not_real`, `APP_ENVIRONMENT=ci`,
-`ANALYTICS_HANDOFF_ORIGINS=https://www.example.test`). Its `@no-api` tests run in
-CI with a fake PostHog answering `/api/v1/collect` through Playwright. The live
-half needs an express on `:4040` started with
-`POSTHOG_PROJECT_KEY=phc_test_key_not_real`, `POSTHOG_HOST` and
-`POSTHOG_ASSETS_HOST` both `http://127.0.0.1:4063`, and
-`ANALYTICS_DRAIN_INTERVAL_MS=1000`. Then:
+`ANALYTICS_HANDOFF_ORIGINS=https://www.example.test`). Its `@no-api` tests run
+in CI, with a fake PostHog answering `/api/v1/collect` through Playwright.
+
+The live half needs an express on `:4040` started with these settings:
+
+- `POSTHOG_PROJECT_KEY=phc_test_key_not_real`;
+- `POSTHOG_HOST` and `POSTHOG_ASSETS_HOST` both `http://127.0.0.1:4063`;
+- `ANALYTICS_DRAIN_INTERVAL_MS=1000`.
+
+Then run:
 
 ```bash
 E2E_ANALYTICS=1 pnpm test:e2e:nginx
@@ -366,10 +492,12 @@ The script builds the image with the settings above, sets `E2E_LIVE` and
 `E2E_NGINX` itself, and reaches the express on the host through
 `--add-host=api:host-gateway`. The suite starts the fake PostHog on :4063
 (`E2E_FAKE_POSTHOG_PORT` moves it). For an express elsewhere, run the image
-yourself with `API_UPSTREAM` pointing at it and set `E2E_NGINX_ORIGIN` and
+yourself with `API_UPSTREAM` pointing at it, and set `E2E_NGINX_ORIGIN` and
 `E2E_API_ORIGIN`.
 
 ## Docker
+
+This section covers building and running the production image on its own.
 
 ```bash
 docker build -t react-boilerplate .
@@ -378,25 +506,27 @@ docker run --rm -p 8080:8080 --read-only --tmpfs /tmp --add-host=api:127.0.0.1 r
 
 The image builds the bundle with Node and serves `dist/` from the unprivileged
 nginx image, as uid 101 on port **8080**. It proxies `/api` to `API_UPSTREAM`,
-`http://api:4040` unless you set it, so by default the container expects an
-**`api` host** on the same network. nginx resolves the upstream's host when it
-loads its config, so without one the container exits with
-`host not found in upstream`. `--add-host` above is what lets a standalone smoke
-test start; the proxy answers 502 until a real API is there. Under compose, name
-the API service `api` and nothing else is needed. To point it elsewhere:
+which is `http://api:4040` unless you set it, so by default the container
+expects an **`api` host** on the same network.
+
+nginx resolves the upstream's host when it loads its config, so without one
+the container exits with `host not found in upstream`. The `--add-host` flag
+above lets a standalone smoke test start; the proxy answers 502 until a real
+API is there. Under compose, name the API service `api` and nothing else is
+needed. To point it elsewhere:
 
 ```bash
 docker run --rm -p 8080:8080 -e API_UPSTREAM=http://my-api:8080 --read-only --tmpfs /tmp react-boilerplate
 ```
 
-The image is built to run on a **read-only root filesystem**. Everything nginx
-writes goes under `/tmp`, so give it a writable one: `--tmpfs /tmp` as above, or
-an `emptyDir` in Kubernetes. With `--read-only` and no writable `/tmp` the
+The image runs on a **read-only root filesystem**. nginx writes everything
+under `/tmp`, so give it a writable one: `--tmpfs /tmp` as above, or an
+`emptyDir` in Kubernetes. With `--read-only` and no writable `/tmp`, the
 container stops at start. Logs go to stdout and stderr. The stages, the
 entrypoint order and the nginx locations are in
 [The container and run-time config](ARCHITECTURE.md#the-container-and-run-time-config).
 
-- **Extra server config** goes in a template: add it as
+- **Extra server config** goes in a template:
   `/etc/nginx/templates/*.conf.template`. The entrypoint strips only the
   `.template` suffix, so the name before it has to end `.conf`. A file placed
   directly in `/etc/nginx/conf.d` is ignored, because `docker/nginx.main.conf`
@@ -404,116 +534,137 @@ entrypoint order and the nginx locations are in
 - **Derived images.** `RUN` steps in an image derived from this one run as uid
   101, not root: the `Dockerfile` never resets the base image's `USER`. A step
   that needs root has to `USER root` first and `USER 101` again before `CMD`.
-- **Build arguments** are per commit, not per environment: `GIT_SHA` (the release
-  the bundle reports, `dev` when unset or empty), `POSTHOG_SOURCEMAP_PROJECTS` and
-  `POSTHOG_CLI_HOST` (where the source maps go; see
-  [Source maps](#source-maps)).
+- **Build arguments** are per commit, not per environment:
+  - `GIT_SHA`: the release the bundle reports, `dev` when unset or empty;
+  - `POSTHOG_SOURCEMAP_PROJECTS` and `POSTHOG_CLI_HOST`: where the source maps
+    go (see [Source maps](#source-maps)).
 - **IPv4 only.** The `server` block in `nginx.conf` declares `listen 8080;`,
   which binds `0.0.0.0:8080`. An IPv6-only cluster needs `listen [::]:8080;`
-  added to that block, which fails on hosts with IPv6 disabled, so it is not a
-  change to make unconditionally.
-- **Headers and CSP.** What nginx sends, and why no location may declare its own
-  `add_header`, is in [CSP and headers](SECURITY.md#csp-and-headers). Check
-  headers with `curl -I` against a real asset, not by reading the config.
+  added to that block. That line fails on hosts with IPv6 disabled, so do not
+  add it unconditionally.
+- **Headers and the Content Security Policy (CSP).** What nginx sends, and why
+  no location may declare its own `add_header`, is in
+  [CSP and headers](SECURITY.md#csp-and-headers). Check headers with `curl -I`
+  against a real asset, not by reading the config.
 
 ### Source maps
 
-The build writes hidden source maps, and the image's build stage injects chunk
-ids, uploads the maps to every project in `POSTHOG_SOURCEMAP_PROJECTS` and
-deletes every `.map` so none ships
-([Error tracking](ARCHITECTURE.md#error-tracking)). The build fails if there are
-no `.map` files under `dist/`, if the CLI skipped a chunk as too large, if
-nothing was uploaded (unless the same output line gives a non-zero "already
-uploaded" or existing count), or if an upload fails.
+The build writes hidden source maps. The image's build stage then injects
+chunk ids, uploads the maps to every project in `POSTHOG_SOURCEMAP_PROJECTS`
+and deletes every `.map`, so none ships
+([Error tracking](ARCHITECTURE.md#error-tracking)). The build fails if any of
+these happens:
+
+- there are no `.map` files under `dist/`;
+- the CLI skipped a chunk as too large;
+- nothing was uploaded, unless the same output line gives a non-zero "already
+  uploaded" or existing count;
+- an upload fails.
 
 **Any deploy of `dist/` outside the image must delete `*.map` first**
 ([CSP and headers](SECURITY.md#csp-and-headers)).
 
 The build downloads the `posthog-cli` binary from releases.posthog.com and
 verifies its SHA-256 against `docker/posthog-cli.sha256` (one hash per
-architecture) before it first runs. **Bumping `@posthog/cli` means updating those
-hashes** (the file says how); a mismatch fails the build. The hash check does not
-cover the CLI's JavaScript wrapper (`lib/posthog-api-cli.mjs`), which comes from
-the npm package, not the download.
+architecture) before it first runs. **Bumping `@posthog/cli` means updating
+those hashes** (the file says how); a mismatch fails the build. The hash check
+does not cover the CLI's JavaScript wrapper (`lib/posthog-api-cli.mjs`), which
+comes from the npm package, not the download.
 
 **One-time setup, per repository:**
 
-- Create a PostHog **personal API key** that can upload source maps
-  for the organisation, and store it as the repository
-  **secret `POSTHOG_CLI_TOKEN`**. It reaches the build as a BuildKit secret:
-  never in a layer, an image or the provenance attestation.
+- Create a PostHog **personal API key** that can upload source maps for the
+  organisation, and store it as the repository **secret `POSTHOG_CLI_TOKEN`**.
+  It reaches the build as a BuildKit secret: never in a layer, an image or the
+  provenance attestation.
 - Set the repository **variable `POSTHOG_SOURCEMAP_PROJECTS`** to a
   comma-separated list of project ids, one per environment (`12345,67890`).
   Project ids appear in the image's provenance; they are not secrets.
 - Optionally set the **variable `POSTHOG_CLI_HOST`** (default
   `https://us.posthog.com`; `https://eu.posthog.com` for EU cloud).
 
-Until the variable is set, `deploy.yml` warns `sourcemaps not uploaded` and the
-image builds without uploading: exceptions arrive unsymbolicated. With the
-variable set and the secret missing, the build fails. Maps are uploaded only when
-an image is built: a release tag promotes the same digest and uploads nothing, so
-**adding an environment's project later means rebuilding** the image (re-run
-`deploy.yml` on `main`) before that environment shows symbolicated frames.
+What happens with each part missing:
+
+- **Variable unset:** `deploy.yml` warns `sourcemaps not uploaded`, and the
+  image builds without uploading, so exceptions arrive unsymbolicated.
+- **Variable set, secret missing:** the build fails.
+- **A project added after the image was built:** maps are uploaded only when an
+  image is built, and a release tag promotes the same digest and uploads
+  nothing. **Adding an environment's project later means rebuilding** the image
+  (re-run `deploy.yml` on `main`) before that environment shows symbolicated
+  frames.
 
 ## Deploying
 
 A push to `main` runs [`deploy.yml`](.github/workflows/deploy.yml): the CI
-gate, then an image build and push to GHCR, then a `deploy` job that is a
-placeholder because no deployment target has been chosen. The pipeline is in
-[Deploy](ARCHITECTURE.md#deploy).
+gate, then an image build and push to the GitHub Container Registry (GHCR),
+then a `deploy` job. That job is a placeholder, because no deployment target
+has been chosen. The pipeline is in [Deploy](ARCHITECTURE.md#deploy).
 
 **Add protection rules to the `production` GitHub Environment** (Settings →
-Environments → `production`), at minimum required reviewers, before replacing the
-placeholder `deploy` step with a real deployment target. Until then, anything
-merged to `main` would deploy unreviewed the moment that step does something
-real.
+Environments → `production`), at minimum required reviewers, before replacing
+the placeholder `deploy` step with a real deployment target. Without them,
+anything merged to `main` deploys unreviewed as soon as that step does
+something real.
 
 **Serve the SPA and the API from one origin.** The image's nginx proxies `/api`
 to `API_UPSTREAM`, so the browser only ever calls the origin that served the
 page. A split-origin deployment, with the SPA on one host calling the API on
 another, is not supported. The API sends CORS headers for other frontends, but
-this app depends on same-origin: its API client uses relative URLs, its
-Content-Security-Policy's `connect-src` allows `'self'` and Razorpay's hosts
-only, and the refresh cookie is set on whichever origin answers `/api`.
+this app depends on same-origin:
+
+- its API client uses relative URLs;
+- its Content-Security-Policy's `connect-src` allows `'self'` and Razorpay's
+  hosts only;
+- the refresh cookie is set on whichever origin answers `/api`.
 
 ## Releases
 
-Releases are automatic. On every push to `main`,
-[release-please](https://github.com/googleapis/release-please) opens a release PR
-from the conventional commits since the last release, and
-`.github/workflows/release.yml` queues it with `--auto` (or merges it directly if
-GitHub refuses auto-merge). With the `main` ruleset below, either way it merges
-only once the required checks pass. The next run tags `vX.Y.Z` and publishes the
-GitHub Release, and the tag push makes `deploy.yml` promote the image `main`
-already built and tested: it adds `:X.Y.Z`, `:X.Y` and `:X` to that same digest
-rather than rebuilding. Only `feat`, `fix` and breaking commits cut a release;
-`chore`, `docs`, `ci` and the like do not.
+Releases are automatic:
+
+1. On every push to `main`,
+   [release-please](https://github.com/googleapis/release-please) opens a
+   release PR from the conventional commits since the last release.
+2. `.github/workflows/release.yml` queues that PR with `--auto`, or merges it
+   directly if GitHub refuses auto-merge. With the `main` ruleset below, either
+   way it merges only once the required checks pass.
+3. The next run tags `vX.Y.Z` and publishes the GitHub Release.
+4. The tag push makes `deploy.yml` promote the image `main` already built and
+   tested: it adds `:X.Y.Z`, `:X.Y` and `:X` to that same digest rather than
+   rebuilding.
+
+Only `feat`, `fix` and breaking commits cut a release; `chore`, `docs`, `ci`
+and the like do not.
 
 Releases use a GitHub App token, from the repo variable
-**`RELEASE_APP_CLIENT_ID`** and the secret **`RELEASE_APP_PRIVATE_KEY`**; the App
-needs Contents and Pull requests read/write. GitHub never starts workflows from
-events `GITHUB_TOKEN` creates, so its release PRs would get no CI and its tags no
-image promotion. Do not fall back to it.
+**`RELEASE_APP_CLIENT_ID`** and the secret **`RELEASE_APP_PRIVATE_KEY`**. The
+App needs Contents and Pull requests read/write. Do not fall back to
+`GITHUB_TOKEN`: GitHub never starts workflows from events it creates, so its
+release PRs would get no CI and its tags no image promotion.
 
 ### One-time setup
 
 Three manual steps, once:
 
-- **Create and install the release GitHub App** on this repository, then set its
-  client ID as the `RELEASE_APP_CLIENT_ID` variable and its private key as the
-  `RELEASE_APP_PRIVATE_KEY` secret. Without them `release.yml` fails.
+- **Create and install the release GitHub App** on this repository, then set
+  its client ID as the `RELEASE_APP_CLIENT_ID` variable and its private key as
+  the `RELEASE_APP_PRIVATE_KEY` secret. Without them `release.yml` fails.
 - **Install the [Renovate GitHub App](https://github.com/apps/renovate).**
   `renovate.json` is inert without it: nothing schedules or opens Renovate PRs
   until the app is installed.
-- **Set the merge rules** (Settings → General, then Settings → Rules). Enable
-  "Allow auto-merge"; allow squash merging only, with the commit title set to the
-  PR title and the commit message left blank; enable "Automatically delete head
-  branches"; and add a ruleset on `main`, with no bypass list, requiring the
-  checks `lint`, `test`, `e2e`, `docker`, `gitleaks` and `pr-title`. Without the
-  ruleset, `release.yml`'s fallback merges the release PR without waiting for CI;
-  without the blank squash message, each squash body would carry the branch's
-  commit list, which release-please reads as extra conventional commits.
+- **Set the merge rules** (Settings → General, then Settings → Rules):
+  - enable "Allow auto-merge";
+  - allow squash merging only, with the commit title set to the PR title and
+    the commit message left blank;
+  - enable "Automatically delete head branches";
+  - add a ruleset on `main`, with no bypass list, requiring the checks `lint`,
+    `test`, `e2e`, `docker`, `gitleaks` and `pr-title`.
 
-With those rules, the squashed commit on `main` is the PR's title alone, so PR
-titles must themselves be conventional commits for release-please to read them
-correctly.
+  Without the ruleset, `release.yml`'s fallback merges the release PR without
+  waiting for CI. Without the blank squash message, each squash body carries
+  the branch's commit list, which release-please reads as extra conventional
+  commits.
+
+With those rules, the squashed commit on `main` is the PR's title alone, so
+each PR title must itself be a conventional commit for release-please to read
+it correctly.

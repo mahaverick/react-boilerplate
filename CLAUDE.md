@@ -1,20 +1,25 @@
 # CLAUDE.md
 
-Rules and gotchas for changing code in this repository. The decisions here look
-wrong until you know the reason; changing one is a deliberate act, not a tidy-up.
-How the app fits together is in [ARCHITECTURE.md](ARCHITECTURE.md), what it
-defends against is in [SECURITY.md](SECURITY.md), and how to run, configure and
-deploy it is in [README.md](README.md).
+Rules and gotchas for anyone, human or agent, changing code in this
+repository. Each decision here looks wrong until you know its reason, so
+changing one is a deliberate act, not a tidy-up.
+
+- How the app fits together: [ARCHITECTURE.md](ARCHITECTURE.md).
+- What it defends against: [SECURITY.md](SECURITY.md).
+- How to run, configure and deploy it: [README.md](README.md).
 
 ## Sibling sync
 
 `apex-boilerplate` shares the HTTP layer, analytics, flags, error tracking, most
-of the container and several components with this app. When you change a shared
-path, change apex in the same PR, and say in the description what happened there
-("ported in apex#N", or "not applicable because …"). For a file the two apps hold
-byte for byte, change this copy first and copy it to apex, except `scrub.ts`,
-whose rules change in express first. The paths are listed in
-[Sibling sync with apex](ARCHITECTURE.md#sibling-sync-with-apex).
+of the container and several components with this app.
+
+- **Change a shared path in apex in the same pull request (PR)**, and say in the
+  description what happened there ("ported in apex#N", or "not applicable
+  because …").
+- **For a file the two apps hold byte for byte, change this copy first** and
+  copy it to apex. The exception is `scrub.ts`, whose rules change in express
+  first. The paths are listed in
+  [Sibling sync with apex](ARCHITECTURE.md#sibling-sync-with-apex).
 
 ## Staff on tenant pages
 
@@ -32,16 +37,16 @@ line pointing to the staff console. The reason: express refuses those writes
 from staff without a recent sign-in and a reason
 (`requireRecentAuthAndReasonOnPlatformAccess`), and only apex has the reason
 flow. This app has "Confirm it's you" (a passkey or an emailed link) for the
-recent sign-in, but no reason prompt. The member list and pending invitations stay readable.
-Staff who are members of the tenant (`access: 'member'`) keep their controls.
+recent sign-in, but no reason prompt. The member list and pending invitations
+stay readable. Staff who are members of the tenant (`access: 'member'`) keep their controls.
 
 ## The current tenant
 
 **Never read the current tenant from `current-tenant.store` in a component; use
 `useCurrentTenantSlug()`.** The URL is the source of truth: a tenant page's
 `$slug`, else the shell's `?tenant`, which `_app`'s guard keeps to an eligible
-tenant. The store is only the guard's fallback, so reading it shows a tenant
-the URL does not ([The current tenant in the URL](ARCHITECTURE.md#the-current-tenant-in-the-url)).
+tenant. The store is only the guard's fallback, so reading it shows a tenant the URL does
+not ([The current tenant in the URL](ARCHITECTURE.md#the-current-tenant-in-the-url)).
 
 ## Copy
 
@@ -50,10 +55,10 @@ the URL does not ([The current tenant in the URL](ARCHITECTURE.md#the-current-te
   "tenant": only rendered text changes. Apex, the staff console, says "tenant",
   so a shared file holds no copy with either word; react-only copy lives in
   react-only files (`role-error.ts`, not the shared `load-error.tsx`).
-- `tests/unit/copy-style.test.ts`, byte for byte with apex, parses `src/` and
-  fails on a banned phrase or a sentence over 30 words. "couldn't" passes
-  only when another sentence follows it, the next step ("Select Try again to
-  load them."), as in express.
+- **`tests/unit/copy-style.test.ts` checks the copy.** It is byte for byte with
+  apex, parses `src/`, and fails on a banned phrase or a sentence over 30
+  words. "couldn't" passes only when the next sentence gives the next step
+  ("Select Try again to load them."), as in express.
 
 ## Settings
 
@@ -67,23 +72,25 @@ as a route under `src/pages/_app/settings/`.
   `--max-warnings 0` for the 17 leftover rules, which run untyped. Oxlint fails on
   a warning too (`denyWarnings` in `vite.config.ts`). `pnpm lint` runs `vp lint`,
   ESLint and `vp fmt --check`, with the same zero-warning bar.
-- The `lint` job runs `pnpm check`, `pnpm lint:docs`, `pnpm ui:drift`, `pnpm knip`,
-  `pnpm typecheck`, `pnpm build`, `pnpm check:bundle` and the audits. Four `unit`
-  jobs run `pnpm test:shard`; the `test` job runs `pnpm test:merge`, which enforces
-  the coverage thresholds in `vitest.config.ts` on the merged result. The `e2e` job
-  runs alongside. The `image` job builds the image once, with no layer cache, and
-  uploads it; `image-checks` checks it, two `nginx-e2e` shards run the `nginx`
-  `@no-api` Playwright tests against it, and the `docker` job, the required
-  check, needs all of them. Local
-  `pnpm test:coverage` still enforces the same
-  thresholds. The scripts are in [README.md](README.md).
+- **What continuous integration (CI) runs** (the scripts are in
+  [README.md](README.md)):
+  - `lint`: `pnpm check`, `pnpm lint:docs`, `pnpm ui:drift`, `pnpm knip`,
+    `pnpm typecheck`, `pnpm build`, `pnpm check:bundle` and the audits.
+  - Four `unit` jobs run `pnpm test:shard`. Then `test` runs `pnpm test:merge`,
+    which enforces the coverage thresholds in `vitest.config.ts` on the merged
+    result. Local `pnpm test:coverage` enforces the same thresholds.
+  - `e2e` runs alongside.
+  - `image` builds the image once, with no layer cache, and uploads it.
+    `image-checks` checks it, and two `nginx-e2e` shards run the `nginx`
+    `@no-api` Playwright tests against it. `docker`, the required check, needs
+    all of them.
 
 ## Dead code (knip)
 
-`pnpm knip` fails CI on an unused file, export, type or dependency. knip is pinned
-exactly, because a release can add new kinds of finding. Every ignore in
-`knip.jsonc` carries its reason beside it, which is why the file is `.jsonc`. An
-ignore without a reason does not go in.
+`pnpm knip` fails CI on an unused file, export, type or dependency. knip is
+pinned exactly, because a release can add new kinds of finding. Every ignore in
+`knip.jsonc` carries its reason beside it (which is why the file is `.jsonc`);
+an ignore without a reason does not go in.
 
 When it reports something:
 
@@ -103,8 +110,10 @@ When it reports something:
 - **The hooks live in `.vite-hooks/` and must stay committed.** `prepare`
   (`vp config --hooks`) generates only the `_/` dispatcher, so if
   `git ls-files .vite-hooks` is empty, no hook runs.
-- Existing clone? After `pnpm install`, run `git config --unset core.hooksPath && pnpm prepare` once, or no hook runs.
-- **pre-push runs no e2e.** A long pre-push hook can outlast the SSH connection and
+- **A clone made while the hooks were husky's runs no hook** until you run
+  `git config --unset core.hooksPath && pnpm prepare` once, after
+  `pnpm install`.
+- **pre-push runs no end-to-end (e2e) tests.** A long pre-push hook can outlast the Secure Shell (SSH) connection and
   drop the push. CI runs e2e. `pnpm push [git push args]` runs `pnpm gate` first,
   then pushes with `--no-verify`.
 - **Hooks call `pnpm exec`, never `npx`.** On a fresh machine `npx` downloads the
@@ -144,7 +153,7 @@ and [Sign-out rules](SECURITY.md#sign-out-rules).
   change who is signed in.
 - **Run a write that may need a recent sign-in through `useStepUp().run`.** A
   401 `REAUTH_REQUIRED` then opens the dialog and retries once; no caller shows
-  "sign in again". The new shared passkey and step-up files are apex's copy
+  "sign in again". The shared passkey and step-up files are apex's copy
   source ([Sibling sync with apex](ARCHITECTURE.md#sibling-sync-with-apex)):
   change them here first.
 - **Only an auth verdict signs a user out** (`isAuthVerdict`). If you widen it to
@@ -155,8 +164,9 @@ and [Sign-out rules](SECURITY.md#sign-out-rules).
 Each rule's reason is in [Analytics privacy](SECURITY.md#analytics-privacy).
 
 - **Wrap every rendered person name, email address, avatar initial and
-  invitation address in `<Pii>`.** Wrap the value, not the sentence. Use
-  `<Pii>`, not `ph-no-capture`, which blanks the element in replay. A page
+  invitation address in `<Pii>`** (personally identifiable information). Wrap
+  the value, not the sentence. Use `<Pii>`, not `ph-no-capture`, which blanks
+  the element in replay. A page
   that renders a new kind of person data needs a fixture in the harness's
   `?pii=probe` mode and a scan in `e2e/fixtures/pii.test.ts`. Without them
   the guard cannot see it.
@@ -174,7 +184,8 @@ Each rule's reason is in [Analytics privacy](SECURITY.md#analytics-privacy).
   its own constants. The sanitizer keeps a campaign value only when it matches
   `^[a-z0-9_-]{1,64}$`, so a hand-edited address or token is dropped. Never add
   `token`, `email` or `redirect`.
-- **Never call the SDK's `reset()` directly.** It drops the super properties and
+- **Never call the posthog-js software development kit (SDK)'s `reset()`
+  directly.** It drops the super properties and
   the consent answer. `resetKeepingConsent` restores both and the page's tenant
   group.
 - **Page views come from the router, not posthog-js.** Turning the SDK's history
@@ -227,7 +238,8 @@ The mechanism is in
 The reasons are in [CSP and headers](SECURITY.md#csp-and-headers) and
 [Run-time config injection safety](SECURITY.md#run-time-config-injection-safety).
 
-- **No inline script, ever, and never `'unsafe-eval'`.** The CSP is
+- **No inline script, ever, and never `'unsafe-eval'`.** The Content Security
+  Policy (CSP) is
   `script-src 'self'` plus the Razorpay Checkout hosts listed in
   [CSP and headers](SECURITY.md#csp-and-headers). A new origin for
   scripts, styles, images, fonts or `fetch` means changing the policy in
@@ -236,8 +248,8 @@ The reasons are in [CSP and headers](SECURITY.md#csp-and-headers) and
   `e2e/harness/harness.tsx` and every `src/` file that imports Zod as a value
   (anything but `import type`). The entry's first import alone is not enough: a
   chunk the entry imports evaluates before the entry's body.
-  `tests/unit/lib/zod-jitless.test.ts` and `pnpm check:bundle` enforce it. Never fix Zod's JIT probe by adding
-  `'unsafe-eval'`.
+  `tests/unit/lib/zod-jitless.test.ts` and `pnpm check:bundle` enforce it. Never
+  fix Zod's just-in-time (JIT) compiler probe by adding `'unsafe-eval'`.
 - **No `location` declares `add_header`.** One that did would drop every security
   header.
 - **The image runs as uid 101 on a read-only root.** Everything it writes goes
@@ -294,7 +306,7 @@ listed below.
 
 ## `src/components/ui/`
 
-The directory holds vendored shadcn output. An edit there is lost the next time
+The directory holds vendored shadcn output: an edit there is lost the next time
 the component is added again.
 
 - **Oxfmt skips the vendored files** (`fmt.ignorePatterns` in `vite.config.ts`).
@@ -321,29 +333,41 @@ the component is added again.
   library change, fails the check until the snapshot is retaken, which is why
   Renovate leaves `shadcn` for a human.
 - **A re-add drops these local edits; put them back.** `docs/ui-local-edits.md`
-  is the full record. `alert.tsx`: the `warning` and `info` variants. `avatar.tsx`: the fallback
-  and group count use `text-foreground` (contrast). `tabs.tsx`: the panel keeps
-  `rounded-md focus-visible:ring-3 focus-visible:ring-ring/50` (WCAG 2.4.7).
-  `badge`, `button`, `switch`, `tabs` and the sidebar rail name their transition
-  properties instead of `transition-all`. The sidebar rail uses `after:w-0.5` and
-  the dropdown `min-w-24`. `toast.tsx`: Tabler icons for the registry's
-  `IconPlaceholder`; `PII_CLASS_NAME` last in the root's `cn(...)`, after
-  `className`, so a caller cannot unmask a toast; top-right anchoring (`top-4`,
-  `top-0 origin-top`, every Y offset sign-flipped, `swipeDirection` up and
-  right); the `data-[type=…]` border and icon colours on `--success`,
-  `--warning-strong` and `--destructive`; the viewport's `aria-label="Status messages"`
-  (Base UI's default, "Notifications", names the app's notifications feature);
-  and `<Toaster>` defaulting to `toastManager` from `@/lib/toast` instead of a
-  manager of its own. `tests/unit/components/ui/toast.test.tsx` fails without the
-  mask, the icon colours, the label or the shared manager. Base UI keeps the close
-  button `aria-hidden` but tabbable while the stack is collapsed; that is accepted
-  upstream behaviour, since Tab reaches the toast first and expands it.
-  `shadcn init` also overwrites `src/lib/utils.ts` and `src/hooks/use-mobile.ts`,
-  and resets `--muted-foreground` and `--destructive` in `globals.css`, which
-  `pnpm test:contrast` then fails.
-  Every Tabler icon in `src/components/ui/` except the one in `spinner.tsx`
-  carries `aria-hidden="true"` (the guard test `tests/unit/ui-icons-aria-hidden.test.ts` fails otherwise); the
-  combobox clear and chip-remove buttons carry `aria-label` for the same reason.
+  is the full record.
+  - `alert.tsx`: the `warning` and `info` variants.
+  - `avatar.tsx`: the fallback and group count use `text-foreground`
+    (contrast).
+  - `tabs.tsx`: the panel keeps
+    `rounded-md focus-visible:ring-3 focus-visible:ring-ring/50` (Web Content
+    Accessibility Guidelines, WCAG, 2.4.7).
+  - `badge`, `button`, `switch`, `tabs` and the sidebar rail name their
+    transition properties instead of `transition-all`.
+  - The sidebar rail uses `after:w-0.5`, and the dropdown `min-w-24`.
+  - Every Tabler icon in `src/components/ui/` except the one in `spinner.tsx`
+    carries `aria-hidden="true"`; the guard test
+    `tests/unit/ui-icons-aria-hidden.test.ts` fails otherwise. The combobox
+    clear and chip-remove buttons carry `aria-label` for the same reason.
+  - `toast.tsx`:
+    - Tabler icons for the registry's `IconPlaceholder`;
+    - `PII_CLASS_NAME` last in the root's `cn(...)`, after `className`, so a
+      caller cannot unmask a toast;
+    - top-right anchoring (`top-4`, `top-0 origin-top`, every Y offset
+      sign-flipped, `swipeDirection` up and right);
+    - the `data-[type=…]` border and icon colours on `--success`,
+      `--warning-strong` and `--destructive`;
+    - the viewport's `aria-label="Status messages"` (Base UI's default,
+      "Notifications", names the app's notifications feature);
+    - `<Toaster>` defaulting to `toastManager` from `@/lib/toast` instead of a
+      manager of its own.
+
+    `tests/unit/components/ui/toast.test.tsx` fails without the mask, the icon
+    colours, the label or the shared manager. Base UI keeps the close button
+    `aria-hidden` but tabbable while the stack is collapsed. That is accepted
+    upstream behaviour: Tab reaches the toast first and expands it.
+
+  - `shadcn init` also overwrites `src/lib/utils.ts` and
+    `src/hooks/use-mobile.ts`, and resets `--muted-foreground` and
+    `--destructive` in `globals.css`, which `pnpm test:contrast` then fails.
 - **The vitest config's coverage `exclude` is the inverse list.** It names the
   vendored files, so a new vendored file goes there and a hand-written one stays
   out.
@@ -517,8 +541,8 @@ with `E2E_LIVE=1`. Sign-in is by emailed link, so the helpers in
 `pnpm platform:grant` in `E2E_API_DIR`, which has no default: point it at the
 express checkout whose database the API under test uses, the main
 `../express-boilerplate` included. `grantPlatformRole` throws when it is unset,
-missing, or has no `platform:grant` script (`grantDirPlan`). Only the SSE
-reconnect test needs a separate worktree. The variables, with their defaults, are
+missing, or has no `platform:grant` script (`grantDirPlan`). Only the server-sent
+events (SSE) reconnect test needs a separate worktree. The variables, with their defaults, are
 in the [README](README.md#testing); never assume `:4040`.
 
 **posthog-js drops every event from a Playwright browser** (`navigator.webdriver`,
@@ -526,11 +550,13 @@ a headless user agent). An analytics e2e test uses `HUMAN_USER_AGENT` and calls
 `passPosthogBotFilter` before its first navigation (`e2e/helpers/fake-posthog.ts`).
 
 **`nginx`** runs against the production image (`pnpm test:e2e:nginx`). The `@no-api`
-tests also run in CI's two `nginx-e2e` shards with nothing behind `/api`, on four
-parallel workers each (the top-level `workers: 4` under CI is the cap). A run with `E2E_LIVE=1`
-(the nightly and `pnpm test:e2e:nginx`) uses one worker, because it shares a
+tests also run in CI's two `nginx-e2e` shards with nothing behind `/api`, on
+four parallel workers each (the top-level `workers: 4` under CI is the cap). A
+run with `E2E_LIVE=1` (the nightly and `pnpm test:e2e:nginx`) uses one worker, because it shares a
 backend, a restarting express and a fixed-port fake PostHog. The tests that need
-a live API run there, not in the `nginx-e2e` shards. **Test anything that depends on noticing a dropped upstream here, not
+a live API run there, not in the `nginx-e2e` shards.
+
+**Test anything that depends on noticing a dropped upstream in `nginx`, not
 against `pnpm dev`.** The Vite dev proxy never propagates an upstream close, so the
 stream reconnect path cannot be reached from a dev-server browser.
 
@@ -621,12 +647,12 @@ signals (SIGTERM, then SIGKILL) and skips it unless all of these still hold:
 Every `ps` runs with `LC_ALL=C`, so the start time has one form.
 
 So the test can run again without cleanup in between. A pid file without a start
-time, or whose process no longer matches, is replaced and nothing is signalled.
+time, or whose process does not match, is replaced and nothing is signalled.
 That stopping is best effort: a process that fails a check survives, and the
 `lsof` check above is what proves the port is free.
 
 Run `pnpm dev` in the worktree, and the test, with a short `TMPDIR` (for example
-`TMPDIR=/tmp`). `tsx watch` opens its IPC socket at `$TMPDIR/tsx-<uid>/<pid>.pipe`,
+`TMPDIR=/tmp`). `tsx watch` opens its inter-process communication (IPC) socket at `$TMPDIR/tsx-<uid>/<pid>.pipe`,
 and a unix socket path longer than 104 bytes fails to bind on macOS; the default
 `/var/folders/.../T/` is long. The restarted server's pid file (`PID_FILE=...`)
 lives under the same `os.tmpdir()`, so give the kill command the same `TMPDIR`.

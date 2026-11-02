@@ -1,6 +1,8 @@
 # System
 
-The root URL and the page for a URL nothing matches. Back to the [route map](README.md#route-map).
+This file covers two routes: the root URL (Uniform Resource Locator), `/`, and the page for a URL that matches no route. Back to the [route map](README.md#route-map).
+
+"The walk" below is the Playwright walk of the app made for pull request (PR) #108 on 15 October 2026.
 
 ### `/` — Root redirect
 
@@ -15,7 +17,7 @@ No shot: the route only redirects.
 | Data                | none of its own; the boot's session restore decides ([boot.md](boot.md#what-happens))                                      |
 | Transitions         | → `/dashboard` or `/login`                                                                                                 |
 
-The walk confirmed both: signed out, `/` landed on `/login`; signed in, on `/dashboard?tenant=<slug>`.
+The walk confirmed both paths. Signed out, `/` landed on `/login`. Signed in, it landed on `/dashboard?tenant=<slug>`.
 
 ### `/$` — Not found
 
@@ -32,8 +34,8 @@ The walk confirmed both: signed out, `/` landed on `/login`; signed in, on `/das
 | Components          | `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardFooter`, `buttonVariants`                                         |
 | Transitions         | Go home → `/`, which redirects to `/dashboard` or `/login`                                                                   |
 
-The shot is taken signed in, and still shows no sidebar or header. In the walk, a signed-in `/tenants/no-such-tenant/nothing` showed the same bare card.
+The shot is taken signed in, and it shows no sidebar or header. In the walk, a signed-in visit to `/tenants/no-such-tenant/nothing` showed the same bare card.
 
-`RouteNotFound` is also the router's `defaultNotFoundComponent`, so a route that throws `notFound()` inside a layout (the beta page with its flag off, for example) shows the same card inside that layout instead.
+`RouteNotFound` is also the router's `defaultNotFoundComponent`. A route that throws `notFound()` inside a layout therefore shows the same card inside that layout. The beta page with its flag off is one example.
 
 Findings: [F-system-1](findings.md#f-system-1)
