@@ -56,10 +56,12 @@ import { useFocusAfter } from '@/hooks/use-focus-after'
 import { useStepUp, useStepUpWaiting } from '@/hooks/use-step-up'
 import { statusFrom } from '@/lib/api-error'
 import { fullName } from '@/lib/format'
+import { inDays } from '@/lib/link-lifetime'
 import { toast } from '@/lib/toast'
 import { writeFailureMessage } from '@/lib/write-failure'
 import { analyticsKey } from '@/observability/telemetry'
 import { useLimit } from '@/queries/billing.queries'
+import { useClientSettings } from '@/queries/client-settings.queries'
 import {
   dropTenantCache,
   isMemberNotFound,
@@ -641,6 +643,7 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
     retry,
   } = useMyRole(slug)
   const isStaffView = access === 'platform'
+  const invitationTtl = useClientSettings()?.invitationTtlSeconds
   const membersUsage = useLimit(slug, 'members')
   // Only an owner can act on an owner row (remove, demote or leave as one), so only an owner needs the count.
   const owners = useQuery({
@@ -749,8 +752,10 @@ export function TenantMembersPanel({ slug }: { slug: string }) {
                 <h2>Invite a member</h2>
               </CardTitle>
               <CardDescription>
-                We email them an invitation that expires in 3 days. After they select Join, we email
-                them a link to confirm.
+                {invitationTtl === undefined
+                  ? 'We email them an invitation.'
+                  : `We email them an invitation that expires in ${inDays(invitationTtl)}.`}{' '}
+                After they select Join, we email them a link to confirm.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">

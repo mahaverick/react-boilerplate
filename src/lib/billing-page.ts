@@ -15,9 +15,16 @@ export interface BillingLineContext {
   priceFor: (interval: BillingInterval) => number | null
 }
 
-/** The line an owner sees in place of every pay button while payments are off. */
-export const PAYMENTS_OFF =
-  'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+/**
+ * The line an owner sees in place of every pay button while payments are off,
+ * naming the support address from the client settings once they load.
+ * @param supportEmail - `supportEmail` from `useClientSettings()`, or undefined while unknown.
+ */
+export function paymentsOff(supportEmail: string | undefined): string {
+  const contact =
+    supportEmail === undefined ? 'Contact support' : `Contact support at ${supportEmail}`
+  return `Payments aren’t set up for this app, so you can’t pay here yet. ${contact} to change plans.`
+}
 
 /**
  * The line by a card change while a card payment is due. Razorpay then charges

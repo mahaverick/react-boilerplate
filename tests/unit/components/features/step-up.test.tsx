@@ -10,6 +10,7 @@ import { FRONTEND_APP } from '@/constants/frontend-app'
 import { useStepUp } from '@/hooks/use-step-up'
 import { apiClient } from '@/http/client'
 import { ensureSession, resetSessionForTests } from '@/http/session'
+import { formatExpiry } from '@/lib/link-lifetime'
 import { STEP_UP_WAIT_LOCK } from '@/lib/step-up-presence'
 import { toast } from '@/lib/toast'
 import { cancelPasskeyPrompt, requestPasskey } from '@/lib/webauthn'
@@ -43,6 +44,8 @@ const DIALOG = 'Confirm it’s you'
 const START_BODY =
   'This action needs a confirmation from the last 10 minutes. We’ll email you a link to open in this browser.'
 const EXPIRED = 'That link expired. Send a new link to continue.'
+/** The link's lifetime the default link route answers: 25 minutes, not express's default 15. */
+const LINK_TTL_MS = 25 * 60_000
 const RESUME_FAILED =
   'You confirmed, but we couldn’t reach the server. Check your connection, then select Try again.'
 
@@ -110,7 +113,10 @@ function linkRoute(answer?: () => Response) {
       return (
         answer?.() ??
         ok(
-          { resendAvailableAt: new Date(Date.now() + 60_000).toISOString() },
+          {
+            resendAvailableAt: new Date(Date.now() + 60_000).toISOString(),
+            expiresAt: new Date(Date.now() + LINK_TTL_MS).toISOString(),
+          },
           'Check your inbox for a confirmation link.',
           202
         )
@@ -348,11 +354,12 @@ describe('StepUpDialog: email', () => {
     const bodies = linkRoute()
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderHarness()
+    const expiresAt = new Date(Date.now() + LINK_TTL_MS).toISOString()
     const dialog = await sendLink(user)
 
     expect(bodies).toEqual([{ app: FRONTEND_APP }])
     expect(within(dialog).getByRole('status')).toHaveTextContent(
-      `We sent the link to ${testUser.email}. It expires in 15 minutes.`
+      `We sent the link to ${testUser.email}. It expires on ${formatExpiry(expiresAt)}.`
     )
     expect(within(dialog).getByRole('button', { name: 'Resend in 1:00' })).toHaveAttribute(
       'aria-disabled',
@@ -447,28 +454,41 @@ describe('StepUpDialog: email', () => {
     expect(within(dialog).getByText(STEP_UP_EMAIL_WAIT)).toBeInTheDocument()
   })
 
-  it('counts the link’s 15 minutes from when the API sent it, after a cooldown', async () => {
+  it('states no expiry after a cooldown refusal, which names none, and never calls the link expired', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
     dangerRoute(1)
-    // The cooldown has 42 of its 60 seconds left, so the link went out 18 seconds ago.
     linkRoute(() => tooMany('Check your inbox.', 'STEP_UP_LINK_COOLDOWN', 42))
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderHarness()
     const dialog = await sendLink(user)
-    await act(() => vi.advanceTimersByTimeAsync(15 * 60_000 - 18_000 - 1_000))
+    expect(within(dialog).getByRole('status')).toHaveTextContent(
+      new RegExp(`^We sent the link to ${testUser.email}\\.$`)
+    )
+    await act(() => vi.advanceTimersByTimeAsync(60 * 60_000))
     expect(within(dialog).queryByText(EXPIRED)).not.toBeInTheDocument()
-    await act(() => vi.advanceTimersByTimeAsync(1_000))
-    expect(within(dialog).getByText(EXPIRED)).toBeInTheDocument()
   })
 
-  it('says the link expired after 15 minutes', async () => {
+  it('states no expiry from an API that answers no expiresAt', async () => {
+    dangerRoute(1)
+    linkRoute(() =>
+      ok({ resendAvailableAt: new Date(Date.now() + 60_000).toISOString() }, 'Sent.', 202)
+    )
+    const user = userEvent.setup()
+    renderHarness()
+    const dialog = await sendLink(user)
+    expect(within(dialog).getByRole('status')).toHaveTextContent(
+      new RegExp(`^We sent the link to ${testUser.email}\\.$`)
+    )
+  })
+
+  it('says the link expired at the expiresAt the API answered', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
     dangerRoute(1)
     linkRoute()
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderHarness()
     const dialog = await sendLink(user)
-    await act(() => vi.advanceTimersByTimeAsync(15 * 60_000 - 1_000))
+    await act(() => vi.advanceTimersByTimeAsync(LINK_TTL_MS - 1_000))
     expect(within(dialog).queryByText(EXPIRED)).not.toBeInTheDocument()
     await act(() => vi.advanceTimersByTimeAsync(1_000))
     expect(within(dialog).getByText(EXPIRED)).toBeInTheDocument()

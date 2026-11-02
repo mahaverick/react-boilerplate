@@ -15,7 +15,9 @@ import { buttonVariants } from '@/components/ui/button'
 import { ROUTES } from '@/constants/routes'
 import { useCountdown } from '@/hooks/use-countdown'
 import { formatClock } from '@/lib/countdown'
+import { linkRules } from '@/lib/link-lifetime'
 import { cn } from '@/lib/utils'
+import { useClientSettings } from '@/queries/client-settings.queries'
 
 /** The title of a confirmation link the server refused, whatever the reason. */
 export const CONFIRM_DEAD_TITLE = 'This link can’t be used'
@@ -75,6 +77,8 @@ export function InvitationInbox({
   const left = useCountdown(resendAt)
   const sentLineId = useId()
   const focused = useRef(false)
+  // The confirm link lasts SIGN_IN_LINK_TTL, as a sign-in link does.
+  const settings = useClientSettings()
 
   /** Takes focus once, as the state mounts, unless the person has already moved it. */
   const takeFocus = (element: HTMLElement | null) => {
@@ -91,7 +95,7 @@ export function InvitationInbox({
           We sent a link to <Pii>{email}</Pii>.
         </p>
         <p className="text-muted-foreground">
-          Open it to join {tenantName}. The link works once and expires in 15 minutes.
+          Open it to join {tenantName}. {linkRules(settings?.signInLinkTtlSeconds)}
         </p>
         <BusyButton
           ref={takeFocus}

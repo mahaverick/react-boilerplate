@@ -486,7 +486,9 @@ describe('accept page, signed out, Check your inbox', () => {
     expect(status).toHaveTextContent(`We sent a link to ${MAILED}.`)
     expect(within(status).getByText(MAILED)).toHaveClass('ph-sensitive', 'ph-mask')
     expect(
-      screen.getByText('Open it to join Acme Corp. The link works once and expires in 15 minutes.')
+      await screen.findByText(
+        'Open it to join Acme Corp. The link works once and expires in 20 minutes.'
+      )
     ).toBeVisible()
     const resend = screen.getByRole('button', { name: /^Resend in / })
     expect(resend).toHaveAttribute('aria-disabled', 'true')

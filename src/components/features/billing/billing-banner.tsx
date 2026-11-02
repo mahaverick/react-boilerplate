@@ -10,9 +10,10 @@ import { useNow } from '@/hooks/use-now'
 import { messageFrom } from '@/lib/api-error'
 import { pickBillingBanner, trialDaysLeft, type BillingBannerKind } from '@/lib/billing-banner'
 import { formatBillingDate, formatInr } from '@/lib/billing-format'
-import { CARD_CODE_HINT, cardChangeNeedsCode, PAYMENTS_OFF } from '@/lib/billing-page'
+import { CARD_CODE_HINT, cardChangeNeedsCode, paymentsOff } from '@/lib/billing-page'
 import { toast } from '@/lib/toast'
 import { useDismissBanner, useTenantBilling } from '@/queries/billing.queries'
+import { useClientSettings } from '@/queries/client-settings.queries'
 import { tenantSettingsQueryOptions } from '@/queries/tenant-forms.queries'
 import type { TenantDetail } from '@/queries/tenant.queries'
 import type { TenantBilling } from '@/types/billing.types'
@@ -216,6 +217,7 @@ function CardChange({
   billing: TenantBilling
 }) {
   const flow = useCheckoutFlow(slug)
+  const supportEmail = useClientSettings()?.supportEmail
   const busy = flow.status === 'starting' || flow.status === 'open' || flow.status === 'confirming'
   const showMessage = (flow.status === 'error' || flow.status === 'waiting') && flow.message
   return (
@@ -231,7 +233,7 @@ function CardChange({
           {label}
         </BusyButton>
       ) : (
-        <span className="text-sm text-muted-foreground">{PAYMENTS_OFF}</span>
+        <span className="text-sm text-muted-foreground">{paymentsOff(supportEmail)}</span>
       )}
       {billing.paymentsEnabled && cardChangeNeedsCode(billing) && (
         <span className="basis-full text-sm text-muted-foreground">{CARD_CODE_HINT}</span>

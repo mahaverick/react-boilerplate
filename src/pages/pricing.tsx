@@ -10,10 +10,11 @@ import { buttonVariants } from '@/components/ui/button'
 import { pageTitle } from '@/constants/app'
 import { ROUTES } from '@/constants/routes'
 import { useCurrentTenantSlug } from '@/hooks/use-current-tenant-slug'
-import { PAYMENTS_OFF } from '@/lib/billing-page'
+import { paymentsOff } from '@/lib/billing-page'
 import { tenantSearchSchema } from '@/lib/current-tenant'
 import { track } from '@/observability/telemetry'
 import { usePlans } from '@/queries/billing.queries'
+import { useClientSettings } from '@/queries/client-settings.queries'
 import { useTenants } from '@/queries/tenant.queries'
 import { useAuthStore } from '@/states/auth.store'
 import type { PlansResponse } from '@/types/billing.types'
@@ -45,6 +46,7 @@ const PRIMARY = buttonVariants({ variant: 'default' })
 function SignedInAction({ paymentsEnabled }: { paymentsEnabled: boolean }) {
   const slug = useCurrentTenantSlug()
   const tenants = useTenants()
+  const supportEmail = useClientSettings()?.supportEmail
   if (slug !== null && tenants.data === undefined && !tenants.isError) return null
   const owns =
     slug !== null &&
@@ -55,7 +57,7 @@ function SignedInAction({ paymentsEnabled }: { paymentsEnabled: boolean }) {
         Upgrade
       </Link>
     ) : (
-      <p className="text-sm text-muted-foreground">{PAYMENTS_OFF}</p>
+      <p className="text-sm text-muted-foreground">{paymentsOff(supportEmail)}</p>
     )
   }
   return (

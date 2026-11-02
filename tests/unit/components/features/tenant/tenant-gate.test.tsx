@@ -84,6 +84,28 @@ describe('TenantGate', () => {
     expect(readRememberedTenant(testUser.id)).toBeNull()
   })
 
+  it('names no address for a suspended tenant while the client settings cannot be read', async () => {
+    server.use(
+      http.get('/api/v1/status/client-settings', () => fail('Route not found.', 404)),
+      http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404)),
+      http.get('/api/v1/tenants', () =>
+        ok(
+          listPage([
+            {
+              tenant: { ...ACME, lifecycleState: 'suspended' },
+              role: 'owner',
+              isPlatform: false,
+              joinedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+          'Tenants.'
+        )
+      )
+    )
+    renderGate('acme')
+    expect(await screen.findByText('Contact support to restore access.')).toBeInTheDocument()
+  })
+
   it('says a suspended tenant is suspended, from the tenant list, without remembering it', async () => {
     server.use(
       http.get('/api/v1/tenants/acme', () => fail('Tenant not found', 404)),
@@ -103,7 +125,9 @@ describe('TenantGate', () => {
     )
     renderGate('acme')
     expect(await screen.findByRole('heading', { name: 'Workspace suspended' })).toBeInTheDocument()
-    expect(screen.getByText('Contact support to restore access.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Contact support at support@test.example to restore access.')
+    ).toBeInTheDocument()
     expect(readRememberedTenant(testUser.id)).toBeNull()
   })
 

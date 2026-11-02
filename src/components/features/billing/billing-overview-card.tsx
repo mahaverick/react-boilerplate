@@ -8,6 +8,7 @@ import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { billingStateLine, hasLiveSubscription, type BillingLineContext } from '@/lib/billing-page'
 import { useEntitlements, usePlans } from '@/queries/billing.queries'
+import { useClientSettings } from '@/queries/client-settings.queries'
 import type { EntitlementCatalogEntry, TenantBilling } from '@/types/billing.types'
 
 /** What the overview card shows and what goes under it. */
@@ -44,6 +45,7 @@ export function BillingOverviewCard({
   context,
   children,
 }: BillingOverviewCardProps) {
+  const supportEmail = useClientSettings()?.supportEmail
   return (
     <Card>
       <CardHeader>
@@ -59,8 +61,10 @@ export function BillingOverviewCard({
             {(view) =>
               view === null ? (
                 <p className="text-sm text-muted-foreground">
-                  This workspace has no plan or invoices to show. Contact support if you expected
-                  them.
+                  This workspace has no plan or invoices to show.{' '}
+                  {supportEmail === undefined
+                    ? 'Contact support if you expected them.'
+                    : `Contact support at ${supportEmail} if you expected them.`}
                 </p>
               ) : (
                 <>

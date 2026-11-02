@@ -222,7 +222,7 @@ describe('BillingBanner, owner actions', () => {
 
     expect(
       await screen.findByText(
-        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support at support@test.example to change plans.'
       )
     ).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
@@ -245,7 +245,7 @@ describe('BillingBanner, owner actions', () => {
 
     expect(
       await screen.findByText(
-        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support at support@test.example to change plans.'
       )
     ).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()

@@ -208,7 +208,7 @@ test('with payments off, Billing and Pricing say so instead of offering to pay',
   await expect(stateLine(page)).toContainText('Paid trial · Ends')
   await expect(
     page.getByText(
-      'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.',
+      'Payments aren’t set up for this app, so you can’t pay here yet. Contact support at support@test.example to change plans.',
       { exact: true }
     )
   ).toBeVisible()
@@ -218,7 +218,7 @@ test('with payments off, Billing and Pricing say so instead of offering to pay',
   await expect(page.getByRole('heading', { level: 1, name: 'Plans' })).toBeVisible()
   await expect(
     page.getByText(
-      'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.',
+      'Payments aren’t set up for this app, so you can’t pay here yet. Contact support at support@test.example to change plans.',
       { exact: true }
     )
   ).toBeVisible()

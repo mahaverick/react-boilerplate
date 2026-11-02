@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vite-plus/test'
 import { formatBillingDate } from '@/lib/billing-format'
 import {
+  paymentsOff,
   billingStateLine,
   cancelBody,
   cancelToast,
@@ -368,5 +369,19 @@ describe('yearlySaving', () => {
     expect(yearlySaving(99_900, 1_198_800)).toBeNull()
     expect(yearlySaving(null, 999_000)).toBeNull()
     expect(yearlySaving(0, 999_000)).toBeNull()
+  })
+})
+
+describe('paymentsOff', () => {
+  it('names the support address once the client settings are in', () => {
+    expect(paymentsOff('support@test.example')).toBe(
+      'Payments aren’t set up for this app, so you can’t pay here yet. Contact support at support@test.example to change plans.'
+    )
+  })
+
+  it('names no address while they are not', () => {
+    expect(paymentsOff(undefined)).toBe(
+      'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+    )
   })
 })

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   createMemoryHistory,
   createRootRoute,
@@ -6,6 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http } from 'msw'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { InvitationInbox } from '@/components/features/invitations/invitation-parts'
@@ -14,19 +16,26 @@ import { ensureSession, resetSessionForTests } from '@/http/session'
 import { toast } from '@/lib/toast'
 import { PII_CLASS_NAME } from '@/observability/telemetry'
 import { useAuthStore } from '@/states/auth.store'
+import { fail } from '@/tests/mocks/handlers'
+import { server } from '@/tests/mocks/server'
 
 vi.mock('@/http/session', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/http/session')>()),
   ensureSession: vi.fn(),
 }))
 
-/** Renders `node` as the only route of a bare router, since the parts draw router links. */
+/** Renders `node` as the only route of a bare router, since the parts draw router links, with a query client for the client settings. */
 async function renderInRouter(node: ReactNode) {
   const router = createRouter({
     routeTree: createRootRoute({ component: () => node }),
     history: createMemoryHistory({ initialEntries: ['/'] }),
   })
-  render(<RouterProvider router={router} />)
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  )
   await act(() => router.load())
 }
 
@@ -63,12 +72,28 @@ describe('InvitationInbox', () => {
     expect(status).toHaveTextContent('We sent a link to ada@example.test.')
     expect(screen.getByText('ada@example.test')).toHaveClass(PII_CLASS_NAME)
     expect(
-      screen.getByText('Open it to join Acme. The link works once and expires in 15 minutes.')
+      await screen.findByText(
+        'Open it to join Acme. The link works once and expires in 20 minutes.'
+      )
     ).toBeVisible()
     const resend = screen.getByRole('button', { name: 'Resend in 1:00' })
     expect(resend).toHaveFocus()
     expect(resend).toHaveAttribute('aria-describedby', status.id)
     expect(screen.getByRole('link', { name: 'Go to the home page' })).toHaveAttribute('href', '/')
+  })
+
+  it('states no lifetime while the client settings cannot be read', async () => {
+    server.use(http.get('/api/v1/status/client-settings', () => fail('Route not found.', 404)))
+    await renderInRouter(
+      <InvitationInbox
+        email="ada@example.test"
+        tenantName="Acme"
+        resendAt={null}
+        resending={false}
+        onResend={vi.fn()}
+      />
+    )
+    expect(await screen.findByText('Open it to join Acme. The link works once.')).toBeVisible()
   })
 
   it('holds Resend until the countdown ends, then calls onResend', async () => {

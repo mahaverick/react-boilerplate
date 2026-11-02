@@ -27,12 +27,8 @@ import { ensureSession, isAuthVerdict, redirectToLogin, subscribeAuthMessage } f
 import { actionMessageFrom } from '@/lib/action-message'
 import { codeFrom, retryAfterSecondsFrom, statusFrom } from '@/lib/api-error'
 import { formatClock } from '@/lib/countdown'
-import {
-  authTimeOf,
-  isNewConfirmation,
-  STEP_UP_LINK_COOLDOWN_MS,
-  STEP_UP_LINK_TTL_MS,
-} from '@/lib/step-up'
+import { formatExpiry } from '@/lib/link-lifetime'
+import { authTimeOf, isNewConfirmation } from '@/lib/step-up'
 import { holdStepUpWait } from '@/lib/step-up-presence'
 import { toast } from '@/lib/toast'
 import { cancelPasskeyPrompt, passkeyFailure, requestPasskey } from '@/lib/webauthn'
@@ -320,11 +316,13 @@ function StepUpBody({
   const sendLink = (from: View) => {
     setNotice(null)
     requestLink.mutateAsync().then(
-      ({ resendAvailableAt }) => {
+      ({ resendAvailableAt, expiresAt }) => {
         if (!mounted.current) return
         beginWait()
         setResendAt(Date.parse(resendAvailableAt))
-        setLinkExpiresAt(Date.now() + STEP_UP_LINK_TTL_MS)
+        // The API names the mailed link's own expiry; one from before that field states none.
+        const expires = expiresAt === undefined ? Number.NaN : Date.parse(expiresAt)
+        setLinkExpiresAt(Number.isFinite(expires) ? expires : null)
         setView('email')
       },
       (error: unknown) => {
@@ -345,9 +343,7 @@ function StepUpBody({
         if (cooldown) {
           beginWait()
           holdResend(wait)
-          // The link went out when the cooldown began, so its 15 minutes started then.
-          const sentAt = Date.now() - Math.max(0, STEP_UP_LINK_COOLDOWN_MS - wait * 1_000)
-          setLinkExpiresAt((current) => current ?? sentAt + STEP_UP_LINK_TTL_MS)
+          // The refusal names no expiry, so the wait states one only from an earlier send in this dialog.
           setView('email')
           return
         }
@@ -481,6 +477,7 @@ function StepUpBody({
     return (
       <EmailWait
         email={email}
+        expiresAt={linkExpiresAt}
         expired={linkExpiresAt !== null && linkLeft === 0}
         resendAt={resendAt}
         busy={requestLink.isPending}
@@ -529,13 +526,14 @@ function StepUpBody({
 }
 
 /**
- * The wait on an emailed link: where it went, how long it works, and a
- * Resend that counts down to when the API will mail again. The sent line is
- * the live region; the clock sits outside it, so it is not announced every
- * second.
+ * The wait on an emailed link: where it went, when it expires (when the API
+ * named it), and a Resend that counts down to when the API will mail again.
+ * The sent line is the live region; the clock sits outside it, so it is not
+ * announced every second.
  */
 function EmailWait({
   email,
+  expiresAt,
   expired,
   resendAt,
   busy,
@@ -544,6 +542,8 @@ function EmailWait({
   cancel,
 }: {
   email: string | undefined
+  /** The link's expiry in epoch ms, or null when the API named none. */
+  expiresAt: number | null
   expired: boolean
   resendAt: number | null
   busy: boolean
@@ -552,6 +552,7 @@ function EmailWait({
   cancel: ReactNode
 }) {
   const left = useCountdown(resendAt)
+  const expiry = expiresAt === null ? null : formatExpiry(new Date(expiresAt).toISOString())
   return (
     <div className="grid gap-4">
       <DialogDescription>
@@ -562,8 +563,8 @@ function EmailWait({
           'That link expired. Send a new link to continue.'
         ) : (
           <>
-            We sent the link to {email ? <Pii>{email}</Pii> : 'your email address'}. It expires in
-            15 minutes.
+            We sent the link to {email ? <Pii>{email}</Pii> : 'your email address'}.
+            {expiry !== null && ` It expires on ${expiry}.`}
           </>
         )}
       </p>

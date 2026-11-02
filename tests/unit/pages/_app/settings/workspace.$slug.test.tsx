@@ -211,8 +211,10 @@ describe('workspace settings', () => {
     renderAppAt('/settings/workspace/acme/members')
     const heading = await screen.findByRole('heading', { name: 'Invite a member', level: 2 })
     const card = heading.closest('[data-slot="card"]')
-    expect(card).toHaveTextContent(
-      'We email them an invitation that expires in 3 days. After they select Join, we email them a link to confirm.'
+    await waitFor(() =>
+      expect(card).toHaveTextContent(
+        'We email them an invitation that expires in 5 days. After they select Join, we email them a link to confirm.'
+      )
     )
     expect(card).not.toHaveTextContent(/open the link again/)
   })

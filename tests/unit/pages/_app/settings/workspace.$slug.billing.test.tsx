@@ -751,7 +751,7 @@ describe('billing page, owner actions by state', () => {
     const card = await overview()
     expect(
       await within(card).findByText(
-        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support at support@test.example to change plans.'
       )
     ).toBeInTheDocument()
     for (const name of ['Switch to yearly', 'Update card', 'Cancel Paid', 'Upgrade to Paid']) {
@@ -767,7 +767,7 @@ describe('billing page, owner actions by state', () => {
     const card = await overview()
     expect(
       await within(card).findByText(
-        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support at support@test.example to change plans.'
       )
     ).toBeInTheDocument()
     expect(within(card).queryByRole('button', { name: 'Upgrade to Paid' })).toBeNull()
@@ -1024,7 +1024,7 @@ describe('billing page, who sees what', () => {
     expect(within(card).queryAllByRole('link')).toEqual([])
     expect(
       screen.queryByText(
-        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support to change plans.'
+        'Payments aren’t set up for this app, so you can’t pay here yet. Contact support at support@test.example to change plans.'
       )
     ).toBeNull()
     expect(screen.queryByText('Only owners can change billing.')).toBeNull()

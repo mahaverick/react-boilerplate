@@ -401,14 +401,14 @@ describe('/auth/link, signed out', () => {
     renderAt(LINK_PATH)
 
     expect(await screen.findByRole('heading', { level: 1, name: LINK_DEAD_TITLE })).toBeVisible()
-    expect(screen.getByText('The link works once and expires in 15 minutes.')).toBeVisible()
+    expect(await screen.findByText('The link works once and expires in 20 minutes.')).toBeVisible()
     expect(screen.getByLabelText('Email')).toHaveValue(LINK_EMAIL)
     await user.click(screen.getByRole('button', { name: 'Email me a new link' }))
 
     expect(await screen.findByRole('heading', { level: 1, name: CHECK_INBOX_TITLE })).toBeVisible()
     expect(requests).toEqual([{ email: LINK_EMAIL, app: 'web' }])
     // The inbox step carries its own copy of the rule; the page's is gone, so it reads once.
-    expect(screen.getAllByText('The link works once and expires in 15 minutes.')).toHaveLength(1)
+    expect(screen.getAllByText('The link works once and expires in 20 minutes.')).toHaveLength(1)
   })
 
   it('lands on the dashboard when another tab uses the new link', async () => {

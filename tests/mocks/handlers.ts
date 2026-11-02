@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw'
 import type { MembershipRole } from '@/constants/roles'
 import type { ClientFlagValues } from '@/observability/flags/flag-types'
 import { testBilling, testEntitlements, testPlans } from '@/tests/fixtures/billing'
+import { testClientSettings } from '@/tests/fixtures/client-settings'
 import { INVITATION_ID, USER_ID } from '@/tests/fixtures/ids'
 import { listPage } from '@/tests/fixtures/list-page'
 import type {
@@ -353,6 +354,10 @@ export const handlers = [
       },
       'Settings retrieved.'
     )
+  ),
+  // Non-default lifetimes and address (tests/fixtures/client-settings.ts), so copy that hard-codes a figure fails.
+  http.get('/api/v1/status/client-settings', () =>
+    ok(testClientSettings, 'Client settings retrieved.')
   ),
   // Read by the root route on every mount; no maintenance, which a test about maintenance overrides.
   http.get('/api/v1/status/maintenance', () =>

@@ -48,6 +48,7 @@ import {
   testUpgradeRequest,
   type BillingStateName,
 } from '../../tests/fixtures/billing'
+import { testClientSettings } from '../../tests/fixtures/client-settings'
 import {
   AUDIT_ID_1,
   AUDIT_ID_2,
@@ -610,7 +611,16 @@ const passkeyHandlers = [
     return ok({ accessToken: 'harness-token-confirmed' }, 'Confirmed.')
   }),
   http.post('/api/v1/auth/step-up/link/request', () =>
-    ok({ resendAvailableAt: new Date(Date.now() + 60_000).toISOString() }, 'Link sent.', 202)
+    ok(
+      {
+        resendAvailableAt: new Date(Date.now() + 60_000).toISOString(),
+        expiresAt: new Date(
+          Date.now() + testClientSettings.stepUpLinkTtlSeconds * 1_000
+        ).toISOString(),
+      },
+      'Link sent.',
+      202
+    )
   ),
   http.post('/api/v1/auth/step-up/link/verify', () => {
     stepUpFresh = true
@@ -1029,6 +1039,10 @@ function applyCheckout(session: CheckoutSession): void {
 const billingHandlers = [
   // Every tenant reads the same state; unmocked, these 401 and sign the harness user out.
   http.get('/api/v1/plans', () => ok(PLANS, 'Plans retrieved.')),
+  // The unit tests' non-default lifetimes and address, so a page that hard-codes a figure fails its fixture test.
+  http.get('/api/v1/status/client-settings', () =>
+    ok(testClientSettings, 'Client settings retrieved.')
+  ),
   http.get('/api/v1/tenants/:slug/entitlements', () =>
     ok(entitlementsView, 'Entitlements retrieved.')
   ),

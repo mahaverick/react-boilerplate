@@ -182,7 +182,9 @@ describe('tenant detail', () => {
     expect(
       await screen.findByRole('heading', { name: 'Workspace suspended', level: 1 })
     ).toBeInTheDocument()
-    expect(screen.getByText('Contact support to restore access.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Contact support at support@test.example to restore access.')
+    ).toBeInTheDocument()
     expect(screen.queryByText(/you aren’t a member/)).not.toBeInTheDocument()
   })
 
