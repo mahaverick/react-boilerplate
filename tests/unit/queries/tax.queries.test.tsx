@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { resetSessionForTests } from '@/http/session'
 import { track } from '@/observability/telemetry'
 import { invoicesQueryOptions, tenantBillingQueryOptions } from '@/queries/billing.queries'
+import { downloadTaxDocument } from '@/queries/tax-download.queries'
 import {
-  downloadTaxDocument,
   taxDetailsQueryOptions,
   taxDocumentsQueryOptions,
   taxKeys,

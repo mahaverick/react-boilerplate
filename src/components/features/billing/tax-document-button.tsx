@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { messageFrom } from '@/lib/api-error'
 import { toast } from '@/lib/toast'
-import { downloadTaxDocument } from '@/queries/tax.queries'
+import { downloadTaxDocument } from '@/queries/tax-download.queries'
 import type { TaxDocumentRef } from '@/types/tax.types'
 
 /**

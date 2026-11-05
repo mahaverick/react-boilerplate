@@ -2,6 +2,7 @@
  * @file Pure helpers over `CLIENT_FLAGS`: the keys and each flag's fallback,
  * the server's answer checked against them, and a list filtered by flag.
  */
+import { isDev } from '@/ports/runtime'
 import { CLIENT_FLAGS } from './flag-keys'
 import type {
   BooleanClientFlagKey,
@@ -91,13 +92,13 @@ export function normalizeFlags(raw: Readonly<Record<string, unknown>>): ClientFl
       continue
     }
     values[key] = definition.fallback
-    if (import.meta.env.DEV) {
+    if (isDev) {
       console.warn(
         `Flag "${key}" is missing or invalid in the server's answer; using its fallback.`
       )
     }
   }
-  if (import.meta.env.DEV) {
+  if (isDev) {
     for (const key of Object.keys(raw)) {
       if (!(key in definitions)) {
         console.warn(`Flag "${key}" is not in this app's CLIENT_FLAGS; ignoring it.`)

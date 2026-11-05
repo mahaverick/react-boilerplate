@@ -1,11 +1,11 @@
 import { create } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
-import {
-  isMaintenanceMode,
+import { modeFromHeader, stateFromError, stateFromStatus } from '@/lib/maintenance-state'
+import type {
   MAINTENANCE_MODE,
-  type MaintenanceMode,
-  type MaintenanceStatus,
-  type READ_ONLY_MODE,
+  MaintenanceMode,
+  MaintenanceStatus,
+  READ_ONLY_MODE,
 } from '@/types/api.types'
 
 /** The maintenance mode and the owner's notice for it, with the setters for each way the app hears of a change. */
@@ -34,11 +34,6 @@ interface MaintenanceModeState {
   setFromError: (code: typeof MAINTENANCE_MODE | typeof READ_ONLY_MODE, body: unknown) => void
 }
 
-/** `value` when it is a string, else `null`: a 503 body is untrusted JSON. */
-function stringOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 /**
  * The maintenance mode as this tab last heard it, from any API response's
  * header, a 503 body or the status endpoint. Memory only: a reload starts at
@@ -49,23 +44,15 @@ export const useMaintenanceModeStore = create<MaintenanceModeState>()((set, get)
   message: null,
   since: null,
   setFromHeader: (value) => {
-    if (!isMaintenanceMode(value) || value === get().mode) return
-    set({ mode: value, message: null, since: null })
+    const mode = modeFromHeader(get().mode, value)
+    if (mode === null) return
+    set({ mode, message: null, since: null })
   },
-  setFromStatus: ({ mode, message, since }) => {
-    set(mode === 'off' ? { mode, message: null, since: null } : { mode, message, since })
+  setFromStatus: (status) => {
+    set(stateFromStatus(status))
   },
   setFromError: (code, body) => {
-    const fields =
-      typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
-    const named = fields.mode
-    const mode: MaintenanceMode =
-      isMaintenanceMode(named) && named !== 'off'
-        ? named
-        : code === MAINTENANCE_MODE
-          ? 'full'
-          : 'read_only'
-    set({ mode, message: stringOrNull(fields.message), since: stringOrNull(fields.since) })
+    set(stateFromError(code, body))
   },
 }))
 
