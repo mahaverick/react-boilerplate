@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vite-plus/test'
 import {
   inviteMemberSchema,
   metadataTextSchema,
@@ -8,6 +7,7 @@ import {
   updateTenantSchema,
   updateTenantSettingsSchema,
 } from '@/schemas/tenant.schemas'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('slugSchema', () => {
   it('accepts a lowercase, hyphenated slug', () => {

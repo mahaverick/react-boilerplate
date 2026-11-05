@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { passkeyNameSchema } from '@/schemas/passkey.schemas'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('passkeyNameSchema', () => {
   it('trims the name', () => {

@@ -1,6 +1,6 @@
 import { AxiosError, AxiosHeaders } from 'axios'
-import { describe, expect, it } from 'vite-plus/test'
 import { isRoleDenied } from '@/lib/role-denied'
+import { describe, expect, it } from '@/tests/support/runner'
 
 /** An axios failure that answered `status`. */
 function answered(status: number) {

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { updateProfileSchema } from '@/schemas/profile.schemas'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('updateProfileSchema', () => {
   it("rejects a control or bidi character with the API's shared-field message", () => {

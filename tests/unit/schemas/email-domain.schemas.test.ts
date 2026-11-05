@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { hostnameDomain } from '@/schemas/email-domain.schemas'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('hostnameDomain', () => {
   it('returns the lowercased dotted domain after the last @', () => {

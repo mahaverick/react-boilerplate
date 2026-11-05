@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { formatClock, formatTimeLeft } from '@/lib/countdown'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('formatClock', () => {
   it.each([

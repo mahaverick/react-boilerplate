@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { z } from 'zod'
 import { analyticsKey } from '@/observability/telemetry'
 import {
@@ -8,6 +7,7 @@ import {
   listValues,
 } from '@/schemas/list-request.schemas'
 import { booleanFilter, dayFilter, defineList, idFilter, listFilter } from '@/schemas/list.schemas'
+import { describe, expect, it } from '@/tests/support/runner'
 
 const list = defineList({
   sorts: ['name', 'created', '-created'],

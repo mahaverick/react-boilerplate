@@ -1,7 +1,7 @@
 import { AxiosError, AxiosHeaders } from 'axios'
-import { describe, expect, it } from 'vite-plus/test'
 import { READ_ONLY_MODE_MESSAGE } from '@/lib/api-error'
 import { retryableFailureMessage } from '@/lib/retry'
+import { describe, expect, it } from '@/tests/support/runner'
 
 /** An Axios error with this status, envelope and headers, as the API's error arrives. */
 function errorWith(status: number, headers: Record<string, string> = {}, code?: string) {

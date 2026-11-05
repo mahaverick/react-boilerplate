@@ -1,5 +1,4 @@
 import { AxiosError, AxiosHeaders } from 'axios'
-import { describe, expect, it } from 'vite-plus/test'
 import {
   codeFrom,
   fieldErrorsFrom,
@@ -9,6 +8,7 @@ import {
   retryAfterSecondsFrom,
   statusFrom,
 } from '@/lib/api-error'
+import { describe, expect, it } from '@/tests/support/runner'
 import type { ApiErrorBody } from '@/types/api.types'
 
 /** An Axios error whose response carries `body`, as the API's error envelope arrives. */

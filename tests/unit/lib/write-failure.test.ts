@@ -1,7 +1,7 @@
 import { AxiosError, AxiosHeaders } from 'axios'
-import { describe, expect, it } from 'vite-plus/test'
 import { markRefusedAfterConfirm } from '@/lib/step-up'
 import { writeFailureMessage } from '@/lib/write-failure'
+import { describe, expect, it } from '@/tests/support/runner'
 
 /** An Axios error carrying express's error envelope. */
 function apiError(status: number, message: string, code: string): AxiosError {

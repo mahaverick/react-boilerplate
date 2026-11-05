@@ -175,7 +175,10 @@ function main() {
       if (path.basename(file) !== 'CHANGELOG.md') {
         problems.push(...historyProblems(file, text, { hashComments: false }))
       }
-      problems.push(...linkProblems(file, text, pathExists, readAnchors))
+      // A design spec under docs/superpowers/ links to sibling specs that live in other repos.
+      if (!file.startsWith('docs/superpowers/')) {
+        problems.push(...linkProblems(file, text, pathExists, readAnchors))
+      }
     } else if (HASH_COMMENT_FILE.test(file)) {
       problems.push(...historyProblems(file, fs.readFileSync(file, 'utf8'), { hashComments: true }))
     } else if (CODE_FILE.test(file)) {

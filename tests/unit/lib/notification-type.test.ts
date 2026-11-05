@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { humanizeNotificationType } from '@/lib/notification-type'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('humanizeNotificationType', () => {
   it.each([

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { emailSchema, signInLinkRequestSchema } from '@/schemas/auth.schemas'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('emailSchema', () => {
   it('normalises the email it is given', () => {

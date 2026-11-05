@@ -12,6 +12,9 @@
     "src/observability/telemetry/index.ts": ["types"],
     // A config file Vite reads by path (`--config`) in playwright.config.ts's webServer command.
     "e2e/harness.vite.config.ts": ["exports"],
+    // The runner port: shared-core.json declares all six test functions, and
+    // expo's Jest copy and later shared tests import the ones this app's do not.
+    "tests/support/runner.ts": ["exports"],
   },
   "ignoreFiles": [
     // Type declarations for scripts/*.mjs. TypeScript resolves them in place

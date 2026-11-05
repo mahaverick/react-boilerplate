@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vite-plus/test'
 import {
   formatBillingDate,
   formatInr,
   invoiceStatusLabel,
   perMonthOfYearly,
 } from '@/lib/billing-format'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('formatInr', () => {
   it('formats paise as whole rupees with Indian grouping', () => {
