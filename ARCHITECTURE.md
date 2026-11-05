@@ -1740,14 +1740,16 @@ differ on purpose:
   browser global (`window`, `document`, `location`, `navigator`,
   `localStorage`, `sessionStorage`), imports no banned package
   (`posthog-js`, `posthog-react-native`, `@tanstack/react-router`,
-  `@simplewebauthn/browser`, `react-native`, `@tabler/icons-react`), and
-  imports only another shared file or a port export the manifest lists. A
-  shared test takes its test functions only from the runner port
-  (`tests/support/runner.ts`), uses no `vi` and no `import.meta`, and imports
-  neither `node:fs` (or `fs`), `msw` nor anything under `@/components`. The manifest's `exemptions` key lists the one exception today:
+  `@simplewebauthn/browser`, `react-native`, `@tabler/icons-react`), imports
+  nothing under `@/components`, and imports only another shared file or a port
+  export the manifest lists. A shared test also takes its test functions only
+  from the runner port (`tests/support/runner.ts`), uses no `vi` and no
+  `import.meta`, and imports neither `node:fs` (or `fs`) nor `msw`. The
+  manifest's `exemptions` key lists the one exception today:
   `tests/unit/copy-style.test.ts` may import `node:fs`.
-- **Apex rows are byte for byte copies.** Apex's `sync-check` (added in plan 2c)
-  byte-compares them with react `main` and re-runs only the expo-row checks.
+- **Apex rows are byte for byte copies.** Apex's `sync-check`, which a later
+  change adds, byte-compares them with react `main` and re-runs only the
+  expo-row checks.
   The purity rules do not apply to an apex-only row.
 - **`check-shared` runs in the gate.** `pnpm check:shared` runs
   `scripts/check-shared.mjs --docs ARCHITECTURE.md`, so it also compares the

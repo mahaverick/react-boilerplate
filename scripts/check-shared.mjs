@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * @file The check-shared check: every file `shared-core.json` shares with
- * expo (and, with `--app`, with that app too) uses no browser-only global and
- * imports only another shared file, a declared export of a declared port, or
- * an npm package that is not banned. A shared test also takes its runner only
- * from the runner port, uses no `vi` and no `import.meta`, and imports neither
- * `node:fs` (or `fs`), `msw` nor anything under `@/components`.
+ * expo (and, with `--app`, with that app too) uses no browser-only global,
+ * imports nothing under `@/components`, and imports only another shared file,
+ * a declared export of a declared port, or an npm package that is not banned.
+ * A shared test also takes its runner only from the runner port, uses no `vi`
+ * and no `import.meta`, and imports neither `node:fs` (or `fs`) nor `msw`.
  * With `--docs`, the docs table (`Path | apex | expo`) must list exactly the
  * manifest's files and tests, with the same apps.
  *
