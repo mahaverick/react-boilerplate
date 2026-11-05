@@ -270,3 +270,13 @@ export interface TenantOnboarding {
   completedAt: string | null
   dismissedAt: string | null
 }
+
+/**
+ * An open account-deletion request, as `GET` and `POST /account/deletion-request`
+ * send it: when it was made and when we will have deleted the account by, as
+ * ISO 8601 UTC. The reason and the row id are never returned.
+ */
+export interface DeletionRequest {
+  requestedAt: string
+  dueAt: string
+}

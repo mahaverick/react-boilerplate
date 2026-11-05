@@ -23,6 +23,8 @@ export const ROUTES = {
   settings: '/settings',
   settingsProfile: '/settings/account/profile',
   settingsNotifications: '/settings/account/notifications',
+  settingsDeleteAccount: '/settings/account/delete',
+  deleteAccount: '/delete-account',
   notifications: '/notifications',
   tenants: '/tenants',
   invitationAccept: '/invitations/accept',

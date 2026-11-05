@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './pages/index'
 import { Route as SplatRouteImport } from './pages/$'
 import { Route as AppRouteImport } from './pages/_app'
 import { Route as AuthRouteImport } from './pages/_auth'
+import { Route as DeleteAccountRouteImport } from './pages/delete-account'
 import { Route as ForgotPasswordRouteImport } from './pages/forgot-password'
 import { Route as PricingRouteImport } from './pages/pricing'
 import { Route as RegisterRouteImport } from './pages/register'
@@ -33,6 +34,7 @@ import { Route as AppSettingsIndexRouteImport } from './pages/_app/settings/inde
 import { Route as AppTenantsIndexRouteImport } from './pages/_app/tenants/index'
 import { Route as AppTenantsSlugRouteImport } from './pages/_app/tenants/$slug'
 import { Route as AppSettingsAccountIndexRouteImport } from './pages/_app/settings/account.index'
+import { Route as AppSettingsAccountDeleteRouteImport } from './pages/_app/settings/account.delete'
 import { Route as AppSettingsAccountNotificationsRouteImport } from './pages/_app/settings/account.notifications'
 import { Route as AppSettingsAccountProfileRouteImport } from './pages/_app/settings/account.profile'
 import { Route as AppSettingsAccountSecurityRouteImport } from './pages/_app/settings/account.security'
@@ -65,6 +67,11 @@ const AppRoute = AppRouteImport.update({
 } as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeleteAccountRoute = DeleteAccountRouteImport.update({
+  id: '/delete-account',
+  path: '/delete-account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -167,6 +174,12 @@ const AppSettingsAccountIndexRoute = AppSettingsAccountIndexRouteImport.update({
   path: '/account/',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsAccountDeleteRoute =
+  AppSettingsAccountDeleteRouteImport.update({
+    id: '/account/delete',
+    path: '/account/delete',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
 const AppSettingsAccountNotificationsRoute =
   AppSettingsAccountNotificationsRouteImport.update({
     id: '/account/notifications',
@@ -255,6 +268,7 @@ const AppSettingsWorkspaceSlugMembersRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -274,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/settings/': typeof AppSettingsIndexRoute
   '/tenants/': typeof AppTenantsIndexRoute
+  '/settings/account/delete': typeof AppSettingsAccountDeleteRoute
   '/settings/account/notifications': typeof AppSettingsAccountNotificationsRoute
   '/settings/account/profile': typeof AppSettingsAccountProfileRoute
   '/settings/account/security': typeof AppSettingsAccountSecurityRoute
@@ -294,6 +309,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -311,6 +327,7 @@ export interface FileRoutesByTo {
   '/invitations/confirm': typeof InvitationsConfirmRoute
   '/settings': typeof AppSettingsIndexRoute
   '/tenants': typeof AppTenantsIndexRoute
+  '/settings/account/delete': typeof AppSettingsAccountDeleteRoute
   '/settings/account/notifications': typeof AppSettingsAccountNotificationsRoute
   '/settings/account/profile': typeof AppSettingsAccountProfileRoute
   '/settings/account/security': typeof AppSettingsAccountSecurityRoute
@@ -333,6 +350,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
+  '/delete-account': typeof DeleteAccountRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -352,6 +370,7 @@ export interface FileRoutesById {
   '/_app/tenants/$slug': typeof AppTenantsSlugRouteWithChildren
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/tenants/': typeof AppTenantsIndexRoute
+  '/_app/settings/account/delete': typeof AppSettingsAccountDeleteRoute
   '/_app/settings/account/notifications': typeof AppSettingsAccountNotificationsRoute
   '/_app/settings/account/profile': typeof AppSettingsAccountProfileRoute
   '/_app/settings/account/security': typeof AppSettingsAccountSecurityRoute
@@ -374,6 +393,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$'
+    | '/delete-account'
     | '/forgot-password'
     | '/pricing'
     | '/register'
@@ -393,6 +413,7 @@ export interface FileRouteTypes {
     | '/tenants/$slug'
     | '/settings/'
     | '/tenants/'
+    | '/settings/account/delete'
     | '/settings/account/notifications'
     | '/settings/account/profile'
     | '/settings/account/security'
@@ -413,6 +434,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
+    | '/delete-account'
     | '/forgot-password'
     | '/pricing'
     | '/register'
@@ -430,6 +452,7 @@ export interface FileRouteTypes {
     | '/invitations/confirm'
     | '/settings'
     | '/tenants'
+    | '/settings/account/delete'
     | '/settings/account/notifications'
     | '/settings/account/profile'
     | '/settings/account/security'
@@ -451,6 +474,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/_app'
     | '/_auth'
+    | '/delete-account'
     | '/forgot-password'
     | '/pricing'
     | '/register'
@@ -470,6 +494,7 @@ export interface FileRouteTypes {
     | '/_app/tenants/$slug'
     | '/_app/settings/'
     | '/_app/tenants/'
+    | '/_app/settings/account/delete'
     | '/_app/settings/account/notifications'
     | '/_app/settings/account/profile'
     | '/_app/settings/account/security'
@@ -493,6 +518,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
+  DeleteAccountRoute: typeof DeleteAccountRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
@@ -534,6 +560,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/delete-account': {
+      id: '/delete-account'
+      path: '/delete-account'
+      fullPath: '/delete-account'
+      preLoaderRoute: typeof DeleteAccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -676,6 +709,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsAccountIndexRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/account/delete': {
+      id: '/_app/settings/account/delete'
+      path: '/account/delete'
+      fullPath: '/settings/account/delete'
+      preLoaderRoute: typeof AppSettingsAccountDeleteRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/settings/account/notifications': {
       id: '/_app/settings/account/notifications'
       path: '/account/notifications'
@@ -809,6 +849,7 @@ const AppSettingsWorkspaceSlugRouteWithChildren =
 
 interface AppSettingsRouteChildren {
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+  AppSettingsAccountDeleteRoute: typeof AppSettingsAccountDeleteRoute
   AppSettingsAccountNotificationsRoute: typeof AppSettingsAccountNotificationsRoute
   AppSettingsAccountProfileRoute: typeof AppSettingsAccountProfileRoute
   AppSettingsAccountSecurityRoute: typeof AppSettingsAccountSecurityRoute
@@ -818,6 +859,7 @@ interface AppSettingsRouteChildren {
 
 const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsIndexRoute: AppSettingsIndexRoute,
+  AppSettingsAccountDeleteRoute: AppSettingsAccountDeleteRoute,
   AppSettingsAccountNotificationsRoute: AppSettingsAccountNotificationsRoute,
   AppSettingsAccountProfileRoute: AppSettingsAccountProfileRoute,
   AppSettingsAccountSecurityRoute: AppSettingsAccountSecurityRoute,
@@ -886,6 +928,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
+  DeleteAccountRoute: DeleteAccountRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,

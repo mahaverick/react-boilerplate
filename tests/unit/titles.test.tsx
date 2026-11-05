@@ -294,6 +294,7 @@ describe('page titles', () => {
   it.each([
     ['the settings landing page', '/settings', 'Settings'],
     ['the security settings page', '/settings/account/security', 'Security'],
+    ['the delete account settings page', '/settings/account/delete', 'Delete account'],
     ['the notification settings page', '/settings/account/notifications', 'Notifications'],
     ['the workspace general page', '/settings/workspace/acme/general', 'General · Acme Corp'],
     ['the workspace activity page', '/settings/workspace/acme/activity', 'Activity · Acme Corp'],

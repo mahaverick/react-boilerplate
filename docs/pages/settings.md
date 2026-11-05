@@ -1,6 +1,6 @@
 # Settings
 
-This file covers the settings shell (`/settings`), account settings (profile, security, notifications) and workspace settings (general, members, billing, activity). Back to the [route map](README.md#route-map).
+This file covers the settings shell (`/settings`), account settings (profile, security, notifications, delete account) and workspace settings (general, members, billing, activity). Back to the [route map](README.md#route-map).
 
 The groups and pages are declared once, in `src/constants/settings.ts` (`SETTINGS_GROUPS`, `SETTINGS_SECTIONS`). The sidebar nav, the landing page and the layout's title all read them.
 
@@ -17,13 +17,13 @@ Terms used below:
 
 ### `/settings` — Settings shell
 
-|             |                                                                                                                                                                                                                                                                                                          |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| File        | `src/pages/_app/settings.tsx`                                                                                                                                                                                                                                                                            |
-| Fetches     | nothing of its own; it sits under `_app`, whose `TenantSearchGuard` reads `GET /tenants` after mount and keeps `?tenant=` on account pages                                                                                                                                                               |
-| Renders     | a `header` with the active section's label as a large `h1` and its description (on the landing page, "Settings" and "Manage your account and the current workspace."), then the page                                                                                                                     |
-| Nav         | `AppLayout` swaps the sidebar's content for `NavSettings`: Back to app (→ `/dashboard`), then "Account": Profile, Security, Notifications; "Workspace · {tenant name}": General, Members, Billing, Activity. With no current tenant the workspace items are disabled and say "Choose a workspace first." |
-| Breadcrumbs | Settings › {page}; on workspace pages Settings › {slug} (plain text) › {page}                                                                                                                                                                                                                            |
+|             |                                                                                                                                                                                                                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| File        | `src/pages/_app/settings.tsx`                                                                                                                                                                                                                                                                                            |
+| Fetches     | nothing of its own; it sits under `_app`, whose `TenantSearchGuard` reads `GET /tenants` after mount and keeps `?tenant=` on account pages                                                                                                                                                                               |
+| Renders     | a `header` with the active section's label as a large `h1` and its description (on the landing page, "Settings" and "Manage your account and the current workspace."), then the page                                                                                                                                     |
+| Nav         | `AppLayout` swaps the sidebar's content for `NavSettings`: Back to app (→ `/dashboard`), then "Account": Profile, Security, Notifications, Delete account; "Workspace · {tenant name}": General, Members, Billing, Activity. With no current tenant the workspace items are disabled and say "Choose a workspace first." |
+| Breadcrumbs | Settings › {page}; on workspace pages Settings › {slug} (plain text) › {page}                                                                                                                                                                                                                                            |
 
 ### `/settings/workspace/$slug` — Workspace gate
 
@@ -44,16 +44,16 @@ Findings: [F-settings-1](findings.md#f-settings-1), [F-settings-2](findings.md#f
 
 ![Settings](img/settings/settings-index--default.jpg)
 
-|                     |                                                                                                                                                                                                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose             | One card per settings group, each page a row that links to it.                                                                                                                                                                                                       |
-| File                | `src/pages/_app/settings/index.tsx`                                                                                                                                                                                                                                  |
-| Guard and redirects | `_app`                                                                                                                                                                                                                                                               |
-| Layout              | `AppLayout` › settings shell                                                                                                                                                                                                                                         |
-| Data                | none of its own; the workspace links use `useCurrentTenantSlug()` (the shell's `?tenant`)                                                                                                                                                                            |
-| Sections            | `SettingsLinkList` per group: Account (Profile, Security, Notifications) and Workspace (General, Members, Billing, Activity), each row an icon, label, description and chevron. Without a tenant the Workspace rows are plain text under "Choose a workspace first." |
-| Components          | `Card`, `ItemGroup`, `Item` (link rows), `ItemMedia`, `ItemContent`, `ItemTitle`, `ItemDescription`                                                                                                                                                                  |
-| Transitions         | each row → its page; Back to app → `/dashboard`                                                                                                                                                                                                                      |
+|                     |                                                                                                                                                                                                                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Purpose             | One card per settings group, each page a row that links to it.                                                                                                                                                                                                                       |
+| File                | `src/pages/_app/settings/index.tsx`                                                                                                                                                                                                                                                  |
+| Guard and redirects | `_app`                                                                                                                                                                                                                                                                               |
+| Layout              | `AppLayout` › settings shell                                                                                                                                                                                                                                                         |
+| Data                | none of its own; the workspace links use `useCurrentTenantSlug()` (the shell's `?tenant`)                                                                                                                                                                                            |
+| Sections            | `SettingsLinkList` per group: Account (Profile, Security, Notifications, Delete account) and Workspace (General, Members, Billing, Activity), each row an icon, label, description and chevron. Without a tenant the Workspace rows are plain text under "Choose a workspace first." |
+| Components          | `Card`, `ItemGroup`, `Item` (link rows), `ItemMedia`, `ItemContent`, `ItemTitle`, `ItemDescription`                                                                                                                                                                                  |
+| Transitions         | each row → its page; Back to app → `/dashboard`                                                                                                                                                                                                                                      |
 
 ### `/settings/account/profile` — Profile
 
@@ -90,6 +90,23 @@ No shot in `img/`: running `pnpm capture:pages` against a live express 6 stack t
 There is no password control. Other sessions renders at once and does not wait on the providers request. Only the sign-in methods hold their place, with a heading and two method rows, while it loads. A failed providers request shows `LoadError` "We couldn’t load your sign-in methods. Select Try again to load them." in their place.
 
 Findings: [F-settings-3](findings.md#f-settings-3), [F-settings-12](findings.md#f-settings-12)
+
+### `/settings/account/delete` — Delete account
+
+No shot in `img/`: running `pnpm capture:pages` against a live express 6 stack takes it.
+
+|                     |                                                                                                                                                                                                                                                                                                           |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose             | Ask us to delete the account, or see the request that is open.                                                                                                                                                                                                                                            |
+| File                | `src/pages/_app/settings/account.delete.tsx`, rendering `DeleteAccountSection` (`src/components/features/account/delete-account-section.tsx`) in one `Card`                                                                                                                                               |
+| Guard and redirects | `_app`; the public `/delete-account` sends signed-in visitors here                                                                                                                                                                                                                                        |
+| Layout              | `AppLayout` › settings shell                                                                                                                                                                                                                                                                              |
+| Data                | started: `GET /account/deletion-request` (`['account', 'deletion-request']`, answers `{ request }`). `POST /account/deletion-request { reason? }` on its button, through `useStepUp().run`; the answer replaces the cached request.                                                                       |
+| Sections            | With no open request: the explanation, "Why are you leaving?" (optional, at most 500 characters), the address in `Pii` and Request deletion. With one: "You asked us to delete your account on {date}. We’ll delete it by {date}." Both end with "What we delete" (`WhatWeDelete`, `what-we-delete.tsx`). |
+| Components          | `Card`, `QueryState`, `BusyButton`, `Field`, `Textarea`, `Pii`, `WhatWeDelete`                                                                                                                                                                                                                            |
+| Transitions         | Request deletion toasts the receipt note and swaps the form for the two dates                                                                                                                                                                                                                             |
+
+There is no cancel control: express has no route to withdraw a request.
 
 ### `/settings/account/notifications` — Notifications
 

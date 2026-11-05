@@ -211,6 +211,10 @@ export const handlers = [
   http.get('/api/v1/auth/passkeys', () =>
     ok({ passkeys: [], userHandle: 'HANDLE' }, 'Passkeys retrieved.')
   ),
+  // Fetched by Settings › Delete account; no request is open unless a test says so.
+  http.get('/api/v1/account/deletion-request', () =>
+    ok({ request: null }, 'No deletion request is open.')
+  ),
   // Fetched by the profile page's Security section; an email-link account, which a test about Google or a failed load overrides.
   http.get('/api/v1/auth/providers', () =>
     ok(

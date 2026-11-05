@@ -495,6 +495,7 @@ under `src/pages/_app/settings/`.
 | `/settings/account/profile`          | Name, email and the privacy (analytics) choice             |
 | `/settings/account/security`         | Sign-in methods and other sessions                         |
 | `/settings/account/notifications`    | Notification preferences                                   |
+| `/settings/account/delete`           | Ask for the account to be deleted, or see the open request |
 | `/settings/workspace/$slug/general`  | The tenant's details and settings; `$slug/` redirects here |
 | `/settings/workspace/$slug/members`  | Members, roles and pending invitations                     |
 | `/settings/workspace/$slug/activity` | The tenant's audit log                                     |

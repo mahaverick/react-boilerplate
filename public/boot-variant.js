@@ -14,6 +14,7 @@ var BOOT_AUTH_PATHS = [
   '/auth/confirm',
   '/welcome',
   '/pricing',
+  '/delete-account',
   '/invitations/accept',
   '/invitations/confirm',
   '/no-access',

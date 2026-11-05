@@ -50,6 +50,7 @@ describe('settings config', () => {
       'Profile',
       'Security',
       'Notifications',
+      'Delete account',
       'General',
       'Members',
       'Billing',

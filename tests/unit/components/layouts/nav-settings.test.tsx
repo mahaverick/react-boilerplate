@@ -87,6 +87,7 @@ describe('NavSettings', () => {
       'Profile',
       'Security',
       'Notifications',
+      'Delete account',
       'General',
       'Members',
       'Billing',

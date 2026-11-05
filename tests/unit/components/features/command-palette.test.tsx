@@ -188,6 +188,7 @@ describe('CommandPalette', () => {
     ['Go to', '/dashboard', '', 'Profile', 'open_page'],
     ['Go to', '/dashboard', '', 'Security', 'open_page'],
     ['Go to', '/dashboard', '', 'Notification settings', 'open_page'],
+    ['Go to', '/dashboard', '', 'Delete account', 'open_page'],
     ['Go to', '/notifications?tenant=acme', '', 'General', 'open_page'],
     ['Go to', '/notifications?tenant=acme', '', 'Members', 'open_page'],
     ['Go to', '/notifications?tenant=acme', '', 'Billing', 'open_page'],
@@ -236,6 +237,7 @@ describe('CommandPalette', () => {
       'Profile',
       'Security',
       'Notification settings',
+      'Delete account',
     ])
   })
 

@@ -155,6 +155,16 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     ],
     note: 'Signed out: "Start free" and the trial line.',
   },
+  '/delete-account': {
+    kind: 'page',
+    area: 'auth',
+    shot: 'delete-account',
+    url: '/delete-account',
+    as: 'anonymous',
+    sections: [],
+    responsive: true,
+    note: 'Signed in, the page redirects to /settings/account/delete in beforeLoad (the `_auth` check).',
+  },
   '/auth/callback': {
     kind: 'redirect',
     to: '/welcome for a new account (new=1), else the safe redirect or /dashboard when signed in, else /login?error=google_auth_failed (in an effect)',
@@ -254,6 +264,15 @@ export const CAPTURES: Record<keyof FileRoutesByFullPath, RouteCapture> = {
     url: '/settings/account/security',
     as: 'owner',
     sections: [{ name: 'Sign-in methods', endpoints: ['GET /auth/providers'] }],
+  },
+  '/settings/account/delete': {
+    kind: 'page',
+    area: 'settings',
+    shot: 'account-delete',
+    url: '/settings/account/delete',
+    as: 'owner',
+    sections: [{ name: 'Deletion request', endpoints: ['GET /account/deletion-request'] }],
+    note: 'Requesting deletion needs a recent sign-in, which the capture does not give; the open-request state is taken by hand in the final walk.',
   },
   '/settings/workspace/$slug': {
     kind: 'layout',

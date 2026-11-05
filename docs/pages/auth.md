@@ -164,6 +164,21 @@ No shots in `img/`. A `pnpm capture:pages` run takes them: signed out (default, 
 - **`PricingFaq`:** the trial end, cancelling and paying, and the tax question only when `gstRegistered`.
 - **A failed read** shows `LoadError` "Plans didn’t load. Select Try again." under the `h1`.
 
+### `/delete-account` — Delete your account
+
+No shots in `img/`. A `pnpm capture:pages` run takes them: signed out (default, dark and mobile).
+
+|                     |                                                                                                                                                                                                                            |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose             | The web address entered in Google Play Console for account deletion. It names the app, lists the steps and says what we delete and keep, then gets a signed-out visitor to Settings › Delete account.                      |
+| File                | `src/pages/delete-account.tsx`, with `WhatWeDelete` from `src/components/features/account/what-we-delete.tsx`                                                                                                              |
+| Guard and redirects | own `beforeLoad`: a signed-in visitor goes to `/settings/account/delete`, with the check `_auth` uses (`isSignedInVisitor`, `src/lib/signed-in-guard.ts`), except while maintenance is `full`. Top level, outside `_auth`. |
+| Layout              | `AuthLayout` › `AuthCard` titled "Delete your {app name} account" (`h1`), then "Check your inbox" once a link is on its way                                                                                                |
+| Data                | none of its own. `POST /auth/link/request` with `redirect: '/settings/account/delete'`, through `SignInLinkForm`.                                                                                                          |
+| Sections            | three numbered steps, the sign-in link form, and "What we delete" (`h2`)                                                                                                                                                   |
+| Components          | `AuthLayout`, `AuthCard`, `SignInLinkForm`, `WhatWeDelete`                                                                                                                                                                 |
+| Transitions         | the emailed link → `/auth/link` → `/settings/account/delete`; another tab that signs in lands there too                                                                                                                    |
+
 ### `/invitations/accept` — Accept an invitation
 
 |                     |                                                                                                                                                                                                                                                                                                         |
