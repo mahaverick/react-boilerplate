@@ -33,7 +33,8 @@ export { isAuthVerdict, SessionIdentityChangedError } from '@/http/auth-verdict'
  *
  * A full-page `assign`, not a router navigation: its callers run outside
  * render with no router to hand, and a dead session is the moment to discard
- * all in-memory state. `refreshSession()` does not call it, because
+ * all in-memory state. The refresh core's `refreshSession()`
+ * (`src/http/refresh-core.ts`) does not call it, because
  * `bootstrapSession()` drives a 401 through there on every cold load with a
  * dead cookie, and navigating from there would replace the router guard's
  * client-side redirect with a full page load, and on /login loop.

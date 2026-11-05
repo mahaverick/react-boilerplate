@@ -26,7 +26,7 @@
     "check": "vp check && eslint . --max-warnings 0",
     "lint": "vp lint && eslint . --max-warnings 0 && vp fmt --check",
     "lint:docs": "node scripts/lint-docs.mjs",
-    "check:shared": "node scripts/check-shared.mjs",
+    "check:shared": "node scripts/check-shared.mjs --docs ARCHITECTURE.md",
     "knip": "knip",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && pnpm typecheck:e2e",
     "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",

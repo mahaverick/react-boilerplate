@@ -238,6 +238,10 @@ this site for universal links, app links and password autofill:
 - A variable that is unset or empty writes no file, so nginx answers `404` for
   its path.
 - Both files are served as `application/json`, with no redirect and `no-store`.
+- Apple's content delivery network (CDN) caches the
+  `apple-app-site-association` file, and iOS reads it from there rather than
+  from this site. A change to `IOS_APP_IDS` can therefore take a while to reach
+  devices, even after the container serves the new file at once.
 
 The dev server and `pnpm preview` serve neither file.
 
@@ -294,6 +298,14 @@ with External Secrets or the Secret Manager CSI driver (the `secretKeyRef`
 stays as it is), or on Cloud Run map it straight to the variable
 (`--set-secrets=POSTHOG_KEY=posthog-key:latest`). Either way, the container
 sees only an environment variable.
+
+#### Account-deletion URL
+
+`/delete-account` is a public page. Enter `https://<your host>/delete-account`
+in the account-deletion URL field of Google Play Console. A signed-in visitor is
+sent to Settings > Account > Delete (`/settings/account/delete`). A signed-out
+visitor gets a form that emails a sign-in link, and the link brings them back to
+`/settings/account/delete`.
 
 ## Scripts
 
