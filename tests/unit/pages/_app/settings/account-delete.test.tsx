@@ -56,7 +56,7 @@ describe('delete account settings page', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Delete account' })).toBeVisible()
     expect(
       await screen.findByText(
-        'Ask us to delete your account. Our team deletes it within 30 days and emails you when it’s done. If you’re the only owner of a workspace or pay for a running subscription, we contact you first.'
+        'Ask us to delete your account. Our team deletes it within 30 days and emails you when it’s done. If you’re the only owner of a workspace or pay for a running subscription, we can’t delete it until that’s settled.'
       )
     ).toBeVisible()
     expect(screen.getByLabelText('Why are you leaving?')).toHaveAttribute('maxlength', '500')
@@ -80,7 +80,7 @@ describe('delete account settings page', () => {
       'We keep our audit log, which records actions taken in your account and workspaces. At the purge, entries for actions you took lose your user ID, IP address and browser details. Entries about your account keep the account’s ID. We keep audit entries with no end date, unless we set a retention period for the audit log.'
     )
     expect(section).toHaveTextContent(
-      'We can’t delete it while you’re the only owner of a workspace, even one with no other members, or while you pay for a running subscription. Your request then stays open, and our staff contact you to settle it, for example by handing the workspace over or deleting it.'
+      'We can’t delete it while you’re the only owner of a workspace, even one with no other members, or while you pay for a running subscription. Your request then stays open. Our staff help hand the workspace over or delete it, or move the subscription to a co-owner or cancel it. Then we delete your account.'
     )
   })
 
@@ -240,7 +240,7 @@ describe('delete account settings page', () => {
     })
     expect(
       within(dialog).getByText(
-        `Our team deletes it by the date in your receipt email, at most 30 days from now. You stay signed in until then. If you’re the only owner of a workspace or pay for a running subscription, we contact you first. To withdraw the request, write to ${testClientSettings.supportEmail}.`
+        `Our team deletes it by the date in your receipt email, at most 30 days from now. You stay signed in until then. If you’re the only owner of a workspace or pay for a running subscription, we can’t delete it until that’s settled. To withdraw the request, write to ${testClientSettings.supportEmail}.`
       )
     ).toBeVisible()
     expect(bodies).toEqual([])

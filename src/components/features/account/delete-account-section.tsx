@@ -135,8 +135,8 @@ function RequestForm() {
     <div className="grid gap-4">
       <p id={hintId} className="text-sm">
         Ask us to delete your account. Our team deletes it within 30 days and emails you when it’s
-        done. If you’re the only owner of a workspace or pay for a running subscription, we contact
-        you first.
+        done. If you’re the only owner of a workspace or pay for a running subscription, we can’t
+        delete it until that’s settled.
       </p>
       <Field>
         <FieldLabel htmlFor={reasonId}>Why are you leaving?</FieldLabel>
@@ -178,8 +178,8 @@ function RequestForm() {
             <AlertDialogDescription>
               Our team deletes it by the date in your receipt email, at most 30 days from now. You
               stay signed in until then. If you’re the only owner of a workspace or pay for a
-              running subscription, we contact you first. To withdraw the request,{' '}
-              {writeToSupport(supportEmail)}.
+              running subscription, we can’t delete it until that’s settled. To withdraw the
+              request, {writeToSupport(supportEmail)}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

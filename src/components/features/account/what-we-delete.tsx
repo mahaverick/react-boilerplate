@@ -21,8 +21,9 @@ export function WhatWeDelete({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
       </p>
       <p>
         We can’t delete it while you’re the only owner of a workspace, even one with no other
-        members, or while you pay for a running subscription. Your request then stays open, and our
-        staff contact you to settle it, for example by handing the workspace over or deleting it.
+        members, or while you pay for a running subscription. Your request then stays open. Our
+        staff help hand the workspace over or delete it, or move the subscription to a co-owner or
+        cancel it. Then we delete your account.
       </p>
       <p>
         When our staff purge your account, we permanently erase your name, your email address and
