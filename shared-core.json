@@ -338,6 +338,6 @@
     ]
   },
   "exemptions": {
-    "tests/unit/copy-style.test.ts": ["node:fs", "node:path", "typescript"]
+    "tests/unit/copy-style.test.ts": ["node:fs"]
   }
 }

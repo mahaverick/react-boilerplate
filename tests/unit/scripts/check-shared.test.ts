@@ -230,4 +230,97 @@ describe('checkShared', () => {
       'ARCHITECTURE.md:6: src/lib/gone.ts is in the table but not in shared-core.json',
     ])
   })
+
+  it('refuses a banned global re-exported locally, and allows a re-export from a module', () => {
+    const text = [
+      'export { sessionStorage }',
+      'export { localStorage as store }',
+      'const own = 1',
+      'export { own as window }',
+      "export { location } from './also'",
+    ].join('\n')
+    expect(
+      checkOne(
+        text,
+        { 'src/lib/also.ts': 'export const location = 1\n' },
+        {
+          files: { 'src/lib/also.ts': ['expo'] },
+        }
+      )
+    ).toEqual([
+      'src/lib/shared.ts:1: uses the browser global sessionStorage',
+      'src/lib/shared.ts:2: uses the browser global localStorage',
+    ])
+  })
+
+  it('refuses a banned global reached through globalThis, self or window', () => {
+    const text = [
+      'export const a = globalThis.localStorage',
+      "export const b = globalThis['document']",
+      'export const c = self.location',
+      "export const d = window['navigator']",
+      'export const e = globalThis.fetch',
+      'export function f(self: { location: string }) { return self.location }',
+    ].join('\n')
+    expect(checkOne(text)).toEqual([
+      'src/lib/shared.ts:1: uses the browser global localStorage',
+      'src/lib/shared.ts:2: uses the browser global document',
+      'src/lib/shared.ts:3: uses the browser global location',
+      'src/lib/shared.ts:4: uses the browser global navigator',
+      'src/lib/shared.ts:4: uses the browser global window',
+    ])
+  })
+
+  it('refuses any import.meta use in a shared file but import.meta.url', () => {
+    const text = [
+      'export const url = import.meta.url',
+      "export const a = import.meta['env']",
+      'export const { env } = import.meta',
+      "export const g = import.meta.glob('./*.ts')",
+      'export const h = import.meta.hot',
+    ].join('\n')
+    expect(checkOne(text)).toEqual([
+      "src/lib/shared.ts:2: uses import.meta['env']",
+      'src/lib/shared.ts:3: uses import.meta',
+      'src/lib/shared.ts:4: uses import.meta.glob',
+      'src/lib/shared.ts:5: uses import.meta.hot',
+    ])
+  })
+
+  it('checks type imports and require calls like any import', () => {
+    const text = [
+      "export type A = import('posthog-js').PostHog",
+      "export const b = require('react-native')",
+      "import c = require('@/lib/other')",
+      "export type D = import('@/http/client').Secret",
+      'export const all = [c]',
+    ].join('\n')
+    expect(
+      checkOne(
+        text,
+        { 'src/lib/other.ts': 'export const o = 1\n', 'src/http/client.ts': '' },
+        { ports: { 'src/http/client.ts': ['apiClient'] } }
+      )
+    ).toEqual([
+      'src/lib/shared.ts:1: imports posthog-js, which is banned in a shared file',
+      'src/lib/shared.ts:2: imports react-native, which is banned in a shared file',
+      'src/lib/shared.ts:3: imports @/lib/other, which is neither shared nor a port',
+      'src/lib/shared.ts:4: imports Secret from the port src/http/client.ts, which does not declare it',
+    ])
+  })
+
+  it('reports a docs table row whose apps differ from the manifest', () => {
+    const docs = [
+      '| Path | apex | expo |',
+      '| --- | --- | --- |',
+      '| `src/lib/shared.ts` | — | yes |',
+    ].join('\n')
+    const root = tree(
+      { 'src/lib/shared.ts': 'export const a = 1\n', 'ARCHITECTURE.md': docs },
+      { files: { 'src/lib/shared.ts': ['apex', 'expo'] } }
+    )
+    expect(checkShared({ root, docs: 'ARCHITECTURE.md' }).map(format)).toEqual([
+      'ARCHITECTURE.md:3: src/lib/shared.ts lists expo, and shared-core.json lists apex, expo',
+    ])
+  })
 })

@@ -29,8 +29,11 @@ const BANNED_GLOBALS = new Set([
   'sessionStorage',
 ])
 
-/** `import.meta` properties only Vite or Node gives. */
+/** `import.meta` properties a shared test may not read either; a shared file may read only `url`. */
 const BANNED_META = new Set(['env', 'dirname'])
+
+/** Free names through which a property reaches the global object. */
+const GLOBAL_OBJECTS = new Set(['globalThis', 'self', 'window'])
 
 /** Packages only one platform has. */
 const BANNED_PACKAGES = [
@@ -214,7 +217,14 @@ function isNameSide(node) {
   ) {
     return parent.name === node
   }
-  if (ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent)) return true
+  if (ts.isImportSpecifier(parent)) return true
+  if (ts.isExportSpecifier(parent)) {
+    // A local `export { x }` reads x; a re-export `from` a module or an `as` alias does not.
+    return (
+      Boolean(parent.parent.parent.moduleSpecifier) ||
+      (parent.propertyName !== undefined && parent.name === node)
+    )
+  }
   if (ts.isLabeledStatement(parent) || ts.isBreakOrContinueStatement(parent)) {
     return parent.label === node
   }
@@ -235,7 +245,30 @@ function isGlobalReference(node) {
 }
 
 /**
- * Each import a file makes: static, type-only, re-export and dynamic.
+ * The first name of a possibly qualified name: `A` for `A.B.C`.
+ * @param name - The name.
+ * @returns Its leftmost identifier's text.
+ */
+function leftmostName(name) {
+  return ts.isQualifiedName(name) ? leftmostName(name.left) : name.text
+}
+
+/**
+ * The property a member access names, when it is written literally.
+ * @param node - A property or element access.
+ * @returns The property name, or null when it is computed.
+ */
+function accessedName(node) {
+  if (ts.isPropertyAccessExpression(node)) return node.name.text
+  if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression)) {
+    return node.argumentExpression.text
+  }
+  return null
+}
+
+/**
+ * Each import a file makes: static, type-only, re-export, dynamic, type-level
+ * `import('x').T`, `require('x')` and `import x = require('x')`.
  * @param source - The parsed file.
  * @returns The specifier, its node, and the names it takes (null when it
  *   takes the whole module, as a namespace, `export *` or `import()` does).
@@ -274,6 +307,31 @@ function importsOf(source) {
       ts.isStringLiteralLike(node.arguments[0])
     ) {
       found.push({ specifier: node.arguments[0].text, node, names: null })
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)
+    ) {
+      found.push({
+        specifier: node.argument.literal.text,
+        node,
+        names: node.qualifier ? [leftmostName(node.qualifier)] : null,
+      })
+    } else if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'require' &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      found.push({ specifier: node.arguments[0].text, node, names: null })
+    } else if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      ts.isStringLiteral(node.moduleReference.expression)
+    ) {
+      found.push({ specifier: node.moduleReference.expression.text, node, names: null })
+      return
     }
     ts.forEachChild(node, visit)
   }
@@ -352,12 +410,32 @@ function checkRow(context, file, isTest) {
    */
   const visit = (node) => {
     if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) {
-      const property =
-        ts.isPropertyAccessExpression(node.parent) && node.parent.expression === node
-          ? node.parent.name.text
-          : null
-      if (property && BANNED_META.has(property)) report(node, `uses import.meta.${property}`)
-      else if (isTest) report(node, 'uses import.meta, which a shared test may not')
+      const isAccess =
+        (ts.isPropertyAccessExpression(node.parent) || ts.isElementAccessExpression(node.parent)) &&
+        node.parent.expression === node
+      const property = isAccess ? accessedName(node.parent) : null
+      if (isTest) {
+        report(
+          node,
+          property && BANNED_META.has(property)
+            ? `uses import.meta.${property}`
+            : 'uses import.meta, which a shared test may not'
+        )
+      } else if (property === null) {
+        report(node, 'uses import.meta')
+      } else if (ts.isElementAccessExpression(node.parent)) {
+        report(node, `uses import.meta['${property}']`)
+      } else if (property !== 'url') {
+        report(node, `uses import.meta.${property}`)
+      }
+    } else if (
+      (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) &&
+      ts.isIdentifier(node.expression) &&
+      GLOBAL_OBJECTS.has(node.expression.text) &&
+      isGlobalReference(node.expression) &&
+      BANNED_GLOBALS.has(accessedName(node) ?? '')
+    ) {
+      report(node, `uses the browser global ${accessedName(node)}`)
     } else if (ts.isIdentifier(node) && isGlobalReference(node)) {
       if (BANNED_GLOBALS.has(node.text)) report(node, `uses the browser global ${node.text}`)
       else if (isTest && node.text === 'vi') report(node, 'uses vi, which a shared test may not')
