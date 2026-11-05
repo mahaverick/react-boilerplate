@@ -1,6 +1,6 @@
 import { UpgradeAction } from '@/components/features/billing/upgrade-action'
 import { Note } from '@/components/shared/note'
-import { membersLimitLine } from '@/lib/members-limit'
+import { membersLimitLine } from '@/copy/members-limit'
 import { useEntitlements } from '@/queries/billing.queries'
 
 /**

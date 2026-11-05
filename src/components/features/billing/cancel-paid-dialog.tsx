@@ -12,8 +12,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { cancelBody, cancelToast, type BillingLineContext } from '@/copy/billing'
 import { messageFrom } from '@/lib/api-error'
-import { cancelBody, cancelToast, type BillingLineContext } from '@/lib/billing-page'
 import { toast } from '@/lib/toast'
 import { track } from '@/observability/telemetry'
 import { invalidateBilling, useCancelPaid } from '@/queries/billing.queries'

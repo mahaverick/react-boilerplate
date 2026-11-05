@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vite-plus/test'
-import { membersLimitLine } from '@/lib/members-limit'
+import { membersLimitLine } from '@/copy/members-limit'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('membersLimitLine', () => {
   it('names the limit at the limit', () => {

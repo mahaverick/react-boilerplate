@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { BusyButton } from '@/components/shared/busy-button'
 import { Button } from '@/components/ui/button'
+import { intervalPriceLine, upgradeLabel } from '@/copy/billing'
 import { formatInr } from '@/lib/billing-format'
-import { intervalPriceLine, upgradeLabel } from '@/lib/billing-page'
 import { track } from '@/observability/telemetry'
 import type { BillingInterval, PlansResponse, TenantBilling } from '@/types/billing.types'
 

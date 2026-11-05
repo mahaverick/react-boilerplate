@@ -4,16 +4,9 @@ import { PlanChoice } from '@/components/features/billing/plan-choice'
 import { BusyButton } from '@/components/shared/busy-button'
 import { QueryState } from '@/components/shared/query-state'
 import { CardRowsSkeleton } from '@/components/shared/section-skeleton'
+import { CARD_CODE_HINT, paymentsOff, switchArea, type BillingLineContext } from '@/copy/billing'
 import { useCheckoutFlow, type CheckoutKind } from '@/hooks/use-checkout-flow'
-import {
-  CARD_CODE_HINT,
-  canChangeSubscription,
-  cardChangeNeedsCode,
-  paymentsOff,
-  showsPlanChoice,
-  switchArea,
-  type BillingLineContext,
-} from '@/lib/billing-page'
+import { canChangeSubscription, cardChangeNeedsCode, showsPlanChoice } from '@/lib/billing-page'
 import { usePlans } from '@/queries/billing.queries'
 import { useClientSettings } from '@/queries/client-settings.queries'
 import type { TenantBilling } from '@/types/billing.types'
