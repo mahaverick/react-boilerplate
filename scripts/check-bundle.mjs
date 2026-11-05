@@ -94,8 +94,11 @@ import { build } from 'vite'
  * (`create-api-client`, `interceptors`, `refresh-core`, `auth-verdict`) and the
  * account-deletion routes (`/delete-account`, `/settings/account/delete`) account for the
  * growth; `main` measured exactly 593,750 B before this branch.
+ * 2026-11-05: 596,387 -> 596,419 (32 B). The delete-account confirm dialog stays
+ * lazy, but `account.delete` now needs more chunks, so the entry's preload map
+ * names them; no app module joined the entry.
  */
-const ENTRY_BUDGET_BYTES = 596_387
+const ENTRY_BUDGET_BYTES = 596_419
 
 /**
  * A module inside one of the devtools packages, by its node_modules path. Module
