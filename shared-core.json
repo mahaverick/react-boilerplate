@@ -155,10 +155,10 @@
     "src/queries/notification-list.queries.ts": ["expo"],
     "src/queries/notification.queries.ts": ["expo"],
     "src/queries/onboarding.queries.ts": ["expo"],
-    "src/queries/passkey-manage.queries.ts": ["apex"],
-    "src/queries/passkey.queries.ts": ["apex"],
+    "src/queries/passkey-manage.queries.ts": ["apex", "expo"],
+    "src/queries/passkey.queries.ts": ["apex", "expo"],
     "src/queries/profile.queries.ts": ["expo"],
-    "src/queries/step-up.queries.ts": ["apex"],
+    "src/queries/step-up.queries.ts": ["apex", "expo"],
     "src/queries/tax.queries.ts": ["expo"],
     "src/queries/tenant-forms.queries.ts": ["expo"],
     "src/queries/tenant.queries.ts": ["expo"],
@@ -181,6 +181,7 @@
     "src/types/billing.types.ts": ["expo"],
     "src/types/list.types.ts": ["apex", "expo"],
     "src/types/passkey.types.ts": ["apex", "expo"],
+    "src/types/webauthn.types.ts": ["apex", "expo"],
     "src/types/tax.types.ts": ["expo"]
   },
   "tests": {
@@ -330,6 +331,7 @@
     ],
     "src/ports/navigation.ts": ["assignLocation"],
     "src/ports/runtime.ts": ["isDev"],
+    "src/ports/webauthn.ts": ["webauthn"],
     "src/states/auth.store.ts": ["useAuthStore"],
     "src/states/maintenance-mode.store.ts": ["useMaintenanceModeStore"]
   },
