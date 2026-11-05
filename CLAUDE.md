@@ -18,8 +18,8 @@ ports and the rules.
 - **Change a shared path in each app its row names in the same pull request
   (PR)**, and say in the description what happened there ("ported in apex#N",
   or "not applicable because ...").
-- **Change this copy first, then copy it to the other apps.** The exception is `scrub.ts`,
-  whose rules change in express first.
+- **Change this copy first, then copy it to the other apps.** The exception is
+  `scrub.ts`, whose rules change in express first.
 - **The purity rules bind expo rows only.** An expo row uses no browser global
   or banned package and imports only shared files and ports; apex rows are byte
   for byte copies.

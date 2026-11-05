@@ -11,8 +11,8 @@ observability, maintenance mode and the container fit around it.
 This app shares code with apex, the staff console, and with expo, the mobile
 app ([Shared core](#shared-core) lists every shared path). The shared parts are
 the HTTP layer, analytics, feature flags, error tracking and the container
-files the table names. Their sections describe the shared code. Sections and subsections marked _this app
-only_ describe code apex does not have.
+files the table names. Their sections describe the shared code. Sections and
+subsections marked _this app only_ describe code apex does not have.
 
 ## Layout of `src/`
 
@@ -35,7 +35,7 @@ src/
   observability/
     errors/     error tracking: the entry-chunk listener and the lazy reporter
     flags/      flag reads, gating, exposure and $feature/* registration
-    telemetry/  the PostHog facade: lazy posthog-js, typed events, masking, handoff
+    telemetry/  the PostHog facade: lazy SDK, typed events, masking, handoff
   pages/        TanStack Router file routes
   queries/      TanStack Query options and mutations, one file per resource
   schemas/      Zod schemas that mirror the API's validators
@@ -1713,8 +1713,20 @@ is a change to both.
 | `tests/support/runner.ts`              | `describe`, `it`, `test`, `expect`, `beforeEach`, `afterEach`, `repoRoot`, `copyStyleRoots`     | Re-exports `describe`, `it`, `test`, `expect`, `beforeEach` and `afterEach` from `vite-plus/test`, and defines `repoRoot` and `copyStyleRoots` (`['src']`).                                                                                                                                            |
 
 `switchArea` in `src/copy/billing.ts` is per-app, like the rest of that file:
-each app words its own billing copy, so the shared billing logic (`src/lib/billing-*.ts`) takes
-no copy from it.
+each app words its own billing copy, so the shared billing logic
+(`src/lib/billing-*.ts`) takes no copy from it.
+
+#### Per-app seam files
+
+Two more files are not ports and are not in the manifest, yet shared passkey
+files and tests import them, so each app holds its own copy and the copies
+differ on purpose:
+
+- `src/lib/action-message.ts` exports `actionMessageFrom`, which is
+  `messageFrom` in react and `staffMessageFrom` in apex.
+- `tests/mocks/setup-refusal.ts` exports `refuseShellUntilCreated`, which
+  refuses the first read the app's shell makes (react: `GET /api/v1/tenants`;
+  apex: `GET /api/v1/platform/me/flags`). The setup screen's test needs it.
 
 ### Rules
 
@@ -1722,7 +1734,9 @@ no copy from it.
   each app the row names. `scrub.ts` is the exception: its rules change in
   express first ([The scrubber](SECURITY.md#the-scrubber)), then in react,
   apex and expo.
-- **The purity rules bind the expo rows only.** A file with an expo mark uses no
+- **The purity rules bind the expo rows only.** `scripts/check-shared.mjs` and
+  its `.d.mts` are expo rows, so `check-shared` scans them too. A file with an
+  expo mark uses no
   browser global (`window`, `document`, `location`, `navigator`,
   `localStorage`, `sessionStorage`), imports no banned package
   (`posthog-js`, `posthog-react-native`, `@tanstack/react-router`,
@@ -1748,11 +1762,53 @@ no copy from it.
 - **`public/boot-variant.js` is an apex row.** A change there, such as the
   `/delete-account` entry, needs the same change in apex.
 
+### Notes on shared rows
+
+The reasons below are the ones a maintainer would not guess from the path.
+
+- **Error envelope, schemas.** `api-error.ts` and the `*.schemas.ts` files
+  mirror express's error envelope and validators, so a change needs the same
+  change in the API.
+- **Tax.** `gst.ts` holds one Goods and Services Tax Identification Number
+  (GSTIN) rule and state table, equal to express's.
+- **Loading templates.** The shared query-state, skeleton and
+  pending-template files are byte-identical, so every app shows the same
+  loading states.
+- **Bundle.** `check-bundle.mjs`'s `@simplewebauthn/browser` rule keeps that
+  package in a lazy chunk in both apps.
+- **Recents.** `recent-keys.ts` holds the recents' key prefix and the sign-out
+  clear; each app's `auth.store.ts` calls its `clearAllRecents()`.
+- **Fixtures.** The client-settings fixture's non-default values (20 minutes,
+  25 minutes, 5 days, `support@test.example`) make a figure written into the
+  copy fail in both apps.
+- **Plural.** `plural.test.ts` reads `testPlans` from
+  `tests/fixtures/billing.ts`, which each app writes itself.
+- **Countdown.** `use-countdown.ts` starts with `'use no memo'`, so the React
+  Compiler cannot freeze the clock.
+- **Command palette.** `command-palette-host.tsx`'s open-time read must stay
+  compiler-safe.
+- **Passkey wiring.** Apex's `_app.tsx` renders `AppShell`, and its
+  `router.tsx` calls `installPasskeySetupInterceptor(apiClient)`.
+- **Passkey failures.** `passkey-create-failure.ts` holds
+  `createFailureMessage`, which the Passkeys section and the setup screen share.
+- **Copy.** react says "workspace" to customers and apex says "tenant" to
+  staff, so the shared `load-error.tsx` holds neither word; each app keeps its
+  own `src/components/features/tenant/role-error.ts` (`ROLE_ERROR`).
+  `copy-style.test.ts` applies the same banned list, 30-word cap and
+  "couldn't" rule as express's.
+- **Per-app companions at the same paths.**
+  - `src/lib/role-denied.ts` differs: react answers 403 and apex 404.
+  - `event-registry.ts` holds each app's own events, `table_*` included.
+  - `e2e/fixtures/lists.test.ts` and `e2e/fixtures/palette.test.ts` are each
+    app's own.
+  - `src/components/features/command-palette.tsx` holds each app's commands.
+
 ### Apex rows that are not byte for byte today
 
-On 5 November 2026, `cmp` against `/Users/abhijeet/Mahaverick/apex-boilerplate`
-found 10 apex rows that apex lacks and 24 that differ. They differ because
-apex has not copied react's new versions yet; plan 2c does that.
+On 5 November 2026, `cmp` against the sibling apex checkout found 10 apex rows
+that apex lacks and 24 that differ. They differ because apex has not copied
+react's new versions yet. Apex's sync check, which a later change adds, copies
+them.
 
 - Absent from apex:
   - `docker/15-app-links.sh`
@@ -1797,17 +1853,20 @@ The paths below are shared in part, so the manifest does not list them and
 `check-shared` does not compare them. Change the shared part here and check
 apex in the same pull request.
 
-| Path                                                                                                                                                                                                                                               | Why it must stay in step                                                                                                                                                                                                                  |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nginx.conf` security headers and CSP, `location /api/v1/collect/` and `location ~* ^/api/v1/auth/google/callback/?$`, the token-page comment above `access_log`, `tests/unit/docker/nginx-conf.test.ts` (react's also covers the stream location) | Same threat model; same replay batch size. The Content Security Policy (CSP), Cross-Origin-Opener-Policy (COOP) and Permissions-Policy values differ on purpose: this app allows Razorpay Checkout, and apex loads no third-party script. |
-| `nginx.conf`'s `location = /runtime-config.js` and its `.map` location                                                                                                                                                                             | One run-time configuration contract and no source map ever served.                                                                                                                                                                        |
-| `docker/check-image.sh`, `pnpm-workspace.yaml`, `e2e/nginx/cors.test.ts`                                                                                                                                                                           | Same container checks and dependency overrides. `check-image.sh` is per-app because its expected CSP, COOP and Permissions-Policy lines match each app's `nginx.conf`.                                                                    |
-| The `setErrorRouteSource` line in `src/router.tsx`                                                                                                                                                                                                 | Router errors reported with their route the same way.                                                                                                                                                                                     |
-| `vitest.config.ts`'s React Compiler plugin block (`babel({ presets: [reactCompilerPreset()] })`)                                                                                                                                                   | The unit suite runs under the compiler, so a value the compiler would cache at render fails a unit test in both apps.                                                                                                                     |
-| `scripts/check-bundle.mjs`, except `ENTRY_BUDGET_BYTES` (each app's measured budget) and apex's `BILLING_ADMIN_MODULE` rule                                                                                                                        | One first-visit budget check; the budgets differ.                                                                                                                                                                                         |
-| The `lint` block of `vite.config.ts` and `eslint.config.js`'s shared conventions                                                                                                                                                                   | Same conventions; each app adds its own import restrictions and file lists.                                                                                                                                                               |
-| The intro, `*`, `alert.tsx`, `button.tsx` and `### command.tsx` sections of `docs/ui-local-edits.md`, and the `ui:drift` scripts, CI step, `scripts/ui-registry` ignores, CODEOWNERS line and `shadcn` Renovate rule                               | Byte-identical vendored components and the one drift check over them. The snapshot itself is each app's own.                                                                                                                              |
-| `index.html`'s `<style id="boot-shell">` block and `#root` markup (not its `<style id="boot-tokens">` colours, each app's own)                                                                                                                     | One first-paint shell; the colours are pinned to each app's `globals.css`.                                                                                                                                                                |
+| Path                                                                                                                                                                                                                                               | Why it must stay in step                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `nginx.conf` security headers and CSP, `location /api/v1/collect/` and `location ~* ^/api/v1/auth/google/callback/?$`, the token-page comment above `access_log`, `tests/unit/docker/nginx-conf.test.ts` (react's also covers the stream location) | Same threat model; same replay batch size. The Content Security Policy (CSP), Cross-Origin-Opener-Policy (COOP) and Permissions-Policy values differ on purpose: this app allows Razorpay Checkout, and apex loads no third-party script. This app's `nginx-conf.test.ts` asserts the Razorpay origins in its CSP and Permissions-Policy, and COOP `same-origin-allow-popups`. |
+| The `retryDelay: 0` `QueryClient` mock block in `tests/setup.ts` (the block, not the file)                                                                                                                                                         | Byte-identical loading templates and section states need the same retry timing in both apps' unit suites.                                                                                                                                                                                                                                                                      |
+| The `resetListPositions` import and `afterEach` call in `tests/setup.ts` (the lines, not the file)                                                                                                                                                 | The list's page positions are module state, so a position one test records would reach the next test unless each test resets it.                                                                                                                                                                                                                                               |
+| The `ClientSettings` interface in each app's `src/types/api.types.ts` (the files differ, the interface does not)                                                                                                                                   | One read of express's `GET /status/client-settings`. `api.types.ts` is an expo row in the manifest, so apex's copy of the interface is not covered by `cmp`: check it by hand.                                                                                                                                                                                                 |
+| `nginx.conf`'s `location = /runtime-config.js` and its `.map` location                                                                                                                                                                             | One run-time configuration contract and no source map ever served.                                                                                                                                                                                                                                                                                                             |
+| `docker/check-image.sh`, `pnpm-workspace.yaml`, `e2e/nginx/cors.test.ts`                                                                                                                                                                           | Same container checks and dependency overrides. `check-image.sh` is per-app because its expected CSP, COOP and Permissions-Policy lines match each app's `nginx.conf`.                                                                                                                                                                                                         |
+| The `setErrorRouteSource` line in `src/router.tsx`                                                                                                                                                                                                 | Router errors reported with their route the same way.                                                                                                                                                                                                                                                                                                                          |
+| `vitest.config.ts`'s React Compiler plugin block (`babel({ presets: [reactCompilerPreset()] })`)                                                                                                                                                   | The unit suite runs under the compiler, so a value the compiler would cache at render fails a unit test in both apps.                                                                                                                                                                                                                                                          |
+| `scripts/check-bundle.mjs`, except `ENTRY_BUDGET_BYTES` (each app's measured budget) and apex's `BILLING_ADMIN_MODULE` rule                                                                                                                        | One first-visit budget check; the budgets differ.                                                                                                                                                                                                                                                                                                                              |
+| The `lint` block of `vite.config.ts` and `eslint.config.js`'s shared conventions                                                                                                                                                                   | Same conventions; each app adds its own import restrictions and file lists.                                                                                                                                                                                                                                                                                                    |
+| The intro, `*`, `alert.tsx`, `button.tsx` and `### command.tsx` sections of `docs/ui-local-edits.md`, and the `ui:drift` scripts, CI step, `scripts/ui-registry` ignores, CODEOWNERS line and `shadcn` Renovate rule                               | Byte-identical vendored components and the one drift check over them. The snapshot itself is each app's own.                                                                                                                                                                                                                                                                   |
+| `index.html`'s `<style id="boot-shell">` block and `#root` markup (not its `<style id="boot-tokens">` colours, each app's own)                                                                                                                     | One first-paint shell; the colours are pinned to each app's `globals.css`.                                                                                                                                                                                                                                                                                                     |
 
 The error scrubber is also held in step with express-boilerplate; see
 [The scrubber](SECURITY.md#the-scrubber).
