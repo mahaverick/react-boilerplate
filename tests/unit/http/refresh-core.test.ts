@@ -41,8 +41,8 @@ interface SeenRequest {
   authorization: string | null
 }
 
-/** How the stub answers one request: a body, a status, or a dropped connection. */
-type Answer = { data: unknown } | { status: number } | 'network-error'
+/** How the stub answers one request: a body, a status, a dropped connection, or a timeout. */
+type Answer = { data: unknown } | { status: number } | 'network-error' | 'timeout'
 
 /** The success envelope every express answer arrives in. */
 function envelope(data: unknown) {
@@ -68,6 +68,9 @@ function stubAdapter(route: (request: SeenRequest) => Answer | Promise<Answer>) 
     const answer = await route(request)
     if (answer === 'network-error') {
       throw new AxiosError('Network Error', 'ERR_NETWORK', config, {})
+    }
+    if (answer === 'timeout') {
+      throw new AxiosError('timeout of 30000ms exceeded', 'ECONNABORTED', config, {})
     }
     const response: AxiosResponse = {
       data: 'data' in answer ? answer.data : { success: false, message: 'Failed' },
@@ -243,6 +246,7 @@ describe('createRefreshCore', () => {
     ).rejects.toBeInstanceOf(NoRefreshTokenError)
 
     expect(seen).toHaveLength(0)
+    expect(tokens.log).toEqual(['clear'])
   })
 
   it('body: retries once at once on a network error, with the same token', async () => {
@@ -263,6 +267,43 @@ describe('createRefreshCore', () => {
       { refreshToken: 'stored-refresh' },
       { refreshToken: 'stored-refresh' },
     ])
+  })
+
+  it('body: does not retry after a timeout', async () => {
+    const { adapter, seen } = stubAdapter((request) =>
+      request.url === '/auth/refresh' ? 'timeout' : expressRoute('body')(request)
+    )
+    const tokens = memoryStore('stored-refresh')
+
+    await expect(
+      coreWith(adapter, 'body', { tokenStore: tokens.store }).ensureSession()
+    ).rejects.toBeInstanceOf(AxiosError)
+
+    expect(refreshPosts(seen)).toHaveLength(1)
+    expect(tokens.log).toEqual([])
+  })
+
+  it('body: rejects when the response carries no refresh token', async () => {
+    useAuthStore.getState().login('live', ALICE)
+    let signedOut = 0
+    const { adapter, seen } = stubAdapter((request) =>
+      request.url === '/auth/refresh'
+        ? { data: envelope({ accessToken: 'fresh-token' }) }
+        : expressRoute('body')(request)
+    )
+    const tokens = memoryStore('stored-refresh')
+
+    await expect(
+      coreWith(adapter, 'body', {
+        tokenStore: tokens.store,
+        onSignedOut: () => (signedOut += 1),
+      }).ensureSession()
+    ).rejects.toThrow(/refresh token/)
+
+    expect(seen.some((request) => request.url === '/profile')).toBe(false)
+    expect(tokens.log).toEqual([])
+    expect(signedOut).toBe(0)
+    expect(useAuthStore.getState().accessToken).toBe('live')
   })
 
   it('body: gives up after the one retry', async () => {
@@ -328,6 +369,18 @@ describe('createRefreshCore', () => {
     // Called before logout(), so the hook still sees the signed-in user.
     expect(calls).toEqual([`identity:${ALICE.id}`])
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
+  })
+
+  it('body: clears the store when the profile is another user', async () => {
+    useAuthStore.getState().login('stale', ALICE)
+    const { adapter } = stubAdapter(expressRoute('body', BOB))
+    const tokens = memoryStore('stored-refresh')
+
+    await expect(
+      coreWith(adapter, 'body', { tokenStore: tokens.store }).ensureSession()
+    ).rejects.toBeInstanceOf(SessionIdentityChangedError)
+
+    expect(tokens.log).toEqual(['write:rotated-refresh', 'clear'])
   })
 
   it('calls onSignedOut only when a user was signed in', async () => {

@@ -43,6 +43,9 @@ export interface RefreshCore {
   reset(): void
 }
 
+/** The axios codes of a request that timed out, and so may have reached the API. */
+const TIMEOUT_CODES = new Set(['ECONNABORTED', 'ETIMEDOUT'])
+
 /** What `POST /auth/refresh` returns; the body transport also gets the rotated token. */
 interface RefreshResponse {
   accessToken: string
@@ -71,9 +74,11 @@ export function createRefreshCore(options: RefreshCoreOptions): RefreshCore {
   let inFlight: Promise<string> | null = null
 
   /**
-   * Posts the refresh. The body transport retries once at once when no
-   * response came back, with the same token: the first post may never have
-   * reached the API, and a rotated token is never presented twice.
+   * Posts the refresh. The body transport retries once at once, with the same
+   * token, only when no response came back and the request did not time out:
+   * such a post most likely never reached the API. A timed-out post may have
+   * reached it and rotated the token, and a same-token retry 30s later is past
+   * the API's 10s reuse grace window, so it would revoke the session.
    */
   async function postRefresh(refreshToken: string | null): Promise<RefreshResponse> {
     /** One POST /auth/refresh; skipAuthRetry, as re-entering ensureSession() from the interceptor would await this very promise. */
@@ -87,7 +92,7 @@ export function createRefreshCore(options: RefreshCoreOptions): RefreshCore {
     try {
       return unwrap(await post())
     } catch (error) {
-      if (!isAxiosError(error) || error.response) throw error
+      if (!isAxiosError(error) || error.response || TIMEOUT_CODES.has(error.code ?? '')) throw error
       return unwrap(await post())
     }
   }
@@ -107,7 +112,11 @@ export function createRefreshCore(options: RefreshCoreOptions): RefreshCore {
       }
 
       const refreshed = await postRefresh(refreshToken)
-      if (tokenStore && refreshed.refreshToken !== undefined) {
+      if (tokenStore) {
+        // Not a verdict: the stored token may still be good, so the store is kept and nobody is signed out.
+        if (typeof refreshed.refreshToken !== 'string') {
+          throw new Error('The refresh response carried no refresh token.')
+        }
         await tokenStore.write(refreshed.refreshToken)
       }
 

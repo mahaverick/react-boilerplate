@@ -15,10 +15,10 @@ declare module 'axios' {
   interface AxiosRequestConfig {
     /**
      * Opts a request out of both the 401 retry path and the 401 verdict path.
-     * Set on the two requests refreshSession() makes itself, on POST
+     * Set on the two requests the refresh core (refresh-core.ts) makes itself, on POST
      * /auth/logout so that useLogout alone handles its failure, and on the
      * invitation preview, which is asked as a stranger. Without it, a
-     * 401 carrying ACCESS_TOKEN_EXPIRED on one of refreshSession()'s requests
+     * 401 carrying ACCESS_TOKEN_EXPIRED on one of the refresh core's requests
      * sends the response interceptor into ensureSession(), which returns the
      * promise awaiting that very request: a self-wait that never settles and
      * never logs out.
@@ -140,7 +140,7 @@ function addTraceHeaders(
  * JSON request's.
  *
  * An Authorization header already on a request wins over the store's token:
- * refreshSession() sets one on its /profile call while the store still holds
+ * the refresh core sets one on its /profile call while the store still holds
  * the stale token, and the replay relies on the same precedence. So anything
  * that sets a default Authorization header (either case) shadows the store's
  * token on every request; the store is the only source of the bearer token.
@@ -203,7 +203,7 @@ export function installInterceptors(client: AxiosInstance, ports: InterceptorPor
       try {
         accessToken = await ports.ensureSession()
       } catch (refreshError) {
-        // The same gate refreshSession() logs out on, so a 502 or 429 never bounces a live session.
+        // The same gate the refresh core (refresh-core.ts) signs out on, so a 502 or 429 never bounces a live session.
         if (isAuthVerdict(refreshError)) {
           ports.redirectToLogin()
         }
