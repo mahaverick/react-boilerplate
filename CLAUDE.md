@@ -228,7 +228,7 @@ How it works is in [Maintenance mode](ARCHITECTURE.md#maintenance-mode).
 - **Only a known `Maintenance-Mode` value moves the mode.** A response with no
   header, such as nginx's 502 page, or with an unknown value changes nothing. If you
   loosen this, maintenance ends on every deploy's first 502.
-- **Read the header in `src/lib/maintenance-mode.ts`, never in `src/http/`.**
+- **Parse the header in `src/lib/maintenance-state.ts`, never in `src/http/`.**
   `src/http/` is shared with apex, which has no maintenance handling.
 - **A maintenance 503 is never a sign-out, and the layout guards never redirect
   while the mode is `full`.** The URL is what recovery returns the user to. The API

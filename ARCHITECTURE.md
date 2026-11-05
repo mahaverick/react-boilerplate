@@ -1743,8 +1743,8 @@ differ on purpose:
   `@simplewebauthn/browser`, `react-native`, `@tabler/icons-react`), and
   imports only another shared file or a port export the manifest lists. A
   shared test takes its test functions only from the runner port
-  (`tests/support/runner.ts`) and uses no `vi`, no `import.meta` and no
-  `node:fs`. The manifest's `exemptions` key lists the one exception today:
+  (`tests/support/runner.ts`), uses no `vi` and no `import.meta`, and imports
+  neither `node:fs` (or `fs`), `msw` nor anything under `@/components`. The manifest's `exemptions` key lists the one exception today:
   `tests/unit/copy-style.test.ts` may import `node:fs`.
 - **Apex rows are byte for byte copies.** Apex's `sync-check` (added in plan 2c)
   byte-compares them with react `main` and re-runs only the expo-row checks.
@@ -1797,7 +1797,8 @@ The reasons below are the ones a maintainer would not guess from the path.
   `copy-style.test.ts` applies the same banned list, 30-word cap and
   "couldn't" rule as express's.
 - **Per-app companions at the same paths.**
-  - `src/lib/role-denied.ts` differs: react answers 403 and apex 404.
+  - `src/lib/role-denied.ts` is an expo row, shared with expo. Apex keeps its own,
+    which answers 404 where react answers 403.
   - `event-registry.ts` holds each app's own events, `table_*` included.
   - `e2e/fixtures/lists.test.ts` and `e2e/fixtures/palette.test.ts` are each
     app's own.

@@ -307,6 +307,12 @@ sent to Settings > Account > Delete (`/settings/account/delete`). A signed-out
 visitor gets a form that emails a sign-in link, and the link brings them back to
 `/settings/account/delete`.
 
+Requesting deletion asks for a confirmation first. Express has no route to
+withdraw a request, so the page points to the support address (`SUPPORT_EMAIL`
+on express, the same one its receipt email names). Staff erase the account in a
+purge with no set date. Express keeps audit entries with no end date unless
+`RETENTION_AUDIT_LOGS_DAYS` is set. The page states both.
+
 ## Scripts
 
 This section lists the package scripts and the git hooks. CI is continuous

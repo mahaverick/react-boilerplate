@@ -23,6 +23,16 @@ export function deletionRequestQueryOptions() {
 }
 
 /**
+ * The POST's answer: the request, express's own message about the receipt, and
+ * whether the call opened it (201) or found it open already (200).
+ */
+export interface DeletionRequestAnswer {
+  request: DeletionRequest
+  message: string
+  created: boolean
+}
+
+/**
  * `POST /account/deletion-request { reason? }`. It needs a recent sign-in, so a
  * caller runs it through `useStepUp().run`. The API answers 201 for a new
  * request and 200 for the one already open; either way the returned request
@@ -31,9 +41,18 @@ export function deletionRequestQueryOptions() {
 export function useRequestAccountDeletion() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { reason?: string }) =>
-      unwrap(await apiClient.post<ApiSuccess<DeletionRequest>>('/account/deletion-request', input)),
-    onSuccess: (request) => {
+    mutationFn: async (input: { reason?: string }): Promise<DeletionRequestAnswer> => {
+      const response = await apiClient.post<ApiSuccess<DeletionRequest>>(
+        '/account/deletion-request',
+        input
+      )
+      return {
+        request: unwrap(response),
+        message: response.data.message,
+        created: response.status === 201,
+      }
+    },
+    onSuccess: ({ request }) => {
       queryClient.setQueryData(accountDeletionKeys.request, request)
     },
   })

@@ -4,7 +4,8 @@
  * expo (and, with `--app`, with that app too) uses no browser-only global and
  * imports only another shared file, a declared export of a declared port, or
  * an npm package that is not banned. A shared test also takes its runner only
- * from the runner port, and uses no `vi`, no `import.meta` and no `node:fs`.
+ * from the runner port, uses no `vi` and no `import.meta`, and imports neither
+ * `node:fs` (or `fs`), `msw` nor anything under `@/components`.
  * With `--docs`, the docs table (`Path | apex | expo`) must list exactly the
  * manifest's files and tests, with the same apps.
  *

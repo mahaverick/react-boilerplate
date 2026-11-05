@@ -62,7 +62,9 @@ describe('/delete-account', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: `Delete your ${APP_NAME} account` })
     ).toBeVisible()
-    expect(screen.getByRole('list')).toHaveTextContent('Select Request deletion')
+    expect(screen.getByRole('list')).toHaveTextContent(
+      'Select Request deletion. We may ask you to confirm it’s you.'
+    )
     expect(screen.getByRole('heading', { level: 2, name: 'What we delete' })).toBeVisible()
     expect(screen.getAllByRole('main')).toHaveLength(1)
   })

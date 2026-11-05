@@ -43,7 +43,7 @@ function DeleteAccountPage() {
         <ol className="grid list-decimal gap-1 pl-5 text-sm">
           <li>Enter your email address below, and we’ll send you a sign-in link.</li>
           <li>Open the link. It takes you to Delete account in Settings.</li>
-          <li>Select Request deletion. We’ll ask you to confirm it’s you.</li>
+          <li>Select Request deletion. We may ask you to confirm it’s you.</li>
         </ol>
         <SignInLinkForm
           sentTo={sentTo}
