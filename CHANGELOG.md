@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/mahaverick/react-boilerplate/compare/v1.0.6...v1.1.0) (2026-11-05)
+
+
+### Features
+
+* **shared:** share react's core with apex and expo, and add account deletion ([#183](https://github.com/mahaverick/react-boilerplate/issues/183)) ([c6185d6](https://github.com/mahaverick/react-boilerplate/commit/c6185d6189e55dd1bc0961e1645c992c0a9e381a))
+
 ## [1.0.6](https://github.com/mahaverick/react-boilerplate/compare/v1.0.5...v1.0.6) (2026-11-02)
 
 
