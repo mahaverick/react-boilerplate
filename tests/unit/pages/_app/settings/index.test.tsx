@@ -70,7 +70,7 @@ describe('settings landing page', () => {
   it('lists every account page as a link', async () => {
     renderAt('/settings')
     const account = await screen.findByRole('region', { name: 'Account' })
-    for (const name of ['Profile', 'Security', 'Notifications']) {
+    for (const name of ['Profile', 'Security', 'Notifications', 'Delete account']) {
       expect(
         within(account).getByRole('link', { name: new RegExp(`^${name}`) })
       ).toBeInTheDocument()

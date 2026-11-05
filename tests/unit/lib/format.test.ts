@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { formatDate, formatDateTime, fullName } from '@/lib/format'
+import { describe, expect, it } from '@/tests/support/runner'
 
 // Noon UTC: the same calendar day in every timezone a runner is likely to use.
 const NOON_UTC = '2026-03-05T12:00:00.000Z'

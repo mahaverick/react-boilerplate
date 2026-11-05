@@ -508,6 +508,11 @@ describe('signed-out pages', () => {
     ],
     // The plans, Start free and the questions: the whole signed-out pricing page.
     ['pricing', '/pricing', () => screen.findByRole('link', { name: 'Start free' })],
+    [
+      'delete account, signed out',
+      '/delete-account',
+      () => screen.findByRole('button', { name: 'Email me a sign-in link' }),
+    ],
   ])('%s has no axe violations', async (_name, path, ready) => {
     renderAppAt(path)
     await ready()
@@ -564,6 +569,11 @@ describe('signed-in pages', () => {
       'security',
       '/settings/account/security',
       () => screen.findByRole('button', { name: 'Sign out other sessions' }),
+    ],
+    [
+      'delete account',
+      '/settings/account/delete',
+      () => screen.findByRole('button', { name: 'Request deletion' }),
     ],
     [
       'notification settings',

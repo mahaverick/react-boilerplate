@@ -77,6 +77,16 @@ const SURFACES = [
     heading: 'Sign-in methods',
   },
   {
+    name: 'delete account',
+    url: '/e2e/harness/?path=/settings/account/delete',
+    heading: 'What we delete',
+  },
+  {
+    name: 'delete account (signed out)',
+    url: signedOut('/delete-account', ''),
+    heading: 'What we delete',
+  },
+  {
     name: 'notification settings',
     url: '/e2e/harness/?path=/settings/account/notifications',
     heading: 'Preferences',

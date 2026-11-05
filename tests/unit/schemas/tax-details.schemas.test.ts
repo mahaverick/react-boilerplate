@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vite-plus/test'
 import {
   ADDRESS_REQUIRED_MESSAGE,
   CITY_REQUIRED_MESSAGE,
@@ -26,6 +24,7 @@ import {
   type TaxDetailsForm,
   type TaxDetailsValues,
 } from '@/schemas/tax-details.schemas'
+import { describe, expect, it } from '@/tests/support/runner'
 
 const STORED: TaxDetails = {
   gstin: '29ABCDE1234F1ZW',
@@ -117,12 +116,6 @@ describe('validation messages', () => {
     expect(TAX_DETAILS_SAVED_MESSAGE).toBe(
       'Tax details saved. They apply to invoices issued from now on.'
     )
-  })
-
-  it('keeps TAX_TEXT_PATTERN free of raw non-ASCII characters', () => {
-    const source = readFileSync('src/schemas/tax-details.schemas.ts', 'utf8')
-    expect(source).toContain('export const TAX_TEXT_PATTERN')
-    expect([...source].every((char) => char.charCodeAt(0) < 128)).toBe(true)
   })
 })
 

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { pickBillingBanner, trialDaysLeft, type BillingBannerKind } from '@/lib/billing-banner'
 import { testBilling } from '@/tests/fixtures/billing'
+import { describe, expect, it } from '@/tests/support/runner'
 import type { TenantBilling } from '@/types/billing.types'
 
 const HOUR_MS = 60 * 60 * 1000

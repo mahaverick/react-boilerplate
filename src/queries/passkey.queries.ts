@@ -3,14 +3,8 @@ import { FRONTEND_APP } from '@/constants/frontend-app'
 import { apiClient, unwrap } from '@/http/client'
 import { broadcastAuthMessage, switchIdentity } from '@/http/session'
 import { codeFrom } from '@/lib/api-error'
-import {
-  passkeyCancelGeneration,
-  passkeySupport,
-  requestPasskey,
-  signalUnknownPasskey,
-  type PublicKeyCredentialRequestOptionsJSON,
-} from '@/lib/webauthn'
 import { track } from '@/observability/telemetry'
+import { webauthn } from '@/ports/webauthn'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess } from '@/types/api.types'
 import {
@@ -20,6 +14,7 @@ import {
   type PasskeyList,
   type PasskeySignIn,
 } from '@/types/passkey.types'
+import type { PublicKeyCredentialRequestOptionsJSON } from '@/types/webauthn.types'
 
 /** The keys of the passkey reads, under a `passkeys` prefix of their own. */
 export const passkeyKeys = {
@@ -85,7 +80,7 @@ export function passkeySupportQueryOptions(enabled = true) {
     queryKey: passkeyKeys.support,
     enabled,
     staleTime: Infinity,
-    queryFn: passkeySupport,
+    queryFn: () => webauthn.isSupported(),
   })
 }
 
@@ -120,7 +115,7 @@ export function usePasskeySignIn({ onPicked }: { onPicked?: () => void } = {}) {
   const { data: config } = usePasskeyConfig()
   return useMutation({
     mutationFn: async (mode: 'modal' | 'autofill') => {
-      const since = passkeyCancelGeneration()
+      const since = webauthn.cancelGeneration()
       const { challengeId, options } = unwrap(
         await apiClient.post<ApiSuccess<PasskeyChallenge<PublicKeyCredentialRequestOptionsJSON>>>(
           '/auth/passkeys/sign-in/options',
@@ -128,7 +123,7 @@ export function usePasskeySignIn({ onPicked }: { onPicked?: () => void } = {}) {
           { skipAuthRetry: true, headers: { Authorization: false } }
         )
       )
-      const response = await requestPasskey(options, mode, since)
+      const response = await webauthn.get(options, mode, since)
       onPicked?.()
       try {
         return unwrap(
@@ -140,7 +135,7 @@ export function usePasskeySignIn({ onPicked }: { onPicked?: () => void } = {}) {
         )
       } catch (error) {
         if (codeFrom(error) === PASSKEY_UNKNOWN && config) {
-          signalUnknownPasskey(config.rpId, response.id)
+          webauthn.signalUnknown(config.rpId, response.id)
         }
         throw error
       }

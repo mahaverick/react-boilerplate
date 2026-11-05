@@ -63,6 +63,7 @@ describe('account settings', () => {
     ['/settings/account/profile', 'Profile'],
     ['/settings/account/security', 'Security'],
     ['/settings/account/notifications', 'Notifications'],
+    ['/settings/account/delete', 'Delete account'],
   ])('titles %s after its section', async (path, name) => {
     renderAt(path)
     expect(await screen.findByRole('heading', { level: 1, name })).toBeInTheDocument()

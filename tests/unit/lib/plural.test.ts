@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { countOf, nounFor } from '@/lib/plural'
 import { testPlans } from '@/tests/fixtures/billing'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('countOf', () => {
   it.each([

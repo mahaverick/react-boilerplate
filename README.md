@@ -202,11 +202,16 @@ Every variable is optional. An unset or empty value means the default, except
 | `ANALYTICS_CONSENT_MODE`    | `VITE_ANALYTICS_CONSENT_MODE`    | `opt_out`, `required` or `off`                | `opt_out`                | `opt_out`: capture until the user opts out; `required`: the consent banner first; `off`: nothing loads. |
 | `ANALYTICS_HANDOFF_ORIGINS` | `VITE_ANALYTICS_HANDOFF_ORIGINS` | comma-separated `https://` origins, no spaces | empty                    | Websites on other domains allowed to hand a visitor off ([how](docs/analytics-handoff.md)).             |
 | `APP_ENVIRONMENT`           | `VITE_APP_ENVIRONMENT`           | `[a-z][a-z0-9-]` up to 32                     | `development`            | Sent as `environment` on every browser event and exception. Set it to express's `APP_ENV` value.        |
+| `IOS_APP_IDS`               | none                             | comma-separated `TEAMID10CH.bundle.id`        | empty                    | iOS app IDs for `/.well-known/apple-app-site-association` ([how](#app-association-files)).              |
+| `ANDROID_APP_LINKS`         | none                             | comma-separated `package:SHA-256 fingerprint` | empty                    | Android apps for `/.well-known/assetlinks.json` ([how](#app-association-files)).                        |
 
 - `docker/10-runtime-config.sh` checks every value against its pattern at
   start. An invalid one **stops the container** and names the variable, never
   its value, so a typo fails the rollout instead of switching analytics off
   unnoticed.
+- `docker/15-app-links.sh` checks `IOS_APP_IDS` and `ANDROID_APP_LINKS` the same
+  way, and stops the container with
+  `15-app-links.sh: <NAME> must be ...; the value given does not match (not shown)`.
 - `docker/05-prepare.sh` checks `API_UPSTREAM`. A path, even a trailing `/`,
   stops the container with
   `05-prepare.sh: API_UPSTREAM must be scheme://host[:port] with no path; the value given does not match (not shown)`.
@@ -216,6 +221,29 @@ Every variable is optional. An unset or empty value means the default, except
 - Every value is public
   ([why](SECURITY.md#run-time-config-injection-safety)); the PostHog key may
   come from a secret store.
+
+#### App-association files
+
+`IOS_APP_IDS` and `ANDROID_APP_LINKS` are read by no browser code. The
+container turns them into the two files that iOS and Android fetch to trust
+this site for universal links, app links and password autofill:
+
+- `IOS_APP_IDS` is a comma-separated list of `<team id>.<bundle id>`, where the
+  team id is ten uppercase letters or digits. It becomes
+  `/.well-known/apple-app-site-association`.
+- `ANDROID_APP_LINKS` is a comma-separated list of
+  `<package>:<SHA-256 certificate fingerprint>`, the fingerprint being 32
+  uppercase hex pairs joined by colons. It becomes `/.well-known/assetlinks.json`,
+  with one statement per entry.
+- A variable that is unset or empty writes no file, so nginx answers `404` for
+  its path.
+- Both files are served as `application/json`, with no redirect and `no-store`.
+- Apple's content delivery network (CDN) caches the
+  `apple-app-site-association` file, and iOS reads it from there rather than
+  from this site. A change to `IOS_APP_IDS` can therefore take a while to reach
+  devices, even after the container serves the new file at once.
+
+The dev server and `pnpm preview` serve neither file.
 
 The dev server, `pnpm preview` and the unit tests read the `VITE_` names from
 `.env` (`.env.example` lists them).
@@ -270,6 +298,20 @@ with External Secrets or the Secret Manager CSI driver (the `secretKeyRef`
 stays as it is), or on Cloud Run map it straight to the variable
 (`--set-secrets=POSTHOG_KEY=posthog-key:latest`). Either way, the container
 sees only an environment variable.
+
+#### Account-deletion URL
+
+`/delete-account` is a public page. Enter `https://<your host>/delete-account`
+in the account-deletion URL field of Google Play Console. A signed-in visitor is
+sent to Settings > Account > Delete (`/settings/account/delete`). A signed-out
+visitor gets a form that emails a sign-in link, and the link brings them back to
+`/settings/account/delete`.
+
+Requesting deletion asks for a confirmation first. Express has no route to
+withdraw a request, so the page points to the support address (`SUPPORT_EMAIL`
+on express, the same one its receipt email names). Staff erase the account in a
+purge with no set date. Express keeps audit entries with no end date unless
+`RETENTION_AUDIT_LOGS_DAYS` is set. The page states both.
 
 ## Scripts
 

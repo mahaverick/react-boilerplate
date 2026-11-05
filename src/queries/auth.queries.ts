@@ -1,10 +1,12 @@
 import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { FRONTEND_APP } from '@/constants/frontend-app'
 import { ROUTES } from '@/constants/routes'
 import { apiClient, unwrap } from '@/http/client'
 import { broadcastLogout, switchIdentity } from '@/http/session'
 import { statusFrom } from '@/lib/api-error'
 import { toast } from '@/lib/toast'
 import { track } from '@/observability/telemetry'
+import { assignLocation } from '@/ports/navigation'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess, AuthProviders, User } from '@/types/api.types'
 
@@ -40,7 +42,7 @@ export function useRequestSignInLink() {
     mutationFn: async (input: { email: string; redirect?: string }) => {
       await apiClient.post<ApiSuccess<null>>(
         '/auth/link/request',
-        { email: input.email, app: 'web', redirect: input.redirect },
+        { email: input.email, app: FRONTEND_APP, redirect: input.redirect },
         { skipAuthRetry: true, headers: { Authorization: false } }
       )
     },
@@ -129,7 +131,7 @@ export function useLogout({ returnTo = ROUTES.login }: { returnTo?: string } = {
   const endSession = () => {
     logout()
     broadcastLogout()
-    window.location.assign(returnTo)
+    assignLocation(returnTo)
   }
   return useMutation({
     mutationKey: LOGOUT_KEY,

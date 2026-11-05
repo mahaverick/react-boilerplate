@@ -4,8 +4,7 @@ import {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios'
-import { API_PREFIX } from '@/constants/routes'
-import { broadcastLogout, ensureSession, isAuthVerdict, redirectToLogin } from '@/http/session'
+import { isAuthVerdict } from '@/http/auth-verdict'
 import { createTraceparent } from '@/http/traceparent'
 import { getAnalyticsSessionIdFor } from '@/observability/telemetry'
 import { useAuthStore } from '@/states/auth.store'
@@ -16,10 +15,10 @@ declare module 'axios' {
   interface AxiosRequestConfig {
     /**
      * Opts a request out of both the 401 retry path and the 401 verdict path.
-     * Set on the two requests refreshSession() makes itself, on POST
+     * Set on the two requests the refresh core (refresh-core.ts) makes itself, on POST
      * /auth/logout so that useLogout alone handles its failure, and on the
      * invitation preview, which is asked as a stranger. Without it, a
-     * 401 carrying ACCESS_TOKEN_EXPIRED on one of refreshSession()'s requests
+     * 401 carrying ACCESS_TOKEN_EXPIRED on one of the refresh core's requests
      * sends the response interceptor into ensureSession(), which returns the
      * promise awaiting that very request: a self-wait that never settles and
      * never logs out.
@@ -94,17 +93,23 @@ async function decodeBlobErrorBody(error: unknown): Promise<never> {
 }
 
 /**
- * Whether `config` is a call to this app's own API: same origin, under
- * `API_PREFIX`. Only those carry the trace and analytics-session headers; an
- * absolute URL to anywhere else never does.
+ * What the interceptor chain needs from the app it runs in. Each app's
+ * `client.ts` supplies them, so this file reads no browser global and imports
+ * no per-app module.
  */
-function isApiRequest(client: AxiosInstance, config: InternalAxiosRequestConfig): boolean {
-  try {
-    const url = new URL(client.getUri(config), window.location.origin)
-    return url.origin === window.location.origin && url.pathname.startsWith(`${API_PREFIX}/`)
-  } catch {
-    return false
-  }
+export interface InterceptorPorts {
+  /**
+   * Whether `config` is a call to this app's own API. Only those carry the
+   * trace and analytics-session headers; an absolute URL to anywhere else
+   * never does.
+   */
+  isApiRequest(config: InternalAxiosRequestConfig): boolean
+  /** The shared refresh: resolves with the new access token. */
+  ensureSession(): Promise<string>
+  /** Ends the session after a 401 verdict: signs the store out, tells the other tabs, and leaves for sign-in. */
+  signOut(): void
+  /** Leaves for sign-in after a refresh that failed with an auth verdict. */
+  redirectToLogin(): void
 }
 
 /**
@@ -115,10 +120,10 @@ function isApiRequest(client: AxiosInstance, config: InternalAxiosRequestConfig)
  * browser's replay and never another person's.
  */
 function addTraceHeaders(
-  client: AxiosInstance,
+  ports: InterceptorPorts,
   config: InternalAxiosRequestConfig
 ): InternalAxiosRequestConfig {
-  if (!isApiRequest(client, config)) return config
+  if (!ports.isApiRequest(config)) return config
   if (!config.headers.has('traceparent')) config.headers.set('traceparent', createTraceparent())
   const sessionId = getAnalyticsSessionIdFor(useAuthStore.getState().user?.id ?? null)
   if (sessionId) config.headers.set('X-POSTHOG-SESSION-ID', sessionId)
@@ -127,20 +132,21 @@ function addTraceHeaders(
 
 /**
  * Installs `addTraceHeaders`, the bearer-token request interceptor, `decodeBlobErrorBody`,
- * the 401 handling and `rejectMalformedJsonResponse` on `client`.
+ * the 401 handling and `rejectMalformedJsonResponse` on `client`, with the
+ * app's side reached through `ports`.
  *
  * `decodeBlobErrorBody` is registered first so the 401 handling and every
  * interceptor after it read a blob request's JSON error body as they would a
  * JSON request's.
  *
  * An Authorization header already on a request wins over the store's token:
- * refreshSession() sets one on its /profile call while the store still holds
+ * the refresh core sets one on its /profile call while the store still holds
  * the stale token, and the replay relies on the same precedence. So anything
  * that sets a default Authorization header (either case) shadows the store's
  * token on every request; the store is the only source of the bearer token.
  *
  * A non-expiry 401 on a request that carried a token is the server's verdict
- * on it and signs every tab out. An ACCESS_TOKEN_EXPIRED 401 refreshes once
+ * on it and signs every tab out (`ports.signOut`). An ACCESS_TOKEN_EXPIRED 401 refreshes once
  * and replays. When that refresh fails, the user is sent to /login only on an
  * auth verdict (`isAuthVerdict`): any other refresh failure leaves the session
  * intact, and the replay sits outside the catch so its own failure rejects
@@ -150,8 +156,8 @@ function addTraceHeaders(
  * fine but signed in too long ago for the action asked, so it
  * rejects untouched, with no refresh and no sign-out, for the caller to handle.
  */
-export function installInterceptors(client: AxiosInstance): void {
-  client.interceptors.request.use((config) => addTraceHeaders(client, config))
+export function installInterceptors(client: AxiosInstance, ports: InterceptorPorts): void {
+  client.interceptors.request.use((config) => addTraceHeaders(ports, config))
   client.interceptors.request.use((config) => {
     const { accessToken } = useAuthStore.getState()
     if (accessToken && !config.headers.has('Authorization')) {
@@ -182,9 +188,7 @@ export function installInterceptors(client: AxiosInstance): void {
 
       // With no token (a signed-out request), a 401 judged that request, not a session.
       if (isUnauthorized && !isExpired && config?.headers.has('Authorization')) {
-        useAuthStore.getState().logout()
-        broadcastLogout()
-        redirectToLogin()
+        ports.signOut()
         return Promise.reject(error)
       }
 
@@ -197,11 +201,11 @@ export function installInterceptors(client: AxiosInstance): void {
 
       let accessToken: string
       try {
-        accessToken = await ensureSession()
+        accessToken = await ports.ensureSession()
       } catch (refreshError) {
-        // The same gate refreshSession() logs out on, so a 502 or 429 never bounces a live session.
+        // The same gate the refresh core (refresh-core.ts) signs out on, so a 502 or 429 never bounces a live session.
         if (isAuthVerdict(refreshError)) {
-          redirectToLogin()
+          ports.redirectToLogin()
         }
         throw refreshError
       }

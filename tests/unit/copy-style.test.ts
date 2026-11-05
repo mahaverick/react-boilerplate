@@ -23,9 +23,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import ts from 'typescript'
-import { describe, expect, it } from 'vite-plus/test'
-
-const ROOT = path.resolve(import.meta.dirname, '../..')
+import { copyStyleRoots, describe, expect, it, repoRoot } from '@/tests/support/runner'
 
 /**
  * Paths from the repo root that hold no copy a person reads: vendored
@@ -283,26 +281,34 @@ function copyInSource(relative: string, source: string): Copy[] {
 
 /**
  * Every `.ts` and `.tsx` file under a directory, as paths from the repo root.
+ * A `NOT_COPY` path is skipped only when it lies below the root the walk
+ * started from, so a root that names it on purpose is still read.
  * @param directory - Where to start, from the repo root.
+ * @param root - The scan root the walk started from.
  * @returns The paths.
  */
-function sourceFiles(directory: string): string[] {
-  return readdirSync(path.join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
+function sourceFiles(directory: string, root = directory): string[] {
+  const skips = NOT_COPY.filter(
+    (skipped) => skipped.startsWith(`${root}/`) && skipped !== `${root}/`
+  )
+  return readdirSync(path.join(repoRoot, directory), { withFileTypes: true }).flatMap((entry) => {
     const relative = `${directory}/${entry.name}`
-    if (NOT_COPY.some((skipped) => `${relative}/`.startsWith(skipped))) return []
-    if (entry.isDirectory()) return sourceFiles(relative)
+    if (skips.some((skipped) => `${relative}/`.startsWith(skipped))) return []
+    if (entry.isDirectory()) return sourceFiles(relative, root)
     return /\.tsx?$/.test(entry.name) ? [relative] : []
   })
 }
 
 /**
- * Every piece of copy in `src/`.
+ * Every piece of copy under the scan roots.
  * @returns Each piece of copy.
  */
 function sourceCopy(): Copy[] {
-  return sourceFiles('src').flatMap((relative) =>
-    copyInSource(relative, readFileSync(path.join(ROOT, relative), 'utf8'))
-  )
+  return copyStyleRoots
+    .flatMap((root) => sourceFiles(root))
+    .flatMap((relative) =>
+      copyInSource(relative, readFileSync(path.join(repoRoot, relative), 'utf8'))
+    )
 }
 
 /**

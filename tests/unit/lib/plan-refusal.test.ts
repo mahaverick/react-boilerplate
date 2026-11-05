@@ -1,6 +1,6 @@
 import { AxiosError, AxiosHeaders } from 'axios'
-import { describe, expect, it } from 'vite-plus/test'
 import { planRefusalFrom } from '@/lib/plan-refusal'
+import { describe, expect, it } from '@/tests/support/runner'
 
 /** An Axios error answering `status` with a body of `code` and `details`. */
 function refused(status: number, code?: string, details?: unknown): AxiosError {

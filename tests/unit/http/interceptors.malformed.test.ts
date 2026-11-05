@@ -8,7 +8,7 @@
 import axios, { AxiosError } from 'axios'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vite-plus/test'
-import { installInterceptors } from '@/http/interceptors'
+import { installInterceptors } from '@/http/client'
 import { resetSessionForTests } from '@/http/session'
 import { useAuthStore } from '@/states/auth.store'
 import { ok } from '@/tests/mocks/handlers'

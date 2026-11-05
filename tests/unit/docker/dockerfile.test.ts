@@ -38,4 +38,11 @@ describe('Dockerfile', () => {
       ])
     }
   )
+
+  it.each(['05-prepare.sh', '10-runtime-config.sh', '15-app-links.sh'])(
+    'installs docker/%s executable into the entrypoint directory',
+    (script) => {
+      expect(LINES).toContain(`COPY --chmod=0755 docker/${script} /docker-entrypoint.d/${script}`)
+    }
+  )
 })

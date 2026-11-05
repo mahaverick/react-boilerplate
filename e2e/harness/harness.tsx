@@ -1397,6 +1397,10 @@ const worker = setupWorker(
       'Auth providers retrieved.'
     )
   ),
+  // Settings › Delete account reads this; unmocked, it 401s and signs the harness user out.
+  http.get('/api/v1/account/deletion-request', () =>
+    ok({ request: null }, 'No deletion request is open.')
+  ),
   http.post('/api/v1/auth/sessions/revoke-others', () =>
     ok({ revoked: 2 }, 'Other sessions signed out.')
   ),

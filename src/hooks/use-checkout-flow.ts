@@ -2,9 +2,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME } from '@/constants/app'
+import { INTERVAL_ADJECTIVE } from '@/copy/billing'
 import { messageFrom, statusFrom } from '@/lib/api-error'
 import { formatBillingDate, formatInr } from '@/lib/billing-format'
-import { INTERVAL_ADJECTIVE } from '@/lib/billing-page'
 import {
   CheckoutPaymentError,
   CheckoutScriptError,

@@ -1,15 +1,16 @@
 import { useMutation } from '@tanstack/react-query'
 import { FRONTEND_APP } from '@/constants/frontend-app'
+import { isAuthVerdict } from '@/http/auth-verdict'
 import { apiClient, unwrap } from '@/http/client'
-import { broadcastAuthMessage, ensureSession, isAuthVerdict } from '@/http/session'
+import { broadcastAuthMessage, ensureSession } from '@/http/session'
 import { codeFrom, statusFrom } from '@/lib/api-error'
-import type {
-  AuthenticationResponseJSON,
-  PublicKeyCredentialRequestOptionsJSON,
-} from '@/lib/webauthn'
 import { useAuthStore } from '@/states/auth.store'
 import { ACCESS_TOKEN_EXPIRED, type ApiSuccess } from '@/types/api.types'
 import type { PasskeyChallenge } from '@/types/passkey.types'
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+} from '@/types/webauthn.types'
 
 /** Posts a step-up link's token with the current bearer, refusing the interceptor's refresh-and-retry. */
 async function postStepUpLink(token: string) {

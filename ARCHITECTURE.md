@@ -8,12 +8,11 @@ observability, maintenance mode and the container fit around it.
 - What each part defends against: [SECURITY.md](SECURITY.md).
 - How to run, configure and deploy the app: [README.md](README.md).
 
-This app shares code with apex, the staff console
-([Sibling sync](#sibling-sync-with-apex) lists every shared path). The shared
-parts are the HTTP layer, analytics, feature flags, error tracking and the
-container files the table names. Their
-sections describe the shared code. Sections and subsections marked _this app
-only_ describe code apex does not have.
+This app shares code with apex, the staff console, and with expo, the mobile
+app ([Shared core](#shared-core) lists every shared path). The shared parts are
+the HTTP layer, analytics, feature flags, error tracking and the container
+files the table names. Their sections describe the shared code. Sections and
+subsections marked _this app only_ describe code apex does not have.
 
 ## Layout of `src/`
 
@@ -36,7 +35,7 @@ src/
   observability/
     errors/     error tracking: the entry-chunk listener and the lazy reporter
     flags/      flag reads, gating, exposure and $feature/* registration
-    telemetry/  the PostHog facade: lazy posthog-js, typed events, masking, handoff
+    telemetry/  the PostHog facade: lazy SDK, typed events, masking, handoff
   pages/        TanStack Router file routes
   queries/      TanStack Query options and mutations, one file per resource
   schemas/      Zod schemas that mirror the API's validators
@@ -495,6 +494,7 @@ under `src/pages/_app/settings/`.
 | `/settings/account/profile`          | Name, email and the privacy (analytics) choice             |
 | `/settings/account/security`         | Sign-in methods and other sessions                         |
 | `/settings/account/notifications`    | Notification preferences                                   |
+| `/settings/account/delete`           | Ask for the account to be deleted, or see the open request |
 | `/settings/workspace/$slug/general`  | The tenant's details and settings; `$slug/` redirects here |
 | `/settings/workspace/$slug/members`  | Members, roles and pending invitations                     |
 | `/settings/workspace/$slug/activity` | The tenant's audit log                                     |
@@ -534,7 +534,7 @@ The tenant page itself keeps its Overview and (flag-gated) Beta tabs.
 This section is for anyone who adds or changes a list page. Every list page
 renders through one table, `DataTable` (`components/shared/data-table/`), over
 one URL contract and one query shape. The code is shared with apex
-([Sibling sync](#sibling-sync-with-apex)).
+([Shared core](#shared-core)).
 
 Lists use the API's list contract:
 
@@ -1064,7 +1064,7 @@ value, through a dynamic `import()`. The rest of the app imports the barrel,
 
   The registry of typed events is `event-registry.ts`. Everything else in the
   folder is shared with the sibling app
-  ([Sibling sync](#sibling-sync-with-apex)).
+  ([Shared core](#shared-core)).
 
 - `src/observability/identity-epoch.ts` counts the calls that change who an
   event belongs to. It is a module of its own that imports nothing, so the
@@ -1274,7 +1274,9 @@ in-memory filesystem).
      `API_UPSTREAM`.
   2. `docker/10-runtime-config.sh` validates the run-time settings and writes
      `/tmp/runtime/runtime-config.js`.
-  3. The stock envsubst script renders `nginx.conf`. It substitutes
+  3. `docker/15-app-links.sh` validates `IOS_APP_IDS` and `ANDROID_APP_LINKS`
+     and writes `/tmp/runtime/well-known/`.
+  4. The stock envsubst script renders `nginx.conf`. It substitutes
      `API_UPSTREAM` and nothing else, so nginx's own variables survive.
 
   A failing script stops the container before nginx starts.
@@ -1285,6 +1287,10 @@ in-memory filesystem).
 - gives `/api/v1/collect/` a larger request body, which streams to the API,
   for replay batches;
 - serves `/runtime-config.js` from where the entrypoint wrote it;
+- serves `/.well-known/apple-app-site-association` and
+  `/.well-known/assetlinks.json` from exact-match locations, as
+  `application/json`. A variable left unset leaves its file absent, which is a
+  real 404 and never `index.html`;
 - answers a missing file under `/assets/` with a real 404 rather than
   `index.html`;
 - falls back to `index.html` for every other path.
@@ -1295,9 +1301,9 @@ location is covered in [CSP and headers](SECURITY.md#csp-and-headers).
 **Cache-Control** is chosen by a `map` on the URI, not per location:
 
 - Hashed assets are immutable for a year.
-- `index.html`, `theme-init.js`, the favicon and `runtime-config.js` are
-  `no-store`, so a deploy never leaves a browser asking for asset names it
-  removed.
+- `index.html`, `theme-init.js`, the favicon, `runtime-config.js` and the two
+  app-association files are `no-store`, so a deploy never leaves a browser
+  asking for asset names it removed.
 
 The security headers, the reason no location declares an `add_header`, and
 the logging choices are in [CSP and headers](SECURITY.md#csp-and-headers).
@@ -1318,6 +1324,12 @@ build argument. The flow:
      prefix from `import.meta.env`.
    - On the dev and preview servers, `scripts/runtime-config-plugin.mjs`
      renders `/runtime-config.js` from those `VITE_` names.
+
+The two app-association variables are the exception to that flow: the browser
+never reads them, so they have no `RUNTIME_CONFIG_KEYS` entry, no `VITE_` name
+and no plugin entry. They touch `docker/15-app-links.sh`,
+`docker/check-image.sh`, the Dockerfile, `nginx.conf`, `.env.example`'s comment
+and the README.
 
 **Adding a setting** is one change that edits all of these:
 
@@ -1342,63 +1354,522 @@ settings and the release are listed in
   bad ones;
 - the content type of the JavaScript the image serves.
 
-## Sibling sync with apex
+## Shared core
 
-`apex-boilerplate`, the staff console, shares these paths with this app. A
-pull request that changes one of them here must also check the same path in
-apex. Its description says what it found there.
+react is the source of a set of files that `apex-boilerplate` (the staff
+console) and `expo-boilerplate` (the mobile app) copy. `shared-core.json` at the
+repository root is the manifest: its `files` and `tests` keys name each shared
+path and the apps that hold it, and its `ports`, `testPorts` and `exemptions`
+keys describe the seams. The table below is generated from it, and
+`pnpm check:shared` fails when the two differ.
 
-| Path                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Why it must stay in step                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/http/*`, except `sse.ts` (this app only)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Session refresh single-flight, 401-verdict sign-out, trace headers, analytics identity order                                                                                                                                                                                                                                                                                                                                                               |
-| `src/lib/api-error.ts`, `tests/unit/lib/api-error.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Error envelope parsing                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `src/schemas/auth.schemas.ts`, `tests/unit/schemas/auth.schemas.test.ts`, `src/schemas/safe-text.schemas.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Mirror the API's validators                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `src/schemas/profile.schemas.ts`, `src/schemas/invitation.schemas.ts`, `src/schemas/email-domain.schemas.ts` and their tests in `tests/unit/schemas/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Mirror the API's validators                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `src/lib/gst.ts`, `src/schemas/tax-details.schemas.ts`, `src/lib/download-file.ts`, the blob-error decoder in `src/http/interceptors.ts`, and their tests `tests/unit/lib/gst.test.ts`, `tests/unit/schemas/tax-details.schemas.test.ts`, `tests/unit/lib/download-file.test.ts`, `tests/unit/http/interceptors.blob.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | One Goods and Services Tax Identification Number (GSTIN) rule and state table with express's, one tax-details form, and one way to save a file the API answers behind the Bearer token                                                                                                                                                                                                                                                                     |
-| `src/components/ui/form.tsx`, `src/components/ui/toast.tsx`, `src/lib/toast.ts`, `src/components/shared/toast-host.tsx`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Shared behaviour; form.tsx is hand-written, toast.tsx is vendored with local edits                                                                                                                                                                                                                                                                                                                                                                         |
-| `nginx.conf` security headers and CSP, `location /api/v1/collect/` and `location ~* ^/api/v1/auth/google/callback/?$`, the token-page comment above `access_log`, `tests/unit/docker/nginx-conf.test.ts` (react's also covers the stream location)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Same threat model; same replay batch size. The Content Security Policy (CSP), Cross-Origin-Opener-Policy (COOP) and Permissions-Policy values differ on purpose: this app allows Razorpay Checkout, and apex loads no third-party script. This app's `nginx-conf.test.ts` asserts the Razorpay origins in its CSP and Permissions-Policy, and COOP `same-origin-allow-popups`                                                                              |
-| `src/observability/telemetry/*`, except `config.ts`'s per-app constants and `event-registry.ts`'s registry                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | One personally identifiable information (PII), consent, handoff and identity contract                                                                                                                                                                                                                                                                                                                                                                      |
-| `src/components/shared/pii.tsx`, `e2e/helpers/fake-posthog.ts`, `tests/mocks/posthog.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | The masking class, the egress guard's fake PostHog, and the posthog-js stand-in the unit tests share                                                                                                                                                                                                                                                                                                                                                       |
-| `src/components/shared/{query-state,page-skeleton,section-skeleton,section-boundary,pending-templates}.tsx` (`pending-templates.ts`), `tests/unit/components/shared/{query-state,page-skeleton,section-skeleton,section-boundary,pending-templates,pending-templates-preload}.test.tsx`; the `retryDelay: 0` `QueryClient` mock block in `tests/setup.ts` (the block, not the file)                                                                                                                                                                                                                                                                                                                                                                                                                                                | Byte-identical loading templates and section states; each app keeps its own `src/lib/role-denied.ts` (react: 403, apex: 404) and `src/components/features/role-denied.tsx` at the same paths                                                                                                                                                                                                                                                               |
-| `src/observability/flags/**`, except `flag-keys.ts` (each app's registry slice) and `flag-scope.ts` (each app's scope); `tests/unit/observability/flags/**`, except `flag-scope.test.ts` and apex's `flag-keys.test.ts`; `tests/fixtures/test-client-flags.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | One flag read, exposure and `$feature/*` contract; the tests mock `flag-keys` with test keys so they pass in both apps                                                                                                                                                                                                                                                                                                                                     |
-| `docker/10-runtime-config.sh`, `src/configs/runtime-config.ts`, `scripts/runtime-config-plugin.mjs`, `nginx.conf`'s `location = /runtime-config.js`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | One run-time configuration contract: the same variable names, patterns and file in both images                                                                                                                                                                                                                                                                                                                                                             |
-| `docker/05-prepare.sh`, `tests/unit/docker/prepare-script.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Validates `API_UPSTREAM`, the other half of the container contract                                                                                                                                                                                                                                                                                                                                                                                         |
-| `public/theme-init.js`, `src/lib/zod-jitless.ts`, `tests/unit/lib/zod-jitless.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | CSP compatibility                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `src/observability/errors/**`, `src/observability/identity-epoch.ts`, `tests/fixtures/error-scrub-vectors.json`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | One capture, filter, scrub and consent contract; the vectors are express-boilerplate's, byte for byte                                                                                                                                                                                                                                                                                                                                                      |
-| `src/main.tsx`, `src/components/features/route-error.tsx`, the `setErrorRouteSource` line in `src/router.tsx`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | The same boot order, and router and React root errors reported with their route the same way                                                                                                                                                                                                                                                                                                                                                               |
-| `docker/upload-sourcemaps.sh`, `docker/check-image.sh`, `docker/posthog-cli.sha256`, `.github/workflows/deploy.yml`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | One source map pipeline. `check-image.sh` is byte for byte except its expected CSP, COOP and Permissions-Policy lines, which match each app's `nginx.conf`                                                                                                                                                                                                                                                                                                 |
-| `nginx.conf`'s `.map` location                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | No source map is ever served                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `docker/nginx.main.conf`, `pnpm-workspace.yaml`, `tests/unit/docker/check-image-script.test.ts`, `tests/unit/docker/nginx-main-conf.test.ts`, `tests/unit/docker/dockerfile.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Same container limits, dependency overrides and script tests                                                                                                                                                                                                                                                                                                                                                                                               |
-| `e2e/nginx/cors.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | The cross-origin resource sharing (CORS) seam through nginx; this app adds a preflight for its stream                                                                                                                                                                                                                                                                                                                                                      |
-| `src/components/features/profile/security-section.tsx` and its test                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | One Security section: sign-in methods and sign-out-other-sessions                                                                                                                                                                                                                                                                                                                                                                                          |
-| `src/lib/safe-redirect.ts`, `src/lib/countdown.ts`, `src/lib/retry.ts`, `src/hooks/use-countdown.ts`, `tests/unit/lib/{safe-redirect,countdown,retry}.test.ts`, `tests/unit/hooks/use-countdown.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | One rule for a safe landing path, one countdown clock (with `'use no memo'`, so the React Compiler cannot freeze it) and one wording of a `Retry-After` wait                                                                                                                                                                                                                                                                                               |
-| `src/lib/plan-refusal.ts`, `src/lib/plural.ts`, `tests/unit/lib/{plan-refusal,plural}.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | One reader of a plan refusal's details; one counted-noun rule. `plural.test.ts` reads `testPlans` from `tests/fixtures/billing.ts`, each app's own                                                                                                                                                                                                                                                                                                         |
-| `src/components/features/auth/{sign-in-link-form,link-panels}.tsx`, `tests/unit/components/features/auth/{sign-in-link-form,link-panels}.test.tsx`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | One sign-in-link form with its "Check your inbox" step and resend clock, and one set of link-page panels (signing in, switch account, Try again)                                                                                                                                                                                                                                                                                                           |
-| `src/components/features/invitations/{invitation-parts.tsx,land-joined.ts}`, `src/hooks/use-signed-in-elsewhere.ts`, `tests/unit/components/features/invitations/invitation-parts.test.tsx`, `tests/unit/hooks/use-signed-in-elsewhere.test.tsx`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | One set of invitation-page parts: the card, "Check your inbox", the dead and incomplete confirm links, the join toast, and the cross-tab listener the page holds while a confirmation link is out, which the sign-in link form holds too. Each app keeps its own accept and confirm pages and passes its own landing                                                                                                                                       |
-| `src/schemas/changed-fields.schemas.ts`, `src/hooks/use-changed-fields.ts`, `tests/unit/hooks/use-changed-fields.test.tsx`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Changed-field edit forms; each app keeps its own schema test                                                                                                                                                                                                                                                                                                                                                                                               |
-| `src/queries/client-settings.queries.ts`, `src/lib/link-lifetime.ts`, `tests/fixtures/client-settings.ts`, `tests/unit/queries/client-settings.queries.test.tsx`, `tests/unit/lib/link-lifetime.test.ts`; the `ClientSettings` interface in each app's `src/types/api.types.ts` (the files differ, the interface does not)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | One read of express's `GET /status/client-settings` and one wording of a link's lifetime and expiry, which the shared sign-in form, invitation parts and step-up dialog state. The fixture's non-default values (20 minutes, 25 minutes, 5 days, `support@test.example`) make a figure written into the copy fail in both apps                                                                                                                             |
-| `src/hooks/use-now.ts`, `tests/unit/hooks/use-now.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | One shared ticking clock, so every relative time moves on while a page stays open; byte for byte                                                                                                                                                                                                                                                                                                                                                           |
-| `vitest.config.ts`'s React Compiler plugin block (`babel({ presets: [reactCompilerPreset()] })`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | The unit suite runs under the compiler, so a value the compiler would cache at render (a clock, module state) fails a unit test in both apps                                                                                                                                                                                                                                                                                                               |
-| `scripts/check-bundle.mjs`, except `ENTRY_BUDGET_BYTES` (each app's measured budget) and apex's `BILLING_ADMIN_MODULE` rule (its two checks keep apex's `billing-admin.queries.ts` out of the first-visit chunks; this app has no such module)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | One first-visit budget check; the budgets differ                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `src/lib/billing-format.ts`, `tests/unit/lib/billing-format.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | One way to write money and billing dates: rupees in the Indian grouping, a date in the tenant's time zone with the month spelled out, as express's billing emails write it, so staff, the customer and the emails name the same amount and day; and one word per invoice status. Apex's `billing-labels.ts` builds its dates and invoice badges on it.                                                                                                     |
-| The `lint` block of `vite.config.ts` and `eslint.config.js`'s shared conventions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Same conventions; each app adds its own import restrictions and file lists                                                                                                                                                                                                                                                                                                                                                                                 |
-| `e2e/capture/*`, except `seed.ts`, `manifest.ts` and `boot.test.ts` (each app's own); `tests/unit/capture-endpoint.test.ts`, `tests/unit/docs-pages.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | One page-inventory capture harness and docs check. `mailpit.ts`'s `mailedLink` is also how the `live` helpers read each mailed sign-in and confirmation link                                                                                                                                                                                                                                                                                               |
-| `src/components/ui/{alert,spinner,item,button}.tsx`, `tests/unit/components/ui/button.test.tsx`, the intro, `*`, `alert.tsx` and `button.tsx` sections of `docs/ui-local-edits.md`, `scripts/ui-drift.mjs`, `scripts/ui-drift.d.mts`, `tests/unit/ui-drift.test.ts`, the `ui:drift` scripts, CI step, `scripts/ui-registry` ignores (`.dockerignore` included), CODEOWNERS line and `shadcn` Renovate rule; not the snapshot itself, each app's own                                                                                                                                                                                                                                                                                                                                                                                | Byte-identical vendored components and the one drift check over them                                                                                                                                                                                                                                                                                                                                                                                       |
-| `src/components/shared/{empty-state,note,busy-button}.tsx`, `src/components/features/load-error.tsx`, `tests/unit/components/shared/*.test.tsx`, `tests/unit/components/features/load-error.test.tsx`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Byte-identical shared empty, note, busy and load-error components                                                                                                                                                                                                                                                                                                                                                                                          |
-| `tests/unit/copy-style.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | One copy check: the same banned list, 30-word cap and "couldn't" rule as express's. Each app keeps its own `src/components/features/tenant/role-error.ts` (`ROLE_ERROR`): react says "workspace" to customers, apex says "tenant" to staff, so `load-error.tsx` holds neither                                                                                                                                                                              |
-| `public/boot-variant.js`, `index.html`'s `<style id="boot-shell">` block and `#root` markup (not its `<style id="boot-tokens">` colours, each app's own), `tests/unit/boot-shell.test.ts`, `tests/unit/boot-variant.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | One first-paint shell; the colours are pinned to each app's `globals.css`                                                                                                                                                                                                                                                                                                                                                                                  |
-| `src/types/list.types.ts`, `src/schemas/{list,list-request,search}.schemas.ts`, `src/queries/list.queries.ts`, `src/components/shared/data-table/{data-table,data-table-cards,data-table-chip,data-table-column-header,data-table-faceted-filter,data-table-pagination,data-table-sort-menu,data-table-toolbar}.tsx`, `src/components/shared/data-table/{data-table-model,use-list-query,use-list-search}.ts`, `src/components/ui/{popover,checkbox}.tsx`, `tests/fixtures/list-page.ts`, `tests/unit/schemas/{list,search}.schemas.test.ts`, `tests/unit/queries/list.queries.test.ts`, `tests/unit/components/shared/data-table/{list-harness.tsx,use-list-search.test.tsx,data-table.test.tsx,data-table-toolbar.test.tsx}`; the `resetListPositions` import and `afterEach` call in `tests/setup.ts` (the lines, not the file) | Byte-identical list contract and DataTable: one URL shape, one table, one test suite. Each app keeps its own list definitions and query files, columns, `event-registry.ts` entries (`table_*`), constants such as `membership-roles.ts`, and `e2e/fixtures/lists.test.ts`                                                                                                                                                                                 |
-| `src/components/ui/command.tsx`, `src/lib/shortcut.ts`, `src/hooks/use-debounced-value.ts`, `src/states/command-palette.store.ts`, `src/components/shared/command-palette/*` (`command-palette-host.tsx` included, whose open-time read must stay compiler-safe), `tests/unit/hooks/use-debounced-value.test.tsx`, `tests/unit/lib/shortcut.test.ts`, `tests/unit/states/command-palette.store.test.ts`, `tests/unit/components/shared/command-palette/*`; the `### command.tsx` section of `docs/ui-local-edits.md`                                                                                                                                                                                                                                                                                                               | Byte-identical command palette core: one shell, one shortcut, one recents rule, one test suite. `recent-keys.ts` holds the recents' key prefix and the sign-out clear, and each app's `auth.store.ts` (not shared) calls its `clearAllRecents()`. Each app keeps its own `src/components/features/command-palette.tsx` (its commands), the components that register This page commands, its `event-registry.ts` entries and `e2e/fixtures/palette.test.ts` |
-| `src/lib/webauthn.ts`, `src/types/passkey.types.ts`, `src/queries/passkey.queries.ts`, `src/queries/passkey-manage.queries.ts`, `src/schemas/passkey.schemas.ts`, `src/lib/passkey-create-failure.ts`, `src/lib/passkey-sign-in-message.ts`, `tests/unit/lib/webauthn.test.ts`, `tests/unit/queries/passkey.queries.test.tsx`, `tests/unit/queries/passkey-sign-in-cancel.test.tsx`, `tests/fixtures/user-handle.ts`, `tests/unit/schemas/passkey.schemas.test.ts`                                                                                                                                                                                                                                                                                                                                                                 | One WebAuthn wrapper, one set of passkey types, queries and wire shapes. `passkey-create-failure.ts` holds `createFailureMessage`, which the Passkeys section and the setup screen both use. `check-bundle.mjs`'s `@simplewebauthn/browser` rule keeps the package lazy in both.                                                                                                                                                                           |
-| `src/lib/step-up.ts`, `src/lib/step-up-presence.ts`, `src/hooks/use-step-up.ts`, `src/queries/step-up.queries.ts`, `src/components/features/step-up/*`, `tests/mocks/{step-up,jwt,web-locks}.ts` and their tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | "Confirm it's you": the dialog, the passkey view, the `step-up-wait` lock and the link requests (`{ app: FRONTEND_APP }`).                                                                                                                                                                                                                                                                                                                                 |
-| `src/components/features/auth/{passkey-sign-in,social-sign-in}.tsx`, `src/hooks/use-passkey-autofill.ts` and their tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | The sign-in passkey button, `SocialSign-in`'s extra slot and the conditional-UI autofill request.                                                                                                                                                                                                                                                                                                                                                          |
-| `src/components/features/profile/{passkeys-section,passkey-dialogs}.tsx`, `src/components/features/passkeys/passkey-setup-screen.tsx`, `src/states/passkey-setup.store.ts`, `src/lib/passkey-setup.ts` and their tests (`passkey-dialogs.tsx` is covered by the Passkeys section's test; `security-section-chunk-failure.test.tsx` joins `security-section`'s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | The Passkeys section and its dialogs, the required-mode setup screen, and the setup flag with its interceptor.                                                                                                                                                                                                                                                                                                                                             |
-| `src/components/layouts/app-shell.tsx`, `src/components/shared/lazy-boundary.tsx`, `e2e/helpers/virtual-authenticator.ts`, `tests/unit/components/shared/lazy-boundary.test.tsx`, `tests/unit/components/layouts/app-shell-chunk-failure.test.tsx`, `tests/unit/components/features/profile/security-section-chunk-failure.test.tsx`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | The shell that mounts `StepUpProvider` and swaps in the setup screen; the error boundary that keeps a failed lazy passkey chunk from taking out the route (nothing for the Passkeys section, a Reload message for the setup screen); the Chrome DevTools Protocol (CDP) virtual authenticator for end-to-end (e2e) tests. Apex's `_app.tsx` renders `AppShell`, and its `router.tsx` calls `installPasskeySetupInterceptor(apiClient)`.                    |
-| `src/constants/frontend-app.ts`, `src/lib/action-message.ts` and `tests/mocks/setup-refusal.ts` (per app, not shared)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | The three seam files. `FRONTEND_APP` is `'web'` here and `'apex'` there; `actionMessageFrom` is `messageFrom` here and `staffMessageFrom` there; `refuseShellUntilCreated` refuses the first read the app's shell makes (react: `GET /api/v1/tenants`; apex: `GET /api/v1/platform/me/flags`), which the setup screen's test needs. Shared passkey files and tests import them, so they differ on purpose.                                                 |
+### The core table
 
-Keep every passkey and step-up file above byte-for-byte identical in apex
-(`cmp` clean), apart from the per-app seam files in the table's last row.
-Change a shared file here first, then copy it to apex.
+A `yes` in the apex or expo column means that app holds the file. A change to a
+row here needs the same change in each app the row names, and the pull request
+description says what happened there ("ported in apex#N", or "not applicable
+because ...").
+
+| Path                                                                             | apex | expo |
+| -------------------------------------------------------------------------------- | ---- | ---- |
+| `.github/workflows/deploy.yml`                                                   | yes  | -    |
+| `docker/05-prepare.sh`                                                           | yes  | -    |
+| `docker/10-runtime-config.sh`                                                    | yes  | -    |
+| `docker/15-app-links.sh`                                                         | yes  | -    |
+| `docker/nginx.main.conf`                                                         | yes  | -    |
+| `docker/posthog-cli.sha256`                                                      | yes  | -    |
+| `docker/upload-sourcemaps.sh`                                                    | yes  | -    |
+| `e2e/capture/endpoint.ts`                                                        | yes  | -    |
+| `e2e/capture/mailpit.ts`                                                         | yes  | -    |
+| `e2e/capture/navigation.test.ts`                                                 | yes  | -    |
+| `e2e/capture/pages.test.ts`                                                      | yes  | -    |
+| `e2e/capture/route-control.ts`                                                   | yes  | -    |
+| `e2e/capture/shoot.ts`                                                           | yes  | -    |
+| `e2e/capture/types.ts`                                                           | yes  | -    |
+| `e2e/helpers/fake-posthog.ts`                                                    | yes  | -    |
+| `e2e/helpers/virtual-authenticator.ts`                                           | yes  | -    |
+| `public/boot-variant.js`                                                         | yes  | -    |
+| `public/theme-init.js`                                                           | yes  | -    |
+| `scripts/check-shared.d.mts`                                                     | yes  | yes  |
+| `scripts/check-shared.mjs`                                                       | yes  | yes  |
+| `scripts/runtime-config-plugin.mjs`                                              | yes  | -    |
+| `scripts/ui-drift.d.mts`                                                         | yes  | -    |
+| `scripts/ui-drift.mjs`                                                           | yes  | -    |
+| `src/components/features/auth/link-panels.tsx`                                   | yes  | -    |
+| `src/components/features/auth/passkey-sign-in.tsx`                               | yes  | -    |
+| `src/components/features/auth/sign-in-link-form.tsx`                             | yes  | -    |
+| `src/components/features/auth/social-sign-in.tsx`                                | yes  | -    |
+| `src/components/features/invitations/invitation-parts.tsx`                       | yes  | -    |
+| `src/components/features/invitations/land-joined.ts`                             | yes  | -    |
+| `src/components/features/load-error.tsx`                                         | yes  | -    |
+| `src/components/features/passkeys/passkey-setup-screen.tsx`                      | yes  | -    |
+| `src/components/features/profile/passkey-dialogs.tsx`                            | yes  | -    |
+| `src/components/features/profile/passkeys-section.tsx`                           | yes  | -    |
+| `src/components/features/profile/security-section.tsx`                           | yes  | -    |
+| `src/components/features/route-error.tsx`                                        | yes  | -    |
+| `src/components/features/step-up/passkey-confirm.tsx`                            | yes  | -    |
+| `src/components/features/step-up/step-up-dialog.tsx`                             | yes  | -    |
+| `src/components/features/step-up/step-up-provider.tsx`                           | yes  | -    |
+| `src/components/layouts/app-shell.tsx`                                           | yes  | -    |
+| `src/components/shared/busy-button.tsx`                                          | yes  | -    |
+| `src/components/shared/command-palette/command-palette-host.tsx`                 | yes  | -    |
+| `src/components/shared/command-palette/command-palette-shell.tsx`                | yes  | -    |
+| `src/components/shared/command-palette/copy-id.ts`                               | yes  | -    |
+| `src/components/shared/command-palette/match.ts`                                 | yes  | -    |
+| `src/components/shared/command-palette/palette-loader.ts`                        | yes  | -    |
+| `src/components/shared/command-palette/palette-registry.ts`                      | yes  | -    |
+| `src/components/shared/command-palette/palette-types.ts`                         | yes  | -    |
+| `src/components/shared/command-palette/recent-items.ts`                          | yes  | -    |
+| `src/components/shared/command-palette/recent-keys.ts`                           | yes  | -    |
+| `src/components/shared/command-palette/remote-group.ts`                          | yes  | -    |
+| `src/components/shared/command-palette/use-palette-shortcut.ts`                  | yes  | -    |
+| `src/components/shared/command-palette/use-palette-term.ts`                      | yes  | -    |
+| `src/components/shared/data-table/data-table-cards.tsx`                          | yes  | -    |
+| `src/components/shared/data-table/data-table-chip.tsx`                           | yes  | -    |
+| `src/components/shared/data-table/data-table-column-header.tsx`                  | yes  | -    |
+| `src/components/shared/data-table/data-table-faceted-filter.tsx`                 | yes  | -    |
+| `src/components/shared/data-table/data-table-model.ts`                           | yes  | -    |
+| `src/components/shared/data-table/data-table-pagination.tsx`                     | yes  | -    |
+| `src/components/shared/data-table/data-table-sort-menu.tsx`                      | yes  | -    |
+| `src/components/shared/data-table/data-table-toolbar.tsx`                        | yes  | -    |
+| `src/components/shared/data-table/data-table.tsx`                                | yes  | -    |
+| `src/components/shared/data-table/use-list-query.ts`                             | yes  | -    |
+| `src/components/shared/data-table/use-list-search.ts`                            | yes  | -    |
+| `src/components/shared/empty-state.tsx`                                          | yes  | -    |
+| `src/components/shared/lazy-boundary.tsx`                                        | yes  | -    |
+| `src/components/shared/note.tsx`                                                 | yes  | -    |
+| `src/components/shared/page-skeleton.tsx`                                        | yes  | -    |
+| `src/components/shared/pending-templates.ts`                                     | yes  | -    |
+| `src/components/shared/pii.tsx`                                                  | yes  | -    |
+| `src/components/shared/query-state.tsx`                                          | yes  | -    |
+| `src/components/shared/section-boundary.tsx`                                     | yes  | -    |
+| `src/components/shared/section-skeleton.tsx`                                     | yes  | -    |
+| `src/components/shared/toast-host.tsx`                                           | yes  | -    |
+| `src/components/ui/alert.tsx`                                                    | yes  | -    |
+| `src/components/ui/button.tsx`                                                   | yes  | -    |
+| `src/components/ui/checkbox.tsx`                                                 | yes  | -    |
+| `src/components/ui/command.tsx`                                                  | yes  | -    |
+| `src/components/ui/form.tsx`                                                     | yes  | -    |
+| `src/components/ui/item.tsx`                                                     | yes  | -    |
+| `src/components/ui/popover.tsx`                                                  | yes  | -    |
+| `src/components/ui/spinner.tsx`                                                  | yes  | -    |
+| `src/components/ui/toast.tsx`                                                    | yes  | -    |
+| `src/configs/runtime-config.ts`                                                  | yes  | -    |
+| `src/constants/app.ts`                                                           | -    | yes  |
+| `src/constants/audit-action-names.ts`                                            | -    | yes  |
+| `src/constants/audit-actions.ts`                                                 | -    | yes  |
+| `src/constants/maintenance-mode.ts`                                              | -    | yes  |
+| `src/constants/membership-roles.ts`                                              | -    | yes  |
+| `src/constants/roles.ts`                                                         | -    | yes  |
+| `src/constants/routes.ts`                                                        | -    | yes  |
+| `src/hooks/use-changed-fields.ts`                                                | yes  | -    |
+| `src/hooks/use-countdown.ts`                                                     | yes  | -    |
+| `src/hooks/use-debounced-value.ts`                                               | yes  | -    |
+| `src/hooks/use-now.ts`                                                           | yes  | yes  |
+| `src/hooks/use-passkey-autofill.ts`                                              | yes  | -    |
+| `src/hooks/use-signed-in-elsewhere.ts`                                           | yes  | -    |
+| `src/hooks/use-step-up.ts`                                                       | yes  | -    |
+| `src/http/auth-verdict.ts`                                                       | yes  | yes  |
+| `src/http/create-api-client.ts`                                                  | yes  | yes  |
+| `src/http/interceptors.ts`                                                       | yes  | yes  |
+| `src/http/refresh-core.ts`                                                       | yes  | yes  |
+| `src/http/traceparent.ts`                                                        | yes  | yes  |
+| `src/lib/api-error.ts`                                                           | yes  | yes  |
+| `src/lib/billing-banner.ts`                                                      | -    | yes  |
+| `src/lib/billing-format.ts`                                                      | yes  | yes  |
+| `src/lib/billing-page.ts`                                                        | -    | yes  |
+| `src/lib/countdown.ts`                                                           | yes  | yes  |
+| `src/lib/download-file.ts`                                                       | yes  | -    |
+| `src/lib/format.ts`                                                              | -    | yes  |
+| `src/lib/gst.ts`                                                                 | yes  | -    |
+| `src/lib/link-lifetime.ts`                                                       | yes  | -    |
+| `src/lib/maintenance-state.ts`                                                   | -    | yes  |
+| `src/lib/members-limit.ts`                                                       | -    | yes  |
+| `src/lib/notification-link.ts`                                                   | -    | yes  |
+| `src/lib/notification-type.ts`                                                   | -    | yes  |
+| `src/lib/passkey-create-failure.ts`                                              | yes  | -    |
+| `src/lib/passkey-setup.ts`                                                       | yes  | -    |
+| `src/lib/passkey-sign-in-message.ts`                                             | yes  | yes  |
+| `src/lib/plan-refusal.ts`                                                        | yes  | yes  |
+| `src/lib/plural.ts`                                                              | yes  | yes  |
+| `src/lib/relative-time.ts`                                                       | -    | yes  |
+| `src/lib/retry.ts`                                                               | yes  | yes  |
+| `src/lib/role-denied.ts`                                                         | -    | yes  |
+| `src/lib/safe-redirect.ts`                                                       | yes  | -    |
+| `src/lib/shortcut.ts`                                                            | yes  | -    |
+| `src/lib/step-up-presence.ts`                                                    | yes  | -    |
+| `src/lib/step-up.ts`                                                             | yes  | yes  |
+| `src/lib/tenant-guard.ts`                                                        | -    | yes  |
+| `src/lib/toast.ts`                                                               | yes  | -    |
+| `src/lib/trial-summary.ts`                                                       | -    | yes  |
+| `src/lib/webauthn.ts`                                                            | yes  | -    |
+| `src/lib/write-failure.ts`                                                       | -    | yes  |
+| `src/lib/zod-jitless.ts`                                                         | yes  | yes  |
+| `src/main.tsx`                                                                   | yes  | -    |
+| `src/observability/errors/index.ts`                                              | yes  | -    |
+| `src/observability/errors/install.ts`                                            | yes  | -    |
+| `src/observability/errors/listen.ts`                                             | yes  | -    |
+| `src/observability/errors/report.ts`                                             | yes  | -    |
+| `src/observability/errors/scrub.ts`                                              | yes  | -    |
+| `src/observability/flags/exposure.ts`                                            | yes  | -    |
+| `src/observability/flags/feature-property-names.ts`                              | yes  | -    |
+| `src/observability/flags/flag-hooks.ts`                                          | yes  | -    |
+| `src/observability/flags/flag-query.ts`                                          | yes  | -    |
+| `src/observability/flags/flag-types.ts`                                          | yes  | yes  |
+| `src/observability/flags/flag-values.ts`                                         | yes  | yes  |
+| `src/observability/flags/register.ts`                                            | yes  | -    |
+| `src/observability/flags/require-client-flag.ts`                                 | yes  | -    |
+| `src/observability/identity-epoch.ts`                                            | yes  | -    |
+| `src/observability/telemetry/handoff.ts`                                         | yes  | -    |
+| `src/observability/telemetry/index.ts`                                           | yes  | -    |
+| `src/observability/telemetry/mask-attribute.ts`                                  | yes  | -    |
+| `src/observability/telemetry/posthog-options.ts`                                 | yes  | -    |
+| `src/observability/telemetry/sent-title.ts`                                      | yes  | -    |
+| `src/observability/telemetry/telemetry.ts`                                       | yes  | -    |
+| `src/observability/telemetry/url-sanitizer.ts`                                   | yes  | yes  |
+| `src/queries/account-deletion.queries.ts`                                        | -    | yes  |
+| `src/queries/audit.queries.ts`                                                   | -    | yes  |
+| `src/queries/auth.queries.ts`                                                    | -    | yes  |
+| `src/queries/beta.queries.ts`                                                    | -    | yes  |
+| `src/queries/billing.queries.ts`                                                 | -    | yes  |
+| `src/queries/client-settings.queries.ts`                                         | yes  | yes  |
+| `src/queries/insights.queries.ts`                                                | -    | yes  |
+| `src/queries/invitation.queries.ts`                                              | -    | yes  |
+| `src/queries/list.queries.ts`                                                    | yes  | yes  |
+| `src/queries/maintenance-status.queries.ts`                                      | -    | yes  |
+| `src/queries/notification-list.queries.ts`                                       | -    | yes  |
+| `src/queries/notification.queries.ts`                                            | -    | yes  |
+| `src/queries/onboarding.queries.ts`                                              | -    | yes  |
+| `src/queries/passkey-manage.queries.ts`                                          | yes  | yes  |
+| `src/queries/passkey.queries.ts`                                                 | yes  | yes  |
+| `src/queries/profile.queries.ts`                                                 | -    | yes  |
+| `src/queries/step-up.queries.ts`                                                 | yes  | yes  |
+| `src/queries/tax.queries.ts`                                                     | -    | yes  |
+| `src/queries/tenant-forms.queries.ts`                                            | -    | yes  |
+| `src/queries/tenant.queries.ts`                                                  | -    | yes  |
+| `src/schemas/auth.schemas.ts`                                                    | yes  | yes  |
+| `src/schemas/changed-fields.schemas.ts`                                          | yes  | -    |
+| `src/schemas/email-domain.schemas.ts`                                            | yes  | yes  |
+| `src/schemas/invitation.schemas.ts`                                              | yes  | -    |
+| `src/schemas/list-request.schemas.ts`                                            | yes  | yes  |
+| `src/schemas/list.schemas.ts`                                                    | yes  | yes  |
+| `src/schemas/passkey.schemas.ts`                                                 | yes  | yes  |
+| `src/schemas/profile.schemas.ts`                                                 | yes  | yes  |
+| `src/schemas/safe-text.schemas.ts`                                               | yes  | yes  |
+| `src/schemas/search.schemas.ts`                                                  | yes  | yes  |
+| `src/schemas/slug.schemas.ts`                                                    | -    | yes  |
+| `src/schemas/tax-details.schemas.ts`                                             | yes  | -    |
+| `src/schemas/tenant.schemas.ts`                                                  | -    | yes  |
+| `src/states/command-palette.store.ts`                                            | yes  | -    |
+| `src/states/passkey-setup.store.ts`                                              | yes  | -    |
+| `src/types/api.types.ts`                                                         | -    | yes  |
+| `src/types/billing.types.ts`                                                     | -    | yes  |
+| `src/types/list.types.ts`                                                        | yes  | yes  |
+| `src/types/passkey.types.ts`                                                     | yes  | yes  |
+| `src/types/tax.types.ts`                                                         | -    | yes  |
+| `src/types/webauthn.types.ts`                                                    | yes  | yes  |
+| `tests/fixtures/billing.ts`                                                      | -    | yes  |
+| `tests/fixtures/client-settings.ts`                                              | yes  | -    |
+| `tests/fixtures/error-scrub-vectors.json`                                        | yes  | -    |
+| `tests/fixtures/ids.ts`                                                          | -    | yes  |
+| `tests/fixtures/list-page.ts`                                                    | yes  | -    |
+| `tests/fixtures/test-client-flags.ts`                                            | yes  | -    |
+| `tests/fixtures/user-handle.ts`                                                  | yes  | -    |
+| `tests/mocks/jwt.ts`                                                             | yes  | -    |
+| `tests/mocks/posthog.ts`                                                         | yes  | -    |
+| `tests/mocks/step-up.ts`                                                         | yes  | -    |
+| `tests/mocks/web-locks.ts`                                                       | yes  | -    |
+| `tests/unit/boot-shell.test.ts`                                                  | yes  | -    |
+| `tests/unit/boot-variant.test.ts`                                                | yes  | -    |
+| `tests/unit/capture-endpoint.test.ts`                                            | yes  | -    |
+| `tests/unit/components/features/auth/link-panels.test.tsx`                       | yes  | -    |
+| `tests/unit/components/features/auth/passkey-sign-in.test.tsx`                   | yes  | -    |
+| `tests/unit/components/features/auth/sign-in-link-form.test.tsx`                 | yes  | -    |
+| `tests/unit/components/features/auth/social-sign-in.test.tsx`                    | yes  | -    |
+| `tests/unit/components/features/invitations/invitation-parts.test.tsx`           | yes  | -    |
+| `tests/unit/components/features/load-error.test.tsx`                             | yes  | -    |
+| `tests/unit/components/features/passkeys/passkey-setup-screen.test.tsx`          | yes  | -    |
+| `tests/unit/components/features/profile/passkeys-section.test.tsx`               | yes  | -    |
+| `tests/unit/components/features/profile/security-section-chunk-failure.test.tsx` | yes  | -    |
+| `tests/unit/components/features/profile/security-section.test.tsx`               | yes  | -    |
+| `tests/unit/components/features/step-up-chunk-failure.test.tsx`                  | yes  | -    |
+| `tests/unit/components/features/step-up.test.tsx`                                | yes  | -    |
+| `tests/unit/components/layouts/app-shell-chunk-failure.test.tsx`                 | yes  | -    |
+| `tests/unit/components/shared/busy-button.test.tsx`                              | yes  | -    |
+| `tests/unit/components/shared/command-palette/command-palette-host.test.tsx`     | yes  | -    |
+| `tests/unit/components/shared/command-palette/command-palette-shell.test.tsx`    | yes  | -    |
+| `tests/unit/components/shared/command-palette/copy-id.test.ts`                   | yes  | -    |
+| `tests/unit/components/shared/command-palette/match.test.ts`                     | yes  | -    |
+| `tests/unit/components/shared/command-palette/palette-harness.tsx`               | yes  | -    |
+| `tests/unit/components/shared/command-palette/palette-registry.test.tsx`         | yes  | -    |
+| `tests/unit/components/shared/command-palette/recent-items.test.tsx`             | yes  | -    |
+| `tests/unit/components/shared/command-palette/recent-keys.test.ts`               | yes  | -    |
+| `tests/unit/components/shared/command-palette/remote-group.test.ts`              | yes  | -    |
+| `tests/unit/components/shared/command-palette/use-palette-shortcut.test.tsx`     | yes  | -    |
+| `tests/unit/components/shared/data-table/data-table-toolbar.test.tsx`            | yes  | -    |
+| `tests/unit/components/shared/data-table/data-table.test.tsx`                    | yes  | -    |
+| `tests/unit/components/shared/data-table/list-harness.tsx`                       | yes  | -    |
+| `tests/unit/components/shared/data-table/use-list-search.test.tsx`               | yes  | -    |
+| `tests/unit/components/shared/empty-state.test.tsx`                              | yes  | -    |
+| `tests/unit/components/shared/lazy-boundary.test.tsx`                            | yes  | -    |
+| `tests/unit/components/shared/note.test.tsx`                                     | yes  | -    |
+| `tests/unit/components/shared/page-skeleton.test.tsx`                            | yes  | -    |
+| `tests/unit/components/shared/pending-templates-preload.test.tsx`                | yes  | -    |
+| `tests/unit/components/shared/pending-templates.test.tsx`                        | yes  | -    |
+| `tests/unit/components/shared/pii.test.tsx`                                      | yes  | -    |
+| `tests/unit/components/shared/query-state.test.tsx`                              | yes  | -    |
+| `tests/unit/components/shared/section-boundary.test.tsx`                         | yes  | -    |
+| `tests/unit/components/shared/section-skeleton.test.tsx`                         | yes  | -    |
+| `tests/unit/components/shared/toast-host.test.tsx`                               | yes  | -    |
+| `tests/unit/components/ui/button.test.tsx`                                       | yes  | -    |
+| `tests/unit/copy-style.test.ts`                                                  | yes  | yes  |
+| `tests/unit/docker/app-links-script.test.ts`                                     | yes  | -    |
+| `tests/unit/docker/check-image-script.test.ts`                                   | yes  | -    |
+| `tests/unit/docker/dockerfile.test.ts`                                           | yes  | -    |
+| `tests/unit/docker/nginx-main-conf.test.ts`                                      | yes  | -    |
+| `tests/unit/docker/prepare-script.test.ts`                                       | yes  | -    |
+| `tests/unit/docs-pages.test.ts`                                                  | yes  | -    |
+| `tests/unit/hooks/use-changed-fields.test.tsx`                                   | yes  | -    |
+| `tests/unit/hooks/use-countdown.test.ts`                                         | yes  | -    |
+| `tests/unit/hooks/use-debounced-value.test.tsx`                                  | yes  | -    |
+| `tests/unit/hooks/use-now.test.ts`                                               | yes  | -    |
+| `tests/unit/hooks/use-passkey-autofill.test.tsx`                                 | yes  | -    |
+| `tests/unit/hooks/use-signed-in-elsewhere.test.tsx`                              | yes  | -    |
+| `tests/unit/http/auth-verdict.test.ts`                                           | yes  | yes  |
+| `tests/unit/http/refresh-core.test.ts`                                           | yes  | yes  |
+| `tests/unit/lib/api-error.test.ts`                                               | yes  | yes  |
+| `tests/unit/lib/billing-banner.test.ts`                                          | -    | yes  |
+| `tests/unit/lib/billing-format.test.ts`                                          | yes  | yes  |
+| `tests/unit/lib/billing-page.test.ts`                                            | -    | yes  |
+| `tests/unit/lib/countdown.test.ts`                                               | yes  | yes  |
+| `tests/unit/lib/download-file.test.ts`                                           | yes  | -    |
+| `tests/unit/lib/format.test.ts`                                                  | -    | yes  |
+| `tests/unit/lib/gst.test.ts`                                                     | yes  | -    |
+| `tests/unit/lib/link-lifetime.test.ts`                                           | yes  | -    |
+| `tests/unit/lib/maintenance-state.test.ts`                                       | -    | yes  |
+| `tests/unit/lib/notification-link.test.ts`                                       | -    | yes  |
+| `tests/unit/lib/notification-type.test.ts`                                       | -    | yes  |
+| `tests/unit/lib/passkey-setup.test.ts`                                           | yes  | -    |
+| `tests/unit/lib/plan-refusal.test.ts`                                            | yes  | yes  |
+| `tests/unit/lib/plural.test.ts`                                                  | yes  | yes  |
+| `tests/unit/lib/relative-time.test.ts`                                           | -    | yes  |
+| `tests/unit/lib/retry.test.ts`                                                   | yes  | yes  |
+| `tests/unit/lib/role-denied.test.ts`                                             | -    | yes  |
+| `tests/unit/lib/safe-redirect.test.ts`                                           | yes  | -    |
+| `tests/unit/lib/shortcut.test.ts`                                                | yes  | -    |
+| `tests/unit/lib/step-up-presence.test.ts`                                        | yes  | -    |
+| `tests/unit/lib/step-up.test.ts`                                                 | yes  | -    |
+| `tests/unit/lib/trial-summary.test.ts`                                           | -    | yes  |
+| `tests/unit/lib/webauthn.test.ts`                                                | yes  | -    |
+| `tests/unit/lib/write-failure.test.ts`                                           | -    | yes  |
+| `tests/unit/lib/zod-jitless.test.ts`                                             | yes  | -    |
+| `tests/unit/observability/flags/exposure.test.ts`                                | yes  | -    |
+| `tests/unit/observability/flags/flag-hooks.test.tsx`                             | yes  | -    |
+| `tests/unit/observability/flags/flag-query.test.ts`                              | yes  | -    |
+| `tests/unit/observability/flags/flag-values.test.ts`                             | yes  | -    |
+| `tests/unit/observability/flags/register.test.ts`                                | yes  | -    |
+| `tests/unit/observability/flags/require-client-flag.test.ts`                     | yes  | -    |
+| `tests/unit/queries/account-deletion.queries.test.ts`                            | -    | yes  |
+| `tests/unit/queries/client-settings.queries.test.tsx`                            | yes  | -    |
+| `tests/unit/queries/list.queries.test.ts`                                        | yes  | -    |
+| `tests/unit/queries/passkey-sign-in-cancel.test.tsx`                             | yes  | -    |
+| `tests/unit/queries/passkey.queries.test.tsx`                                    | yes  | -    |
+| `tests/unit/schemas/auth.schemas.test.ts`                                        | yes  | yes  |
+| `tests/unit/schemas/email-domain.schemas.test.ts`                                | yes  | yes  |
+| `tests/unit/schemas/invitation.schemas.test.ts`                                  | yes  | -    |
+| `tests/unit/schemas/list.schemas.test.ts`                                        | yes  | yes  |
+| `tests/unit/schemas/passkey.schemas.test.ts`                                     | yes  | yes  |
+| `tests/unit/schemas/profile.schemas.test.ts`                                     | yes  | yes  |
+| `tests/unit/schemas/safe-text.schemas.test.ts`                                   | yes  | yes  |
+| `tests/unit/schemas/search.schemas.test.ts`                                      | yes  | yes  |
+| `tests/unit/schemas/slug.schemas.test.ts`                                        | -    | yes  |
+| `tests/unit/schemas/tax-details.schemas.test.ts`                                 | yes  | -    |
+| `tests/unit/schemas/tenant.schemas.test.ts`                                      | -    | yes  |
+| `tests/unit/states/command-palette.store.test.ts`                                | yes  | -    |
+| `tests/unit/ui-drift.test.ts`                                                    | yes  | -    |
+
+### The ports
+
+A port is a file that exists in every app under the same path and exports the
+same names, but each app writes its own body. A shared file may import a port
+and nothing else that is platform-specific. The manifest's `ports` key lists
+the exports a shared file may use. This table is react's version of each port;
+`check:shared` does not compare it with the manifest, so a new port or export
+is a change to both.
+
+| Port                                   | Exports                                                                                         | What react's version does                                                                                                                                                                                                                                                                              |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/constants/frontend-app.ts`        | `FRONTEND_APP`                                                                                  | The `app` value (`'web'`) that sign-in, passkey and step-up requests send, so express builds links and policy for this app.                                                                                                                                                                            |
+| `src/http/client.ts`                   | `apiClient`, `unwrap`                                                                           | Builds `apiClient` from the shared `createApiClient` and installs the shared interceptor chain with react's ports: a same-origin check against `API_PREFIX`, `ensureSession`, and a sign-out that clears `auth.store`, tells the other tabs and goes to /login. `unwrap` re-exports the shared one.    |
+| `src/http/session.ts`                  | `broadcastAuthMessage`, `broadcastLogout`, `ensureSession`, `redirectToLogin`, `switchIdentity` | The browser session: `ensureSession` builds the shared refresh core with the cookie transport and a Web Lock across tabs; `redirectToLogin` assigns `/login?redirect=`; the broadcast functions use a `BroadcastChannel`; `switchIdentity` resets the query cache and analytics when the user changes. |
+| `src/lib/toast.ts`                     | `toast`                                                                                         | The toast API (`toast.success`, `toast.error`, `toast.warning`) over Base UI's toast manager. It queues toasts raised before the lazy `<Toaster>` mounts.                                                                                                                                              |
+| `src/observability/flags/flag-keys.ts` | `CLIENT_FLAGS`                                                                                  | This app's slice of express's flag registry: the entries with `client: true` and `react` in `apps`, copied by hand into `CLIENT_FLAGS`.                                                                                                                                                                |
+| `src/observability/telemetry/index.ts` | `AnalyticsKey`, `analyticsKey`, `getAnalyticsSessionIdFor`, `track`                             | The analytics facade over posthog-js, loaded on demand. Shared files use only `track`, `analyticsKey`, `AnalyticsKey` and `getAnalyticsSessionIdFor`.                                                                                                                                                  |
+| `src/ports/navigation.ts`              | `assignLocation`                                                                                | `assignLocation(url)` calls `window.location.assign(url)`.                                                                                                                                                                                                                                             |
+| `src/ports/runtime.ts`                 | `isDev`                                                                                         | `isDev`, read from `import.meta.env.DEV`.                                                                                                                                                                                                                                                              |
+| `src/ports/webauthn.ts`                | `webauthn`                                                                                      | `webauthn`, the browser's WebAuthn built from `src/lib/webauthn.ts`: support check, get, create, cancel generation and the three signals.                                                                                                                                                              |
+| `src/states/auth.store.ts`             | `useAuthStore`                                                                                  | A Zustand store holding the access token and user in memory only, with no `persist` middleware. `logout` also clears the command palette's recent items.                                                                                                                                               |
+| `src/states/maintenance-mode.store.ts` | `useMaintenanceModeStore`                                                                       | A Zustand store of the maintenance mode, the owner's notice and the start time, set from the `Maintenance-Mode` header, the status endpoint or a 503 body. Memory only.                                                                                                                                |
+| `tests/support/runner.ts`              | `describe`, `it`, `test`, `expect`, `beforeEach`, `afterEach`, `repoRoot`, `copyStyleRoots`     | Re-exports `describe`, `it`, `test`, `expect`, `beforeEach` and `afterEach` from `vite-plus/test`, and defines `repoRoot` and `copyStyleRoots` (`['src']`).                                                                                                                                            |
+
+`switchArea` in `src/copy/billing.ts` is per-app, like the rest of that file:
+each app words its own billing copy, so the shared billing logic
+(`src/lib/billing-*.ts`) takes no copy from it.
+
+#### Per-app seam files
+
+Two more files are not ports and are not in the manifest, yet shared passkey
+files and tests import them, so each app holds its own copy and the copies
+differ on purpose:
+
+- `src/lib/action-message.ts` exports `actionMessageFrom`, which is
+  `messageFrom` in react and `staffMessageFrom` in apex.
+- `tests/mocks/setup-refusal.ts` exports `refuseShellUntilCreated`, which
+  refuses the first read the app's shell makes (react: `GET /api/v1/tenants`;
+  apex: `GET /api/v1/platform/me/flags`). The setup screen's test needs it.
+
+### Rules
+
+- **react is the source.** Change a shared file here first, then copy it to
+  each app the row names. `scrub.ts` is the exception: its rules change in
+  express first ([The scrubber](SECURITY.md#the-scrubber)), then in react,
+  apex and expo.
+- **The purity rules bind the expo rows only.** `scripts/check-shared.mjs` and
+  its `.d.mts` are expo rows, so `check-shared` scans them too. A file with an
+  expo mark uses no
+  browser global (`window`, `document`, `location`, `navigator`,
+  `localStorage`, `sessionStorage`), imports no banned package
+  (`posthog-js`, `posthog-react-native`, `@tanstack/react-router`,
+  `@simplewebauthn/browser`, `react-native`, `@tabler/icons-react`), imports
+  nothing under `@/components`, and imports only another shared file or a port
+  export the manifest lists. A shared test also takes its test functions only
+  from the runner port (`tests/support/runner.ts`), uses no `vi` and no
+  `import.meta`, and imports neither `node:fs` (or `fs`) nor `msw`. The
+  manifest's `exemptions` key lists the one exception today:
+  `tests/unit/copy-style.test.ts` may import `node:fs`.
+- **Apex rows are byte for byte copies.** Apex's `sync-check`, which a later
+  change adds, byte-compares them with react `main` and re-runs only the
+  expo-row checks.
+  The purity rules do not apply to an apex-only row.
+- **`check-shared` runs in the gate.** `pnpm check:shared` runs
+  `scripts/check-shared.mjs --docs ARCHITECTURE.md`, so it also compares the
+  core table with the manifest. `scripts/check-shared.mjs` and its `.d.mts` are
+  expo and apex rows themselves.
+- **apex and expo run `sync-check` against react `main`.** A pull request that
+  changes a shared row here lands first; each app's check then reports the rows
+  that no longer match.
+- **The container files split.** `Dockerfile`, `docker/check-image.sh` and
+  `nginx.conf` are per-app. `docker/15-app-links.sh` and its test
+  (`tests/unit/docker/app-links-script.test.ts`) are apex rows.
+- **`public/boot-variant.js` is an apex row.** A change there, such as the
+  `/delete-account` entry, needs the same change in apex.
+
+### Notes on shared rows
+
+The reasons below are the ones a maintainer would not guess from the path.
+
+- **Error envelope, schemas.** `api-error.ts` and the `*.schemas.ts` files
+  mirror express's error envelope and validators, so a change needs the same
+  change in the API.
+- **Tax.** `gst.ts` holds one Goods and Services Tax Identification Number
+  (GSTIN) rule and state table, equal to express's.
+- **Loading templates.** The shared query-state, skeleton and
+  pending-template files are byte-identical, so every app shows the same
+  loading states.
+- **Bundle.** `check-bundle.mjs`'s `@simplewebauthn/browser` rule keeps that
+  package in a lazy chunk in both apps.
+- **Recents.** `recent-keys.ts` holds the recents' key prefix and the sign-out
+  clear; each app's `auth.store.ts` calls its `clearAllRecents()`.
+- **Fixtures.** The client-settings fixture's non-default values (20 minutes,
+  25 minutes, 5 days, `support@test.example`) make a figure written into the
+  copy fail in both apps.
+- **Plural.** `plural.test.ts` reads `testPlans` from
+  `tests/fixtures/billing.ts`, which each app writes itself.
+- **Countdown.** `use-countdown.ts` starts with `'use no memo'`, so the React
+  Compiler cannot freeze the clock.
+- **Command palette.** `command-palette-host.tsx`'s open-time read must stay
+  compiler-safe.
+- **Passkey wiring.** Apex's `_app.tsx` renders `AppShell`, and its
+  `router.tsx` calls `installPasskeySetupInterceptor(apiClient)`.
+- **Passkey failures.** `passkey-create-failure.ts` holds
+  `createFailureMessage`, which the Passkeys section and the setup screen share.
+- **Copy.** react says "workspace" to customers and apex says "tenant" to
+  staff, so the shared `load-error.tsx` holds neither word; each app keeps its
+  own `src/components/features/tenant/role-error.ts` (`ROLE_ERROR`).
+  `copy-style.test.ts` applies the same banned list, 30-word cap and
+  "couldn't" rule as express's.
+- **Per-app companions at the same paths.**
+  - `src/lib/role-denied.ts` is an expo row, shared with expo. Apex keeps its own,
+    which answers 404 where react answers 403.
+  - `event-registry.ts` holds each app's own events, `table_*` included.
+  - `e2e/fixtures/lists.test.ts` and `e2e/fixtures/palette.test.ts` are each
+    app's own.
+  - `src/components/features/command-palette.tsx` holds each app's commands.
+
+### Apex rows that are not byte for byte today
+
+On 5 November 2026, `cmp` against the sibling apex checkout found 10 apex rows
+that apex lacks and 24 that differ. They differ because apex has not copied
+react's new versions yet. Apex's sync check, which a later change adds, copies
+them.
+
+- Absent from apex:
+  - `docker/15-app-links.sh`
+  - `scripts/check-shared.d.mts`
+  - `scripts/check-shared.mjs`
+  - `src/http/auth-verdict.ts`
+  - `src/http/create-api-client.ts`
+  - `src/http/refresh-core.ts`
+  - `src/types/webauthn.types.ts`
+  - `tests/unit/docker/app-links-script.test.ts`
+  - `tests/unit/http/auth-verdict.test.ts`
+  - `tests/unit/http/refresh-core.test.ts`
+- Different in apex:
+  - `public/boot-variant.js`
+  - `src/http/interceptors.ts`
+  - `src/observability/flags/flag-values.ts`
+  - `src/observability/telemetry/url-sanitizer.ts`
+  - `src/queries/passkey-manage.queries.ts`
+  - `src/queries/passkey.queries.ts`
+  - `src/queries/step-up.queries.ts`
+  - `tests/unit/boot-variant.test.ts`
+  - `tests/unit/copy-style.test.ts`
+  - `tests/unit/docker/dockerfile.test.ts`
+  - `tests/unit/lib/api-error.test.ts`
+  - `tests/unit/lib/billing-format.test.ts`
+  - `tests/unit/lib/countdown.test.ts`
+  - `tests/unit/lib/plan-refusal.test.ts`
+  - `tests/unit/lib/plural.test.ts`
+  - `tests/unit/lib/retry.test.ts`
+  - `tests/unit/schemas/auth.schemas.test.ts`
+  - `tests/unit/schemas/email-domain.schemas.test.ts`
+  - `tests/unit/schemas/list.schemas.test.ts`
+  - `tests/unit/schemas/passkey.schemas.test.ts`
+  - `tests/unit/schemas/profile.schemas.test.ts`
+  - `tests/unit/schemas/safe-text.schemas.test.ts`
+  - `tests/unit/schemas/search.schemas.test.ts`
+  - `tests/unit/schemas/tax-details.schemas.test.ts`
+
+### Shared in part
+
+The paths below are shared in part, so the manifest does not list them and
+`check-shared` does not compare them. Change the shared part here and check
+apex in the same pull request.
+
+| Path                                                                                                                                                                                                                                               | Why it must stay in step                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `nginx.conf` security headers and CSP, `location /api/v1/collect/` and `location ~* ^/api/v1/auth/google/callback/?$`, the token-page comment above `access_log`, `tests/unit/docker/nginx-conf.test.ts` (react's also covers the stream location) | Same threat model; same replay batch size. The Content Security Policy (CSP), Cross-Origin-Opener-Policy (COOP) and Permissions-Policy values differ on purpose: this app allows Razorpay Checkout, and apex loads no third-party script. This app's `nginx-conf.test.ts` asserts the Razorpay origins in its CSP and Permissions-Policy, and COOP `same-origin-allow-popups`. |
+| The `retryDelay: 0` `QueryClient` mock block in `tests/setup.ts` (the block, not the file)                                                                                                                                                         | Byte-identical loading templates and section states need the same retry timing in both apps' unit suites.                                                                                                                                                                                                                                                                      |
+| The `resetListPositions` import and `afterEach` call in `tests/setup.ts` (the lines, not the file)                                                                                                                                                 | The list's page positions are module state, so a position one test records would reach the next test unless each test resets it.                                                                                                                                                                                                                                               |
+| The `ClientSettings` interface in each app's `src/types/api.types.ts` (the files differ, the interface does not)                                                                                                                                   | One read of express's `GET /status/client-settings`. `api.types.ts` is an expo row in the manifest, so apex's copy of the interface is not covered by `cmp`: check it by hand.                                                                                                                                                                                                 |
+| `nginx.conf`'s `location = /runtime-config.js` and its `.map` location                                                                                                                                                                             | One run-time configuration contract and no source map ever served.                                                                                                                                                                                                                                                                                                             |
+| `docker/check-image.sh`, `pnpm-workspace.yaml`, `e2e/nginx/cors.test.ts`                                                                                                                                                                           | Same container checks and dependency overrides. `check-image.sh` is per-app because its expected CSP, COOP and Permissions-Policy lines match each app's `nginx.conf`.                                                                                                                                                                                                         |
+| The `setErrorRouteSource` line in `src/router.tsx`                                                                                                                                                                                                 | Router errors reported with their route the same way.                                                                                                                                                                                                                                                                                                                          |
+| `vitest.config.ts`'s React Compiler plugin block (`babel({ presets: [reactCompilerPreset()] })`)                                                                                                                                                   | The unit suite runs under the compiler, so a value the compiler would cache at render fails a unit test in both apps.                                                                                                                                                                                                                                                          |
+| `scripts/check-bundle.mjs`, except `ENTRY_BUDGET_BYTES` (each app's measured budget) and apex's `BILLING_ADMIN_MODULE` rule                                                                                                                        | One first-visit budget check; the budgets differ.                                                                                                                                                                                                                                                                                                                              |
+| The `lint` block of `vite.config.ts` and `eslint.config.js`'s shared conventions                                                                                                                                                                   | Same conventions; each app adds its own import restrictions and file lists.                                                                                                                                                                                                                                                                                                    |
+| The intro, `*`, `alert.tsx`, `button.tsx` and `### command.tsx` sections of `docs/ui-local-edits.md`, and the `ui:drift` scripts, CI step, `scripts/ui-registry` ignores, CODEOWNERS line and `shadcn` Renovate rule                               | Byte-identical vendored components and the one drift check over them. The snapshot itself is each app's own.                                                                                                                                                                                                                                                                   |
+| `index.html`'s `<style id="boot-shell">` block and `#root` markup (not its `<style id="boot-tokens">` colours, each app's own)                                                                                                                     | One first-paint shell; the colours are pinned to each app's `globals.css`.                                                                                                                                                                                                                                                                                                     |
 
 The error scrubber is also held in step with express-boilerplate; see
 [The scrubber](SECURITY.md#the-scrubber).

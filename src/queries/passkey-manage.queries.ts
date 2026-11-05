@@ -1,12 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FRONTEND_APP } from '@/constants/frontend-app'
 import { apiClient, unwrap } from '@/http/client'
-import {
-  createPasskeyCredential,
-  signalAcceptedPasskeys,
-  signalPasskeyUser,
-  type PublicKeyCredentialCreationOptionsJSON,
-} from '@/lib/webauthn'
+import { webauthn } from '@/ports/webauthn'
 import {
   passkeyKeys,
   passkeySupportQueryOptions,
@@ -16,6 +11,7 @@ import { passkeyNameSchema } from '@/schemas/passkey.schemas'
 import { useAuthStore } from '@/states/auth.store'
 import type { ApiSuccess } from '@/types/api.types'
 import type { PasskeyChallenge, PasskeyList, PublicPasskey } from '@/types/passkey.types'
+import type { PublicKeyCredentialCreationOptionsJSON } from '@/types/webauthn.types'
 
 /**
  * Managing passkeys lives apart from `passkey.queries.ts`, which the sign-in
@@ -51,7 +47,7 @@ export function useCreatePasskey() {
           { app: FRONTEND_APP }
         )
       )
-      const response = await createPasskeyCredential(options)
+      const response = await webauthn.create(options)
       return unwrap(
         await apiClient.post<ApiSuccess<{ passkey: PublicPasskey }>>(
           '/auth/passkeys/registration/verify',
@@ -61,7 +57,7 @@ export function useCreatePasskey() {
     },
     onSuccess: ({ passkey }) => {
       const user = useAuthStore.getState().user
-      if (config && user) signalPasskeyUser(config.rpId, user)
+      if (config && user) webauthn.signalUser(config.rpId, user)
       const cached = queryClient.getQueryData<PasskeyList>(passkeyKeys.list)
       if (cached) {
         queryClient.setQueryData<PasskeyList>(passkeyKeys.list, {
@@ -92,7 +88,7 @@ export function useRenamePasskey() {
       ),
     onSuccess: ({ passkey }) => {
       const user = useAuthStore.getState().user
-      if (config && user) signalPasskeyUser(config.rpId, user)
+      if (config && user) webauthn.signalUser(config.rpId, user)
       queryClient.setQueryData<PasskeyList>(passkeyKeys.list, (cached) =>
         cached
           ? { ...cached, passkeys: cached.passkeys.map((p) => (p.id === passkey.id ? passkey : p)) }
@@ -120,7 +116,7 @@ export function useDeletePasskey() {
       ),
     onSuccess: (list) => {
       queryClient.setQueryData<PasskeyList>(passkeyKeys.list, list)
-      if (config) signalAcceptedPasskeys(config.rpId, list.userHandle, list.passkeys)
+      if (config) webauthn.signalAccepted(config.rpId, list.userHandle, list.passkeys)
     },
   })
 }

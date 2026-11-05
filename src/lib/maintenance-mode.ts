@@ -5,17 +5,12 @@
  */
 import type { QueryClient } from '@tanstack/react-query'
 import type { AnyRouter } from '@tanstack/react-router'
-import { AxiosHeaders, isAxiosError, type AxiosInstance, type RawAxiosHeaders } from 'axios'
-import { MAINTENANCE_MODE_HEADER, MAINTENANCE_VIEWED_KEY } from '@/constants/maintenance-mode'
+import { isAxiosError, type AxiosInstance } from 'axios'
+import { MAINTENANCE_VIEWED_KEY } from '@/constants/maintenance-mode'
 import { ensureSession } from '@/http/session'
+import { maintenanceHeaderValue } from '@/lib/maintenance-state'
 import { useMaintenanceModeStore } from '@/states/maintenance-mode.store'
 import { MAINTENANCE_MODE, READ_ONLY_MODE } from '@/types/api.types'
-
-/** The `Maintenance-Mode` value on a response's headers, matched case-insensitively. */
-function headerValue(headers: unknown): unknown {
-  if (typeof headers !== 'object' || headers === null) return undefined
-  return AxiosHeaders.from(headers as RawAxiosHeaders).get(MAINTENANCE_MODE_HEADER)
-}
 
 /**
  * Reads every response `client` returns, success or failure, into the
@@ -30,14 +25,14 @@ export function installMaintenanceModeInterceptor(client: AxiosInstance): void {
   const store = () => useMaintenanceModeStore.getState()
   client.interceptors.response.use(
     (response) => {
-      store().setFromHeader(headerValue(response.headers))
+      store().setFromHeader(maintenanceHeaderValue(response.headers))
       return response
     },
     (error: unknown) => {
       if (isAxiosError<unknown>(error) && error.response) {
         const { status, headers } = error.response
         const data = error.response.data
-        store().setFromHeader(headerValue(headers))
+        store().setFromHeader(maintenanceHeaderValue(headers))
         const code =
           typeof data === 'object' && data !== null ? (data as { code?: unknown }).code : undefined
         if (status === 503 && (code === MAINTENANCE_MODE || code === READ_ONLY_MODE)) {

@@ -8,18 +8,24 @@ changing one is a deliberate act, not a tidy-up.
 - What it defends against: [SECURITY.md](SECURITY.md).
 - How to run, configure and deploy it: [README.md](README.md).
 
-## Sibling sync
+## Shared core
 
-`apex-boilerplate` shares the HTTP layer, analytics, flags, error tracking, most
-of the container and several components with this app.
+This app is the source of the files it shares with `apex-boilerplate` and
+`expo-boilerplate`. `shared-core.json` lists each shared file and the apps that
+hold it, and [Shared core](ARCHITECTURE.md#shared-core) holds the table, the
+ports and the rules.
 
-- **Change a shared path in apex in the same pull request (PR)**, and say in the
-  description what happened there ("ported in apex#N", or "not applicable
-  because …").
-- **For a file the two apps hold byte for byte, change this copy first** and
-  copy it to apex. The exception is `scrub.ts`, whose rules change in express
-  first. The paths are listed in
-  [Sibling sync with apex](ARCHITECTURE.md#sibling-sync-with-apex).
+- **Change a shared path in each app its row names in the same pull request
+  (PR)**, and say in the description what happened there ("ported in apex#N",
+  or "not applicable because ...").
+- **Change this copy first, then copy it to the other apps.** The exception is
+  `scrub.ts`, whose rules change in express first.
+- **The purity rules bind expo rows only.** An expo row uses no browser global
+  or banned package and imports only shared files and ports; apex rows are byte
+  for byte copies.
+- **A new shared file, or a new row app, is an edit to `shared-core.json` and to
+  the table in ARCHITECTURE.md.** `pnpm check:shared` (in the gate) fails when
+  they differ.
 
 ## Staff on tenant pages
 
@@ -154,7 +160,7 @@ and [Sign-out rules](SECURITY.md#sign-out-rules).
 - **Run a write that may need a recent sign-in through `useStepUp().run`.** A
   401 `REAUTH_REQUIRED` then opens the dialog and retries once; no caller shows
   "sign in again". The shared passkey and step-up files are apex's copy
-  source ([Sibling sync with apex](ARCHITECTURE.md#sibling-sync-with-apex)):
+  source ([Shared core](ARCHITECTURE.md#shared-core)):
   change them here first.
 - **Only an auth verdict signs a user out** (`isAuthVerdict`). If you widen it to
   any error, every user is signed out during a deploy.
@@ -222,7 +228,7 @@ How it works is in [Maintenance mode](ARCHITECTURE.md#maintenance-mode).
 - **Only a known `Maintenance-Mode` value moves the mode.** A response with no
   header, such as nginx's 502 page, or with an unknown value changes nothing. If you
   loosen this, maintenance ends on every deploy's first 502.
-- **Read the header in `src/lib/maintenance-mode.ts`, never in `src/http/`.**
+- **Parse the header in `src/lib/maintenance-state.ts`, never in `src/http/`.**
   `src/http/` is shared with apex, which has no maintenance handling.
 - **A maintenance 503 is never a sign-out, and the layout guards never redirect
   while the mode is `full`.** The URL is what recovery returns the user to. The API

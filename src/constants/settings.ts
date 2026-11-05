@@ -8,6 +8,7 @@ import {
   IconBell,
   IconBuilding,
   IconCreditCard,
+  IconTrash,
   IconShieldLock,
   IconUser,
   IconUsers,
@@ -39,6 +40,7 @@ export type AccountSettingsPath =
   | '/settings/account/profile'
   | '/settings/account/security'
   | '/settings/account/notifications'
+  | '/settings/account/delete'
 
 /** A workspace settings page's path, under the tenant it acts on. */
 export type WorkspaceSettingsPath =
@@ -75,6 +77,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     label: 'Notifications',
     description: 'How each kind of notification reaches you.',
     Icon: IconBell,
+  },
+  {
+    group: 'account',
+    to: '/settings/account/delete',
+    label: 'Delete account',
+    description: 'Ask us to delete your account.',
+    Icon: IconTrash,
   },
   {
     group: 'workspace',

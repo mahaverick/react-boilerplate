@@ -113,11 +113,42 @@ for var in POSTHOG_KEY POSTHOG_UI_HOST ANALYTICS_CONSENT_MODE ANALYTICS_HANDOFF_
   esac
 done
 
+# The app-association variables stop the container the same way. Their own
+# script names them, and the log never shows the value.
+for var in IOS_APP_IDS ANDROID_APP_LINKS; do
+  docker run -d --name "$name-bad" --read-only --tmpfs /tmp --add-host=api:127.0.0.1 \
+    -e "$var=$probe" "$image" >/dev/null
+  for _ in $(seq 1 30); do
+    [ "$(docker inspect -f '{{.State.Running}}' "$name-bad")" = false ] && break
+    sleep 1
+  done
+  state=$(docker inspect -f '{{.State.Running}} {{.State.ExitCode}}' "$name-bad")
+  logs=$(docker logs "$name-bad" 2>&1)
+  docker rm -f "$name-bad" >/dev/null
+  case $state in
+    'false 0' | true*) problem "started with an invalid $var ($state)" ;;
+  esac
+  case $logs in
+    *"15-app-links.sh: $var must be"*) ;;
+    *) problem "no validation message for an invalid $var: $logs" ;;
+  esac
+  case $logs in
+    *"$probe"*) problem "the log of an invalid $var shows its value" ;;
+  esac
+done
+
+# A fingerprint is 32 uppercase hex pairs joined by colons.
+fingerprint_a=$(printf 'AB:%.0s' $(seq 31))AB
+fingerprint_b=$(printf '0F:%.0s' $(seq 31))0F
+android_links="test.example.app:$fingerprint_a,test.example.beta:$fingerprint_b"
+
 # Started with run-time settings, passed the way every deployment passes them:
 # plain environment variables.
 docker run -d --name "$name" -p "127.0.0.1:$port:8080" --read-only --tmpfs /tmp \
   --add-host=api:127.0.0.1 -e POSTHOG_KEY=phc_test_key_not_real -e APP_ENVIRONMENT=check \
-  -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test "$image" >/dev/null
+  -e ANALYTICS_HANDOFF_ORIGINS=https://www.example.test \
+  -e IOS_APP_IDS=ABCDE12345.test.example.app,ZYXWV98765.test.example.beta \
+  -e "ANDROID_APP_LINKS=$android_links" "$image" >/dev/null
 for _ in $(seq 1 30); do
   curl -sf -o /dev/null "$base/" && break
   sleep 1
@@ -257,6 +288,13 @@ else
       || problem "proxied $path: Content-Security-Policy is not the API's own"
   done
 fi
+# That container was started without the app-association variables, so both
+# files are absent: a real 404 from the exact-match locations, not index.html.
+for path in /.well-known/apple-app-site-association /.well-known/assetlinks.json; do
+  status=$(curl -s -o "$work/body" -w '%{http_code}' "http://127.0.0.1:$api_port$path" || true)
+  [ "$status" = 404 ] || problem "$path with its variable unset answered $status, not 404"
+  if grep -q 'id="root"' "$work/body"; then problem "$path with its variable unset was answered with index.html"; fi
+done
 curl -s -D "$work/headers" -o /dev/null "$base/theme-init.js"
 [ "$(header Content-Type "$work/headers")" = application/javascript ] || problem "/theme-init.js is not served as JavaScript"
 [ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/theme-init.js is not no-store"
@@ -299,6 +337,34 @@ case $(curl -sf "$base/" || true) in
   *'<script src="/runtime-config.js"'*) ;;
   *) problem "index.html does not load /runtime-config.js" ;;
 esac
+
+# The app-association files: served as JSON, not cached, and with both relations
+# for each package. The security headers come from the server block, because no
+# location here declares an add_header.
+curl -s -D "$work/headers" -o "$work/body" -w '%{http_code}' "$base/.well-known/apple-app-site-association" >"$work/status"
+[ "$(cat "$work/status")" = 200 ] || problem "/.well-known/apple-app-site-association answered $(cat "$work/status"), not 200"
+[ "$(header Content-Type "$work/headers")" = application/json ] \
+  || problem "/.well-known/apple-app-site-association is not served as application/json"
+[ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/.well-known/apple-app-site-association is not no-store"
+[ "$(header X-Content-Type-Options "$work/headers")" = nosniff ] \
+  || problem "/.well-known/apple-app-site-association carries no security headers"
+for id in ABCDE12345.test.example.app ZYXWV98765.test.example.beta; do
+  [ "$(grep -o "\"$id\"" "$work/body" | wc -l | tr -d ' ')" = 2 ] \
+    || problem "the apple-app-site-association file does not list $id under both applinks and webcredentials"
+done
+curl -s -D "$work/headers" -o "$work/body" -w '%{http_code}' "$base/.well-known/assetlinks.json" >"$work/status"
+[ "$(cat "$work/status")" = 200 ] || problem "/.well-known/assetlinks.json answered $(cat "$work/status"), not 200"
+[ "$(header Content-Type "$work/headers")" = application/json ] \
+  || problem "/.well-known/assetlinks.json is not served as application/json"
+[ "$(header Cache-Control "$work/headers")" = no-store ] || problem "/.well-known/assetlinks.json is not no-store"
+[ "$(header X-Content-Type-Options "$work/headers")" = nosniff ] \
+  || problem "/.well-known/assetlinks.json carries no security headers"
+for want in test.example.app test.example.beta "$fingerprint_a" "$fingerprint_b" \
+  delegate_permission/common.handle_all_urls delegate_permission/common.get_login_creds; do
+  grep -qF "$want" "$work/body" || problem "/.well-known/assetlinks.json lacks $want"
+done
+[ "$(grep -o 'common.handle_all_urls' "$work/body" | wc -l | tr -d ' ')" = 2 ] \
+  || problem "/.well-known/assetlinks.json does not hold one statement per package"
 
 # A missing asset is a real 404 that no cache keeps: no Cache-Control, and not index.html.
 status=$(curl -s -D "$work/headers" -o "$work/body" -w '%{http_code}' "$base/assets/does-not-exist.js")

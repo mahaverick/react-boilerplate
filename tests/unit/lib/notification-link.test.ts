@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { notificationLink } from '@/lib/notification-link'
 import type { Notification } from '@/queries/notification.queries'
+import { describe, expect, it } from '@/tests/support/runner'
 
 /**
  * A notification of one type.

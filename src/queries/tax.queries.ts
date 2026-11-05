@@ -6,7 +6,6 @@ import {
 } from '@tanstack/react-query'
 import { apiClient, unwrap } from '@/http/client'
 import { codeFrom, statusFrom } from '@/lib/api-error'
-import { documentFilename, downloadFile } from '@/lib/download-file'
 import { billingKeys } from '@/queries/billing.queries'
 import type { ApiSuccess } from '@/types/api.types'
 import type { ListPage } from '@/types/list.types'
@@ -15,7 +14,6 @@ import {
   TAX_DOCUMENTS_DISABLED,
   type TaxDetails,
   type TaxDetailsPatch,
-  type TaxDocumentRef,
   type TaxDocumentView,
 } from '@/types/tax.types'
 
@@ -96,17 +94,4 @@ export function useSaveTaxDetails(slug: string) {
       }
     },
   })
-}
-
-/**
- * Saves a tax document's PDF. Rejects with the axios error; the caller shows
- * the toast.
- * @param slug - The tenant.
- * @param doc - The document to save.
- */
-export async function downloadTaxDocument(slug: string, doc: TaxDocumentRef): Promise<void> {
-  await downloadFile(
-    `/tenants/${slug}/billing/tax-documents/${doc.id}/pdf`,
-    documentFilename(doc.number)
-  )
 }

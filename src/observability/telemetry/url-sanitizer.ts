@@ -6,7 +6,16 @@
  * recursively, to a fixed depth, and sanitises every absolute http(s) string
  * it finds rather than a fixed list of keys.
  */
-import type { CaptureResult } from 'posthog-js'
+
+/**
+ * The fields of a posthog-js `CaptureResult` the sanitizer reads. The real
+ * type satisfies it, so `sanitizeEventUrls` takes and returns the caller's own.
+ */
+interface CaptureResult {
+  properties: Record<string, unknown>
+  $set?: Record<string, unknown> | undefined
+  $set_once?: Record<string, unknown> | undefined
+}
 
 /** A base for parsing relative URLs; never part of a result. */
 const RELATIVE_BASE = 'http://relative.invalid'
@@ -144,10 +153,10 @@ function sanitizeRecord(
  * @param allowlist - Query keys that may survive.
  * @returns A sanitised copy; the input is not mutated.
  */
-export function sanitizeEventUrls(
-  event: CaptureResult,
+export function sanitizeEventUrls<T extends CaptureResult>(
+  event: T,
   allowlist: readonly string[]
-): CaptureResult {
+): T {
   return {
     ...event,
     properties: sanitizeRecord(event.properties, allowlist) ?? {},

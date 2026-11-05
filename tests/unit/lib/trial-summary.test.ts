@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { trialSummary } from '@/lib/trial-summary'
 import { testEntitlements, testPlans } from '@/tests/fixtures/billing'
+import { describe, expect, it } from '@/tests/support/runner'
 import type { PublicPlan, TenantEntitlements } from '@/types/billing.types'
 
 const FREE = testPlans.plans.find((plan) => plan.key === 'free') as PublicPlan

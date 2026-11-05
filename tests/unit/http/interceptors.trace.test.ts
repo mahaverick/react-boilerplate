@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import { installInterceptors } from '@/http/interceptors'
+import { installInterceptors } from '@/http/client'
 import { resetSessionForTests } from '@/http/session'
 import * as analytics from '@/observability/telemetry'
 import { useAuthStore } from '@/states/auth.store'

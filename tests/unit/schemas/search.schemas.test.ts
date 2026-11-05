@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { searchText } from '@/schemas/search.schemas'
+import { describe, expect, it } from '@/tests/support/runner'
 
 describe('searchText', () => {
   it('keeps text', () => {

@@ -1,7 +1,7 @@
 import { IconCheck, IconMinus } from '@tabler/icons-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { yearlySaving } from '@/copy/billing'
 import { formatInr } from '@/lib/billing-format'
-import { yearlySaving } from '@/lib/billing-page'
 import type {
   BillingInterval,
   EntitlementCatalogEntry,

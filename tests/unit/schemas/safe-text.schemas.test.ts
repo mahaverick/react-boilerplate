@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vite-plus/test'
 import { normalizeMultilineText, safeText } from '@/schemas/safe-text.schemas'
+import { describe, expect, it } from '@/tests/support/runner'
 
 // Mirrors express's tests/unit/validators/safe-text.validators.test.ts, so both sides accept and refuse the same kinds of text.
 describe('safeText', () => {
