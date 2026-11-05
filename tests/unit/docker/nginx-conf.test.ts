@@ -80,4 +80,28 @@ describe('nginx.conf', () => {
     expect(api).toContain('proxy_pass ${API_UPSTREAM};')
     expect(proxyDirectives(locationBody(CALLBACK))).toEqual(api)
   })
+
+  it.each([
+    ['apple-app-site-association', 'application/json'],
+    ['assetlinks.json', 'application/json'],
+  ])(
+    'serves /.well-known/%s from an exact-match location as %s, with no add_header',
+    (file, type) => {
+      const body = locationBody(`location = /.well-known/${file}`)
+      expect(body).toContain(`default_type ${type};`)
+      expect(body).toContain(`alias /tmp/runtime/well-known/${file};`)
+      expect(body).not.toContain('add_header')
+      expect(body).not.toContain('try_files')
+    }
+  )
+
+  it('keeps every well-known location from falling through to the SPA fallback', () => {
+    const wellKnown = [...CONF.matchAll(/^ {2}location (\S.*) \{$/gm)]
+      .map((match) => match[1]!)
+      .filter((opening) => opening.includes('/.well-known/'))
+    expect(wellKnown).toEqual([
+      '= /.well-known/apple-app-site-association',
+      '= /.well-known/assetlinks.json',
+    ])
+  })
 })

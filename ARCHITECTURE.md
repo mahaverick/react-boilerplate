@@ -1274,7 +1274,9 @@ in-memory filesystem).
      `API_UPSTREAM`.
   2. `docker/10-runtime-config.sh` validates the run-time settings and writes
      `/tmp/runtime/runtime-config.js`.
-  3. The stock envsubst script renders `nginx.conf`. It substitutes
+  3. `docker/15-app-links.sh` validates `IOS_APP_IDS` and `ANDROID_APP_LINKS`
+     and writes `/tmp/runtime/well-known/`.
+  4. The stock envsubst script renders `nginx.conf`. It substitutes
      `API_UPSTREAM` and nothing else, so nginx's own variables survive.
 
   A failing script stops the container before nginx starts.
@@ -1285,6 +1287,10 @@ in-memory filesystem).
 - gives `/api/v1/collect/` a larger request body, which streams to the API,
   for replay batches;
 - serves `/runtime-config.js` from where the entrypoint wrote it;
+- serves `/.well-known/apple-app-site-association` and
+  `/.well-known/assetlinks.json` from exact-match locations, as
+  `application/json`. A variable left unset leaves its file absent, which is a
+  real 404 and never `index.html`;
 - answers a missing file under `/assets/` with a real 404 rather than
   `index.html`;
 - falls back to `index.html` for every other path.
@@ -1295,8 +1301,8 @@ location is covered in [CSP and headers](SECURITY.md#csp-and-headers).
 **Cache-Control** is chosen by a `map` on the URI, not per location:
 
 - Hashed assets are immutable for a year.
-- `index.html`, `theme-init.js`, the favicon and `runtime-config.js` are
-  `no-store`, so a deploy never leaves a browser asking for asset names it
+- `index.html`, `theme-init.js`, the favicon, `runtime-config.js` and the two
+  app-association files are `no-store`, so a deploy never leaves a browser asking for asset names it
   removed.
 
 The security headers, the reason no location declares an `add_header`, and
@@ -1318,6 +1324,11 @@ build argument. The flow:
      prefix from `import.meta.env`.
    - On the dev and preview servers, `scripts/runtime-config-plugin.mjs`
      renders `/runtime-config.js` from those `VITE_` names.
+
+The two app-association variables are the exception to that flow: the browser
+never reads them, so they have no `RUNTIME_CONFIG_KEYS` entry, no `VITE_` name
+and no plugin entry. They touch `docker/15-app-links.sh`, `docker/check-image.sh`,
+the Dockerfile, `nginx.conf`, `.env.example`'s comment and the README.
 
 **Adding a setting** is one change that edits all of these:
 

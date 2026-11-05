@@ -98,6 +98,10 @@ COPY --chmod=0755 docker/05-prepare.sh /docker-entrypoint.d/05-prepare.sh
 # (see the script). The bundle is built once and holds none of them, so the
 # same image is promoted through every environment.
 COPY --chmod=0755 docker/10-runtime-config.sh /docker-entrypoint.d/10-runtime-config.sh
+# Writes /tmp/runtime/well-known/ from IOS_APP_IDS and ANDROID_APP_LINKS at
+# every start, for nginx's /.well-known/ locations, and stops the container on
+# an invalid value. Unset, it writes nothing and nginx answers 404.
+COPY --chmod=0755 docker/15-app-links.sh /docker-entrypoint.d/15-app-links.sh
 # Where nginx proxies /api, read at container start: scheme://host:port, no
 # path (see nginx.conf's /api/ location). The default assumes a compose
 # service named `api`.

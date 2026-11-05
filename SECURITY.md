@@ -471,6 +471,14 @@ patterns and defaults are in the
 - **Every value is public.** Each browser fetches `/runtime-config.js`, so
   nothing secret goes in it. The PostHog project key may come from a secret
   store, but it is not a secret.
+- **The app-association variables are checked the same way.**
+  `docker/15-app-links.sh` matches every entry of `IOS_APP_IDS` and
+  `ANDROID_APP_LINKS` against its pattern and refuses a newline, so each value
+  is written into JSON unescaped. No pattern admits a quote, a backslash, a
+  space or a `<`. A mismatch stops the container, naming the variable and never
+  showing the value. The files are public by design: a verifier fetches them
+  without credentials, and they hold only app identifiers and certificate
+  fingerprints.
 - **`API_UPSTREAM` is checked too.** `docker/05-prepare.sh` refuses anything
   but `http(s)://host[:port]` with no path. envsubst substitutes only that
   variable into `nginx.conf`. A value can therefore neither rewrite the
