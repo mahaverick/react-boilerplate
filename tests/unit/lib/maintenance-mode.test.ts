@@ -4,7 +4,7 @@ import axios from 'axios'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { MAINTENANCE_VIEWED_KEY } from '@/constants/maintenance-mode'
-import { installInterceptors } from '@/http/interceptors'
+import { installInterceptors } from '@/http/client'
 import { resetSessionForTests } from '@/http/session'
 import {
   installMaintenanceModeInterceptor,

@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import { installInterceptors } from '@/http/interceptors'
+import { installInterceptors } from '@/http/client'
 import { ensureSession, installAnalyticsIdentity, resetSessionForTests } from '@/http/session'
 import { EXPOSURE_DEDUPE_PREFIX } from '@/observability/flags/exposure'
 import { flagKeys } from '@/observability/flags/flag-query'

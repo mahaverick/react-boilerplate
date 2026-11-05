@@ -13,7 +13,7 @@
 import axios from 'axios'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import { installInterceptors } from '@/http/interceptors'
+import { installInterceptors } from '@/http/client'
 import { resetSessionForTests } from '@/http/session'
 import { codeFrom, messageFrom } from '@/lib/api-error'
 import { useAuthStore } from '@/states/auth.store'
