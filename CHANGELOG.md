@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/mahaverick/react-boilerplate/compare/v1.1.0...v1.1.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **deps:** force patched undici, hono, systeminformation and five more ([#185](https://github.com/mahaverick/react-boilerplate/issues/185)) ([83c3c45](https://github.com/mahaverick/react-boilerplate/commit/83c3c452c7dc36910fe469bcd5fb5574f6278e54))
+
 ## [1.1.0](https://github.com/mahaverick/react-boilerplate/compare/v1.0.6...v1.1.0) (2026-11-05)
 
 
