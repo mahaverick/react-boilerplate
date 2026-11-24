@@ -31,6 +31,28 @@ overrides:
   # GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr: dompurify 3.4.16 and earlier. Via
   # posthog-js. Production. Patched in 3.4.17.
   dompurify@<3.4.17: ^3.4.17
+  # GHSA-4w7w-5xrc-9h26, GHSA-2m5v-pch6-74hx, GHSA-qrxm-fqhp-jwvm, GHSA-9fm3-97px-rjf6,
+  # GHSA-xjj6-f33q-929c: undici before 7.30.1 and 8.12.2. Via shadcn > @dotenvx/dotenvx
+  # (7.x) and jsdom (8.x), one entry per major line. Dev only.
+  undici@>=7 <7.30.1: ^7.30.1
+  undici@>=8 <8.12.2: ^8.12.2
+  # GHSA-3f7j-7jwc-fxfj, GHSA-4vjg-vx72-qq4g: via shadcn > @dotenvx/dotenvx. Dev only.
+  systeminformation@<5.33.16: ^5.33.16
+  # GHSA-5r4p-p66f-jhc7, GHSA-rmxm-3fg6-px4f: via the shadcn CLI's MCP server. Dev only.
+  hono@>=4.12.4 <4.13.11: ^4.13.11
+  '@hono/node-server@>=1.19.10 <2.1.3': ^2.1.3
+  # GHSA-6pq8-jhm2-2vcw: via the shadcn CLI's MCP server > express. Dev only.
+  qs@>=6.7.0 <6.16.1: ^6.16.1
+  # GHSA-27r3-jxmh-p828: via the shadcn CLI's MCP server > express. Dev only.
+  body-parser@>=2 <2.4.0: ^2.4.0
+  # GHSA-rxp7-6hxx-x8q5: via the MCP server's express-rate-limit and
+  # @shadcn/registry > socks. Dev only.
+  ip-address@<10.7.4: ^10.7.4
+  # GHSA-w74x-v6f9-j3xg, GHSA-xhq7-xmqj-769h, GHSA-wjr9-j795-jxcr, GHSA-333x-w4r6-6crp:
+  # via ajv (commitlint, the MCP server). Dev only.
+  fast-uri@>=3 <3.1.9: ^3.1.9
+  # GHSA-g3hv-75wg-m249: no 10.x fix, so eslint's minimatch 10 moves to 11. Dev only.
+  minimatch@>=7 <11.0.1: ^11.0.1
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
 auditConfig:
@@ -42,6 +64,12 @@ auditConfig:
     # from outside the repo, and nothing ships in the image. Remove once braces
     # ships a fix; revisit 2027-01-07.
     - GHSA-vfj7-8cjw-p6xm
+    # zod before 4.6.6 can exhaust memory validating an oversized constrained
+    # collection; no 3.x release has the fix. Dev only: shadcn and
+    # @shadcn/registry need zod ^3.24.1 and validate only the registry's own
+    # JSON. The app's zod is 4.6.7. Remove once shadcn moves to zod 4; revisit
+    # 2027-01-07.
+    - GHSA-mrhx-c7xc-m3w5
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@1.3.0
   vitest: 5.0.5
